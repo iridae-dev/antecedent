@@ -737,7 +737,7 @@ fn check(
         return Err(Error::UnsupportedSemantics("claim or calibration status"));
     }
     let contract = contract_from(declaration_from_wire(&meta.declaration)?)?;
-    if contract.identity().to_hex() != meta.contract_identity {
+    if !contract.accepts_identity_hex(&meta.contract_identity) {
         return Err(Error::IdentityMismatch { field: "contract_identity" });
     }
     let spec = spec_from_wire(&meta.spec)?;

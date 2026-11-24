@@ -835,4 +835,19 @@ mod tests {
         assert_eq!(units.validate().unwrap_err().detail, "evidence_envelope.quantity");
         assert!(EvidenceEnvelope::try_new(units, UncertaintyAxes::absent()).is_err());
     }
+
+    // Identity site `contract.evidence_envelope.write_binding` (formal/identity_sites.toml):
+    // structural premises are a set admitted only in canonical (strictly increasing) order, so
+    // no envelope can be built whose identity depends on listing order.
+
+    #[test]
+    fn site_write_binding_premises() {
+        let premises: Vec<Arc<str>> =
+            ["conditional_exchangeability", "consistency", "positivity"].map(Arc::from).to_vec();
+        crate::identity_laws::assert_canonical_set(&premises, |listed| {
+            let mut b = binding();
+            b.premises = Arc::from(listed);
+            EvidenceEnvelope::try_new(b, UncertaintyAxes::absent()).ok().map(|e| e.identity())
+        });
+    }
 }

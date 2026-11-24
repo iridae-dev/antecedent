@@ -837,3 +837,42 @@ fn invalid_external_receipts_refuse() {
     let nobody = external("s1", ExternalTrustLimit::ExternallyAttested { attestor: " ".into() });
     assert!(message(&new(vec![nobody]).unwrap_err()).contains("receipt_invalid"));
 }
+
+// ---------------------------------------------------------------------------
+// Identity sites (formal/identity_sites.toml)
+// ---------------------------------------------------------------------------
+
+/// `RobustResultArtifact::new`: receipts are a set keyed by structure (a second receipt for
+/// one structure is refused), stored in structure order, so the bytes do not depend on the
+/// order receipts were passed; the structures themselves are an ordered list the consumer
+/// retains its digests against, so their order is kept.
+#[test]
+fn identity_site_robust_receipts_are_a_set_and_structures_keep_their_order() {
+    let listed = sealed(vec![external("s1", attested()), external("s2", attested())]);
+    let reversed = sealed(vec![external("s2", attested()), external("s1", attested())]);
+    assert_eq!(listed.to_bytes("robust").unwrap(), reversed.to_bytes("robust").unwrap());
+    assert_eq!(listed.receipts()[0].atom_id, "s1");
+    let c = admissible(StructuralPolicy::RequireInvariantBestAction, require_supported());
+    let atoms = two_atoms();
+    let claims = supported_profile();
+    let result = assess(&c, &atoms, &claims);
+    assert!(
+        RobustResultArtifact::new(
+            &c,
+            result,
+            &claims,
+            &atoms,
+            vec![external("s1", attested()), external("s1", attested())],
+        )
+        .is_err()
+    );
+    let mut swapped = two_atoms();
+    swapped.swap(0, 1);
+    let ids: Vec<String> = listed.atom_digests().into_iter().map(|(id, _)| id).collect();
+    let swapped_result = assess(&c, &swapped, &claims);
+    let reordered =
+        RobustResultArtifact::new(&c, swapped_result, &claims, &swapped, vec![]).unwrap();
+    let swapped_ids: Vec<String> = reordered.atom_digests().into_iter().map(|(id, _)| id).collect();
+    assert_eq!(ids, vec!["s1".to_owned(), "s2".to_owned()]);
+    assert_eq!(swapped_ids, vec!["s2".to_owned(), "s1".to_owned()]);
+}

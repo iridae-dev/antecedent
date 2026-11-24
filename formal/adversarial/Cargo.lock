@@ -40,6 +40,9 @@ version = "0.0.0"
 dependencies = [
  "antecedent-contract",
  "antecedent-core",
+ "antecedent-design",
+ "antecedent-expr",
+ "antecedent-graph",
  "antecedent-io-core",
  "proptest",
 ]

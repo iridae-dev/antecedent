@@ -254,6 +254,35 @@ fn evaluation_refusal(error: &EstimationError) -> Error {
     }
 }
 
+/// Artifacts sealed before the v2 law content identity cite each law by its v1 identity
+/// ([`antecedent_expr::ExactDiscreteLaw::content_identity_v1`]). A cited law whose stored
+/// identity is the v1 identity of the law the replay read is the same law, so the replayed
+/// citation takes the stored spelling; every other field is still compared.
+fn accept_v1_law_identities(
+    stored: &CounterfactualTransportResultWire,
+    replayed: &mut CounterfactualTransportResultWire,
+    data: &ExactTransportData,
+) {
+    if stored.cited_laws.len() != replayed.cited_laws.len() {
+        return;
+    }
+    for (stored_law, replayed_law) in stored.cited_laws.iter().zip(replayed.cited_laws.iter_mut()) {
+        if stored_law.content_identity == replayed_law.content_identity {
+            continue;
+        }
+        let Some(index) = data
+            .law_identities()
+            .iter()
+            .position(|identity| identity.to_hex() == replayed_law.content_identity)
+        else {
+            continue;
+        };
+        if data.laws()[index].content_identity_v1().to_hex() == stored_law.content_identity {
+            replayed_law.content_identity.clone_from(&stored_law.content_identity);
+        }
+    }
+}
+
 /// The first stored result field that differs from the recomputed one.
 fn first_difference(
     stored: &CounterfactualTransportResultWire,
@@ -406,7 +435,9 @@ fn consume_identified(
         ExactEvaluationLimits { operations: wire.operation_limit, depth: wire.depth_limit };
     let point = evaluate_counterfactual_transport(&derivation, &data, evaluation, ctx)
         .map_err(|error| evaluation_refusal(&error))?;
-    if let Some(field) = first_difference(result, &counterfactual_transport_result_wire(&point)) {
+    let mut replayed = counterfactual_transport_result_wire(&point);
+    accept_v1_law_identities(result, &mut replayed, &data);
+    if let Some(field) = first_difference(result, &replayed) {
         return Err(Error::ResultMismatch { field });
     }
     Ok(ConsumedIdentifiedCounterfactualTransport { derivation, data, point, problem, query })
@@ -480,4 +511,77 @@ pub fn consume_counterfactual_transport(
         let (code, message) = error.refusal();
         IoError::Refused { code, message }
     })
+}
+
+#[cfg(test)]
+mod law_identity_tests {
+    use super::*;
+    use antecedent_core::{RegimeId, Value, VariableId};
+    use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
+    use std::sync::Arc;
+
+    fn data() -> ExactTransportData {
+        let axis = DiscreteAxis {
+            variable: VariableId::from_raw(0),
+            values: Arc::from([Value::Int64(0), Value::Int64(1)]),
+        };
+        let law = ExactDiscreteLaw::try_new(
+            "target",
+            RegimeId::from_raw(0),
+            [],
+            [axis],
+            [0.25, 0.75],
+            "snapshot",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        ExactTransportData::try_new(vec![law], 16).unwrap()
+    }
+
+    fn result(content_identity: String) -> CounterfactualTransportResultWire {
+        CounterfactualTransportResultWire {
+            numerator: 0,
+            denominator: 0,
+            probability: 0,
+            conditioning_mass: None,
+            conditioning_mass_checked: false,
+            cells_read: 0,
+            cited_laws: vec![CounterfactualTransportCitedLawWire {
+                population: "target".into(),
+                regime: 0,
+                interventions: vec![],
+                snapshot_identity: "snapshot".into(),
+                content_identity,
+            }],
+        }
+    }
+
+    /// An artifact sealed under the v1 law identity still replays; any other identity, or a
+    /// v1 identity with another field changed, is still a mismatch.
+    #[test]
+    fn v1_law_identities_are_accepted_on_replay() {
+        let data = data();
+        let law = &data.laws()[0];
+        let replayed = || result(data.law_identities()[0].to_hex());
+        let current = result(law.content_identity().to_hex());
+        let mut same = replayed();
+        accept_v1_law_identities(&current, &mut same, &data);
+        assert_eq!(first_difference(&current, &same), None);
+
+        let legacy = result(law.content_identity_v1().to_hex());
+        let mut accepted = replayed();
+        accept_v1_law_identities(&legacy, &mut accepted, &data);
+        assert_eq!(first_difference(&legacy, &accepted), None);
+
+        let forged = result("0".repeat(64));
+        let mut refused = replayed();
+        accept_v1_law_identities(&forged, &mut refused, &data);
+        assert_eq!(first_difference(&forged, &refused), Some("cited_laws"));
+
+        let mut relabelled = legacy;
+        relabelled.cited_laws[0].snapshot_identity.push('x');
+        let mut refused = replayed();
+        accept_v1_law_identities(&relabelled, &mut refused, &data);
+        assert_eq!(first_difference(&relabelled, &refused), Some("cited_laws"));
+    }
 }

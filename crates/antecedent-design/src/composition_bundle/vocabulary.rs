@@ -232,6 +232,31 @@ pub enum ProviderOrData {
 }
 
 impl ProviderOrData {
+    /// The fields in order, after the kind.
+    fn fields(&self) -> Vec<&str> {
+        match self {
+            Self::Provider { provider_id, snapshot_id, request_fingerprint } => {
+                vec![provider_id.as_str(), snapshot_id.as_str(), request_fingerprint.as_str()]
+            }
+            Self::Data { snapshot_id, digest } => vec![snapshot_id.as_str(), digest.as_str()],
+        }
+    }
+
+    /// Whether the v1 `|`-joined form is unambiguous: no field contains `|`.
+    pub(super) fn is_v1_plain(&self) -> bool {
+        self.fields().iter().all(|field| !field.contains('|'))
+    }
+
+    /// The v2 form: the kind and every field framed, so a `|` inside a field cannot move
+    /// content to the next field.
+    pub(super) fn write_v2(&self, writer: &mut antecedent_core::CanonicalWriter) {
+        let kind = match self {
+            Self::Provider { .. } => "provider",
+            Self::Data { .. } => "data",
+        };
+        writer.text("requires.v2").text(kind).texts(&self.fields());
+    }
+
     pub(super) fn canonical(&self) -> String {
         match self {
             Self::Provider { provider_id, snapshot_id, request_fingerprint } => {

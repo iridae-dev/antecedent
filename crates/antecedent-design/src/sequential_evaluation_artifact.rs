@@ -703,6 +703,22 @@ fn decision_receipt_wire(receipt: &DecisionReceipt) -> DecisionReceiptWire {
     }
 }
 
+/// Whether `stored` carries the identities of an artifact sealed before model
+/// identities wrote boundary states in ascending order: the model identity is the
+/// model's v1 identity, every other identity equals the replay's, and the
+/// evaluation identity is the one the stored body derives. Everything else is
+/// compared by the caller.
+fn legacy_identities(
+    model: &FiniteSequentialModel,
+    fresh: &SequentialEvaluationBody,
+    stored: &SequentialEvaluationBody,
+) -> bool {
+    stored.identities.model == model.identity_hex_v1()
+        && stored.identities.policy == fresh.identities.policy
+        && stored.identities.behaviour == fresh.identities.behaviour
+        && stored.identities.evaluation == evaluation_identity(stored)
+}
+
 fn evaluation_identity(body: &SequentialEvaluationBody) -> String {
     let mut writer = CanonicalWriter::new("antecedent.sequential_evaluation.evaluation");
     writer
@@ -993,7 +1009,7 @@ impl SequentialEvaluationArtifact {
         if fresh.rollout != body.rollout {
             return differs(sequential_evaluation::ROLLOUT_MISMATCH, "rollout diagnostic");
         }
-        if fresh.identities != body.identities {
+        if fresh.identities != body.identities && !legacy_identities(&model, &fresh, body) {
             return Err(identity_refused("identities"));
         }
         Ok(())

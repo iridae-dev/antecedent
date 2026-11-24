@@ -891,6 +891,23 @@ mod tests {
             source,
         )
     }
+    /// Candidates are a set keyed by their unique id (compile refuses a repeated id): every
+    /// listing order gives one identity; dropping a candidate or changing its controls changes it.
+    #[test]
+    fn site_candidate_set_identity() {
+        let (search, _) = fixture();
+        let all: Vec<ProgramCandidate> = search.candidates.to_vec();
+        let base = candidate_set_identity(&search.contract, &search.domain, &all);
+        assert_eq!(base, search.identity);
+        for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+            let listed: Vec<ProgramCandidate> = order.iter().map(|&i| all[i].clone()).collect();
+            assert_eq!(candidate_set_identity(&search.contract, &search.domain, &listed), base);
+        }
+        assert_ne!(candidate_set_identity(&search.contract, &search.domain, &all[1..]), base);
+        let mut changed = all.clone();
+        changed[1].controls[0] = 3.0;
+        assert_ne!(candidate_set_identity(&search.contract, &search.domain, &changed), base);
+    }
     #[test]
     fn finite_program_search_checks_budget_and_reuses_outputs_for_utility_changes() {
         let (search, source) = fixture();

@@ -963,7 +963,7 @@ fn check_receipt_matches(
     family: RepairFamilyRef<'_>,
     candidate: &DurableStudyCandidate,
 ) -> Result<Vec<EvidenceRegime>> {
-    if candidate.semantic_id().as_ref() != receipt.candidate_id {
+    if !candidate.accepts_semantic_id(&receipt.candidate_id) {
         return Err(ProposalReceiptError::mismatch(
             antecedent_core::reason_details::proposal_receipt::CANDIDATE_MISMATCH,
             "the candidate is not the one the receipt binds",

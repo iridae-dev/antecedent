@@ -43,7 +43,7 @@ use crate::evidence_ledger::{
 };
 
 /// Version word of the canonical choice-contract encoding.
-pub const CHOICE_DESIGN_VERSION: u64 = 1;
+pub const CHOICE_DESIGN_VERSION: u64 = 2;
 /// Most options a choice contract declares (the bound of the Dirichlet family).
 pub const MAX_CHOICE_CONTRACT_OPTIONS: usize = 64;
 /// Most retained sources a prior may rest on.
@@ -545,6 +545,15 @@ impl ChoiceDesignContract {
         self.identity
     }
 
+    /// Whether `stored` (hex) is this contract's identity under the current version or under
+    /// version 1, whose retained-source observation ids were written as listed. Artifacts
+    /// sealed under version 1 keep verifying.
+    #[must_use]
+    pub fn accepts_identity_hex(&self, stored: &str) -> bool {
+        stored == self.identity.to_hex()
+            || stored == identity_with(&self.declaration, CHOICE_DESIGN_VERSION_V1).to_hex()
+    }
+
     /// The procedure cell.
     #[must_use]
     pub const fn cell(&self) -> ProcedureCell {
@@ -672,9 +681,29 @@ impl ChoiceDesignContract {
     }
 }
 
+/// The version-1 identity of releases before the row-set identity: a retained source's
+/// observation ids were written as listed, so a reordering or the `a` / `a#0` spelling of one
+/// row changed it. Computed only to verify identities stored under it.
+const CHOICE_DESIGN_VERSION_V1: u64 = 1;
+
 fn identity_of(d: &ChoiceDesignDeclaration) -> SemanticDigest {
+    identity_with(d, CHOICE_DESIGN_VERSION)
+}
+
+/// The rows of a retained source as the ledger reads them: each id in its row spelling
+/// (`a` and `a#0` are one observation), sorted, a repeat kept once. An id the checks refuse
+/// keeps its own spelling behind a `!`, so it can never alias an accepted row.
+fn canonical_source_rows(ids: &[String]) -> Vec<String> {
+    let mut rows: Vec<String> =
+        ids.iter().map(|id| source_row(id).unwrap_or_else(|| format!("!{id}"))).collect();
+    rows.sort_unstable();
+    rows.dedup();
+    rows
+}
+
+fn identity_with(d: &ChoiceDesignDeclaration, version: u64) -> SemanticDigest {
     let mut w = CanonicalWriter::new("antecedent.choice_design.contract");
-    w.word(CHOICE_DESIGN_VERSION).text(&d.label);
+    w.word(version).text(&d.label);
     w.text(d.cell.assignment.as_str())
         .text(d.cell.outcome.as_str())
         .text(d.cell.monitoring.as_str())
@@ -690,7 +719,11 @@ fn identity_of(d: &ChoiceDesignDeclaration) -> SemanticDigest {
     w.word(d.retained_sources.len() as u64);
     for s in &d.retained_sources {
         w.text(&s.label).texts(&s.option_labels).text(&s.meaning).text(&s.population);
-        w.reals(&s.counts).texts(&s.observation_ids).real(s.discount);
+        if version == CHOICE_DESIGN_VERSION_V1 {
+            w.reals(&s.counts).texts(&s.observation_ids).real(s.discount);
+        } else {
+            w.reals(&s.counts).texts(&canonical_source_rows(&s.observation_ids)).real(s.discount);
+        }
         match &s.transfer_rationale {
             Some(t) => w.word(1).text(t),
             None => w.word(0),

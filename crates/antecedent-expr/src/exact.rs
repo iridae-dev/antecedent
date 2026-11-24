@@ -7,37 +7,13 @@ mod transport;
 pub use transport::ExactTransportData;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fmt::Write as _;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex};
 
-use antecedent_core::{RegimeId, Value, VariableId};
+use antecedent_core::recalc::StageIdentity;
+use antecedent_core::{CanonicalEncode, CanonicalWriter, RegimeId, Value, VariableId};
 
 pub(crate) use antecedent_kernels::numeric::CompensatedSum;
-
-/// Preserve `Debug`'s bytes while polling even when a formatter writes a long string at once.
-struct CheckedDescriptor<F> {
-    text: String,
-    check: F,
-}
-
-impl<F: FnMut() -> bool> std::fmt::Write for CheckedDescriptor<F> {
-    fn write_str(&mut self, text: &str) -> std::fmt::Result {
-        let mut start = 0;
-        while start < text.len() {
-            if !(self.check)() {
-                return Err(std::fmt::Error);
-            }
-            let mut end = start.saturating_add(4096).min(text.len());
-            while !text.is_char_boundary(end) {
-                end -= 1;
-            }
-            self.text.push_str(&text[start..end]);
-            start = end;
-        }
-        Ok(())
-    }
-}
 
 use crate::{Assignment, InterventionAssignment};
 #[cfg(test)]
@@ -122,6 +98,11 @@ pub struct DiscreteAxis {
 /// is a structural null event, which an exact evaluation may extend across; for a fitted or
 /// empirical law the same situation is reported as `sampling_zero` instead.
 pub(crate) const ZERO_CONDITIONING_MASS: &str = "zero_conditioning_mass";
+
+/// Domain tag of the v2 law content identity ([`ExactDiscreteLaw::content_identity`]).
+const CONTENT_IDENTITY_V2_TAG: &str = "antecedent.exact_law.content.v2";
+/// Stage label of the v1 law content identity ([`ExactDiscreteLaw::content_identity_v1`]).
+const CONTENT_IDENTITY_V1_LABEL: &str = "exact.law.content.v1";
 
 /// Located failure to validate or use an exact law.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -534,9 +515,33 @@ impl ExactDiscreteLaw {
     pub const fn regime(&self) -> RegimeId {
         self.regime
     }
-    /// Stable identity of the complete numerical provider contract.
+    /// Stable identity of the complete numerical provider contract (identity scheme v2).
+    ///
+    /// The law is written field by field on a [`CanonicalWriter`]: population and snapshot as
+    /// length-prefixed text, the regime, the intervention world as a set (sorted by variable;
+    /// construction refuses a repeated variable), the axes in their physical order (each
+    /// variable and its levels in order), the tolerance and every probability by bit pattern,
+    /// the origin, and the retained counts. Two laws share an identity only when every field
+    /// agrees; the order the intervention world was listed in does not reach the bytes.
+    ///
+    /// Identities written before this scheme ([`Self::content_identity_v1`]) still verify
+    /// through [`Self::accepts_content_identity`].
     #[must_use]
-    pub fn content_identity(&self) -> antecedent_core::recalc::StageIdentity {
+    pub fn content_identity(&self) -> StageIdentity {
+        let mut writer = CanonicalWriter::new(CONTENT_IDENTITY_V2_TAG);
+        match self.write_content_v2(&mut writer, || Ok::<(), std::convert::Infallible>(())) {
+            Ok(()) => {}
+            Err(never) => match never {},
+        }
+        StageIdentity::from_bytes(writer.finish())
+    }
+
+    /// The identity scheme of releases before v2: a `Debug`-formatted descriptor joined with
+    /// `:` and the probability bits. Its framing is not injective (a population or snapshot
+    /// text containing the separator can make two different laws share it), so it is computed
+    /// only to verify identities stored under it. New identities use [`Self::content_identity`].
+    #[must_use]
+    pub fn content_identity_v1(&self) -> StageIdentity {
         let descriptor = format!(
             "{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}:{:?}",
             self.population,
@@ -550,45 +555,78 @@ impl ExactDiscreteLaw {
         );
         let probabilities: Vec<u8> =
             self.probabilities.iter().flat_map(|value| value.to_bits().to_le_bytes()).collect();
-        antecedent_core::recalc::StageIdentity::of(
-            "exact.law.content.v1",
-            &[descriptor.as_bytes(), &probabilities],
-        )
+        StageIdentity::of(CONTENT_IDENTITY_V1_LABEL, &[descriptor.as_bytes(), &probabilities])
     }
-    /// The fallible constructor path checks cancellation while encoding the same bytes as
-    /// `content_identity`; the public infallible identity method remains unchanged.
-    fn content_identity_checked(
+
+    /// Whether `stored` is this law's content identity under the current scheme or under the
+    /// v1 scheme of earlier releases (dual acceptance on read).
+    #[must_use]
+    pub fn accepts_content_identity(&self, stored: &StageIdentity) -> bool {
+        *stored == self.content_identity() || *stored == self.content_identity_v1()
+    }
+
+    /// The v2 canonical encoding, polling `check` at bounded intervals.
+    fn write_content_v2<E>(
         &self,
-    ) -> Result<antecedent_core::recalc::StageIdentity, ExactLawError> {
-        self.check_cancelled()?;
-        let mut descriptor = CheckedDescriptor {
-            text: String::new(),
-            check: || !antecedent_core::numerical_admission::is_cancelled(),
-        };
-        write!(
-            descriptor,
-            "{}:{:?}:{:?}:{:?}:{}:{:?}:{:?}:{:?}",
-            self.population,
-            self.regime,
-            self.interventions,
-            self.axes,
-            self.snapshot_identity,
-            self.tolerance,
-            self.origin,
-            self.empirical_counts
-        )
-        .map_err(|_| self.error("cancelled"))?;
-        let mut probabilities = Vec::new();
-        for chunk in self.probabilities.chunks(1024) {
-            self.check_cancelled()?;
-            probabilities.extend(chunk.iter().flat_map(|value| value.to_bits().to_le_bytes()));
+        writer: &mut CanonicalWriter,
+        mut check: impl FnMut() -> Result<(), E>,
+    ) -> Result<(), E> {
+        check()?;
+        writer.text(&self.population).word(u64::from(self.regime.raw()));
+        let mut interventions: Vec<&InterventionAssignment> = self.interventions.iter().collect();
+        interventions.sort_by_key(|assignment| assignment.variable);
+        writer.word(interventions.len() as u64);
+        for (index, assignment) in interventions.iter().enumerate() {
+            if index % 1024 == 0 {
+                check()?;
+            }
+            assignment.variable.encode(writer);
+            assignment.value.encode(writer);
         }
-        self.check_cancelled()?;
-        antecedent_core::recalc::StageIdentity::try_of(
-            "exact.law.content.v1",
-            &[descriptor.text.as_bytes(), &probabilities],
-            || self.check_cancelled(),
-        )
+        writer.word(self.axes.len() as u64);
+        for axis in self.axes.iter() {
+            check()?;
+            axis.variable.encode(writer);
+            writer.word(axis.values.len() as u64);
+            for (index, value) in axis.values.iter().enumerate() {
+                if index % 1024 == 0 {
+                    check()?;
+                }
+                value.encode(writer);
+            }
+        }
+        writer.text(&self.snapshot_identity);
+        writer.real(self.tolerance.absolute).real(self.tolerance.relative);
+        writer.text(self.origin.as_str());
+        match &self.empirical_counts {
+            None => {
+                writer.word(0);
+            }
+            Some(counts) => {
+                writer.word(1).word(counts.len() as u64);
+                for chunk in counts.chunks(1024) {
+                    check()?;
+                    for &count in chunk {
+                        writer.word(count);
+                    }
+                }
+            }
+        }
+        writer.word(self.probabilities.len() as u64);
+        for chunk in self.probabilities.chunks(1024) {
+            check()?;
+            for &probability in chunk {
+                writer.real(probability);
+            }
+        }
+        check()
+    }
+
+    /// [`Self::content_identity`], checking cancellation at bounded intervals.
+    fn content_identity_checked(&self) -> Result<StageIdentity, ExactLawError> {
+        let mut writer = CanonicalWriter::new(CONTENT_IDENTITY_V2_TAG);
+        self.write_content_v2(&mut writer, || self.check_cancelled())?;
+        Ok(StageIdentity::from_bytes(writer.finish()))
     }
 
     fn check_cancelled(&self) -> Result<(), ExactLawError> {
@@ -1077,33 +1115,78 @@ mod tests {
         assert_eq!(error.kind, "cancelled");
     }
 
-    #[test]
-    fn descriptor_formatting_polls_long_utf8_writes_and_preserves_bytes() {
-        use std::fmt::Write as _;
-        let text = format!("{}é{}", "a".repeat(4095), "z".repeat(5000));
-        let mut calls = 0;
-        let mut writer = CheckedDescriptor {
-            text: String::new(),
-            check: || {
-                calls += 1;
-                true
-            },
-        };
-        write!(writer, "{text:?}").unwrap();
-        assert_eq!(writer.text, format!("{text:?}"));
-        drop(writer);
-        assert!(calls >= 3);
+    fn custom_law(
+        population: &str,
+        regime: u32,
+        interventions: Vec<InterventionAssignment>,
+        snapshot: &str,
+    ) -> ExactDiscreteLaw {
+        ExactDiscreteLaw::try_new(
+            population,
+            RegimeId::from_raw(regime),
+            interventions,
+            [axis(0), axis(1)],
+            [0.1, 0.2, 0.3, 0.4],
+            snapshot,
+            LawTolerance::default(),
+        )
+        .unwrap()
+    }
 
-        let mut calls = 0;
-        let mut writer = CheckedDescriptor {
-            text: String::new(),
-            check: || {
-                calls += 1;
-                calls < 2
-            },
-        };
-        assert!(std::fmt::Write::write_str(&mut writer, &text).is_err());
-        assert!(!writer.text.is_empty() && writer.text.len() < text.len());
+    /// The v1 descriptor joins raw population and snapshot text with `:`, so two laws over
+    /// different populations and regimes can share it; the v2 identity frames every field.
+    #[test]
+    fn v1_descriptor_collides_where_the_v2_identity_does_not() {
+        let axes = format!("{:?}", [axis(0), axis(1)]);
+        let regime = |raw: u32| format!("{:?}", RegimeId::from_raw(raw));
+        let first_population = "p".to_owned();
+        let second_population = format!("p:{}:[]:{axes}:x", regime(0));
+        let first_snapshot = format!("x:{}:[]:{axes}:s", regime(1));
+        let first = custom_law(&first_population, 0, vec![], &first_snapshot);
+        let second = custom_law(&second_population, 1, vec![], "s");
+        assert_eq!(first.content_identity_v1(), second.content_identity_v1());
+        assert_ne!(first.content_identity(), second.content_identity());
+        assert!(first.accepts_content_identity(&first.content_identity_v1()));
+        assert!(first.accepts_content_identity(&first.content_identity()));
+        assert!(!first.accepts_content_identity(&second.content_identity()));
+    }
+
+    #[test]
+    fn v2_identity_treats_the_intervention_world_as_a_set() {
+        let world = vec![
+            InterventionAssignment::concrete(v(5), Value::Int64(1)),
+            InterventionAssignment::concrete(v(6), Value::Int64(2)),
+        ];
+        let mut reversed = world.clone();
+        reversed.reverse();
+        let listed = custom_law("p", 0, world.clone(), "s");
+        let permuted = custom_law("p", 0, reversed, "s");
+        assert_eq!(listed.content_identity(), permuted.content_identity());
+        let mut changed = world;
+        changed[1] = InterventionAssignment::concrete(v(6), Value::Int64(3));
+        assert_ne!(listed.content_identity(), custom_law("p", 0, changed, "s").content_identity());
+        let zero = ExactDiscreteLaw::try_new(
+            "p",
+            RegimeId::from_raw(0),
+            [],
+            [axis(0), axis(1)],
+            [0.0, 0.5, 0.25, 0.25],
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let negative_zero = ExactDiscreteLaw::try_new(
+            "p",
+            RegimeId::from_raw(0),
+            [],
+            [axis(0), axis(1)],
+            [-0.0, 0.5, 0.25, 0.25],
+            "s",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        // Probabilities enter by bit pattern, as every canonical real does.
+        assert_ne!(zero.content_identity(), negative_zero.content_identity());
     }
 
     #[test]

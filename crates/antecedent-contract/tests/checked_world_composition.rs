@@ -462,3 +462,39 @@ fn preflight_returns_specific_errors_before_admission() {
         CheckedWorldPointError::Cancelled
     );
 }
+
+/// Identity site `contract.claim.world_point.compose_checked_world_points`
+/// (formal/identity_sites.toml): parents are matched to terms by target identity, so the
+/// order they are passed in never reaches the proof identity, and each parent's evidence
+/// references are a set (order and repetition do not change it, a changed reference does).
+#[test]
+fn site_checked_world_point_parents_and_evidence() {
+    let (target, first, second, p0, p1) = fixture();
+    let proof = |claims: [&ClaimEnvelope; 2], reversed: bool| {
+        let mut parents = vec![
+            WorldPointParent { claim: claims[0], target: &first },
+            WorldPointParent { claim: claims[1], target: &second },
+        ];
+        if reversed {
+            parents.reverse();
+        }
+        compose_checked_world_points(&target, &parents, &limits(), &ExecutionContext::for_tests(17))
+            .unwrap()
+            .proof_identity()
+    };
+    let base = proof([&p0, &p1], false);
+    assert_eq!(proof([&p0, &p1], true), base);
+    let with_evidence = |items: &[&str]| {
+        let mut claim = p0.clone();
+        claim.evidence = items.iter().map(|&item| Arc::from(item)).collect();
+        claim
+    };
+    let listed = with_evidence(&["alignment:joint_draws:snapshot", "data:study"]);
+    let reordered = with_evidence(&["data:study", "alignment:joint_draws:snapshot"]);
+    let repeated = with_evidence(&["data:study", "alignment:joint_draws:snapshot", "data:study"]);
+    let changed = with_evidence(&["alignment:joint_draws:snapshot", "data:other"]);
+    let listed_proof = proof([&listed, &p1], false);
+    assert_eq!(proof([&reordered, &p1], false), listed_proof);
+    assert_eq!(proof([&repeated, &p1], true), listed_proof);
+    assert_ne!(proof([&changed, &p1], false), listed_proof);
+}

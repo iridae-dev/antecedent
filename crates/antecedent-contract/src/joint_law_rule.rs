@@ -1776,4 +1776,46 @@ mod tests {
             assert_eq!(RequestedReading::from_name(reading.as_str()), Some(reading));
         }
     }
+
+    // Identity sites `contract.joint_law_rule.composed_interval.ComposedCoordinate.of` and
+    // `.over_horizons` (formal/identity_sites.toml): roles are a multiset (one entry per input;
+    // role names are fixed identifiers without the `,` or `|` separators), horizons a set.
+
+    #[test]
+    fn site_composed_coordinate_roles_and_horizons() {
+        let paired = request(
+            PropagationOperation::Product,
+            vec![aligned("x", "s", "joint_17"), aligned("y", "s", "joint_17")],
+            PropagationDependence::AlignedJointLaw,
+            RequestedReading::Point,
+        );
+        let plan = check_propagation(&paired).expect("aligned draws support a product");
+        let roles =
+            [InputRole::Estimate, InputRole::TransportedInterval, InputRole::SourceSampling];
+        crate::identity_laws::assert_multiset(&roles, |listed| {
+            let mut inputs = Vec::new();
+            for (index, role) in listed.iter().enumerate() {
+                let mut one = aligned(&format!("x{index}"), "s", "joint_17");
+                one.role = *role;
+                inputs.push(one);
+            }
+            let request = PropagationRequest { inputs, ..paired.clone() };
+            Some(ComposedCoordinate::of(&request, &plan).id())
+        });
+        for role in InputRole::ALL {
+            assert!(!role.as_str().contains([',', '|']), "{}", role.as_str());
+        }
+        let horizons = [1_u32, 2, 5];
+        crate::identity_laws::assert_set(&horizons, |listed| {
+            check_horizon_composition(
+                PropagationOperation::NonlinearFunctional,
+                listed,
+                "series_snapshot",
+                "replicates:7",
+                RequestedReading::Spread,
+            )
+            .ok()
+            .map(|(_, coordinate)| coordinate.id())
+        });
+    }
 }

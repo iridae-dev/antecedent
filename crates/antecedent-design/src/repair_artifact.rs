@@ -560,7 +560,7 @@ fn candidate_from_wire(
             .collect(),
         external_provider: wire.external_provider.as_deref().map(Arc::from),
     };
-    if candidate.semantic_id().as_ref() != wire.semantic_id {
+    if !candidate.accepts_semantic_id(&wire.semantic_id) {
         return Err(RepairArtifactError::invalid(
             "a stored candidate's semantic id does not match its content",
         ));

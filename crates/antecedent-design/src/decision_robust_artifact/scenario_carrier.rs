@@ -608,8 +608,10 @@ impl JointScenarioCarrier {
         if wire.version != 1
             || wire.program_identity != program_identity
             || wire.source_identity != self.identity()
-            || wire.contract_identity
-                != contract.identity().map_err(|e| refusal_error(&e, &e.to_refusal()))?
+            || !{
+                contract.identity().map_err(|e| refusal_error(&e, &e.to_refusal()))?;
+                contract.accepts_identity(&wire.contract_identity)
+            }
         {
             return Err(carrier_refused(
                 "result belongs to a different compiled source or decision",

@@ -376,4 +376,44 @@ mod tests {
         assert_eq!(deduped_coordinate_positions(&coordinates), vec![0, 1]);
         assert_eq!(coordinates[0].variable_name, "outcome");
     }
+
+    // Identity site `contract.quantity.ScientificQuantity.write_canonical`
+    // (formal/identity_sites.toml): conditioning is a set admitted only in its canonical
+    // (ascending, one condition per variable) spelling, and every text field is framed.
+
+    fn quantity_digest(q: &ScientificQuantity) -> Option<[u8; 32]> {
+        q.validate().ok()?;
+        let mut writer = antecedent_core::identity::CanonicalWriter::new("site.quantity");
+        q.write_canonical(&mut writer);
+        Some(writer.finish())
+    }
+
+    #[test]
+    fn site_scientific_quantity_conditioning_and_framing() {
+        let condition = |variable: &str, value: &str| QuantityCondition {
+            variable_id: variable.into(),
+            value_id: value.into(),
+        };
+        let conditions =
+            [condition("schema:a", "low"), condition("schema:b", "x"), condition("schema:c", "y")];
+        crate::identity_laws::assert_canonical_set(&conditions, |listed| {
+            let mut q = quantity();
+            q.conditioning = listed.to_vec();
+            quantity_digest(&q)
+        });
+        let mut inputs = Vec::new();
+        for units in ["kg", "kg:", ":kg", ""] {
+            for transform in ["identity", "", "kgidentity"] {
+                let mut q = quantity();
+                q.units = units.into();
+                q.transform_id = transform.into();
+                inputs.push(q);
+            }
+        }
+        crate::identity_laws::assert_injective(
+            &inputs,
+            |q| (q.units.clone(), q.transform_id.clone()),
+            quantity_digest,
+        );
+    }
 }

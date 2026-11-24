@@ -502,7 +502,9 @@ fn validate_coordinate(parts: &SensitivityParts) -> Result<(), IoError> {
             "a grid point lies outside the declared assumption range",
         ));
     }
-    if parts.grid.windows(2).any(|w| w[0].total_cmp(&w[1]) != Ordering::Less) {
+    // Numerically distinct: `-0.0` and `0.0` are one assumption value, so a grid holding both
+    // would carry two surface rows for one point. Grid points are finite (checked above).
+    if parts.grid.windows(2).any(|w| w[0] >= w[1]) {
         return Err(invalid_surface("grid points must be distinct"));
     }
     Ok(())
@@ -1530,5 +1532,111 @@ mod multilinear_tests {
         assert!(!UtilityTerm::product(q("x"), UtilityTerm::sum(q("y"), q("x"))).is_multilinear());
         assert!(!UtilityTerm::Min(Box::new(q("x")), Box::new(q("y"))).is_multilinear());
         assert!(UtilityTerm::product(UtilityTerm::Const(2.0), q("x")).is_multilinear());
+    }
+}
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::set_laws;
+    use antecedent_contract::QuantityRole;
+
+    fn surface(name: &str, lower: Vec<f64>, upper: Vec<f64>) -> SurfaceQuantity {
+        SurfaceQuantity {
+            quantity: ScientificQuantityWire::from(&ScientificQuantity {
+                variable_id: name.into(),
+                variable_name: name.into(),
+                role: QuantityRole::Outcome,
+                units: "utils".into(),
+                population_id: "target".into(),
+                regime_id: "do(a=1)".into(),
+                horizon: 0,
+                functional_id: "sensitivity_surface".into(),
+                conditioning: vec![],
+                transform_id: "identity".into(),
+            }),
+            lower,
+            upper,
+        }
+    }
+
+    fn act(id: &str, quantity: &str) -> ActionUtility {
+        ActionUtility { id: id.into(), utility: UtilityTerm::quantity(quantity) }
+    }
+
+    /// Parts over grid points `(gamma, ua, ub)`: each point carries its own surface values.
+    fn parts(points: &[(f64, f64, f64)]) -> SensitivityParts {
+        SensitivityParts {
+            coordinate: AssumptionCoordinate {
+                id: "gamma".into(),
+                scale: "sensitivity_parameter".into(),
+                units: "dimensionless".into(),
+                minimum: -1.0,
+                maximum: 2.0,
+            },
+            grid: points.iter().map(|p| p.0).collect(),
+            support: vec![PointSupport::Supported; points.len()],
+            quantities: vec![
+                surface(
+                    "ua",
+                    points.iter().map(|p| p.1).collect(),
+                    points.iter().map(|p| p.1).collect(),
+                ),
+                surface(
+                    "ub",
+                    points.iter().map(|p| p.2).collect(),
+                    points.iter().map(|p| p.2).collect(),
+                ),
+            ],
+            actions: vec![act("A", "ua"), act("B", "ub")],
+            uncertainty: UncertaintyRelationship {
+                assumption_range: AssumptionRangeStatement {
+                    kind: "assumption_range".into(),
+                    interpretation: "assumption range; not a probability".into(),
+                },
+                identified_bound: None,
+                sampling: SamplingStatus::Withheld {
+                    reason_code: "not_supported".into(),
+                    detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+                        .into(),
+                },
+            },
+            provenance: SensitivityProvenance {
+                source_kind: "supplied_surface".into(),
+                query_binding: "io-test".into(),
+                provider_snapshot: "snapshot-1".into(),
+                source_regime: "regime:1".into(),
+                method: "hand-derived surface".into(),
+                causal_contract_id: "checked-contract".into(),
+                decision_threshold: None,
+                source_tipping: vec![],
+            },
+        }
+    }
+
+    const POINTS: [(f64, f64, f64); 3] = [(0.0, 2.0, 1.0), (1.0, 1.0, 1.0), (2.0, 0.0, 1.0)];
+
+    /// Site `io_core.sensitivity_artifact.canonicalize`: the grid (with its columns), the
+    /// quantities and the actions are sets; a repeated point, quantity or action is refused,
+    /// and `-0.0` and `0.0` are one grid point.
+    #[test]
+    fn site_sensitivity_canonicalize_sets() {
+        set_laws(&POINTS, |items| {
+            SensitivityArtifact::new(parts(items)).ok().map(|artifact| artifact.identity().clone())
+        });
+        let quantities = parts(&POINTS).quantities;
+        set_laws(&quantities, |items| {
+            let mut parts = parts(&POINTS);
+            parts.quantities = items.to_vec();
+            SensitivityArtifact::new(parts).ok().map(|artifact| artifact.identity().clone())
+        });
+        let actions = parts(&POINTS).actions;
+        set_laws(&actions, |items| {
+            let mut parts = parts(&POINTS);
+            parts.actions = items.to_vec();
+            SensitivityArtifact::new(parts).ok().map(|artifact| artifact.identity().clone())
+        });
+        let both_zeros = [(-0.0, 2.0, 1.0), (0.0, 2.0, 1.0), (1.0, 1.0, 1.0)];
+        assert!(SensitivityArtifact::new(parts(&both_zeros)).is_err());
     }
 }

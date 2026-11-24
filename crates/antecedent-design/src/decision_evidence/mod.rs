@@ -1374,4 +1374,47 @@ mod tests {
         );
         assert!(matches!(rebuilt, Err(EvidenceRefusal::Invalid(_))));
     }
+
+    /// `JointExperimentEvidence::adjustment_identity` and `compile_joint_experiment`: the
+    /// adjustments are a set keyed by component. Listing them in another order keeps the
+    /// identity, a dropped adjustment or a changed coefficient changes it, the compiled
+    /// experiment states the same identity as the evidence built from it, and a second
+    /// adjustment of one component is refused at compile time.
+    #[test]
+    fn identity_site_adjustments_are_a_set_keyed_by_component() {
+        let adjust = |component: &str, coefficient: f64| ComponentAdjustment {
+            component: component.into(),
+            kind: AdjustmentKind::FixedCuped { covariate: format!("pre_{component}"), coefficient },
+        };
+        let mut ev = evidence(1.0, no_interference());
+        let listed = vec![adjust("frequency", 0.5), adjust("value", 0.25), adjust("cost", 0.125)];
+        ev.adjustments = listed.clone();
+        let base = ev.adjustment_identity();
+        let mut reversed = listed.clone();
+        reversed.reverse();
+        ev.adjustments = reversed;
+        assert_eq!(base, ev.adjustment_identity());
+        ev.adjustments = listed[1..].to_vec();
+        assert_ne!(base, ev.adjustment_identity());
+        ev.adjustments = vec![adjust("frequency", 0.5), adjust("value", 0.25), adjust("cost", 0.0)];
+        assert_ne!(base, ev.adjustment_identity());
+
+        let compiled = |adjustments: Vec<ComponentAdjustment>| {
+            let ev = evidence(1.0, no_interference());
+            compile_joint_experiment(JointExperimentSpec {
+                outcomes: ev.components,
+                assignment_design: "cluster".into(),
+                population_id: "pop".into(),
+                treated_regime_id: "ship".into(),
+                control_regime_id: "hold".into(),
+                horizon: 4,
+                adjustments,
+                exposure: no_interference(),
+            })
+        };
+        assert_eq!(compiled(listed.clone()).unwrap().adjustment_identity, base);
+        let mut twice = listed;
+        twice.push(adjust("value", 0.75));
+        assert!(compiled(twice).is_err());
+    }
 }

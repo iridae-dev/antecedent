@@ -789,4 +789,51 @@ mod tests {
             .is_err()
         );
     }
+
+    // Identity sites `contract.provider_verification.write_capabilities`, `write_quantities`
+    // and `ProviderVerificationReceipt.digest` (formal/identity_sites.toml): capabilities are a
+    // set (validation refuses a repeat), coordinates are ordered (meaningful for joint samples),
+    // and a receipt's verified requests are ordered as verified.
+
+    fn law_with(
+        capabilities: &[ExternalCapability],
+        quantities: &[crate::ScientificQuantity],
+    ) -> ExternalScientificObject {
+        let ExternalScientificObject::Law(mut contract) = law() else { unreachable!() };
+        contract.capabilities = capabilities.to_vec();
+        contract.quantities = quantities.to_vec();
+        ExternalScientificObject::Law(contract)
+    }
+
+    fn contract_digest(object: &ExternalScientificObject) -> Option<String> {
+        object.validate().ok().map(|()| object.contract_digest())
+    }
+
+    #[test]
+    fn site_provider_contract_capabilities_and_quantities() {
+        let ExternalScientificObject::Law(base) = law() else { unreachable!() };
+        let capabilities = [ExternalCapability::Mean, ExternalCapability::Sample];
+        crate::identity_laws::assert_set(&capabilities, |listed| {
+            contract_digest(&law_with(listed, &base.quantities))
+        });
+        let mut second = base.quantities[0].clone();
+        second.variable_id = "schema:z".into();
+        let quantities = [base.quantities[0].clone(), second];
+        crate::identity_laws::assert_ordered(&quantities, |listed| {
+            contract_digest(&law_with(&base.capabilities, listed))
+        });
+    }
+
+    #[test]
+    fn site_provider_verification_receipt_requests_are_ordered() {
+        let executions = [execution("r1"), execution("r2"), execution("r3")];
+        let probes = passing();
+        crate::identity_laws::assert_ordered(&executions, |listed| {
+            let requests: Vec<(VerificationSubject<'_>, &[VerificationProbe])> = listed
+                .iter()
+                .map(|e| (VerificationSubject::Execution(e), probes.as_slice()))
+                .collect();
+            verify_provider_requests("origin", &requests).ok().map(|receipt| receipt.digest())
+        });
+    }
 }

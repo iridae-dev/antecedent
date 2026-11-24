@@ -180,6 +180,26 @@ impl TransportIdentity {
         finish(&writer)
     }
 
+    /// The identity as the ledger reads it: source populations and assumptions are sets, so
+    /// both are sorted and a repeated entry is kept once. [`Self::set_digest`] is the digest of
+    /// this form; it equals [`Self::digest`] for every value without a repeated entry.
+    #[must_use]
+    pub fn as_sets(&self) -> Self {
+        let mut out = self.clone();
+        out.source_populations.sort_unstable();
+        out.source_populations.dedup();
+        out.assumptions.sort_unstable();
+        out.assumptions.dedup();
+        out
+    }
+
+    /// Digest of [`Self::as_sets`]: a repeated population or assumption is the same declaration.
+    /// Identities that cite a transport (offers, handoffs) use this digest.
+    #[must_use]
+    pub fn set_digest(&self) -> SemanticDigest {
+        self.as_sets().digest()
+    }
+
     pub(crate) fn encode(&self, writer: &mut CanonicalWriter) {
         let mut populations = self.source_populations.clone();
         populations.sort_unstable();

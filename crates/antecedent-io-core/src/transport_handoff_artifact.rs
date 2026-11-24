@@ -675,3 +675,27 @@ impl TransportHandoffArtifact {
         encode_meta(meta, artifact_id)
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::set_laws;
+
+    fn transport(populations: &[String], assumptions: &[String]) -> TransportIdentity {
+        TransportIdentity {
+            source_populations: populations.to_vec(),
+            target_population: "target".into(),
+            selection_diagram: SemanticDigest::from_bytes([7; 32]),
+            assumptions: assumptions.to_vec(),
+        }
+    }
+
+    /// Site `io_core.transport_handoff_artifact.transport_to_wire`: source populations and
+    /// assumptions are sets.
+    #[test]
+    fn site_transport_to_wire_lists_are_sets() {
+        let names = ["p1".to_owned(), "p2".to_owned(), "p3".to_owned()];
+        set_laws(&names, |items| Some(transport_to_wire(&transport(items, &names))));
+        set_laws(&names, |items| Some(transport_to_wire(&transport(&names, items))));
+    }
+}

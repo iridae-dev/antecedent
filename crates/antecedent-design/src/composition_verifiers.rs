@@ -990,3 +990,51 @@ pub fn standard_consumer() -> BundleConsumer {
 pub fn register_standard_verifiers(consumer: BundleConsumer) -> BundleConsumer {
     VERIFIABLE_KINDS.into_iter().filter_map(verifier_for).fold(consumer, BundleConsumer::register)
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+
+    fn wire(regime: &str) -> ScientificQuantityWire {
+        ScientificQuantityWire {
+            version: 1,
+            variable_id: "y".into(),
+            variable_name: "y".into(),
+            role: "outcome".into(),
+            units: "USD".into(),
+            population_id: "p".into(),
+            regime_id: regime.into(),
+            horizon: 0,
+            functional_id: "mean".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    /// Coordinates are a set: every order and a repeat give one id list; dropping or changing
+    /// a quantity changes it. Each id is 64 bits of a framed BLAKE3 digest.
+    #[test]
+    fn site_coordinate_ids_are_a_set() {
+        let all = [wire("a"), wire("b"), wire("c")];
+        let base = coordinate_ids(all.iter());
+        assert_eq!(base.len(), 3);
+        assert!(base.iter().all(|id| id.len() == 16));
+        for order in [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]] {
+            assert_eq!(coordinate_ids(order.iter().map(|&i| &all[i])), base);
+        }
+        assert_eq!(coordinate_ids(all.iter().chain(std::iter::once(&all[0]))), base);
+        assert_ne!(coordinate_ids(all[1..].iter()), base);
+        let mut changed = all.clone();
+        changed[0].units = "EUR".into();
+        assert_ne!(coordinate_ids(changed.iter()), base);
+        // Text fields are length-framed: moving a character across a field boundary changes
+        // the id.
+        let mut shifted = wire("a");
+        shifted.variable_id = "yy".into();
+        shifted.variable_name = String::new();
+        let mut original = wire("a");
+        original.variable_id = "y".into();
+        original.variable_name = "y".into();
+        assert_ne!(coordinate_id(&shifted), coordinate_id(&original));
+    }
+}

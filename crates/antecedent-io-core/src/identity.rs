@@ -313,13 +313,14 @@ impl PayloadDigestWire {
 
 mod graph;
 
-use graph::canonical_admg_wire;
+use graph::selection_graph_wire;
 pub use graph::{
-    GraphIdentityWire, IdentityMarkedEdgeWire, IdentityNodeWire, PosteriorAtomGraphWire,
-    PosteriorAtomIdentityWire, TemporalAdmgIdentityWire, TemporalClassIdentityWire, admg_identity,
-    canonical_dag_wire, canonical_temporal_dag_wire, cpdag_identity, dag_identity,
-    graph_posterior_atom_identities, pag_identity, temporal_admg_identity, temporal_cpdag_identity,
-    temporal_dag_identity, temporal_pag_identity,
+    GraphIdentityWire, IdentityMarkedEdgeWire, IdentityNodeWire, LabeledMarkedGraphIdentityWire,
+    LabeledStaticGraphIdentityWire, PosteriorAtomGraphWire, PosteriorAtomIdentityWire,
+    TemporalAdmgIdentityWire, TemporalClassIdentityWire, admg_identity, canonical_dag_wire,
+    canonical_temporal_dag_wire, cpdag_identity, dag_identity, graph_posterior_atom_identities,
+    pag_identity, temporal_admg_identity, temporal_cpdag_identity, temporal_dag_identity,
+    temporal_pag_identity,
 };
 
 /// RD configuration hashed with identification premises.
@@ -367,7 +368,9 @@ pub(crate) fn is_strictly_ascending<T: Ord>(items: &[T]) -> bool {
 /// Transport selection diagram and trial column bindings.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TransportIdentityWire {
-    /// Selection-diagram causal graph (canonical edge order), when frozen.
+    /// Selection-diagram causal graph (canonical edge order), when frozen, in variable space:
+    /// dense index `v` is variable `v` (a graph over a subset of the variables, or built in
+    /// another dense order, is written with its variables at their own indexes).
     pub selection_graph: Option<AdmgWire>,
     /// Selection targets (mechanisms that may differ), strictly ascending (sorted; distinct
     /// because the selection diagram holds each target once).
@@ -405,7 +408,7 @@ pub fn transport_identity(
     selection_targets.sort_unstable();
     Ok(TransportIdentityWire {
         selection_graph: selection
-            .map(|diagram| canonical_admg_wire(diagram.causal_graph()))
+            .map(|diagram| selection_graph_wire(diagram.causal_graph()))
             .transpose()?,
         selection_targets,
         trial: trial.map(|(trial, _, _)| trial.raw()),
@@ -1701,6 +1704,188 @@ mod tests {
                 identification_digest(&changed).unwrap()
             );
         }
+    }
+
+    /// The static wires name nodes by dense index. A graph whose dense nodes are not
+    /// `Static(0..n)` carries its labels, so the same edges over different variables, or the
+    /// same graph built in another dense order, never share an identity they should not.
+    /// CPDAG and PAG identities carry node labels as the DAG identity does: the aligned order
+    /// keeps the unlabelled wire, another dense order of the same variables gives the aligned
+    /// identity, and the same edges over other variables do not share it.
+    #[test]
+    fn class_graph_identity_binds_node_labels() {
+        use antecedent_core::NodeRef;
+        use antecedent_graph::{Cpdag, Pag};
+        let node = |raw: u32| NodeRef::Static(VariableId::from_raw(raw));
+        let (a, b, c) =
+            (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1), DenseNodeId::from_raw(2));
+        let cpdag_over = |labels: [u32; 3]| {
+            let mut graph = Cpdag::empty();
+            for label in labels {
+                graph.add_node(node(label)).unwrap();
+            }
+            graph.insert_directed(a, b).unwrap();
+            graph.insert_undirected(b, c).unwrap();
+            graph
+        };
+        let aligned = cpdag_over([0, 1, 2]);
+        let mut legacy = cpdag_to_wire(&aligned).unwrap();
+        legacy.directed.sort_unstable();
+        legacy.undirected.sort_unstable();
+        assert_eq!(cpdag_identity(&aligned).unwrap(), GraphIdentityWire::Cpdag(legacy));
+        // Dense [2, 1, 0]: variable 2 -> variable 1, variable 1 - variable 0.
+        let reordered = cpdag_over([2, 1, 0]);
+        assert_eq!(cpdag_to_wire(&reordered).unwrap(), cpdag_to_wire(&aligned).unwrap());
+        assert_ne!(cpdag_identity(&reordered).unwrap(), cpdag_identity(&aligned).unwrap());
+        let mut same = Cpdag::with_variables(3);
+        same.insert_directed(c, b).unwrap();
+        same.insert_undirected(a, b).unwrap();
+        assert_eq!(cpdag_identity(&reordered).unwrap(), cpdag_identity(&same).unwrap());
+        let gapped = cpdag_identity(&cpdag_over([0, 1, 5])).unwrap();
+        assert!(matches!(gapped, GraphIdentityWire::LabeledCpdag(_)));
+        assert!(gapped.is_canonical());
+
+        let pag_over = |labels: [u32; 3]| {
+            let mut graph = Pag::empty();
+            for label in labels {
+                graph.add_node(node(label)).unwrap();
+            }
+            graph.insert_circle_arrow(a, b).unwrap();
+            graph.insert_directed(c, b).unwrap();
+            graph
+        };
+        let aligned = pag_over([0, 1, 2]);
+        let mut legacy = pag_to_wire(&aligned).unwrap();
+        legacy.edges.sort_by_key(|edge| (edge.a, edge.b));
+        assert_eq!(pag_identity(&aligned).unwrap(), GraphIdentityWire::Pag(legacy));
+        let reordered = pag_over([2, 1, 0]);
+        assert_eq!(pag_to_wire(&reordered).unwrap(), pag_to_wire(&aligned).unwrap());
+        assert_ne!(pag_identity(&reordered).unwrap(), pag_identity(&aligned).unwrap());
+        let mut same = Pag::with_variables(3);
+        same.insert_circle_arrow(c, b).unwrap();
+        same.insert_directed(a, b).unwrap();
+        assert_eq!(pag_identity(&reordered).unwrap(), pag_identity(&same).unwrap());
+        let gapped = pag_identity(&pag_over([3, 1, 2])).unwrap();
+        assert!(matches!(gapped, GraphIdentityWire::LabeledPag(_)));
+        assert!(gapped.is_canonical());
+    }
+
+    /// The transport selection graph is written in variable space, so a selection diagram
+    /// over other variables, or in another dense order, has its own premises.
+    #[test]
+    fn selection_graph_identity_is_in_variable_space() {
+        use antecedent_core::NodeRef;
+        use antecedent_graph::SelectionDiagram;
+        let node = |raw: u32| NodeRef::Static(VariableId::from_raw(raw));
+        let (a, b) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
+        let over = |labels: [u32; 2]| {
+            let mut graph = Admg::empty();
+            for label in labels {
+                graph.add_node(node(label)).unwrap();
+            }
+            graph.insert_directed(a, b).unwrap();
+            let target = VariableId::from_raw(labels[1]);
+            transport_identity(Some(&SelectionDiagram::try_new(graph, [target]).unwrap()), None)
+                .unwrap()
+        };
+        let aligned = over([0, 1]);
+        let mut aligned_graph = Admg::with_variables(2);
+        aligned_graph.insert_directed(a, b).unwrap();
+        assert_eq!(
+            aligned.selection_graph,
+            Some(graph::canonical_admg_wire(&aligned_graph).unwrap())
+        );
+        let reversed = over([1, 0]);
+        assert_ne!(reversed.selection_graph, aligned.selection_graph);
+        assert_eq!(
+            reversed.selection_graph,
+            Some(crate::wire::AdmgWire {
+                node_count: 2,
+                directed: vec![(1, 0)],
+                bidirected: vec![]
+            })
+        );
+        let gapped = over([0, 3]);
+        assert_eq!(
+            gapped.selection_graph,
+            Some(crate::wire::AdmgWire {
+                node_count: 4,
+                directed: vec![(0, 3)],
+                bidirected: vec![]
+            })
+        );
+        assert!(gapped.is_canonical() && reversed.is_canonical());
+    }
+
+    #[test]
+    fn static_graph_identity_binds_node_labels() {
+        use antecedent_core::NodeRef;
+        let node = |raw: u32| NodeRef::Static(VariableId::from_raw(raw));
+        let (first, second) = (DenseNodeId::from_raw(0), DenseNodeId::from_raw(1));
+        let dag_over = |labels: [u32; 2]| {
+            let mut dag = Dag::empty();
+            for label in labels {
+                dag.add_node(node(label)).unwrap();
+            }
+            dag.insert_directed(first, second).unwrap();
+            dag
+        };
+        // Aligned: unchanged from the unlabeled form of earlier releases.
+        let aligned = dag_over([0, 1]);
+        assert_eq!(
+            dag_identity(&aligned).unwrap(),
+            GraphIdentityWire::Dag(canonical_dag_wire(&aligned).unwrap())
+        );
+        // Dense order [1, 0] with edge 0 -> 1 is variable 1 -> variable 0: the reverse of
+        // `aligned`, and the same graph as the aligned DAG with edge 1 -> 0.
+        let reordered = dag_over([1, 0]);
+        assert_eq!(dag_to_wire(&reordered).unwrap(), dag_to_wire(&aligned).unwrap());
+        assert_ne!(dag_identity(&reordered).unwrap(), dag_identity(&aligned).unwrap());
+        let mut reversed = Dag::with_variables(2);
+        reversed.insert_directed(second, first).unwrap();
+        assert_eq!(dag_identity(&reordered).unwrap(), dag_identity(&reversed).unwrap());
+        // A graph over variables 0 and 2 is not the graph over 0 and 1.
+        let gapped = dag_identity(&dag_over([0, 2])).unwrap();
+        assert!(matches!(gapped, GraphIdentityWire::LabeledDag(_)));
+        assert!(gapped.is_canonical());
+        assert_ne!(gapped, dag_identity(&aligned).unwrap());
+        assert_ne!(
+            identification_digest(&premises(gapped.clone())).unwrap(),
+            identification_digest(&premises(dag_identity(&aligned).unwrap())).unwrap()
+        );
+        let GraphIdentityWire::LabeledDag(labeled) = &gapped else { unreachable!() };
+        assert_eq!(
+            labeled.variable_space_dag().unwrap(),
+            crate::wire::DagWire { node_count: 3, edges: vec![(0, 2)] }
+        );
+        // A labeled wire spelling a schema-aligned graph is not canonical.
+        let mut respelled = labeled.clone();
+        respelled.nodes = vec![
+            IdentityNodeWire::Static { variable: 0 },
+            IdentityNodeWire::Static { variable: 1 },
+        ];
+        assert!(!GraphIdentityWire::LabeledDag(respelled).is_canonical());
+
+        let admg_over = |labels: [u32; 3]| {
+            let mut admg = Admg::empty();
+            for label in labels {
+                admg.add_node(node(label)).unwrap();
+            }
+            admg.insert_directed(first, second).unwrap();
+            admg.insert_bidirected(second, DenseNodeId::from_raw(2)).unwrap();
+            admg
+        };
+        let aligned = admg_over([0, 1, 2]);
+        assert_eq!(
+            admg_identity(&aligned).unwrap(),
+            GraphIdentityWire::Admg(graph::canonical_admg_wire(&aligned).unwrap())
+        );
+        let relabeled = admg_over([2, 1, 0]);
+        assert_eq!(admg_to_wire(&relabeled).unwrap(), admg_to_wire(&aligned).unwrap());
+        assert_ne!(admg_identity(&relabeled).unwrap(), admg_identity(&aligned).unwrap());
+        let shifted = admg_identity(&admg_over([0, 1, 3])).unwrap();
+        assert!(matches!(shifted, GraphIdentityWire::LabeledAdmg(_)));
+        assert!(shifted.is_canonical());
     }
 
     #[test]

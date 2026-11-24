@@ -112,10 +112,16 @@ pub(in crate::contract_section) fn carried_adjustment_is_backdoor(
     adjustment: &[u32],
 ) -> bool {
     let Some(identification) = contract.identification.as_ref() else { return true };
-    let crate::identity::GraphIdentityWire::Dag(graph) = &identification.graph else {
-        return true;
+    // A labeled DAG is checked in variable space, where dense node `v` is variable `v`.
+    let graph = match &identification.graph {
+        crate::identity::GraphIdentityWire::Dag(graph) => std::borrow::Cow::Borrowed(graph),
+        crate::identity::GraphIdentityWire::LabeledDag(graph) => match graph.variable_space_dag() {
+            Some(graph) => std::borrow::Cow::Owned(graph),
+            None => return false,
+        },
+        _ => return true,
     };
-    let Ok(dag) = crate::dag_from_wire(graph) else { return false };
+    let Ok(dag) = crate::dag_from_wire(&graph) else { return false };
     let adjustment =
         adjustment.iter().copied().map(antecedent_core::VariableId::from_raw).collect::<Vec<_>>();
     matches!(

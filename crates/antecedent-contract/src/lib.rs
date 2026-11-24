@@ -31,6 +31,8 @@ pub mod evidence_ports;
 pub mod external;
 pub mod external_binding;
 pub mod external_refusal;
+#[cfg(test)]
+pub(crate) mod identity_laws;
 pub mod interface_contract;
 pub mod joint_alignment;
 pub mod joint_event_quantity;

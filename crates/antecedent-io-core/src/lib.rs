@@ -65,6 +65,8 @@ pub mod graph_mixed;
 pub mod graph_networkx;
 pub mod graphless_support;
 pub mod identity;
+#[cfg(test)]
+mod identity_site_laws;
 pub mod interface_contract_artifact;
 pub mod joint_law_propagation_artifact;
 pub mod measurement_model_wire;
@@ -236,9 +238,10 @@ pub use identity::{
     GlmOptionsWire, GraphIdentityWire, GraphPosteriorAtomProgramWire, GraphPosteriorProgramsWire,
     IdentificationEnvelopeWire, IdentificationIdentityWire, IdentificationProductWire,
     ImputationSpecWire, InferenceBindingWire, InferentialCommitmentsWire, InterferenceSnapshotWire,
-    KernelPolicyWire, LinearFitMomentsWire, MissingPolicyWire, NestedCounterfactualFitWire,
-    ObservationIdentityWire, ObservationOptionsWire, OverlapPolicyWire, ParticipantBindingWire,
-    PayloadDigestWire, PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
+    KernelPolicyWire, LabeledMarkedGraphIdentityWire, LabeledStaticGraphIdentityWire,
+    LinearFitMomentsWire, MissingPolicyWire, NestedCounterfactualFitWire, ObservationIdentityWire,
+    ObservationOptionsWire, OverlapPolicyWire, ParticipantBindingWire, PayloadDigestWire,
+    PosteriorAtomGraphWire, PosteriorAtomIdentityWire, PriorMappingIdentityWire,
     PriorSetIdentityWire, PriorSpecIdentityWire, ProgramIdentityWire, ROW_WEIGHTS_PAYLOAD,
     RdConfigWire, ResponseOptionsWire, ScoreReuseIdentityWire, ScoreTableKey, SplitIdentityWire,
     TargetIdentityWire, TargetWeightsIdentityWire, TemporalAttributionRowsWire,

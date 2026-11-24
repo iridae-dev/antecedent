@@ -122,6 +122,26 @@ pub fn mean_decision_bytes(
         .map_err(|e| io_failure(NodeKind::DecisionResult, &e))
 }
 
+/// The evidence a claim rests on, as three id sets (each sorted, each id once), every set
+/// length-prefixed and every id framed (scheme v2). The v1 digest joined each sorted list with
+/// `,`, so an id containing a comma could stand for two ids, and a repeated id changed it. The
+/// fact is recomputed by every consumer and compared only with facts computed the same way, so
+/// no stored value needs the v1 form.
+pub(crate) fn evidence_digest(
+    evidence_ids: &[String],
+    assumption_ids: &[String],
+    equivalence_ids: &[String],
+) -> String {
+    let mut parts: Vec<String> = vec!["evidence.v2".to_owned()];
+    for ids in [evidence_ids, assumption_ids, equivalence_ids] {
+        let set: std::collections::BTreeSet<&String> = ids.iter().collect();
+        parts.push(set.len().to_string());
+        parts.extend(set.into_iter().cloned());
+    }
+    let parts: Vec<&str> = parts.iter().map(String::as_str).collect();
+    digest_parts(&parts)
+}
+
 pub(super) fn inspect_external_claim(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let kind = NodeKind::ExternalClaim;
     let meta: ExternalClaimMetadata = first_section(bytes, MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES)
@@ -147,20 +167,14 @@ pub(super) fn inspect_external_claim(bytes: &[u8]) -> Result<Inspected, NodeFail
         FACT_PROVIDER_BINDING,
         format!("{}|{}|{}", identity.provider_id, identity.snapshot_id, identity.request_id),
     );
-    let sorted = |ids: &[String]| {
-        let mut ids = ids.to_vec();
-        ids.sort();
-        ids.join(",")
-    };
     publish(
         &mut facts,
         FACT_EVIDENCE_DIGEST,
-        digest_parts(&[
-            "evidence",
-            &sorted(&identity.evidence_ids),
-            &sorted(&identity.assumption_ids),
-            &sorted(&identity.equivalence_ids),
-        ]),
+        evidence_digest(
+            &identity.evidence_ids,
+            &identity.assumption_ids,
+            &identity.equivalence_ids,
+        ),
     );
     let mean_source = mean_source_of(&artifact).map_err(|e| io_failure(kind, &e))?;
     publish(&mut facts, FACT_MEAN_SOURCE, mean_source_digest(&mean_source));
@@ -548,4 +562,24 @@ pub(super) fn inspect_relationship(bytes: &[u8]) -> Result<Inspected, NodeFailur
         relationship: Some((relationship, left, right)),
         ..Inspected::default()
     })
+}
+
+#[cfg(test)]
+mod evidence_digest_tests {
+    use super::evidence_digest;
+
+    fn ids(items: &[&str]) -> Vec<String> {
+        items.iter().map(|item| (*item).to_owned()).collect()
+    }
+
+    /// Each id list is a set: order and repeats do not matter, a comma inside an id does not
+    /// split it, and an id cannot move between lists unnoticed.
+    #[test]
+    fn evidence_ids_are_framed_sets() {
+        let base = evidence_digest(&ids(&["a", "b"]), &ids(&["x"]), &[]);
+        assert_eq!(base, evidence_digest(&ids(&["b", "a", "a"]), &ids(&["x"]), &[]));
+        assert_ne!(base, evidence_digest(&ids(&["a,b"]), &ids(&["x"]), &[]));
+        assert_ne!(base, evidence_digest(&ids(&["a"]), &ids(&["b", "x"]), &[]));
+        assert_ne!(base, evidence_digest(&ids(&["a", "b"]), &[], &ids(&["x"])));
+    }
 }

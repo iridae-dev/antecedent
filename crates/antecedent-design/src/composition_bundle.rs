@@ -326,7 +326,11 @@ fn chain_refusal(error: &ProvenanceChainError) -> BundleError {
 // ---------------------------------------------------------------------------
 
 /// Digest of one node's own content (not of its upstream nodes).
-fn node_digest(node: &BundleNode) -> String {
+/// One node's digest. A reference's required provider or data source is written in the v1
+/// `|`-joined form when no field contains `|` (unchanged from earlier releases) and framed
+/// otherwise; `legacy` reproduces the v1 form for every node, to verify a stored bundle
+/// sealed before the framed form.
+fn node_digest(node: &BundleNode, legacy: bool) -> String {
     let mut hasher = CanonicalWriter::new("antecedent.composition_bundle.node.v1");
     hasher.text(&node.id).text(node.kind.as_str()).text(&node.identity);
     match &node.source {
@@ -334,7 +338,12 @@ fn node_digest(node: &BundleNode) -> String {
             hasher.text("embedded").text(&blake3_hex(bytes));
         }
         NodeSource::Reference { identity, requires } => {
-            hasher.text("reference").text(identity).text(&requires.canonical());
+            hasher.text("reference").text(identity);
+            if legacy || requires.is_v1_plain() {
+                hasher.text(&requires.canonical());
+            } else {
+                requires.write_v2(&mut hasher);
+            }
             hasher.word(node.facts.len() as u64);
             for (key, value) in &node.facts {
                 hasher.text(key).text(value);
@@ -421,6 +430,7 @@ fn derive(
     nodes: &[BundleNode],
     deps: &BTreeSet<(String, String)>,
     declared: Option<&[BundleEdge]>,
+    legacy: bool,
 ) -> Result<Derived, BundleError> {
     let index = validate_nodes(nodes)?;
     let (parents, children) = adjacency(&index, deps, nodes.len())?;
@@ -440,7 +450,7 @@ fn derive(
     let mut links = Vec::with_capacity(nodes.len());
     for &position in &order {
         let node = &nodes[position];
-        let link_id = format!("{}@{}", node.id, node_digest(node));
+        let link_id = format!("{}@{}", node.id, node_digest(node, legacy));
         let parent_links: Vec<String> =
             parents[position].iter().map(|p| link_ids[*p].clone()).collect();
         let declared_parent_digests = match &declared_digests {
@@ -487,11 +497,16 @@ fn derive(
     Ok(Derived { order, parents, digests, edges })
 }
 
-fn bundle_identity(nodes: &[BundleNode], digests: &[String], edges: &[BundleEdge]) -> String {
+fn bundle_identity(
+    nodes: &[BundleNode],
+    digests: &[String],
+    edges: &[BundleEdge],
+    legacy: bool,
+) -> String {
     let mut hasher = CanonicalWriter::new("antecedent.composition_bundle.v1");
     hasher.word(nodes.len() as u64);
     for (node, digest) in nodes.iter().zip(digests) {
-        hasher.text(&node.id).text(&node_digest(node)).text(digest);
+        hasher.text(&node.id).text(&node_digest(node, legacy)).text(digest);
     }
     hasher.word(edges.len() as u64);
     for edge in edges {
@@ -583,8 +598,8 @@ impl CompositionBundle {
         if deps.len() != dependencies.len() {
             return Err(graph_error("an edge is repeated", None));
         }
-        let derived = derive(&nodes, &deps, None)?;
-        let identity = bundle_identity(&nodes, &derived.digests, &derived.edges);
+        let derived = derive(&nodes, &deps, None, false)?;
+        let identity = bundle_identity(&nodes, &derived.digests, &derived.edges, false);
         Ok(Self { nodes, edges: derived.edges, digests: derived.digests, identity })
     }
 
@@ -1304,8 +1319,22 @@ impl BundleConsumer {
         let decoded = decode(bytes, limits)?;
         let deps: BTreeSet<(String, String)> =
             decoded.edges.iter().map(|e| (e.from.clone(), e.to.clone())).collect();
-        let derived = derive(&decoded.nodes, &deps, Some(&decoded.edges))?;
-        let identity = bundle_identity(&decoded.nodes, &derived.digests, &derived.edges);
+        let attempt = |legacy: bool| {
+            derive(&decoded.nodes, &deps, Some(&decoded.edges), legacy).map(|derived| {
+                let identity =
+                    bundle_identity(&decoded.nodes, &derived.digests, &derived.edges, legacy);
+                (derived, identity)
+            })
+        };
+        // A bundle sealed before references were framed verifies under the v1 node digests.
+        let mut derived_identity = attempt(false);
+        if !matches!(&derived_identity, Ok((_, identity)) if *identity == decoded.stored_identity) {
+            let legacy = attempt(true);
+            if matches!(&legacy, Ok((_, identity)) if *identity == decoded.stored_identity) {
+                derived_identity = legacy;
+            }
+        }
+        let (derived, identity) = derived_identity?;
         if identity != decoded.stored_identity || identity != expected_identity {
             return Err(refused(
                 BundleStage::ExpectedIdentityMismatch,
@@ -1503,5 +1532,42 @@ mod replay_receipt_tests {
         assert!(!refused.all_verified());
         assert!(!refused.all_replayed());
         assert_eq!(calls.load(Ordering::Relaxed), 2);
+    }
+}
+
+#[cfg(test)]
+mod node_digest_tests {
+    use super::*;
+
+    fn reference(provider_id: &str, snapshot_id: &str) -> BundleNode {
+        BundleNode {
+            id: "claim".into(),
+            kind: NodeKind::ExternalClaim,
+            identity: "identity".into(),
+            source: NodeSource::Reference {
+                identity: "referenced".into(),
+                requires: ProviderOrData::Provider {
+                    provider_id: provider_id.into(),
+                    snapshot_id: snapshot_id.into(),
+                    request_fingerprint: "request".into(),
+                },
+            },
+            facts: BTreeMap::new(),
+            inspected: vec![],
+        }
+    }
+
+    /// The v1 `|` join let `("a|b", "c")` and `("a", "b|c")` share a node digest; the framed
+    /// form keeps them apart, a plain reference keeps its v1 digest, and the v1 digest is
+    /// still reproducible for verification.
+    #[test]
+    fn requires_fields_are_framed_when_they_contain_the_separator() {
+        let left = reference("a|b", "c");
+        let right = reference("a", "b|c");
+        assert_eq!(node_digest(&left, true), node_digest(&right, true));
+        assert_ne!(node_digest(&left, false), node_digest(&right, false));
+        let plain = reference("a", "c");
+        assert_eq!(node_digest(&plain, false), node_digest(&plain, true));
+        assert_ne!(node_digest(&plain, false), node_digest(&reference("a", "d"), false));
     }
 }

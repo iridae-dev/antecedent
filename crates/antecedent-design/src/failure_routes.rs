@@ -314,4 +314,29 @@ mod tests {
             antecedent_core::reason_details::identification_repair::NOT_A_FAILURE
         );
     }
+
+    /// `failure_routes`: the unmeasured variables behind the panel route are a set (a
+    /// membership check, then sorted by id), so listing the observed variables in another
+    /// order keeps every obligation.
+    #[test]
+    fn identity_site_unmeasured_variables_are_a_set() {
+        let mut graph = Admg::with_variables(3);
+        for (a, b) in [(0, 1), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        for (a, b) in [(0, 2), (1, 2)] {
+            graph.insert_bidirected(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).unwrap();
+        }
+        let ids = |observed: &[VariableId]| {
+            failure_routes(&failed(0, 2), &graph, observed, "pop", None)
+                .unwrap()
+                .obligations()
+                .iter()
+                .map(|o| o.id.to_string())
+                .collect::<std::collections::BTreeSet<_>>()
+        };
+        let listed = ids(&[v(0), v(1), v(2)]);
+        assert!(!listed.is_empty());
+        assert_eq!(listed, ids(&[v(2), v(1), v(0)]));
+    }
 }

@@ -14868,6 +14868,7 @@ pub variant antecedent_core::InterventionError::InvalidStochasticPolicy(antecede
 pub variant antecedent_core::InterventionError::InvalidTemporalWindow { from: i32, until: i32 }
 pub variant antecedent_core::InterventionError::NonFiniteLevel
 pub variant antecedent_core::InterventionError::TimedSequence
+pub variant antecedent_core::InterventionError::UnorderedDynamicSchedule
 pub variant antecedent_core::InterventionFault::ContrastObservationsNotDistinct
 pub variant antecedent_core::InterventionFault::CrossWorldValueNotFinite
 pub variant antecedent_core::InterventionFault::CrossWorldWorlds

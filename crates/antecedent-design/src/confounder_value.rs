@@ -450,4 +450,22 @@ mod tests {
         assert!(matches!(refused, DesignError::Numerical(_)));
         assert!(GridUtility::new(vec![0.0, 0.0], vec![vec![1.0, 0.0]]).is_err());
     }
+
+    /// `ConfounderValueFrame::source_digests`: the two source digests are written sorted, so
+    /// which is the artifact and which the prior does not order them, and a change to
+    /// either source changes the list.
+    #[test]
+    fn identity_site_source_digests_are_sorted_and_bind_both_sources() {
+        let frame =
+            ConfounderValueFrame::from_sensitivity(&switching(), prior(vec![1, 1, 1])).unwrap();
+        let digests = frame.source_digests();
+        assert_eq!(digests.len(), 2);
+        assert!(digests[0] <= digests[1]);
+        let mut other_artifact = frame.clone();
+        other_artifact.artifact_identity = "another-artifact".into();
+        assert_ne!(digests, other_artifact.source_digests());
+        let other_prior =
+            ConfounderValueFrame::from_sensitivity(&switching(), prior(vec![1, 2, 1])).unwrap();
+        assert_ne!(digests, other_prior.source_digests());
+    }
 }

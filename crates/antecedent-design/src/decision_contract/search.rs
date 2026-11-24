@@ -240,3 +240,54 @@ fn check_search_expr(expr: &UtilityExpr, variables: usize) -> Result<(), Decisio
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+
+    const PERMUTATIONS: [[usize; 3]; 6] =
+        [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+
+    fn constraint(id: &str, bound: f64) -> HardConstraint {
+        HardConstraint {
+            id: id.into(),
+            expr: UtilityExpr::Input(0),
+            bound,
+            min_probability: 1.0,
+            units: "USD".into(),
+            applies_to: vec![],
+        }
+    }
+
+    fn contract(variables: &[&str], constraints: Vec<HardConstraint>) -> ProgramSearchContract {
+        ProgramSearchContract {
+            space: ProgramSearchSpace {
+                id: "space".into(),
+                variables: variables.iter().map(|v| (*v).to_owned()).collect(),
+            },
+            objective: ProgramObjective::ExpectedUtility(UtilityExpr::Input(0)),
+            constraints,
+        }
+    }
+
+    /// Constraints are a set (unique ids, refused when repeated): every order gives one
+    /// identity, a repeat is refused, and dropping or changing one changes it. Search
+    /// variables are ordered: the expressions index them, so swapping two changes it.
+    #[test]
+    fn site_program_search_contract_identity() {
+        let all = [constraint("a", 1.0), constraint("b", 2.0), constraint("c", 3.0)];
+        let base = contract(&["x", "y"], all.to_vec()).identity().unwrap();
+        for order in PERMUTATIONS {
+            let listed = order.iter().map(|&i| all[i].clone()).collect();
+            assert_eq!(contract(&["x", "y"], listed).identity().unwrap(), base);
+        }
+        let mut repeated = all.to_vec();
+        repeated.push(all[0].clone());
+        assert!(contract(&["x", "y"], repeated).identity().is_err());
+        assert_ne!(contract(&["x", "y"], all[1..].to_vec()).identity().unwrap(), base);
+        let mut changed = all.to_vec();
+        changed[2].bound = 4.0;
+        assert_ne!(contract(&["x", "y"], changed).identity().unwrap(), base);
+        assert_ne!(contract(&["y", "x"], all.to_vec()).identity().unwrap(), base);
+    }
+}

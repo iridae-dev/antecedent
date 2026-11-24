@@ -836,3 +836,74 @@ impl CrossWorldExecutionArtifact {
         Ok(Self { meta, values: stored, result, request, executor })
     }
 }
+
+#[cfg(test)]
+mod identity_site_tests {
+    use super::*;
+    use crate::identity_site_laws::{ordered_laws, set_laws};
+
+    fn request(units: &[FactualUnit], worlds: &[FiniteWorld]) -> FiniteExecutionRequest {
+        let scm = FiniteScm {
+            population: "pop-a".to_owned(),
+            history: "regime-1".to_owned(),
+            exogenous: vec![
+                ExogenousVariable { name: "u_x".to_owned(), pmf: vec![0.6, 0.4] },
+                ExogenousVariable { name: "u_y".to_owned(), pmf: vec![0.2, 0.5, 0.1, 0.2] },
+            ],
+            variables: vec![
+                FiniteVariable {
+                    name: "x".to_owned(),
+                    levels: 2,
+                    parents: vec![],
+                    exogenous: 0,
+                    table: vec![0, 1],
+                },
+                FiniteVariable {
+                    name: "y".to_owned(),
+                    levels: 2,
+                    parents: vec![0],
+                    exogenous: 1,
+                    table: vec![0, 0, 0, 1, 1, 0, 1, 1],
+                },
+            ],
+        };
+        FiniteExecutionRequest {
+            evidence_history: scm.history.clone(),
+            scm,
+            units: units.to_vec(),
+            worlds: worlds.to_vec(),
+            quantity: FiniteQuantity::Probability(WorldAtom { world: 0, variable: 1, level: 0 }),
+            coupling: NoiseCoupling::SharedAbducedExogenous,
+            exogenous: ExogenousInference::ExactEnumeration,
+            target_population: None,
+            reading: RequestedReading::Point,
+        }
+    }
+
+    fn do_x(name: &str, level: u8) -> FiniteWorld {
+        FiniteWorld { name: name.to_owned(), interventions: vec![(0, level)], routes: vec![] }
+    }
+
+    fn unit(name: &str, observed: &[(usize, u8)]) -> FactualUnit {
+        FactualUnit { unit: name.to_owned(), observed: observed.to_vec() }
+    }
+
+    /// The stored request of a sealed artifact (`None` when the executor refuses).
+    fn sealed(request: &FiniteExecutionRequest) -> Option<CrossWorldRequestWire> {
+        CrossWorldExecutionArtifact::seal(request, &ExecutionContext::for_tests(5))
+            .ok()
+            .map(|_| request_wire(request))
+    }
+
+    /// Site `io_core.cross_world_execution_artifact.request_wire`: units are a set keyed by
+    /// id and each unit's observations a set (repeats refused by the executor); worlds are
+    /// ordered (quantities name worlds by index).
+    #[test]
+    fn site_cross_world_request_wire_units_are_a_set() {
+        let worlds = [do_x("x0", 0), do_x("x1", 1)];
+        let units = [unit("a", &[(0, 1), (1, 1)]), unit("b", &[(0, 0)]), unit("c", &[(1, 0)])];
+        set_laws(&units, |items| sealed(&request(items, &worlds)));
+        set_laws(&[(0usize, 1u8), (1, 1)], |items| sealed(&request(&[unit("a", items)], &worlds)));
+        ordered_laws(&worlds, |items| Some(request_wire(&request(&units, items))));
+    }
+}
