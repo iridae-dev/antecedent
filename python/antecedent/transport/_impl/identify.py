@@ -88,6 +88,11 @@ class TransportQuery:
     #: table. The target is then the non-participant rows reweighted by it, behind the overlap
     #: gates of the weighted target; ``None`` keeps the labelled target population.
     target: object | None = None
+    #: Caller-supplied trial outcome regressions ``(control, treated)``: two columns holding
+    #: ``E[Y | X, S=1, A=0]`` and ``E[Y | X, S=1, A=1]`` on every row. The study then also
+    #: carries the augmented (AIPW) contrast beside the IPW contrast it publishes, stated in
+    #: the ``estimate.transport.trial_aipw_supplied`` diagnostic; ``None`` reads none.
+    outcome_regressions: tuple[str, str] | None = None
     kind: Literal["transport"] = field(default="transport", init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -114,6 +119,20 @@ class TransportQuery:
                     "a weighted target reads the trial columns: pass trial=, "
                     "selection_probability= and treatment_probability="
                 )
+        if self.outcome_regressions is not None:
+            regressions = tuple(self.outcome_regressions)
+            if len(regressions) != 2 or any(not str(name).strip() for name in regressions):
+                raise CausalValueError(
+                    "outcome_regressions names two columns: (control, treated) regressions"
+                )
+            if regressions[0] == regressions[1]:
+                raise CausalValueError("the control and treated regressions must be distinct")
+            if self.trial is None:
+                raise CausalValueError(
+                    "supplied outcome regressions are read with the trial columns: pass trial=, "
+                    "selection_probability= and treatment_probability="
+                )
+            coerce_fields(self, outcome_regressions=(str(regressions[0]), str(regressions[1])))
         columns = (self.trial, self.selection_probability, self.treatment_probability)
         if any(column is not None for column in columns):
             if any(column is None for column in columns):
@@ -698,18 +717,17 @@ def estimate_trial_effect(
     and the overlap of the trial rows with it; a target with no overlap is refused with
     ``transport_target_overlap_failed`` and a next attempt.
 
-    The IPW-only call (no ``mu0``/``mu1`` and no ``target``) is deprecated: the compiled study
-    computes the identical point estimate and standard error. The AIPW call with caller-supplied
-    outcome regressions and the weighted-target call have no compiled query form yet and do not
-    warn.
+    Deprecated: the compiled study computes the identical numbers. ``antecedent.analyze`` with
+    ``TransportQuery(..., trial=, selection_probability=, treatment_probability=)`` publishes the
+    IPW point and standard error; ``outcome_regressions=(mu0_column, mu1_column)`` adds the
+    augmented contrast (the ``estimate.transport.trial_aipw_supplied`` diagnostic), and
+    ``target=`` the weighted target with its AIPW standard error.
     """
-
-    if mu0 is None and mu1 is None and target is None:
-        _deprecation.direct_path_deprecated(
-            "antecedent.transport.estimate_trial_effect",
-            "antecedent.analyze(data, graph=Admg, query=TransportQuery(..., trial=, "
-            "selection_probability=, treatment_probability=))",
-        )
+    _deprecation.direct_path_deprecated(
+        "antecedent.transport.estimate_trial_effect",
+        "antecedent.analyze(data, graph=Admg, query=TransportQuery(..., trial=, "
+        "selection_probability=, treatment_probability=, outcome_regressions=, target=))",
+    )
     if not isinstance(identification, TransportIdentification):
         raise CausalTypeError(
             "estimate_trial_effect requires identification=transport.identify(...)"

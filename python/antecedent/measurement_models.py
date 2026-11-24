@@ -96,7 +96,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _deprecation, _native
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -158,6 +158,8 @@ __all__ = [
     "verify_measurement_transport",
     "PopulationValidationCounts",
     "PooledDifferentialCorrection",
+    "CompiledPooledDifferentialTransport",
+    "compile_pooled_differential_transport",
     "transport_pooled_differential",
 ]
 
@@ -1960,7 +1962,15 @@ def transport_pooled_differential(
     is propagated with the target's own validation sample, when supplied, and the recorded
     prevalence into the Rogan-Gladen correction. Fewer than two sources, or pooled rates that
     leave the target unidentified, are refused (``differential_error_not_pooled``).
+
+    Deprecated: :func:`compile_pooled_differential_transport` compiles the same question into
+    the ``PooledDifferentialTransport`` route and its ``execute`` returns the identical
+    correction under the same execution seed.
     """
+    _deprecation.direct_path_deprecated(
+        "antecedent.measurement_models.transport_pooled_differential",
+        "antecedent.measurement_models.compile_pooled_differential_transport(...).execute()",
+    )
     execution = resolve_execution(execution)
     section = _native.measurement_pooled_differential_transport(
         [(source.population, *source._counts()) for source in sources],
@@ -1983,3 +1993,76 @@ def transport_pooled_differential(
         draws=tuple(section.draws),
         calibration=section.calibration,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class CompiledPooledDifferentialTransport:
+    """A pooled-differential measurement transport compiled into its program family.
+
+    ``route`` is the plan route (``PooledDifferentialTransport``) and ``program_identity`` the
+    identity of the lowered program; :meth:`execute` pools the validated rates and draws the
+    corrected prevalence. Nothing is computed until it runs.
+    """
+
+    _native: Any = field(repr=False, compare=False)
+
+    @property
+    def route(self) -> str:
+        """The plan route of the compiled program."""
+        route: str = self._native.route
+        return route
+
+    @property
+    def program_identity(self) -> str:
+        """Identity of the lowered program, as lowercase hex."""
+        identity: str = self._native.program_identity
+        return identity
+
+    def execute(self, *, execution: Execution | None = None) -> PooledDifferentialCorrection:
+        """Pool the rates and draw the corrected prevalence under ``execution``'s seed.
+
+        The interval is an uncalibrated simulation interval (``calibration ==
+        "not_measured"``). Fewer than two sources, or pooled rates that leave the target
+        unidentified, are refused (``differential_error_not_pooled``).
+        """
+        execution = resolve_execution(execution)
+        section = self._native.execute(seed=execution.seed, threads=execution.threads)
+        return PooledDifferentialCorrection(
+            target_population=section.target_population,
+            prevalence=section.prevalence,
+            interval=section.interval,
+            sensitivity=section.sensitivity,
+            specificity=section.specificity,
+            discarded_draws=section.discarded_draws,
+            truncated_draws=section.truncated_draws,
+            draws=tuple(section.draws),
+            calibration=section.calibration,
+        )
+
+
+def compile_pooled_differential_transport(
+    sources: Sequence[PopulationValidationCounts],
+    target_population: str,
+    observed_positive: int,
+    observed_total: int,
+    *,
+    target_validation: PopulationValidationCounts | None = None,
+    draws: int = 4000,
+) -> CompiledPooledDifferentialTransport:
+    """Compile the correction of the target's recorded prevalence with population-differential error.
+
+    The sensitivity and specificity logits of two or more validated ``sources`` are pooled by
+    random effects when the program executes; the between-population variance is propagated
+    with the target's own validation sample, when supplied, and the recorded prevalence into
+    the Rogan-Gladen correction (``antecedent_estimate`` ``transport_pooled_differential_
+    prevalence``).
+    """
+    native = _native.compile_pooled_differential_transport(
+        [(source.population, *source._counts()) for source in sources],
+        _name(target_population, "target_population"),
+        _count(observed_positive, "observed_positive"),
+        _count(observed_total, "observed_total"),
+        target_validation=None if target_validation is None else target_validation._counts(),
+        draws=_count(draws, "draws"),
+    )
+    return CompiledPooledDifferentialTransport(native)

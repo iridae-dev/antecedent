@@ -1,0 +1,31 @@
+feature_id = "transport.augmented_response_grid"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled augmented transported response grid
+# (crates/antecedent/src/analysis/transport_response_grid.rs). The route decides the transport by
+# sID, binds the caller's columns into a lowered program and evaluates the kernel equation of
+# estimate.transport_response_grid (provenance/estimate.transport_response_grid.toml) on them;
+# it adds no estimator of its own.
+papers = [
+ { title = "Extending inferences from a randomized trial to a new target population", doi = "10.1002/sim.8426", sections = ["Section 4.1: identification conditions for the nonparticipant target", "Section 5.3, equation (4): doubly robust estimator DR1"] },
+ { title = "Non-parametric Methods for Doubly Robust Estimation of Continuous Treatment Effects", doi = "10.1111/rssb.12212", sections = ["Section 3.2, equations (4)-(5): local-linear smoothing of a supplied pseudo-outcome, including signed equivalent weights"] },
+]
+
+implementation_deviations = [
+ "The route evaluates an algebraic composition of the DR1 transport score with caller-supplied grid-local response weights; neither cited paper derives this transported continuous-dose curve estimator, so no double-robustness or inference theorem is inherited.",
+ "Every nuisance (selection probability, observed-treatment and grid-point outcome regressions, local response weights) is supplied by the caller and held fixed; the route fits none and chooses no bandwidth.",
+ "Point-only: no standard error or interval is formed and calibration is reported as not_measured.",
+ "The transport is decided by sID on the declared selection diagram; only a direct or standardizing certificate is evaluated, and a recursive factorization is refused.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/compiled_twins_transport_supplied.rs (a four-row, two-point grid whose augmented means 2.5 and 7.0625 are worked by hand from the formula; the twin of the direct supplied-equation entry)",
+ "python/tests/test_compiled_transport_supplied.py",
+ "crates/antecedent-estimate/src/transport.rs",
+]
