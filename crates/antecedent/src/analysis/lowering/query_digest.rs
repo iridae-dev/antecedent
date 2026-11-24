@@ -20,7 +20,7 @@ use crate::analysis::execute::{StudyDeclarations, StudyInference};
 
 const QUERY_DIGEST_TAG: &str = "antecedent.lowered_query";
 const RETENTION_KEY_TAG: &str = "antecedent.retained_identification_key";
-const POSTERIOR_MARKS_TAG: &str = "posterior_circle_marks";
+const POSTERIOR_MARKS_TAG: &str = "antecedent.posterior_circle_marks.v1";
 
 /// Canonical digest of `query`.
 pub(crate) fn query_digest(query: &CausalQuery) -> [u8; 32] {

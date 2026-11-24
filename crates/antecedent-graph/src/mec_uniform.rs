@@ -60,7 +60,7 @@ use crate::types::DenseNodeId;
 /// A chain component: its nodes and its undirected edges.
 type Component = (Vec<u32>, Vec<(u32, u32)>);
 
-const DAG_MEMBER_TAG: &str = "antecedent.graph.mec_member";
+const DAG_MEMBER_TAG: &str = "antecedent.graph.mec_member.v1";
 
 /// Most uniform orders drawn for one clique before the draw is abandoned. An order is accepted
 /// with probability at least `1 / |K|`, so this bound is never reached in practice.

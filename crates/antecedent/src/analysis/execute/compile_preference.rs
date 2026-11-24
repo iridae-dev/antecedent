@@ -249,8 +249,8 @@ fn design_code(error: &JointPanelError) -> Option<&str> {
     }
 }
 
-const MEASURE_TAG: &str = "antecedent.preference_route.measure";
-const OPTIONS_TAG: &str = "antecedent.preference_route.evaluation_options";
+const MEASURE_TAG: &str = "antecedent.preference_route.measure.v1";
+const OPTIONS_TAG: &str = "antecedent.preference_route.evaluation_options.v1";
 
 /// The identity the executed `result` reports, checked against the plan compiled for it: the
 /// decision program the plan states is the program that ran.

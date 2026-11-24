@@ -54,13 +54,13 @@ use crate::CausalError;
 use crate::analysis::builder::DataInput;
 
 /// Domain of the observation identities a study's rows carry in the ledger.
-const ROW_DOMAIN: &str = "antecedent.preference_route.study_rows";
+const ROW_DOMAIN: &str = "antecedent.preference_route.study_rows.v1";
 /// Domain of the observation identities a study's unit identifiers carry in the ledger.
-const UNIT_DOMAIN: &str = "antecedent.preference_route.study_units";
+const UNIT_DOMAIN: &str = "antecedent.preference_route.study_units.v1";
 /// Tag of the digest naming a set of unit identifiers in a chain factor.
-const UNIT_FACTOR_TAG: &str = "antecedent.preference_route.unit_factor";
+const UNIT_FACTOR_TAG: &str = "antecedent.preference_route.unit_factor.v1";
 /// Tag of the digest naming a set of rows of one source table in a chain factor.
-const ROW_FACTOR_TAG: &str = "antecedent.preference_route.row_factor";
+const ROW_FACTOR_TAG: &str = "antecedent.preference_route.row_factor.v1";
 /// Longest namespace or unit label, in bytes.
 const MAX_UNIT_TEXT_BYTES: usize = 4096;
 

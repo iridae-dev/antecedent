@@ -34,7 +34,7 @@ use crate::mec_uniform::first_word;
 use crate::pag::Pag;
 use crate::types::{DenseNodeId, Endpoint};
 
-const MAG_MEMBER_TAG: &str = "antecedent.graph.mag_member";
+const MAG_MEMBER_TAG: &str = "antecedent.graph.mag_member.v1";
 
 /// Why members of a PAG's class could not be drawn.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
