@@ -70,7 +70,6 @@ def fixture():
     return study, contract, [robust.Claim.evaluated("s", law, support=robust.Support("supported"))]
 
 
-
 def _compiled(study, contract, claims):
     source = require_success(
         robust.joint_scenario_carrier(
@@ -83,7 +82,8 @@ def _compiled(study, contract, claims):
 def test_finite_scenarios_warns_and_the_compiled_terminal_reaches_the_same_verdict():
     study, contract, claims = fixture()
     with pytest.warns(AntecedentDeprecationWarning, match="finite_scenarios"):
-        direct = robust.finite_scenarios(contract, claims)
+        # The released direct path returns an Outcome (it is an outcome operation).
+        direct = require_success(robust.finite_scenarios(contract, claims))
     # The same call through the general entry warns once, naming the compiled replacement.
     with pytest.warns(AntecedentDeprecationWarning, match="compile_robust_decision"):
         robust.robust(contract, claims, kind="finite_scenarios")
@@ -91,4 +91,3 @@ def test_finite_scenarios_warns_and_the_compiled_terminal_reaches_the_same_verdi
     assert result.complete
     assert result.verdict.kind == direct.verdict.kind
     assert result.verdict.selected == direct.verdict.selected
-
