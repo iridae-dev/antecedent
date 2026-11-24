@@ -31,8 +31,9 @@ use antecedent::analysis::preference_decision::{
 use antecedent::analysis::propagation_chain::{
     ChainCoefficientWire, ChainOpWire, ChainReading, ChainRefusal, ChainStageWire,
     ChainTableBinding, DeferredCrossBlock, FamilyDependence, FamilyEstimate, FamilyEstimateDecl,
-    LawMeaning, PropagationChain, PropagationChainRecordWire, SharedFactorKind, StageKind,
-    compile_propagation_chain, consume_propagation_chain, deferred_family_table, family_table,
+    LawMeaning, PropagationChain, PropagationChainDraftWire, SharedFactorKind, StageKind,
+    compile_deferred_propagation_chain, compile_propagation_chain, consume_propagation_chain,
+    deferred_family_table, family_table,
 };
 use antecedent::{BayesianConfig, InferenceMode, RefuteSuite, Study};
 use antecedent_contract::{QuantityRole, ScientificQuantity};
@@ -395,7 +396,7 @@ fn a_table_beyond_the_work_budget_is_refused_at_compile() {
 }
 
 /// Two posterior slots `x` and `y` of one deferred table, each declaring `factors`, in `groups`.
-fn deferred_chain(groups: &[Vec<usize>], factors: [&str; 2]) -> PropagationChainRecordWire {
+fn deferred_chain(groups: &[Vec<usize>], factors: [&str; 2]) -> PropagationChainDraftWire {
     let estimates = [("x", factors[0]), ("y", factors[1])]
         .map(|(id, factor)| {
             FamilyEstimateDecl::new(id, LawMeaning::Posterior)
@@ -420,12 +421,11 @@ fn deferred_chain(groups: &[Vec<usize>], factors: [&str; 2]) -> PropagationChain
 fn a_bound_table_is_the_family_table_of_its_moments_and_replays_as_any_record() {
     let ctx = ExecutionContext::for_tests(9);
     let draft = deferred_chain(&[vec![0], vec![1]], ["rows-a", "rows-b"]);
-    let plan = compile_propagation_chain(draft, &ctx).expect("compiles");
+    let plan = compile_deferred_propagation_chain(draft, &ctx).expect("compiles");
     assert!(plan.is_deferred());
     let binding = ChainTableBinding { means: vec![1.0, 2.0], within: vec![vec![0.25], vec![0.04]] };
     let chain = plan.execute_bound(&binding, &ctx).expect("binds");
     assert_eq!(chain.lowered_program_identity(), plan.identity());
-    assert!(chain.record().deferred.is_none());
 
     // The same table drawn from the estimates directly, sealed as an ordinary chain.
     let estimates = [("x", 1.0, 0.5, "rows-a"), ("y", 2.0, 0.2, "rows-b")]
@@ -468,13 +468,16 @@ fn a_bound_table_is_the_family_table_of_its_moments_and_replays_as_any_record() 
 fn a_deferred_program_is_bound_or_refused() {
     let ctx = ExecutionContext::for_tests(9);
     let draft = deferred_chain(&[vec![0], vec![1]], ["rows-a", "rows-b"]);
-    let plan = compile_propagation_chain(draft.clone(), &ctx).expect("compiles");
+    let plan = compile_deferred_propagation_chain(draft.clone(), &ctx).expect("compiles");
 
     let refusal = plan.execute(&ctx).unwrap_err();
     assert_eq!(refusal.detail(), DEFERRED_SOURCE_UNBOUND);
-    let refusal = PropagationChain::seal(draft.clone(), &ctx).unwrap_err();
+    // The draft's record alone is neither compiled as an ordinary chain nor sealed nor exported.
+    let refusal = compile_propagation_chain(draft.record.clone(), &ctx).unwrap_err();
     assert_eq!(refusal.detail(), DEFERRED_SOURCE_UNBOUND);
-    let Err(PropagationChainError::Refused(refusal)) = draft.export() else {
+    let refusal = PropagationChain::seal(draft.record.clone(), &ctx).unwrap_err();
+    assert_eq!(refusal.detail(), DEFERRED_SOURCE_UNBOUND);
+    let Err(PropagationChainError::Refused(refusal)) = draft.record.export() else {
         panic!("a deferred draft is not exported");
     };
     assert_eq!(refusal.detail(), DEFERRED_SOURCE_UNBOUND);
@@ -491,7 +494,7 @@ fn a_deferred_program_is_bound_or_refused() {
 
     // A within-group covariance no table can carry: a correlation of two.
     let draft = deferred_chain(&[vec![0, 1]], ["rows", "rows"]);
-    let plan = compile_propagation_chain(draft, &ctx).expect("compiles");
+    let plan = compile_deferred_propagation_chain(draft, &ctx).expect("compiles");
     let binding =
         ChainTableBinding { means: vec![1.0, 2.0], within: vec![vec![1.0, 2.0, 2.0, 1.0]] };
     let refusal = plan.execute_bound(&binding, &ctx).unwrap_err();

@@ -282,6 +282,20 @@ pub struct ChainDeferredTableWire {
     pub within_blocks: Vec<Vec<String>>,
 }
 
+/// A compiled draft whose family table is bound at execution: the chain's record with every
+/// slot source carrying no values yet, beside the table those sources are columns of.
+///
+/// It is a draft, never a record: it has no results and is never sealed, exported or consumed
+/// as it is. Binding the table's moments draws the slots and makes the concrete record.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PropagationChainDraftWire {
+    /// The chain as declared, its slot sources empty.
+    pub record: PropagationChainRecordWire,
+    /// The family table bound at execution.
+    pub deferred: ChainDeferredTableWire,
+}
+
 /// The retained propagation record.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -306,10 +320,6 @@ pub struct PropagationChainRecordWire {
     pub joint_outputs: Vec<ChainJointOutputWire>,
     /// The sources.
     pub sources: Vec<ChainSourceWire>,
-    /// A family table whose draws are bound at execution: present only on a compiled draft
-    /// whose slot sources carry no values yet. A sealed record never carries it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub deferred: Option<ChainDeferredTableWire>,
     /// The stages.
     pub stages: Vec<ChainStageWire>,
     /// The changes, in the order they were appended.

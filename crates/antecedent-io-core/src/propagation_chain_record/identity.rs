@@ -13,7 +13,8 @@ use super::{
     PROPAGATION_CHAIN_ASSUMPTION_TAG, PROPAGATION_CHAIN_ASSUMPTION_VERSION,
     PROPAGATION_CHAIN_DEFERRED_TAG, PROPAGATION_CHAIN_JOINT_LAW_TAG,
     PROPAGATION_CHAIN_JOINT_LAW_VERSION, PROPAGATION_CHAIN_LAW_TAG, PROPAGATION_CHAIN_LAW_VERSION,
-    PROPAGATION_CHAIN_TAG, PropagationChainRecordWire, operator_class, parse, stage_op, word_of,
+    PROPAGATION_CHAIN_TAG, PropagationChainDraftWire, PropagationChainRecordWire, operator_class,
+    parse, stage_op, word_of,
 };
 
 fn write_factors(writer: &mut CanonicalWriter, factors: &[ChainFactorWire]) -> Result<(), Error> {
@@ -74,7 +75,26 @@ fn write_deferred(writer: &mut CanonicalWriter, deferred: &ChainDeferredTableWir
 /// # Errors
 /// A stored name that is not one of the format's names.
 pub fn propagation_chain_identity(record: &PropagationChainRecordWire) -> Result<String, Error> {
-    let tag = if record.deferred.is_some() {
+    identity_of(record, None)
+}
+
+/// Identity of a draft whose family table is bound at execution: the record's stream with the
+/// table's declaration written after the sources, under its own domain
+/// ([`PROPAGATION_CHAIN_DEFERRED_TAG`]).
+///
+/// # Errors
+/// As [`propagation_chain_identity`].
+pub fn propagation_chain_draft_identity(
+    draft: &PropagationChainDraftWire,
+) -> Result<String, Error> {
+    identity_of(&draft.record, Some(&draft.deferred))
+}
+
+fn identity_of(
+    record: &PropagationChainRecordWire,
+    deferred: Option<&ChainDeferredTableWire>,
+) -> Result<String, Error> {
+    let tag = if deferred.is_some() {
         // A draft whose family table is bound at execution is another kind of object than any
         // sealed record: its identity lives in its own domain.
         PROPAGATION_CHAIN_DEFERRED_TAG
@@ -145,7 +165,7 @@ pub fn propagation_chain_identity(record: &PropagationChainRecordWire) -> Result
             writer.word(*value);
         }
     }
-    if let Some(deferred) = &record.deferred {
+    if let Some(deferred) = deferred {
         write_deferred(&mut writer, deferred);
     }
     writer.word(word_of(record.stages.len()));

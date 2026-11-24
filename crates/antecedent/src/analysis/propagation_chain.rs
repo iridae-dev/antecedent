@@ -75,12 +75,12 @@ pub use antecedent_io::propagation_chain_record::{
     ChainChangeWire, ChainCoefficientWire, ChainDeclaredBlockWire, ChainDeferredTableWire,
     ChainExprTermWire, ChainFactorWire, ChainOpWire, ChainSourceWire, ChainStageResultWire,
     ChainStageWire, ChainUnaryWire, ConsumedPropagationChain, PROPAGATION_CHAIN_SECTION,
-    PropagationChainError, PropagationChainRecordWire, STATUS_CURRENT, STATUS_INVALIDATED,
-    STATUS_REWEIGHTED,
+    PropagationChainDraftWire, PropagationChainError, PropagationChainRecordWire, STATUS_CURRENT,
+    STATUS_INVALIDATED, STATUS_REWEIGHTED,
 };
 use antecedent_io::propagation_chain_record::{
     DEFERRED_MOMENT_MATCHED_NORMAL, DEFERRED_SOURCE_UNBOUND, PROPAGATION_CHAIN_DEFERRED_FEATURE,
-    propagation_chain_identity,
+    propagation_chain_draft_identity,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -125,7 +125,39 @@ pub struct PropagationChainPlan {
 /// The typed refusal of the chain rule, with its registered code and next
 /// attempt; `public_builder_reentry` inside a lowered dispatch; cancellation.
 pub fn compile_propagation_chain(
+    draft: PropagationChainRecordWire,
+    ctx: &ExecutionContext,
+) -> Result<PropagationChainPlan, ChainRefusal> {
+    if draft.required_features.iter().any(|feature| feature == PROPAGATION_CHAIN_DEFERRED_FEATURE) {
+        return Err(ChainRefusal::new(
+            antecedent_core::reason_code!("invalid_argument"),
+            DEFERRED_SOURCE_UNBOUND,
+            "the record belongs to a draft whose family table is deferred; compile the draft \
+             with compile_deferred_propagation_chain and bind its moments with execute_bound",
+            None,
+            antecedent_contract::propagation_chain::FIX_CHAIN_DECLARATION,
+        ));
+    }
+    compile_chain(draft, None, ctx)
+}
+
+/// Compile a declared chain whose family table is bound at execution
+/// ([`DeferredFamilyTable::draft`]): the program is executed by
+/// [`PropagationChainPlan::execute_bound`], never by [`PropagationChainPlan::execute`].
+///
+/// # Errors
+///
+/// As [`compile_propagation_chain`], and a malformed deferred table.
+pub fn compile_deferred_propagation_chain(
+    draft: PropagationChainDraftWire,
+    ctx: &ExecutionContext,
+) -> Result<PropagationChainPlan, ChainRefusal> {
+    compile_chain(draft.record, Some(draft.deferred), ctx)
+}
+
+fn compile_chain(
     mut draft: PropagationChainRecordWire,
+    deferred: Option<ChainDeferredTableWire>,
     ctx: &ExecutionContext,
 ) -> Result<PropagationChainPlan, ChainRefusal> {
     if ctx.lowered_dispatch().is_some() {
@@ -169,7 +201,7 @@ pub fn compile_propagation_chain(
     };
     draft.version = version;
     draft.required_features = vec![feature.to_owned()];
-    if draft.deferred.is_some() {
+    if deferred.is_some() {
         draft.required_features.push(PROPAGATION_CHAIN_DEFERRED_FEATURE.to_owned());
     }
     draft.results.clear();
@@ -181,8 +213,18 @@ pub fn compile_propagation_chain(
     draft.joint_output_weights = None;
     draft.identity.clear();
     draft.label.clear();
-    let plan = draft.plan().map_err(|error| refusal(&error))?;
-    let lowered = lower_chain(draft, plan)?;
+    let (draft, deferred, plan) = match deferred {
+        Some(table) => {
+            let wire = PropagationChainDraftWire { record: draft, deferred: table };
+            let plan = wire.plan().map_err(|error| refusal(&error))?;
+            (wire.record, Some(wire.deferred), plan)
+        }
+        None => {
+            let plan = draft.plan().map_err(|error| refusal(&error))?;
+            (draft, None, plan)
+        }
+    };
+    let lowered = lower_chain(draft, deferred, plan)?;
     let program = lowered.propagation_chain().cloned().ok_or_else(|| {
         ChainRefusal::new(
             antecedent_core::reason_code!("route_not_lowered"),
@@ -529,7 +571,7 @@ impl PropagationChain {
     ///
     /// A refusal of the rule; a sealed chain does not have one.
     pub fn declaration_identity(&self) -> Result<String, ChainRefusal> {
-        declaration_identity(&self.record, &self.plan()?)
+        declaration_identity(&self.record, None, &self.plan()?)
     }
 }
 
@@ -1226,23 +1268,25 @@ pub struct DeferredFamilyTable {
 }
 
 impl DeferredFamilyTable {
-    /// Draft a joint-draw chain over these sources whose table is bound at execution.
+    /// Draft a joint-draw chain over these sources whose table is bound at execution; compile
+    /// it with [`compile_deferred_propagation_chain`]. Its record carries the deferred feature
+    /// marker, so the record alone is never compiled, sealed, exported or consumed.
     #[must_use]
     pub fn draft(
         &self,
         reading: ChainReading,
         output: &str,
         stages: Vec<ChainStageWire>,
-    ) -> PropagationChainRecordWire {
-        let mut draft = PropagationChain::draft(
+    ) -> PropagationChainDraftWire {
+        let mut record = PropagationChain::draft(
             TableConstruction::JointDraws,
             reading,
             output,
             self.sources.clone(),
             stages,
         );
-        draft.deferred = Some(self.table.clone());
-        draft
+        record.required_features.push(PROPAGATION_CHAIN_DEFERRED_FEATURE.to_owned());
+        PropagationChainDraftWire { record, deferred: self.table.clone() }
     }
 }
 
@@ -1450,7 +1494,7 @@ impl PropagationChainPlan {
     /// ([`Self::execute_bound`]) rather than carried by its sources.
     #[must_use]
     pub fn is_deferred(&self) -> bool {
-        self.program.draft().deferred.is_some()
+        self.program.deferred().is_some()
     }
 
     /// Bind the deferred family table of the program to `binding`, draw it and execute the
@@ -1486,7 +1530,7 @@ impl PropagationChainPlan {
             ));
         }
         let draft = self.program.draft();
-        let Some(table) = draft.deferred.as_ref() else {
+        let Some(table) = self.program.deferred() else {
             return Err(ChainRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),
                 "propagation_chain.program_mismatch",
@@ -1604,7 +1648,7 @@ impl PropagationChainPlan {
             Some(&declared),
         )?;
         let mut concrete = draft.clone();
-        concrete.deferred = None;
+        concrete.required_features.retain(|feature| feature != PROPAGATION_CHAIN_DEFERRED_FEATURE);
         for wire in family.sources {
             if let Some(source) = concrete.sources.iter_mut().find(|source| source.id == wire.id) {
                 *source = wire;
@@ -1619,8 +1663,10 @@ impl PropagationChainPlan {
                 source.values.clear();
             }
         }
-        template.deferred = Some(table.clone());
-        let declared = propagation_chain_identity(&template).map_err(|error| refusal(&error))?;
+        template.required_features.push(PROPAGATION_CHAIN_DEFERRED_FEATURE.to_owned());
+        let template = PropagationChainDraftWire { record: template, deferred: table.clone() };
+        let declared =
+            propagation_chain_draft_identity(&template).map_err(|error| refusal(&error))?;
         if declared != self.program.declaration_identity() {
             return Err(ChainRefusal::new(
                 antecedent_core::reason_code!("invalid_argument"),

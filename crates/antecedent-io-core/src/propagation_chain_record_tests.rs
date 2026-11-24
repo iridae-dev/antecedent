@@ -1333,15 +1333,14 @@ fn deferred_table(rows: u64, seed: u64) -> ChainDeferredTableWire {
 }
 
 /// A deferred draft as a compile leaves it: the joint-law format and the deferred feature.
-fn deferred_draft(rows: u64, seed: u64) -> PropagationChainRecordWire {
-    let mut draft = joint_draft(&[], &[]);
-    draft.version = PROPAGATION_CHAIN_JOINT_LAW_VERSION;
-    draft.required_features = vec![
+fn deferred_draft(rows: u64, seed: u64) -> PropagationChainDraftWire {
+    let mut record = joint_draft(&[], &[]);
+    record.version = PROPAGATION_CHAIN_JOINT_LAW_VERSION;
+    record.required_features = vec![
         PROPAGATION_CHAIN_JOINT_LAW_FEATURE.to_owned(),
         PROPAGATION_CHAIN_DEFERRED_FEATURE.to_owned(),
     ];
-    draft.deferred = Some(deferred_table(rows, seed));
-    draft
+    PropagationChainDraftWire { record, deferred: deferred_table(rows, seed) }
 }
 
 /// The canonical stream of the two-column joint draft, written out independently of
@@ -1416,7 +1415,6 @@ fn a_joint_law_record_keeps_its_identity_encoding_and_its_bytes() {
     let y = independent_grid(2.0, 0.25);
     let record = PropagationChainRecordWire::seal(joint_draft(&x, &y), &ctx()).expect("seals");
     assert_eq!(record.version, PROPAGATION_CHAIN_JOINT_LAW_VERSION);
-    assert!(record.deferred.is_none());
     let expected = joint_stream(
         PROPAGATION_CHAIN_JOINT_LAW_TAG,
         &[("x", "table-a", &x), ("y", "table-b", &y)],
@@ -1424,8 +1422,8 @@ fn a_joint_law_record_keeps_its_identity_encoding_and_its_bytes() {
         &record.label,
     );
     assert_eq!(record.identity, expected);
-    // A record without a deferred table writes no field for it, so its encoded bytes are the
-    // bytes of a record from before deferred tables existed; such bytes still decode.
+    // A record never carries a deferred table, so its encoded bytes are the bytes of a record
+    // from before deferred tables existed; such bytes still decode.
     let json = serde_json::to_string(&record).expect("encodes");
     assert!(!json.contains("deferred"), "{json}");
     let decoded: PropagationChainRecordWire = serde_json::from_str(&json).expect("decodes");
@@ -1441,28 +1439,25 @@ fn a_deferred_draft_has_its_own_identity_and_binds_rows_seed_and_layout() {
     let draft = deferred_draft(400, 7);
     let plan = draft.plan().expect("the rule plans a deferred draft");
     let mut labelled = draft.clone();
-    plan.label.clone_into(&mut labelled.label);
-    let identity = propagation_chain_identity(&labelled).expect("identity");
+    plan.label.clone_into(&mut labelled.record.label);
+    let identity = propagation_chain_draft_identity(&labelled).expect("identity");
     let empty: &[f64] = &[];
     let expected = joint_stream(
         PROPAGATION_CHAIN_DEFERRED_TAG,
         &[("x", "table-a", empty), ("y", "table-b", empty)],
-        draft.deferred.as_ref(),
+        Some(&draft.deferred),
         plan.label,
     );
     assert_eq!(identity, expected);
-    let mut concrete = labelled.clone();
-    concrete.deferred = None;
-    assert_ne!(propagation_chain_identity(&concrete).expect("identity"), identity);
+    assert_ne!(propagation_chain_identity(&labelled.record).expect("identity"), identity);
     for other in [deferred_draft(401, 7), deferred_draft(400, 8)] {
         let mut other = other;
-        plan.label.clone_into(&mut other.label);
-        assert_ne!(propagation_chain_identity(&other).expect("identity"), identity);
+        plan.label.clone_into(&mut other.record.label);
+        assert_ne!(propagation_chain_draft_identity(&other).expect("identity"), identity);
     }
     let mut regrouped = labelled.clone();
-    regrouped.deferred.as_mut().expect("deferred").within_blocks =
-        vec![vec!["x".into(), "y".into()]];
-    assert_ne!(propagation_chain_identity(&regrouped).expect("identity"), identity);
+    regrouped.deferred.within_blocks = vec![vec!["x".into(), "y".into()]];
+    assert_ne!(propagation_chain_draft_identity(&regrouped).expect("identity"), identity);
 }
 
 #[test]
@@ -1475,11 +1470,12 @@ fn a_deferred_draft_is_never_sealed_exported_or_consumed() {
         }
         other => panic!("expected the deferred refusal, got {other:?}"),
     };
-    refused(PropagationChainRecordWire::seal(draft.clone(), &ctx()).map(|_| ()));
-    refused(draft.export().map(|_| ()));
-    refused(draft.consume(None, &ctx()).map(|_| ()));
+    // The draft's record carries the deferred feature marker, so it is refused on its own.
+    refused(PropagationChainRecordWire::seal(draft.record.clone(), &ctx()).map(|_| ()));
+    refused(draft.record.export().map(|_| ()));
+    refused(draft.record.consume(None, &ctx()).map(|_| ()));
     // Encoded as it is, a reader that does not bind deferred tables refuses the feature.
-    let bytes = crate::to_cbor(&draft).expect("encodes");
+    let bytes = crate::to_cbor(&draft.record).expect("encodes");
     assert_eq!(
         PropagationChainRecordWire::decode(&bytes),
         Err(PropagationChainError::UnsupportedSemantics("required features"))
@@ -1490,7 +1486,7 @@ fn a_deferred_draft_is_never_sealed_exported_or_consumed() {
 fn a_malformed_deferred_table_is_refused_before_the_rule_runs() {
     let malformed = |edit: &dyn Fn(&mut ChainDeferredTableWire)| {
         let mut draft = deferred_draft(400, 7);
-        edit(draft.deferred.as_mut().expect("deferred"));
+        edit(&mut draft.deferred);
         assert!(matches!(draft.plan(), Err(Error::Malformed(_))), "{:?}", draft.plan());
     };
     malformed(&|table| table.construction = "other".into());
@@ -1512,11 +1508,11 @@ fn a_malformed_deferred_table_is_refused_before_the_rule_runs() {
     });
     // A slot that already carries draws is not deferred.
     let mut draft = deferred_draft(400, 7);
-    draft.sources[0].values = vec![1.0_f64.to_bits(); 400];
+    draft.record.sources[0].values = vec![1.0_f64.to_bits(); 400];
     assert!(matches!(draft.plan(), Err(Error::Malformed(_))));
     // A well-formed block between the two groups plans.
     let mut draft = deferred_draft(400, 7);
-    draft.deferred.as_mut().expect("deferred").declared_cross =
+    draft.deferred.declared_cross =
         vec![ChainDeclaredBlockWire { first: 0, second: 1, terms: vec![0.01_f64.to_bits()] }];
     draft.plan().expect("plans");
 }

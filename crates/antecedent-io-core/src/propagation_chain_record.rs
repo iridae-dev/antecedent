@@ -54,12 +54,12 @@ mod identity;
 mod wire;
 
 use bounds::check_bounds;
-pub use identity::propagation_chain_identity;
+pub use identity::{propagation_chain_draft_identity, propagation_chain_identity};
 pub use wire::{
     ChainChangeWire, ChainCoefficientWire, ChainDeclaredBlockWire, ChainDeferredTableWire,
     ChainExprTermWire, ChainFactorWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire,
     ChainStageResultWire, ChainStageWire, ChainUnaryWire, ConsumedPropagationChain,
-    PropagationChainRecordWire,
+    PropagationChainDraftWire, PropagationChainRecordWire,
 };
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -536,7 +536,6 @@ impl PropagationChainRecordWire {
             output_quantity: None,
             joint_outputs: Vec::new(),
             sources,
-            deferred: None,
             stages,
             changes: Vec::new(),
             label: String::new(),
@@ -568,10 +567,15 @@ impl PropagationChainRecordWire {
         self
     }
 
-    /// Refuse a draft whose family table is still deferred: its slot sources carry no draws,
-    /// so it has no results to seal, encode or replay.
+    /// Refuse the record of a draft whose family table is still deferred (it carries the
+    /// deferred feature marker): its slot sources carry no draws, so it has no results to seal,
+    /// encode or replay.
     fn refuse_deferred(&self, what: &str) -> Result<(), Error> {
-        if self.deferred.is_some() {
+        if self
+            .required_features
+            .iter()
+            .any(|feature| feature == PROPAGATION_CHAIN_DEFERRED_FEATURE)
+        {
             return Err(refused(
                 antecedent_core::reason_code!("invalid_argument"),
                 DEFERRED_SOURCE_UNBOUND,
@@ -582,86 +586,6 @@ impl PropagationChainRecordWire {
                 None,
                 FIX_CHAIN_DECLARATION,
             ));
-        }
-        Ok(())
-    }
-
-    /// A deferred table names distinct draw sources that carry no values yet, every one of them
-    /// in exactly one group, and declares well-shaped blocks between distinct groups.
-    fn check_deferred(&self) -> Result<(), Error> {
-        let Some(deferred) = &self.deferred else {
-            return Ok(());
-        };
-        if deferred.construction != DEFERRED_MOMENT_MATCHED_NORMAL {
-            return Err(malformed(format!(
-                "unknown deferred table construction `{}`",
-                deferred.construction
-            )));
-        }
-        if deferred.rows < 2 || deferred.slots.is_empty() {
-            return Err(malformed("a deferred table has at least two rows and one slot"));
-        }
-        let mut slots = BTreeSet::new();
-        for slot in &deferred.slots {
-            if !slots.insert(slot.as_str()) {
-                return Err(malformed(format!("deferred slot `{slot}` is named twice")));
-            }
-            let source =
-                self.sources.iter().find(|source| source.id == *slot).ok_or_else(|| {
-                    malformed(format!("deferred slot `{slot}` is not a source of the chain"))
-                })?;
-            if source.representation != Representation::Draws.as_str() || !source.values.is_empty()
-            {
-                return Err(malformed(format!(
-                    "deferred slot `{slot}` is a draw source with no values until it is bound"
-                )));
-            }
-        }
-        if self.sources.iter().any(|source| {
-            source.representation == Representation::Draws.as_str()
-                && !slots.contains(source.id.as_str())
-        }) {
-            return Err(malformed(
-                "every draw source of a chain with a deferred table is one of its slots",
-            ));
-        }
-        let mut grouped = BTreeSet::new();
-        for group in &deferred.within_blocks {
-            if group.is_empty() {
-                return Err(malformed("a deferred group names at least one slot"));
-            }
-            for slot in group {
-                if !slots.contains(slot.as_str()) || !grouped.insert(slot.as_str()) {
-                    return Err(malformed(format!(
-                        "deferred group member `{slot}` is not a slot in exactly one group"
-                    )));
-                }
-            }
-        }
-        if grouped.len() != slots.len() {
-            return Err(malformed("every deferred slot belongs to a group"));
-        }
-        let groups = deferred.within_blocks.len();
-        let mut seen = BTreeSet::new();
-        for block in &deferred.declared_cross {
-            let (Ok(first), Ok(second)) =
-                (usize::try_from(block.first), usize::try_from(block.second))
-            else {
-                return Err(malformed("a declared block names a group out of range"));
-            };
-            if first >= second || second >= groups || !seen.insert((first, second)) {
-                return Err(malformed(
-                    "a declared block names two distinct groups, first before second, once",
-                ));
-            }
-            let cells = deferred.within_blocks[first].len() * deferred.within_blocks[second].len();
-            if block.terms.len() != cells
-                || block.terms.iter().any(|bits| !f64::from_bits(*bits).is_finite())
-            {
-                return Err(malformed(
-                    "a declared block holds one finite term per pair of the two groups' slots",
-                ));
-            }
         }
         Ok(())
     }
@@ -880,7 +804,6 @@ impl PropagationChainRecordWire {
         // the record-level rule that an output-law decision declares its quantity.
         self.check_decision_references()?;
         self.check_output_quantity()?;
-        self.check_deferred()?;
         let plan = check_propagation_chain(&self.declaration()?)?;
         self.check_joint_outputs(&plan)?;
         Ok(plan)
@@ -1640,6 +1563,104 @@ fn stage_weights(state: &ChangeState, sources: &[String]) -> Result<Option<Vec<f
     match total {
         None => Ok(None),
         Some(log) => Ok(Some(weights_from_log(&log).map_err(map_chain_error)?)),
+    }
+}
+
+impl PropagationChainDraftWire {
+    /// Run the chain rule on the draft's declaration, after checking its deferred table.
+    ///
+    /// # Errors
+    /// A malformed table or declaration, or a refusal of the rule, with its next attempt.
+    pub fn plan(&self) -> Result<ChainPlan, Error> {
+        self.plan_within(&PropagationChainLimits::default())
+    }
+
+    /// [`Self::plan`] under the caller's bounds instead of the defaults.
+    ///
+    /// # Errors
+    /// As [`Self::plan`]; a bound of `limits` exceeded is `LimitsExceeded`.
+    pub fn plan_within(&self, limits: &PropagationChainLimits) -> Result<ChainPlan, Error> {
+        bounds::check_deferred_bounds(&self.deferred, limits)?;
+        self.check_table()?;
+        self.record.plan_within(limits)
+    }
+
+    /// A deferred table names distinct draw sources that carry no values yet, every one of them
+    /// in exactly one group, and declares well-shaped blocks between distinct groups.
+    fn check_table(&self) -> Result<(), Error> {
+        let deferred = &self.deferred;
+        if deferred.construction != DEFERRED_MOMENT_MATCHED_NORMAL {
+            return Err(malformed(format!(
+                "unknown deferred table construction `{}`",
+                deferred.construction
+            )));
+        }
+        if deferred.rows < 2 || deferred.slots.is_empty() {
+            return Err(malformed("a deferred table has at least two rows and one slot"));
+        }
+        let mut slots = BTreeSet::new();
+        for slot in &deferred.slots {
+            if !slots.insert(slot.as_str()) {
+                return Err(malformed(format!("deferred slot `{slot}` is named twice")));
+            }
+            let source =
+                self.record.sources.iter().find(|source| source.id == *slot).ok_or_else(|| {
+                    malformed(format!("deferred slot `{slot}` is not a source of the chain"))
+                })?;
+            if source.representation != Representation::Draws.as_str() || !source.values.is_empty()
+            {
+                return Err(malformed(format!(
+                    "deferred slot `{slot}` is a draw source with no values until it is bound"
+                )));
+            }
+        }
+        if self.record.sources.iter().any(|source| {
+            source.representation == Representation::Draws.as_str()
+                && !slots.contains(source.id.as_str())
+        }) {
+            return Err(malformed(
+                "every draw source of a chain with a deferred table is one of its slots",
+            ));
+        }
+        let mut grouped = BTreeSet::new();
+        for group in &deferred.within_blocks {
+            if group.is_empty() {
+                return Err(malformed("a deferred group names at least one slot"));
+            }
+            for slot in group {
+                if !slots.contains(slot.as_str()) || !grouped.insert(slot.as_str()) {
+                    return Err(malformed(format!(
+                        "deferred group member `{slot}` is not a slot in exactly one group"
+                    )));
+                }
+            }
+        }
+        if grouped.len() != slots.len() {
+            return Err(malformed("every deferred slot belongs to a group"));
+        }
+        let groups = deferred.within_blocks.len();
+        let mut seen = BTreeSet::new();
+        for block in &deferred.declared_cross {
+            let (Ok(first), Ok(second)) =
+                (usize::try_from(block.first), usize::try_from(block.second))
+            else {
+                return Err(malformed("a declared block names a group out of range"));
+            };
+            if first >= second || second >= groups || !seen.insert((first, second)) {
+                return Err(malformed(
+                    "a declared block names two distinct groups, first before second, once",
+                ));
+            }
+            let cells = deferred.within_blocks[first].len() * deferred.within_blocks[second].len();
+            if block.terms.len() != cells
+                || block.terms.iter().any(|bits| !f64::from_bits(*bits).is_finite())
+            {
+                return Err(malformed(
+                    "a declared block holds one finite term per pair of the two groups' slots",
+                ));
+            }
+        }
+        Ok(())
     }
 }
 

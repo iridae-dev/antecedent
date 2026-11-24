@@ -35,7 +35,7 @@ use super::outcomes::OutcomeDependence;
 use super::{BoundStudy, PreferenceDemand, PreferenceRouteError, STAGE_COMPILE};
 use crate::analysis::propagation_chain::{
     ChainPlan, DeferredCrossBlock, FamilyEstimateDecl, PropagationChainPlan,
-    compile_propagation_chain, deferred_family_table,
+    compile_deferred_propagation_chain, deferred_family_table,
 };
 use crate::planner::lowered::{PreferenceChainInputFact, PreferenceJointLawFact};
 
@@ -212,11 +212,9 @@ fn deferred_chain(
     else {
         return Err(super::outcomes::unpaired("no coordinate to join"));
     };
-    let draft = table
-        .draft(ChainReading::Posterior, &output, stages)
-        .with_output_quantity(quantity)
-        .with_joint_outputs(outputs);
-    compile_propagation_chain(draft, ctx).map_err(|refusal| chain_refusal(&refusal))
+    let mut draft = table.draft(ChainReading::Posterior, &output, stages);
+    draft.record = draft.record.with_output_quantity(quantity).with_joint_outputs(outputs);
+    compile_deferred_propagation_chain(draft, ctx).map_err(|refusal| chain_refusal(&refusal))
 }
 
 /// Declare, check and compile the chain that joins the studies' laws, when the demand needs
