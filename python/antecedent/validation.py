@@ -171,6 +171,10 @@ def validate_pcmci_block_bootstrap(
     block_size: int = 20,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_pcmci_block_bootstrap",
+        'antecedent.discovery_validation.validate_discovery(data, "block_bootstrap", ...)',
+    )
     return _with_columns(
         _validate_pcmci_block_bootstrap,
         data,
@@ -195,6 +199,10 @@ def validate_pcmci_false_positive(
     replicates: int = 20,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_pcmci_false_positive",
+        'antecedent.discovery_validation.validate_discovery(data, "false_positive", ...)',
+    )
     return _with_columns(
         _validate_pcmci_false_positive,
         data,
@@ -217,6 +225,10 @@ def validate_pcmci_alpha_sensitivity(
     ci: str = "parcorr",
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_pcmci_alpha_sensitivity",
+        'antecedent.discovery_validation.validate_discovery(data, "alpha", ...)',
+    )
     return _with_columns(
         _validate_pcmci_alpha_sensitivity,
         data,
@@ -237,6 +249,10 @@ def validate_pcmci_lag_sensitivity(
     ci: str = "parcorr",
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_pcmci_lag_sensitivity",
+        'antecedent.discovery_validation.validate_discovery(data, "lag_window", ...)',
+    )
     return _with_columns(
         _validate_pcmci_lag_sensitivity,
         data,
@@ -257,6 +273,10 @@ def validate_pcmci_ci_sensitivity(
     fdr: bool = False,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_pcmci_ci_sensitivity",
+        'antecedent.discovery_validation.validate_discovery(data, "ci_test", ...)',
+    )
     return _with_columns(
         _validate_pcmci_ci_sensitivity,
         data,
@@ -279,6 +299,10 @@ def validate_pcmci_plus_orientation(
     block_size: int = 20,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_pcmci_plus_orientation",
+        'antecedent.discovery_validation.validate_discovery(data, "orientation", ...)',
+    )
     return _with_columns(
         _validate_pcmci_plus_orientation,
         data,
@@ -303,6 +327,10 @@ def validate_synthetic_null_calibration(
     n_vars: int = 3,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_synthetic_null_calibration",
+        'antecedent.discovery_validation.validate_discovery(series, "synthetic_null", ...)',
+    )
     return _run(
         _validate_synthetic_null_calibration,
         execution,
@@ -326,6 +354,10 @@ def validate_environment_holdout(
     n_discovery: int = 1,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_environment_holdout",
+        'antecedent.discovery_validation.validate_discovery(data, "environment_holdout", ...)',
+    )
     return _with_multi_env(
         _validate_environment_holdout,
         data,
@@ -350,6 +382,10 @@ def validate_regime_stability(
     block_size: int = 20,
     execution: Execution | None = None,
 ) -> dict[str, Any]:
+    _deprecation.direct_path_deprecated(
+        "antecedent.validation.validate_regime_stability",
+        'antecedent.discovery_validation.validate_discovery(data, "regime_stability", ...)',
+    )
     return _with_columns(
         _validate_regime_stability,
         data,

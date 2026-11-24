@@ -451,6 +451,21 @@ impl DiscoverySpec {
         Self { regimes: Some(regimes), ..self.clone() }
     }
 
+    /// The parameters of a PCMCI-family temporal search, or `None` for any other search.
+    pub(crate) const fn temporal_params(&self) -> Option<&DiscoverParams> {
+        match &self.search {
+            SearchParams::Temporal(params) => Some(params),
+            SearchParams::Static(_) | SearchParams::Bayesian(_) | SearchParams::Screened { .. } => {
+                None
+            }
+        }
+    }
+
+    /// The minimum regime length a regime-PCMCI search declared.
+    pub(crate) const fn min_regime_len(&self) -> Option<usize> {
+        self.min_regime_len
+    }
+
     /// Resamples a stability search draws, or `None` for any other search.
     pub(crate) const fn stability_replicates(&self) -> Option<u32> {
         match &self.method {

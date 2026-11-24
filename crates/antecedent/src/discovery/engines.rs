@@ -64,7 +64,8 @@ pub(crate) fn discover_pcmci(
     Ok(pcmci_for(params).run(data, variables, &mut ws, ctx)?)
 }
 
-fn pcmci_for(params: &DiscoverParams) -> Pcmci {
+/// The PCMCI engine a temporal search configured from `params` runs.
+pub(crate) fn pcmci_for(params: &DiscoverParams) -> Pcmci {
     temporal_discoverer!(
         Pcmci::new(),
         params,
@@ -109,7 +110,8 @@ pub(crate) fn discover_pcmci_plus(
     Ok(pcmci_plus_for(params).run(data, variables, &mut ws, ctx)?)
 }
 
-fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
+/// The PCMCI+ engine a temporal search configured from `params` runs.
+pub(crate) fn pcmci_plus_for(params: &DiscoverParams) -> PcmciPlus {
     temporal_discoverer!(
         PcmciPlus::new(),
         params,
@@ -184,7 +186,13 @@ pub(crate) fn discover_jpcmci_plus(
     params: &DiscoverParams,
     ctx: &ExecutionContext,
 ) -> Result<CpdagDiscoveryResult, CausalError> {
-    let alg = temporal_discoverer!(
+    let mut ws = DiscoveryWorkspace::default();
+    Ok(jpcmci_plus_for(params).run(data, variables, &mut ws, ctx)?)
+}
+
+/// The J-PCMCI+ engine a multi-environment search configured from `params` runs.
+pub(crate) fn jpcmci_plus_for(params: &DiscoverParams) -> JpcmciPlus {
+    temporal_discoverer!(
         JpcmciPlus::new(),
         params,
         jpcmci_constraints(
@@ -193,9 +201,7 @@ pub(crate) fn discover_jpcmci_plus(
             params.max_cond_size,
             params.multi_dataset.clone(),
         )
-    );
-    let mut ws = DiscoveryWorkspace::default();
-    Ok(alg.run(data, variables, &mut ws, ctx)?)
+    )
 }
 
 /// Run RPCMCI with a supplied regime assignment.
@@ -211,16 +217,20 @@ pub(crate) fn discover_rpcmci(
     min_regime_len: Option<usize>,
     ctx: &ExecutionContext,
 ) -> Result<RpcmciDiscoveryResult, CausalError> {
+    let mut ws = DiscoveryWorkspace::default();
+    Ok(rpcmci_for(params, min_regime_len).run(data, variables, assignment, &mut ws, ctx)?)
+}
+
+/// The regime-PCMCI engine a search configured from `params` and `min_regime_len` runs.
+pub(crate) fn rpcmci_for(params: &DiscoverParams, min_regime_len: Option<usize>) -> Rpcmci {
     let plus = temporal_discoverer!(
         PcmciPlus::new(),
         params,
         contemporaneous_constraints(params.max_lag, params.alpha, params.max_cond_size)
     );
-    let alg = Rpcmci::new()
+    Rpcmci::new()
         .with_min_regime_len(min_regime_len.unwrap_or(DEFAULT_RPCMCI_MIN_REGIME_LEN))
-        .with_pcmci_plus(plus);
-    let mut ws = DiscoveryWorkspace::default();
-    Ok(alg.run(data, variables, assignment, &mut ws, ctx)?)
+        .with_pcmci_plus(plus)
 }
 
 /// The constraints of a static run: the defaults for `params` with its background knowledge.

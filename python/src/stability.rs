@@ -7,6 +7,10 @@
 use crate::NumericColumn;
 use std::sync::Arc;
 
+use antecedent::analysis::discovery_validation::{
+    DiscoveryCheck, DiscoveryCheckReport, EnvironmentHoldoutReport, FalsePositiveCheckReport,
+    NullCalibrationReport, OrientationStabilityReport, RegimeStabilityReport,
+};
 use antecedent::data::{EnvHoldoutSplit, TableView};
 use antecedent::discovery::{
     DiscoveryWorkspace, JpcmciPlus, MultiDatasetConstraints, Pcmci, PcmciPlus, RegimeAssignment,
@@ -198,21 +202,7 @@ fn validate_pcmci_false_positive(
         let mut ws = DiscoveryWorkspace::default();
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
-        Python::attach(|py| {
-            let d = PyDict::new(py);
-            d.set_item(
-                "method",
-                match report.method {
-                    NullTransform::ColumnPermute => "permute",
-                    NullTransform::PhaseRandomize => "phase",
-                },
-            )?;
-            d.set_item("replicates", report.replicates)?;
-            d.set_item("mean_edge_count", report.mean_edge_count)?;
-            d.set_item("empirical_fpr", report.empirical_fpr)?;
-            d.set_item("passed", report.passed)?;
-            Ok(d.unbind())
-        })
+        Python::attach(|py| false_positive_dict(py, &report))
     })
 }
 
@@ -350,38 +340,7 @@ fn validate_pcmci_plus_orientation(
         let mut ws = DiscoveryWorkspace::default();
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
-        Python::attach(|py| {
-            let d = PyDict::new(py);
-            let mut directed = Vec::with_capacity(report.directed.len());
-            for ls in report.directed.iter() {
-                let entry = PyDict::new(py);
-                entry.set_item("link", link_dict(py, &names, ls.link)?)?;
-                entry.set_item("frequency", ls.frequency)?;
-                directed.push(entry);
-            }
-            let mut undirected = Vec::with_capacity(report.undirected.len());
-            for u in report.undirected.iter() {
-                let entry = PyDict::new(py);
-                let a = names
-                    .get(u.a.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", u.a.raw()));
-                let b = names
-                    .get(u.b.as_usize())
-                    .cloned()
-                    .unwrap_or_else(|| format!("var{}", u.b.raw()));
-                entry.set_item("a", a)?;
-                entry.set_item("b", b)?;
-                entry.set_item("frequency", u.frequency)?;
-                undirected.push(entry);
-            }
-            d.set_item("directed", directed)?;
-            d.set_item("undirected", undirected)?;
-            d.set_item("conflict_rate", report.conflict_rate)?;
-            d.set_item("replicates", report.replicates)?;
-            d.set_item("block_size", report.block_size)?;
-            Ok(d.unbind())
-        })
+        Python::attach(|py| orientation_dict(py, &names, &report))
     })
 }
 
@@ -410,16 +369,7 @@ fn validate_synthetic_null_calibration(
         let mut ws = DiscoveryWorkspace::default();
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&mut ws, &ctx).map_err(py_err)?;
-        Python::attach(|py| {
-            let d = PyDict::new(py);
-            d.set_item("alpha", report.alpha)?;
-            d.set_item("n_sim", report.n_sim)?;
-            d.set_item("empirical_fpr", report.empirical_fpr)?;
-            d.set_item("se", report.se)?;
-            d.set_item("within_band", report.within_band)?;
-            d.set_item("band_tol", report.band_tol)?;
-            Ok(d.unbind())
-        })
+        Python::attach(|py| null_calibration_dict(py, &report))
     })
 }
 
@@ -486,24 +436,7 @@ fn validate_environment_holdout(
         let mut ws = DiscoveryWorkspace::default();
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&multi, &variables, &mut ws, &ctx).map_err(py_err)?;
-        Python::attach(|py| {
-            let d = PyDict::new(py);
-            let disc: Vec<_> = report
-                .discovery_links
-                .iter()
-                .map(|l| link_dict(py, &names, *l))
-                .collect::<PyResult<_>>()?;
-            let hold: Vec<_> = report
-                .holdout_links
-                .iter()
-                .map(|l| link_dict(py, &names, *l))
-                .collect::<PyResult<_>>()?;
-            d.set_item("discovery_links", disc)?;
-            d.set_item("holdout_links", hold)?;
-            d.set_item("shared_frequency", report.shared_frequency)?;
-            d.set_item("jaccard", report.jaccard)?;
-            Ok(d.unbind())
-        })
+        Python::attach(|py| environment_holdout_dict(py, &names, &report))
     })
 }
 
@@ -548,17 +481,327 @@ fn validate_regime_stability(
         let mut ws = DiscoveryWorkspace::default();
         let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
         let report = checker.run(&series, &variables, &mut ws, &ctx).map_err(py_err)?;
-        Python::attach(|py| {
-            let d = PyDict::new(py);
-            let per = PyDict::new(py);
-            for (rid, sub) in &report.per_regime {
-                per.set_item(rid.raw(), discovery_stability_dict(py, &names, sub)?)?;
+        Python::attach(|py| regime_stability_dict(py, &names, &report))
+    })
+}
+
+fn false_positive_dict(py: Python<'_>, report: &FalsePositiveCheckReport) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item(
+        "method",
+        match report.method {
+            NullTransform::ColumnPermute => "permute",
+            NullTransform::PhaseRandomize => "phase",
+        },
+    )?;
+    d.set_item("replicates", report.replicates)?;
+    d.set_item("mean_edge_count", report.mean_edge_count)?;
+    d.set_item("empirical_fpr", report.empirical_fpr)?;
+    d.set_item("passed", report.passed)?;
+    Ok(d.unbind())
+}
+
+fn orientation_dict(
+    py: Python<'_>,
+    names: &[String],
+    report: &OrientationStabilityReport,
+) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    let mut directed = Vec::with_capacity(report.directed.len());
+    for ls in report.directed.iter() {
+        let entry = PyDict::new(py);
+        entry.set_item("link", link_dict(py, names, ls.link)?)?;
+        entry.set_item("frequency", ls.frequency)?;
+        directed.push(entry);
+    }
+    let mut undirected = Vec::with_capacity(report.undirected.len());
+    for u in report.undirected.iter() {
+        let entry = PyDict::new(py);
+        let a = names.get(u.a.as_usize()).cloned().unwrap_or_else(|| format!("var{}", u.a.raw()));
+        let b = names.get(u.b.as_usize()).cloned().unwrap_or_else(|| format!("var{}", u.b.raw()));
+        entry.set_item("a", a)?;
+        entry.set_item("b", b)?;
+        entry.set_item("frequency", u.frequency)?;
+        undirected.push(entry);
+    }
+    d.set_item("directed", directed)?;
+    d.set_item("undirected", undirected)?;
+    d.set_item("conflict_rate", report.conflict_rate)?;
+    d.set_item("replicates", report.replicates)?;
+    d.set_item("block_size", report.block_size)?;
+    Ok(d.unbind())
+}
+
+fn null_calibration_dict(py: Python<'_>, report: &NullCalibrationReport) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    d.set_item("alpha", report.alpha)?;
+    d.set_item("n_sim", report.n_sim)?;
+    d.set_item("empirical_fpr", report.empirical_fpr)?;
+    d.set_item("se", report.se)?;
+    d.set_item("within_band", report.within_band)?;
+    d.set_item("band_tol", report.band_tol)?;
+    Ok(d.unbind())
+}
+
+fn environment_holdout_dict(
+    py: Python<'_>,
+    names: &[String],
+    report: &EnvironmentHoldoutReport,
+) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    let disc: Vec<_> =
+        report.discovery_links.iter().map(|l| link_dict(py, names, *l)).collect::<PyResult<_>>()?;
+    let hold: Vec<_> =
+        report.holdout_links.iter().map(|l| link_dict(py, names, *l)).collect::<PyResult<_>>()?;
+    d.set_item("discovery_links", disc)?;
+    d.set_item("holdout_links", hold)?;
+    d.set_item("shared_frequency", report.shared_frequency)?;
+    d.set_item("jaccard", report.jaccard)?;
+    Ok(d.unbind())
+}
+
+fn regime_stability_dict(
+    py: Python<'_>,
+    names: &[String],
+    report: &RegimeStabilityReport,
+) -> PyResult<Py<PyDict>> {
+    let d = PyDict::new(py);
+    let per = PyDict::new(py);
+    for (rid, sub) in &report.per_regime {
+        per.set_item(rid.raw(), discovery_stability_dict(py, names, sub)?)?;
+    }
+    d.set_item("per_regime", per)?;
+    d.set_item("replicates", report.replicates)?;
+    d.set_item("block_size", report.block_size)?;
+    Ok(d.unbind())
+}
+
+// --- Compiled checks: the same validators run on a study's own temporal search ---
+
+/// The search parameters the direct validators fix: the default conditioning-set bound, no
+/// background knowledge and no multi-dataset constraints.
+fn check_params(
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    ci: &str,
+) -> PyResult<antecedent::discovery::DiscoverParams> {
+    Ok(antecedent::discovery::DiscoverParams {
+        max_lag,
+        alpha,
+        fdr: fdr.then(antecedent::inference::FdrAdjustment::bh),
+        ci: resolve_ci(ci, None).map_err(py_err)?,
+        multi_dataset: MultiDatasetConstraints::default(),
+        max_cond_size: DEFAULT_MAX_COND_SIZE,
+        knowledge: antecedent::discovery::BackgroundKnowledge::default(),
+    })
+}
+
+fn null_transform(transform: &str) -> PyResult<NullTransform> {
+    match transform.to_ascii_lowercase().as_str() {
+        "permute" | "column_permute" => Ok(NullTransform::ColumnPermute),
+        "phase" | "phase_randomize" => Ok(NullTransform::PhaseRandomize),
+        other => Err(crate::value_err(format!("unknown transform={other:?}; use permute|phase"))),
+    }
+}
+
+/// The check `name` with its options.
+fn check_of(
+    name: &str,
+    replicates: u32,
+    block_size: usize,
+    transform: &str,
+    alphas: Option<Vec<f64>>,
+    max_lags: Option<Vec<u32>>,
+    ci_names: Option<Vec<String>>,
+    n_sim: u32,
+    n_obs: usize,
+    n_vars: usize,
+) -> PyResult<DiscoveryCheck> {
+    let grid = |what: &str| crate::value_err(format!("the {name} check needs {what}"));
+    Ok(match name {
+        "block_bootstrap" => DiscoveryCheck::BlockBootstrap { replicates, block_size },
+        "false_positive" => {
+            DiscoveryCheck::FalsePositive { transform: null_transform(transform)?, replicates }
+        }
+        "alpha" => {
+            DiscoveryCheck::Alpha { alphas: Arc::from(alphas.ok_or_else(|| grid("alphas"))?) }
+        }
+        "lag_window" => DiscoveryCheck::LagWindow {
+            max_lags: Arc::from(max_lags.ok_or_else(|| grid("max_lags"))?),
+        },
+        "ci_test" => DiscoveryCheck::CiTest {
+            ci_names: Arc::from(
+                ci_names
+                    .ok_or_else(|| grid("ci_names"))?
+                    .into_iter()
+                    .map(Arc::<str>::from)
+                    .collect::<Vec<_>>(),
+            ),
+        },
+        "orientation" => DiscoveryCheck::Orientation { replicates, block_size },
+        "synthetic_null" => DiscoveryCheck::SyntheticNull { n_sim, n_obs, n_vars },
+        "regime_stability" => DiscoveryCheck::RegimeStability { replicates, block_size },
+        other => {
+            return Err(crate::value_err(format!(
+                "unknown check={other:?}; use block_bootstrap|false_positive|alpha|lag_window|\
+                 ci_test|orientation|synthetic_null|regime_stability (environment_holdout runs \
+                 on environments)"
+            )));
+        }
+    })
+}
+
+/// The report of a compiled check as the direct validator's dictionary, with the route and the
+/// identity of the program that produced it.
+fn check_dict(
+    py: Python<'_>,
+    names: &[String],
+    validation: &antecedent::analysis::discovery_validation::DiscoveryValidation,
+) -> PyResult<Py<PyDict>> {
+    let report = match validation.report() {
+        DiscoveryCheckReport::Stability(report) => discovery_stability_dict(py, names, report)?,
+        DiscoveryCheckReport::FalsePositive(report) => false_positive_dict(py, report)?,
+        DiscoveryCheckReport::Orientation(report) => orientation_dict(py, names, report)?,
+        DiscoveryCheckReport::NullCalibration(report) => null_calibration_dict(py, report)?,
+        DiscoveryCheckReport::EnvironmentHoldout(report) => {
+            environment_holdout_dict(py, names, report)?
+        }
+        DiscoveryCheckReport::RegimeStability(report) => regime_stability_dict(py, names, report)?,
+        _ => {
+            return Err(crate::value_err("the check returned a report this binding does not read"));
+        }
+    };
+    let d = report.bind(py);
+    d.set_item("check", validation.check().id())?;
+    d.set_item("route", validation.lowered().route())?;
+    d.set_item("program", validation.lowered_identity().to_hex())?;
+    Ok(report)
+}
+
+/// A validation check of a temporal search over one series, through the compiled
+/// `DiscoveryValidation` route: the study searches with PCMCI (PCMCI+ for `orientation`,
+/// regime PCMCI over `regimes` for `regime_stability`) at the given parameters, and the check
+/// runs that search's engine on the series.
+#[pyfunction]
+#[pyo3(signature = (
+    names, columns, check, *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
+    replicates=20, block_size=20, transform="permute", alphas=None, max_lags=None,
+    ci_names=None, n_sim=20, n_obs=100, n_vars=3, regimes=None, seed=1, threads=None
+))]
+fn discovery_validation_run(
+    py: Python<'_>,
+    names: Vec<String>,
+    columns: Vec<NumericColumn<'_>>,
+    check: &str,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    ci: &str,
+    replicates: u32,
+    block_size: usize,
+    transform: &str,
+    alphas: Option<Vec<f64>>,
+    max_lags: Option<Vec<u32>>,
+    ci_names: Option<Vec<String>>,
+    n_sim: u32,
+    n_obs: usize,
+    n_vars: usize,
+    regimes: Option<Vec<u32>>,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<Py<PyDict>> {
+    crate::bridge::check_count("replicates", u64::from(replicates), crate::bridge::MAX_RESAMPLES)?;
+    let check = check_of(
+        &check.to_ascii_lowercase(),
+        replicates,
+        block_size,
+        transform,
+        alphas,
+        max_lags,
+        ci_names,
+        n_sim,
+        n_obs,
+        n_vars,
+    )?;
+    let batch = numeric_columns_to_batch(&names, &columns)?;
+    let ci = ci.to_string();
+    drop(columns);
+    detach_catch(py, move || {
+        let (series, variables) = series_from_batch(&batch)?;
+        let params = check_params(max_lag, alpha, fdr, &ci)?;
+        let spec = match &check {
+            DiscoveryCheck::Orientation { .. } => {
+                antecedent::DiscoverySpec::pcmci_plus(params, ci.as_str())
             }
-            d.set_item("per_regime", per)?;
-            d.set_item("replicates", report.replicates)?;
-            d.set_item("block_size", report.block_size)?;
-            Ok(d.unbind())
-        })
+            DiscoveryCheck::RegimeStability { .. } => {
+                let labels = regimes
+                    .ok_or_else(|| crate::value_err("the regime_stability check needs regimes"))?;
+                if labels.len() != series.row_count() {
+                    return Err(crate::value_err("regimes length must match series length"));
+                }
+                let assignment = RegimeAssignment::try_new(
+                    labels.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
+                )
+                .map_err(|e| crate::value_err(e.to_string()))?;
+                antecedent::DiscoverySpec::rpcmci(params, assignment, None, ci.as_str())
+            }
+            _ => antecedent::DiscoverySpec::pcmci(params, ci.as_str()),
+        };
+        let study =
+            antecedent::Study::series(series).discovery(spec, variables).build().map_err(py_err)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let validation = study.validate_discovery(check, &ctx).map_err(py_err)?;
+        Python::attach(|py| check_dict(py, &names, &validation))
+    })
+}
+
+/// The environment-holdout check of a J-PCMCI+ search over environments, through the compiled
+/// `DiscoveryValidation` route.
+#[pyfunction]
+#[pyo3(signature = (
+    names, env_columns, *, max_lag=1, alpha=0.05, fdr=false, ci="parcorr",
+    n_discovery=1, seed=1, threads=None
+))]
+fn discovery_validation_run_environments(
+    py: Python<'_>,
+    names: Vec<String>,
+    env_columns: Vec<Vec<NumericColumn<'_>>>,
+    max_lag: u32,
+    alpha: f64,
+    fdr: bool,
+    ci: &str,
+    n_discovery: usize,
+    seed: u64,
+    threads: Option<u32>,
+) -> PyResult<Py<PyDict>> {
+    if env_columns.is_empty() {
+        return Err(crate::value_err("env_columns needs ≥1 environment"));
+    }
+    let mut batches = Vec::with_capacity(env_columns.len());
+    for cols in &env_columns {
+        batches.push(numeric_columns_to_batch(&names, cols)?);
+    }
+    let ci = ci.to_string();
+    drop(env_columns);
+    detach_catch(py, move || {
+        let multi = multi_env_from_batches(&names, &batches)?;
+        let params = check_params(max_lag, alpha, fdr, &ci)?;
+        #[allow(
+            clippy::cast_possible_truncation,
+            reason = "the variable count is the number of series columns, far below 2^32"
+        )]
+        let variables: Vec<VariableId> =
+            (0..names.len() as u32).map(VariableId::from_raw).collect();
+        let study = antecedent::Study::series_multi(multi)
+            .discovery(antecedent::DiscoverySpec::jpcmci_plus(params, ci.as_str()), variables)
+            .build()
+            .map_err(py_err)?;
+        let ctx = py_execution_context(seed, crate::resolve_user_threads(threads));
+        let validation = study
+            .validate_discovery(DiscoveryCheck::EnvironmentHoldout { n_discovery }, &ctx)
+            .map_err(py_err)?;
+        Python::attach(|py| check_dict(py, &names, &validation))
     })
 }
 
@@ -572,5 +815,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_synthetic_null_calibration, m)?)?;
     m.add_function(wrap_pyfunction!(validate_environment_holdout, m)?)?;
     m.add_function(wrap_pyfunction!(validate_regime_stability, m)?)?;
+    m.add_function(wrap_pyfunction!(discovery_validation_run, m)?)?;
+    m.add_function(wrap_pyfunction!(discovery_validation_run_environments, m)?)?;
     Ok(())
 }
