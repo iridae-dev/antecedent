@@ -21,6 +21,11 @@
 //! Run: `cargo run -p antecedent --example shared_exogenous_counterfactual`
 //! Source: `examples/rust/shared_exogenous_counterfactual.rs`
 
+#![allow(
+    deprecated,
+    reason = "the example seals a declared FiniteExecutionRequest directly; the compiled route takes its wire form"
+)]
+
 use antecedent::analysis::cross_world_execution::{
     CrossWorldExecution, ExogenousInference, ExogenousVariable, FactualUnit,
     FiniteExecutionRequest, FiniteQuantity, FiniteScm, FiniteVariable, FiniteWorld, NoiseCoupling,

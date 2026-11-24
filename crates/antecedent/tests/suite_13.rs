@@ -3,6 +3,8 @@
 #![allow(clippy::all, reason = "each included file carries its own lint scope")]
 // consolidated-suite
 
+#[path = "compiled_twins_counterfactual_seal.rs"]
+mod compiled_twins_counterfactual_seal;
 #[path = "compiled_twins_tradeoff_decisions.rs"]
 mod compiled_twins_tradeoff_decisions;
 #[path = "target_native_validation.rs"]

@@ -106,11 +106,20 @@ fn closed_reading(
 }
 
 impl CrossWorldExecution {
+    /// The answer an artifact holds.
+    pub(crate) const fn from_artifact(artifact: CrossWorldExecutionArtifact) -> Self {
+        Self { artifact }
+    }
+
     /// Execute `request` with a fresh executor and seal the answer.
     ///
     /// # Errors
     /// A typed refusal (matrix, coupling, readings, population, history,
     /// refuted evidence), cancellation or a format bound.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_cross_world_execution and seal the compiled program (the CrossWorldFiniteExecution route), which calls this kernel function with the same request"
+    )]
     pub fn seal(
         request: &FiniteExecutionRequest,
         ctx: &ExecutionContext,
@@ -148,6 +157,12 @@ impl CrossWorldExecution {
     #[must_use]
     pub fn artifact(&self) -> &CrossWorldExecutionArtifact {
         &self.artifact
+    }
+
+    /// The sealed artifact, by value.
+    #[must_use]
+    pub fn into_artifact(self) -> CrossWorldExecutionArtifact {
+        self.artifact
     }
 
     /// Serialize through the checksummed container.

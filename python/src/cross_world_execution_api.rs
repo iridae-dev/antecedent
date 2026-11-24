@@ -96,14 +96,18 @@ fn artifact_refusal(error: &CrossWorldExecutionArtifactError) -> String {
 
 fn parse_request(
     request_json: &str,
-) -> Result<antecedent::analysis::cross_world_execution::FiniteExecutionRequest, String> {
+) -> Result<
+    (CrossWorldRequestWire, antecedent::analysis::cross_world_execution::FiniteExecutionRequest),
+    String,
+> {
     let wire: CrossWorldRequestWire = serde_json::from_str(request_json).map_err(|e| {
         invalid_json(
             antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
             e.to_string(),
         )
     })?;
-    request_of(&wire).map_err(|e| artifact_refusal(&e))
+    let request = request_of(&wire).map_err(|e| artifact_refusal(&e))?;
+    Ok((wire, request))
 }
 
 fn result_json(result: &FiniteExecutionResult) -> Json {
@@ -328,7 +332,7 @@ impl PyCrossWorldExecutor {
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
         let request = match parse_request(request_json) {
-            Ok(r) => r,
+            Ok((_, r)) => r,
             Err(e) => return Ok((None, Some(e))),
         };
         let ctx = execution_context(0, None, cancel);
@@ -429,12 +433,23 @@ fn cross_world_seal(
     artifact_id: &str,
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
-    let request = match parse_request(request_json) {
-        Ok(r) => r,
+    // The request is checked before it compiles, so a malformed one refuses as it always has.
+    let wire = match parse_request(request_json) {
+        Ok((wire, _)) => wire,
         Err(e) => return Ok((None, Some(e))),
     };
     let ctx = execution_context(0, None, cancel);
-    let sealed = detach_catch(py, || Ok(CrossWorldExecutionArtifact::seal(&request, &ctx)))?;
+    let sealed = detach_catch(py, || {
+        // The compiled CrossWorldFiniteExecution program, gated on its unit, seals through the
+        // same kernel function the direct path called.
+        match antecedent::Study::compile_cross_world_execution(wire, &ctx) {
+            Ok(compiled) => Ok(compiled.seal(&ctx).map(CrossWorldExecution::into_artifact)),
+            Err(antecedent::CausalError::Cancelled { .. }) => {
+                Ok(Err(CrossWorldExecutionArtifactError::Cancelled))
+            }
+            Err(error) => Err(crate::py_err(error)),
+        }
+    })?;
     let artifact = match sealed {
         Ok(a) => a,
         Err(e) => return Ok((None, Some(artifact_refusal(&e)))),

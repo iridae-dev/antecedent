@@ -1049,3 +1049,15 @@ lowering = "PerPopulationStructureSearch"
 unit_kind = "capability"
 unit = "discovery.per_population"
 entry = { rust = "crates/antecedent/src/analysis/compiled_per_population_discovery.rs", python = "python/antecedent/selective_discovery.py" }
+
+[[route]]
+lowering = "CrossWorldFiniteExecution"
+unit_kind = "capability"
+unit = "cross_world_execution.finite_markovian_scm"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/counterfactual_seal.rs", python = "python/antecedent/cross_world_execution.py" }
+
+[[route]]
+lowering = "GeneralTemporalCounterfactual"
+unit_kind = "capability"
+unit = "counterfactual.temporal_fixed_population"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/counterfactual_seal.rs", python = "python/antecedent/temporal_counterfactual.py" }

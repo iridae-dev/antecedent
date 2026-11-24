@@ -177,7 +177,18 @@ fn evaluate_general_temporal_counterfactual(
     })?;
     let artifact_id = artifact_id.to_owned();
     detach_catch(py, move || {
-        match GeneralTemporalCounterfactual::evaluate(&request, &py_execution_context(seed, 1)) {
+        let ctx = py_execution_context(seed, 1);
+        // The compiled GeneralTemporalCounterfactual program, gated on its unit, evaluates
+        // through the same kernel function the direct path called.
+        let evaluated =
+            match antecedent::Study::compile_general_temporal_counterfactual(request, &ctx) {
+                Ok(compiled) => compiled.evaluate(&ctx),
+                Err(antecedent::CausalError::Cancelled { .. }) => {
+                    Err(GeneralTemporalCounterfactualArtifactError::Cancelled)
+                }
+                Err(error) => return Err(crate::py_err(error)),
+            };
+        match evaluated {
             Ok(done) => {
                 let bytes = done.export(&artifact_id).map_err(|e| general_failure(&e))?;
                 let report = serde_json::to_string(&done.report())

@@ -7,6 +7,11 @@
 //! `E[Y_{x1,M_x0}] = 0.75 * 0.3 + 0.25 = 0.475`, `E[Y_{x0}] = 0.225`, so the
 //! natural direct effect is `0.25`.
 
+#![allow(
+    deprecated,
+    reason = "the released direct seal is the path under test beside the compiled CrossWorldFiniteExecution route"
+)]
+
 use antecedent::analysis::cross_world_execution::{
     CapabilityStatus, CrossWorldExecution, ExogenousInference, ExogenousVariable, FactualUnit,
     FiniteExecutionRequest, FiniteQuantity, FiniteScm, FiniteVariable, FiniteWorld, NoiseCoupling,

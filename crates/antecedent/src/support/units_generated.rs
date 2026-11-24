@@ -25,6 +25,8 @@ pub(crate) const COMPOSITION_PROPAGATION_CHAIN: UnitId =
     UnitId::new("composition.propagation_chain");
 pub(crate) const COMPOSITION_SAMPLING_ASSUMPTION_UNION: UnitId =
     UnitId::new("composition.sampling_assumption_union");
+pub(crate) const COUNTERFACTUAL_TEMPORAL_FIXED_POPULATION: UnitId =
+    UnitId::new("counterfactual.temporal_fixed_population");
 pub(crate) const COUNTERFACTUAL_TRANSPORT_GENERAL: UnitId =
     UnitId::new("counterfactual.transport_general");
 pub(crate) const COUNTERFACTUAL_TRANSPORT_SAMPLED: UnitId =
@@ -33,6 +35,8 @@ pub(crate) const COUNTERFACTUAL_TRANSPORT_SAMPLED_INTERVAL: UnitId =
     UnitId::new("counterfactual.transport_sampled_interval");
 pub(crate) const COUNTERFACTUAL_TRANSPORTED_ADDITIVE: UnitId =
     UnitId::new("counterfactual.transported_additive");
+pub(crate) const CROSS_WORLD_EXECUTION_FINITE_MARKOVIAN_SCM: UnitId =
+    UnitId::new("cross_world_execution.finite_markovian_scm");
 pub(crate) const CYCLIC_ACTION_WORLD_DECISIONS: UnitId =
     UnitId::new("cyclic.action_world_decisions");
 pub(crate) const CYCLIC_COMPONENT_POSTERIOR_DECISIONS: UnitId =
@@ -207,10 +211,12 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "IidSamplingAssumptionUnion"
         | "MovingBlockSamplingAssumptionUnion"
         | "SamplingAssumptionUnion" => Some(COMPOSITION_SAMPLING_ASSUMPTION_UNION),
+        "GeneralTemporalCounterfactual" => Some(COUNTERFACTUAL_TEMPORAL_FIXED_POPULATION),
         "CounterfactualTransportIdentification" => Some(COUNTERFACTUAL_TRANSPORT_GENERAL),
         "SampledCounterfactualTransport" => Some(COUNTERFACTUAL_TRANSPORT_SAMPLED),
         "SampledCounterfactualTransportInterval" => Some(COUNTERFACTUAL_TRANSPORT_SAMPLED_INTERVAL),
         "TransportedPathSpecific" => Some(COUNTERFACTUAL_TRANSPORTED_ADDITIVE),
+        "CrossWorldFiniteExecution" => Some(CROSS_WORLD_EXECUTION_FINITE_MARKOVIAN_SCM),
         "CyclicActionWorldDecision"
         | "CyclicPosteriorActionDecision"
         | "CyclicTargetFeedbackDecision" => Some(CYCLIC_ACTION_WORLD_DECISIONS),

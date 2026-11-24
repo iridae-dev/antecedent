@@ -133,6 +133,7 @@ fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSamp
         let (units, realized_mean) = simulate(q, n, seed);
         let req = request(units, q);
         let ctx = ExecutionContext::for_tests(seed);
+        #[allow(deprecated, reason = "the measured interval is recorded on the direct seal")]
         let execution = CrossWorldExecution::seal(&req, &ctx).expect("seal");
         let account = execution.whole_path_uncertainty(sampling, &ctx).expect("account");
         let interval =

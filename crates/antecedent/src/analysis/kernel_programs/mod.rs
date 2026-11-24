@@ -33,6 +33,7 @@ use crate::planner::statistical::{Realization, StatisticalProgram};
 use crate::planner::{PlanStage, PlanView};
 
 pub mod chain_recovery;
+pub mod counterfactual_seal;
 pub mod exposure_measurement;
 pub mod external_feedback;
 pub mod learned_joint_transport;

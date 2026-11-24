@@ -699,6 +699,18 @@ const PINNED: &[(C, R, &str, F)] = &[
         F::PropagationChain,
     ),
     (C::EvsiAttachedDecision, R::EvsiAttachedDecision, "EvsiAttachedDecision", F::PropagationChain),
+    (
+        C::CrossWorldFiniteExecution,
+        R::CrossWorldFiniteExecution,
+        "CrossWorldFiniteExecution",
+        F::Structural,
+    ),
+    (
+        C::GeneralTemporalCounterfactual,
+        R::GeneralTemporalCounterfactual,
+        "GeneralTemporalCounterfactual",
+        F::Temporal,
+    ),
 ];
 
 #[test]

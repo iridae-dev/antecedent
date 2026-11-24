@@ -354,6 +354,12 @@ macro_rules! program_families {
             /// Expected value of sample information over candidate studies, composed over the
             /// compiled program of the study that carries the state belief.
             EvsiAttachedDecision => PropagationChain, unit "design.evsi";
+            /// Counterfactual worlds of a declared finite structural causal model, executed over
+            /// shared exogenous states and sealed with their numbers and states.
+            CrossWorldFiniteExecution => Structural, unit "cross_world_execution.finite_markovian_scm";
+            /// Every named action history replayed against each unit's once-abduced exogenous
+            /// history of a declared temporal model.
+            GeneralTemporalCounterfactual => Temporal, unit "counterfactual.temporal_fixed_population";
         }
     };
 }

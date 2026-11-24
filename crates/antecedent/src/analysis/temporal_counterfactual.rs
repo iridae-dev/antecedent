@@ -141,12 +141,21 @@ pub struct GeneralTemporalCounterfactual {
 }
 
 impl GeneralTemporalCounterfactual {
+    /// The answer an artifact holds.
+    pub(crate) const fn from_artifact(artifact: GeneralTemporalCounterfactualArtifact) -> Self {
+        Self { artifact }
+    }
+
     /// Abduce each unit once, replay every named action history against that history, and seal
     /// the answer with its shared-abduction receipt.
     ///
     /// # Errors
     /// The refusals of [`TemporalCounterfactual::evaluate`] for the general layout, or
     /// cancellation. A refusal retains its witness in the refusal wire.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_general_temporal_counterfactual and evaluate the compiled program (the GeneralTemporalCounterfactual route), which calls this kernel function with the same request"
+    )]
     pub fn evaluate(
         request: &GeneralTemporalRequestWire,
         ctx: &ExecutionContext,

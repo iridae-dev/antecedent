@@ -11,6 +11,11 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(
+    deprecated,
+    reason = "the released direct seal is the path under test beside the compiled CrossWorldFiniteExecution route"
+)]
+
 use antecedent::analysis::cross_world_execution::{
     CrossWorldExecution, ExogenousInference, ExogenousVariable, FactualUnit,
     FiniteExecutionRequest, FiniteQuantity, FiniteScm, FiniteVariable, FiniteWorld, NoiseCoupling,
