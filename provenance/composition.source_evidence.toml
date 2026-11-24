@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 papers = []
-implementation_deviations = ["Original native diagnostic scope and semantic coordinate/contributor lineage survive original decision/inverse evaluation; actual reexecution resolves only the matching original operation; fresh imports retain original unresolved status without execution authority or calibration upgrade.", "Original support diagnostics, original contracted-result decoder, original checked estimator and original inverse/decision numerical engines are reused. No new statistical method. Original bound external source consumers retain full request/provider/quantities/values/support/attestation; the original external claim format contains no numerical diagnostic arrays, which remain explicitly unavailable."]
+implementation_deviations = ["Original native diagnostic scope and semantic coordinate/contributor lineage survive original decision/inverse evaluation; actual reexecution resolves only the matching original operation; fresh imports retain original unresolved status without execution authority or calibration upgrade.", "A native result is admitted only when its contract replayed with nothing unresolved, or with only declared dependencies.* gaps (operations and criteria the bytes alone cannot re-derive, which the retained source is later re-executed against); any other unresolved reference, such as a tampered identity, is refused as source-unverified.", "Original support diagnostics, original contracted-result decoder, original checked estimator and original inverse/decision numerical engines are reused. No new statistical method. Original bound external source consumers retain full request/provider/quantities/values/support/attestation; the original external claim format contains no numerical diagnostic arrays, which remain explicitly unavailable."]
 upstream_implementations_observed = []
 test_sources = ["crates/antecedent/tests/source_evidence.rs", "python/tests/test_source_evidence.py", "python/tests/test_composition_source_lineage.py"]
 
@@ -15,16 +15,16 @@ kind = "wrapper"
 rationale = "Independently consumed original source diagnostics and semantic contributor maps; it preserves an existing scientific claim and never promotes trust or calibration."
 no_independent_algorithm = "Retention and re-consumption of existing results; no estimator in the module."
 covered_by = ["composition.provenance", "decision.contract"]
-record_sha256 = "4d2397c130d078dcf63f79ad0fccc001e4e010ea9777af6816dd6e4bf7821cb5"
+record_sha256 = "60400d5ed35c7331b98f19282a33b8e548dfc5f99ba79e356f3c61fcc084969d"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/source_evidence.rs"
-items = ["const MAGIC", "const MAX_SOURCE_EVIDENCE_BYTES", "fn consume", "fn coordinates", "fn diagnostics_at", "fn export", "fn from_external", "fn from_result", "fn invalid", "fn is_native_source", "fn lineage", "fn original_bytes", "fn original_consumption", "fn project", "fn provenance_chain", "fn require_mean_source", "fn require_same_source", "fn summary", "fn unresolved", "struct EvidenceWire", "struct SourceEvidence", "struct SourceEvidenceError"]
-sha256 = "98e96aa7c45f3cd0f59e8083f464f88339eb9ddfdab82cb9a409c411acf07ca0"
+items = ["const MAGIC", "const MAX_SOURCE_EVIDENCE_BYTES", "fn consume", "fn coordinates", "fn diagnostics_at", "fn export", "fn from_external", "fn from_result", "fn invalid", "fn is_native_source", "fn lineage", "fn original_bytes", "fn original_consumption", "fn project", "fn provenance_chain", "fn require_mean_source", "fn require_same_source", "fn summary", "fn unresolved", "fn verified_but_for_declared_dependencies", "struct EvidenceWire", "struct SourceEvidence", "struct SourceEvidenceError"]
+sha256 = "438ffadd1f21bf7f4d81bd7969853993b24630077a5555fb323503ec1ac17c32"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/source_evidence.rs"
-items = ["fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_local_values", "fn bounded_evidence_refuses_oversized_logical_sections_before_decompression", "fn contract", "fn full_original_source_comparison_rejects_changed_science_and_seed", "fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_changed_mean_binding", "fn opaque_resolution_executes_original_preparation_and_rejects_changed_science", "fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption", "fn original_external_attestation_retains_exact_support_request_and_source_without_native_authority", "fn original_native_source_chain_is_typed_and_independently_rederived", "fn produce_source", "fn source", "fn source_with"]
-sha256 = "dcd4f15cfba98d4264589cee79e5925a7ab79873757013c31e84201af6f5268f"
+items = ["fn a_tampered_contract_is_refused_as_source_evidence", "fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_local_values", "fn bounded_evidence_refuses_oversized_logical_sections_before_decompression", "fn contract", "fn full_original_source_comparison_rejects_changed_science_and_seed", "fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_changed_mean_binding", "fn opaque_resolution_executes_original_preparation_and_rejects_changed_science", "fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption", "fn original_external_attestation_retains_exact_support_request_and_source_without_native_authority", "fn original_native_source_chain_is_typed_and_independently_rederived", "fn produce_source", "fn source", "fn source_with"]
+sha256 = "efa792df1707b623dc6b72c381223a1296b2e5c4a199534d18bc93b836e837dd"

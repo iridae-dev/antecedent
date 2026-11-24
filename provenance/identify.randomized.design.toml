@@ -18,7 +18,8 @@ implementation_deviations = [
  "No graph search. The identifier stamps consistency, positivity, and the design's known-assignment statement; it does not derive an identifying functional from a DAG.",
  "NoInterference is recorded for unit-randomized designs and omitted for cluster randomization and switchback, which record their own partial-interference or no-carryover statements instead.",
  "Wald complier and one-sided treatment-on-treated queries add exclusion, monotonicity, a nonzero first stage, and, for treatment on the treated, one-sided noncompliance. Those statements are declared, not tested.",
- "A requested Fisher exact test records the sharp null as an estimation assumption. It is not the identifying claim for the interval estimators.",
+ "A requested Fisher exact test records the sharp null as an estimation assumption. It is not the identifying claim for the interval estimators. For a Bernoulli design the recorded statistic is the absolute Horvitz-Thompson contrast over every Bernoulli assignment weighted by its known probability; fixed-count designs record the absolute difference in means (exhaustive or Monte Carlo).",
+ "A fixed CUPED coefficient records a pre-assignment covariate fixed independently of the outcomes as an identification assumption. An estimated-slope CUPED adjustment records its pre-assignment covariate as an estimation assumption that states the slope is estimated from these outcomes and that the independent-row score variance does not propagate that estimation.",
 ]
 
 upstream_implementations_observed = []
@@ -34,13 +35,13 @@ kind = "contract"
 rationale = "randomized_identification stamps the identification of a randomized-effect query: an expectation functional of the outcome, the rule name (intention-to-treat, multi-arm, Wald complier, one-sided treatment on the treated), and the declared assumptions of the assignment design, noncompliance, covariate adjustment and a requested exact test."
 no_independent_algorithm = "The identification builder interns an expression node and pushes declared assumption records chosen by matching on the query's design, estimand and options; it computes nothing. The mapped module also orchestrates execution: its arithmetic is counting assignment cells, 1 - propensity, and the CUPED residual y - coefficient * x with a caller-fixed coefficient; it has no square root, logarithm, exponential, power or solve. Intervals, variances and exact tests are the covered records' code."
 covered_by = ["estimate.randomized.ht_itt", "estimate.randomized.neyman_itt", "estimate.randomized.multi_arm", "estimate.randomized.wald_cace_late", "estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.estimated_cuped_ht_itt", "estimate.randomized.ancova_itt", "estimate.randomized.switchback_ht_itt"]
-record_sha256 = "b3cfbe62502a512c030711b5c68b8f20af3a438dfd4e99c50b432c8f28be388b"
+record_sha256 = "2d184a771857689290840a1c2fc353b8b870ac4898472229c5e6c16e85ef0bc6"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
 items = ["fn push_randomized_core_assumptions", "fn push_randomized_covariate_assumptions", "fn push_randomized_design_assumptions", "fn randomized_identification"]
-sha256 = "bf923729e738b5ae07b2750c9c2bc9e099a47c8ddefd67b6cb4ba7ed8c33a2a5"
+sha256 = "3d8813ce179d2ce1d9424f626d28ad99b27941f74d9735971fa08be8abf46315"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

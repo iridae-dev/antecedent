@@ -1212,6 +1212,20 @@
     "url": "https://api.crossref.org/works/10.1093/biostatistics/1.1.49",
     "year": 2000
   },
+  "10.1093/ije/dyl129": {
+    "authors": [
+      "Sandra M Eldridge",
+      "Deborah Ashby",
+      "Sally Kerry"
+    ],
+    "doi": "10.1093/ije/dyl129",
+    "response_sha256": "27340ae2d3e027a7968d35f02a7b2e0cdb2f6f67f9187d12d5a239341027c4d0",
+    "titles": [
+      "Sample size for cluster randomized trials: effect of coefficient of variation of cluster size and analysis method"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/ije/dyl129",
+    "year": 2006
+  },
   "10.1093/ije/dyp192": {
     "authors": [
       "Sarah L Taubman",
@@ -1656,6 +1670,20 @@
     "url": "https://api.crossref.org/works/10.1126/sciadv.aau4996",
     "year": 2019
   },
+  "10.1137/1.9780898717716": {
+    "authors": [
+      "Ramon E. Moore",
+      "R. Baker Kearfott",
+      "Michael J. Cloud"
+    ],
+    "doi": "10.1137/1.9780898717716",
+    "response_sha256": "28ef027fb9247379c938b11ec0a3b60e2e3cc9015dad3a8cd08782d2408a3e44",
+    "titles": [
+      "Introduction to Interval Analysis"
+    ],
+    "url": "https://api.crossref.org/works/10.1137/1.9780898717716",
+    "year": 2009
+  },
   "10.1137/1109020": {
     "authors": [
       "E. A. Nadaraya"
@@ -1771,6 +1799,20 @@
     ],
     "url": "https://api.crossref.org/works/10.1162/003355304772839588",
     "year": 2004
+  },
+  "10.1162/rest.90.3.414": {
+    "authors": [
+      "A. Colin Cameron",
+      "Jonah B. Gelbach",
+      "Douglas L. Miller"
+    ],
+    "doi": "10.1162/rest.90.3.414",
+    "response_sha256": "a88a820db24745ddcd9ccb6d938d813381318a23effb351470486bea0aa66192",
+    "titles": [
+      "Bootstrap-Based Improvements for Inference with Clustered Errors"
+    ],
+    "url": "https://api.crossref.org/works/10.1162/rest.90.3.414",
+    "year": 2008
   },
   "10.1162/rest_a_00552": {
     "authors": [

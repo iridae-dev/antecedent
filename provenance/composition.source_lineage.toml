@@ -12,18 +12,18 @@ test_sources = ["crates/antecedent/tests/source_evidence.rs", "crates/antecedent
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Source-lineage evidence for composed claims: coordinates and snapshot of an original law artifact and request, actual action contributor identities, and imported unresolved status carried through projection."
+rationale = "Source-lineage evidence for composed claims: coordinates and snapshot of an original law artifact and request, actual action contributor identities, and imported unresolved status (only declared dependency gaps; a contract with any other unverified reference is refused as source evidence) carried through projection."
 no_independent_algorithm = "source_evidence.rs compares and records digests, coordinates and trust statuses; numeric meanings come from the original artifacts and are not transformed."
 record_sha256 = "e0b8080cbab4c17a92ef65b27f6677b5606cfa0ae260a41278d0de61d4d6351b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/source_evidence.rs"
-items = ["const MAGIC", "const MAX_SOURCE_EVIDENCE_BYTES", "fn consume", "fn coordinates", "fn diagnostics_at", "fn export", "fn from_external", "fn from_result", "fn invalid", "fn is_native_source", "fn lineage", "fn original_bytes", "fn original_consumption", "fn project", "fn provenance_chain", "fn require_mean_source", "fn require_same_source", "fn summary", "fn unresolved", "struct EvidenceWire", "struct SourceEvidence", "struct SourceEvidenceError"]
-sha256 = "98e96aa7c45f3cd0f59e8083f464f88339eb9ddfdab82cb9a409c411acf07ca0"
+items = ["const MAGIC", "const MAX_SOURCE_EVIDENCE_BYTES", "fn consume", "fn coordinates", "fn diagnostics_at", "fn export", "fn from_external", "fn from_result", "fn invalid", "fn is_native_source", "fn lineage", "fn original_bytes", "fn original_consumption", "fn project", "fn provenance_chain", "fn require_mean_source", "fn require_same_source", "fn summary", "fn unresolved", "fn verified_but_for_declared_dependencies", "struct EvidenceWire", "struct SourceEvidence", "struct SourceEvidenceError"]
+sha256 = "438ffadd1f21bf7f4d81bd7969853993b24630077a5555fb323503ec1ac17c32"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/source_evidence.rs"
-items = ["fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_local_values", "fn bounded_evidence_refuses_oversized_logical_sections_before_decompression", "fn contract", "fn full_original_source_comparison_rejects_changed_science_and_seed", "fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_changed_mean_binding", "fn opaque_resolution_executes_original_preparation_and_rejects_changed_science", "fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption", "fn original_external_attestation_retains_exact_support_request_and_source_without_native_authority", "fn original_native_source_chain_is_typed_and_independently_rederived", "fn produce_source", "fn source", "fn source_with"]
-sha256 = "dcd4f15cfba98d4264589cee79e5925a7ab79873757013c31e84201af6f5268f"
+items = ["fn a_tampered_contract_is_refused_as_source_evidence", "fn actual_action_contributors_preserve_original_diagnostics_without_synthesized_local_values", "fn bounded_evidence_refuses_oversized_logical_sections_before_decompression", "fn contract", "fn full_original_source_comparison_rejects_changed_science_and_seed", "fn native_inverse_artifact_replays_original_source_diagnostics_and_rejects_changed_mean_binding", "fn opaque_resolution_executes_original_preparation_and_rejects_changed_science", "fn original_diagnostic_scopes_and_semantic_coordinate_values_survive_consumption", "fn original_external_attestation_retains_exact_support_request_and_source_without_native_authority", "fn original_native_source_chain_is_typed_and_independently_rederived", "fn produce_source", "fn source", "fn source_with"]
+sha256 = "efa792df1707b623dc6b72c381223a1296b2e5c4a199534d18bc93b836e837dd"

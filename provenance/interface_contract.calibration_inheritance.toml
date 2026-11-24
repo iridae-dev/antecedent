@@ -33,7 +33,7 @@ record_sha256 = "7ffb503c0c0b890ba8a4d863f946dbdb13225e11c7fb6fa64d20eff9f7b83ef
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
 items = ["const ALL_MEANINGS", "const INTERFACE_CONTRACT_VERSION", "const TAG_CONTRACT", "enum CalibrationRequirement", "enum CalibrationStatus", "enum ContractOperation", "enum DependenceRequirement", "enum EvidenceBasis", "enum SupportDomain", "enum UncertaintyParadigm", "fn accepts", "fn canonical_identity", "fn carries_uncertainty", "fn check_common", "fn check_models", "fn check_stages", "fn check_text", "fn check_uncertainty", "fn consumed", "fn from_capability", "fn from_name", "fn interval", "fn is_lower_hex_digest", "fn is_well_formed", "fn kind", "fn label", "fn name", "fn new", "fn operations_of_capabilities", "fn paradigm", "fn produced", "fn sources", "fn tag", "fn uncertainty_ops", "fn validate", "fn with_calibration", "fn with_dependence", "fn with_evidence", "fn with_measurement_models", "fn with_provenance", "fn with_uncertainty", "fn write_consumed", "fn write_operations", "fn write_produced", "fn write_set", "fn write_support", "fn write_uncertainty", "struct ConsumedPort", "struct InterfaceContract", "struct PortFacts", "struct ProducedPort", "struct UncertaintyMeaning"]
-sha256 = "8760a00a16c6778402b3a306a790ce6f133246fd2a584ee16ac1ca77ed24f143"
+sha256 = "e89069df128b2292e82446a472abe3915ca281ac86c789dd7257721b1f2c44a4"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
