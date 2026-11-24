@@ -12,8 +12,10 @@
 //! `compiled_terminal!` macro declares a family's handle: the retained lowered program and the
 //! declared inputs, with the shared plan view, identity and support gate.
 //!
-//! The program identity is a digest of the declared inputs' canonical rendering under a
-//! versioned tag per family. Nothing in it is a support decision.
+//! The program identity covers the declared inputs, written by
+//! [`crate::analysis::supplied_identity::Declaration`] in the repository's canonical
+//! length-prefixed encoding under a versioned tag per family. Nothing in it is a support
+//! decision.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -21,7 +23,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
-use antecedent_core::{CanonicalWriter, ExecutionContext, PhysicalEffect, PhysicalOperator};
+use antecedent_core::{ExecutionContext, PhysicalEffect, PhysicalOperator};
 
 use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
@@ -103,7 +105,8 @@ pub(crate) struct TerminalSpec {
     pub(crate) functional: FunctionalKind,
     /// What structure the declared inputs carry.
     pub(crate) graph_class: &'static str,
-    /// Digest of every declared input ([`declaration_digest`]).
+    /// Identity of every declared input
+    /// ([`crate::analysis::supplied_identity::Declaration::finish`]).
     pub(crate) question: [u8; 32],
     /// The kernel evaluator, by name.
     pub(crate) evaluator: &'static str,
@@ -155,17 +158,6 @@ impl Reading {
             Self::MonteCarlo => UncertaintyReading::MonteCarlo,
         }
     }
-}
-
-/// The digest of a family's declared inputs: each part's canonical rendering, in order, under
-/// the family's versioned `tag`.
-pub(crate) fn declaration_digest(tag: &str, parts: &[&dyn fmt::Debug]) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new(tag);
-    writer.word(parts.len() as u64);
-    for part in parts {
-        writer.text(&format!("{part:?}"));
-    }
-    writer.finish()
 }
 
 /// Refuse a compile inside a lowered dispatch or after cancellation.

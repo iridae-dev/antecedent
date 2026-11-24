@@ -806,6 +806,15 @@ impl DecisionContract {
         Ok(self.validated_identity())
     }
 
+    /// The canonical encoding [`Self::identity`] hashes, without validating the contract
+    /// first: equal to [`Self::identity`] for a valid contract, and defined for an invalid one,
+    /// so a declaration has an identity before it is checked. Reordering actions or
+    /// constraints leaves it unchanged.
+    #[must_use]
+    pub fn declaration_identity(&self) -> String {
+        self.validated_identity()
+    }
+
     pub(crate) fn identity_for_program_search(&self) -> Result<String, DecisionContractError> {
         self.validate_for_program_search()?;
         Ok(self.validated_identity())

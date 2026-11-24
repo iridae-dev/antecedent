@@ -30,29 +30,37 @@ use std::sync::Arc;
 
 use antecedent_contract::ClaimKind;
 use antecedent_contract::evidence_obligation::EvidenceObligation;
-use antecedent_core::{CanonicalWriter, ExecutionContext, SupportStatus, VariableId};
+use antecedent_contract::external::ExternalCapability;
+use antecedent_core::{
+    CanonicalEncode, CanonicalWriter, ExecutionContext, SemanticDigest, SupportStatus, VariableId,
+};
 use antecedent_design::DecisionFunctional;
 use antecedent_design::adaptive_policy_search::{
     AdaptivePolicySearchError, AdaptivePolicySearchResult, PolicyRolloutSource,
     PreparedAdaptivePolicySearch,
 };
 use antecedent_design::composition_boundary::{
-    BoundaryError, DecisionInput, SupportPolicy, SupportedDecision, evaluate_functional_on_input,
-    evaluate_with_support,
+    BoundaryError, CalibrationStatus, DecisionInput, InputSource, ProviderKind, ReceiptRef,
+    ScalarClaim, SupportPolicy, SupportedDecision, UnsupportedActionPolicy,
+    evaluate_functional_on_input, evaluate_with_support,
 };
 use antecedent_design::decision_contract::DecisionContract;
-use antecedent_design::decision_eval::FunctionalValue;
+use antecedent_design::decision_eval::{FunctionalValue, MeanEstimate, MeanSource};
 use antecedent_design::decision_reliability::{
     DecisionDraws, RankingReport, RankingRequest, ReliabilityError, rank,
 };
+use antecedent_design::decision_structural::StructuralAtom;
+use antecedent_design::gaussian_forward_law::GaussianForwardLaw;
 use antecedent_design::inverse_query::{
-    Comparison, EnumeratedForwardValue, FeasibilityStatus, ForwardEvidence, InverseQuery,
-    InverseQueryError, InverseResult, evaluate_inverse_query, finite_enumeration_baseline,
+    Comparison, EnumeratedForwardValue, FeasibilityStatus, ForwardClaim, ForwardEvidence,
+    GridScope, IdentifiedSet as MemberSet, IntervalRegion, InverseConstraint, InverseQuery,
+    InverseQueryError, InverseResult, SelectionRule, evaluate_inverse_query,
+    finite_enumeration_baseline,
 };
 use antecedent_design::obligation_adapters::identification_failure_obligations;
 use antecedent_design::prior_signal::{
-    CandidateSignalPrior, CandidateSignalSource, PriorSignalError, PriorSignalRequest,
-    adapt_prior_to_signal,
+    CandidateSignalPrior, CandidateSignalSource, NativeSignalFamily, PriorSignalError,
+    PriorSignalRequest, PriorSourceInput, SourceToTarget, adapt_prior_to_signal,
 };
 use antecedent_design::sensitivity_decision::{
     SensitivityArtifact, SensitivityDecisionError, SensitivityDecisionResult,
@@ -64,13 +72,16 @@ use antecedent_design::{
 };
 use antecedent_graph::Admg;
 use antecedent_identify::IdentificationResult;
+use antecedent_io_core::distribution_artifact::DistributionTrust;
+use antecedent_io_core::prior_bank::{PriorArtifactBody, PriorSourceRef};
 use antecedent_io_core::{PriorCatalog, TargetDesign};
 
 pub use crate::analysis::supplied_terminal::TerminalError;
 
 use crate::analysis::program_handle::CompiledProgramHandle;
+use crate::analysis::supplied_identity::{Canonical, Declaration, SetOf, Wire, variant};
 use crate::analysis::supplied_terminal::{
-    Reading, TerminalSpec, admit_compile, compiled_terminal, declaration_digest, lower,
+    Reading, TerminalSpec, admit_compile, compiled_terminal, lower,
 };
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -103,6 +114,365 @@ fn contract_program(
     }
 }
 
+// --- canonical encoding of the declared inputs ----------------------------------------------
+
+/// A declared input of this module's families, encoded canonically (see
+/// [`crate::analysis::supplied_identity`]). A local wrapper, so these encodings never collide
+/// with another module's encoding of the same kernel type.
+struct In<'a, T: ?Sized>(&'a T);
+
+impl Canonical for In<'_, MeanEstimate> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        Wire(self.0).encode(out);
+    }
+}
+
+impl Canonical for In<'_, MeanSource> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let source = self.0;
+        // Ordered: means align with coordinates by position.
+        source.coordinates.encode(out);
+        source.means.encode(out);
+        In(&source.estimate).encode(out);
+        out.text(&source.provider_id)
+            .text(&source.snapshot_id)
+            .text(&source.causal_contract_id)
+            .text(&source.rng_id);
+    }
+}
+
+impl Canonical for In<'_, DecisionFunctional> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        // Serde wire of scalar fields and the `Tail` unit enum; no maps.
+        Wire(self.0).encode(out);
+    }
+}
+
+impl Canonical for In<'_, ScalarClaim> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let claim = self.0;
+        claim.coordinate.encode(out);
+        out.real(claim.value)
+            .text(&claim.provider_id)
+            .text(&claim.snapshot_id)
+            .text(&claim.causal_contract_id);
+    }
+}
+
+impl Canonical for In<'_, ProviderKind> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        variant(
+            out,
+            match self.0 {
+                ProviderKind::Native => "native",
+                ProviderKind::ExternalAttested => "external_attested",
+                ProviderKind::ExternalExactRequestVerified => "external_exact_request_verified",
+            },
+        );
+    }
+}
+
+impl Canonical for In<'_, CalibrationStatus> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        variant(
+            out,
+            match self.0 {
+                CalibrationStatus::Exact => "exact",
+                CalibrationStatus::PointOnly => "point_only",
+                CalibrationStatus::Measured => "measured",
+                CalibrationStatus::NotMeasured => "not_measured",
+                CalibrationStatus::ExactClaimUnverified => "exact_claim_unverified",
+            },
+        );
+    }
+}
+
+impl Canonical for In<'_, ReceiptRef> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0 {
+            ReceiptRef::NativeExecution { execution_id } => {
+                variant(out, "native_execution").text(execution_id);
+            }
+            ReceiptRef::Attestation { attestor } => {
+                variant(out, "attestation").text(attestor);
+            }
+            ReceiptRef::Verification { object_id, request_id } => {
+                variant(out, "verification").text(object_id).text(request_id);
+            }
+        }
+    }
+}
+
+impl Canonical for In<'_, ExternalCapability> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        variant(
+            out,
+            match self.0 {
+                ExternalCapability::Sample => "sample",
+                ExternalCapability::Cdf => "cdf",
+                ExternalCapability::Quantile => "quantile",
+                ExternalCapability::LogProbability => "log_probability",
+                ExternalCapability::Mean => "mean",
+                ExternalCapability::Covariance => "covariance",
+                ExternalCapability::Conditional => "conditional",
+                ExternalCapability::Intervention => "intervention",
+                ExternalCapability::PosteriorPredictive => "posterior_predictive",
+                ExternalCapability::Update => "update",
+                ExternalCapability::Factor => "factor",
+                ExternalCapability::EvaluateUtility => "evaluate_utility",
+            },
+        );
+    }
+}
+
+impl Canonical for In<'_, DecisionInput> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let input = self.0;
+        out.text(input.id());
+        match input.source() {
+            InputSource::Mean(means) => {
+                variant(out, "mean");
+                In(means).encode(out);
+            }
+            InputSource::JointLaw(law) => {
+                variant(out, "joint_law");
+                law.encode(out);
+            }
+            InputSource::Scalar(claim) => {
+                variant(out, "scalar");
+                In(claim).encode(out);
+            }
+        }
+        let provenance = input.provenance();
+        In(&provenance.provider_kind).encode(out);
+        // Unit enum with a serde wire; no maps.
+        Wire(&provenance.trust).encode(out);
+        match &provenance.receipt {
+            Some(receipt) => {
+                out.word(1);
+                In(receipt).encode(out);
+            }
+            None => {
+                out.word(0);
+            }
+        }
+        In(&provenance.calibration).encode(out);
+        // A set: the boundary only asks whether a capability is declared, so order and
+        // repetition are dropped.
+        let capabilities: Vec<In<'_, ExternalCapability>> =
+            provenance.capabilities.iter().map(In).collect();
+        SetOf(&capabilities).encode(out);
+        out.text(&provenance.provider_id)
+            .text(&provenance.snapshot_id)
+            .text(&provenance.lineage_digest);
+        // Ordered: a coordinate's status is the first matching entry.
+        input.support().entries().encode(out);
+    }
+}
+
+impl Canonical for In<'_, SupportPolicy> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        variant(
+            out,
+            match self.0.unsupported {
+                UnsupportedActionPolicy::RequireAllActions => "require_all_actions",
+                UnsupportedActionPolicy::CompareSupported => "compare_supported",
+            },
+        );
+        self.0.weakest_support.encode(out);
+    }
+}
+
+impl Canonical for In<'_, Comparison> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        variant(out, self.0.as_str());
+    }
+}
+
+impl Canonical for In<'_, InverseConstraint> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match *self.0 {
+            InverseConstraint::TargetMean { target, comparison } => {
+                variant(out, "target_mean").real(target);
+                In(&comparison).encode(out);
+            }
+            InverseConstraint::TargetQuantile { p, target, comparison } => {
+                variant(out, "target_quantile").real(p).real(target);
+                In(&comparison).encode(out);
+            }
+            InverseConstraint::ProbabilityThreshold {
+                outcome_threshold,
+                tail,
+                probability,
+                comparison,
+            } => {
+                variant(out, "probability_threshold").real(outcome_threshold);
+                Wire(&tail).encode(out);
+                out.real(probability);
+                In(&comparison).encode(out);
+            }
+        }
+    }
+}
+
+impl Canonical for In<'_, InverseQuery> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let query = self.0;
+        query.contract.encode(out);
+        // Ordered: the declared grid is the tie-rule order.
+        query.grid_order.encode(out);
+        variant(
+            out,
+            match query.grid_scope {
+                GridScope::FiniteEnumeration => "finite_enumeration",
+                GridScope::ContinuousSample => "continuous_sample",
+            },
+        );
+        // Ordered: values are reported per constraint in declaration order.
+        let constraints: Vec<In<'_, InverseConstraint>> =
+            query.constraints.iter().map(In).collect();
+        constraints.encode(out);
+        variant(
+            out,
+            match query.selection {
+                SelectionRule::FirstInGridOrder => "first_in_grid_order",
+                SelectionRule::LastInGridOrder => "last_in_grid_order",
+                SelectionRule::RequireUnique => "require_unique",
+            },
+        );
+        out.real(query.tolerance);
+        query.max_evaluations.encode(out);
+    }
+}
+
+impl Canonical for In<'_, ForwardClaim> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0 {
+            ForwardClaim::Law(law) => {
+                variant(out, "law");
+                law.encode(out);
+            }
+            ForwardClaim::Gaussian(law) => {
+                variant(out, "gaussian");
+                // Serde wire of scalar fields and a quantity; no maps.
+                Wire::<GaussianForwardLaw>(law).encode(out);
+            }
+            ForwardClaim::Means(means) => {
+                variant(out, "means");
+                In(means).encode(out);
+            }
+        }
+    }
+}
+
+impl Canonical for In<'_, IntervalRegion> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        In(&self.0.lower).encode(out);
+        In(&self.0.upper).encode(out);
+        self.0.endpoints_bound_functional.encode(out);
+    }
+}
+
+impl Canonical for In<'_, StructuralAtom> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.text(&self.0.id);
+        self.0.probability.encode(out);
+        self.0.evidence.encode(out);
+    }
+}
+
+fn atoms(items: &[StructuralAtom]) -> Vec<In<'_, StructuralAtom>> {
+    items.iter().map(In).collect()
+}
+
+impl Canonical for In<'_, MemberSet> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        // Ordered: members are reported in declaration order.
+        atoms(&self.0.members).encode(out);
+        self.0.exhaustive.encode(out);
+    }
+}
+
+impl Canonical for In<'_, ForwardEvidence> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let evidence = self.0;
+        evidence.point.as_ref().map(In).encode(out);
+        evidence.interval_region.as_ref().map(In).encode(out);
+        evidence.identified_set.as_ref().map(In).encode(out);
+        evidence.scenarios.as_deref().map(atoms).encode(out);
+    }
+}
+
+impl Canonical for In<'_, EnumeratedForwardValue> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.text(&self.0.id);
+        self.0.value.encode(out);
+        self.0.supported.encode(out);
+    }
+}
+
+impl Canonical for In<'_, SourceToTarget> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match *self.0 {
+            SourceToTarget::Identity => {
+                variant(out, "identity");
+            }
+            SourceToTarget::Affine { intercept, slope } => {
+                variant(out, "affine").real(intercept).real(slope);
+            }
+        }
+    }
+}
+
+impl Canonical for In<'_, PriorSourceInput> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let source = self.0;
+        out.text(&source.artifact_id).text(&source.source_population);
+        source.draws.encode(out);
+        out.real(source.weight).real(source.prior_strength).real(source.conflict_shrinkage);
+        // Sets: lineage is unioned and observation ids are checked for overlap as sets, so
+        // order and repetition are dropped.
+        SetOf(&source.lineage).encode(out);
+        SetOf(&source.observation_ids).encode(out);
+        In(&source.source_to_target).encode(out);
+    }
+}
+
+impl Canonical for In<'_, PriorSourceRef> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        // Serde wire of strings, ordered lists and BTreeMaps (sorted keys); no hash maps.
+        Wire(&self.0.meta).encode(out);
+        match &self.0.artifact {
+            None => {
+                variant(out, "no_artifact");
+            }
+            Some(PriorArtifactBody::Bytes(bytes)) => {
+                variant(out, "bytes").bytes(bytes);
+            }
+            Some(PriorArtifactBody::Path(path)) => {
+                // A path names its bytes; the program reads them when it executes.
+                variant(out, "path").text(&path.to_string_lossy());
+            }
+        }
+    }
+}
+
+impl Canonical for In<'_, TargetDesign> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let target = self.0;
+        Wire(&target.estimand).encode(out);
+        // A BTreeSet: already sorted and distinct.
+        let variables: Vec<&str> = target.variables.iter().map(String::as_str).collect();
+        out.texts(&variables);
+        // A BTreeMap: sorted by key.
+        out.word(target.tags.len() as u64);
+        for (key, value) in &target.tags {
+            out.text(key).text(value);
+        }
+        target.allow_unidentified.encode(out);
+    }
+}
+
 // --- decisions over several supported inputs ------------------------------------------------
 
 compiled_terminal! {
@@ -126,10 +496,13 @@ pub fn compile_supported_input_decision(
     ctx: &ExecutionContext,
 ) -> Result<CompiledSupportedInputDecision, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.supported_input_decision.v1",
-        &[&contract, &inputs, &policy],
-    );
+    // Ordered: values are reported per input, and actions are assigned to inputs in order.
+    let ordered: Vec<In<'_, DecisionInput>> = inputs.iter().map(In).collect();
+    let question = Declaration::new("antecedent.supported_input_decision.v2")
+        .field("contract", &contract)
+        .field("inputs", &ordered)
+        .field("policy", &In(&policy))
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::SupportedInputDecision,
         plan_id: "supported_input_decision.v1",
@@ -187,10 +560,13 @@ pub fn compile_input_functional(
     ctx: &ExecutionContext,
 ) -> Result<CompiledInputFunctional, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.input_functional.v1",
-        &[&contract, &action_id, &functional, &input, &weakest],
-    );
+    let question = Declaration::new("antecedent.input_functional.v2")
+        .field("contract", &contract)
+        .field("action_id", action_id)
+        .field("functional", &In(&functional))
+        .field("input", &In(&input))
+        .field("weakest", &weakest)
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::SupportedInputDecision,
         plan_id: "input_functional.v1",
@@ -258,8 +634,14 @@ pub fn compile_sensitivity_decision(
     ctx: &ExecutionContext,
 ) -> Result<CompiledSensitivityDecision, CausalError> {
     admit_compile(ctx)?;
-    let question =
-        declaration_digest("antecedent.sensitivity_decision.v1", &[&contract, &artifact, &spec]);
+    // The artifact by its own canonical identity (premises and numbers).
+    let question = Declaration::new("antecedent.sensitivity_decision.v2")
+        .field("contract", &contract)
+        .field("artifact", &artifact.identity().digest)
+        .field("range", &spec.range)
+        .field("weights", &spec.weights)
+        .field("sampling_composition", &spec.sampling_composition)
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::SensitivityDecision,
         plan_id: "sensitivity_decision.v1",
@@ -316,7 +698,10 @@ pub fn compile_inverse_query(
     ctx: &ExecutionContext,
 ) -> Result<CompiledInverseQuery, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest("antecedent.inverse_query.v1", &[&query, &evidence]);
+    let question = Declaration::new("antecedent.inverse_query.v2")
+        .field("query", &In(&query))
+        .field("evidence", &In(&evidence))
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::InverseQueryDecision,
         plan_id: "inverse_query.v1",
@@ -370,10 +755,14 @@ pub fn compile_finite_enumeration_baseline(
     ctx: &ExecutionContext,
 ) -> Result<CompiledFiniteEnumerationBaseline, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.finite_enumeration_baseline.v1",
-        &[&points, &target.to_bits(), &comparison, &tolerance.to_bits()],
-    );
+    // Ordered: each point is classified and reported in declaration order.
+    let enumerated: Vec<In<'_, EnumeratedForwardValue>> = points.iter().map(In).collect();
+    let question = Declaration::new("antecedent.finite_enumeration_baseline.v2")
+        .field("points", &enumerated)
+        .field("target", &target)
+        .field("comparison", &In(&comparison))
+        .field("tolerance", &tolerance)
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::InverseQueryDecision,
         plan_id: "finite_enumeration_baseline.v1",
@@ -426,7 +815,13 @@ pub fn compile_decision_draws_ranking(
     ctx: &ExecutionContext,
 ) -> Result<CompiledDecisionDrawsRanking, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest("antecedent.decision_draws_ranking.v1", &[&draws, &request]);
+    // The draws by the carrier's own canonical digest, which writes the candidates in their
+    // canonical (identity) order: the ranking reads the candidates as a set.
+    let question = Declaration::new("antecedent.decision_draws_ranking.v2")
+        .field("draws", &draws.digest_hex())
+        // Serde wire: an optional baseline, the ordered top-k list and the batch plan; no maps.
+        .field("request", &Wire(&request))
+        .finish();
     let decision = DecisionProgram {
         carrier: CarrierDemand::DecisionDraws,
         utility: DecisionProgram::utility_form(None),
@@ -492,38 +887,48 @@ impl std::fmt::Debug for CompiledPriorSignalAdaptation {
     }
 }
 
-/// The digest of a prior-signal declaration. A signal provider is a runtime binding.
+/// The identity of a prior-signal declaration. A signal provider is a runtime binding: it
+/// declares no identity of its own, so the declaration records that one is bound.
 fn prior_signal_digest(
     catalog: &PriorCatalog,
     target: &TargetDesign,
     request: &PriorSignalRequest,
 ) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.prior_signal_adaptation.v1");
-    writer
-        .text(&format!("{catalog:?}"))
-        .text(&format!("{target:?}"))
-        .text(&request.prior_id)
-        .text(&format!("{:?}", request.sources))
-        .text(&request.target_population)
-        .text(&format!("{:?}", request.transport))
-        .texts(&request.candidate_observation_ids)
-        .word(request.resolution as u64);
+    // Ordered: sources are pooled in declaration order.
+    let catalogued: Vec<In<'_, PriorSourceRef>> = catalog.sources.iter().map(In).collect();
+    let sources: Vec<In<'_, PriorSourceInput>> = request.sources.iter().map(In).collect();
+    let mut declaration = Declaration::new("antecedent.prior_signal_adaptation.v2");
+    declaration
+        .field("catalog", &catalogued)
+        .field("target", &In(target))
+        .field("prior_id", &request.prior_id)
+        .field("sources", &sources)
+        .field("target_population", &request.target_population)
+        .field("transport", &request.transport.as_ref().map(|t| t.policy_id.as_str()))
+        // A set: the candidate's observation ids are checked for overlap as a set, so order
+        // and repetition are dropped.
+        .field("candidate_observation_ids", &SetOf(&request.candidate_observation_ids))
+        .field("resolution", &request.resolution);
     match &request.signal {
-        CandidateSignalSource::Native(family) => {
-            writer.text("native").text(&format!("{family:?}"));
+        CandidateSignalSource::Native(NativeSignalFamily::GaussianMean { noise_variance }) => {
+            declaration
+                .field("signal", "native_gaussian_mean")
+                .field("noise_variance", noise_variance);
+        }
+        CandidateSignalSource::Native(NativeSignalFamily::Binomial) => {
+            declaration.field("signal", "native_binomial");
         }
         CandidateSignalSource::Provider(_) => {
-            writer.text("provider");
-            writer.note_runtime_callback();
+            declaration.field("signal", "provider").callback("signal_provider", None);
         }
         CandidateSignalSource::CoefficientPriorOnly => {
-            writer.text("coefficient_prior_only");
+            declaration.field("signal", "coefficient_prior_only");
         }
         CandidateSignalSource::UnlockListOnly(unlocks) => {
-            writer.text("unlock_list_only").texts(unlocks);
+            declaration.field("signal", "unlock_list_only").field("unlocks", unlocks);
         }
     }
-    writer.finish()
+    declaration.finish()
 }
 
 /// Compile the adaptation of `catalog`'s sources named in `request` to its future signal.
@@ -596,10 +1001,25 @@ pub fn compile_evidence_obligations(
     ctx: &ExecutionContext,
 ) -> Result<CompiledEvidenceObligations, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.evidence_obligations.v1",
-        &[&result, &graph, &observed, &population, &sensitivity],
-    );
+    // The kernel reads the result's status and, for an average effect, its treatment and
+    // outcome; the query is written by its own canonical encoding.
+    let mut query = CanonicalWriter::new("antecedent.evidence_obligations.query.v1");
+    result.query.encode(&mut query);
+    let question = Declaration::new("antecedent.evidence_obligations.v2")
+        .field("status", result.status.as_str())
+        .field("query", &SemanticDigest::from_bytes(query.finish()).to_hex())
+        .field("graph", &graph)
+        // A set: the observed variables are read by membership, so order and repetition are
+        // dropped.
+        .field("observed", &SetOf(&observed))
+        .field("population", population)
+        .field(
+            "sensitivity",
+            &sensitivity
+                .as_ref()
+                .map(|finding| (finding.method.as_str(), (finding.strength, finding.robust))),
+        )
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::EvidenceObligations,
         plan_id: "evidence_obligations.v1",
@@ -685,13 +1105,19 @@ pub fn compile_finite_action_decision<A, O>(
     ctx: &ExecutionContext,
 ) -> Result<CompiledFiniteActionDecision<A, O>, CausalError> {
     admit_compile(ctx)?;
-    let mut writer = CanonicalWriter::new("antecedent.finite_action_decision.v1");
-    writer
-        .word(problem.actions.len() as u64)
-        .word(outcomes.len() as u64)
-        .word(problem.constraints.len() as u64)
-        .real(problem.chance_threshold);
-    writer.note_runtime_callback();
+    // The actions and outcome draws are opaque caller types: their counts are declared, their
+    // values are read only through the callbacks. The utility and every constraint are runtime
+    // bindings; a constraint declares its name and the utility may declare its affine form.
+    let mut declaration = Declaration::new("antecedent.finite_action_decision.v2");
+    declaration
+        .field("actions", &problem.actions.len())
+        .field("outcomes", &outcomes.len())
+        .field("chance_threshold", &problem.chance_threshold)
+        .callback("utility", None)
+        .field("utility_affine_form", &problem.utility.affine_in_state(&problem.actions));
+    for constraint in &problem.constraints {
+        declaration.callback("constraint", Some(constraint.name()));
+    }
     let decision = DecisionProgram {
         carrier: CarrierDemand::ParameterPosterior,
         utility: DecisionProgram::utility_form(None),
@@ -708,7 +1134,7 @@ pub fn compile_finite_action_decision<A, O>(
         plan_id: "finite_action_decision.v1",
         functional: FunctionalKind::PolicyValue,
         graph_class: "supplied_state_draws",
-        question: writer.finish(),
+        question: declaration.finish(),
         evaluator: "decision.evaluate_decision",
         reading: Reading::Posterior,
         role: EvidenceRole::ChainSource,
@@ -790,15 +1216,19 @@ pub fn compile_adaptive_policy_search(
     ctx: &ExecutionContext,
 ) -> Result<CompiledAdaptivePolicySearch, CausalError> {
     admit_compile(ctx)?;
-    let mut writer = CanonicalWriter::new("antecedent.adaptive_policy_search.v1");
-    writer.bytes(&search.identity());
-    writer.note_runtime_callback();
+    // The prepared search by its own canonical identity (families, constraints, objective,
+    // options and baseline). The response source is bound at execution; the result carries
+    // its identity.
+    let mut declaration = Declaration::new("antecedent.adaptive_policy_search.v2");
+    declaration
+        .field("search", &SemanticDigest::from_bytes(search.identity()).to_hex())
+        .callback("response_source", None);
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::AdaptivePolicySearch,
         plan_id: "adaptive_policy_search.v1",
         functional: FunctionalKind::RegimeValue,
         graph_class: "declared_policy_families",
-        question: writer.finish(),
+        question: declaration.finish(),
         evaluator: "adaptive_policy_search.execute",
         reading: Reading::MonteCarlo,
         role: EvidenceRole::ChainSource,

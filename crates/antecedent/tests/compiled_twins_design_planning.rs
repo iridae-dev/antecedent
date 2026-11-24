@@ -546,3 +546,134 @@ fn compiled_choice_study_ranking_equals_the_hierarchical_ranker_and_its_referenc
         assert!((row.evsi - expected["evsi"][index].as_f64().unwrap()).abs() < 2e-5, "{row:?}");
     }
 }
+
+// --- program identities ----------------------------------------------------------------------
+
+fn repair_identity(candidates: Vec<DurableStudyCandidate>, objective: RepairObjective) -> String {
+    compile_identification_repair(
+        backdoor_family(),
+        candidates,
+        objective,
+        RepairLimits::default(),
+        &ctx(),
+    )
+    .unwrap()
+    .identity()
+    .to_hex()
+}
+
+#[test]
+fn a_repair_identity_ignores_the_declaration_order_of_its_candidates_and_nothing_else() {
+    let a = observation("a", &[T, Y, Z1], 5);
+    let b = observation("b", &[T, Y, Z2], 5);
+    let c = observation("c", &[T, Y, Z1, Z2], 20);
+    let declared = || vec![a.clone(), b.clone(), c.clone()];
+    // The same declaration has the same identity.
+    assert_eq!(
+        repair_identity(declared(), RepairObjective::MinimizeCost),
+        repair_identity(declared(), RepairObjective::MinimizeCost)
+    );
+    // The search reads candidates in semantic-id order: reordering them changes nothing.
+    assert_eq!(
+        repair_identity(declared(), RepairObjective::MinimizeCost),
+        repair_identity(vec![c.clone(), a.clone(), b.clone()], RepairObjective::MinimizeCost)
+    );
+    // A repeated candidate is refused as a duplicate, so it is not dropped from the identity.
+    assert_ne!(
+        repair_identity(declared(), RepairObjective::MinimizeCost),
+        repair_identity(
+            vec![a.clone(), b.clone(), c.clone(), c.clone()],
+            RepairObjective::MinimizeCost
+        )
+    );
+    // A different candidate or objective is a different declaration.
+    assert_ne!(
+        repair_identity(declared(), RepairObjective::MinimizeCost),
+        repair_identity(vec![a.clone(), b.clone()], RepairObjective::MinimizeCost)
+    );
+    assert_ne!(
+        repair_identity(declared(), RepairObjective::MinimizeCost),
+        repair_identity(declared(), RepairObjective::MinimizeSampleBudget)
+    );
+}
+
+#[test]
+fn a_study_plan_identity_ignores_the_declaration_order_of_its_candidates() {
+    let ctx = ExecutionContext::for_tests(3);
+    let identity = |candidates: Vec<StudyCandidate>| {
+        compile_study_addition_plan(
+            graph(),
+            StudyPlanRoute::Mz(query(sources())),
+            mz_base(),
+            candidates,
+            StudyPlanLimits::default(),
+            &ctx,
+        )
+        .unwrap()
+        .identity()
+        .to_hex()
+    };
+    let mut reversed = mz_candidates();
+    reversed.reverse();
+    assert_eq!(identity(mz_candidates()), identity(mz_candidates()));
+    assert_eq!(identity(mz_candidates()), identity(reversed));
+    let mut fewer = mz_candidates();
+    fewer.pop();
+    assert_ne!(identity(mz_candidates()), identity(fewer));
+}
+
+#[test]
+fn a_structure_identity_keeps_the_order_of_its_samples() {
+    let ctx = ctx();
+    let identity = |samples: Vec<GraphPosteriorSample>, targets: Option<Vec<VariableId>>| {
+        compile_structure_identification(samples, v(T), v(Y), targets, &ctx)
+            .unwrap()
+            .identity()
+            .to_hex()
+    };
+    assert_eq!(identity(samples(), None), identity(samples(), None));
+    // The flags are reported per sample in declared order, so reordering the samples is a
+    // different declaration.
+    let mut reversed = samples();
+    reversed.reverse();
+    assert_ne!(identity(samples(), None), identity(reversed, None));
+    // A different weight or intervention is a different declaration.
+    let mut reweighted = samples();
+    reweighted[0].weight = 2.0;
+    assert_ne!(identity(samples(), None), identity(reweighted, None));
+    assert_ne!(identity(samples(), None), identity(samples(), Some(vec![v(T)])));
+}
+
+#[test]
+fn a_choice_ranking_identity_keeps_the_order_of_its_candidates_and_reads_reals_by_bits() {
+    let ctx = ExecutionContext::for_tests(5);
+    let candidate = |label: &str, observations, cost| ChoiceStudyCandidate {
+        label: label.into(),
+        observations,
+        cost,
+    };
+    let identity = |candidates: Vec<ChoiceStudyCandidate>, alpha: Vec<f64>| {
+        compile_choice_study_ranking(
+            ChoicePosterior::Pooled { alpha: alpha.clone(), seed: 17 },
+            vec![1.0, 1.0],
+            candidates,
+            &ctx,
+        )
+        .unwrap()
+        .identity()
+        .to_hex()
+    };
+    let declared = || vec![candidate("one", 1, 0.0), candidate("three", 3, 0.05)];
+    assert_eq!(identity(declared(), vec![1.0, 1.0]), identity(declared(), vec![1.0, 1.0]));
+    // The ranking reports candidates in declared order.
+    assert_ne!(
+        identity(declared(), vec![1.0, 1.0]),
+        identity(vec![candidate("three", 3, 0.05), candidate("one", 1, 0.0)], vec![1.0, 1.0])
+    );
+    // A cost of -0.0 is not a cost of 0.0: reals enter by their bits.
+    assert_ne!(
+        identity(declared(), vec![1.0, 1.0]),
+        identity(vec![candidate("one", 1, -0.0), candidate("three", 3, 0.05)], vec![1.0, 1.0])
+    );
+    assert_ne!(identity(declared(), vec![1.0, 1.0]), identity(declared(), vec![1.0, 2.0]));
+}

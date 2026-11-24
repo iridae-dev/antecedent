@@ -24,7 +24,11 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CanonicalWriter, EvidenceCatalog, ExecutionContext, VariableId};
+use antecedent_contract::EvidenceObligation;
+use antecedent_core::{
+    CanonicalWriter, EvidenceCatalog, ExecutionContext, InterventionAssignment, SearchLimits,
+    Value, VariableId,
+};
 use antecedent_design::choice_evsi::{
     ChoiceEvsiError, StudyCandidate as ChoiceStudyCandidate, StudyRank, rank_hierarchical_studies,
     rank_studies_with_context,
@@ -42,14 +46,20 @@ use antecedent_design::{
     ZTransportFailureSnapshot, ZTransportPlanResult, ZTransportPlanSpec, ZTransportPlanningError,
     ZTransportRepairFamily, plan_studies, plan_z_transport_evidence, snapshot_z_transport_failure,
 };
+use antecedent_design::{DesignCost, FailedContract, TransportEvidenceCandidate};
 use antecedent_graph::{Admg, SelectionDiagram};
 use antecedent_identify::{SidLimits, StudyPlanLimits, StudyPlanRoute, ZTransportQuery};
+use antecedent_io_core::transport_catalog_wire::{EvidenceCatalogDeltaWire, EvidenceCatalogWire};
+use antecedent_io_core::transport_query_wire::{
+    MixedSourceQueryWire, MzTransportQueryWire, ZTransportQueryWire,
+};
 use antecedent_prob::WeightedGraphSamples;
 use antecedent_stats::adaptive_inference::HierarchicalChoicePrior;
 
+use crate::analysis::supplied_identity::{Canonical, Declaration, Wire, variant};
 pub use crate::analysis::supplied_terminal::TerminalError;
 use crate::analysis::supplied_terminal::{
-    Reading, TerminalSpec, admit_compile, compiled_terminal, declaration_digest, lower,
+    Reading, TerminalSpec, admit_compile, compiled_terminal, lower,
 };
 use crate::error::CausalError;
 use crate::planner::lowered::{Composition, EvidenceRole, FunctionalKind, ProgramCell};
@@ -156,18 +166,17 @@ pub fn compile_identification_repair(
 ) -> Result<CompiledIdentificationRepair, CausalError> {
     admit_compile(ctx)?;
     let contract = contract.into();
-    let family = contract.family();
-    let question = declaration_digest(
-        "antecedent.identification_repair.v1",
-        &[
-            &family.family_id(),
-            &family.contract_id(),
-            &family.unresolved_obligations(),
-            &candidates,
-            &objective,
-            &limits,
-        ],
-    );
+    let question = Declaration::new("antecedent.identification_repair.v2")
+        .field("contract", &contract)
+        // The search reads the candidates in semantic-id order (a stable sort; a repeated id
+        // is refused as a duplicate), so they are written in that order and never deduplicated.
+        .field(
+            "candidates",
+            &KernelOrdered::by(&candidates, DurableStudyCandidate::semantic_id, durable_candidate),
+        )
+        .field("objective", &RepairObjectiveField(objective))
+        .field("limits", &RepairLimitsField(limits))
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::IdentificationRepair,
         plan_id: "identification_repair.v1",
@@ -246,10 +255,22 @@ pub fn compile_study_addition_plan(
     ctx: &ExecutionContext,
 ) -> Result<CompiledStudyAdditionPlan, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.study_addition_plan.v1",
-        &[&graph, &route, &catalog, &candidates, &limits],
-    );
+    let question = Declaration::new("antecedent.study_addition_plan.v2")
+        .field("graph", &graph)
+        .field("route", &RouteField(&route))
+        .field("catalog", &CatalogField(&catalog))
+        // The planner reads the candidates sorted by id (a stable sort), so they are written in
+        // that order and never deduplicated.
+        .field(
+            "candidates",
+            &KernelOrdered::by(
+                &candidates,
+                |c: &StudyCandidate| Arc::clone(&c.id),
+                study_candidate,
+            ),
+        )
+        .field("limits", &StudyPlanLimitsField(limits))
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::StudyAdditionPlanning,
         plan_id: "study_addition_planning.v1",
@@ -313,10 +334,12 @@ pub fn compile_z_transport_failure_snapshot(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransportFailureSnapshot, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.z_transport_failure_snapshot.v1",
-        &[&diagram, &query, &catalog, &limits],
-    );
+    let question = Declaration::new("antecedent.z_transport_failure_snapshot.v2")
+        .field("diagram", &DiagramField(&diagram))
+        .field("query", &Wire(&ZTransportQueryWire::from_query(&query)))
+        .field("catalog", &CatalogField(&catalog))
+        .field("limits", &SidLimitsField(limits))
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ZTransportEvidencePlanning,
         plan_id: "z_transport_failure_snapshot.v1",
@@ -375,8 +398,10 @@ pub fn compile_z_transport_evidence_plan(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransportEvidencePlan, CausalError> {
     admit_compile(ctx)?;
-    let question =
-        declaration_digest("antecedent.z_transport_evidence_plan.v1", &[&snapshot, &spec]);
+    let question = Declaration::new("antecedent.z_transport_evidence_plan.v2")
+        .field("snapshot", &SnapshotField(&snapshot))
+        .field("spec", &PlanSpecField(&spec))
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ZTransportEvidencePlanning,
         plan_id: "z_transport_evidence_plan.v1",
@@ -410,25 +435,32 @@ impl CompiledZTransportEvidencePlan {
 
 // --- design ranking --------------------------------------------------------------------------
 
-/// The digest of a design evaluation context: the graph posterior, every unlock list and flag
-/// vector, the effect-width and model-likelihood inputs, and whether a decision registry is
-/// supplied. A registry holds utility callbacks, which have no canonical rendering; the
-/// ranking reads the registry the caller passes at execution.
+/// The identity of a design evaluation context: the graph posterior, every unlock list and flag
+/// vector, the effect-width and model-likelihood inputs, and the decision registry. A registry
+/// holds utility, constraint and signal callbacks and generic state draws, which have no
+/// canonical encoding: it is recorded as a bound callback whose declared identity covers what
+/// it declares (each registered problem's id, action and constraint counts and chance
+/// threshold, a normal prior's moments or the number of state draws, and the signal's name).
 fn evaluation_digest<A, O>(eval: &DesignEvaluationContext<'_, A, O>) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.design_ranking.evaluation.v1");
-    writer
-        .text(&format!("{:?}", eval.graphs))
-        .text(&format!("{:?}", eval.effect_width))
-        .text(&format!("{:?}", eval.model_loglik))
-        .text(&format!("{:?}", eval.query_id_unlock))
-        .text(&format!("{:?}", eval.env_id_unlock))
-        .text(&format!("{:?}", eval.identified_under_intervention))
-        .text(&format!("{:?}", eval.graph_features))
-        .word(u64::from(eval.decisions.is_some()));
-    if eval.decisions.is_some() {
-        writer.note_runtime_callback();
+    let mut declaration = Declaration::new("antecedent.design_ranking.evaluation.v2");
+    declaration
+        .field("graphs", &GraphSamplesField(eval.graphs))
+        .field("effect_width", &eval.effect_width.map(EffectWidthField))
+        .field("model_loglik", &eval.model_loglik.map(ModelLoglikField))
+        .field("query_id_unlock", &eval.query_id_unlock.map(QueryUnlockField))
+        .field("env_id_unlock", &eval.env_id_unlock.map(EnvironmentUnlockField))
+        .field("identified_under_intervention", &eval.identified_under_intervention.map(FlagsField))
+        .field("graph_features", &eval.graph_features.map(|features| features.to_vec()));
+    match eval.decisions {
+        Some(registry) => {
+            declaration.field("decisions", &true);
+            declaration.callback("decision_registry", Some(registry_identity(registry).as_str()));
+        }
+        None => {
+            declaration.field("decisions", &false);
+        }
     }
-    writer.finish()
+    declaration.finish()
 }
 
 compiled_terminal! {
@@ -460,10 +492,14 @@ pub fn compile_design_ranking<A, O>(
 ) -> Result<CompiledDesignRanking, CausalError> {
     admit_compile(ctx)?;
     let evaluation = evaluation_digest(eval);
-    let question = declaration_digest(
-        "antecedent.design_ranking.v1",
-        &[&ranker.config, &ranker.constraints, &objective, &candidates, &evaluation],
-    );
+    let question = Declaration::new("antecedent.design_ranking.v2")
+        .field("config", &RankConfigField(&ranker.config))
+        .field("constraints", &ConstraintsField(&ranker.constraints))
+        .field("objective", &ObjectiveField(&objective))
+        // The ranking reports candidates by their declared index, so their order is kept.
+        .field("candidates", &candidates.iter().map(CandidateField).collect::<Vec<_>>())
+        .field("evaluation", &Bytes32(evaluation))
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::DesignRanking,
         plan_id: "design_ranking.v1",
@@ -561,10 +597,12 @@ pub fn compile_choice_study_ranking(
     ctx: &ExecutionContext,
 ) -> Result<CompiledChoiceStudyRanking, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.choice_study_ranking.v1",
-        &[&posterior, &values, &candidates],
-    );
+    let question = Declaration::new("antecedent.choice_study_ranking.v2")
+        .field("posterior", &posterior)
+        // Values are per option and candidates are reported in declared order: both ordered.
+        .field("values", &values)
+        .field("candidates", &candidates.iter().map(ChoiceCandidateField).collect::<Vec<_>>())
+        .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ChoiceStudyRanking,
         plan_id: "choice_study_ranking.v1",
@@ -664,8 +702,11 @@ pub fn compile_graph_identification(
     ctx: &ExecutionContext,
 ) -> Result<CompiledGraphIdentification, CausalError> {
     admit_compile(ctx)?;
-    let question =
-        declaration_digest("antecedent.graph_identification.v1", &[&graph, &treatment, &outcome]);
+    let question = Declaration::new("antecedent.graph_identification.v2")
+        .field("graph", &graph)
+        .field("treatment", &treatment)
+        .field("outcome", &outcome)
+        .finish();
     let lowered = lower(structure_spec(question, "graph_identification.v1", 1))?;
     Ok(CompiledGraphIdentification { lowered, graph, treatment, outcome })
 }
@@ -710,10 +751,14 @@ pub fn compile_structure_identification(
     ctx: &ExecutionContext,
 ) -> Result<CompiledStructureIdentification, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.structure_identification.v1",
-        &[&samples, &treatment, &outcome, &interventions],
-    );
+    let question = Declaration::new("antecedent.structure_identification.v2")
+        // The flags are reported per sample in declared order, so the samples stay ordered.
+        .field("samples", &samples.iter().map(SampleField).collect::<Vec<_>>())
+        .field("treatment", &treatment)
+        .field("outcome", &outcome)
+        // Ordered: an unknown target is reported by the first one met.
+        .field("interventions", &interventions)
+        .finish();
     let lowered = lower(structure_spec(question, "structure_identification.v1", samples.len()))?;
     Ok(CompiledStructureIdentification { lowered, samples, treatment, outcome, interventions })
 }
@@ -740,5 +785,608 @@ impl CompiledStructureIdentification {
             .transpose()
             .map_err(TerminalError::Kernel)?;
         Ok(StructureIdentificationReadout { posterior, under_intervention })
+    }
+}
+
+// --- canonical encodings of the declared inputs ---------------------------------------------
+//
+// Every encoder writes named-order fields through the shared `Canonical` rules
+// (`crate::analysis::supplied_identity`): integers as words, reals as their bits, texts
+// length-prefixed, enum variants by tag. Where the kernel or io-core already defines a canonical
+// identity or wire for a value, the encoder writes that and says so.
+
+/// A list the kernel reads in the order of a key it sorts by (a stable sort): written in that
+/// order, so a declaration order the kernel ignores never reaches the identity, while items with
+/// equal keys keep their declared order and a repeated item is kept (the kernel refuses or
+/// reports it), never deduplicated.
+struct KernelOrdered<'a, T> {
+    items: Vec<&'a T>,
+    encode: fn(&T, &mut CanonicalWriter),
+}
+
+impl<'a, T> KernelOrdered<'a, T> {
+    fn by<K: Ord>(
+        items: &'a [T],
+        key: impl Fn(&T) -> K,
+        encode: fn(&T, &mut CanonicalWriter),
+    ) -> Self {
+        let mut items: Vec<&T> = items.iter().collect();
+        items.sort_by_key(|item| key(item));
+        Self { items, encode }
+    }
+}
+
+impl<T> Canonical for KernelOrdered<'_, T> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(self.items.len() as u64);
+        for item in &self.items {
+            (self.encode)(item, out);
+        }
+    }
+}
+
+/// A 32-byte digest, length-prefixed.
+struct Bytes32([u8; 32]);
+
+impl Canonical for Bytes32 {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.bytes(&self.0);
+    }
+}
+
+fn search_limits(out: &mut CanonicalWriter, limits: SearchLimits) {
+    out.word(limits.operations as u64).word(limits.depth as u64);
+}
+
+fn texts(out: &mut CanonicalWriter, values: &[Arc<str>]) {
+    out.word(values.len() as u64);
+    for value in values {
+        out.text(value);
+    }
+}
+
+fn variables(out: &mut CanonicalWriter, values: &[VariableId]) {
+    out.word(values.len() as u64);
+    for value in values {
+        value.encode(out);
+    }
+}
+
+/// A graph's canonical identity wire (sorted edge lists), or the encoding error.
+fn graph_wire(
+    out: &mut CanonicalWriter,
+    wire: Result<antecedent_io_core::identity::GraphIdentityWire, antecedent_io_core::IoError>,
+) {
+    match wire {
+        Ok(wire) => Wire(&wire).encode(out),
+        Err(error) => {
+            out.text("unencodable").text(&error.to_string());
+        }
+    }
+}
+
+/// The treatment, outcome, population and current joint law of a frozen failed contract.
+fn failed_contract(out: &mut CanonicalWriter, contract: &dyn FailedContract) {
+    contract.treatment().encode(out);
+    contract.outcome().encode(out);
+    out.text(contract.population());
+    // `base_law` is the family's sorted set of jointly observed variables.
+    variables(out, &contract.base_law());
+}
+
+impl Canonical for RepairContract {
+    /// The family's stable name and contract label, every unresolved obligation (in the family's
+    /// order, each by its own canonical text, [`EvidenceObligation::canonical`]), then the frozen
+    /// premises the family exposes: the graph by its io-core identity wire and the failed
+    /// contract's variables, the selection diagram, query and base catalog of a transport
+    /// contract, or the frozen failure of a z-transport contract (whose identity the contract
+    /// label carries). A hedge's certificate is derived from its graph and is not written.
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let family = self.family();
+        out.text(family.family_id()).text(&family.contract_id());
+        let obligations: Vec<String> =
+            family.unresolved_obligations().iter().map(EvidenceObligation::canonical).collect();
+        out.texts(&obligations);
+        match self {
+            Self::Route(route) => match route {
+                FailureRoute::Backdoor(family) => {
+                    variant(out, "backdoor");
+                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    failed_contract(out, &**family);
+                }
+                FailureRoute::FrontDoor(family) => {
+                    variant(out, "front_door");
+                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    failed_contract(out, &**family);
+                }
+                FailureRoute::Instrument(family) => {
+                    variant(out, "instrument");
+                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    failed_contract(out, &**family);
+                }
+                FailureRoute::Hedge(family) => {
+                    variant(out, "hedge");
+                    family.admg().encode(out);
+                    variables(out, family.surrogates());
+                    failed_contract(out, &**family);
+                }
+                FailureRoute::Sensitivity(family) => {
+                    variant(out, "sensitivity");
+                    graph_wire(out, antecedent_io_core::identity::dag_identity(family.dag()));
+                    failed_contract(out, &**family);
+                }
+                // A route added later is written by its family's name, label and obligations.
+                _ => {
+                    variant(out, "other_route");
+                }
+            },
+            Self::Transport(family) => {
+                variant(out, "transport");
+                DiagramField(family.diagram()).encode(out);
+                let query = family.query();
+                out.text(&query.source).text(&query.target);
+                variables(out, &query.treatments);
+                variables(out, &query.outcomes);
+                CatalogField(family.base_catalog()).encode(out);
+                SidLimitsField(family.sid_limits()).encode(out);
+            }
+            Self::ZTransport(family) => {
+                variant(out, "z_transport");
+                SnapshotField(family.snapshot()).encode(out);
+                SidLimitsField(family.sid_limits()).encode(out);
+            }
+        }
+    }
+}
+
+/// A repair candidate by its semantic id (the kernel's own canonical, order-independent content
+/// identity, [`DurableStudyCandidate::semantic_id`]) and its label.
+fn durable_candidate(candidate: &DurableStudyCandidate, out: &mut CanonicalWriter) {
+    out.text(&candidate.semantic_id()).text(&candidate.label);
+}
+
+struct RepairObjectiveField(RepairObjective);
+
+impl Canonical for RepairObjectiveField {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0 {
+            RepairObjective::MinimizeCost => variant(out, "minimize_cost"),
+            RepairObjective::MinimizeSampleBudget => variant(out, "minimize_sample_budget"),
+        };
+    }
+}
+
+struct RepairLimitsField(RepairLimits);
+
+impl Canonical for RepairLimitsField {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        search_limits(out, self.0.search);
+        out.word(self.0.memory_limit_bytes);
+    }
+}
+
+struct StudyPlanLimitsField(StudyPlanLimits);
+
+impl Canonical for StudyPlanLimitsField {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        search_limits(out, self.0.search);
+        out.word(self.0.memory_limit_bytes);
+    }
+}
+
+struct SidLimitsField(SidLimits);
+
+impl Canonical for SidLimitsField {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(self.0.steps as u64).word(self.0.depth as u64);
+    }
+}
+
+/// A study-planning route in its canonical form ([`StudyPlanRoute::canonical`], sources in
+/// canonical order), by its io-core query wire.
+struct RouteField<'a>(&'a StudyPlanRoute);
+
+impl Canonical for RouteField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0.canonical() {
+            StudyPlanRoute::Mixed(query) => {
+                variant(out, "mixed");
+                Wire(&MixedSourceQueryWire::from_query(&query)).encode(out);
+            }
+            StudyPlanRoute::Mz(query) => {
+                variant(out, "mz");
+                Wire(&MzTransportQueryWire::from_query(&query)).encode(out);
+            }
+        }
+    }
+}
+
+/// An evidence catalog by the io-core wire of its canonical form
+/// ([`EvidenceCatalog::canonicalized`]), the encoding the z-transport planner digests; a catalog
+/// that does not canonicalize is written by the wire of its declared form under its own tag.
+struct CatalogField<'a>(&'a EvidenceCatalog);
+
+impl Canonical for CatalogField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0.canonicalized() {
+            Ok(canonical) => {
+                variant(out, "canonical");
+                Wire(&EvidenceCatalogWire::from_catalog(&canonical)).encode(out);
+            }
+            Err(_) => {
+                variant(out, "declared");
+                Wire(&EvidenceCatalogWire::from_catalog(self.0)).encode(out);
+            }
+        }
+    }
+}
+
+/// A selection diagram by io-core's transport identity wire (canonical graph, sorted selection
+/// targets).
+struct DiagramField<'a>(&'a SelectionDiagram);
+
+impl Canonical for DiagramField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match antecedent_io_core::transport_identity(Some(self.0), None) {
+            Ok(wire) => Wire(&wire).encode(out),
+            Err(error) => {
+                out.text("unencodable").text(&error.to_string());
+            }
+        }
+    }
+}
+
+/// A frozen z-transport failure by its inspection wire, with the graph's edge lists and the
+/// selection targets sorted as the planner's own failure digest sorts them.
+struct SnapshotField<'a>(&'a ZTransportFailureSnapshot);
+
+impl Canonical for SnapshotField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0.to_wire() {
+            Ok(mut wire) => {
+                wire.graph.directed.sort_unstable();
+                wire.graph.bidirected.sort_unstable();
+                wire.selection_targets.sort_unstable();
+                Wire(&wire).encode(out);
+            }
+            Err(error) => {
+                out.text("unencodable").text(&error.to_string());
+            }
+        }
+    }
+}
+
+fn design_cost(out: &mut CanonicalWriter, cost: &DesignCost) {
+    out.real(cost.amount).word(cost.sample_budget);
+}
+
+/// A z-transport plan's candidates in declared order (the planner evaluates the first
+/// `max_evaluated` and refuses a repeated id against the earlier one), each with its catalog
+/// delta by the io-core delta wire.
+struct PlanSpecField<'a>(&'a ZTransportPlanSpec);
+
+impl Canonical for PlanSpecField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(self.0.candidates.len() as u64);
+        for candidate in &self.0.candidates {
+            transport_candidate(out, candidate);
+        }
+        SidLimitsField(self.0.identification_limits).encode(out);
+        out.word(self.0.max_evaluated as u64);
+    }
+}
+
+fn transport_candidate(out: &mut CanonicalWriter, candidate: &TransportEvidenceCandidate) {
+    out.text(&candidate.id);
+    CandidateField(&candidate.design).encode(out);
+    design_cost(out, &candidate.cost);
+    Wire(&EvidenceCatalogDeltaWire::from_delta(&candidate.delta)).encode(out);
+    out.text(&candidate.recruitment_sampling);
+    texts(out, &candidate.feasibility_constraints);
+}
+
+/// A study-planning candidate's declared fields; its variable and text lists are written in
+/// declared order.
+fn study_candidate(candidate: &StudyCandidate, out: &mut CanonicalWriter) {
+    out.text(&candidate.id).text(&candidate.population);
+    variables(out, &candidate.interventions);
+    variables(out, &candidate.measured);
+    match &candidate.levels {
+        Some(levels) => {
+            out.word(1).word(levels.len() as u64);
+            for level in levels.iter() {
+                out.word(level.len() as u64);
+                for assignment in level.iter() {
+                    intervention_assignment(out, assignment);
+                }
+            }
+        }
+        None => {
+            out.word(0);
+        }
+    }
+    out.text(&candidate.recruitment);
+    out.word(candidate.cost.units).word(candidate.cost.sample_budget);
+    texts(out, &candidate.requires);
+    texts(out, &candidate.conflicts);
+    texts(out, &candidate.feasibility_constraints);
+}
+
+fn intervention_assignment(out: &mut CanonicalWriter, assignment: &InterventionAssignment) {
+    assignment.variable.encode(out);
+    match &assignment.value {
+        Value::Float64(value) => {
+            variant(out, "float64").real(*value);
+        }
+        Value::Int64(value) => {
+            variant(out, "int64").word(u64::from_le_bytes(value.to_le_bytes()));
+        }
+        Value::Bool(value) => {
+            variant(out, "bool").word(u64::from(*value));
+        }
+        Value::Category(value) => {
+            variant(out, "category").word(u64::from(*value));
+        }
+        Value::Label(value) => {
+            variant(out, "label").text(value);
+        }
+    }
+}
+
+struct CandidateField<'a>(&'a CandidateDesign);
+
+impl Canonical for CandidateField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0 {
+            CandidateDesign::IncreaseSamplingRate(plan) => {
+                variant(out, "increase_sampling_rate").word(plan.tag).word(plan.additional_samples);
+                design_cost(out, &plan.cost);
+            }
+            CandidateDesign::Intervene(plan) => {
+                variant(out, "intervene").word(plan.tag);
+                variables(out, &plan.targets);
+                design_cost(out, &plan.cost);
+            }
+            CandidateDesign::Measure(plan) => {
+                variant(out, "measure").word(plan.tag);
+                variables(out, &plan.variables);
+                design_cost(out, &plan.cost);
+            }
+            CandidateDesign::ObserveEnvironment(plan) => {
+                variant(out, "observe_environment")
+                    .word(plan.tag)
+                    .word(u64::from(plan.environment.raw()))
+                    .word(plan.additional_rows);
+                design_cost(out, &plan.cost);
+            }
+        }
+    }
+}
+
+struct RankConfigField<'a>(&'a DesignRankConfig);
+
+impl Canonical for RankConfigField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(u64::from(self.0.min_batches))
+            .word(u64::from(self.0.max_batches))
+            .word(u64::from(self.0.batch_size))
+            .real(self.0.rank_uncertainty_threshold);
+    }
+}
+
+struct ConstraintsField<'a>(&'a DesignConstraints);
+
+impl Canonical for ConstraintsField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.opt_real(self.0.max_cost).opt_word(self.0.max_sample_budget);
+    }
+}
+
+struct ObjectiveField<'a>(&'a DesignObjective);
+
+impl Canonical for ObjectiveField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0 {
+            DesignObjective::IncreaseIdentificationProbability { query } => {
+                variant(out, "increase_identification_probability").word(u64::from(query.raw()));
+            }
+            DesignObjective::ReduceGraphEntropy => {
+                variant(out, "reduce_graph_entropy");
+            }
+            DesignObjective::ReduceEffectPosteriorWidth { query } => {
+                variant(out, "reduce_effect_posterior_width").word(u64::from(query.raw()));
+            }
+            DesignObjective::DistinguishModels { models } => {
+                variant(out, "distinguish_models").word(models.len() as u64);
+                for model in models.iter() {
+                    out.word(u64::from(model.raw()));
+                }
+            }
+            DesignObjective::ReduceDecisionRegret { decision } => {
+                variant(out, "reduce_decision_regret").word(u64::from(decision.raw()));
+            }
+        }
+    }
+}
+
+/// A weighted graph posterior: every per-structure array in sample order.
+struct GraphSamplesField<'a>(&'a WeightedGraphSamples);
+
+impl Canonical for GraphSamplesField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let graphs = self.0;
+        out.word(graphs.n_samples as u64).reals(&graphs.weights).words(&graphs.graph_keys);
+        FlagsField(&graphs.identified).encode(out);
+        graphs.edge_marginals.as_deref().map(<[f64]>::to_vec).encode(out);
+        graphs.orientation_marginals.as_deref().map(<[f64]>::to_vec).encode(out);
+    }
+}
+
+struct FlagsField<'a>(&'a [GraphIdentFlag]);
+
+impl Canonical for FlagsField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(self.0.len() as u64);
+        for flag in self.0 {
+            match flag {
+                GraphIdentFlag::Identified => variant(out, "identified"),
+                GraphIdentFlag::Unidentified => variant(out, "unidentified"),
+            };
+        }
+    }
+}
+
+struct EffectWidthField<'a>(&'a antecedent_design::EffectWidthContext);
+
+impl Canonical for EffectWidthField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        let context = self.0;
+        out.word(context.n).real(context.sigma2).word(context.treatment_col as u64);
+        out.reals(&context.xtx);
+        match &context.intervention_design {
+            Some(design) => {
+                out.word(1).word(design.n).real(design.sigma2).reals(&design.xtx);
+            }
+            None => {
+                out.word(0);
+            }
+        }
+        match &context.environment_grams {
+            Some(grams) => {
+                out.word(1).word(grams.len() as u64);
+                for gram in grams.iter() {
+                    out.word(u64::from(gram.environment.raw()))
+                        .word(gram.n)
+                        .opt_real(gram.sigma2)
+                        .reals(&gram.xtx);
+                }
+            }
+            None => {
+                out.word(0);
+            }
+        }
+        match &context.measure_columns {
+            Some(columns) => {
+                out.word(1).word(columns.len() as u64);
+                for column in columns.iter() {
+                    column.variable.encode(out);
+                    out.real(column.self_dot).reals(&column.cross).opt_real(column.sigma2_after);
+                }
+            }
+            None => {
+                out.word(0);
+            }
+        }
+    }
+}
+
+struct ModelLoglikField<'a>(&'a antecedent_design::ModelLoglikDraws);
+
+impl Canonical for ModelLoglikField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(self.0.models.len() as u64);
+        for model in self.0.models.iter() {
+            out.word(u64::from(model.raw()));
+        }
+        out.word(self.0.n_draws as u64).reals(&self.0.loglik);
+    }
+}
+
+type QueryUnlock = (antecedent_core::QueryId, Arc<[VariableId]>);
+
+struct QueryUnlockField<'a>(&'a [QueryUnlock]);
+
+impl Canonical for QueryUnlockField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(self.0.len() as u64);
+        for (query, unlocked) in self.0 {
+            out.word(u64::from(query.raw()));
+            variables(out, unlocked);
+        }
+    }
+}
+
+type EnvironmentUnlock = (antecedent_core::QueryId, Arc<[antecedent_core::EnvironmentId]>);
+
+struct EnvironmentUnlockField<'a>(&'a [EnvironmentUnlock]);
+
+impl Canonical for EnvironmentUnlockField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.word(self.0.len() as u64);
+        for (query, environments) in self.0 {
+            out.word(u64::from(query.raw())).word(environments.len() as u64);
+            for environment in environments.iter() {
+                out.word(u64::from(environment.raw()));
+            }
+        }
+    }
+}
+
+/// The declared identity of a decision registry's callbacks: each registered problem's raw id,
+/// action and constraint counts and chance threshold, a normal prior's moments or the number of
+/// state draws, and the signal's name. The utilities, constraints, signal model and generic
+/// state values themselves are runtime bindings.
+fn registry_identity<A, O>(registry: &antecedent_design::DecisionRegistry<A, O>) -> String {
+    let mut out = CanonicalWriter::new("antecedent.design_ranking.decision_registry.v1");
+    let registered: Vec<(usize, &antecedent_design::DecisionProblem<A, O>)> = registry
+        .problems
+        .iter()
+        .enumerate()
+        .filter_map(|(index, problem)| problem.as_ref().map(|problem| (index, problem)))
+        .collect();
+    out.word(registered.len() as u64);
+    for (index, problem) in registered {
+        out.word(index as u64)
+            .word(problem.actions.len() as u64)
+            .word(problem.constraints.len() as u64)
+            .real(problem.chance_threshold);
+    }
+    match &registry.prior {
+        antecedent_design::DecisionPrior::Draws(draws) => {
+            variant(&mut out, "draws").word(draws.len() as u64);
+        }
+        antecedent_design::DecisionPrior::Normal { mean, variance } => {
+            variant(&mut out, "normal").real(*mean).real(*variance);
+        }
+    }
+    out.text(registry.signal.name());
+    out.finish_hex()
+}
+
+impl Canonical for ChoicePosterior {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self {
+            Self::Pooled { alpha, seed } => {
+                variant(out, "pooled").reals(alpha).word(*seed);
+            }
+            Self::Hierarchical { prior, respondents } => {
+                variant(out, "hierarchical")
+                    .reals(&prior.shapes)
+                    .real(prior.log_concentration_mean)
+                    .real(prior.log_concentration_sd);
+                // Respondents in declared order, each with its counts per option.
+                out.word(respondents.len() as u64);
+                for counts in respondents {
+                    out.u32s(counts);
+                }
+            }
+        }
+    }
+}
+
+struct ChoiceCandidateField<'a>(&'a ChoiceStudyCandidate);
+
+impl Canonical for ChoiceCandidateField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.text(&self.0.label).word(u64::from(self.0.observations)).real(self.0.cost);
+    }
+}
+
+struct SampleField<'a>(&'a GraphPosteriorSample);
+
+impl Canonical for SampleField<'_> {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        out.real(self.0.weight).word(self.0.key);
+        self.0.graph.encode(out);
     }
 }

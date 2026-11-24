@@ -30,7 +30,7 @@ use antecedent_design::decision_adapters::{
 };
 use antecedent_design::decision_contract::{
     ActionKind, AdmissibilityRules, AdmissibleDecisionContract, DecisionAction, DecisionContract,
-    DecisionCriterion, StructuralPolicy, UtilityExpr,
+    DecisionCriterion, DeclaredExclusion, StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
     MeanEstimate, MeanSource, Verdict, evaluate_contract, evaluate_contract_on_means,
@@ -540,4 +540,61 @@ fn programs_over_different_declarations_have_different_identities() {
     };
     assert_eq!(identity(8.0), identity(8.0));
     assert_ne!(identity(8.0), identity(9.0));
+    // A real enters by its bits: -0.0 and 0.0 are different declarations.
+    let signed = |lower: f64| {
+        compile_identified_set_decision(
+            contract.clone(),
+            IdentifiedSetCarrier::from_utilities(vec![
+                interval("A", lower, 8.0),
+                interval("B", 4.0, 6.0),
+            ]),
+            &ctx,
+        )
+        .unwrap()
+        .identity()
+    };
+    assert_ne!(signed(0.0), signed(-0.0));
+}
+
+#[test]
+fn reordering_an_ordered_input_changes_the_identity_and_reordering_a_set_does_not() {
+    let ctx = ExecutionContext::for_tests(7);
+    let policy = StructuralPolicy::RequireInvariantBestAction;
+    let claims = |first: (&str, f64), second: (&str, f64)| {
+        vec![
+            exact(first.0, ClaimProbability::Unspecified, first.1, 3.0),
+            exact(second.0, ClaimProbability::Unspecified, second.1, 2.0),
+        ]
+    };
+    let identity = |contract: AdmissibleDecisionContract, claims: Vec<SuppliedClaim>| {
+        compile_supplied_claim_decision(contract, SuppliedClaimSet::GraphDependent(claims), &ctx)
+            .unwrap()
+            .identity()
+    };
+    let contract = || ab_contract(DecisionCriterion::PosteriorExpectedUtility, policy);
+    let ordered = identity(contract(), claims(("g1", 5.0), ("g2", 6.0)));
+    assert_eq!(ordered, identity(contract(), claims(("g1", 5.0), ("g2", 6.0))));
+
+    // Claims are ordered: the atoms and the per-atom results keep the declared order.
+    assert_ne!(ordered, identity(contract(), claims(("g2", 6.0), ("g1", 5.0))));
+
+    // The contract's actions are ordered too (results are reported in action order).
+    let mut swapped = contract();
+    swapped.contract.actions.reverse();
+    assert_ne!(ordered, identity(swapped, claims(("g1", 5.0), ("g2", 6.0))));
+
+    // Declared exclusions are a set: their declaration order does not change the identity.
+    let excluding = |order: [&str; 2]| {
+        let mut contract = contract();
+        contract.rules.declared_exclusions = order
+            .iter()
+            .map(|action| DeclaredExclusion {
+                action_id: (*action).into(),
+                reason: format!("{action} is not available"),
+            })
+            .collect();
+        identity(contract, claims(("g1", 5.0), ("g2", 6.0)))
+    };
+    assert_eq!(excluding(["A", "B"]), excluding(["B", "A"]));
+    assert_ne!(excluding(["A", "B"]), ordered);
 }

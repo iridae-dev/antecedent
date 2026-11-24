@@ -22,8 +22,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::ExecutionContext;
 use antecedent_core::response::IdentifiedSet;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_design::DecisionFunctional;
 use antecedent_design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, AdapterError, IdentifiedSetDecision, IdentifiedUtility,
@@ -32,17 +32,18 @@ use antecedent_design::decision_adapters::{
 };
 use antecedent_design::decision_contract::{AdmissibleDecisionContract, DecisionContract};
 use antecedent_design::decision_eval::{
-    DecisionEvalError, DecisionResult, FunctionalValue, MeanSource, evaluate_contract,
-    evaluate_contract_on_means, evaluate_functional,
+    DecisionEvalError, DecisionResult, FunctionalValue, MeanEstimate, MeanSource,
+    evaluate_contract, evaluate_contract_on_means, evaluate_functional,
 };
 use antecedent_design::decision_robustness::AtomSupport;
 use antecedent_design::decision_structural::AtomEvidence;
 use antecedent_io::distribution_artifact::DistributionArtifact;
 use std::sync::Arc;
 
+use crate::analysis::supplied_identity::{Canonical, Declaration, Wire, variant};
 pub use crate::analysis::supplied_terminal::TerminalError;
 use crate::analysis::supplied_terminal::{
-    Reading, TerminalSpec, admit_compile, compiled_terminal, declaration_digest, lower,
+    Reading, TerminalSpec, admit_compile, compiled_terminal, lower,
 };
 use crate::error::CausalError;
 use crate::planner::lowered::{
@@ -152,10 +153,10 @@ pub fn compile_supplied_claim_decision(
     ctx: &ExecutionContext,
 ) -> Result<CompiledSuppliedClaimDecision, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.supplied_claim_decision.v1",
-        &[&claims.kind(), &contract, &claims],
-    );
+    let question = Declaration::new("antecedent.supplied_claim_decision.v2")
+        .field("contract", &contract)
+        .field("claims", &claims)
+        .finish();
     let decision = decision_program(
         &contract.contract,
         contract.identity().ok(),
@@ -297,8 +298,10 @@ pub fn compile_identified_set_decision(
     ctx: &ExecutionContext,
 ) -> Result<CompiledIdentifiedSetDecision, CausalError> {
     admit_compile(ctx)?;
-    let question =
-        declaration_digest("antecedent.identified_set_decision.v1", &[&contract, &carrier]);
+    let question = Declaration::new("antecedent.identified_set_decision.v2")
+        .field("contract", &contract)
+        .field("carrier", &carrier)
+        .finish();
     let decision = decision_program(
         &contract.contract,
         contract.identity().ok(),
@@ -434,7 +437,10 @@ pub fn compile_contract_decision(
     ctx: &ExecutionContext,
 ) -> Result<CompiledContractDecision, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest("antecedent.contract_decision.v1", &[&contract, &source]);
+    let question = Declaration::new("antecedent.contract_decision.v2")
+        .field("contract", &contract)
+        .field("source", &source)
+        .finish();
     let decision = decision_program(&contract, contract.identity().ok(), source.carrier(), None);
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ContractLawDecision,
@@ -510,10 +516,12 @@ pub fn compile_decision_functional(
     ctx: &ExecutionContext,
 ) -> Result<CompiledDecisionFunctional, CausalError> {
     admit_compile(ctx)?;
-    let question = declaration_digest(
-        "antecedent.decision_functional.v1",
-        &[&contract, &action_id, &functional, &law],
-    );
+    let question = Declaration::new("antecedent.decision_functional.v2")
+        .field("contract", &contract)
+        .field("action", action_id)
+        .field("functional", &Wire(&functional))
+        .field("law", &law)
+        .finish();
     let decision =
         decision_program(&contract, contract.identity().ok(), CarrierDemand::PredictiveLaw, None);
     let lowered = lower(TerminalSpec {
@@ -550,5 +558,82 @@ impl CompiledDecisionFunctional {
         let _scoped = self.enter(ctx)?;
         evaluate_functional(&self.contract, &self.action_id, self.functional.clone(), &self.law)
             .map_err(TerminalError::Kernel)
+    }
+}
+
+// --- canonical identity of the declared inputs ---------------------------------------------
+
+impl Canonical for SuppliedClaimSet {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        // Claims are ordered: the adapted atoms and the per-atom results keep their order.
+        match self {
+            Self::Point { id, evidence, support } => {
+                variant(out, "point").text(id);
+                evidence.encode(out);
+                support.encode(out);
+            }
+            Self::GraphDependent(claims) => {
+                variant(out, "graph_dependent");
+                claims.encode(out);
+            }
+            Self::WeightedGraphAtoms(claims) => {
+                variant(out, "weighted_graph_posterior");
+                claims.encode(out);
+            }
+            Self::FiniteScenarios(claims) => {
+                variant(out, "finite_scenarios");
+                claims.encode(out);
+            }
+        }
+    }
+}
+
+impl Canonical for IdentifiedAction {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self {
+            Self::Utility(utility) => {
+                variant(out, "utility");
+                utility.encode(out);
+            }
+            Self::Inputs { action_id, inputs, hard_exclusions, support } => {
+                // Inputs are positional: one identified set per declared input, in order.
+                variant(out, "inputs").text(action_id);
+                inputs.encode(out);
+                hard_exclusions.encode(out);
+                support.encode(out);
+            }
+        }
+    }
+}
+
+impl Canonical for IdentifiedSetCarrier {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        // Ordered: the enclosed utilities are reported in the carrier's order.
+        self.actions.encode(out);
+    }
+}
+
+impl Canonical for ContractSource {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self {
+            Self::Law(law) => {
+                variant(out, "law");
+                law.encode(out);
+            }
+            Self::Means(means) => {
+                // Coordinates and means are parallel, so both stay in order.
+                variant(out, "means");
+                means.coordinates.encode(out);
+                out.reals(&means.means);
+                out.text(match means.estimate {
+                    MeanEstimate::Posterior => "posterior",
+                    MeanEstimate::Frequentist => "frequentist",
+                });
+                out.text(&means.provider_id)
+                    .text(&means.snapshot_id)
+                    .text(&means.causal_contract_id)
+                    .text(&means.rng_id);
+            }
+        }
     }
 }

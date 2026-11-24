@@ -744,3 +744,84 @@ fn compiled_adaptive_policy_search_equals_the_prepared_search() {
     assert!((family.theta[0] - 0.3).abs() < 0.05, "theta {:?}", family.theta);
     assert!(family.in_sample.mean_utility > -0.0025);
 }
+
+// ---- program identities ---------------------------------------------------------------------
+
+/// The decision draws are read as a set of candidates keyed by identity: the same declaration
+/// has one identity, a changed utility changes it, and reordering the candidates does not.
+#[test]
+fn decision_draws_ranking_identity_reads_the_candidates_as_a_set() {
+    let ctx = ctx();
+    let request = || RankingRequest {
+        baseline: Some("B".into()),
+        top_k: vec![2],
+        batch_plan: BatchPlan::SquareRoot,
+    };
+    let identity = |columns: &[(&str, Vec<f64>)]| {
+        compile_decision_draws_ranking(carrier(columns), request(), &ctx).unwrap().identity()
+    };
+    let a = ("A", vec![3.0, 3.0, 2.0, 2.0]);
+    let b = ("B", vec![2.0, 1.0, 3.0, 2.0]);
+    let declared = identity(&[a.clone(), b.clone()]);
+    assert_eq!(declared, identity(&[a.clone(), b.clone()]));
+    assert_eq!(declared, identity(&[b.clone(), a.clone()]));
+    assert_ne!(declared, identity(&[("A", vec![3.0, 3.0, 2.0, 1.0]), b.clone()]));
+    // The request is part of the declaration.
+    let other = RankingRequest { top_k: vec![1], ..request() };
+    assert_ne!(
+        declared,
+        compile_decision_draws_ranking(carrier(&[a, b]), other, &ctx).unwrap().identity()
+    );
+}
+
+/// The enumerated points are classified and reported in declaration order: reordering them
+/// changes the identity; the same points, target and tolerance do not.
+#[test]
+fn finite_enumeration_baseline_identity_keeps_the_point_order() {
+    let ctx = ctx();
+    let point = |id: &str, value: f64| EnumeratedForwardValue {
+        id: id.into(),
+        value: Some(value),
+        supported: true,
+    };
+    let identity = |points: Vec<EnumeratedForwardValue>, target: f64| {
+        compile_finite_enumeration_baseline(points, target, Comparison::AtLeast, 1e-12, &ctx)
+            .unwrap()
+            .identity()
+    };
+    let declared = identity(vec![point("a0", 0.25), point("a1", 0.5)], 0.5);
+    assert_eq!(declared, identity(vec![point("a0", 0.25), point("a1", 0.5)], 0.5));
+    assert_ne!(declared, identity(vec![point("a1", 0.5), point("a0", 0.25)], 0.5));
+    assert_ne!(declared, identity(vec![point("a0", 0.25), point("a1", 0.5)], 0.75));
+    // A real enters by its bits: -0.0 and 0.0 are different declarations.
+    assert_ne!(identity(vec![point("a0", 0.0)], 0.5), identity(vec![point("a0", -0.0)], 0.5));
+}
+
+/// The candidate study's observation ids are checked for overlap as a set: reordering or
+/// repeating them does not change the identity, while the pooled sources stay ordered.
+#[test]
+fn prior_signal_identity_reads_observation_ids_as_a_set_and_sources_in_order() {
+    let ctx = ctx();
+    let catalog = || {
+        PriorCatalog::from_sources(vec![
+            PriorSourceRef::from_meta(meta("A", "y")),
+            PriorSourceRef::from_meta(meta("B", "y")),
+        ])
+    };
+    let target = || TargetDesign::new(EstimandFingerprint::new("ate", "t", "y"), ["t", "y"]);
+    let identity = |request: PriorSignalRequest| {
+        compile_prior_signal_adaptation(catalog(), target(), request, &ctx).unwrap().identity()
+    };
+    let with_ids = |ids: &[&str]| PriorSignalRequest {
+        candidate_observation_ids: ids.iter().map(|id| (*id).to_owned()).collect(),
+        ..signal_request()
+    };
+    let declared = identity(with_ids(&["future-1", "future-2"]));
+    assert_eq!(declared, identity(with_ids(&["future-1", "future-2"])));
+    assert_eq!(declared, identity(with_ids(&["future-2", "future-1"])));
+    assert_eq!(declared, identity(with_ids(&["future-2", "future-1", "future-2"])));
+    assert_ne!(declared, identity(with_ids(&["future-1"])));
+    let mut reordered = with_ids(&["future-1", "future-2"]);
+    reordered.sources.reverse();
+    assert_ne!(declared, identity(reordered));
+}

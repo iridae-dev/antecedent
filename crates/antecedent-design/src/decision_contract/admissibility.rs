@@ -261,7 +261,15 @@ impl AdmissibleDecisionContract {
     /// An invalid contract or rule set has no identity.
     pub fn identity(&self) -> Result<String, AdmissibilityError> {
         self.validate()?;
-        let base = self.contract.identity().map_err(AdmissibilityError::Contract)?;
+        Ok(self.declaration_identity())
+    }
+
+    /// The canonical encoding [`Self::identity`] hashes, without validating the contract or
+    /// its rules first: equal to [`Self::identity`] for a valid contract, and defined for an
+    /// invalid one, so a declaration has an identity before it is checked.
+    #[must_use]
+    pub fn declaration_identity(&self) -> String {
+        let base = self.contract.declaration_identity();
         let mut support: Vec<[u8; 32]> =
             self.rules.support_rules.iter().map(encode_support_rule).collect();
         support.sort_unstable();
@@ -283,7 +291,7 @@ impl AdmissibleDecisionContract {
         put_list(&mut out, &support);
         put_list(&mut out, &exclusions);
         out.word(u64::from(self.rules.uncertainty.tag()));
-        Ok(out.finish_hex())
+        out.finish_hex()
     }
 }
 
