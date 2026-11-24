@@ -329,18 +329,16 @@ fn keyed_body() {
         .and_then(pd::CompiledStructure::fingerprint)
         .expect("the oriented atom is a one-member class");
     prints.sort_unstable();
+    // The oriented DAG is also the path member whose source is `w`: a member is keyed by its
+    // content, once, and its mass is read within each class that holds it. The oriented atom
+    // has one member, so any mass is all of its class.
+    assert!(prints.contains(&oriented_print));
 
-    // Masses 1 : 2 : 1 over the path members (by sorted fingerprint), any mass on the
-    // oriented atom's only member.
-    let keyed = ClassPrior::from_pairs(vec![
-        (prints[0], 1.0),
-        (prints[1], 2.0),
-        (prints[2], 1.0),
-        (oriented_print, 5.0),
-    ])
-    .unwrap()
-    .with_assumption("assumption.declared_member_masses")
-    .unwrap();
+    // Masses 1 : 2 : 1 over the path members (by sorted fingerprint).
+    let keyed = ClassPrior::from_pairs(vec![(prints[0], 1.0), (prints[1], 2.0), (prints[2], 1.0)])
+        .unwrap()
+        .with_assumption("assumption.declared_member_masses")
+        .unwrap();
     let compiled = study(&data, cpdag_posterior(), Some(keyed))
         .compile_for_preference_decision(&invariant, &ctx)
         .unwrap();
@@ -361,8 +359,8 @@ fn keyed_body() {
     );
     // A key that names no member is refused.
     let mut extra: Vec<(u64, f64)> = prints.iter().map(|p| (*p, 1.0)).collect();
-    extra.push((oriented_print, 1.0));
-    extra.push((oriented_print ^ 1, 1.0));
+    let stranger = (0..).map(|k| oriented_print ^ (1 << k)).find(|p| !prints.contains(p)).unwrap();
+    extra.push((stranger, 1.0));
     let refused = study(&data, cpdag_posterior(), Some(ClassPrior::from_pairs(extra).unwrap()))
         .compile_for_preference_decision(&invariant, &ctx)
         .unwrap_err();

@@ -359,15 +359,13 @@ fn projections_of_one_table_share_its_rows() {
     // Rows taken from other positions of the source are other observations.
     let elsewhere = RowProvenance::new(&digest(&source), Some((200..400).collect()));
     let second = projected(&harm, elsewhere);
-    assert!(
-        compile_preference_decision_across_studies(
-            &[&first, &second],
-            &contract(),
-            distinct(),
-            &ctx
-        )
-        .is_ok()
+    let apart = compile_preference_decision_across_studies(
+        &[&first, &second],
+        &contract(),
+        distinct(),
+        &ctx,
     );
+    assert!(apart.is_ok(), "{apart:?}");
 
     // A row index per row, of a named table.
     let short = RowProvenance::new(&digest(&source), Some(vec![0, 1, 2]));
