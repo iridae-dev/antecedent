@@ -33,7 +33,8 @@
 //! [`evaluate_preference_structural`] repeats the analysis across structures under the
 //! contract's [`StructuralPolicy`]. Unidentified and unevaluated structure mass is reported and
 //! never renormalized away; an action excluded by a hard constraint in any evaluated structure is
-//! excluded in every structure.
+//! excluded in every structure, except that under `BayesOverStructures` only a structure with
+//! positive probability excludes, as for the ordinary contract.
 
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -1164,10 +1165,16 @@ pub(crate) fn across_structures(
     let facts =
         atoms.iter().map(|atom| prepared.atom_facts(atom)).collect::<Result<Vec<_>, _>>()?;
     let n = contract.actions.len();
+    // A structure excludes an action from every structure when a hard constraint fails in it;
+    // under Bayes weighting only a structure with positive probability does, as for the
+    // ordinary contract.
+    let excludes = |atom: &StructuralAtom| {
+        policy != StructuralPolicy::BayesOverStructures || atom.probability.is_some_and(|p| p > 0.0)
+    };
     let admissible: Vec<bool> = (0..n)
         .map(|a| {
-            facts.iter().all(|fact| match fact {
-                AtomFacts::Evaluated(f) => f.admissible[a],
+            atoms.iter().zip(&facts).all(|(atom, fact)| match fact {
+                AtomFacts::Evaluated(f) if excludes(atom) => f.admissible[a],
                 _ => true,
             })
         })
@@ -1178,10 +1185,14 @@ pub(crate) fn across_structures(
         prepared.observe()?;
         let status = match fact {
             AtomFacts::Evaluated(f) => {
-                let (result, analysis) = prepared.single(f, &admissible)?;
+                // A structure that excludes nothing elsewhere still excludes within itself.
+                let own: Vec<bool> =
+                    admissible.iter().zip(&f.admissible).map(|(all, own)| *all && *own).collect();
+                let (result, analysis) = prepared.single(f, &own)?;
                 evaluated.push(Evaluated {
                     id: &atom.id,
                     probability: atom.probability,
+                    excludes: excludes(atom),
                     facts: f,
                     analysis,
                     verdict: result.verdict.clone(),
@@ -1812,6 +1823,8 @@ enum AtomFacts {
 struct Evaluated<'a> {
     id: &'a str,
     probability: Option<f64>,
+    /// Whether its exclusions apply in every structure.
+    excludes: bool,
     facts: &'a SourceFacts,
     analysis: Analysis,
     verdict: PreferenceVerdict,
@@ -1847,10 +1860,11 @@ fn joined(receipts: &[&SourceReceipt]) -> SourceReceipt {
     }
 }
 
-/// Exclusions of each action across structures, first occurrence of each constraint kept.
+/// Exclusions of each action across the structures that exclude, first occurrence of each
+/// constraint kept.
 fn merged_exclusions(evaluated: &[Evaluated<'_>], n: usize) -> Vec<Vec<ConstraintExclusion>> {
     let mut merged: Vec<Vec<ConstraintExclusion>> = vec![Vec::new(); n];
-    for atom in evaluated {
+    for atom in evaluated.iter().filter(|atom| atom.excludes) {
         for (a, list) in atom.facts.exclusions.iter().enumerate() {
             for exclusion in list {
                 if !merged[a].iter().any(|e| e.constraint_id == exclusion.constraint_id) {

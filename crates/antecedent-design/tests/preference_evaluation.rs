@@ -1,6 +1,8 @@
 //! One entry point over the exact and certified verdicts: the route rule and its labels, the
 //! fall-through from the exact route, mean sources, accepted preferences of every basis decided
-//! end to end, and a cross-check of the two routes on random affine problems.
+//! end to end, a cross-check of the two routes on random affine problems, and fixed trade-offs
+//! decided as the hand-written ordinary contract under every criterion, constraint and
+//! structural policy, with the documented tie rules where the two differ.
 //!
 //! The standard law has `E[benefit, cost] = (10, 4)` under `A` and `(5.5, 1)` under `B`, and the
 //! value is `benefit - w * cost`, so `v_A - v_B = 4.5 - 3w`: `A` leads below `w = 1.5` and `B`
@@ -18,29 +20,35 @@ use antecedent_design::choice_record::{
     BeliefSource, ChoiceOption, ChoiceRecord, ChoiceRecordSet, OptionBelief, Pooling,
 };
 use antecedent_design::decision_contract::{
-    ActionKind, DecisionCriterion, HardConstraint, StructuralPolicy, UtilityExpr,
+    ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
+    StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
     DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract,
     evaluate_contract_on_means,
 };
-use antecedent_design::decision_structural::{AtomEvidence, StructuralAtom};
+use antecedent_design::decision_structural::{
+    AtomEvidence, StructuralAtom, StructuralDecisionResult, evaluate_structural,
+};
 use antecedent_design::preference_certified::{
-    CertifiedOptions, CertifiedVerdict, RegionStatus, evaluate_preference_certified,
+    CertifiedAtomStatus, CertifiedOptions, CertifiedPreferenceResult, CertifiedVerdict,
+    RegionStatus, StructuralCertifiedResult, StructuralCertifiedVerdict,
+    evaluate_preference_certified,
 };
 use antecedent_design::preference_choice_model::ChoiceModelOptions;
 use antecedent_design::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferencePolicy,
 };
 use antecedent_design::preference_decision::{
-    MeasureOrigin, PreferenceDecisionError, PreferenceVerdict,
+    MeasureOrigin, PreferenceAtomStatus, PreferenceDecisionError, PreferenceDecisionResult,
+    PreferenceVerdict, StructuralPreferenceResult, StructuralPreferenceVerdict,
 };
 use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationError as E, PreferenceEvaluationOptions,
     PreferenceRoute, ROUTE_AFFINE_EXPECTATION, ROUTE_CRITERION_NOT_AFFINE,
-    ROUTE_PART_NOT_LOWERABLE, ROUTE_SHAPE_PARAMETERS, RouteChoice, decide_preferences,
-    decide_preferences_on_means, decide_preferences_structural, decide_with_accepted,
-    preference_route,
+    ROUTE_PART_NOT_LOWERABLE, ROUTE_SHAPE_PARAMETERS, RouteChoice, StructuralPreferenceEvaluation,
+    decide_preferences, decide_preferences_on_means, decide_preferences_structural,
+    decide_with_accepted, preference_route,
 };
 use antecedent_design::preference_model::{
     Attribute, PreferenceExpr as P, PreferenceParameter, PreferenceSet, ValueModel,
@@ -1001,4 +1009,793 @@ fn the_explicit_route_and_its_record_read_no_preference_learning_code() {
         .filter(|line| learning.iter().any(|m| line.contains(&format!("crate::{m}"))))
         .collect();
     assert_eq!(reads, vec![&"use crate::accepted_preferences::AcceptedPreferencesError;"]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Fixed trade-offs against a hand-written ordinary contract
+// ---------------------------------------------------------------------------------------------
+
+/// `0.9 benefit - 1.2 cost` written directly as an ordinary utility over `(benefit, cost)`.
+fn fixed_utility() -> UtilityExpr {
+    UtilityExpr::difference(
+        UtilityExpr::product(UtilityExpr::Const(0.9), UtilityExpr::Input(0)),
+        UtilityExpr::product(UtilityExpr::Const(1.2), UtilityExpr::Input(1)),
+    )
+}
+
+/// `benefit - cost` written directly as an ordinary utility.
+fn parameter_free_utility() -> UtilityExpr {
+    UtilityExpr::difference(UtilityExpr::Input(0), UtilityExpr::Input(1))
+}
+
+/// Cost at most 4.5 on every draw, for every action.
+fn budget() -> HardConstraint {
+    HardConstraint {
+        id: "budget".into(),
+        expr: UtilityExpr::Input(1),
+        bound: 4.5,
+        min_probability: 1.0,
+        units: "usd".into(),
+        applies_to: vec![],
+    }
+}
+
+/// Benefit at least 5 with probability one half, for `B` and `C` only.
+fn benefit_floor() -> HardConstraint {
+    HardConstraint {
+        id: "benefit_floor".into(),
+        expr: UtilityExpr::Neg(Box::new(UtilityExpr::Input(0))),
+        bound: -5.0,
+        min_probability: 0.5,
+        units: "events".into(),
+        applies_to: vec!["B".into(), "C".into()],
+    }
+}
+
+/// The preference contract over `A`, `B`, `C` with every input a quantity.
+fn three_actions(
+    model: ValueModel,
+    criterion: DecisionCriterion,
+    constraints: Vec<HardConstraint>,
+    structural_policy: StructuralPolicy,
+) -> PreferenceContract {
+    let parts =
+        parts(&model, &["A", "B", "C"], criterion, PreferencePolicy::RequireInvariantBestAction);
+    PreferenceContract {
+        model,
+        actions: parts.actions,
+        criterion,
+        constraints,
+        target_population: parts.target_population,
+        horizon: 0,
+        structural_policy,
+        preference_policy: PreferencePolicy::RequireInvariantBestAction,
+    }
+}
+
+/// The ordinary contract a user writes by hand for the same decision: each action reads
+/// `(benefit, cost)` under its own regime and values them with `utility`; the constraints are
+/// the user's own, under their own ids.
+fn hand_written(
+    model: &ValueModel,
+    utility: &UtilityExpr,
+    criterion: DecisionCriterion,
+    constraints: Vec<HardConstraint>,
+    structural_policy: StructuralPolicy,
+) -> DecisionContract {
+    DecisionContract {
+        actions: ["A", "B", "C"]
+            .iter()
+            .enumerate()
+            .map(|(a, id)| DecisionAction {
+                id: (*id).to_owned(),
+                kind: ActionKind::Intervention,
+                inputs: model.attributes.iter().map(|k| quantity(k, a)).collect(),
+                utility: utility.clone(),
+            })
+            .collect(),
+        utility_units: model.utility_units.clone(),
+        criterion,
+        constraints,
+        target_population: "target".to_owned(),
+        horizon: 0,
+        structural_policy,
+    }
+}
+
+/// The two fixed-preference models with their hand-written utilities.
+fn fixed_cases() -> [(&'static str, ValueModel, UtilityExpr); 2] {
+    [
+        ("fixed", fixed_model(), fixed_utility()),
+        ("parameter-free", parameter_free_model(), parameter_free_utility()),
+    ]
+}
+
+fn constraint_sets() -> [(&'static str, Vec<HardConstraint>); 4] {
+    [
+        ("unconstrained", vec![]),
+        ("budget", vec![budget()]),
+        ("floor", vec![benefit_floor()]),
+        ("budget+floor", vec![budget(), benefit_floor()]),
+    ]
+}
+
+/// Values agree within rounding: the exact route sums `theta_j E[part_j]`, the ordinary
+/// evaluator `E[sum_j theta_j part_j]`.
+fn close(left: f64, right: f64) -> bool {
+    (left - right).abs() <= 1e-12 * (1.0 + right.abs())
+}
+
+/// The ordinary verdict, read as the action it names alone or the actions it ties.
+fn ordinary_choice(result: &DecisionResult) -> Result<Option<String>, Vec<String>> {
+    match &result.verdict {
+        Verdict::UniquelyOptimal(action) => Ok(Some(action.clone())),
+        Verdict::Indistinguishable(tied) => Err(tied.clone()),
+        Verdict::NoAdmissibleAction => Ok(None),
+    }
+}
+
+/// The exact verdict agrees with the ordinary one: a unique optimum is the unique winner,
+/// equal values are a tie, and no admissible action is no admissible action. The exclusions
+/// are the same, under the same constraint ids, and every admissible action's criterion value
+/// is the ordinary value.
+fn assert_exact_agrees(label: &str, exact: &PreferenceDecisionResult, ordinary: &DecisionResult) {
+    let expected = match ordinary_choice(ordinary) {
+        Ok(Some(action)) => PreferenceVerdict::NecessarilyBest(action),
+        Ok(None) => PreferenceVerdict::NoAdmissibleAction,
+        Err(tied) => PreferenceVerdict::Tied(tied),
+    };
+    assert_eq!(exact.verdict, expected, "{label}");
+    let regret = ordinary.criterion == DecisionCriterion::ExpectedRegret;
+    let sign =
+        if ordinary.criterion == DecisionCriterion::PosteriorExpectedLoss { -1.0 } else { 1.0 };
+    assert_eq!(exact.actions.len(), ordinary.actions.len(), "{label}");
+    for (ours, theirs) in exact.actions.iter().zip(&ordinary.actions) {
+        let at = format!("{label} {}", ours.id);
+        assert_eq!(ours.id, theirs.id, "{at}");
+        assert_eq!(ours.admissible, theirs.admissible, "{at}");
+        assert_eq!(ours.exclusions, theirs.exclusions, "{at}");
+        if !theirs.admissible {
+            assert!(ours.coefficients.is_none() && ours.value_range.is_none(), "{at}");
+            continue;
+        }
+        let coefficients = ours.coefficients.as_ref().expect("admissible coefficients");
+        let point: Vec<f64> = exact.parameter_ranges.iter().map(|range| range.0).collect();
+        assert!(close(sign * affine_value(coefficients, &point), theirs.expected_utility), "{at}");
+        if regret {
+            // Expected regret ranks by expected-utility margins and reports no regret amount.
+            assert_eq!(ours.value_range, None, "{at}");
+        } else {
+            let (low, high) = ours.value_range.expect("admissible value range");
+            assert!(close(low, theirs.value) && close(high, theirs.value), "{at}: {low} {high}");
+        }
+    }
+}
+
+/// The certified verdict agrees with the ordinary one: a unique optimum is certified best, equal
+/// values leave the choice among the tied actions undetermined, and no admissible action is no
+/// admissible action. The exclusions are the same, and every admissible action's criterion
+/// enclosure holds the ordinary value and is no wider than rounding.
+fn assert_certified_agrees(
+    label: &str,
+    certified: &CertifiedPreferenceResult,
+    ordinary: &DecisionResult,
+) {
+    match ordinary_choice(ordinary) {
+        Ok(Some(action)) => {
+            assert_eq!(certified.verdict, CertifiedVerdict::NecessarilyBest(action), "{label}")
+        }
+        Ok(None) => assert_eq!(certified.verdict, CertifiedVerdict::NoAdmissibleAction, "{label}"),
+        Err(tied) => match &certified.verdict {
+            CertifiedVerdict::Undetermined { candidates, .. } => {
+                assert_eq!(candidates, &tied, "{label}")
+            }
+            other => panic!("{label}: {other:?}"),
+        },
+    }
+    assert_eq!(certified.actions.len(), ordinary.actions.len(), "{label}");
+    for (ours, theirs) in certified.actions.iter().zip(&ordinary.actions) {
+        let at = format!("{label} {}", ours.id);
+        assert_eq!(ours.id, theirs.id, "{at}");
+        assert_eq!(ours.admissible, theirs.admissible, "{at}");
+        assert_eq!(ours.exclusions, theirs.exclusions, "{at}");
+        if !theirs.admissible {
+            assert_eq!(ours.value_bounds, None, "{at}");
+            continue;
+        }
+        let (low, high) = ours.value_bounds.expect("admissible value bounds");
+        let slack = 1e-12 * (1.0 + theirs.value.abs());
+        assert!(low <= theirs.value + slack && theirs.value - slack <= high, "{at}: {low} {high}");
+        assert!(high - low <= 1e-9 * (1.0 + theirs.value.abs()), "{at}: {low} {high}");
+    }
+}
+
+fn all_criteria() -> [DecisionCriterion; 7] {
+    [
+        DecisionCriterion::PosteriorExpectedUtility,
+        DecisionCriterion::PosteriorExpectedLoss,
+        DecisionCriterion::ExpectedRegret,
+        DecisionCriterion::ThresholdProbability { threshold: 3.1 },
+        DecisionCriterion::ThresholdProbability { threshold: 4.5 },
+        DecisionCriterion::Quantile { p: 0.5 },
+        DecisionCriterion::Regret,
+    ]
+}
+
+#[test]
+fn fixed_trade_offs_decide_as_a_hand_written_contract_under_every_criterion() {
+    let mut exact_cases = 0;
+    let mut certified_cases = 0;
+    for (name, model, utility) in fixed_cases() {
+        let source = three_action_law(&model);
+        for (constraints_name, constraints) in constraint_sets() {
+            for criterion in all_criteria() {
+                let label = format!("{name} {constraints_name} {criterion:?}");
+                let c = three_actions(
+                    model.clone(),
+                    criterion,
+                    constraints.clone(),
+                    StructuralPolicy::ReportOnly,
+                );
+                let ordinary = evaluate_contract(
+                    &hand_written(
+                        &model,
+                        &utility,
+                        criterion,
+                        constraints.clone(),
+                        StructuralPolicy::ReportOnly,
+                    ),
+                    &source,
+                )
+                .unwrap();
+                let evaluation = decide_preferences(&c, &source, None, options()).unwrap();
+                assert_eq!(
+                    evaluation.chosen_action(),
+                    ordinary_choice(&ordinary).ok().flatten().as_deref(),
+                    "{label}"
+                );
+                match evaluation.route() {
+                    PreferenceRoute::Exact => {
+                        exact_cases += 1;
+                        assert_exact_agrees(&label, evaluation.exact().unwrap(), &ordinary);
+                    }
+                    PreferenceRoute::Certified => {
+                        certified_cases += 1;
+                        assert_certified_agrees(&label, evaluation.certified().unwrap(), &ordinary);
+                    }
+                }
+            }
+        }
+    }
+    // Expectation criteria take the exact route; threshold, quantile and regret the certified.
+    assert_eq!((exact_cases, certified_cases), (24, 32));
+}
+
+#[test]
+fn fixed_trade_offs_exclude_under_the_users_constraint_ids() {
+    let model = fixed_model();
+    let source = three_action_law(&model);
+    for criterion in [eu(), DecisionCriterion::Quantile { p: 0.5 }] {
+        let c = three_actions(
+            model.clone(),
+            criterion,
+            vec![budget(), benefit_floor()],
+            StructuralPolicy::ReportOnly,
+        );
+        let evaluation = decide_preferences(&c, &source, None, options()).unwrap();
+        let exclusions: Vec<Vec<&str>> = match &evaluation {
+            PreferenceEvaluation::Exact(result) => result
+                .actions
+                .iter()
+                .map(|a| a.exclusions.iter().map(|e| e.constraint_id.as_str()).collect())
+                .collect(),
+            PreferenceEvaluation::Certified(result) => result
+                .actions
+                .iter()
+                .map(|a| a.exclusions.iter().map(|e| e.constraint_id.as_str()).collect())
+                .collect(),
+        };
+        // `A` breaks the budget on one draw; `C` never reaches the benefit floor.
+        assert_eq!(
+            exclusions,
+            vec![vec!["budget"], vec![], vec!["benefit_floor"]],
+            "{criterion:?}"
+        );
+        assert_eq!(evaluation.chosen_action(), Some("B"), "{criterion:?}");
+    }
+}
+
+/// `B` and `C` with expected values `v` and `v + gap` under `benefit - cost`, and `A` out of
+/// the running (excluded by the budget).
+fn near_tie_law(model: &ValueModel, gap: f64) -> DistributionArtifact {
+    let arms = vec![
+        vec![vec![8.0, 12.0, 10.0], vec![3.0, 5.0, 4.0]],
+        vec![vec![9.0, 5.0, 4.0], vec![1.0, 1.0, 1.0]],
+        vec![vec![9.0 + gap, 5.0 + gap, 4.0 + gap], vec![1.0, 1.0, 1.0]],
+    ];
+    law(model, &arms, Some(vec![1.0, 1.0, 2.0]))
+}
+
+#[test]
+fn near_ties_follow_the_documented_tie_rules() {
+    let model = parameter_free_model();
+    let utility = parameter_free_utility();
+    let decide = |gap: f64, tie_tolerance: f64| {
+        let source = near_tie_law(&model, gap);
+        let c = three_actions(model.clone(), eu(), vec![budget()], StructuralPolicy::ReportOnly);
+        let mut options = options();
+        options.exact.tie_tolerance = tie_tolerance;
+        let evaluation = decide_preferences(&c, &source, None, options).unwrap();
+        let ordinary = evaluate_contract(
+            &hand_written(&model, &utility, eu(), vec![budget()], StructuralPolicy::ReportOnly),
+            &source,
+        )
+        .unwrap();
+        (evaluation.exact().unwrap().clone(), ordinary)
+    };
+
+    // Equal values: both report the tie, in declaration order.
+    let (exact, ordinary) = decide(0.0, 1e-9);
+    assert_eq!(ordinary.verdict, Verdict::Indistinguishable(vec!["B".into(), "C".into()]));
+    assert_exact_agrees("equal", &exact, &ordinary);
+
+    // A gap well above the tie tolerance: both choose `C`.
+    let (exact, ordinary) = decide(1e-6, 1e-9);
+    assert_eq!(ordinary.verdict, Verdict::UniquelyOptimal("C".into()));
+    assert_exact_agrees("separated", &exact, &ordinary);
+
+    // A gap inside the declared tie tolerance but above the numerical bound of the margins. The
+    // ordinary evaluator compares values exactly and chooses `C`; the exact route counts margins
+    // within the effective tie tolerance as ties.
+    let gap = 1e-11;
+    let (exact, ordinary) = decide(gap, 1e-9);
+    assert_eq!(ordinary.verdict, Verdict::UniquelyOptimal("C".into()));
+    assert_eq!(exact.verdict, PreferenceVerdict::Tied(vec!["B".into(), "C".into()]));
+    assert!(exact.effective_tie_tolerance >= 1e-9 && exact.effective_tie_tolerance > gap);
+    // With no declared tolerance the effective one is the numerical bound alone, which the gap
+    // exceeds, and the two agree again.
+    let (exact, ordinary) = decide(gap, 0.0);
+    assert!(exact.effective_tie_tolerance > 0.0 && exact.effective_tie_tolerance < gap);
+    assert_exact_agrees("declared zero", &exact, &ordinary);
+}
+
+#[test]
+fn certified_near_ties_follow_the_documented_tie_rules() {
+    let model = parameter_free_model();
+    let utility = parameter_free_utility();
+    let criterion = DecisionCriterion::Quantile { p: 0.5 };
+    let decide = |gap: f64, tie_tolerance: f64| {
+        let source = near_tie_law(&model, gap);
+        let c =
+            three_actions(model.clone(), criterion, vec![budget()], StructuralPolicy::ReportOnly);
+        let mut options = options();
+        options.certified.tie_tolerance = tie_tolerance;
+        let evaluation = decide_preferences(&c, &source, None, options).unwrap();
+        let ordinary = evaluate_contract(
+            &hand_written(
+                &model,
+                &utility,
+                criterion,
+                vec![budget()],
+                StructuralPolicy::ReportOnly,
+            ),
+            &source,
+        )
+        .unwrap();
+        (evaluation.certified().unwrap().clone(), ordinary)
+    };
+
+    let (certified, ordinary) = decide(0.0, 1e-9);
+    assert_certified_agrees("equal", &certified, &ordinary);
+    let (certified, ordinary) = decide(1e-6, 1e-9);
+    assert_certified_agrees("separated", &certified, &ordinary);
+
+    // A lead inside the tie tolerance is not certified: the choice stays undetermined between
+    // the ordinary winner and its rival.
+    let (certified, ordinary) = decide(1e-11, 1e-9);
+    assert_eq!(ordinary.verdict, Verdict::UniquelyOptimal("C".into()));
+    assert!(matches!(
+        &certified.verdict,
+        CertifiedVerdict::Undetermined { candidates, .. } if candidates == &["B", "C"]
+    ));
+    // With no tolerance the outward-rounded enclosures still separate the two.
+    let (certified, ordinary) = decide(1e-11, 0.0);
+    assert_certified_agrees("declared zero", &certified, &ordinary);
+}
+
+#[test]
+fn a_utility_on_the_threshold_is_counted_by_the_ordinary_rule_and_left_open_by_the_certified() {
+    // Under `benefit - cost`, `B` reaches exactly 4 on its third draw (weight 1/2), so
+    // `P(U >= 4)` is 3/4 for `B` and 1/2 for `C`, which reaches 4.5 on every draw but the
+    // third. The certified enclosure of a utility on the threshold straddles it, so it cannot
+    // prove `B` ahead.
+    let model = parameter_free_model();
+    let utility = parameter_free_utility();
+    let criterion = DecisionCriterion::ThresholdProbability { threshold: 4.0 };
+    let arms = vec![
+        vec![vec![8.0, 12.0, 10.0], vec![3.0, 5.0, 4.0]],
+        vec![vec![9.0, 5.0, 5.0], vec![1.0, 1.0, 1.0]],
+        vec![vec![5.5, 5.5, 4.0], vec![1.0, 1.0, 1.0]],
+    ];
+    let source = law(&model, &arms, Some(vec![1.0, 1.0, 2.0]));
+    let ordinary = evaluate_contract(
+        &hand_written(&model, &utility, criterion, vec![budget()], StructuralPolicy::ReportOnly),
+        &source,
+    )
+    .unwrap();
+    assert_eq!(ordinary.verdict, Verdict::UniquelyOptimal("B".into()));
+    let c = three_actions(model, criterion, vec![budget()], StructuralPolicy::ReportOnly);
+    let certified = decide_preferences(&c, &source, None, options()).unwrap();
+    let certified = certified.certified().unwrap();
+    assert!(matches!(
+        &certified.verdict,
+        CertifiedVerdict::Undetermined { candidates, .. } if candidates == &["B", "C"]
+    ));
+    let (low, high) = certified.actions[1].value_bounds.unwrap();
+    assert!(low <= 0.25 && high >= 0.75, "{low} {high}");
+}
+
+/// Two structures over the same three actions: `C` leads in `s2`, `B` in `s1`. `A` is
+/// excluded by the budget in both.
+fn structure_laws(model: &ValueModel) -> [DistributionArtifact; 2] {
+    let second = vec![
+        vec![vec![8.0, 12.0, 10.0], vec![3.0, 5.0, 4.0]],
+        vec![vec![6.0, 6.0, 6.0], vec![1.0, 1.0, 1.0]],
+        vec![vec![7.0, 7.0, 7.0], vec![1.0, 1.0, 1.0]],
+    ];
+    [three_action_law(model), law(model, &second, Some(vec![1.0, 1.0, 2.0]))]
+}
+
+fn atom(id: &str, probability: Option<f64>, source: &DistributionArtifact) -> StructuralAtom {
+    StructuralAtom {
+        id: id.into(),
+        probability,
+        evidence: AtomEvidence::Evaluated(Box::new(source.clone())),
+    }
+}
+
+/// The verdict the preference side gives for one ordinary per-structure leader list.
+fn leader_verdict(leaders: &[String]) -> PreferenceVerdict {
+    match leaders {
+        [] => PreferenceVerdict::NoAdmissibleAction,
+        [only] => PreferenceVerdict::NecessarilyBest(only.clone()),
+        tied => PreferenceVerdict::Tied(tied.to_vec()),
+    }
+}
+
+/// The structural verdicts agree: an invariant, worst-case or Bayes choice is the combined
+/// unique winner, a tie is a combined tie, disagreeing structures list the same per-structure
+/// leaders, and missing evidence gives the same reason.
+fn assert_structural_agrees(
+    label: &str,
+    ours: &StructuralPreferenceResult,
+    theirs: &StructuralDecisionResult,
+) {
+    use StructuralPreferenceVerdict as P;
+    use antecedent_design::decision_structural::StructuralVerdict as O;
+    match (&theirs.verdict, &ours.verdict) {
+        (
+            O::InvariantBest(a) | O::WorstCaseChoice(a) | O::BayesChoice { action: a, .. },
+            P::Combined(verdict),
+        ) => {
+            assert_eq!(verdict, &PreferenceVerdict::NecessarilyBest(a.clone()), "{label}");
+        }
+        (O::Tied(tied), P::Combined(verdict)) => {
+            assert_eq!(verdict, &PreferenceVerdict::Tied(tied.clone()), "{label}");
+        }
+        (O::NoAdmissibleAction, P::Combined(verdict)) => {
+            assert_eq!(verdict, &PreferenceVerdict::NoAdmissibleAction, "{label}");
+        }
+        (O::NoInvariantBest(leaders), P::StructuresDisagree(choices)) => {
+            let expected: Vec<(String, PreferenceVerdict)> =
+                leaders.iter().map(|(atom, ids)| (atom.clone(), leader_verdict(ids))).collect();
+            let found: Vec<(String, PreferenceVerdict)> =
+                choices.iter().map(|c| (c.atom.clone(), c.verdict.clone())).collect();
+            assert_eq!(found, expected, "{label}");
+        }
+        (O::InsufficientScience(why), P::InsufficientScience(ours)) => {
+            assert_eq!(ours, why, "{label}");
+        }
+        (O::ReportOnly, P::ReportOnly) => {}
+        (theirs, ours) => panic!("{label}: ordinary {theirs:?}, preference {ours:?}"),
+    }
+    assert_eq!(ours.evaluated_mass, theirs.evaluated_mass, "{label}");
+    assert_eq!(ours.unidentified_mass, theirs.unidentified_mass, "{label}");
+    assert_eq!(ours.unevaluated_mass, theirs.unevaluated_mass, "{label}");
+    for (summary, ordinary) in ours.atoms.iter().zip(&theirs.atoms) {
+        assert_eq!(summary.id, ordinary.id, "{label}");
+        if let (
+            PreferenceAtomStatus::Evaluated(result),
+            antecedent_design::decision_structural::AtomStatus::Evaluated(expected),
+        ) = (&summary.status, &ordinary.status)
+        {
+            assert_exact_agrees(&format!("{label} {}", summary.id), result, expected);
+        }
+    }
+    // The combined values: the probability-weighted value under Bayes and the worst value over
+    // structures under the worst case.
+    if let Some(combined) = &ours.combined {
+        for (outcome, action) in combined.actions.iter().zip(&theirs.actions) {
+            let at = format!("{label} {}", outcome.id);
+            let expected = match theirs.policy {
+                StructuralPolicy::BayesOverStructures => action.weighted_value,
+                StructuralPolicy::Maximin
+                    if combined_criterion(theirs)
+                        == Some(DecisionCriterion::PosteriorExpectedLoss) =>
+                {
+                    action.range.map(|range| range.1)
+                }
+                StructuralPolicy::Maximin => action.range.map(|range| range.0),
+                _ => continue,
+            };
+            match (outcome.value_range, expected) {
+                (Some((low, high)), Some(value)) if outcome.admissible => {
+                    assert!(close(low, value) && close(high, value), "{at}: {low} {high} {value}");
+                }
+                (None, _) if !outcome.admissible => {}
+                other => panic!("{at}: {other:?}"),
+            }
+        }
+    }
+}
+
+/// The certified verdict for one ordinary per-structure leader list.
+fn certified_leader_verdict(leaders: &[String]) -> CertifiedVerdict {
+    match leaders {
+        [] => CertifiedVerdict::NoAdmissibleAction,
+        [only] => CertifiedVerdict::NecessarilyBest(only.clone()),
+        tied => {
+            CertifiedVerdict::Undetermined { candidates: tied.to_vec(), undecided_fraction: 1.0 }
+        }
+    }
+}
+
+/// The verdict with an undetermined volume fraction dropped, which the ordinary result has no
+/// counterpart for.
+fn without_fraction(verdict: &CertifiedVerdict) -> CertifiedVerdict {
+    match verdict {
+        CertifiedVerdict::Undetermined { candidates, .. } => CertifiedVerdict::Undetermined {
+            candidates: candidates.clone(),
+            undecided_fraction: 1.0,
+        },
+        other => other.clone(),
+    }
+}
+
+/// The certified structural verdict agrees with the ordinary one, with a tie read as an
+/// undetermined choice among the tied actions.
+fn assert_certified_structural_agrees(
+    label: &str,
+    ours: &StructuralCertifiedResult,
+    theirs: &StructuralDecisionResult,
+) {
+    use StructuralCertifiedVerdict as P;
+    use antecedent_design::decision_structural::StructuralVerdict as O;
+    match (&theirs.verdict, &ours.verdict) {
+        (
+            O::InvariantBest(a) | O::WorstCaseChoice(a) | O::BayesChoice { action: a, .. },
+            P::Combined(verdict),
+        ) => {
+            assert_eq!(verdict, &CertifiedVerdict::NecessarilyBest(a.clone()), "{label}");
+        }
+        (O::Tied(tied), P::Combined(verdict)) => {
+            assert_eq!(without_fraction(verdict), certified_leader_verdict(tied), "{label}");
+        }
+        (O::NoAdmissibleAction, P::Combined(verdict)) => {
+            assert_eq!(verdict, &CertifiedVerdict::NoAdmissibleAction, "{label}");
+        }
+        (O::NoInvariantBest(leaders), P::StructuresDisagree(choices)) => {
+            let expected: Vec<(String, CertifiedVerdict)> = leaders
+                .iter()
+                .map(|(atom, ids)| (atom.clone(), certified_leader_verdict(ids)))
+                .collect();
+            let found: Vec<(String, CertifiedVerdict)> =
+                choices.iter().map(|c| (c.atom.clone(), without_fraction(&c.verdict))).collect();
+            assert_eq!(found, expected, "{label}");
+        }
+        (O::InsufficientScience(why), P::InsufficientScience(ours)) => {
+            assert_eq!(ours, why, "{label}");
+        }
+        (O::ReportOnly, P::ReportOnly) => {}
+        (theirs, ours) => panic!("{label}: ordinary {theirs:?}, preference {ours:?}"),
+    }
+    assert_eq!(ours.evaluated_mass, theirs.evaluated_mass, "{label}");
+    assert_eq!(ours.unidentified_mass, theirs.unidentified_mass, "{label}");
+    assert_eq!(ours.unevaluated_mass, theirs.unevaluated_mass, "{label}");
+    for (summary, ordinary) in ours.atoms.iter().zip(&theirs.atoms) {
+        assert_eq!(summary.id, ordinary.id, "{label}");
+        if let (
+            CertifiedAtomStatus::Evaluated(result),
+            antecedent_design::decision_structural::AtomStatus::Evaluated(expected),
+        ) = (&summary.status, &ordinary.status)
+        {
+            assert_certified_agrees(&format!("{label} {}", summary.id), result, expected);
+        }
+    }
+    if let Some(combined) = &ours.combined {
+        let larger_is_worse = matches!(
+            combined_criterion(theirs),
+            Some(DecisionCriterion::PosteriorExpectedLoss | DecisionCriterion::Regret)
+        );
+        for (outcome, action) in combined.actions.iter().zip(&theirs.actions) {
+            let at = format!("{label} {}", outcome.id);
+            let expected = match theirs.policy {
+                StructuralPolicy::BayesOverStructures => action.weighted_value,
+                StructuralPolicy::Maximin if larger_is_worse => action.range.map(|r| r.1),
+                StructuralPolicy::Maximin => action.range.map(|r| r.0),
+                _ => continue,
+            };
+            match (outcome.value_bounds, expected) {
+                (Some((low, high)), Some(value)) if outcome.admissible => {
+                    let slack = 1e-12 * (1.0 + value.abs());
+                    assert!(low <= value + slack && value - slack <= high, "{at}: {low} {high}");
+                }
+                (None, _) if !outcome.admissible => {}
+                other => panic!("{at}: {other:?}"),
+            }
+        }
+    }
+}
+
+/// The criterion the ordinary structural result scored each structure with.
+fn combined_criterion(result: &StructuralDecisionResult) -> Option<DecisionCriterion> {
+    result.atoms.iter().find_map(|atom| match &atom.status {
+        antecedent_design::decision_structural::AtomStatus::Evaluated(r) => Some(r.criterion),
+        _ => None,
+    })
+}
+
+#[test]
+fn fixed_trade_offs_decide_across_structures_as_a_hand_written_contract() {
+    let model = fixed_model();
+    let utility = fixed_utility();
+    let [first, second] = structure_laws(&model);
+    let unidentified = StructuralAtom {
+        id: "s3".into(),
+        probability: Some(0.2),
+        evidence: AtomEvidence::Unidentified,
+    };
+    let unevaluated = StructuralAtom {
+        id: "s3".into(),
+        probability: None,
+        evidence: AtomEvidence::Unevaluated("budget spent".into()),
+    };
+    let structure_sets: Vec<(&str, Vec<StructuralAtom>)> = vec![
+        ("disagree", vec![atom("s1", None, &first), atom("s2", None, &second)]),
+        ("agree", vec![atom("s1", None, &first), atom("s2", None, &first)]),
+        ("unevaluated", vec![atom("s1", None, &first), unevaluated]),
+        ("weighted", vec![atom("s1", Some(0.5), &first), atom("s2", Some(0.5), &second)]),
+        ("tilted", vec![atom("s1", Some(0.1), &first), atom("s2", Some(0.9), &second)]),
+        (
+            "unidentified",
+            vec![atom("s1", Some(0.4), &first), atom("s2", Some(0.4), &second), unidentified],
+        ),
+    ];
+    let policies = [
+        StructuralPolicy::RequireInvariantBestAction,
+        StructuralPolicy::Maximin,
+        StructuralPolicy::BayesOverStructures,
+        StructuralPolicy::ReportOnly,
+    ];
+    let mut compared = 0;
+    for criterion in [
+        eu(),
+        DecisionCriterion::PosteriorExpectedLoss,
+        DecisionCriterion::ThresholdProbability { threshold: 3.1 },
+        DecisionCriterion::Quantile { p: 0.5 },
+        DecisionCriterion::Regret,
+    ] {
+        for policy in policies {
+            for (name, atoms) in &structure_sets {
+                let label = format!("{name} {policy:?} {criterion:?}");
+                let ordinary = evaluate_structural(
+                    &hand_written(&model, &utility, criterion, vec![budget()], policy),
+                    atoms,
+                );
+                let c = three_actions(model.clone(), criterion, vec![budget()], policy);
+                let ours = decide_preferences_structural(&c, atoms, None, options());
+                match (ordinary, ours) {
+                    (Ok(theirs), Ok(StructuralPreferenceEvaluation::Exact(ours))) => {
+                        compared += 1;
+                        assert_structural_agrees(&label, &ours, &theirs);
+                    }
+                    (Ok(theirs), Ok(StructuralPreferenceEvaluation::Certified(ours))) => {
+                        compared += 1;
+                        assert_certified_structural_agrees(&label, &ours, &theirs);
+                    }
+                    // Bayes over structures without probabilities, and a mixture of quantiles
+                    // or of largest regrets, are refused by both.
+                    (Err(_), Err(_)) => {
+                        assert_eq!(policy, StructuralPolicy::BayesOverStructures, "{label}");
+                    }
+                    (theirs, ours) => panic!("{label}: {theirs:?} {ours:?}"),
+                }
+            }
+        }
+    }
+    // Every set under every policy, less Bayes without probabilities (three sets) and Bayes
+    // over a quantile or the largest regret (every set).
+    assert_eq!(compared, 3 * (4 * 6 - 3) + 2 * (3 * 6));
+}
+
+#[test]
+fn structure_exclusions_follow_the_documented_rules() {
+    // `A` breaks the budget under `s1` only and leads under `s2`.
+    let model = fixed_model();
+    let second = vec![
+        vec![vec![10.0, 10.0, 10.0], vec![4.0, 4.0, 4.0]],
+        vec![vec![9.0, 5.0, 4.0], vec![1.0, 1.0, 1.0]],
+        vec![vec![4.0, 4.0, 4.0], vec![2.0, 2.0, 2.0]],
+    ];
+    let first = three_action_law(&model);
+    let second = law(&model, &second, Some(vec![1.0, 1.0, 2.0]));
+    let ordinary = |criterion, policy, atoms: &[StructuralAtom]| {
+        evaluate_structural(
+            &hand_written(&model, &fixed_utility(), criterion, vec![budget()], policy),
+            atoms,
+        )
+        .unwrap()
+    };
+    let ours = |criterion, policy, atoms: &[StructuralAtom]| {
+        let c = three_actions(model.clone(), criterion, vec![budget()], policy);
+        decide_preferences_structural(&c, atoms, None, options()).unwrap()
+    };
+    let threshold = DecisionCriterion::ThresholdProbability { threshold: 3.1 };
+
+    // Invariance. The ordinary policy compares each structure's own leader, so the structures
+    // disagree (`B` in `s1`, `A` in `s2`), and so does the certified route, which decides each
+    // structure on its own. The exact route excludes `A` in every structure before analysing
+    // each, as its documentation states, so `B` leads in both and is chosen.
+    let invariant = StructuralPolicy::RequireInvariantBestAction;
+    let atoms = [atom("s1", None, &first), atom("s2", None, &second)];
+    for criterion in [eu(), threshold] {
+        let theirs = ordinary(criterion, invariant, &atoms);
+        assert_eq!(
+            theirs.verdict,
+            antecedent_design::decision_structural::StructuralVerdict::NoInvariantBest(vec![
+                ("s1".into(), vec!["B".into()]),
+                ("s2".into(), vec!["A".into()]),
+            ])
+        );
+        match ours(criterion, invariant, &atoms) {
+            StructuralPreferenceEvaluation::Exact(result) => {
+                assert_eq!(
+                    result.verdict,
+                    StructuralPreferenceVerdict::Combined(PreferenceVerdict::NecessarilyBest(
+                        "B".into()
+                    ))
+                );
+                let combined = result.combined.as_ref().unwrap();
+                assert!(!combined.actions[0].admissible);
+                assert_eq!(combined.actions[0].exclusions[0].constraint_id, "budget");
+            }
+            StructuralPreferenceEvaluation::Certified(result) => {
+                assert_certified_structural_agrees("certified invariance", &result, &theirs);
+            }
+        }
+    }
+
+    // Bayes weighting. A structure without probability excludes nothing, on either route, as
+    // for the ordinary contract: `A` stays admissible and leads.
+    let bayes = StructuralPolicy::BayesOverStructures;
+    let atoms = [atom("s2", Some(1.0), &second), atom("s1", Some(0.0), &first)];
+    for criterion in [eu(), threshold] {
+        let theirs = ordinary(criterion, bayes, &atoms);
+        assert!(matches!(
+            &theirs.verdict,
+            antecedent_design::decision_structural::StructuralVerdict::BayesChoice { action, .. }
+                if action == "A"
+        ));
+        let label = format!("zero mass {criterion:?}");
+        match ours(criterion, bayes, &atoms) {
+            StructuralPreferenceEvaluation::Exact(result) => {
+                assert_structural_agrees(&label, &result, &theirs);
+                assert!(result.combined.as_ref().unwrap().actions[0].exclusions.is_empty());
+            }
+            StructuralPreferenceEvaluation::Certified(result) => {
+                assert_certified_structural_agrees(&label, &result, &theirs);
+                assert!(result.combined.as_ref().unwrap().actions[0].exclusions.is_empty());
+            }
+        }
+    }
 }

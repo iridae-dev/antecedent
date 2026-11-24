@@ -2121,8 +2121,19 @@ impl<'c> Setup<'c> {
     ) -> Result<CertifiedPreferenceResult, PreferenceCertifiedError> {
         let contract = self.contract;
         let n = contract.actions.len();
+        // Under Bayes weighting a structure without probability excludes no action, as for the
+        // ordinary contract.
+        let excluding: Vec<&SourceData<'_>> = match &combination {
+            Combination::Bayes(probabilities) => sources
+                .iter()
+                .zip(probabilities)
+                .filter(|(_, p)| **p > 0.0)
+                .map(|(s, _)| s)
+                .collect(),
+            Combination::Single | Combination::Worst => sources.iter().collect(),
+        };
         let admissible: Vec<bool> =
-            (0..n).map(|a| sources.iter().all(|s| s.exclusions[a].is_empty())).collect();
+            (0..n).map(|a| excluding.iter().all(|s| s.exclusions[a].is_empty())).collect();
         let mut actions: Vec<CertifiedActionOutcome> = contract
             .actions
             .iter()
@@ -2130,7 +2141,10 @@ impl<'c> Setup<'c> {
             .map(|(a, action)| CertifiedActionOutcome {
                 id: action.id.clone(),
                 admissible: admissible[a],
-                exclusions: sources.iter().flat_map(|s| s.exclusions[a].iter().cloned()).collect(),
+                exclusions: excluding
+                    .iter()
+                    .flat_map(|s| s.exclusions[a].iter().cloned())
+                    .collect(),
                 best_fraction: 0.0,
                 value_bounds: None,
                 worst_case_bounds: None,
@@ -2414,7 +2428,9 @@ fn evaluate_atoms<'s>(
 ///   mass.
 /// - `ReportOnly`: per-structure results only.
 ///
-/// An action excluded by a hard constraint in any evaluated structure is excluded overall.
+/// An action excluded by a hard constraint in any evaluated structure is excluded overall;
+/// under `BayesOverStructures` only a structure with positive probability excludes, as for the
+/// ordinary contract.
 ///
 /// # Errors
 /// Every refusal of [`evaluate_preference_certified`] other than a source that cannot answer

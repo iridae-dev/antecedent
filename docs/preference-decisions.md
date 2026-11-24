@@ -552,8 +552,11 @@ does not exist raises `CausalValueError`, as an unknown `Policy` kind does.
 Unidentified and unevaluated structure mass is reported (`unidentified_mass`,
 `unevaluated_mass`). A claim that needs every structure returns `insufficient_science` when one
 is unresolved. An action excluded by a hard constraint in any evaluated structure is excluded
-everywhere. These rules are those of [structural uncertainty](decisions.md#structural-uncertainty)
-in a decision contract; see also [graph uncertainty](graph_uncertainty.md).
+everywhere; under `bayes_over_structures` only a structure with positive probability excludes.
+These rules are those of [structural uncertainty](decisions.md#structural-uncertainty) in a
+decision contract, with one difference on the exact route, stated in
+[fixed trade-offs](#a-fixed-trade-off-is-an-ordinary-contract); see also
+[graph uncertainty](graph_uncertainty.md).
 
 ### Weigh the members of an equivalence class
 
@@ -631,6 +634,26 @@ renormalized.
 The class prior is read only by a decision compiled across the posterior's structures. An
 ordinary estimate of the same prepared study treats each class atom as a whole and refuses the
 prior rather than ignore it (`structure_posterior.class_prior_not_read`).
+
+## A fixed trade-off is an ordinary contract
+
+When every trade-off is fixed (each declared range is one value, or the value model has no
+trade-off), a preference contract is the ordinary [decision contract](decisions.md) whose
+utility is the value model with those numbers in place. The verdict, the admissible actions, the
+exclusions (under your constraint ids) and the criterion values are those of the hand-written
+ordinary contract, under every criterion and structural policy. The words differ:
+`uniquely_optimal` is `necessarily_best`, and `indistinguishable` is `tied` on the exact route
+and `undetermined` among the same actions on the certified route. The results differ only
+where the rules below say so.
+
+| Where | Ordinary contract | Preference contract |
+| --- | --- | --- |
+| Ties, exact route | criterion values equal to the last bit | margins within the effective tie tolerance (the declared `tie_tolerance`, default `1e-9`, or the numerical error bound of the margins when larger); with `tie_tolerance=0` the two agree whenever the margin exceeds that bound |
+| Ties, certified route | criterion values equal to the last bit | a choice only when the outward-rounded enclosures separate by more than `tie_tolerance`; a utility exactly on a threshold probability's threshold, or values that close, leave the choice `undetermined` |
+| Criterion values | `E[sum of terms]` | `sum of E[term]` on the exact route; equal up to floating rounding |
+| Expected regret | regret amounts, `max_regret` and `evpi` | ranked by expected-utility margins (the same ranking); no regret amounts |
+| Invariance across structures, exact route | each structure's own leader | an action excluded in one structure is excluded in every structure before each is analysed (the certified route keeps each structure's own leader) |
+| Replay | exact | within `1e-9` relative |
 
 ## Two routes and what each guarantees
 
