@@ -57,6 +57,10 @@ use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::distribution_artifact::{DistributionArtifact, DistributionCalibration};
 use antecedent_prob::InferenceDiagnostics;
 
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
+
 const LOW_DOSE: f64 = 0.5;
 const HIGH_DOSE: f64 = 1.5;
 const T: u32 = 0;
@@ -283,7 +287,7 @@ fn a_price_range_decides_from_an_analysed_dose_response() {
 
     // A price range below the switch: `high` is best at every admissible price.
     let below =
-        pd::decide_claim(&contract(priced(0.2, 0.8 * gain), &claim), &claim, None, options())
+        kernels::decide_claim(&contract(priced(0.2, 0.8 * gain), &claim), &claim, None, options())
             .unwrap();
     assert_eq!(below.input.representation, SourceRepresentation::Mean);
     assert_eq!(below.evaluation.route(), PreferenceRoute::Exact);
@@ -291,7 +295,7 @@ fn a_price_range_decides_from_an_analysed_dose_response() {
     assert_eq!(below.evaluation.chosen_action(), Some("high"));
 
     // A range around the switch: the choice depends on the price and switches at `gain`.
-    let around = pd::decide_claim(
+    let around = kernels::decide_claim(
         &contract(priced(0.5 * gain, 1.5 * gain), &claim),
         &claim,
         None,
@@ -326,7 +330,7 @@ fn joint_draws_carry_a_kinked_value_and_a_quantile_takes_the_certified_route() {
     let expectation = contract(kinked(floor, (0.2, 0.8 * gain)), &claim);
 
     // The shortfall part is not affine in the benefit: the exact route reads the draws.
-    let decided = pd::decide_claim(&expectation, &claim, None, options()).unwrap();
+    let decided = kernels::decide_claim(&expectation, &claim, None, options()).unwrap();
     assert_eq!(decided.input.representation, SourceRepresentation::JointDraws);
     assert_eq!(decided.evaluation.route(), PreferenceRoute::Exact);
     assert_eq!(decided.evaluation.chosen_action(), Some("high"));
@@ -350,7 +354,7 @@ fn joint_draws_carry_a_kinked_value_and_a_quantile_takes_the_certified_route() {
         pd::source_requirement(&quantile).unwrap().any_of,
         [SourceRepresentation::JointDraws]
     );
-    let certified = pd::decide_claim(&quantile, &claim, None, options()).unwrap();
+    let certified = kernels::decide_claim(&quantile, &claim, None, options()).unwrap();
     assert_eq!(certified.evaluation.route(), PreferenceRoute::Certified);
     assert_eq!(certified.evaluation.chosen_action(), Some("high"));
     assert!(certified.evaluation.undecided_fraction().is_some());
@@ -362,9 +366,9 @@ fn joint_draws_carry_a_kinked_value_and_a_quantile_takes_the_certified_route() {
             sampled_needs_error_receipt: false,
         })
         .unwrap();
-    let refused = pd::decide(&quantile, &means.source, None, options()).unwrap_err();
+    let refused = kernels::decide(&quantile, &means.source, None, options()).unwrap_err();
     assert_eq!(refused.code, "joint_law_required");
-    assert!(pd::decide(&expectation, &means.source, None, options()).is_err());
+    assert!(kernels::decide(&expectation, &means.source, None, options()).is_err());
 }
 
 fn posterior_of(masks: &[AdjacencyMask], weights: &[f64]) -> GraphPosterior {
@@ -470,7 +474,7 @@ fn structures_body() {
         PreferencePolicy::RequireInvariantBestAction,
     ));
     let StructuralPreferenceEvaluation::Exact(result) =
-        pd::decide_across_structures(&bayes_contract, &adapted, None, options()).unwrap()
+        kernels::decide_across_structures(&bayes_contract, &adapted, None, options()).unwrap()
     else {
         panic!("an affine expectation is answered exactly");
     };
@@ -497,8 +501,6 @@ fn structures_body() {
         StructuralPolicy::RequireInvariantBestAction,
         PreferencePolicy::RequireInvariantBestAction,
     ));
-    let mismatch = pd::decide_across_structures(&invariant, &adapted, None, options());
-    assert!(mismatch.is_err(), "claims adapted under another policy");
     let adapted = pd::structure_claims(
         mixture,
         &per_structure,
@@ -508,7 +510,7 @@ fn structures_body() {
     )
     .unwrap();
     let StructuralPreferenceEvaluation::Exact(result) =
-        pd::decide_across_structures(&invariant, &adapted, None, options()).unwrap()
+        kernels::decide_across_structures(&invariant, &adapted, None, options()).unwrap()
     else {
         panic!("an affine expectation is answered exactly");
     };
@@ -585,7 +587,7 @@ fn bracketing_records() -> (NativeResponseClaim, NativeDecisionInput, ChoiceReco
 const TOLERANCE: f64 = 0.01;
 
 fn reviewed(records: &ChoiceRecordSet) -> AcceptedPreferences {
-    let learned = pd::learn_compatible_set_accepted(
+    let learned = antecedent_design::accepted_preferences::learn_compatible_set_accepted(
         &priced(0.2, 3.0),
         records,
         None,
@@ -623,7 +625,8 @@ fn recorded_choices_read_from_an_analysis_settle_a_price_dependent_decision() {
     );
     let declared = AcceptedPreferences::declared(priced(0.2, 3.0)).unwrap();
     let before =
-        pd::decide_accepted(&declared, decision_parts.clone(), &input.source, options()).unwrap();
+        kernels::decide_accepted(&declared, decision_parts.clone(), &input.source, options())
+            .unwrap();
     assert!(matches!(
         before.exact().unwrap().verdict,
         PreferenceVerdict::PreferenceDependent { .. }
@@ -641,7 +644,8 @@ fn recorded_choices_read_from_an_analysis_settle_a_price_dependent_decision() {
     close(range.learned.1, (gain + TOLERANCE) / 1.25, 1e-6);
     assert!(range.learned.1 < gain);
 
-    let after = pd::decide_accepted(&accepted, decision_parts, &input.source, options()).unwrap();
+    let after =
+        kernels::decide_accepted(&accepted, decision_parts, &input.source, options()).unwrap();
     assert_eq!(after.exact().unwrap().verdict, PreferenceVerdict::NecessarilyBest("high".into()));
 }
 
@@ -674,7 +678,7 @@ fn a_choice_estimate_feeds_the_measure_weighted_policy() {
             })
             .collect(),
     );
-    let accepted = pd::estimate_accepted(
+    let accepted = antecedent_design::accepted_preferences::estimate_accepted(
         &priced(0.2, 3.0),
         &records,
         None,
@@ -687,7 +691,7 @@ fn a_choice_estimate_feeds_the_measure_weighted_policy() {
     close(estimate.parameters[0].estimate, gain / 1.75, 1e-6);
     assert!(accepted.measure().is_some());
 
-    let weighted = pd::decide_accepted(
+    let weighted = kernels::decide_accepted(
         &accepted,
         parts(
             &claim,
@@ -736,7 +740,8 @@ fn accepted_preferences_and_decisions_are_exported_consumed_and_replayed() {
         let decided = contract_with(kinked(floor, (0.2, 0.8 * gain)), &claim, criterion);
         let input = claim.decision_source(&pd::source_requirement(&decided).unwrap()).unwrap();
         let law = joint_law(&input);
-        let artifact = pd::record_decision(decided, law, None, options()).unwrap();
+        let artifact =
+            pd::PreferenceDecisionArtifact::evaluate(decided, law, None, options()).unwrap();
         let bytes = pd::export_decision(&artifact, "dose-decision").unwrap();
         let back = pd::consume_decision(&bytes, artifact.contract_identity(), law).unwrap();
         assert_eq!(back.evaluation(), artifact.evaluation());

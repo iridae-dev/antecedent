@@ -18,12 +18,13 @@
 use std::sync::Arc;
 
 use antecedent::analysis::native_claims::NativeDecisionSource;
+use antecedent::analysis::preference_decision::bridge::chain_joint_law;
 use antecedent::analysis::preference_decision::{
     AcceptedPreferences, ActionInput, ActionKind, Attribute, CompiledPreferenceDecision,
     CrossStudyCovariance, DecisionCriterion, OutcomeDependence, PreferenceAction,
     PreferenceContract, PreferenceContractParts, PreferenceDecisionExecution,
     PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter, PreferencePolicy,
-    PreferenceSet, SharedEvidence, StructuralPolicy, ValueModel, chain_joint_law,
+    PreferenceSet, SharedEvidence, StructuralPolicy, ValueModel,
     compile_preference_decision_across_studies, compile_preference_decision_with_shared_evidence,
     shape,
 };

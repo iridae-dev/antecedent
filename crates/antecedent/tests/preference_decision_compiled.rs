@@ -17,10 +17,10 @@ use std::sync::Arc;
 
 use antecedent::analysis::native_claims::NativeResponseClaim;
 use antecedent::analysis::preference_decision::{
-    self as pd, AcceptedPreferences, ActionInput, ActionKind, Attribute, DecisionCriterion,
-    PreferenceAction, PreferenceContract, PreferenceContractParts, PreferenceEvaluationOptions,
-    PreferenceExpr, PreferenceParameter, PreferencePolicy, PreferenceRoute, PreferenceSet,
-    PreferenceVerdict, StructuralPolicy, StructureIdentification, ValueModel, shape,
+    AcceptedPreferences, ActionInput, ActionKind, Attribute, DecisionCriterion, PreferenceAction,
+    PreferenceContract, PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr,
+    PreferenceParameter, PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict,
+    StructuralPolicy, StructureIdentification, ValueModel, shape,
 };
 use antecedent::design::decision_contract::SourceRepresentation;
 use antecedent::planner::lowered::CarrierDemand;
@@ -32,6 +32,10 @@ use antecedent_core::{
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
+
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
 
 const LOW_DOSE: f64 = 0.5;
 const HIGH_DOSE: f64 = 1.5;
@@ -300,7 +304,7 @@ fn means_answer_an_affine_value_and_agree_with_the_result_level_functions() {
         assert_eq!(executed.receipt.programs, [stated]);
         assert_eq!(executed.receipt.executed, [Some(stated)]);
 
-        let by_hand = pd::decide_claim(&decided, &claim, None, options()).unwrap();
+        let by_hand = kernels::decide_claim(&decided, &claim, None, options()).unwrap();
         assert_eq!(evaluation, &by_hand.evaluation);
         assert_eq!(executed.source.as_ref(), Some(&by_hand.input.source));
     }
@@ -343,7 +347,7 @@ fn joint_draws_answer_a_kinked_value_and_a_quantile_on_a_bayesian_study() {
             PreferenceRoute::Certified
         };
         assert_eq!(evaluation.route(), expected_route);
-        let by_hand = pd::decide_claim(&decided, &claim, None, options()).unwrap();
+        let by_hand = kernels::decide_claim(&decided, &claim, None, options()).unwrap();
         assert_eq!(evaluation, &by_hand.evaluation);
     }
 }

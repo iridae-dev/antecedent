@@ -21,10 +21,14 @@ use antecedent::analysis::preference_decision::{
     PreferenceParameter, PreferencePolicy, PreferenceRoute, PreferenceSet, PreferenceVerdict,
     RegionStatus, RelationOrigin, RelationSense, StructuralCertifiedResult, StructuralPolicy,
     StructuralPreferenceEvaluation, StructuralPreferenceResult, StructuralPreferenceVerdict,
-    ValueModel, ValueRelation, chain_joint_law, decide_across_structures_with_context,
+    ValueModel, ValueRelation, experiment_arm_quantity, preference_route, source_requirement,
+};
+// The direct trade-off kernels and source builders are not API; the bridge reaches them through
+// the hidden seam until each native goes through a compiled family.
+use antecedent::analysis::preference_decision::bridge::{
+    chain_joint_law, decide_across_structures_with_context,
     decide_preferences_on_means_with_context, decide_preferences_with_context,
-    experiment_arm_quantity, experiment_mean_source, joint_law_of, preference_route,
-    source_requirement,
+    experiment_mean_source, joint_law_of,
 };
 use antecedent::analysis::preference_decision::{
     ClassSampling, ClassSize, CompiledPreferenceDecision, CompiledPreferenceEvaluation,

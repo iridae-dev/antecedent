@@ -35,6 +35,10 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_io::distribution_artifact::DistributionArtifact;
 use antecedent_prob::InferenceDiagnostics;
 
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
+
 const T: u32 = 0;
 const Y: u32 = 1;
 const Z: u32 = 2;
@@ -351,7 +355,8 @@ fn decide_body() {
         StructuralPolicy::BayesOverStructures,
     )
     .unwrap();
-    let by_hand = pd::decide_across_structures(&bayes_contract, &claims, None, options()).unwrap();
+    let by_hand =
+        kernels::decide_across_structures(&bayes_contract, &claims, None, options()).unwrap();
     assert_eq!(executed.evaluation.structures(), Some(&by_hand));
 
     // Invariance across structures needs every structure; the unidentified one blocks it.

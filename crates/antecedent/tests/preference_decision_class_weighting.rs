@@ -45,6 +45,10 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_graph::{DenseNodeId, Pag};
 use antecedent_prob::InferenceDiagnostics;
 
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
+
 const T: u32 = 0;
 const Y: u32 = 1;
 const Z: u32 = 2;
@@ -304,7 +308,7 @@ fn uniform_body() {
         StructuralPolicy::BayesOverStructures,
     )
     .unwrap();
-    let by_hand = pd::decide_across_structures(&bayes, &claims, None, options()).unwrap();
+    let by_hand = kernels::decide_across_structures(&bayes, &claims, None, options()).unwrap();
     assert_eq!(executed.evaluation.structures(), Some(&by_hand));
 }
 
@@ -620,22 +624,29 @@ fn budget_body() {
 fn clopper_pearson_bounds_match_their_closed_forms() {
     for n in [1_u64, 7, 40, 500] {
         let nf = n as f64;
-        close(pd::clopper_pearson_upper(0, n, 0.95).unwrap(), 1.0 - 0.05_f64.powf(1.0 / nf), 1e-9);
-        let (lower, upper) = pd::clopper_pearson(0, n, 0.95).unwrap();
+        close(
+            antecedent_stats::binomial_interval::clopper_pearson_upper(0, n, 0.95).unwrap(),
+            1.0 - 0.05_f64.powf(1.0 / nf),
+            1e-9,
+        );
+        let (lower, upper) =
+            antecedent_stats::binomial_interval::clopper_pearson(0, n, 0.95).unwrap();
         close(lower, 0.0, 1e-15);
         close(upper, 1.0 - 0.025_f64.powf(1.0 / nf), 1e-9);
-        let (lower, upper) = pd::clopper_pearson(n, n, 0.95).unwrap();
+        let (lower, upper) =
+            antecedent_stats::binomial_interval::clopper_pearson(n, n, 0.95).unwrap();
         close(lower, 0.025_f64.powf(1.0 / nf), 1e-9);
         close(upper, 1.0, 1e-15);
     }
     // The interval of x successes mirrors that of n - x failures.
-    let (lower, upper) = pd::clopper_pearson(7, 40, 0.9).unwrap();
-    let (mirror_lower, mirror_upper) = pd::clopper_pearson(33, 40, 0.9).unwrap();
+    let (lower, upper) = antecedent_stats::binomial_interval::clopper_pearson(7, 40, 0.9).unwrap();
+    let (mirror_lower, mirror_upper) =
+        antecedent_stats::binomial_interval::clopper_pearson(33, 40, 0.9).unwrap();
     close(lower, 1.0 - mirror_upper, 1e-9);
     close(upper, 1.0 - mirror_lower, 1e-9);
-    assert!(pd::clopper_pearson(1, 0, 0.95).is_none());
-    assert!(pd::clopper_pearson(3, 2, 0.95).is_none());
-    assert!(pd::clopper_pearson_upper(0, 10, 1.0).is_none());
+    assert!(antecedent_stats::binomial_interval::clopper_pearson(1, 0, 0.95).is_none());
+    assert!(antecedent_stats::binomial_interval::clopper_pearson(3, 2, 0.95).is_none());
+    assert!(antecedent_stats::binomial_interval::clopper_pearson_upper(0, 10, 1.0).is_none());
 }
 
 #[test]

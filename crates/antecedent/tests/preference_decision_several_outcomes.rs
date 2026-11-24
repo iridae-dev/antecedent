@@ -60,6 +60,10 @@ use antecedent_io::propagation_chain_record::{
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
+
 const ROWS_PER_CLUSTER: u32 = 12;
 const CLUSTERS: u32 = 80;
 
@@ -152,7 +156,7 @@ fn contract(
 }
 
 fn verdict(contract: &PreferenceContract, source: &NativeDecisionSource) -> PreferenceVerdict {
-    pd::decide(contract, source, None, options()).unwrap().exact().unwrap().verdict.clone()
+    kernels::decide(contract, source, None, options()).unwrap().exact().unwrap().verdict.clone()
 }
 
 /// The three ranges around the switch `ratio`, with the treatment declared first.
@@ -229,7 +233,7 @@ fn an_experiment_with_two_outcomes_decides_the_harm_trade_off_on_its_arm_means()
         action("high", &arm("benefit", true), &arm("harm", true)),
         action("low", &arm("benefit", false), &arm("harm", false)),
     ];
-    let source = NativeDecisionSource::Mean(pd::experiment_mean_source(&evidence).unwrap());
+    let source = NativeDecisionSource::Mean(pd::bridge::experiment_mean_source(&evidence).unwrap());
     let gain = evidence.treated_means[0] - evidence.control_means[0];
     let extra_harm = evidence.treated_means[1] - evidence.control_means[1];
     assert!(gain > 0.5 && extra_harm > 0.2, "{gain} {extra_harm}");
@@ -245,7 +249,7 @@ fn an_experiment_with_two_outcomes_decides_the_harm_trade_off_on_its_arm_means()
         ratio,
     );
     let around = contract(traded(0.5 * ratio, 1.5 * ratio), actions.clone(), vec![], "patients", 0);
-    let decided = pd::decide(&around, &source, None, options()).unwrap();
+    let decided = kernels::decide(&around, &source, None, options()).unwrap();
     let switch = &decided.exact().unwrap().switches[0];
     // `v_high - v_low = gain - harm_rate * extra_harm`.
     close(switch.margin_coefficients[0], gain, 1e-9);
@@ -256,10 +260,10 @@ fn an_experiment_with_two_outcomes_decides_the_harm_trade_off_on_its_arm_means()
     let cap = evidence.treated_means[1];
     let charged =
         contract(kinked(cap, (0.2 * ratio, 0.8 * ratio)), actions.clone(), vec![], "patients", 0);
-    assert!(pd::decide(&charged, &source, None, options()).is_err());
+    assert!(kernels::decide(&charged, &source, None, options()).is_err());
     let capped =
         contract(traded(0.2 * ratio, 0.8 * ratio), actions, vec![harm_cap(cap)], "patients", 0);
-    assert!(pd::decide(&capped, &source, None, options()).is_err());
+    assert!(kernels::decide(&capped, &source, None, options()).is_err());
 
     // Arm means under bounded spillover are assumption ranges, not means.
     let mut bounded = evidence.clone();
@@ -267,7 +271,7 @@ fn an_experiment_with_two_outcomes_decides_the_harm_trade_off_on_its_arm_means()
         assumption_id: "assumption.bounded_spillover".into(),
         bias_bounds: vec![0.1, 0.1],
     };
-    assert!(pd::experiment_mean_source(&bounded).is_err());
+    assert!(pd::bridge::experiment_mean_source(&bounded).is_err());
 }
 
 fn harm_cap(cap: f64) -> HardConstraint {
@@ -441,7 +445,7 @@ fn chain_law(
                 .collect(),
         );
     let chain = compile_propagation_chain(draft, ctx).unwrap().execute(ctx).unwrap();
-    pd::chain_joint_law(&chain).unwrap()
+    pd::bridge::chain_joint_law(&chain).unwrap()
 }
 
 #[test]
@@ -457,10 +461,10 @@ fn separately_fitted_outcomes_meet_through_a_declared_dependence() {
     ];
 
     // The two analyses' draws are separate laws: their rows are never paired.
-    let refused = pd::joint_law_of(&[&law_of(&benefit), &law_of(&harm)]).unwrap_err();
+    let refused = pd::bridge::joint_law_of(&[&law_of(&benefit), &law_of(&harm)]).unwrap_err();
     assert_eq!(refused.code, "joint_law_required");
     assert!(refused.detail.ends_with("alignment_mismatch"), "{}", refused.detail);
-    let one = pd::joint_law_of(&[&law_of(&benefit)]).unwrap();
+    let one = pd::bridge::joint_law_of(&[&law_of(&benefit)]).unwrap();
     assert_eq!(one, law_of(&benefit));
 
     let law = chain_law(&benefit, &harm, &ctx);
@@ -486,7 +490,7 @@ fn separately_fitted_outcomes_meet_through_a_declared_dependence() {
     let cap = mean(&harm_high);
     let charged =
         contract(kinked(cap, (0.2 * ratio, 0.8 * ratio)), actions.clone(), vec![], "patients", 0);
-    let decided = pd::decide(&charged, &source, None, options()).unwrap();
+    let decided = kernels::decide(&charged, &source, None, options()).unwrap();
     let high = &decided.exact().unwrap().actions[0];
     let expected_excess = mean(&harm_high.iter().map(|h| (h - cap).max(0.0)).collect::<Vec<_>>());
     assert!(expected_excess > 1e-6, "{expected_excess}");
@@ -500,7 +504,7 @@ fn separately_fitted_outcomes_meet_through_a_declared_dependence() {
         "patients",
         0,
     );
-    let decided = pd::decide(&capped, &source, None, options()).unwrap();
+    let decided = kernels::decide(&capped, &source, None, options()).unwrap();
     let exact = decided.exact().unwrap();
     assert!(!exact.actions[0].admissible);
     assert_eq!(exact.verdict, PreferenceVerdict::NecessarilyBest("low".into()));
@@ -584,7 +588,7 @@ fn a_predictive_chain_answers_outcome_inputs() {
             .collect(),
     );
     let chain = compile_propagation_chain(draft, &ctx).unwrap().execute(&ctx).unwrap();
-    let law = pd::chain_joint_law(&chain).unwrap();
+    let law = pd::bridge::chain_joint_law(&chain).unwrap();
     let source = NativeDecisionSource::JointLaw(Box::new(law.clone()));
     let actions = vec![
         action("high", &outputs[0].3, &outputs[1].3),

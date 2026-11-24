@@ -19,10 +19,9 @@ use std::sync::Arc;
 use antecedent::analysis::DecisionCompileRequest;
 use antecedent::analysis::native_claims::NativeResponseClaim;
 use antecedent::analysis::preference_decision::{
-    self as pd, AcceptedPreferences, ActionInput, ActionKind, Attribute, DecisionCriterion,
-    PreferenceAction, PreferenceContract, PreferenceContractParts, PreferenceEvaluationOptions,
-    PreferenceExpr, PreferenceParameter, PreferencePolicy, PreferenceSet, StructuralPolicy,
-    ValueModel, shape,
+    AcceptedPreferences, ActionInput, ActionKind, Attribute, DecisionCriterion, PreferenceAction,
+    PreferenceContract, PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr,
+    PreferenceParameter, PreferencePolicy, PreferenceSet, StructuralPolicy, ValueModel, shape,
 };
 use antecedent::planner::lowered::CarrierDemand;
 use antecedent::{BayesianConfig, Dag, InferenceMode, RefuteSuite, Study};
@@ -35,6 +34,10 @@ use antecedent_data::{TableView, TabularData};
 use antecedent_design::{AffineUtility, DecisionProblem};
 use antecedent_graph::DenseNodeId;
 use serde_json::json;
+
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
 
 fn wobble(i: u32, rate: f64) -> f64 {
     (f64::from(i) * rate).sin()
@@ -253,7 +256,7 @@ fn the_plan_states_a_preference_decisions_quantities_source_and_trade_offs() {
     let claim =
         NativeResponseClaim::from_response(result.response().unwrap(), data.schema(), &context)
             .unwrap();
-    let by_hand = pd::decide_claim(
+    let by_hand = kernels::decide_claim(
         &contract(priced(0.2, 1.0)),
         &claim,
         None,

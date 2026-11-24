@@ -49,6 +49,10 @@ use antecedent_discovery::{GraphPosterior, GraphPosteriorAtomKind, SamplingSumma
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_prob::InferenceDiagnostics;
 
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
+
 const T: u32 = 0;
 const Y: u32 = 1;
 const Z: u32 = 2;
@@ -218,7 +222,7 @@ fn atom_answers(
         .map(|response| {
             let claim =
                 NativeResponseClaim::from_response(response, data.schema(), &context).unwrap();
-            pd::decide_claim(contract, &claim, None, options()).unwrap().evaluation
+            kernels::decide_claim(contract, &claim, None, options()).unwrap().evaluation
         })
         .collect()
 }
@@ -333,7 +337,7 @@ fn admg_body() {
         StructuralPolicy::RequireInvariantBestAction,
     )
     .unwrap();
-    let by_hand = pd::decide_across_structures(&invariant, &claims, None, options()).unwrap();
+    let by_hand = kernels::decide_across_structures(&invariant, &claims, None, options()).unwrap();
     assert_eq!(executed.evaluation.structures(), Some(&by_hand));
 
     // Each acyclic atom answers as its mixed graph compiled on its own.
@@ -419,7 +423,7 @@ fn class_body() {
         StructuralPolicy::RequireInvariantBestAction,
     )
     .unwrap();
-    let by_hand = pd::decide_across_structures(&invariant, &claims, None, options()).unwrap();
+    let by_hand = kernels::decide_across_structures(&invariant, &claims, None, options()).unwrap();
     assert_eq!(executed.evaluation.structures(), Some(&by_hand));
 
     // Each completion answers as that DAG compiled on its own.

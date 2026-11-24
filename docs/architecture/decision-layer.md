@@ -224,7 +224,7 @@ and [weigh the members of an equivalence class](../preference-decisions.md#weigh
 | Standing, refusals, artifacts | `decision_standing`, `preference_refusal`, `decision_artifact`, `preference_decision_artifact` | `DecisionResult`, `Standing`, `CompiledReceipt` in `_decision_result.py`; `DecisionRefusal`, `PreferenceRefusal`, `replay` in `decision.py` |
 | Compiled route | `antecedent::analysis::execute::compile_preference{,/bind,/atoms,/structures,/outcomes,/joint,/evidence,/design,/facts}`; `antecedent::analysis::preference_decision` | `Contract.compile`, `CompiledDecision` in `_decision_compile.py`; sources in `_decision_sources.py`; `UnitKey` in `_row_evidence.py` |
 | Learning | `antecedent_design::{choice_record, preference_set_learning, preference_choice_model, accepted_preferences}`; `antecedent_stats::{linear_program, glm::conditional_logit, glm::nonlinear_conditional_logit}` | `antecedent.decision_learning` |
-| Supporting kernels | `antecedent_stats::binomial_interval`, `antecedent_graph::{mec_uniform, pag_uniform}`, `antecedent_estimate::joint_design::unit_bootstrap`, `antecedent_data` row origin | |
+| Supporting kernels | `antecedent_stats::binomial_interval`, `antecedent_graph::{mec_uniform, pag_uniform}`, `antecedent_estimate::joint_design::unit_bootstrap`, row provenance beside the table (`compile_preference/evidence.rs`) | |
 
 Rust compiled entry points: `Study::compile_for_preference_decision`,
 `Study::compile_for_contract_decision` (and the same on `PreparedStudy`),
@@ -232,6 +232,13 @@ Rust compiled entry points: `Study::compile_for_preference_decision`,
 `compile_preference_decision_with_shared_evidence`, the `_across_prepared_studies` forms,
 `PreparedNativeJointDesign::compile_for_preference_decision` and `::compile_for_contract_decision`,
 returning `CompiledDecision` (`CompiledPreferenceDecision`).
+
+These are the only public Rust ways to decide. The functions that decide on a source a caller
+already holds (a mean source, an aligned joint law, adapted structures, a sampled class) and the
+source builders that join several outcomes are crate-internal to `antecedent`: they are the
+lower layer the compiled route calls, not a second way in. The design crate's kernels
+(`decide_preferences*`, `learn_compatible_set*`, `estimate_choice_model*`, `estimate_accepted*`)
+stay kernel API and are not re-exported by the facade.
 
 ## Invariants
 

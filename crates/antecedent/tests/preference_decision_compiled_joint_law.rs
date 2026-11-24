@@ -23,7 +23,7 @@ use std::sync::Arc;
 
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
-    self as pd, AcceptedPreferences, ActionInput, ActionKind, Attribute, CrossStudyCovariance,
+    AcceptedPreferences, ActionInput, ActionKind, Attribute, CrossStudyCovariance,
     DecisionCriterion, OutcomeDependence, PreferenceAction, PreferenceContract,
     PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter,
     PreferencePolicy, PreferenceSet, SharedEvidence, StructuralPolicy, ValueModel,
@@ -42,6 +42,10 @@ use antecedent_core::{
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_io::distribution_artifact::DistributionArtifact;
+
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
 
 fn close(actual: f64, expected: f64, tolerance: f64) {
     assert!(
@@ -255,7 +259,8 @@ fn the_chain_that_joins_separate_studies_is_declared_and_checked_at_compile() {
         close(mean(&column(law, j)), mean(&column(own, j % 2)), 1e-9);
     }
     let by_hand =
-        pd::decide(&contract(1.2), executed.source.as_ref().unwrap(), None, options()).unwrap();
+        kernels::decide(&contract(1.2), executed.source.as_ref().unwrap(), None, options())
+            .unwrap();
     assert_eq!(executed.evaluation.single(), Some(&by_hand));
 
     // Refused at compile: no declared dependence, and a study whose law is not a posterior.
@@ -404,6 +409,7 @@ fn studies_that_share_observations_need_a_declared_cross_study_covariance() {
         close(covariance(&column(law, p), &column(law, q)), block[index], 1e-6);
     }
     let by_hand =
-        pd::decide(&contract(1.2), executed.source.as_ref().unwrap(), None, options()).unwrap();
+        kernels::decide(&contract(1.2), executed.source.as_ref().unwrap(), None, options())
+            .unwrap();
     assert_eq!(executed.evaluation.single(), Some(&by_hand));
 }

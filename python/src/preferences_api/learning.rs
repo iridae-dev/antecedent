@@ -13,9 +13,13 @@ use antecedent::analysis::preference_decision::{
     ChoiceModelOptions, ChoiceModelResult, ChoiceOption, ChoiceRecord, ChoiceRecordSet,
     ConflictKind, CovarianceKind, EstimateOutcome, LearnedPreferenceSet, LearningOptions,
     OptionBelief, PendingReview, Pooling, PreferenceBasis, SetLearningOptions, SetLearningResult,
-    SetOutcome, analysis_options, estimate_accepted_with_context,
-    estimate_choice_model_with_context, learn_compatible_set_accepted_with_context,
-    learn_compatible_set_with_context,
+    SetOutcome, analysis_options,
+};
+// The learning kernels are not API; the bridge reaches them through the hidden seam until each
+// native learns through a compiled family.
+use antecedent::analysis::preference_decision::bridge::{
+    estimate_accepted_with_context, estimate_choice_model_with_context,
+    learn_compatible_set_accepted_with_context, learn_compatible_set_with_context,
 };
 use antecedent::contract::ExternalRefusal;
 use pyo3::prelude::*;

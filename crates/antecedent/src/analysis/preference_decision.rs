@@ -12,39 +12,28 @@
 //! the same on [`crate::PreparedStudy`]) binds the contract to the study's query, lowers the
 //! decision's quantities and carrier into the study's plan, checks identification under every
 //! structure the study carries and refuses what cannot be answered before anything is fitted;
-//! [`CompiledPreferenceDecision::execute`] runs the plan once and calls the functions below.
+//! [`CompiledPreferenceDecision::execute`] runs the plan once.
 //! [`compile_preference_decision_across_studies`] and
 //! [`crate::analysis::joint_panel::designs::PreparedNativeJointDesign::compile_for_preference_decision`]
-//! compile several outcomes. The functions below are the lower layer that route calls; they
-//! read sources a caller already holds.
+//! compile several outcomes. The direct functions that decide on a source a caller already
+//! holds are crate-internal: they are the lower layer that route calls, not a second way in.
 //!
-//! This module connects that capability to the analysis surface and owns no scientific rule
-//! of its own:
+//! What this module makes public owns no scientific rule of its own:
 //!
-//! * [`decide`] reads a [`NativeDecisionSource`] (the mean source or aligned joint law a
-//!   native response claim hands a decision); [`decide_claim`] first asks the claim for the
-//!   representation [`source_requirement`] names, through the claim's own conversion;
-//! * [`structure_claims`] reads the structures a study run over a graph posterior or a class
-//!   of graphs examined ([`StructuralResponseMixture`]: weights and identification per
-//!   structure), with each identified structure's own response, as structural atoms, keeping
-//!   unidentified and unevaluated mass, and [`decide_across_structures`] decides across those
-//!   structures and the preference set together; when some equivalence class was sampled
-//!   under a declared uniform measure rather than enumerated, [`decide_on_sampled_structures`]
-//!   reports what a sample supports (a Monte Carlo verdict on the sampled measure, or each
-//!   sampled member's own verdict) and never a verdict over every member;
-//! * [`analysis_options`] and [`analysis_belief_source`] state what was expected of the
-//!   options of a recorded choice from an analysis result, so the compatible-set learner and
-//!   the noisy-choice estimate learn from analysis-backed records;
-//! * several estimated outcomes reach one source through routes that already put them
-//!   together: [`experiment_mean_source`] reads the arm means of a several-outcome experiment
-//!   ([`JointExperimentEvidence`]); [`chain_joint_law`] reads the aligned joint output law a
-//!   propagation chain builds from separately fitted results under a declared dependence; and
-//!   [`joint_law_of`] places laws side by side only when the joint-law rule says their rows
-//!   pair, so separately produced draws refuse with that rule's own refusal;
-//! * [`decide_accepted`] decides with reviewed, versioned [`AcceptedPreferences`];
-//! * [`export_accepted`], [`consume_accepted`], [`record_decision`], [`export_decision`] and
-//!   [`consume_decision`] move the two durable records through the checksummed container,
-//!   recomputing on consumption.
+//! * the declarations (value model, preference set, contract, measure, options), the result
+//!   and refusal types, and the compiled entries above;
+//! * [`source_requirement`], the representation a contract needs from an analysis;
+//! * [`structure_claims`], which reads the structures a study run over a graph posterior or a
+//!   class of graphs examined ([`StructuralResponseMixture`]) as structural atoms, keeping
+//!   unidentified and unevaluated mass;
+//! * [`analysis_options`] and [`analysis_belief_source`], which state what was expected of the
+//!   options of a recorded choice from an analysis result, so the learners read
+//!   analysis-backed records;
+//! * [`experiment_arm_quantity`], the coordinate of one outcome's arm mean in a
+//!   several-outcome experiment;
+//! * [`export_accepted`], [`consume_accepted`], [`export_decision`] and [`consume_decision`],
+//!   which move the two durable records through the checksummed container, recomputing on
+//!   consumption.
 //!
 //! A result over a declared or learned preference set is an assumption range, never a
 //! probability, unless a measure over the set was supplied or estimated. Every refusal is the
@@ -82,17 +71,21 @@ use antecedent_design::decision_structural::AtomEvidence;
 use antecedent_design::preference_decision::{
     SampledClass, SampledStructure, part_expectations, sampled_margins,
 };
+use antecedent_design::preference_evaluation::{
+    decide_preferences_on_means_with_context, decide_preferences_structural_with_context,
+    decide_preferences_with_context,
+};
 use antecedent_io::IoError;
 use antecedent_io::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
     DistributionProvenance, DistributionTrust, DrawAlignment,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
+use antecedent_stats::binomial_interval::{clopper_pearson, clopper_pearson_upper};
 
 pub use antecedent_design::accepted_preferences::{
     AcceptedPreferences, AcceptedPreferencesError, LearningOptions, PendingReview, PreferenceBasis,
-    PreferenceContractParts, estimate_accepted, estimate_accepted_with_context,
-    learn_compatible_set_accepted, learn_compatible_set_accepted_with_context,
+    PreferenceContractParts,
 };
 pub use antecedent_design::choice_record::{
     BeliefSource, ChoiceFeatures, ChoiceOption, ChoiceRecord, ChoiceRecordError, ChoiceRecordSet,
@@ -116,8 +109,7 @@ pub use antecedent_design::preference_choice_model::{
     ASSUMPTION_LOGIT_CHOICE, CALIBRATION_ESTIMATOR, CALIBRATION_INTERVAL_METHOD, CALIBRATION_QUERY,
     CALIBRATION_SHAPE_ESTIMATOR, CALIBRATION_SHAPE_INTERVAL_METHOD, ChoiceModelError,
     ChoiceModelEstimate, ChoiceModelOptions, ChoiceModelResult, CovarianceKind, EstimateOutcome,
-    ParameterEstimate, ParameterIntervalMethod, calibration_basis, estimate_choice_model,
-    estimate_choice_model_with_context, shape_calibration_basis,
+    ParameterEstimate, ParameterIntervalMethod, calibration_basis, shape_calibration_basis,
 };
 pub use antecedent_design::preference_contract::{
     ActionInput, PreferenceAction, PreferenceContract, PreferenceContractError, PreferencePolicy,
@@ -133,10 +125,7 @@ pub use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationError, PreferenceEvaluationOptions, PreferenceRoute,
     ROUTE_AFFINE_EXPECTATION, ROUTE_CRITERION_NOT_AFFINE, ROUTE_PART_NOT_LOWERABLE,
     ROUTE_SHAPE_PARAMETERS, ROUTE_VALUE_RELATIONS, ROUTE_WORST_CASE_OF_EXPECTED_REGRET,
-    RouteChoice, StructuralPreferenceEvaluation, decide_preferences, decide_preferences_on_means,
-    decide_preferences_on_means_with_context, decide_preferences_structural,
-    decide_preferences_structural_with_context, decide_preferences_with_context,
-    decide_with_accepted, decide_with_accepted_with_context, preference_route,
+    RouteChoice, StructuralPreferenceEvaluation, preference_route,
 };
 pub use antecedent_design::preference_model::{
     Attribute, BeliefRows, Curve, LinearForm, LinearRelation, MAX_PREFERENCE_DEPTH, PreferenceExpr,
@@ -147,13 +136,9 @@ pub use antecedent_design::preference_set_learning::{
     ASSUMPTION_CHOICES_OPTIMAL, BindingChoice, CellStatus, ChoiceConflict, ConflictKind,
     DEFAULT_MAX_SHAPE_BOXES, DEFAULT_MIN_SHAPE_WIDTH_FRACTION, DeciderOverlap, DeciderSet,
     LearnedPreferenceSet, LearnedRegion, ParameterRange, RangeBasis, RegionCell, SetLearningError,
-    SetLearningOptions, SetLearningResult, SetOutcome, UndeterminedSet, learn_compatible_set,
-    learn_compatible_set_with_context,
+    SetLearningOptions, SetLearningResult, SetOutcome, UndeterminedSet,
 };
 pub use antecedent_stats::ShapeSearchOptions;
-/// Exact Clopper–Pearson intervals of a binomial proportion, used for the sampled mass of an
-/// equivalence class.
-pub use antecedent_stats::binomial_interval::{clopper_pearson, clopper_pearson_upper};
 
 pub use super::execute::{
     BoundPreferenceContract, CompiledDecision, CompiledPreferenceDecision,
@@ -181,16 +166,6 @@ use crate::result::{StructuralResponseMixture, StructuralWeightBasis};
 pub const GRAPH_ATOM_PREFIX: &str = "graph:";
 
 const BELIEF_DOMAIN: &str = "antecedent.preference_decision.analysis_belief.v1";
-
-/// A decision across a preference set together with the analysis input it read.
-#[derive(Clone, Debug, PartialEq)]
-pub struct AnalysisPreferenceDecision {
-    /// What the analysis handed the decision: the mean source or aligned joint law, with its
-    /// coordinates, support, trust, calibration and program identity.
-    pub input: NativeDecisionInput,
-    /// The verdict across the preference set, from whichever route answered.
-    pub evaluation: PreferenceEvaluation,
-}
 
 /// The representation an analysis must supply for `contract`.
 ///
@@ -232,135 +207,31 @@ fn joint_draws() -> SourceRequirement {
     }
 }
 
-/// Decide `contract` across its preference set on what an analysis supplied.
-///
-/// A mean source is answered by [`decide_preferences_on_means`] (exact route only); an
-/// aligned joint law by [`decide_preferences`] (either route).
+/// Decide `contract` across its preference set on what an analysis supplied, under an
+/// execution context whose cancellation token the answering route reads at its work
+/// boundaries. A mean source is answered by the exact route only; an aligned joint law by
+/// either route.
 ///
 /// # Errors
 /// An invalid contract or measure, a contract that needs joint draws from a mean source
-/// (`joint_law_required`), and every refusal of the route that answered.
-pub fn decide(
-    contract: &PreferenceContract,
-    source: &NativeDecisionSource,
-    measure: Option<&PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
-    decide_in(contract, source, measure, options, None)
-}
-
-/// [`decide`] under an execution context: the answering route reads the context's
-/// cancellation token at its work boundaries.
-///
-/// # Errors
-/// As [`decide`]; a cancelled run is the answering route's cancellation refusal.
-pub fn decide_with_context(
+/// (`joint_law_required`), every refusal of the route that answered, and its cancellation
+/// refusal.
+pub(crate) fn decide_with_context(
     contract: &PreferenceContract,
     source: &NativeDecisionSource,
     measure: Option<&PreferenceMeasure>,
     options: PreferenceEvaluationOptions,
     ctx: &ExecutionContext,
 ) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
-    decide_in(contract, source, measure, options, Some(ctx))
-}
-
-fn decide_in(
-    contract: &PreferenceContract,
-    source: &NativeDecisionSource,
-    measure: Option<&PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-    ctx: Option<&ExecutionContext>,
-) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
-    match (source, ctx) {
-        (NativeDecisionSource::Mean(means), None) => {
-            decide_preferences_on_means(contract, means, measure, options)
-        }
-        (NativeDecisionSource::Mean(means), Some(ctx)) => {
+    match source {
+        NativeDecisionSource::Mean(means) => {
             decide_preferences_on_means_with_context(contract, means, measure, options, ctx)
         }
-        (NativeDecisionSource::JointLaw(law), None) => {
-            decide_preferences(contract, law, measure, options)
-        }
-        (NativeDecisionSource::JointLaw(law), Some(ctx)) => {
+        NativeDecisionSource::JointLaw(law) => {
             decide_preferences_with_context(contract, law, measure, options, ctx)
         }
     }
     .map_err(|e| e.to_refusal())
-}
-
-/// Decide `contract` from a native response claim: the claim supplies the representation
-/// [`source_requirement`] names (through [`NativeResponseClaim::decision_source`], which
-/// withholds unsupported coordinates), and [`decide`] answers on it.
-///
-/// # Errors
-/// The refusals of [`source_requirement`], of the claim's conversion (no representation that
-/// satisfies the requirement, no supported coordinate, invalid retained draws) and of
-/// [`decide`].
-pub fn decide_claim(
-    contract: &PreferenceContract,
-    claim: &NativeResponseClaim,
-    measure: Option<&PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-) -> Result<AnalysisPreferenceDecision, DecisionFacadeRefusal> {
-    decide_claim_in(contract, claim, measure, options, None)
-}
-
-/// [`decide_claim`] under an execution context, as [`decide_with_context`].
-///
-/// # Errors
-/// As [`decide_claim`]; a cancelled run is the answering route's cancellation refusal.
-pub fn decide_claim_with_context(
-    contract: &PreferenceContract,
-    claim: &NativeResponseClaim,
-    measure: Option<&PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-    ctx: &ExecutionContext,
-) -> Result<AnalysisPreferenceDecision, DecisionFacadeRefusal> {
-    decide_claim_in(contract, claim, measure, options, Some(ctx))
-}
-
-fn decide_claim_in(
-    contract: &PreferenceContract,
-    claim: &NativeResponseClaim,
-    measure: Option<&PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-    ctx: Option<&ExecutionContext>,
-) -> Result<AnalysisPreferenceDecision, DecisionFacadeRefusal> {
-    let requirement = source_requirement(contract)?;
-    let input = claim.decision_source(&requirement)?;
-    let evaluation = decide_in(contract, &input.source, measure, options, ctx)?;
-    Ok(AnalysisPreferenceDecision { input, evaluation })
-}
-
-/// Decide with accepted preferences on what an analysis supplied: the contract is built over
-/// the accepted model ([`AcceptedPreferences::contract`]) and the accepted measure (an
-/// estimate's) is passed when there is one.
-///
-/// # Errors
-/// As [`decide`].
-pub fn decide_accepted(
-    accepted: &AcceptedPreferences,
-    parts: PreferenceContractParts,
-    source: &NativeDecisionSource,
-    options: PreferenceEvaluationOptions,
-) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
-    let contract = accepted.contract(parts);
-    decide(&contract, source, accepted.measure(), options)
-}
-
-/// [`decide_accepted`] under an execution context, as [`decide_with_context`].
-///
-/// # Errors
-/// As [`decide_accepted`]; a cancelled run is the answering route's cancellation refusal.
-pub fn decide_accepted_with_context(
-    accepted: &AcceptedPreferences,
-    parts: PreferenceContractParts,
-    source: &NativeDecisionSource,
-    options: PreferenceEvaluationOptions,
-    ctx: &ExecutionContext,
-) -> Result<PreferenceEvaluation, DecisionFacadeRefusal> {
-    let contract = accepted.contract(parts);
-    decide_with_context(&contract, source, accepted.measure(), options, ctx)
 }
 
 /// Read the structures a study run over a graph posterior or a class of graphs examined as
@@ -390,7 +261,8 @@ pub fn decide_accepted_with_context(
 /// claims without weights ([`adapt_graph_dependent_claims`]). Weights of sampled class members
 /// ([`StructuralWeightBasis::SampledClassMeasure`]) are a Monte Carlo estimate of a declared
 /// measure, from which no verdict over every member follows: they are read only under
-/// `ReportOnly` here, and decided by [`decide_on_sampled_structures`].
+/// `ReportOnly` here, and decided by a compiled decision over the sampled class, which states
+/// what the sample supports.
 ///
 /// # Errors
 /// A `per_structure` key that is repeated or names no identified structure of the mixture
@@ -416,11 +288,12 @@ pub fn structure_claims(
             antecedent_core::reason_details::preference_compile::SAMPLED_MIXTURE_NOT_EXACT,
         )
         .with_offending(format!("structural policy {policy:?}"))
-        .with_expected("ReportOnly, or decide_on_sampled_structures")
+        .with_expected("ReportOnly, or a compiled decision over the sampled class")
         .with_supplied("a mixture whose class members were sampled, not enumerated")
         .with_remedy(
-            "decide a sampled mixture with decide_on_sampled_structures, which states what the \
-             sample supports, or raise the class's exact limit so every member is enumerated",
+            "decide a sampled mixture through a compiled decision (Study::\
+             compile_for_preference_decision), which states what the sample supports, or raise \
+             the class's exact limit so every member is enumerated",
         ));
     }
     claims_of_structures(mixture, per_structure, (schema, context), policy)
@@ -510,32 +383,15 @@ fn claims_of_structures(
     .map_err(|e| e.to_refusal())
 }
 
-/// Decide `contract` across the adapted structures and its preference set together.
+/// Decide `contract` across the adapted structures and its preference set together, under an
+/// execution context whose cancellation token the answering route reads at its work
+/// boundaries.
 ///
 /// # Errors
 /// Claims adapted under a structural policy other than the contract's
-/// (`decision_adapters.policy_mismatch`), and every refusal of
-/// [`decide_preferences_structural`].
-pub fn decide_across_structures(
-    contract: &PreferenceContract,
-    claims: &AdaptedClaims,
-    measure: Option<&PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-) -> Result<StructuralPreferenceEvaluation, DecisionFacadeRefusal> {
-    if claims.policy != contract.structural_policy {
-        return Err(AdapterError::PolicyMismatch.to_refusal());
-    }
-    decide_preferences_structural(contract, &claims.atoms, measure, options)
-        .map_err(|e| e.to_refusal())
-}
-
-/// [`decide_across_structures`] under an execution context: the answering route reads the
-/// context's cancellation token at its work boundaries.
-///
-/// # Errors
-/// As [`decide_across_structures`]; a cancelled run is the answering route's cancellation
-/// refusal.
-pub fn decide_across_structures_with_context(
+/// (`decision_adapters.policy_mismatch`), every refusal of the structural route, and its
+/// cancellation refusal.
+pub(crate) fn decide_across_structures_with_context(
     contract: &PreferenceContract,
     claims: &AdaptedClaims,
     measure: Option<&PreferenceMeasure>,
@@ -1103,7 +959,7 @@ fn margins_on_sampled_structures(
 ///
 /// # Errors
 /// Every refusal of [`structure_claims`] and [`decide_across_structures_with_context`].
-pub fn decide_on_sampled_structures(
+pub(crate) fn decide_on_sampled_structures(
     contract: &PreferenceContract,
     (mixture, members): (&StructuralResponseMixture, &[Option<ClassMember>]),
     (schema, context): (&CausalSchema, &NativeResponseContext),
@@ -1350,35 +1206,6 @@ pub fn consume_accepted(
     Ok(artifact.accepted().clone())
 }
 
-/// Decide `contract` on an aligned joint law and bind the result into a durable record.
-///
-/// # Errors
-/// An invalid contract and every refusal of [`decide_preferences`].
-pub fn record_decision(
-    contract: PreferenceContract,
-    source: &DistributionArtifact,
-    measure: Option<PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-) -> Result<PreferenceDecisionArtifact, DecisionFacadeRefusal> {
-    PreferenceDecisionArtifact::evaluate(contract, source, measure, options)
-        .map_err(|e| e.to_refusal())
-}
-
-/// [`record_decision`] under an execution context, as [`decide_with_context`].
-///
-/// # Errors
-/// As [`record_decision`]; a cancelled run is the answering route's cancellation refusal.
-pub fn record_decision_with_context(
-    contract: PreferenceContract,
-    source: &DistributionArtifact,
-    measure: Option<PreferenceMeasure>,
-    options: PreferenceEvaluationOptions,
-    ctx: &ExecutionContext,
-) -> Result<PreferenceDecisionArtifact, DecisionFacadeRefusal> {
-    PreferenceDecisionArtifact::evaluate_with_context(contract, source, measure, options, ctx)
-        .map_err(|e| e.to_refusal())
-}
-
 /// Serialize a decision across a preference set through the checksummed container.
 ///
 /// # Errors
@@ -1464,7 +1291,7 @@ pub fn experiment_arm_quantity(
 /// # Errors
 /// Evidence whose exposure is not declared free of between-unit interference: under bounded or
 /// unspecified spillover the arm means are assumption ranges, not means.
-pub fn experiment_mean_source(
+pub(crate) fn experiment_mean_source(
     evidence: &JointExperimentEvidence,
 ) -> Result<MeanSource, DecisionFacadeRefusal> {
     if !matches!(evidence.exposure, Exposure::NoBetweenUnitInterference { .. }) {
@@ -1507,7 +1334,7 @@ pub fn experiment_mean_source(
 /// A chain without a retained joint output law (a point or spread reading, a withdrawn source):
 /// `joint_law_required`; a chain read as neither a posterior nor a predictive law; an invalid
 /// output coordinate.
-pub fn chain_joint_law(
+pub(crate) fn chain_joint_law(
     chain: &PropagationChain,
 ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
     let unpaired = || {
@@ -1589,7 +1416,7 @@ pub fn chain_joint_law(
 /// # Errors
 /// No laws; the rule's refusal; laws that share an alignment identity but differ in meaning,
 /// weights or calibration.
-pub fn joint_law_of(
+pub(crate) fn joint_law_of(
     laws: &[&DistributionArtifact],
 ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
     match laws {
@@ -1676,4 +1503,85 @@ pub fn joint_law_of(
         rows,
     )
     .map_err(|_| invalid("the paired columns form a distribution artifact"))
+}
+
+/// Not API: the Python bridge's access to the trade-off kernels and source builders until
+/// each of its natives decides or learns through a compiled family.
+///
+/// Nothing but `python/src` and this crate's tests of the source builders may use these items.
+/// They are hidden, carry no semver promise and are removed when the compiled supplied-evidence
+/// and learning families replace them.
+#[doc(hidden)]
+pub mod bridge {
+    use antecedent_core::ExecutionContext;
+    use antecedent_design::decision_adapters::AdaptedClaims;
+    use antecedent_design::decision_eval::MeanSource;
+    use antecedent_design::decision_evidence::JointExperimentEvidence;
+    use antecedent_io::distribution_artifact::DistributionArtifact;
+
+    use super::{
+        DecisionFacadeRefusal, PreferenceContract, PreferenceEvaluationOptions, PreferenceMeasure,
+        PropagationChain, StructuralPreferenceEvaluation,
+    };
+
+    #[doc(hidden)]
+    pub use antecedent_design::accepted_preferences::{
+        estimate_accepted_with_context, learn_compatible_set_accepted_with_context,
+    };
+    #[doc(hidden)]
+    pub use antecedent_design::preference_choice_model::estimate_choice_model_with_context;
+    #[doc(hidden)]
+    pub use antecedent_design::preference_evaluation::{
+        decide_preferences_on_means_with_context, decide_preferences_with_context,
+    };
+    #[doc(hidden)]
+    pub use antecedent_design::preference_set_learning::learn_compatible_set_with_context;
+
+    /// Not API; see the module.
+    ///
+    /// # Errors
+    /// As the crate-internal function it forwards to.
+    #[doc(hidden)]
+    pub fn decide_across_structures_with_context(
+        contract: &PreferenceContract,
+        claims: &AdaptedClaims,
+        measure: Option<&PreferenceMeasure>,
+        options: PreferenceEvaluationOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<StructuralPreferenceEvaluation, DecisionFacadeRefusal> {
+        super::decide_across_structures_with_context(contract, claims, measure, options, ctx)
+    }
+
+    /// Not API; see the module.
+    ///
+    /// # Errors
+    /// As the crate-internal function it forwards to.
+    #[doc(hidden)]
+    pub fn experiment_mean_source(
+        evidence: &JointExperimentEvidence,
+    ) -> Result<MeanSource, DecisionFacadeRefusal> {
+        super::experiment_mean_source(evidence)
+    }
+
+    /// Not API; see the module.
+    ///
+    /// # Errors
+    /// As the crate-internal function it forwards to.
+    #[doc(hidden)]
+    pub fn chain_joint_law(
+        chain: &PropagationChain,
+    ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
+        super::chain_joint_law(chain)
+    }
+
+    /// Not API; see the module.
+    ///
+    /// # Errors
+    /// As the crate-internal function it forwards to.
+    #[doc(hidden)]
+    pub fn joint_law_of(
+        laws: &[&DistributionArtifact],
+    ) -> Result<DistributionArtifact, DecisionFacadeRefusal> {
+        super::joint_law_of(laws)
+    }
 }

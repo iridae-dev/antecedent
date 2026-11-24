@@ -30,11 +30,10 @@
 use antecedent::analysis::joint_panel::designs::PreparedNativeJointDesign;
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::{
-    self as pd, AcceptedPreferences, ActionInput, ActionKind, Attribute,
-    CompiledPreferenceDecision, DecisionCriterion, DesignBootstrap, HardConstraint,
-    PreferenceAction, PreferenceContract, PreferenceContractParts, PreferenceEvaluationOptions,
-    PreferenceExpr, PreferenceParameter, PreferencePolicy, PreferenceSet, PreferenceVerdict,
-    StructuralPolicy, ValueModel, shape,
+    AcceptedPreferences, ActionInput, ActionKind, Attribute, CompiledPreferenceDecision,
+    DecisionCriterion, DesignBootstrap, HardConstraint, PreferenceAction, PreferenceContract,
+    PreferenceContractParts, PreferenceEvaluationOptions, PreferenceExpr, PreferenceParameter,
+    PreferencePolicy, PreferenceSet, PreferenceVerdict, StructuralPolicy, ValueModel, shape,
 };
 use antecedent::design::decision_contract::{SourceRepresentation, UtilityExpr};
 use antecedent::planner::lowered::CarrierDemand;
@@ -50,6 +49,10 @@ use antecedent_estimate::joint_design::experiment::{
     ExperimentExposure, ExperimentalDesign, JointExperimentalRecipe,
 };
 use antecedent_estimate::joint_design::static_regime::JointStaticRegimeRecipe;
+
+#[allow(dead_code, reason = "each test file uses only some of the hand computations")]
+#[path = "common/preference_kernels.rs"]
+mod kernels;
 
 const CLUSTERS: usize = 20;
 const SIZE: usize = 10;
@@ -444,7 +447,7 @@ fn a_cluster_randomized_design_answers_by_its_arm_means() {
     let compiled = design.compile_for_preference_decision(&decided, None, &ctx).unwrap();
     let executed = compiled.execute(None, options(), &ctx).unwrap();
     let source = executed.source.as_ref().unwrap();
-    let by_hand = pd::decide(&decided, source, None, options()).unwrap();
+    let by_hand = kernels::decide(&decided, source, None, options()).unwrap();
     assert_eq!(executed.evaluation.single(), Some(&by_hand));
 }
 

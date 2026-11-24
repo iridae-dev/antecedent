@@ -4160,28 +4160,10 @@ status = "bound"
 python = "native:python/src/preferences_api.rs"
 
 [[entry]]
-rust = "antecedent::analysis::preference_decision::decide_claim"
-kind = "fn"
-status = "unverified"
-reason = "Python decides on joint draws or a mean source through antecedent.decision.Contract.evaluate; whether it reads a native response claim directly has not been confirmed by reading the wrappers."
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide_accepted"
-kind = "fn"
-status = "unverified"
-reason = "Python builds a contract over accepted preferences in antecedent.decision_learning and decides through antecedent.decision.Contract.evaluate; the facade entry itself has not been confirmed in the wrappers."
-
-[[entry]]
 rust = "antecedent::analysis::preference_decision::structure_claims"
 kind = "fn"
 status = "unverified"
 reason = "Python passes structures through antecedent.decision.Structures; reading a study's structural response mixture has not been confirmed in the wrappers."
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide_across_structures"
-kind = "fn"
-status = "bound"
-python = "native:python/src/preferences_api.rs"
 
 [[entry]]
 rust = "antecedent::analysis::preference_decision::analysis_options"
@@ -4214,12 +4196,6 @@ status = "bound"
 python = "antecedent.decision_learning.load"
 
 [[entry]]
-rust = "antecedent::analysis::preference_decision::record_decision"
-kind = "fn"
-status = "bound"
-python = "antecedent._decision_tradeoff_results.TradeoffDecision.export"
-
-[[entry]]
 rust = "antecedent::analysis::preference_decision::export_decision"
 kind = "fn"
 status = "bound"
@@ -4236,42 +4212,6 @@ rust = "antecedent::analysis::preference_decision::experiment_arm_quantity"
 kind = "fn"
 status = "bound"
 python = "antecedent.decision.experiment_quantity"
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::experiment_mean_source"
-kind = "fn"
-status = "bound"
-python = "antecedent.decision.experiment_means"
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::chain_joint_law"
-kind = "fn"
-status = "bound"
-python = "antecedent.decision.chain_law"
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::joint_law_of"
-kind = "fn"
-status = "bound"
-python = "antecedent.decision.joint_law"
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide_across_structures_with_context"
-kind = "fn"
-status = "bound"
-python = "native:python/src/preferences_api.rs"
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide_with_context"
-kind = "fn"
-status = "bound"
-python = "antecedent.decision.Contract.evaluate"
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide"
-kind = "fn"
-status = "internal"
-reason = "The form of decide_with_context without an execution context; Python decides through antecedent.decision.Contract.evaluate, which calls decide_with_context under the execution's cancellation and memory bounds."
 
 [[entry]]
 rust = "antecedent::analysis::preference_decision::compile_contract_decision_across_prepared_studies"
@@ -4302,30 +4242,6 @@ rust = "antecedent::analysis::preference_decision::compile_preference_decision_w
 kind = "fn"
 status = "internal"
 reason = "Shared evidence over built Rust studies; Python declares it with antecedent.decision.Contract.compile(shared=...), which passes the blocks to compile_preference_decision_across_prepared_studies."
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide_claim_with_context"
-kind = "fn"
-status = "unverified"
-reason = "Python decides on joint draws or a mean source through antecedent.decision.Contract.evaluate; whether it reads a native response claim directly has not been confirmed by reading the wrappers."
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide_accepted_with_context"
-kind = "fn"
-status = "unverified"
-reason = "Python builds a contract over accepted preferences in antecedent.decision_learning and decides through antecedent.decision.Contract.evaluate; the facade entry itself has not been confirmed in the wrappers."
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::record_decision_with_context"
-kind = "fn"
-status = "bound"
-python = "antecedent._decision_tradeoff_results.TradeoffDecision.export"
-
-[[entry]]
-rust = "antecedent::analysis::preference_decision::decide_on_sampled_structures"
-kind = "fn"
-status = "internal"
-reason = "Executing a compiled decision whose class was sampled runs it; Python reaches it through Contract.compile(...).execute() on a study prepared with ClassPrior.uniform(...).sample(...)."
 
 [[entry]]
 rust = "antecedent::analysis::propagation_chain::deferred_family_table"
