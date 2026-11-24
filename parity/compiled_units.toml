@@ -149,6 +149,154 @@ unit = "joint_response.interval_readings"
 entry = { rust = "crates/antecedent/src/analysis/joint_panel/compiled.rs", python = "python/antecedent/joint_panel.py" }
 
 [[route]]
+lowering = "ExternalPriorComposition"
+unit_kind = "capability"
+unit = "prior.external_composition"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/prior_composition.rs", python = "python/antecedent/priors.py" }
+
+[[route]]
+lowering = "ExternalPriorTransport"
+unit_kind = "capability"
+unit = "prior.external_composition"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/prior_composition.rs", python = "python/antecedent/priors.py" }
+
+[[route]]
+lowering = "PowerPriorBetaSelection"
+unit_kind = "capability"
+unit = "association.conjugate_count_posterior"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/power_prior_selection.rs", python = "python/antecedent/priors.py" }
+
+[[route]]
+lowering = "PowerPriorGammaSelection"
+unit_kind = "capability"
+unit = "association.conjugate_count_posterior"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/power_prior_selection.rs", python = "python/antecedent/priors.py" }
+
+[[route]]
+lowering = "PowerPriorLinearSelection"
+unit_kind = "capability"
+unit = "prior.composed_named_coordinates"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/power_prior_selection.rs", python = "python/antecedent/priors.py" }
+
+[[route]]
+lowering = "ZTransportEstimate"
+unit_kind = "capability"
+unit = "transport.single_source_z_transport"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/z_transport.rs", python = "python/antecedent/transport/advanced.py" }
+[[route]]
+lowering = "SampledObservationRecovery"
+unit_kind = "capability"
+unit = "recovery.sampled_observation"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/sampled_recovery.rs", python = "python/antecedent/transport/_advanced_producers.py" }
+
+[[route]]
+lowering = "MeasuredSampledObservationRecovery"
+unit_kind = "capability"
+unit = "recovery.sampled_observation"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/sampled_recovery.rs", python = "python/antecedent/transport/_advanced_producers.py" }
+
+[[route]]
+lowering = "ChainObservationRecovery"
+unit_kind = "capability"
+unit = "recovery.chain_observation"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/chain_recovery.rs", python = "python/antecedent/recovery_chain.py" }
+
+[[route]]
+lowering = "ExposureMisclassificationCorrection"
+unit_kind = "capability"
+unit = "measurement.exposure_misclassification"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/exposure_measurement.rs", python = "python/antecedent/measurement_exposure.py" }
+
+[[route]]
+lowering = "SoftExposureCorrection"
+unit_kind = "capability"
+unit = "measurement.soft_exposure"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/exposure_measurement.rs", python = "python/antecedent/measurement_exposure.py" }
+
+[[route]]
+lowering = "DetectionDependentPrevalenceCorrection"
+unit_kind = "capability"
+unit = "measurement.detection_dependent_prevalence"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/exposure_measurement.rs", python = "python/antecedent/measurement_exposure.py" }
+
+[[route]]
+lowering = "RepeatCodingsLatentClass"
+unit_kind = "capability"
+unit = "measurement.repeat_codings_latent_class"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/exposure_measurement.rs", python = "python/antecedent/measurement_exposure.py" }
+
+[[route]]
+lowering = "MeasuredExposureImputation"
+unit_kind = "capability"
+unit = "measurement.measured_exposure_effect"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/measured_exposure_effect.rs", python = "python/antecedent/exposure_measurement.py" }
+
+[[route]]
+lowering = "MeasuredExposurePooling"
+unit_kind = "capability"
+unit = "measurement.measured_exposure_effect"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/measured_exposure_effect.rs", python = "python/antecedent/exposure_measurement.py" }
+
+[[route]]
+lowering = "NestedMarkovFisherInterval"
+unit_kind = "capability"
+unit = "identify.binary_nested_markov_fisher"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/nested_markov.rs", python = "python/antecedent/transport/_advanced_producers.py" }
+
+[[route]]
+lowering = "NestedMarkovPosterior"
+unit_kind = "capability"
+unit = "identify.binary_nested_markov"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/nested_markov.rs", python = "python/antecedent/transport/_advanced_producers.py" }
+
+[[route]]
+lowering = "LearnedJointTransport"
+unit_kind = "capability"
+unit = "transport.learned_joint"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/learned_joint_transport.rs", python = "python/antecedent/transport/_learned_joint.py" }
+
+[[route]]
+lowering = "JointBayesianTransport"
+unit_kind = "capability"
+unit = "transport.joint_bayesian"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/learned_joint_transport.rs", python = "python/antecedent/transport/_joint_posterior.py" }
+
+[[route]]
+lowering = "SharedScenarioCovariance"
+unit_kind = "capability"
+unit = "transport.shared_scenario_covariance"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/scenario_covariance.rs", python = "python/antecedent/transport/_cpdag_scenarios.py" }
+
+[[route]]
+lowering = "ExternalFeedbackEquilibrium"
+unit_kind = "capability"
+unit = "cyclic.external_mechanisms"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/external_feedback.rs", python = "python/antecedent/external_mechanisms.py" }
+
+[[route]]
+lowering = "SampledCounterfactualTransport"
+unit_kind = "capability"
+unit = "counterfactual.transport_sampled"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/sampled_counterfactual_transport.rs", python = "python/antecedent/transport/_counterfactual.py" }
+
+[[route]]
+lowering = "SampledCounterfactualTransportInterval"
+unit_kind = "capability"
+unit = "counterfactual.transport_sampled_interval"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/sampled_counterfactual_transport.rs", python = "python/antecedent/transport/_counterfactual.py" }
+[[route]]
+lowering = "SampleSplitEffect"
+unit_kind = "capability"
+unit = "discovery.sample_split_effect"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/split_effect.rs", python = "python/antecedent/selective_discovery.py" }
+
+[[route]]
+lowering = "SampleSplitParentSetEffect"
+unit_kind = "capability"
+unit = "discovery.sample_split_parent_set_effect"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/split_effect.rs", python = "python/antecedent/selective_discovery.py" }
+
+[[route]]
 lowering = "FittedModelAttribution"
 unit_kind = "capability"
 unit = "gcm.attribute.mechanism_refit"

@@ -16784,6 +16784,40 @@ dimensions = ["success", "artifact", "refusal"]
 assertion_contract = "A native Bayesian fit's exported posterior flows through the catalog and adapter into a Monte Carlo ranking with finite evsi, the resampled-original-draws approximation disclosed and calibration not_measured; the consumed ranking keeps its source digests, an altered source digest refuses, and reusing a training observation refuses with SourceOverlapRefusal."
 
 [[capability]]
+id = "python.prior.external_composition"
+status = "covered"
+owner = "Python API integration: semantic capability closure"
+behavior = "Declared external prior sources compose with a baseline at their discounts (Gaussian, Beta and Gamma count sources), and move toward a tag-defined or row-weighted target before composing, through the compiled ExternalPriorComposition and ExternalPriorTransport routes."
+python = "antecedent.priors.compose_external_priors"
+supports = ["capability:prior.external_composition"]
+required_dimensions = ["success", "refusal"]
+[[capability.evidence]]
+test = "python/tests/test_prior_bank.py::test_transport_propensity_without_weights_zeros_alpha"
+assertion_scopes = ["test_transport_propensity_without_weights_zeros_alpha"]
+dimensions = ["success", "controls"]
+assertion_contract = "A source tagged us transported to eu under invariant propensity without weights keeps its requested alpha 0.75, applies alpha 0 and records the transport assumption."
+[[capability.evidence]]
+test = "python/tests/test_prior_bank.py::test_weighted_target_recovers_the_planted_neighbourhood_effect"
+assertion_scopes = ["test_weighted_target_recovers_the_planted_neighbourhood_effect"]
+dimensions = ["success", "inspection"]
+assertion_contract = "A row-weighted target reports its support and a Kish ESS equal to the support for equal weights, and records the target-weighting assumption."
+[[capability.evidence]]
+test = "python/tests/test_prior_bank.py::test_thin_overlap_is_refused_with_a_next_attempt"
+assertion_scopes = ["test_thin_overlap_is_refused_with_a_next_attempt"]
+dimensions = ["refusal"]
+assertion_contract = "A Gaussian kernel of bandwidth 0.001 leaves too few effective rows and is refused with a next-attempt message."
+[[capability.evidence]]
+test = "python/tests/test_prior_bank.py::test_bandwidth_sensitivity_lists_the_unsupported_bandwidth"
+assertion_scopes = ["test_bandwidth_sensitivity_lists_the_unsupported_bandwidth"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Across Epanechnikov bandwidths 0.01, 0.5 and 1 only the narrowest fails the overlap check, with a next-attempt refusal, and the 0.5 row's weighted mean is the planted 2.0."
+[[capability.evidence]]
+test = "python/tests/test_composed_prior_currency.py::test_count_sources_compose_by_the_power_prior"
+assertion_scopes = ["test_count_sources_compose_by_the_power_prior"]
+dimensions = ["success", "refusal"]
+assertion_contract = "Beta and Gamma count sources compose to the base plus the discounted counts (Beta(14, 34), Gamma(7, 3)), and a discount of 1.5 is refused naming [0, 1]."
+
+[[capability]]
 id = "python.design.proposal_receipt"
 status = "covered"
 owner = "Python API integration: semantic capability closure"

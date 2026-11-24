@@ -52,23 +52,43 @@ route = "GraphFalsification"
 
 [[row]]
 path = "antecedent::PreparedZTransport::estimate"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:ZTransportEstimate"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::z_transport::CompiledZTransport::estimate"
+disposition = "compiled"
+route = "ZTransportEstimate"
 
 [[row]]
 path = "antecedent::PreparedZTransport::estimate_bayesian"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:ZTransportEstimate"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::z_transport::CompiledZTransport::estimate_bayesian"
+disposition = "compiled"
+route = "ZTransportEstimate"
 
 [[row]]
 path = "antecedent::PreparedZTransport::estimate_independent_components"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:ZTransportEstimate"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::z_transport::CompiledZTransport::estimate_independent_components"
+disposition = "compiled"
+route = "ZTransportEstimate"
 
 [[row]]
 path = "antecedent::PreparedZTransport::estimate_intervention_factorized_components"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:ZTransportEstimate"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::z_transport::CompiledZTransport::estimate_intervention_factorized_components"
+disposition = "compiled"
+route = "ZTransportEstimate"
 
 [[row]]
 path = "antecedent::PrimaryEstimate::as_effect"
@@ -226,23 +246,33 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent::analysis::sample_split_effect::SplitEffect::measure"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:SampleSplitEffect"
 
 [[row]]
 path = "antecedent::analysis::sample_split_effect::measure_source"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:SampleSplitEffect"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect::measure"
+disposition = "compiled"
+route = "SampleSplitEffect"
 
 [[row]]
 path = "antecedent::analysis::sample_split_parent_set_effect::ParentSetEffect::measure"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:SampleSplitParentSetEffect"
 
 [[row]]
 path = "antecedent::analysis::sample_split_parent_set_effect::measure_source"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:SampleSplitParentSetEffect"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect::measure"
+disposition = "compiled"
+route = "SampleSplitParentSetEffect"
 
 [[row]]
 path = "antecedent::analysis::temporal_dependent_interval_candidate"
@@ -420,8 +450,8 @@ replacement = "route:DiscoverStatic"
 
 [[row]]
 path = "antecedent::strategy_table::attach_static_bootstrap"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
+disposition = "deprecated"
+replacement = "route:StaticAteDag"
 
 [[row]]
 path = "antecedent_attribution::ChangeAttribution::run"
@@ -1785,28 +1815,28 @@ reason = "configures the compiled estimator: builds the preparation receipt the 
 
 [[row]]
 path = "antecedent_estimate::ObservationMechanismEstimator::adjust_temporal_anchors"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "kernel"
+reason = "kernel API; the compiled StaticResponseDag, TemporalResponseDag and TemporalResponseClass observation paths build this estimator from StudyBuilder::observation_options and run this method"
 
 [[row]]
 path = "antecedent_estimate::ObservationMechanismEstimator::adjust_temporal_series"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "kernel"
+reason = "kernel API; the compiled StaticResponseDag, TemporalResponseDag and TemporalResponseClass observation paths build this estimator from StudyBuilder::observation_options and run this method"
 
 [[row]]
 path = "antecedent_estimate::ObservationMechanismEstimator::adjusted_outcome"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "kernel"
+reason = "kernel API; the compiled StaticResponseDag, TemporalResponseDag and TemporalResponseClass observation paths build this estimator from StudyBuilder::observation_options and run this method"
 
 [[row]]
 path = "antecedent_estimate::ObservationMechanismEstimator::estimate_mean_curve"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "kernel"
+reason = "kernel API; the compiled StaticResponseDag, TemporalResponseDag and TemporalResponseClass observation paths build this estimator from StudyBuilder::observation_options and run this method"
 
 [[row]]
 path = "antecedent_estimate::ObservationMechanismEstimator::gaussian_log_likelihood"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "not_scientific"
+reason = "evaluates the Gaussian observation-model log-likelihood at caller-supplied means and scale; it fits nothing and returns no estimate, interval or decision"
 
 [[row]]
 path = "antecedent_estimate::PropensityMatching::fit"
@@ -2023,8 +2053,8 @@ replacement = "Study with an InterferenceQuery (route cell InterferenceDag)"
 
 [[row]]
 path = "antecedent_estimate::estimate_sampled_recovery"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:SampledObservationRecovery"
 
 [[row]]
 path = "antecedent_estimate::estimate_saturation_interference"
@@ -2044,8 +2074,8 @@ owner = "caller-supplied learner factories"
 
 [[row]]
 path = "antecedent_estimate::evaluate_chain_recovery"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:ChainObservationRecovery"
 
 [[row]]
 path = "antecedent_estimate::external_cyclic_fit::fit_external_feedback"
@@ -2220,38 +2250,38 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_estimate::measurement::correct_detection_dependent_prevalence"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:DetectionDependentPrevalenceCorrection"
 
 [[row]]
 path = "antecedent_estimate::measurement::correct_exposure_misclassification"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:ExposureMisclassificationCorrection"
 
 [[row]]
 path = "antecedent_estimate::measurement::correct_soft_exposure_effect"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:SoftExposureCorrection"
 
 [[row]]
 path = "antecedent_estimate::measurement::exposure_routes::fit_repeat_codings"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:RepeatCodingsLatentClass"
 
 [[row]]
 path = "antecedent_estimate::measurement::exposure_routes::soft_exposure_reliability_report"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "not_scientific"
+reason = "measurement-instrument diagnostic: bins stated exposure probabilities against repeat codings and reports the agreement gaps; no effect or prevalence is estimated and nothing is gated on it"
 
 [[row]]
 path = "antecedent_estimate::measurement::impute_exposure"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:MeasuredExposureImputation"
 
 [[row]]
 path = "antecedent_estimate::measurement::measured_exposure::pool_measured_effect"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
+disposition = "deprecated"
+replacement = "route:MeasuredExposurePooling"
 
 [[row]]
 path = "antecedent_estimate::measurement_transport::transport_measurement_model"
@@ -2755,8 +2785,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::execute"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the request configures the compiled CyclicFamily route (Study::prepare_cyclic_family), and the compiled program runs this method when it binds a functional family's identification source (cyclic_functional::checked_functional_source)"
 
 [[row]]
 path = "antecedent_io::cyclic_family_artifact::CyclicFamilyRequest::export"
@@ -2769,8 +2799,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::execute"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the request configures the compiled cyclic System family (Study::prepare_cyclic), whose estimate runs the same PreparedCyclicExecution, and the compiled CyclicActionWorldDecision consume path runs this method"
 
 [[row]]
 path = "antecedent_io::cyclic_system_artifact::CyclicExecutionRequest::export"
@@ -2806,8 +2836,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::execute"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:ExternalFeedbackEquilibrium"
 
 [[row]]
 path = "antecedent_io::external_cyclic_artifact::ExternalCyclicRequest::export"
@@ -2833,13 +2863,18 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "kernel"
+reason = "kernel API; the compiled JointTransportEffectDecision and JointTransportPredictiveDecision families fit through this method inside their lowered dispatch"
 
 [[row]]
 path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::build_measured"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:JointBayesianTransport"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport::measure"
+disposition = "compiled"
+route = "JointBayesianTransport"
 
 [[row]]
 path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_expecting"
@@ -2868,13 +2903,18 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::build"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:LearnedJointTransport"
 
 [[row]]
 path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::build_measured"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:LearnedJointTransport"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport::measure"
+disposition = "compiled"
+route = "LearnedJointTransport"
 
 [[row]]
 path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_expecting"
@@ -2933,13 +2973,18 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::build"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:NestedMarkovFisherInterval"
 
 [[row]]
 path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::build_measured"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:NestedMarkovFisherInterval"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher::measure"
+disposition = "compiled"
+route = "NestedMarkovFisherInterval"
 
 [[row]]
 path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::consume"
@@ -2951,13 +2996,18 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::build"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:NestedMarkovPosterior"
 
 [[row]]
 path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::build_measured"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:NestedMarkovPosterior"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior::measure"
+disposition = "compiled"
+route = "NestedMarkovPosterior"
 
 [[row]]
 path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::consume"
@@ -3024,8 +3074,13 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::measure"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:SampledCounterfactualTransportInterval"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::sampled_counterfactual_transport::CompiledSampledCounterfactualTransportInterval::measure"
+disposition = "compiled"
+route = "SampledCounterfactualTransportInterval"
 
 [[row]]
 path = "antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport"
@@ -3033,8 +3088,8 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:SampledCounterfactualTransport"
 
 [[row]]
 path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_expecting"
@@ -3050,18 +3105,23 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::measure"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:MeasuredSampledObservationRecovery"
+
+[[row]]
+path = "antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery::measure"
+disposition = "compiled"
+route = "MeasuredSampledObservationRecovery"
 
 [[row]]
 path = "antecedent_io::scenario_covariance_artifact::CovarianceSpec::compute"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:SharedScenarioCovariance"
 
 [[row]]
 path = "antecedent_io::scenario_covariance_artifact::CovarianceSpec::compute_within"
-disposition = "pending"
-owner = "artifact-backed computations"
+disposition = "deprecated"
+replacement = "route:SharedScenarioCovariance"
 
 [[row]]
 path = "antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire::consume_with_limits"
@@ -3661,48 +3721,48 @@ replacement = "route:GcmSimulateDag"
 
 [[row]]
 path = "antecedent_prob::apply_transport"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorTransport"
 
 [[row]]
 path = "antecedent_prob::apply_weighted_target_transport"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorTransport"
 
 [[row]]
 path = "antecedent_prob::check_weights_overlap"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "not_scientific"
+reason = "overlap diagnostic of a declared row weighting (positivity, Kish effective sample size, largest single-row share against the absolute and fractional ESS floors); the compiled weighted-target routes run it as their gate (analysis::weighted_target, analysis::targeted_refit, antecedent_estimate::transport_weighted_target) and it computes no estimate"
 
 [[row]]
 path = "antecedent_prob::compose_beta_power_priors"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorComposition"
 
 [[row]]
 path = "antecedent_prob::compose_external_priors"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorComposition"
 
 [[row]]
 path = "antecedent_prob::compose_external_priors_with_alphas"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "kernel"
+reason = "kernel API; composes declared sources at explicit requested and applied discounts. The compiled Bayesian study runs it for its data-bound conflict re-shrink (the compiled execute paths call inference::resolve_bayesian_prior_with_conflict -> resolve_unscaled_prior -> antecedent_validate::compose_with_conflict_policy -> estimate_conflict_signals and apply_conflict_and_compose), the compiled ExternalPriorTransport and PowerPriorLinearSelection families compose through it, and the Python bindings re-run it only to verify a declared composed prior (python/src/prior_bank.rs apply_owned_composed_prior)"
 
 [[row]]
 path = "antecedent_prob::compose_gamma_power_priors"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorComposition"
 
 [[row]]
 path = "antecedent_prob::compose_with_transport"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorTransport"
 
 [[row]]
 path = "antecedent_prob::compose_with_weighted_target_transport"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorTransport"
 
 [[row]]
 path = "antecedent_prob::default_alpha_grid"
@@ -3716,38 +3776,38 @@ reason = "construction, serialization, identity or gating helper; computes no es
 
 [[row]]
 path = "antecedent_prob::kernel_bandwidth_sensitivity"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:ExternalPriorTransport"
 
 [[row]]
 path = "antecedent_prob::power_prior_alpha::select_beta_power_prior"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:PowerPriorBetaSelection"
 
 [[row]]
 path = "antecedent_prob::power_prior_alpha::select_beta_prior"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:PowerPriorBetaSelection"
 
 [[row]]
 path = "antecedent_prob::power_prior_alpha::select_gamma_power_prior"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:PowerPriorGammaSelection"
 
 [[row]]
 path = "antecedent_prob::power_prior_alpha::select_gamma_prior"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:PowerPriorGammaSelection"
 
 [[row]]
 path = "antecedent_prob::power_prior_alpha::select_linear_power_prior"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:PowerPriorLinearSelection"
 
 [[row]]
 path = "antecedent_prob::power_prior_alpha::select_linear_prior"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
+disposition = "deprecated"
+replacement = "route:PowerPriorLinearSelection"
 
 [[row]]
 path = "antecedent_state::full_graph_score"
@@ -4050,51 +4110,6 @@ disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
 [[python]]
-path = "python/antecedent/attribution.py::attribute_distribution_change"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::attribute_distribution_change_robust"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::attribute_structure_change"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::attribute_path_specific"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::attribute_feature_relevance"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::anomaly_attribution"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::attribute_unit_change"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::attribution_uncertainty"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/attribution.py::attribute_root_causes"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
 path = "python/antecedent/cohort_decision.py::CohortDecisionSource.interval"
 disposition = "pending"
 owner = "interval candidates"
@@ -4105,21 +4120,6 @@ disposition = "pending"
 owner = "dose-grid and cyclic fits"
 
 [[python]]
-path = "python/antecedent/decision_evidence.py::JointEvidence.excursion_quantity"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/decision_evidence.py::decide_with_proxy"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/decision_evidence.py::decide_with_temporal_bridge"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
 path = "python/antecedent/decision_evidence.py::evaluate"
 disposition = "pending"
 owner = "prior composition and transport of posteriors"
@@ -4128,21 +4128,6 @@ owner = "prior composition and transport of posteriors"
 path = "python/antecedent/decision_robust.py::robust"
 disposition = "deprecated"
 replacement = "antecedent::PreparedStudy::compile_for_robust_decision"
-
-[[python]]
-path = "python/antecedent/design/study_ranking.py::compile_for_study"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/design/study_ranking.py::evaluate_for_study"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/design/study_ranking.py::compile_decision_for_study"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
 
 [[python]]
 path = "python/antecedent/experiment.py::SwitchbackEffect.estimate"
@@ -4170,21 +4155,6 @@ disposition = "deprecated"
 replacement = "route:RandomizedEffect"
 
 [[python]]
-path = "python/antecedent/exposure_measurement.py::ExposureMeasurement.realize"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
-path = "python/antecedent/exposure_measurement.py::RubinPool.interval"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
-path = "python/antecedent/exposure_measurement.py::rubin_pool"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
 path = "python/antecedent/external_learners.py::dml_ate"
 disposition = "pending"
 owner = "caller-supplied learner factories"
@@ -4200,54 +4170,14 @@ disposition = "pending"
 owner = "dose-grid and cyclic fits"
 
 [[python]]
-path = "python/antecedent/external_mechanisms.py::ExternalFeedbackModel.execute"
-disposition = "pending"
-owner = "artifact-backed computations"
-
-[[python]]
 path = "python/antecedent/interference.py::estimate"
 disposition = "deprecated"
 replacement = "route:InterferenceDag"
 
 [[python]]
-path = "python/antecedent/measurement_exposure.py::correct_exposure_misclassification"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
-path = "python/antecedent/measurement_exposure.py::soft_exposure_effect"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
-path = "python/antecedent/measurement_exposure.py::soft_exposure_reliability"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
-path = "python/antecedent/measurement_exposure.py::detection_dependent_prevalence"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
-path = "python/antecedent/measurement_exposure.py::repeat_codings_latent_class"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
-
-[[python]]
 path = "python/antecedent/measurement_models.py::transport_pooled_differential"
 disposition = "pending"
 owner = "transport trial estimators"
-
-[[python]]
-path = "python/antecedent/missing.py::multiple_imputation_with_graph_selection"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/observation.py::gaussian_log_likelihood"
-disposition = "pending"
-owner = "measurement-error and observation-recovery corrections"
 
 [[python]]
 path = "python/antecedent/policy.py::uplift_by_score"
@@ -4275,11 +4205,6 @@ disposition = "deprecated"
 replacement = "route:PanelDid"
 
 [[python]]
-path = "python/antecedent/selective_discovery.py::SplitEffect.measure"
-disposition = "pending"
-owner = "prepared-object interval and transport readings"
-
-[[python]]
 path = "python/antecedent/survival.py::estimate_survival_ipcw"
 disposition = "deprecated"
 replacement = "route:Survival"
@@ -4290,19 +4215,28 @@ disposition = "deprecated"
 replacement = "route:Survival"
 
 [[python]]
-path = "python/antecedent/temporal_model.py::detect_mechanism_change"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
-path = "python/antecedent/temporal_model.py::rollout_dynamics"
-disposition = "pending"
-owner = "prior composition and transport of posteriors"
-
-[[python]]
 path = "python/antecedent/transport/discovered.py::discover_and_transport"
 disposition = "pending"
 owner = "discovery engines"
+[[python]]
+path = "python/antecedent/transport/discovered.py::estimate_discovered_transport"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/transport/discovered.py::estimate_discovered_temporal_transport"
+disposition = "pending"
+owner = "discovery engines"
+
+[[python]]
+path = "python/antecedent/design/evidence.py::rank_studies"
+disposition = "pending"
+owner = "design planning and ranking"
+
+[[python]]
+path = "python/antecedent/priors.py::compose_external_priors_for_target"
+disposition = "pending"
+owner = "validation checks"
 
 [[python]]
 path = "python/antecedent/transport/trial_compatible.py::estimate_trial_compatible_discovered_transport"

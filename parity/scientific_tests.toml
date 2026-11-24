@@ -3102,3 +3102,37 @@ evidence_assertion = "the_three_goals_invert_one_another"
 kind = "known_truth"
 fixtures = []
 why = "The smallest size reaching power 0.85 reaches it, one fewer unit does not, and the minimum detectable effect at that size is at most the planned effect with power 0.85 to 1e-6. This source assertion is unearned."
+[[test]]
+evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs"
+evidence_assertion = "gaussian_power_composition_of_one_and_two_sources_equals_the_precision_weighted_closed_form"
+kind = "known_truth"
+fixtures = []
+why = "One Gaussian source N(2, 1) at alpha 1/2 over N(0, 4) composes to mean and variance 4/3; two sources over two coefficients compose to means 11/7 and -2/7 and variances 8/7 and 4/7, the precision-weighted closed form written in the test, with ESS alpha * ess and Kish 9/5. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs"
+evidence_assertion = "beta_and_gamma_count_power_priors_add_the_discounted_counts"
+kind = "known_truth"
+fixtures = []
+why = "Beta(1, 1) with (30 of 100, alpha 1/2) and (12 of 40, alpha 1/4) is Beta(19, 43); Gamma(2, 1) with (50 over 25, alpha 0.4) and (10 over 8, alpha 1) is Gamma(32, 19) in the rate parameterization. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs"
+evidence_assertion = "tag_transport_reweights_the_coefficient_to_the_hand_weighted_mean_and_widens_it"
+kind = "known_truth"
+fixtures = []
+why = "Twenty-five equally weighted unit effects 0..24 move the transported coefficient to 12 and widen V0 by 1300/625 (halved under a residual variance of 2); the composition is the hand precision-weighted form, and a Kish ESS of 15 forces the discount to zero. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs"
+evidence_assertion = "weighted_target_transport_composes_to_the_hand_computed_moments_and_overlap"
+kind = "known_truth"
+fixtures = []
+why = "A 60-row weighting (weights 2 and 1) gives weighted mean 1.25, Kish ESS 54, largest share 2/90 and the hand sampling variance; the transported and composed moments equal the closed form in the test. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs"
+evidence_assertion = "kernel_bandwidth_sensitivity_rows_equal_hand_computed_kernel_weights"
+kind = "known_truth"
+fixtures = []
+why = "At bandwidths 0.05, 0.5 and 2 the Gaussian kernel exp(-u^2/2) weights computed in the test give each row's weighted mean, sampling variance, support, Kish ESS and overlap verdict; a compact kernel with no row in its support reports no mean. This source assertion is unearned."

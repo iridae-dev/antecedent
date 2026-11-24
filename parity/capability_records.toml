@@ -23740,6 +23740,73 @@ fixtures = [
 ]
 
 [[record]]
+id = "prior.external_composition"
+capability = "prior.external_composition"
+status = "supported"
+consumer_question = "Can declared external prior sources, each with its power-prior discount, be composed with a baseline into one prior (Gaussian coefficients, a Beta proportion or a Gamma rate), after moving them toward a target population declared by a tag or by a weighting over the source rows, with the overlap of that target checked and the sensitivity of a kernel target to its bandwidth reported?"
+theorem = "The power prior of Ibrahim and Chen (2000) raises a historical likelihood to a fixed discount a0 in [0, 1]. For a Beta-Binomial likelihood with a Beta(a, b) initial prior it is Beta(a + a0 k, b + a0 (n - k)) and for a Poisson likelihood with exposure and a Gamma(shape, rate) initial prior it is Gamma(shape + a0 S, rate + a0 E), with one discount per historical study (Ibrahim, Chen, Gwon and Chen 2015). Gaussian coefficient sources compose as the tempered product N(m0, V0) * prod_k N(m_k, V_k)^alpha_k, whose precision is 1/V0 + sum alpha_k / V_k and whose mean is the precision-weighted mean, or as the moment-matched mixture sum w_k N(m_k, V_k / alpha_k) + (1 - sum w) N(m0, V0). A transport moves the chosen coefficient's mean to the weighted mean of declared unit effects and widens its variance by the sampling variance of that mean, sum w^2 (e - mean)^2 / (sum w)^2, a declared reweighting. A prior never upgrades identification."
+reference = "provenance/prior.external_composition.toml"
+guarantee = "closed_form_prior_composition"
+graph_class = "No graph: a prior over coefficients, a proportion or a rate composed from declared sources; it states no intervention and upgrades no identification."
+population_semantics = "The population of each source as its tag declares, moved to the target population a tag or a declared row weighting names under a declared invariance policy; the composed prior describes no other population."
+evidence_family = "Declared external prior sources (Gaussian coefficient priors with a discount, an optional mixture weight and a declared prior-strength ESS; or Beta-Binomial and Gamma-Poisson source counts with a discount), a baseline prior, and for a transport the population tags, the invariance policy, the unit effects and their weights or kernel distances."
+provider = "antecedent_prob::compose_external_priors, compose_beta_power_priors, compose_gamma_power_priors, apply_transport, compose_with_transport, apply_weighted_target_transport, compose_with_weighted_target_transport and kernel_bandwidth_sensitivity, compiled as the ExternalPriorComposition and ExternalPriorTransport families (antecedent::analysis::kernel_programs::prior_composition) and reached from python/antecedent/priors.py."
+estimand = "The composed prior's moments (and correlation), the applied discounts, the per-source and composed prior-strength ESS and the Kish ESS of the discounts; the transported sources and per-source transport outcomes; a weighted target's overlap; the kernel-weighted mean, its sampling variance and the overlap at each declared bandwidth."
+inference_claim = "point_only"
+inference_notes = "The composition is a closed form of declared inputs and reports no interval. The variance a transport adds is the sampling variance of the reweighted mean under the declared weights, a widening of the prior, not a calibrated interval; the discounts, the invariance policy, the weights and the kernel bandwidth are assumptions recorded in the prior's restrictions."
+owners = ["antecedent-prob", "antecedent", "python/antecedent/priors"]
+identity_inputs = ["every source's id, prior, discount, mixture weight and declared ESS", "the baseline prior", "the Beta or Gamma base and the source counts and discounts", "the population tags, the invariance policy, the unit effects and weights and the coefficient index", "the weighted target (row weights or kernel family, bandwidth and distances) and the ESS fraction floor", "the declared bandwidths"]
+wire_changes = ["None: the composed prior and its restrictions are unchanged; this record registers the existing composition and transport and their compiled families."]
+compatibility = "Registers the existing implementation; the compiled routes call the same kernel functions with the same arguments, so no result of a valid use changes."
+coverage_records = []
+search = false
+bounds = { cancellation = true }
+refusals = [
+  { detail = "prior_composition.unit_not_supported" },
+]
+routes = [
+  { name = "antecedent_prob.compose_external_priors", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_prob.compose_beta_power_priors", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_prob.compose_gamma_power_priors", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_prob.apply_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_prob.compose_with_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_prob.apply_weighted_target_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_prob.compose_with_weighted_target_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent_prob.kernel_bandwidth_sensitivity", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.compile_external_prior_composition", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.compile_beta_power_prior_composition", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.compile_gamma_power_prior_composition", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.compile_prior_tag_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.compile_prior_weighted_target_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.compile_kernel_bandwidth_sensitivity", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledExternalPriorComposition.compose", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledBetaPowerPriorComposition.compose", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledGammaPowerPriorComposition.compose", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledPriorTagTransport.apply_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledPriorTagTransport.compose_with_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledPriorWeightedTargetTransport.apply_weighted_target_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledPriorWeightedTargetTransport.compose_with_weighted_target_transport", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.prior_composition.CompiledKernelBandwidthSensitivity.sensitivity", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.priors.compose_external_priors", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.priors.compose_external_priors_for_target", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.priors.transport_bandwidth_sensitivity", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.priors.compose_count_priors", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+fixtures = [
+  { id = "prior.external_composition.gaussian_closed_form.truth", role = "truth", intent = "One Gaussian source N(2, 1) at alpha 1/2 over N(0, 4) composes to mean and variance 4/3, and two sources over two coefficients compose to means 11/7, -2/7 and variances 8/7, 4/7: the precision-weighted closed form written in the test, with per-source ESS alpha * ess, composed ESS 40 and Kish ESS 9/5; a zero discount returns the baseline.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "gaussian_power_composition_of_one_and_two_sources_equals_the_precision_weighted_closed_form" },
+  { id = "prior.external_composition.count_power_priors.truth", role = "truth", intent = "Beta(1, 1) with (30 of 100, alpha 1/2) and (12 of 40, alpha 1/4) is Beta(19, 43), and Gamma(2, 1) with (50 over exposure 25, alpha 0.4) and (10 over 8, alpha 1) is Gamma(32, 19) in the rate parameterization, by hand-added discounted counts.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "beta_and_gamma_count_power_priors_add_the_discounted_counts" },
+  { id = "prior.external_composition.tag_transport_reweight.truth", role = "truth", intent = "Twenty-five equally weighted unit effects 0..24 move the transported coefficient to 12 and widen its V0 by 1300/625 (halved under a residual variance of 2); the composition is the hand precision-weighted form; the same population is untouched and a Kish ESS of 15 forces the discount to zero.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "tag_transport_reweights_the_coefficient_to_the_hand_weighted_mean_and_widens_it" },
+  { id = "prior.external_composition.weighted_target.truth", role = "truth", intent = "A 60-row weighting gives the hand weighted mean 1.25, Kish ESS 54, largest share 2/90 and the hand sampling variance, and the transported and composed moments equal the closed form.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "weighted_target_transport_composes_to_the_hand_computed_moments_and_overlap" },
+  { id = "prior.external_composition.kernel_bandwidth.truth", role = "truth", intent = "Hand Gaussian kernel weights exp(-u^2/2) at bandwidths 0.05, 0.5 and 2 give each sensitivity row's weighted mean, sampling variance, support, Kish ESS, largest share and overlap verdict; a compact kernel with no row in its support reports no mean.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "kernel_bandwidth_sensitivity_rows_equal_hand_computed_kernel_weights" },
+  { id = "prior.external_composition.mixture_and_claim_only.positive", role = "positive", intent = "A mixture source composes to the moment-matched mean 4 and variance 84.8 with no composed ESS, and a claim-only transport keeps the source and composes to the plain closed form.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "mixture_composition_and_claim_only_transport_match_their_closed_forms" },
+  { id = "prior.external_composition.python_weighted_target.positive", role = "positive", intent = "Python surface: a row-weighted target reports its support and a Kish ESS equal to the support for equal weights, and records the target-weighting assumption.", evidence_test = "python/tests/test_prior_bank.py", evidence_assertion = "test_weighted_target_recovers_the_planted_neighbourhood_effect" },
+  { id = "prior.external_composition.refusals.negative", role = "negative", intent = "Mixed mixture modes, a dimension mismatch, count discounts outside [0, 1], more successes than trials, a negative exposure, differing populations without a policy, a thin weighted target, a coefficient index past the prior and an empty bandwidth set are refused with typed reasons.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "composition_and_transport_refusals_name_what_is_wrong" },
+  { id = "prior.external_composition.python_thin_overlap.negative", role = "negative", intent = "Python surface: a kernel target that leaves too few effective rows is refused with a next-attempt message.", evidence_test = "python/tests/test_prior_bank.py", evidence_assertion = "test_thin_overlap_is_refused_with_a_next_attempt" },
+  { id = "prior.external_composition.recorded_assumptions.artifact", role = "artifact", intent = "The composed prior records every source's requested and applied discount, each transport claim with its populations, the target weighting and the kernel with its exact bandwidth bits, so these enter the prior's identity.", evidence_test = "crates/antecedent/tests/external_prior_composition_known_truth.rs", evidence_assertion = "the_composed_prior_records_its_composition_transport_and_kernel_assumptions" },
+  { id = "prior.external_composition.compiled_route_unit.lifecycle", role = "lifecycle", intent = "Every compiled program names the ExternalPriorComposition or ExternalPriorTransport route, reports the decision of this unit, binds its declared input into its identity, and runs.", evidence_test = "crates/antecedent/tests/compiled_twins_prior_composition.rs", evidence_assertion = "each_compiled_program_names_its_route_and_reports_its_unit" },
+]
+
+[[record]]
 id = "association.conjugate_count_posterior"
 capability = "association.conjugate_count_posterior"
 status = "supported"
@@ -24199,6 +24266,187 @@ role = "negative"
 intent = "A grid point outside the observed surrogate range of the trials is refused."
 evidence_test = "python/tests/test_bridge_transport_decision.py"
 evidence_assertion = "test_a_grid_outside_the_trial_overlap_is_refused"
+
+[[record]]
+id = "transport.single_source_z_transport"
+capability = "transport.single_source_z_transport"
+status = "supported"
+consumer_question = "Given a selection diagram, a source population's experiments on a set of controllable variables and the target's observational law, what is the target interventional outcome law P*(y | do(x)) when a checked single-source z-transport formula identifies it, evaluated exactly or as an empirical plug-in over counted tables?"
+theorem = "Bareinboim and Pearl (2013) call P*(y | do(x)) z-transportable from a source with experiments on Z when it is computable from the source's interventional laws P(v | do(z')) and the target's observational law, and give the sound procedure TRz. The bounded derivation of antecedent-identify returns a checked formula (the registered surrogate factorization sum_w P(y | w, x, do(z)) P(w | do(z)), a direct source joint, or a recursive TRz formula of cited source and target factors) bound to the catalog regimes it cites; this route evaluates the formula exactly over the cited finite laws, so the result is the target interventional law whenever the cited laws are those of the source and the target. Two separately derived formulas from two sources combine as a product only when their outcome and treatment sets lie in disconnected graph components, or when their outcomes m-separate given the union of their treatments, so that P*_x(y) factorizes. Sound and incomplete; a failure to derive is not a proof of non-transportability."
+reference = "provenance/transport.single_source_z_transport.toml"
+guarantee = "exact_target_law_of_a_checked_sound_incomplete_z_transport_formula"
+graph_class = "Finite discrete selection ADMG shared by the source and the target, within the z-transport contract's bounds (at most 4 controllable variables, the search budget)."
+population_semantics = "The target population named by the query; the source population supplies experimental joints under the declared interventions on the controllable variables, and the target's observational joint where the formula cites it."
+evidence_family = "A catalog of joint-regime experimental laws per source and the target's observational joint, as exact finite laws or counted tables, bound to the regimes the formula cites; do(A, B) is never inferred from separate do(A) and do(B) entries."
+provider = "antecedent::StudyBuilder::z_transport and z_transport_empirical, PreparedZTransport over antecedent_estimate::prepare_exact_z_transport and the exact evaluator of antecedent-expr, compiled as the ZTransportEstimate family (antecedent::analysis::kernel_programs::z_transport)."
+estimand = "The target interventional outcome distribution P*(y | do(x)) at the requested treatment levels, and the product law of two combined components."
+inference_claim = "point_only"
+inference_notes = "Exact laws are point-only. A counted table attaches a nominal equal-tail percentile bootstrap or a finite-discrete posterior interval around the plug-in point whose reason is not measured; no coverage is claimed and no interval support is granted."
+owners = ["antecedent", "antecedent-identify", "antecedent-estimate", "antecedent-expr", "antecedent-io"]
+identity_inputs = ["checked derivation record and bound formula root", "evidence catalog and cited regimes", "content identity of every law (population, regime, interventions, axes, snapshot, probabilities, counts)", "treatment request", "exact evaluation limits", "exact or empirical reading"]
+wire_changes = ["None: the z-transport point artifact already exists; this record registers the prepared route and its compiled family."]
+compatibility = "Registers the existing implementation and evidence; no result of a valid use changes."
+search = false
+refusals = [
+  { detail = "z_transport_estimate.empirical_counts_required" },
+  { detail = "z_transport_estimate.physical_plan_program_mismatch" },
+  { detail = "z_transport_estimate.components_not_independent" },
+  { detail = "z_transport_estimate.cross_source_interval_not_supported" },
+  { detail = "z_transport_estimate.invalid_independent_component_law" },
+  { detail = "z_transport_estimate.combination_atom_limit" },
+]
+
+[record.bounds]
+cancellation = true
+
+[[record.routes]]
+name = "antecedent.StudyBuilder.z_transport"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.StudyBuilder.z_transport_empirical"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.PreparedZTransport.estimate"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.PreparedZTransport.estimate_bayesian"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.PreparedZTransport.estimate_independent_components"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.PreparedZTransport.estimate_intervention_factorized_components"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.kernel_programs.z_transport.compile_z_transport"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.kernel_programs.z_transport.compile_z_transport_empirical"
+stage = "prepare"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.kernel_programs.z_transport.CompiledZTransport.estimate"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.kernel_programs.z_transport.CompiledZTransport.estimate_bayesian"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.kernel_programs.z_transport.CompiledZTransport.estimate_independent_components"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.routes]]
+name = "antecedent.analysis.kernel_programs.z_transport.CompiledZTransport.estimate_intervention_factorized_components"
+stage = "evaluate"
+status = "supported"
+claim = "point_only"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.enumerated_surrogate_law.truth"
+role = "truth"
+intent = "On the surrogate graph, a structural model with three latent bits gives P*(Y = 1 | do(X = 1)) = 0.4 and P*(Y = 1 | do(X = 0)) = 0.3, read off the equations; the prepared route over the source joint of (W, X, Y) under do(Z = 0), also enumerated from the equations, returns both to 1e-12, point-only, while the confounded observational conditional differs from the truth."
+evidence_test = "crates/antecedent/tests/z_transport_known_truth.rs"
+evidence_assertion = "the_prepared_route_recovers_the_enumerated_target_law_from_the_source_experiment"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.enumerated_counted_table.truth"
+role = "truth"
+intent = "A 10 000-unit counted table equal to the enumerated source law gives the enumerated target law as its plug-in point, with a nominal percentile interval around it whose reason is not measured."
+evidence_test = "crates/antecedent/tests/z_transport_known_truth.rs"
+evidence_assertion = "an_empirical_table_at_the_law_returns_the_enumerated_point_with_a_nominal_interval"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.disconnected_components.truth"
+role = "truth"
+intent = "Two single-source formulas in disconnected components of W -> Z, X -> Y combine into the product law of the structural model, and the joint 0 -> 1 contrast of E[Z + Y] is the model's 0.45 - 0.20 = 0.25."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "complementary_source_components_execute_the_exact_joint_target_effect"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.factorized_components.truth"
+role = "truth"
+intent = "Two single-source factors of one connected graph W -> Z, X -> Y, W <-> X combine under the intervention into the joint target law and contrast enumerated from the structural model; the disconnected-component entry refuses them."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "connected_complementary_sources_execute_the_enumerated_joint_target_effect"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.dual_environment_catalog.positive"
+role = "positive"
+intent = "A catalog in which the source and the target declare the same coordinates prepares, returns the surrogate point and exports a consumable artifact."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "both_populations_may_declare_the_same_coordinates"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.omitted_ancestral_treatment.negative"
+role = "negative"
+intent = "A factor whose outcome has a treatment of the other factor among its causes is refused as not independent."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "factorized_components_refuse_a_factor_that_omits_an_ancestral_treatment"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.missing_treatment_binding.negative"
+role = "negative"
+intent = "A request that does not bind the treatment is refused at preparation."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "prepared_z_route_refuses_a_request_missing_treatment_binding"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.count_free_refresh.negative"
+role = "negative"
+intent = "An empirical handle refuses a refresh with laws that carry no counts, and keeps its percentile interval on a counted refresh."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "an_empirical_handle_refuses_a_refresh_with_count_free_laws"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.exported_point.artifact"
+role = "artifact"
+intent = "The exact and empirical points export with their checked proof, catalog and laws; an independent consumer recomputes the point and refuses a forged result, proof, program, schema or relabelled frame."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "prepared_exact_and_empirical_z_routes_match_known_truth_point_only"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.refresh_rebinds.lifecycle"
+role = "lifecycle"
+intent = "A refresh rebinds the laws under the retained checked program with the same point, and refuses an empty law set."
+evidence_test = "crates/antecedent/src/analysis/z_transport.rs"
+evidence_assertion = "refresh_rebinds_evidence_under_the_original_checked_program"
+
+[[record.fixtures]]
+id = "transport.single_source_z_transport.compiled_route_unit.lifecycle"
+role = "lifecycle"
+intent = "The compiled program names the ZTransportEstimate route, reports the decision of this unit, and binds the request and the exact or empirical reading into its identity."
+evidence_test = "crates/antecedent/tests/compiled_twins_z_transport.rs"
+evidence_assertion = "the_compiled_program_names_its_route_and_reports_its_unit"
 
 [[record]]
 id = "transport.joint_transport_decision"

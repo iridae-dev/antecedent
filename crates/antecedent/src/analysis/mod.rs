@@ -207,6 +207,7 @@ mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
 pub mod joint_transport_effect_decision;
 pub mod joint_transport_predictive_decision;
+pub mod kernel_programs;
 pub mod model_operation;
 pub mod trial_ipw_predictive_decision;
 pub mod trial_ipw_transport_decision;

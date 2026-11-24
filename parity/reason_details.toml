@@ -10662,6 +10662,12 @@ codes = ["route_not_supported"]
 meaning = "A consumer holds an expected identity and a stored or recomputed identity field (observations, predictor laws, validation design, configuration) differs."
 
 [[detail]]
+id = "prior_composition.unit_not_supported"
+family = "prior_composition"
+codes = ["not_supported"]
+meaning = "A compiled external prior composition or transport runs while its support unit is not supported (release build, once the unit's gate is on)."
+
+[[detail]]
 id = "prior_signal.adapted_prior_not_draws"
 family = "prior_signal"
 codes = ["invalid_argument"]
@@ -17146,3 +17152,38 @@ id = "cyclic_component.not_supported"
 family = "cyclic_component"
 codes = ["not_supported"]
 meaning = "A release build refuses the connected feedback decision because its support unit is not supported."
+[[detail]]
+id = "z_transport_estimate.combination_atom_limit"
+family = "z_transport_estimate"
+codes = ["transport_budget_cancel"]
+meaning = "The product law of two combined component formulas has more atoms than the caller's atom limit."
+
+[[detail]]
+id = "z_transport_estimate.components_not_independent"
+family = "z_transport_estimate"
+codes = ["transport_not_certified"]
+meaning = "Two prepared formulas to combine do not share one graph and target, come from one source, or their outcomes neither lie in disconnected graph components nor factorize under the intervention, so their product is not certified as the target law."
+
+[[detail]]
+id = "z_transport_estimate.cross_source_interval_not_supported"
+family = "z_transport_estimate"
+codes = ["route_not_supported"]
+meaning = "A component to combine carries an empirical interval; no joint resampling of two sources is implemented."
+
+[[detail]]
+id = "z_transport_estimate.empirical_counts_required"
+family = "z_transport_estimate"
+codes = ["transport_missing_provider"]
+meaning = "An empirical z-transport preparation or refresh receives a law without counts."
+
+[[detail]]
+id = "z_transport_estimate.invalid_independent_component_law"
+family = "z_transport_estimate"
+codes = ["invalid_argument"]
+meaning = "The combination's atom limit is zero, the two component laws share an outcome, or a component law is malformed."
+
+[[detail]]
+id = "z_transport_estimate.physical_plan_program_mismatch"
+family = "z_transport_estimate"
+codes = ["invalid_argument"]
+meaning = "Refreshed laws compile a physical plan other than the retained checked program."

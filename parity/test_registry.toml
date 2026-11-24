@@ -23519,6 +23519,66 @@ path = "crates/antecedent/tests/compiled_twins_sensitivity.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "compiled-twins-prior-composition"
+crate = "antecedent"
+cargo_target = "compiled_twins_prior_composition"
+path = "crates/antecedent/tests/compiled_twins_prior_composition.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "external-prior-composition-known-truth"
+crate = "antecedent"
+cargo_target = "external_prior_composition_known_truth"
+path = "crates/antecedent/tests/external_prior_composition_known_truth.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-prior-selection"
+crate = "antecedent"
+cargo_target = "compiled_twins_prior_selection"
+path = "crates/antecedent/tests/compiled_twins_prior_selection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-z-transport"
+crate = "antecedent"
+cargo_target = "compiled_twins_z_transport"
+path = "crates/antecedent/tests/compiled_twins_z_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "z-transport-known-truth"
+crate = "antecedent"
+cargo_target = "z_transport_known_truth"
+path = "crates/antecedent/tests/z_transport_known_truth.rs"
+gates = ["inventory", "named"]
+[[test]]
+id = "compiled-twins-measurement-recovery"
+crate = "antecedent"
+cargo_target = "compiled_twins_measurement_recovery"
+path = "crates/antecedent/tests/compiled_twins_measurement_recovery.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "compiled-twins-artifact-producers"
+crate = "antecedent"
+cargo_target = "compiled_twins_artifact_producers"
+path = "crates/antecedent/tests/compiled_twins_artifact_producers.rs"
+gates = ["inventory", "named"]
+[[test]]
+id = "compiled-twins-split-effect"
+crate = "antecedent"
+cargo_target = "compiled_twins_split_effect"
+path = "crates/antecedent/tests/compiled_twins_split_effect.rs"
+gates = ["inventory", "named"]
+[[test]]
+id = "compiled-twins-static-bootstrap"
+crate = "antecedent"
+cargo_target = "compiled_twins_static_bootstrap"
+path = "crates/antecedent/tests/compiled_twins_static_bootstrap.rs"
+gates = ["inventory", "named"]
+
+[[test]]
 id = "python-compiled-twins-decisions"
 crate = "python"
 cargo_target = "script"

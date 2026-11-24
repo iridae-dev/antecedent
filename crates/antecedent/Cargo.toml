@@ -1200,6 +1200,39 @@ path = "tests/compiled_twins_design_planning.rs"
 [[test]]
 name = "compiled_twins_sensitivity"
 path = "tests/compiled_twins_sensitivity.rs"
+
+[[test]]
+name = "compiled_twins_prior_composition"
+path = "tests/compiled_twins_prior_composition.rs"
+
+[[test]]
+name = "external_prior_composition_known_truth"
+path = "tests/external_prior_composition_known_truth.rs"
+
+[[test]]
+name = "compiled_twins_prior_selection"
+path = "tests/compiled_twins_prior_selection.rs"
+
+[[test]]
+name = "compiled_twins_z_transport"
+path = "tests/compiled_twins_z_transport.rs"
+
+[[test]]
+name = "z_transport_known_truth"
+path = "tests/z_transport_known_truth.rs"
+[[test]]
+name = "compiled_twins_measurement_recovery"
+path = "tests/compiled_twins_measurement_recovery.rs"
+
+[[test]]
+name = "compiled_twins_artifact_producers"
+path = "tests/compiled_twins_artifact_producers.rs"
+[[test]]
+name = "compiled_twins_split_effect"
+path = "tests/compiled_twins_split_effect.rs"
+[[test]]
+name = "compiled_twins_static_bootstrap"
+path = "tests/compiled_twins_static_bootstrap.rs"
 [[test]]
 name = "compiled_twins_sensitivity_ranges"
 path = "tests/compiled_twins_sensitivity_ranges.rs"
