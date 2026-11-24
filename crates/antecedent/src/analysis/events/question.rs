@@ -731,11 +731,14 @@ fn point_claim(
         ClaimKind::Point,
         Some(value),
         Some(quantity.units.as_str().into()),
+        // A fitted kernel coefficient: identification is not claimed, in the spelling the
+        // consumer's domain rule reads, so the slot and the domains say the same thing. The
+        // value is a point of the declared model, the source of the parameter bridge.
         ReasoningView::new(
-            SlotAvailability::unavailable("not_identified"),
-            SlotAvailability::unavailable("not_identified"),
-            SlotAvailability::unavailable("not_identified"),
-            SlotAvailability::unavailable("not_identified"),
+            SlotAvailability::unavailable(antecedent_contract::IDENTIFICATION_NOT_CLAIMED),
+            SlotAvailability::unavailable("not_evaluated"),
+            SlotAvailability::unavailable("not_propagated"),
+            SlotAvailability::unavailable("declared_kernel"),
         ),
         ClaimDomains::new(DomainStatus::NotClaimed, DomainStatus::Unknown, DomainStatus::Evaluated),
         None,
@@ -1377,5 +1380,99 @@ mod question_tests {
         assert_eq!(outcome.reading.reason, Some("immigrant-alternative fit is weakly identified"));
         assert!(outcome.accepted.is_none());
         assert!(outcome.law.is_none());
+    }
+
+    fn identities() -> antecedent_core::identity::ContractIdentities {
+        let digest = antecedent_core::identity::SemanticDigest::from_bytes([3; 32]);
+        antecedent_core::identity::ContractIdentities::new(
+            digest, digest, None, None, digest, digest, digest,
+        )
+    }
+
+    /// The kernel coefficient offered to the bridge claims no identification, in the
+    /// spelling the consumer's domain rule reads, and asserts no support.
+    #[test]
+    fn site_the_kernel_reading_claims_no_identification() {
+        use antecedent_contract::{DomainStatus, IDENTIFICATION_NOT_CLAIMED, SlotAvailability};
+        let claim = super::point_claim(&identities(), &quantity("observational"), 0.4);
+        assert!(matches!(
+            &claim.reasoning.identification,
+            SlotAvailability::Unavailable { reason } if &**reason == IDENTIFICATION_NOT_CLAIMED
+        ));
+        assert_eq!(claim.domains.identification, DomainStatus::NotClaimed);
+        assert_eq!(claim.domains.support, DomainStatus::Unknown);
+        assert_eq!(claim.value, Some(0.4));
+    }
+
+    /// The bridged reading rests on the declared kernel: the bridge's assumption stays an
+    /// unresolved obligation, and the bridged claim asserts no identification or support.
+    #[test]
+    fn site_the_bridged_reading_keeps_the_kernel_premise_unresolved() {
+        use antecedent_contract::{DomainStatus, SlotAvailability};
+        let contract = bridge("direct_offspring", Some("structure:declared"), "observational");
+        let derived = super::bridged(&contract, &identities(), 0.4).unwrap();
+        assert!((derived.value - 0.8).abs() < 1e-12);
+        assert_ne!(derived.claim.domains.identification, DomainStatus::Identified);
+        assert_ne!(derived.claim.domains.support, DomainStatus::Supported);
+        let SlotAvailability::Available(slot) = &derived.claim.reasoning.assumptions else {
+            panic!("the bridge states its premises");
+        };
+        assert!(slot.obligations.iter().any(|obligation| {
+            obligation.id.contains("structural_kernel") && obligation.is_unresolved()
+        }));
+        // The bridged claim restates no domain of its source: nothing is evaluated for the
+        // bridged quantity either.
+        assert_eq!(derived.claim.domains.evaluated, DomainStatus::Unknown);
+        // The kernel reading's own assumptions are not available to the bridge, so the
+        // bridged claim owes the obligation that stands for them, and its receipt says so.
+        let stand_in = antecedent_contract::bridge::SOURCE_ASSUMPTIONS_UNAVAILABLE;
+        assert!(
+            slot.obligations
+                .iter()
+                .any(|obligation| { &*obligation.id == stand_in && obligation.is_unresolved() })
+        );
+        assert!(
+            derived
+                .receipt
+                .unresolved
+                .iter()
+                .any(|item| &**item == format!("source_assumption:{stand_in}").as_str())
+        );
+    }
+
+    /// The contract the excitation question offers names its kernel premise and refuses a
+    /// half-declared map rather than completing it.
+    #[test]
+    fn site_the_parameter_bridge_states_its_premise_and_refuses_a_partial_map() {
+        let declared = |regime: &str| super::DeclaredQuantity {
+            variable_id: "edge.release_to_activity".into(),
+            variable_name: "direct offspring".into(),
+            units: "count".into(),
+            population_id: "observed_stream".into(),
+            regime_id: regime.into(),
+            horizon: 1,
+            functional_id: "direct_offspring".into(),
+        };
+        let contract = super::parameter_bridge(
+            declared("observational"),
+            declared("do_one_release"),
+            None,
+            None,
+            "the declared kernel",
+        )
+        .unwrap();
+        assert_eq!(contract.assumptions.len(), 1);
+        assert_eq!(contract.assumptions[0].kind, AssumptionKind::ParameterInterpretation);
+        assert_eq!(contract.assumptions[0].evidence, None);
+        assert!(
+            super::parameter_bridge(
+                declared("observational"),
+                declared("do_one_release"),
+                Some(0.0),
+                None,
+                "the declared kernel",
+            )
+            .is_err()
+        );
     }
 }

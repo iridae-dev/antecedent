@@ -257,9 +257,11 @@ fn compiled_input_functional_equals_evaluate_functional_on_input() {
     let ctx = ctx();
     let two =
         contract(vec![action("wait", "do(a=0)", "outcome"), action("treat", "do(a=1)", "outcome")]);
+    // The law states its support on every coordinate: a law with no evidence behind it that
+    // states no mask is missing evidence, never supported by default.
     let input = DecisionInput::from_distribution_artifact(
         "law",
-        &boundary_law(None),
+        &boundary_law(Some(vec![true, true, true])),
         &TrustEvidence::None,
         TrustRequirement::Unrestricted,
     )

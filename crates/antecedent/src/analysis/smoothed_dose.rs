@@ -260,40 +260,12 @@ impl PreparedSmoothedDose {
             &ctx,
         )
         .map_err(estimate_err)?;
-        let calibration = if run.intervals.iter().all(Option::is_some) && !run.intervals.is_empty()
-        {
-            use antecedent_io_core::calibration::{
-                CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
-            };
-            calibration_slot(&CalibrationBasisWire {
-                key: CalibrationKeyWire {
-                    validation: "not_applicable".into(),
-                    query: "ClassicalTransport".into(),
-                    graph_class: "Admg".into(),
-                    structure: "fixed".into(),
-                    modality: "tabular".into(),
-                    inference: "Frequentist".into(),
-                    estimator: "transport.smoothed_dose_transport_aipw".into(),
-                    interval_method: "percentile_bootstrap".into(),
-                    se_kind: "percentile".into(),
-                    dependence: "iid".into(),
-                    posterior: String::new(),
-                    functional: "smoothed_dose_response".into(),
-                    level: self.options.coverage_level,
-                    identification: "point".into(),
-                },
-                scope: CalibrationScopeWire {
-                    row_count: self.input.outcome.len() as u64,
-                    replicates_ok: Some(u32::try_from(run.replicates.len()).unwrap_or(u32::MAX)),
-                    posterior_draws: None,
-                    unidentified_mass: 0.0,
-                },
-            })
-        } else {
-            antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
-                antecedent_io_core::calibration::NO_INTERVAL_REPORTED,
-            )
-        };
+        let calibration = smoothed_dose_interval_slot(
+            &run.intervals,
+            self.options.coverage_level,
+            self.input.outcome.len() as u64,
+            run.replicates.len(),
+        );
         Ok(SmoothedDoseInterval { run, calibration })
     }
 
@@ -507,5 +479,89 @@ impl PreparedSmoothedDose {
                 model,
             })?;
         Ok(SmoothedDosePosteriorResult { wire })
+    }
+}
+
+/// Calibration match key and scope of the smoothed dose-response bootstrap band.
+fn smoothed_dose_interval_basis(
+    level: f64,
+    row_count: u64,
+    replicates: usize,
+) -> antecedent_io_core::calibration::CalibrationBasisWire {
+    use antecedent_io_core::calibration::{
+        CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire,
+    };
+    CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: "ClassicalTransport".into(),
+            graph_class: "Admg".into(),
+            structure: "fixed".into(),
+            modality: "tabular".into(),
+            inference: "Frequentist".into(),
+            estimator: "transport.smoothed_dose_transport_aipw".into(),
+            interval_method: "percentile_bootstrap".into(),
+            se_kind: "percentile".into(),
+            dependence: "iid".into(),
+            posterior: String::new(),
+            functional: "smoothed_dose_response".into(),
+            level,
+            identification: "point".into(),
+        },
+        scope: CalibrationScopeWire {
+            row_count,
+            replicates_ok: Some(u32::try_from(replicates).unwrap_or(u32::MAX)),
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    }
+}
+
+/// The slot of the band: what the coverage records give the route's construction when every
+/// grid point has an interval, and not measured when any point has none.
+fn smoothed_dose_interval_slot<T>(
+    intervals: &[Option<T>],
+    level: f64,
+    row_count: u64,
+    replicates: usize,
+) -> antecedent_io_core::contract_section::CalibrationSlotWire {
+    if intervals.iter().all(Option::is_some) && !intervals.is_empty() {
+        antecedent_io_core::calibration::calibration_slot(&smoothed_dose_interval_basis(
+            level, row_count, replicates,
+        ))
+    } else {
+        antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+            antecedent_io_core::calibration::NO_INTERVAL_REPORTED,
+        )
+    }
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+    use antecedent_io_core::calibration::{NO_INTERVAL_REPORTED, rederive_calibration};
+    use antecedent_io_core::contract_section::CalibrationStatus;
+
+    #[test]
+    fn site_smoothed_dose_slot_is_keyed_by_the_route_and_set_only_by_records() {
+        let basis = smoothed_dose_interval_basis(0.95, 1200, 499);
+        assert_eq!(basis.key.query, "ClassicalTransport");
+        assert_eq!(basis.key.estimator, "transport.smoothed_dose_transport_aipw");
+        assert_eq!(basis.key.functional, "smoothed_dose_response");
+        assert_eq!((basis.scope.row_count, basis.scope.replicates_ok), (1200, Some(499)));
+        let slot = smoothed_dose_interval_slot(&[Some(()), Some(())], 0.95, 1200, 499);
+        assert_eq!(slot.basis.as_ref(), Some(&basis));
+        let again = rederive_calibration(&slot);
+        assert_eq!(again.status, slot.status);
+        assert_eq!(again.record_id, slot.record_id);
+        if slot.status == CalibrationStatus::Calibrated {
+            assert!(slot.record_id.is_some());
+        }
+        // One grid point without an interval, or no grid: the band is not calibrated.
+        for intervals in [vec![Some(()), None], Vec::new()] {
+            let none = smoothed_dose_interval_slot(&intervals, 0.95, 1200, 499);
+            assert_eq!(none.status, CalibrationStatus::NotMeasured);
+            assert_eq!(none.reason.as_deref(), Some(NO_INTERVAL_REPORTED));
+        }
     }
 }

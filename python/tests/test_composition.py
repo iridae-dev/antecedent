@@ -461,7 +461,18 @@ def test_composition_boundary_an_aligned_joint_law_answers_the_probability_a_mea
             action("treat", "do(a=1)", "outcome", decision.x(0)),
         ]
     )
-    unbacked = comp.DecisionInput.from_distribution("law", joint(**LABELLED_NATIVE))
+    # An unbacked law that states no support mask states no support: missing evidence on
+    # every coordinate, so no functional is answered from it.
+    unstated = comp.DecisionInput.from_distribution("law", joint(**LABELLED_NATIVE))
+    with pytest.raises(comp.SupportRefusal):
+        require_success(
+            comp.evaluate_functional(
+                outcome_only, "treat", comp.Functional.probability(2.0, "upper"), unstated
+            )
+        )
+    unbacked = comp.DecisionInput.from_distribution(
+        "law", joint(calibration="exact", trust="external_attested", supported=(True, True, True))
+    )
     # P(x1 >= 2) over [4, 0, 2, 6] is 3 / 4. The unbacked exact label is not used.
     probability = require_success(
         comp.evaluate_functional(

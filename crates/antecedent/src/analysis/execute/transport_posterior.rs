@@ -610,6 +610,13 @@ fn envelope_posterior(
         EnvelopeOptions::default(),
     )
     .map_err(CausalError::from)?;
+    // Never stronger than the evaluated atoms' own identification.
+    super::cap_envelope_status(
+        &mut posterior,
+        super::identified_atom_status(
+            evals.iter().filter(|eval| eval.value.is_some()).map(|eval| eval.status),
+        ),
+    );
     // The aggregator flags an unevaluable atom unidentified (the envelope has no third state);
     // split that mass back out so a refusal to estimate is never published as
     // non-identification.

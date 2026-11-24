@@ -265,6 +265,20 @@ def _mean_contract(claim: Any) -> decision.Contract:
     )
 
 
+def _stated_law_input(input_id: str) -> comp.DecisionInput:
+    """The cross-surface decision source as a composition input that states its support.
+
+    The fixture law states no support mask and no execution record backs it, so as a
+    composition input it is missing evidence on every coordinate; the same draws with every
+    column stated supported are the input a supported comparison reads.
+    """
+    draws = np.array([[a, b, 3.0] for a, b in zip(gen.P, gen.Q, strict=True)], dtype=np.float64)
+    stated = JointDistributionArtifact(
+        gen.source_identity(), draws, calibration="exact", supported=(True, True, True)
+    )
+    return comp.DecisionInput.from_distribution(input_id, stated)
+
+
 def _joint_bundle(contract: decision.Contract, law: JointDistributionArtifact) -> cb.Bundle:
     builder = cb.Bundle.builder()
     builder.add_artifact(
@@ -1515,7 +1529,7 @@ def _check_law_decision(o: Objs) -> None:
     assert decided.selected == ("safe",)
     assert len(bytes(decided.export(artifact_id="result"))) > 0, "a joint-draw result replays"
 
-    law_input = comp.DecisionInput.from_distribution("law", o.law)
+    law_input = _stated_law_input("law")
     assert law_input.source == "joint_law"
     supported = require_success(comp.evaluate_with_support(contract, [law_input]))
     assert supported.outcome("risky").expected_utility == pytest.approx(2.0, abs=1e-12)
@@ -3828,7 +3842,7 @@ def test_producer_consumer_matrix_a_mean_never_answers_a_probability_a_quantile_
 ) -> None:
     contract = _mean_contract(objs.claim)
     mean_input = comp.DecisionInput.from_claim("claim", objs.claim)
-    law_input = comp.DecisionInput.from_distribution("law", objs.law)
+    law_input = _stated_law_input("law")
     # The mean is a distribution functional's special case only for the expectation.
     assert require_success(
         comp.evaluate_functional(contract, "wait", comp.Functional.expected_utility(), mean_input)

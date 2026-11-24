@@ -59,30 +59,37 @@ fn cell_aipw_response(
             interpretation: antecedent_core::IntervalInterpretation::Confidence,
             draws: None,
         },
-        support: antecedent_core::SupportReport {
-            status: antecedent_core::SupportStatus::Supported,
-            query_region: antecedent_core::SupportRegion {
-                minima: Arc::from(
-                    (0..n_treatments)
-                        .map(|j| f64::from((requested_arm >> j) & 1))
-                        .collect::<Vec<_>>(),
-                ),
-                maxima: Arc::from(
-                    (0..n_treatments)
-                        .map(|j| f64::from((requested_arm >> j) & 1))
-                        .collect::<Vec<_>>(),
-                ),
-            },
-            diagnostics: Vec::new(),
-            warnings: Vec::new(),
-            // One scalar answers the whole joint arm: one coordinate, one label (the
-            // summary itself).
-            point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
-        },
+        support: cell_arm_support(n_treatments, requested_arm),
         assumptions: identification.required_assumptions.clone(),
         provenance_id: Arc::from("estimate.cell.aipw"),
         horizon_identification: None,
         interaction_structurally_zero: false,
+    }
+}
+
+/// The support report of one observed joint arm: the region is exactly the requested arm's
+/// binary coordinates, and its one label is the summary. The overlap verdict on the arm's
+/// rows is the empirical support check the claim's support domain reads, not this label.
+///
+/// The label is earned before the response exists: `antecedent_estimate::cell_aipw` refuses
+/// a joint cell with no complete-case rows, and one missing from any cross-fit training fold
+/// (`positivity_violated`), before any score is formed, so the requested arm is an observed
+/// cell of every fold. Propensities near zero are clipped under
+/// `OverlapPolicy::RequireDiagnostics`; a binding clip is recorded as the overlap diagnostic
+/// that makes the claim's empirical support `limited:` (and its support domain limited),
+/// so weak overlap reaches the claim even though the arm itself is observed.
+fn cell_arm_support(n_treatments: usize, requested_arm: u32) -> antecedent_core::SupportReport {
+    let arm: Arc<[f64]> = Arc::from(
+        (0..n_treatments).map(|j| f64::from((requested_arm >> j) & 1)).collect::<Vec<_>>(),
+    );
+    antecedent_core::SupportReport {
+        status: antecedent_core::SupportStatus::Supported,
+        query_region: antecedent_core::SupportRegion { minima: Arc::clone(&arm), maxima: arm },
+        diagnostics: Vec::new(),
+        warnings: Vec::new(),
+        // One scalar answers the whole joint arm: one coordinate, one label (the
+        // summary itself).
+        point_status: Some(Arc::from([antecedent_core::SupportStatus::Supported])),
     }
 }
 
@@ -1205,6 +1212,19 @@ use mixing::{cell_contrast_for_refute, derivative_identified_set_band};
 #[cfg(test)]
 mod uncertainty_tests {
     use super::*;
+
+    #[test]
+    fn site_a_joint_arm_labels_exactly_its_own_coordinates() {
+        // Arm 0b101 of three binary treatments: coordinates (1, 0, 1), one label that is
+        // also the summary, so the summary is never milder than a label.
+        let support = cell_arm_support(3, 0b101);
+        assert_eq!(&*support.query_region.minima, &[1.0, 0.0, 1.0]);
+        assert_eq!(support.query_region.minima, support.query_region.maxima);
+        let labels = support.point_status.as_deref().expect("one label");
+        assert_eq!(labels, &[support.status]);
+        assert!(labels.iter().all(|label| label.severity() <= support.status.severity()));
+        assert_eq!(&*cell_arm_support(2, 0b10).query_region.maxima, &[0.0, 1.0]);
+    }
 
     #[test]
     fn disjoint_atom_intervals_are_not_averaged_into_a_confidence_interval() {

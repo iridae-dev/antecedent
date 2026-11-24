@@ -507,7 +507,8 @@ pub use consume::{
     project_claim_host, project_lossy_scalar, replay_analysis_result,
     replay_analysis_result_expecting, replay_analysis_result_with_source,
     replay_analysis_result_with_source_expecting, replay_analysis_result_within,
-    replay_analysis_result_within_expecting, result_digest, support_empirical,
+    replay_analysis_result_within_expecting, result_digest, slot_claim_kind,
+    status_identifies_a_point, status_name_identifies_a_point, support_empirical,
     validate_mixture_masses, weight_basis_name,
 };
 pub(crate) use verify::verify_contract_for_encoding_with_source;

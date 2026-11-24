@@ -994,13 +994,35 @@ fn mix_derivative_responses(
     };
     mixed.estimate = ResponseIdentification::PointIdentified(value);
     mixed.uncertainty = ResponseUncertainty::None;
-    if responses.iter().any(|(_, response)| response.support.status != SupportStatus::Supported) {
-        mixed.support.status = SupportStatus::OutsideEmpiricalSupport;
+    if let Some(status) =
+        mixed_support_status(responses.iter().map(|(_, response)| response.support.status))
+    {
+        mixed.support.status = status;
         for (_, response) in responses.iter().skip(1) {
             mixed.support.warnings.extend(response.support.warnings.iter().cloned());
         }
     }
     Ok(mixed)
+}
+
+/// The support summary of a mixture over completions, when it is not the first completion's
+/// supported status: outside empirical support as soon as one completion is not supported,
+/// and missing evidence when one completion's evidence is missing (never hidden as a support
+/// failure).
+fn mixed_support_status(
+    statuses: impl IntoIterator<Item = SupportStatus>,
+) -> Option<SupportStatus> {
+    statuses
+        .into_iter()
+        .filter(|status| *status != SupportStatus::Supported)
+        .map(|status| {
+            if status.severity() > SupportStatus::OutsideEmpiricalSupport.severity() {
+                status
+            } else {
+                SupportStatus::OutsideEmpiricalSupport
+            }
+        })
+        .max_by_key(|status| status.severity())
 }
 
 fn mix_response_value(
@@ -1235,6 +1257,32 @@ fn load_class_posterior_cache(
 #[cfg(test)]
 mod posterior_mass_tests {
     use super::*;
+
+    #[test]
+    fn site_a_derivative_mixture_is_no_better_supported_than_its_worst_completion() {
+        use SupportStatus::{
+            Extrapolative, MissingEvidence, OutsideEmpiricalSupport, Supported, WeakOverlap,
+        };
+        assert_eq!(mixed_support_status([Supported, Supported]), None);
+        for weaker in [WeakOverlap, Extrapolative, OutsideEmpiricalSupport] {
+            assert_eq!(mixed_support_status([Supported, weaker]), Some(OutsideEmpiricalSupport));
+        }
+        // Missing evidence in any completion is the summary, whatever the others say.
+        assert_eq!(
+            mixed_support_status([Supported, OutsideEmpiricalSupport, MissingEvidence]),
+            Some(MissingEvidence)
+        );
+        assert_eq!(mixed_support_status([MissingEvidence, Extrapolative]), Some(MissingEvidence));
+        for statuses in [
+            vec![Supported, WeakOverlap],
+            vec![Extrapolative, MissingEvidence],
+            vec![OutsideEmpiricalSupport],
+        ] {
+            let worst = statuses.iter().map(|s| s.severity()).max().unwrap_or(0);
+            let mixed = mixed_support_status(statuses.clone()).expect("not supported");
+            assert!(mixed.severity() >= worst, "{statuses:?} -> {mixed:?}");
+        }
+    }
 
     #[test]
     fn vector_completion_mass_and_order_preserve_unidentified_and_unevaluable_cases() {

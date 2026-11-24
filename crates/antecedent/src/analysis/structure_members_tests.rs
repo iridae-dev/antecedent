@@ -212,3 +212,21 @@ fn names_outside_the_structure_refuse() {
     let unbound = DeclaredStructure::graph(AcceptedGraph::dag(Dag::with_variables(2)));
     assert!(unbound.members("release", "activity", CyclicReading::Lagged, &ctx).is_err());
 }
+
+#[test]
+fn site_a_member_is_identified_only_under_the_shared_point_rule() {
+    use antecedent_core::IdentificationStatus;
+    for status in IdentificationStatus::ALL {
+        let expected = if antecedent_io_core::contract_section::status_identifies_a_point(status) {
+            MemberStatus::Identified
+        } else {
+            MemberStatus::NotIdentified
+        };
+        assert_eq!(super::member_status(status), expected, "{status:?}");
+    }
+    // A partially identified member gives a set, never the member's effect.
+    assert_eq!(
+        super::member_status(IdentificationStatus::PartiallyIdentified),
+        MemberStatus::NotIdentified
+    );
+}

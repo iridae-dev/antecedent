@@ -480,3 +480,40 @@ fn derivative_support_report(
         point_status: None,
     }
 }
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+    use antecedent_core::SupportStatus;
+
+    fn series(t: &[f64]) -> TimeSeriesData {
+        let y: Vec<f64> = t.iter().map(|v| 2.0 * v).collect();
+        TimeSeriesData::from_f64_columns([("t", t), ("y", y.as_slice())], 1_000).unwrap()
+    }
+
+    #[test]
+    fn site_a_derivative_is_supported_only_inside_the_observed_series() {
+        let data = series(&[-1.0, 0.0, 0.5, 2.0]);
+        let t = [VariableId::from_raw(0)];
+        let inside = derivative_support_report(&data, &t, &[0.5], false);
+        assert_eq!(inside.status, SupportStatus::Supported);
+        assert!(inside.warnings.is_empty());
+        // Outside the series, a non-finite point, a missing point or a point per treatment
+        // that is not given: never supported, and the warning says so.
+        for requested in [&[2.5][..], &[f64::NAN][..], &[][..], &[0.5, 0.5][..]] {
+            let report = derivative_support_report(&data, &t, requested, false);
+            assert_eq!(report.status, SupportStatus::OutsideEmpiricalSupport, "{requested:?}");
+            assert_eq!(report.warnings.len(), 1);
+        }
+        // The average over the observed series is supported on its range, and has no
+        // support when the series holds no finite treatment value.
+        let average = derivative_support_report(&data, &t, &[], true);
+        assert_eq!(average.status, SupportStatus::Supported);
+        assert_eq!(&*average.query_region.minima, &[-1.0]);
+        assert_eq!(&*average.query_region.maxima, &[2.0]);
+        let empty = series(&[f64::NAN, f64::NAN]);
+        let none = derivative_support_report(&empty, &t, &[], true);
+        assert_eq!(none.status, SupportStatus::OutsideEmpiricalSupport);
+        assert_eq!(none.warnings.len(), 1);
+    }
+}

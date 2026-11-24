@@ -911,8 +911,10 @@ fn identified(
     }
 }
 
+/// A member is identified only under the shared "point identified" rule: a partially
+/// identified member gives a set, not the member's effect, so it is not an identified member.
 fn member_status(status: IdentificationStatus) -> MemberStatus {
-    if crate::analysis::execute::identification_status_ok_for_case(status) {
+    if antecedent_io_core::contract_section::status_identifies_a_point(status) {
         MemberStatus::Identified
     } else {
         MemberStatus::NotIdentified

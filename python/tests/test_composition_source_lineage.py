@@ -24,6 +24,10 @@ from test_program_claims import _contract, _native_program, _native_view
 from test_rollout import fixture as rollout_fixture
 from test_sensitivity_decision import _prepared_stage, _quantity
 
+# The support an external law states for its three coordinates. A law from a provider that
+# only attests it and states no mask is missing evidence on every coordinate.
+STATED = (True, True, True)
+
 
 def _functional(*args):
     """The successful functional value (refusals re-raise their original error)."""
@@ -91,7 +95,7 @@ def test_law_functional_full_original_request_replays_truth_without_trust_upgrad
             action("treat", "do(a=1)", "outcome", decision.x(0)),
         ]
     )
-    source = comp.DecisionInput.from_distribution("law", joint())
+    source = comp.DecisionInput.from_distribution("law", joint(supported=STATED))
     result = _functional(declaration, "treat", functional, source)
     assert result.value == pytest.approx(truth)
     original = result.source_artifact
@@ -196,7 +200,7 @@ def test_full_sensitivity_and_law_sources_replay_in_fresh_process(tmp_path):
         declaration,
         "treat",
         comp.Functional.probability(2.0, "upper"),
-        comp.DecisionInput.from_distribution("law", joint()),
+        comp.DecisionInput.from_distribution("law", joint(supported=STATED)),
     )
     sensitivity_path = tmp_path / "sensitivity.art"
     law_path = tmp_path / "law.art"
@@ -232,7 +236,7 @@ def test_law_functional_changed_complete_request_identity_and_invalid_artifact_r
             action("treat", "do(a=1)", "outcome", decision.x(0)),
         ]
     )
-    source = comp.DecisionInput.from_distribution("law", joint())
+    source = comp.DecisionInput.from_distribution("law", joint(supported=STATED))
     original = _functional(
         declaration, "treat", comp.Functional.expectation(), source
     ).source_artifact
@@ -414,7 +418,7 @@ def test_native_law_row_resolution_refuses_other_actual_source_and_missing_origi
         external_contract,
         "treat",
         comp.Functional.expectation(),
-        comp.DecisionInput.from_distribution("external", joint()),
+        comp.DecisionInput.from_distribution("external", joint(supported=STATED)),
     ).source_artifact
     with pytest.raises(
         ValueError, match=reason_details.functional_source.NATIVE_SOURCE_UNAVAILABLE

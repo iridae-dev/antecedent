@@ -60,7 +60,23 @@ fn interval_calibration(
         .filter_map(|law| law.empirical_counts().map(|counts| counts.iter().sum::<u64>()))
         .min()
         .unwrap_or(0);
-    calibration_slot(&CalibrationBasisWire {
+    calibration_slot(&mz_interval_basis(
+        shared,
+        rows,
+        uncertainty.coverage_target.unwrap_or(MZ_INTERVAL_LEVEL),
+        uncertainty.replicates_ok,
+    ))
+}
+
+/// Calibration match key and scope of the multi-source bootstrap interval: units shared
+/// between cited regimes, the smallest source's rows, the level and the replicates that ran.
+fn mz_interval_basis(
+    shared: bool,
+    rows: u64,
+    level: f64,
+    replicates_ok: u32,
+) -> CalibrationBasisWire {
+    CalibrationBasisWire {
         key: CalibrationKeyWire {
             validation: "not_applicable".into(),
             query: "ClassicalTransport".into(),
@@ -74,16 +90,16 @@ fn interval_calibration(
             dependence: if shared { "shared_units" } else { "iid" }.into(),
             posterior: String::new(),
             functional: "target_interventional_mean".into(),
-            level: uncertainty.coverage_target.unwrap_or(MZ_INTERVAL_LEVEL),
+            level,
             identification: "point".into(),
         },
         scope: CalibrationScopeWire {
             row_count: rows,
-            replicates_ok: Some(uncertainty.replicates_ok),
+            replicates_ok: Some(replicates_ok),
             posterior_draws: None,
             unidentified_mass: 0.0,
         },
-    })
+    }
 }
 
 /// A prepared mz formula: frozen proof, bound catalog, laws and compiled plans.
@@ -418,5 +434,38 @@ impl PreparedMzTransport {
     #[must_use]
     pub fn plans(&self) -> &[ExactEvaluationPlan] {
         &self.plans
+    }
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+    use antecedent_io_core::calibration::rederive_calibration;
+    use antecedent_io_core::contract_section::CalibrationStatus;
+
+    #[test]
+    fn site_mz_slot_is_keyed_by_the_route_and_set_only_by_records() {
+        for shared in [false, true] {
+            let basis = mz_interval_basis(shared, 900, MZ_INTERVAL_LEVEL, MZ_INTERVAL_REPLICATES);
+            assert_eq!(basis.key.query, "ClassicalTransport");
+            assert_eq!(basis.key.estimator, "transport.mz_joint_bootstrap");
+            assert_eq!(basis.key.interval_method, "percentile_bootstrap");
+            assert_eq!(basis.key.dependence, if shared { "shared_units" } else { "iid" });
+            assert_eq!(basis.key.identification, "point");
+            assert_eq!(basis.scope.replicates_ok, Some(MZ_INTERVAL_REPLICATES));
+            let slot = calibration_slot(&basis);
+            assert_eq!(slot.basis.as_ref(), Some(&basis));
+            let again = rederive_calibration(&slot);
+            assert_eq!(again.status, slot.status);
+            assert_eq!(again.record_id, slot.record_id);
+            if slot.status == CalibrationStatus::Calibrated {
+                assert!(slot.record_id.is_some());
+            }
+        }
+        // Shared units are a different construction: no record crosses the dependence.
+        assert_ne!(
+            mz_interval_basis(true, 900, MZ_INTERVAL_LEVEL, 999).key,
+            mz_interval_basis(false, 900, MZ_INTERVAL_LEVEL, 999).key
+        );
     }
 }

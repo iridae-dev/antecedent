@@ -212,6 +212,13 @@ impl CompositionVerificationRefusal {
 /// reads as supported coordinates (the label itself travels in the claim's
 /// identity); a label stronger than that, or one that is not a support label,
 /// names the claim's coordinates as unsupported.
+///
+/// The graph's support facet only names coordinates outside support, which
+/// withdraw a claim: it has no state between the two. A carried claim inside
+/// the support its transport premise establishes is therefore not withdrawn, but
+/// a node built for it ([`library_transported_node`]) also states
+/// [`support_label_premise`] as an assumption, so the graph never presents an
+/// extrapolative claim as supported without the premise it rests on.
 #[must_use]
 pub fn library_transported_standing(support_label: &str, coordinates: &[String]) -> ClaimStanding {
     let standing = ClaimStanding::native_point();
@@ -227,6 +234,38 @@ pub fn library_transported_standing(support_label: &str, coordinates: &[String])
             standing.with_unsupported(names)
         }
     }
+}
+
+/// The assumption a graph node states when its support label is weaker than
+/// `supported` but not outside support (`weak_overlap`, `extrapolative`):
+/// `support_label:<label>`. The node's support facet reads as supported only
+/// under this stated premise, and a node whose label is `supported`, outside
+/// support or not a support label states none (the first is supported outright,
+/// the others name their coordinates as unsupported).
+#[must_use]
+pub fn support_label_premise(support_label: &str) -> Option<String> {
+    match SupportStatus::from_name(support_label) {
+        Some(status)
+            if status != SupportStatus::Supported
+                && status.severity() <= SupportStatus::Extrapolative.severity() =>
+        {
+            Some(format!("support_label:{}", status.as_str()))
+        }
+        _ => None,
+    }
+}
+
+/// `assumptions` with the support premise of `support_label` appended once.
+pub(crate) fn with_support_premise(
+    mut assumptions: Vec<String>,
+    support_label: &str,
+) -> Vec<String> {
+    if let Some(premise) = support_label_premise(support_label)
+        && !assumptions.contains(&premise)
+    {
+        assumptions.push(premise);
+    }
+    assumptions
 }
 
 /// The node of a claim a library transport route issued: kind
@@ -261,7 +300,7 @@ pub fn library_transported_node(
     )
     .with_coordinate(SemanticDigest::from_bytes(coordinate.finish()))
     .with_standing(library_transported_standing(support_label, &[]))
-    .with_assumptions(assumptions)
+    .with_assumptions(with_support_premise(assumptions, support_label))
     .with_transformation(route)
 }
 

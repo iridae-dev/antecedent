@@ -671,6 +671,8 @@ fn mix_sequential_class_atoms(
                 EnvelopeOptions::default(),
             )
             .map_err(CausalError::from)?;
+            // Never stronger than the completions it mixes as identified.
+            super::cap_envelope_status(&mut mixed, super::identified_case_status(envelope));
             mixed.unidentified_mass = (mixed.unidentified_mass - unevaluable_share).max(0.0);
             (effect_from_posterior(&mixed)?, Some(mixed))
         } else {

@@ -1843,10 +1843,12 @@ fn identification_not_claimed_implies_an_associational_claim_with_its_own_domain
     assert_eq!(domains.evaluated, "evaluated");
     assert_eq!(domains.support, "unknown");
 
-    // Another unavailable reason is an ordinary claim whose identification is unknown.
+    // Another unavailable reason establishes nothing about identification: the claim is
+    // incomplete, never a point, and its identification domain is unknown.
     let other = SlotSectionWire { value: None, unavailable: Some("not_prepared".into()) };
     assert!(!identification_not_claimed(&other));
-    assert_eq!(claim_kind_name_of_section(&body, &other), "point");
+    assert_eq!(claim_kind_name_of_section(&body, &other), "incomplete");
+    assert_eq!(claim_kind_name(&body, None), "incomplete");
     assert_eq!(claim_domains_of_section(None, &other).identification, "unknown");
 
     // A present slot reads exactly as before.
@@ -3713,5 +3715,63 @@ fn whole_target_diagnostic_preserves_vectors_and_requires_replay() {
         unresolved_after(&body, &names, &contract)
             .iter()
             .any(|reason| reason == "dependencies.scoped_refutation_replay")
+    );
+}
+
+#[test]
+fn site_one_point_identified_rule_reads_every_status() {
+    use antecedent_core::IdentificationStatus;
+    for status in IdentificationStatus::ALL {
+        let identifies = super::status_identifies_a_point(status);
+        assert_eq!(super::status_name_identifies_a_point(status.as_str()), identifies);
+        assert_eq!(
+            identifies,
+            matches!(
+                status,
+                IdentificationStatus::NonparametricallyIdentified
+                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            ),
+            "{status:?}"
+        );
+        // The identification domain is established exactly by the shared rule.
+        let slot = IdentificationSlotWire {
+            status: status.as_str().into(),
+            identified_mass: 1.0,
+            unidentified_mass: 0.0,
+            unevaluable_mass: 0.0,
+            incomplete_search_mass: 0.0,
+            full_mass_scope: true,
+            search_capped: false,
+            weight_basis: None,
+        };
+        assert_eq!(
+            claim_domain_statuses(None, Some(&slot)).identification
+                == antecedent_contract::DomainStatus::Identified,
+            identifies
+        );
+    }
+    assert!(!super::status_name_identifies_a_point("an_unknown_spelling"));
+}
+
+#[test]
+fn site_slot_claim_kind_is_a_point_only_for_a_full_unweighted_identifying_slot() {
+    use super::slot_claim_kind;
+    use antecedent_core::IdentificationStatus;
+    for status in IdentificationStatus::ALL {
+        for (mass, weighted) in [(1.0, false), (1.0, true), (0.5, false)] {
+            let kind = slot_claim_kind(Some(status), mass, weighted);
+            if kind == antecedent_contract::ClaimKind::Point {
+                assert!(mass >= 1.0 && !weighted, "{status:?}");
+                assert!(!matches!(
+                    status,
+                    IdentificationStatus::PartiallyIdentified | IdentificationStatus::NotIdentified
+                ));
+            }
+        }
+    }
+    assert_eq!(slot_claim_kind(None, 1.0, false), antecedent_contract::ClaimKind::Incomplete);
+    assert_eq!(
+        slot_claim_kind(Some(IdentificationStatus::PartiallyIdentified), 1.0, false),
+        antecedent_contract::ClaimKind::Bounds
     );
 }

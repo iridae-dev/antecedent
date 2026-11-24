@@ -1039,3 +1039,27 @@ pub fn consume_mechanism_composition_artifact(
         result: consumed.result,
     })
 }
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+    use antecedent_io_core::contract_section::CalibrationStatus;
+
+    #[test]
+    fn site_the_first_order_interval_is_never_calibrated() {
+        // No record covers the delta-method construction: every interval the route publishes
+        // is annotated not_measured with that reason and names no record, whatever its inputs.
+        for (point, variance, level) in [(0.4, 0.01, 0.95), (-2.0, 0.0, 0.5), (1e6, 4.0, 0.99)] {
+            let interval = FirstOrderInterval::wald(point, variance, level).expect("an interval");
+            assert_eq!(interval.calibration.status, CalibrationStatus::NotMeasured);
+            assert_eq!(
+                interval.calibration.reason.as_deref(),
+                Some(antecedent_io_core::calibration::CONSTRUCTION_NOT_MEASURED)
+            );
+            assert_eq!(interval.calibration.record_id, None);
+            assert!(interval.lower <= interval.point && interval.point <= interval.upper);
+        }
+        assert!(FirstOrderInterval::wald(0.0, f64::NAN, 0.95).is_err());
+        assert!(FirstOrderInterval::wald(0.0, 1.0, 1.0).is_err());
+    }
+}

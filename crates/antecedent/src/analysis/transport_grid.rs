@@ -1147,31 +1147,15 @@ impl PreparedStudy<TransportGridState> {
         &self,
         intent: antecedent_contract::TransformIntent,
     ) -> Result<antecedent_contract::TransformationReport, IoError> {
-        use antecedent_contract::{TransformIntent, TransformationReport};
         use antecedent_core::{IdentityRef, SemanticDigest};
         let id = SemanticDigest::from_bytes(antecedent_io::external_estimate::parse_digest_hex(
             &digest(IdentityDomain::Execution, &self.state.template)?,
         )?);
-        let report = TransformationReport::new(
+        Ok(super::exact::handle_preview(
             intent,
             vec![IdentityRef::new(IdentityDomain::Execution, id)],
-            antecedent_contract::intent_effects(intent).iter().cloned(),
-            vec![],
-        );
-        Ok(
-            if matches!(
-                intent,
-                TransformIntent::DisplayPrecision
-                    | TransformIntent::FilterDisplay
-                    | TransformIntent::CompatibleDataReplace
-            ) {
-                report
-            } else {
-                report.refused_on_handle(
-                    "transport.reprepare_required: structural or evidence contract changed",
-                )
-            },
-        )
+            "transport.reprepare_required: structural or evidence contract changed".to_owned(),
+        ))
     }
     /// Independently verify a durable curve using embedded proofs and tables only.
     /// Raw samples are never reconstructed; statistical re-estimation requires refresh.

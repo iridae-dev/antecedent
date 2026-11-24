@@ -90,7 +90,7 @@ impl BoundStudy {
             program: self.binding.clone(),
             snapshot_id: self.snapshot.clone(),
             rng_id: format!("antecedent.execution.master_seed:{}", ctx.rng.master_seed()),
-            calibration: DistributionCalibration::NotMeasured,
+            calibration: BOUND_STUDY_CALIBRATION,
         }
     }
 }
@@ -470,5 +470,21 @@ impl BoundPreferenceContract {
             .iter()
             .map(|s| (s.causal_target.clone(), s.causal_identification.clone()))
             .collect()
+    }
+}
+
+/// The calibration a bound study's response law states: no coverage record measured a
+/// compiled preference study's law, so none is claimed.
+const BOUND_STUDY_CALIBRATION: DistributionCalibration = DistributionCalibration::NotMeasured;
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+
+    #[test]
+    fn site_a_bound_study_law_claims_no_calibration() {
+        assert_eq!(BOUND_STUDY_CALIBRATION, DistributionCalibration::NotMeasured);
+        assert_ne!(BOUND_STUDY_CALIBRATION, DistributionCalibration::Measured);
+        assert_ne!(BOUND_STUDY_CALIBRATION, DistributionCalibration::Exact);
     }
 }

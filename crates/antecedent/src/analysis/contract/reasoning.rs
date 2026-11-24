@@ -497,3 +497,63 @@ pub(super) fn association_reasoning(
         prepared.assumptions.clone(),
     )
 }
+
+#[cfg(test)]
+mod obligation_tests {
+    use super::obligations_from_set;
+    use antecedent_contract::ObligationKind;
+    use antecedent_core::{
+        Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
+        AssumptionStatus,
+    };
+    use std::sync::Arc;
+
+    /// Every assumption becomes one obligation that keeps its status; a declared or
+    /// contradicted assumption is never a resolved obligation, and only an empirical
+    /// diagnostic that supported it reads as supported.
+    #[test]
+    fn site_assumptions_become_obligations_that_keep_their_status() {
+        assert!(obligations_from_set(None).is_empty());
+        let sources = [
+            AssumptionSource::UserDeclared,
+            AssumptionSource::AlgorithmDefault { algorithm: Arc::from("pc") },
+            AssumptionSource::Artifact,
+        ];
+        let statuses = [
+            AssumptionStatus::Declared,
+            AssumptionStatus::Supported,
+            AssumptionStatus::Contradicted,
+            AssumptionStatus::Untestable,
+        ];
+        let mut set = AssumptionSet::new();
+        let mut expected = Vec::new();
+        for source in &sources {
+            for status in statuses {
+                set.push(AssumptionRecord {
+                    assumption: Assumption::Positivity,
+                    source: source.clone(),
+                    scope: AssumptionScope::Global,
+                    status,
+                });
+                expected.push(status);
+            }
+        }
+        let obligations = obligations_from_set(Some(&set));
+        assert_eq!(obligations.len(), expected.len());
+        for (obligation, status) in obligations.iter().zip(expected) {
+            assert_eq!(obligation.status, status);
+            if matches!(status, AssumptionStatus::Declared | AssumptionStatus::Contradicted) {
+                assert!(obligation.is_unresolved(), "{status:?} resolved");
+            }
+            if status == AssumptionStatus::Contradicted {
+                assert_eq!(obligation.kind, ObligationKind::FailedCheck);
+            }
+            if status == AssumptionStatus::Untestable {
+                assert_eq!(obligation.kind, ObligationKind::Uncheckable);
+            }
+            if obligation.kind == ObligationKind::EmpiricalDiagnostic {
+                assert_eq!(status, AssumptionStatus::Supported);
+            }
+        }
+    }
+}

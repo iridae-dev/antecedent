@@ -338,7 +338,10 @@ fn compile_model(
         role: EvidenceRole::Observations,
         composition: Composition::Single,
         decision: None,
-        claim: Some(antecedent_contract::ClaimKind::Point),
+        // A choice model is a regression of recorded choices on option attributes: its
+        // functional is an association, so it states an associational claim, never a
+        // point that reads as an intervention effect.
+        claim: Some(antecedent_contract::ClaimKind::Associational),
     })?;
     Ok(CompiledPreferenceChoiceModel { lowered, model, records, options, prior })
 }

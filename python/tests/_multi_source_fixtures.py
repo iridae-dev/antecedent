@@ -387,9 +387,12 @@ def e2_mean_input(input_id: str = "e2mean") -> comp.DecisionInput:
 def e2_law_input(
     artifact: JointDistributionArtifact | None = None, input_id: str = "e2law"
 ) -> comp.DecisionInput:
+    # The lab states support on every column of its law: a law from a provider that only
+    # attests it and states no mask is missing evidence on every coordinate.
+    stated = law(supported=(True,) * len(law_columns()))
     return comp.DecisionInput.from_distribution(
         input_id,
-        law() if artifact is None else artifact,
+        stated if artifact is None else artifact,
         evidence=comp.TrustEvidence.attested("lab-2"),
     )
 

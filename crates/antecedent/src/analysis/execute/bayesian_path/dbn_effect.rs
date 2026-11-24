@@ -237,6 +237,11 @@ fn aggregate_dbn_bayesian_envelope(
         EnvelopeOptions::default(),
     )
     .map_err(CausalError::from)?;
+    // Never stronger than the mixed atoms' own identification.
+    super::super::cap_envelope_status(
+        &mut posterior,
+        super::super::identified_atom_status(atoms.iter().map(|atom| atom.status)),
+    );
     report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
     // The estimation-failure demotions above are flagged `Unidentified`
     // (the envelope has no third state); split their mass back out so a

@@ -15,6 +15,7 @@ use antecedent_contract::{
     IDENTIFICATION_NOT_CLAIMED,
 };
 use antecedent_core::SemanticDigest;
+use antecedent_core::identification::IdentificationStatus;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -169,28 +170,73 @@ pub fn claim_kind(
     if body.iv_bounds.is_some() {
         return ClaimKind::Bounds;
     }
+    // A claim that states no identification slot (and does not say identification is not
+    // claimed) has established nothing about identification: it is incomplete, never a point.
+    // No producer seals a claim without the slot (an executed result always carries one, an
+    // association states `not_claimed`), so no sealed claim changes kind under this rule.
     let Some(slot) = identification else {
-        return ClaimKind::Point;
+        return ClaimKind::Incomplete;
     };
-    match slot.status.as_str() {
-        "partially_identified" => return ClaimKind::Bounds,
-        "nonparametrically_identified"
-        | "identified_under_parametric_restrictions"
-        | "identified_under_prior_restrictions"
-        | "graph_dependent" => {}
-        // `not_identified`, `not_certified`, `proven_non_transportable`, or any spelling this reader
-        // does not know: never a point.
-        _ => return ClaimKind::Incomplete,
+    let kind = slot_claim_kind(
+        IdentificationStatus::from_name(&slot.status),
+        slot.identified_mass,
+        slot.weight_basis.is_some(),
+    );
+    if kind == ClaimKind::Mixture
+        && body.structural_response.as_ref().is_some_and(|mixture| mixture.identified_set.is_some())
+    {
+        return ClaimKind::Bounds;
     }
-    // Any mass short of full identification, or a weighted mixture, is not a point.
-    if slot.identified_mass < 1.0 || slot.weight_basis.is_some() {
-        if body.structural_response.as_ref().is_some_and(|mixture| mixture.identified_set.is_some())
-        {
-            return ClaimKind::Bounds;
+    kind
+}
+
+/// The claim kind an identification slot alone supports: the one rule behind [`claim_kind`]
+/// and every compiled route's claim demand.
+///
+/// A partially identified status is bounds; a status that identifies a value (nonparametric,
+/// parametric or prior restrictions, or a graph-dependent class whose every member identifies
+/// it) is a point only with all of the mass identified and no structural weights, and a
+/// mixture otherwise; a status that is not identified, or that this reader does not know
+/// (`None`), is incomplete. The kind is the shape of the value; whether identification is
+/// established is the identification domain ([`status_identifies_a_point`]).
+#[must_use]
+pub fn slot_claim_kind(
+    status: Option<IdentificationStatus>,
+    identified_mass: f64,
+    weighted: bool,
+) -> ClaimKind {
+    match status {
+        Some(IdentificationStatus::PartiallyIdentified) => ClaimKind::Bounds,
+        Some(
+            IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions
+            | IdentificationStatus::GraphDependent,
+        ) => {
+            // Any mass short of full identification, or a weighted mixture, is not a point.
+            if identified_mass < 1.0 || weighted { ClaimKind::Mixture } else { ClaimKind::Point }
         }
-        return ClaimKind::Mixture;
+        Some(IdentificationStatus::NotIdentified) | None => ClaimKind::Incomplete,
     }
-    ClaimKind::Point
+}
+
+/// The one rule for "point identified" that every restatement of it reads: a nonparametric
+/// or parametric status. Prior restrictions identify under a prior, a graph-dependent status
+/// depends on the structure and a partial status identifies a set, so none of them
+/// establishes the identification domain ([`claim_domain_statuses`]).
+#[must_use]
+pub const fn status_identifies_a_point(status: IdentificationStatus) -> bool {
+    matches!(
+        status,
+        IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+    )
+}
+
+/// [`status_identifies_a_point`] over a wire spelling; an unknown spelling identifies nothing.
+#[must_use]
+pub fn status_name_identifies_a_point(status: &str) -> bool {
+    IdentificationStatus::from_name(status).is_some_and(status_identifies_a_point)
 }
 
 /// Wire spelling of [`claim_kind`].
@@ -344,10 +390,7 @@ pub fn claim_domain_statuses(
         slot.unidentified_mass == 0.0
             && slot.unevaluable_mass == 0.0
             && slot.incomplete_search_mass == 0.0
-            && matches!(
-                slot.status.as_str(),
-                "nonparametrically_identified" | "identified_under_parametric_restrictions"
-            )
+            && status_name_identifies_a_point(&slot.status)
     });
     let support_domain = match support {
         Some(slot) if matches!(slot.matrix_status.as_str(), "not_supported" | "not_applicable") => {

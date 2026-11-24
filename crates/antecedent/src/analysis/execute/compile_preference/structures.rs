@@ -145,12 +145,9 @@ impl CompiledStructure {
     }
 }
 
+/// The shared "point identified" rule the consumer's identification domain reads.
 const fn point_identified(status: IdentificationStatus) -> bool {
-    matches!(
-        status,
-        IdentificationStatus::NonparametricallyIdentified
-            | IdentificationStatus::IdentifiedUnderParametricRestrictions
-    )
+    antecedent_io_core::contract_section::status_identifies_a_point(status)
 }
 
 /// A structure that compiled and prepared, or why the quantity is not identified under it.

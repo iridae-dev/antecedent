@@ -201,6 +201,14 @@ pub fn whole_path_interval_basis(
     .with_validation("not_applicable"))
 }
 
+/// The slot of a whole-path interval: what the coverage records give its basis, nothing set
+/// by the route itself.
+fn whole_path_interval_slot(
+    basis: &CalibrationBasis,
+) -> antecedent_io::contract_section::CalibrationSlotWire {
+    calibration_slot(&CalibrationBasisWire::from(basis))
+}
+
 /// The point, the interval and the scalar name a derived account reports.
 ///
 /// `None` when the declared sampling has no determined variance (a single
@@ -304,7 +312,7 @@ impl CrossWorldExecution {
                 "the declared sampling determines no variance for these units (an independent sample needs at least two units); use the point value",
             ));
         };
-        let calibration = calibration_slot(&CalibrationBasisWire::from(&basis));
+        let calibration = whole_path_interval_slot(&basis);
         Ok(CrossWorldInterval {
             scalar,
             point,
@@ -316,5 +324,117 @@ impl CrossWorldExecution {
             calibration,
             label: "measured_interval_under_the_declared_model",
         })
+    }
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::super::cross_world_execution::{
+        ExogenousVariable, FactualUnit, FiniteScm, FiniteVariable, FiniteWorld, NoiseCoupling,
+        WorldAtom,
+    };
+    use super::*;
+    use antecedent_contract::RequestedReading;
+    use antecedent_io::calibration::rederive_calibration;
+    use antecedent_io::contract_section::CalibrationStatus;
+
+    fn variable(
+        name: &str,
+        levels: usize,
+        parents: Vec<usize>,
+        exogenous: usize,
+    ) -> FiniteVariable {
+        let table = match parents.len() {
+            0 => (0..levels as u8).collect(),
+            _ => vec![0, 0, 0, 1, 1, 0, 1, 1],
+        };
+        FiniteVariable { name: name.to_owned(), levels, parents, exogenous, table }
+    }
+
+    fn request(
+        variables: Vec<FiniteVariable>,
+        exogenous: ExogenousInference,
+    ) -> FiniteExecutionRequest {
+        let scm = FiniteScm {
+            population: "pop-a".to_owned(),
+            history: "regime-1".to_owned(),
+            exogenous: vec![
+                ExogenousVariable { name: "u_x".to_owned(), pmf: vec![0.6, 0.4] },
+                ExogenousVariable { name: "u_y".to_owned(), pmf: vec![0.2, 0.5, 0.1, 0.2] },
+            ],
+            variables,
+        };
+        let world = |name: &str, level: u8| FiniteWorld {
+            name: name.to_owned(),
+            interventions: vec![(0, level)],
+            routes: vec![],
+        };
+        FiniteExecutionRequest {
+            evidence_history: scm.history.clone(),
+            scm,
+            units: vec![
+                FactualUnit { unit: "case".to_owned(), observed: vec![(0, 1), (1, 1)] },
+                FactualUnit { unit: "open".to_owned(), observed: vec![] },
+            ],
+            worlds: vec![world("x0", 0), world("x1", 1)],
+            quantity: FiniteQuantity::Probability(WorldAtom { world: 0, variable: 1, level: 0 }),
+            coupling: NoiseCoupling::SharedAbducedExogenous,
+            exogenous,
+            target_population: None,
+            reading: RequestedReading::Point,
+        }
+    }
+
+    fn measured() -> Vec<FiniteVariable> {
+        vec![variable("x", 2, vec![], 0), variable("y", 2, vec![0], 1)]
+    }
+
+    #[test]
+    fn site_whole_path_slot_is_keyed_by_the_route_and_set_only_by_records() {
+        for sampling in [UnitSampling::IndependentSample, UnitSampling::FixedUnits] {
+            let basis = whole_path_interval_basis(
+                &request(measured(), ExogenousInference::ExactEnumeration),
+                sampling,
+            )
+            .expect("a whole-path basis");
+            let wire = CalibrationBasisWire::from(&basis);
+            assert_eq!(wire.key.query, CROSS_WORLD_QUERY);
+            assert_eq!(wire.key.estimator, CROSS_WORLD_ESTIMATOR);
+            assert_eq!(wire.key.interval_method, CROSS_WORLD_CONSTRUCTION);
+            assert_eq!(wire.key.dependence, sampling.name());
+            assert_eq!(wire.key.functional, "counterfactual_probability");
+            assert_eq!(wire.scope.row_count, 2);
+            let slot = whole_path_interval_slot(&basis);
+            assert_eq!(slot.basis.as_ref(), Some(&wire));
+            let again = rederive_calibration(&slot);
+            assert_eq!(again.status, slot.status);
+            assert_eq!(again.record_id, slot.record_id);
+            if slot.status == CalibrationStatus::Calibrated {
+                assert!(slot.record_id.is_some());
+            }
+        }
+    }
+
+    #[test]
+    fn site_an_unmeasured_model_class_never_borrows_a_record() {
+        // A shared exogenous term is outside the measured class: its key names the class, so
+        // no record of the measured class calibrates it.
+        let shared = vec![variable("x", 2, vec![], 0), variable("y", 2, vec![0], 0)];
+        let basis = whole_path_interval_basis(
+            &request(shared, ExogenousInference::ExactEnumeration),
+            UnitSampling::IndependentSample,
+        )
+        .expect("a basis outside the measured class");
+        let wire = CalibrationBasisWire::from(&basis);
+        assert_eq!(wire.key.functional, "counterfactual_probability.not_measured_model_class");
+        assert_ne!(whole_path_interval_slot(&basis).status, CalibrationStatus::Calibrated);
+        // A sampled abduction has no whole-path interval at all.
+        assert!(
+            whole_path_interval_basis(
+                &request(measured(), ExogenousInference::PosteriorSampling),
+                UnitSampling::IndependentSample,
+            )
+            .is_err()
+        );
     }
 }

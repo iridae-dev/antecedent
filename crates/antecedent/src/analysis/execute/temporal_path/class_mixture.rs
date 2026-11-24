@@ -152,6 +152,9 @@ pub(in crate::analysis::execute) struct ClassPosteriorMix<'a> {
     pub conflict: Option<antecedent_prob::ConflictSummary>,
     /// Inference label of the mixed posterior.
     pub label: &'static str,
+    /// Weakest identification status of the completions flagged identified
+    /// ([`super::super::identified_case_status`]): the mixture never states more.
+    pub atom_status: IdentificationStatus,
 }
 
 /// The class-prior contract of a Bayesian class effect, shared by the series and
@@ -191,6 +194,7 @@ pub(in crate::analysis::execute) fn mix_class_effect_posteriors<'a>(
         EnvelopeOptions::default(),
     )
     .map_err(CausalError::from)?;
+    super::super::cap_envelope_status(&mut mixed, mix.atom_status);
     merge_posterior_notes(&mut mixed, atom_posteriors);
     if let Some(summary) = mix.conflict {
         mixed = with_conflict_summary(mixed, summary);

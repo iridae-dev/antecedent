@@ -100,6 +100,11 @@ fn mix_graph_posterior_bayesian_envelope(
         EnvelopeOptions::default(),
     )
     .map_err(CausalError::from)?;
+    // Never stronger than the fitted atoms' own identification.
+    super::super::cap_envelope_status(
+        &mut posterior,
+        super::super::identified_atom_status(atoms.iter().map(|atom| atom.status)),
+    );
     report_subsampled_out_mass(&mut posterior, identified_graphs, subsample_drop);
     if refused_mass > 0.0 {
         let total = identified_graphs.total_weight();

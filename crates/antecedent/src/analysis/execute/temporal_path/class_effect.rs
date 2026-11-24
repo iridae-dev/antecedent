@@ -386,6 +386,7 @@ impl super::super::Study {
                 per_graph: &fits.per_graph,
                 conflict: fits.envelope_conflict.take(),
                 label: "temporal_class_envelope",
+                atom_status: super::super::identified_case_status(envelope),
             },
             fits.atoms.iter().map(|atom| &atom.posterior),
             diagnostics,

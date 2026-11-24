@@ -184,6 +184,7 @@ fn aggregate_pag_envelope_posterior(
     // the mixture functional whenever completions disagree.
     let coupling =
         static_envelope_atom_correlation(data, query, conditional, atoms, full_query, ctx);
+    let atom_status = super::identified_atom_status(atoms.iter().map(|atom| atom.status));
     let mut posterior = match &coupling {
         Some(correlation) => antecedent_estimate::aggregate_mixture_functional_envelope(
             graphs,
@@ -191,14 +192,18 @@ fn aggregate_pag_envelope_posterior(
             correlation,
             InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
         ),
-        None => aggregate_effect_envelope(
+        None => antecedent_estimate::aggregate_effect_envelope_with_atom_status(
             graphs,
             per_graph,
             InferenceDiagnostics::analytic(format!("{class_tag}_envelope")),
             EnvelopeOptions::default(),
+            atom_status,
         ),
     }
     .map_err(CausalError::from)?;
+    // The coupled mixture functional reads its flags as nonparametric identification; the
+    // envelope's status is never stronger than its fitted completions' own.
+    super::cap_envelope_status(&mut posterior, atom_status);
     report_subsampled_out_mass(&mut posterior, full_graphs, subsample_drop);
     retain_envelope_assumptions(&mut posterior, atoms);
     if let Some(summary) = fits.envelope_conflict.take() {

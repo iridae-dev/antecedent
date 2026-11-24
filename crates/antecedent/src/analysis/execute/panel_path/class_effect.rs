@@ -598,6 +598,7 @@ impl PanelClassPosteriors<'_> {
                     per_graph: &per_graph,
                     conflict: envelope_conflict,
                     label: "panel_temporal_class_envelope",
+                    atom_status: super::super::identified_case_status(envelope),
                 },
                 posteriors.iter().map(|(_, posterior)| posterior),
                 diagnostics,

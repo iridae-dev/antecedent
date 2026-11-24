@@ -341,7 +341,7 @@ impl TypedTransportedComposition {
     /// so no calibration record is claimed; support `extrapolative`.
     #[must_use]
     pub fn claim_standing(&self) -> super::composition_verification::ClaimStanding {
-        super::composition_verification::library_transported_standing(TYPED_TRANSPORT_SUPPORT, &[])
+        typed_transport_standing()
     }
 
     /// The composition-graph node of this transported composition under `key`.
@@ -441,4 +441,33 @@ pub fn verify_typed_transport(
         ));
     }
     Ok(transported)
+}
+
+/// The standing of every typed transported composition: library-composed (no provider
+/// trust), no interval route (no calibration record), and the support of its label.
+fn typed_transport_standing() -> super::composition_verification::ClaimStanding {
+    super::composition_verification::library_transported_standing(TYPED_TRANSPORT_SUPPORT, &[])
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::super::composition_verification::{
+        CalibrationDeclaration, SupportStanding, TrustStanding, library_transported_standing,
+    };
+    use super::*;
+
+    #[test]
+    fn site_a_typed_transport_states_no_trust_no_record_and_its_own_label() {
+        let standing = typed_transport_standing();
+        assert_eq!(standing.trust, TrustStanding::NotApplicable);
+        assert_eq!(standing.calibration, CalibrationDeclaration::PointOnly);
+        // The label is extrapolative, never supported, and the graph standing is exactly the
+        // library rule for it: a label past extrapolative would name its coordinates.
+        assert_eq!(TYPED_TRANSPORT_SUPPORT, "extrapolative");
+        assert_eq!(standing, library_transported_standing(TYPED_TRANSPORT_SUPPORT, &[]));
+        assert!(matches!(
+            library_transported_standing("outside_empirical_support", &[]).support,
+            SupportStanding::Unsupported { .. }
+        ));
+    }
 }
