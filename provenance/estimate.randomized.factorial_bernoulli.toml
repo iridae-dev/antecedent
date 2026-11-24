@@ -1,0 +1,27 @@
+feature_id = "estimate.randomized.factorial_bernoulli"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+modules = ["crates/antecedent-estimate/src/factorial_bernoulli.rs"]
+
+papers = [
+ { title = "A Generalization of Sampling Without Replacement from a Finite Universe", doi = "10.1080/01621459.1952.10483446", sections = ["inverse-probability estimator of a population total, applied here to the mean of each 2x2 cell under known per-row cell probabilities"] },
+]
+
+implementation_deviations = [
+  "The implementing module is crates/antecedent-estimate/src/factorial_bernoulli.rs. Each cell mean is (1/n) sum over the rows realized in the cell of y/q, where q is the known probability of that cell for the row (qa * qb for two independent Bernoulli factors); the factor-A and factor-B main effects and the interaction are the fixed contrasts (-1/2,-1/2,1/2,1/2), (-1/2,1/2,-1/2,1/2) and (1,-1,-1,1) of the cell means.",
+  "The variance of each contrast is bounded, not estimated: the diagonal Horvitz-Thompson variance estimate of each cell mean, (1/n^2) sum 1{cell} (1-q) (y/q)^2, is combined by Young's inequality Var(sum w_j X_j) <= 4 sum w_j^2 Var(X_j), which needs no covariance between cell means. The bound is conservative in assignment expectation; it is not an unbiased variance.",
+  "A cell with no observed row is refused rather than estimated as zero, so the estimator is the unconditional Horvitz-Thompson contrast only over the full assignment law; given that every cell is observed it is not exactly unbiased.",
+  "The compiled RandomizedEffect route reads a four-cell multi-arm design (selected by the randomized.factorial_bernoulli_ht estimator) and publishes three pointwise 95% normal intervals effect -/+ z sqrt(bound) once every cell holds 30 rows; their coverage is not measured.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+  "crates/antecedent-estimate/src/factorial_bernoulli.rs",
+  "crates/antecedent/tests/factorial_ipw_known_truth.rs",
+  "crates/antecedent/tests/compiled_twins_factorial_ipw.rs",
+]

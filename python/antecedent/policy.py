@@ -1199,11 +1199,14 @@ def evaluate_policy(
     interval; it does not train or select the policy.
 
     Deprecated: this direct path runs without the causal compiler. Pass a
-    ``PolicyValue`` without ``mu0``/``mu1`` to ``analyze``.
+    ``PolicyValue`` without ``mu0``/``mu1`` to ``analyze`` with
+    ``estimator="randomized.ipw_policy_net"``, which runs this evaluator's arithmetic and
+    returns the same values to the bit; the default estimator averages per-row scores and
+    agrees to rounding.
     """
     _deprecation.direct_path_deprecated(
         "antecedent.policy.evaluate_policy",
-        "antecedent.analyze(data, query=PolicyValue(outcome, assignment, propensity, policy, evaluation_subject_ids))",
+        "antecedent.analyze(data, query=PolicyValue(outcome, assignment, propensity, policy, evaluation_subject_ids), estimator='randomized.ipw_policy_net')",
     )
     return _evaluate_policy_direct(
         evaluation_data,
@@ -1279,11 +1282,14 @@ def evaluate_multi_action_policy(
     estimate CATEs, enforce a train/test split, or publish an interval.
 
     Deprecated: this direct path runs without the causal compiler. Pass a
-    ``MultiActionPolicyValue`` to ``analyze``.
+    ``MultiActionPolicyValue`` to ``analyze`` with
+    ``estimator="randomized.multi_action_ipw_policy_net"``, which runs this evaluator's
+    arithmetic and returns the same values to the bit; the default estimator averages per-row
+    scores and agrees to rounding.
     """
     _deprecation.direct_path_deprecated(
         "antecedent.policy.evaluate_multi_action_policy",
-        "antecedent.analyze(data, query=MultiActionPolicyValue(outcome, assignment, propensities, policy, evaluation_subject_ids))",
+        "antecedent.analyze(data, query=MultiActionPolicyValue(outcome, assignment, propensities, policy, evaluation_subject_ids), estimator='randomized.multi_action_ipw_policy_net')",
     )
     return _evaluate_multi_action_policy_direct(
         evaluation_data,

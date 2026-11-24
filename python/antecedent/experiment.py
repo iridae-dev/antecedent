@@ -870,7 +870,14 @@ class RandomizedExperimentEstimate:
     effect: float
     variance_upper_bound: float
     assignment_design: Literal[
-        "bernoulli", "complete", "cluster", "stratified", "switchback", "factorial_2x2", "multi_arm"
+        "bernoulli",
+        "complete",
+        "cluster",
+        "stratified",
+        "switchback",
+        "factorial_2x2",
+        "factorial_2x2_bernoulli",
+        "multi_arm",
     ]
     assignment_units: tuple[str, ...]
     outcome_units: tuple[str, ...]

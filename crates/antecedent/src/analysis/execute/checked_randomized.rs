@@ -28,6 +28,8 @@ pub(crate) type CheckedRandomizedOperation = RandomizedTrialOperation<
 
 mod bayesian_arms;
 mod bayesian_switchback;
+mod factorial_bernoulli;
+mod policy_net;
 pub(super) use bayesian_arms::bayesian_randomized_estimator;
 
 /// Uncertainty label of a fit that handled missing outcomes; no interval is published.
@@ -155,8 +157,14 @@ impl CheckedRandomizedOperation {
         for &covariate in query.ancova_covariates.iter() {
             data.schema().get(covariate).map_err(CausalError::rejected)?;
         }
+        let factorial = !bayesian && factorial_bernoulli::selected(study.declared.estimator);
+        if factorial {
+            factorial_bernoulli::admit(query, study.declared.missing.as_ref())?;
+        }
         let planned_estimator = if bayesian {
             bayesian_randomized_estimator(study.declared.estimator, query)
+        } else if factorial {
+            EstimatorId::RandomizedFactorialBernoulliHt
         } else {
             RandomizedMethod::of(query).estimator_id()
         };
@@ -203,6 +211,9 @@ impl CheckedRandomizedOperation {
         self.query.validate()?;
         if matches!(self.result_context.inference, InferenceMode::Bayesian(_)) {
             return self.execute_bayesian(data, ctx);
+        }
+        if self.physical.binding().estimator.is(EstimatorId::RandomizedFactorialBernoulliHt) {
+            return self.execute_factorial_bernoulli(data, ctx);
         }
         let antecedent_data::ColumnView::Float64(column) =
             data.column(self.query.outcome).map_err(CausalError::from)?
@@ -734,6 +745,9 @@ impl CheckedPolicyValueOperation {
             }
         };
         data.schema().get(query.outcome).map_err(CausalError::rejected)?;
+        if let Some(net) = policy_net::selected(study.declared.estimator) {
+            policy_net::admit(query, net)?;
+        }
         let (identification, estimand) = Self::design_identification(query)?;
         Ok(Self::freeze(study, query, data, physical, identification, estimand, bayesian))
     }
@@ -886,7 +900,7 @@ impl CheckedPolicyValueOperation {
         } else {
             Vec::new()
         };
-        let score = self.policy_value_score(y, multi, ipw)?;
+        let score = self.with_net_points(y, self.policy_value_score(y, multi, ipw)?)?;
         let (policy_matches, reference_matches) = if let Some(policy) = multi {
             (
                 policy.assignment.iter().zip(policy.actions.iter()).filter(|(a, b)| a == b).count(),
@@ -1003,6 +1017,9 @@ impl CheckedPolicyValueOperation {
         } = evaluation;
         let multi = self.query.multi_action.as_ref();
         let ipw = self.query.mu0.is_empty();
+        let net = self.net_value_estimator().filter(|_| !bayesian);
+        let mut extra_diagnostics = vec![policy_diagnostic(multi.is_some(), ipw)];
+        extra_diagnostics.extend(net.map(|_| policy_net::diagnostic()));
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -1017,11 +1034,12 @@ impl CheckedPolicyValueOperation {
                     OverlapPolicy::ExplicitOverride,
                 ),
                 identifier_id: IdentifierId::RandomizedDesign,
-                estimator_id: policy_estimator_id(bayesian, multi.is_some(), ipw),
+                estimator_id: net
+                    .unwrap_or_else(|| policy_estimator_id(bayesian, multi.is_some(), ipw)),
                 treatment: self.query.outcome,
                 outcome: self.query.outcome,
                 identify_cached: true,
-                extra_diagnostics: vec![policy_diagnostic(multi.is_some(), ipw)],
+                extra_diagnostics,
                 refutations: Vec::new(),
                 distribution: None,
                 mediation: None,

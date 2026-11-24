@@ -101,6 +101,7 @@ fn late_ratio_matches(effect: f64, intention: Option<f64>, first_stage: Option<f
     }
 }
 
+mod factorial_bernoulli;
 mod panel_survival;
 mod policy;
 mod randomized;

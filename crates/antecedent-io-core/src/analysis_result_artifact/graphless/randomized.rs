@@ -106,6 +106,16 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "randomized result section is attached to a different query".into(),
         ));
     };
+    // The independent-factor 2x2 reading of a four-cell multi-arm design is selected by its
+    // estimator and labelled by its assignment design; it carries its own recompute.
+    if randomized.assignment_design == crate::graphless_support::FACTORIAL_BERNOULLI_DESIGN {
+        return super::factorial_bernoulli::validate_factorial_bernoulli(
+            result,
+            randomized,
+            query,
+            allow_legacy_graphless_missing,
+        );
+    }
     let (design, point_uncertainty, interval_uncertainty) = match &query.design {
         crate::RandomizationDesignWire::Bernoulli
             if query.estimand == crate::RandomizedEstimandWire::CaceLate =>
