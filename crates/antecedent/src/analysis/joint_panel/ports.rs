@@ -23,7 +23,10 @@ impl JointPanelResult {
         let source = self.program.state.source_identity.to_hex();
         let mut coordinates = Vec::new();
         for world in &request.worlds {
-            let context = contracts::context_identity(&world.program).to_hex();
+            // The context law the validated target retains: a target built by an earlier
+            // release carries the released encoding, and its coordinates keep their ids.
+            let context = contracts::retained_context(&request.target, world.world)
+                .unwrap_or_else(|| contracts::context_identity(&world.program).to_hex());
             for period in 0..world.horizon() {
                 coordinates.push(ScientificQuantity {
                     variable_id: format!("panel:{source}:{}", request.columns.outcome.raw()),

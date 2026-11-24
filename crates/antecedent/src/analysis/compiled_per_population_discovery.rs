@@ -166,7 +166,9 @@ impl Canonical for ContractIdentity<'_> {
                 out.text("contract").bytes(&digest);
             }
             Err(error) => {
-                out.text("unencodable").text(&error.to_string());
+                // The refusal's registered code and detail, never its message.
+                out.text("unencodable");
+                error.encode(out);
             }
         }
     }
@@ -174,15 +176,11 @@ impl Canonical for ContractIdentity<'_> {
 
 /// The selective data identity of a table's searched columns (rows and digest), or the reason
 /// it has none (the driver refuses that table when the program runs).
-struct RowSet(Result<(u64, [u8; 32]), String>);
+struct RowSet(Result<(u64, [u8; 32]), antecedent_discovery::DiscoveryError>);
 
 impl RowSet {
     fn of(data: &TabularData, variables: &[VariableId]) -> Self {
-        Self(
-            static_data_identity(data, variables)
-                .map(|identity| (identity.rows, identity.digest))
-                .map_err(|error| error.to_string()),
-        )
+        Self(static_data_identity(data, variables).map(|identity| (identity.rows, identity.digest)))
     }
 
     fn rows(&self) -> u64 {
@@ -197,7 +195,10 @@ impl Canonical for RowSet {
                 out.text("rows").word(*rows).bytes(digest);
             }
             Err(error) => {
-                out.text("unreadable").text(error);
+                // The failure's stable kind and code: the kernel refuses this table when the
+                // program runs, so the identity names that refusal, never its message.
+                out.text("unreadable");
+                error.encode(out);
             }
         }
     }

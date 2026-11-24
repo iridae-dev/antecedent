@@ -527,4 +527,39 @@ mod domain_tests {
             multiple_imputation::ImputationAssumptions::of(&other.imputer, None).digest()
         );
     }
+
+    #[test]
+    fn site_joint_panel_imputed_source_orders_units_and_binds_their_content() {
+        use crate::identity_laws::{all_distinct, ordered_laws};
+        let (source, request) = super::super::tests::fixture();
+        // The fit reads the groups in unit order (positional random effects and an
+        // order-dependent sum), so the units are an ordered list.
+        let reordered = |order: &[usize]| {
+            let units: Vec<_> = order.iter().map(|&i| source.units()[i].clone()).collect();
+            let data = PanelData::try_new(units).ok()?;
+            source_identity(&data, &request).ok()
+        };
+        ordered_laws(&[0, 1, 2, 3], reordered);
+        let mut longer = request.clone();
+        longer.lag_order = 0;
+        let first = source.units()[0].clone();
+        let mut columns: Vec<Vec<f64>> = (0..5)
+            .map(|id| first.series.float64_cow(VariableId::from_raw(id)).unwrap().into_owned())
+            .collect();
+        columns[3][5] += 1.0;
+        let changed = TimeSeriesData::from_f64_columns(
+            ["a", "b", "y", "z", "season"]
+                .iter()
+                .zip(&columns)
+                .map(|(name, column)| (*name, column.as_slice())),
+            100,
+        )
+        .unwrap();
+        let edited = source.with_unit_series(0, changed).unwrap();
+        all_distinct(&[
+            source_identity(&source, &request).unwrap(),
+            source_identity(&source, &longer).unwrap(),
+            source_identity(&edited, &request).unwrap(),
+        ]);
+    }
 }

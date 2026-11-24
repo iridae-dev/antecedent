@@ -178,3 +178,55 @@ fn randomized_route_rejects_conditioned_targets_even_when_action_overlaps_condit
         matches!(result, Err(JointPanelError::Compile(message)) if message.contains("conditioning"))
     );
 }
+
+#[test]
+fn site_joint_panel_designs_world_bindings_are_ordered_and_worlds_exact() {
+    use crate::identity_laws::{all_distinct, ordered_laws};
+    let declared = worlds(VariableId::from_raw(0), Conditioning::unconditional());
+    let (target, proof) = randomized(&declared);
+    // The world bindings are in design-functional output order: the law's means are read
+    // by position.
+    ordered_laws(&proof.worlds, |bindings| {
+        let mut reordered = proof.clone();
+        reordered.worlds = bindings.to_vec();
+        identity(&target, &reordered).ok()
+    });
+    let mut arms = proof.clone();
+    arms.longitudinal_arms = vec![JointDesignArm { arm: 0, levels: vec![(0, 1.0)] }];
+    let (conditioned, _) =
+        randomized(&worlds(VariableId::from_raw(0), Conditioning::on([VariableId::from_raw(0)])));
+    all_distinct(&[
+        identity(&target, &proof).unwrap(),
+        identity(&target, &arms).unwrap(),
+        identity(&conditioned, &proof).unwrap(),
+    ]);
+    // Each source-codebook world is bound by its full semantic encoding.
+    all_distinct(&[
+        joint_design_world_identity(&declared[0]),
+        joint_design_world_identity(&declared[1]),
+        joint_design_world_identity(
+            &worlds(VariableId::from_raw(1), Conditioning::unconditional())[0],
+        ),
+    ]);
+}
+
+#[test]
+fn site_joint_panel_designs_retained_law_binds_source_inference_and_ordered_law() {
+    use crate::identity_laws::{all_distinct, ordered_laws};
+    let source = SemanticDigest::from_bytes([1; 32]);
+    let frequentist = JointDesignInference::Frequentist;
+    let law = |values: &[f64]| retained_law_identity(source, &frequentist, &values.to_vec()).ok();
+    // The fitted law is read slot by slot.
+    ordered_laws(&[0.5, 1.5, 2.5], &law);
+    all_distinct(&[
+        law(&[0.5, 1.5]).unwrap(),
+        retained_law_identity(SemanticDigest::from_bytes([2; 32]), &frequentist, &[0.5, 1.5])
+            .unwrap(),
+        retained_law_identity(
+            source,
+            &JointDesignInference::StaticRegimeBootstrap { replicates: 99, seed: 0 },
+            &[0.5, 1.5],
+        )
+        .unwrap(),
+    ]);
+}

@@ -36,7 +36,7 @@ use antecedent_io::IoError;
 
 use super::compiled_point_program::PointProgram;
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::{Canonical, SetOf};
+use super::supplied_identity::{Canonical, SetOf, encoded};
 use super::transport_scenarios::PreparedTransportScenarios;
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
@@ -199,15 +199,18 @@ fn source_digest(
 fn lower(prepared: &PreparedTransportScenarios) -> Result<Arc<LoweredProgram>, CausalError> {
     let set = prepared.prepared();
     let decision = set.decision();
-    let question = question_digest(
-        &decision.set,
-        &decision.question,
-        &decision.limits,
-        set.request(),
-        set.limits(),
-        set.provider(),
-        &set.plan_summary(),
-    );
+    // A graph without a canonical identity refuses the compile (`encoded`).
+    let question = encoded(PLAN_ID, || {
+        question_digest(
+            &decision.set,
+            &decision.question,
+            &decision.limits,
+            set.request(),
+            set.limits(),
+            set.provider(),
+            &set.plan_summary(),
+        )
+    })?;
     let data = set.data();
     let source = source_digest(data, set.empirical_input());
     let scenarios = set.plan_summary().len() as u64;

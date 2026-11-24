@@ -498,7 +498,18 @@ impl ObservationalPolicyValue {
     }
 }
 
-const POLICY_PROGRAM_TAG: &str = "antecedent.observational_policy_program.v1";
+const POLICY_PROGRAM_TAG: &str = "antecedent.observational_policy_program.v2";
+/// The released request digest: the spec as CBOR, the graph's nodes and edges and the policy
+/// information set in declared order. Read only to verify a retained artifact compiled under it.
+const POLICY_PROGRAM_V1_TAG: &str = "antecedent.observational_policy_program.v1";
+
+/// Which request digest a compiled policy binds: the current one, or the released one a
+/// retained artifact was compiled under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum PolicyDigest {
+    Current,
+    V1,
+}
 const POLICY_ARTIFACT_FEATURE: &str = "observational_policy_compiled_v1";
 const GRAPH_POLICY_ARTIFACT_FEATURE: &str = "observational_policy_graph_checked_v2";
 const NARROW_POLICY_ARTIFACT_FEATURE: &str = "observational_policy_narrow_information_v3";
@@ -623,11 +634,29 @@ fn check_policy_graph(
     Ok(())
 }
 
+#[cfg(test)]
 fn policy_request_digest(
     request: &ObservationalPolicyRequest,
     seed: u64,
 ) -> Result<[u8; 32], CausalError> {
-    let mut writer = CanonicalWriter::new(POLICY_PROGRAM_TAG);
+    policy_request_digest_as(request, seed, PolicyDigest::Current)
+}
+
+/// The request digest. Rows and adjustment columns are ordered (the fold plan and the
+/// held-out split draw rows by position; columns are fitted in declared order). The current
+/// digest writes the spec field by field, every real by its bits; the graph's nodes and
+/// edges and the policy information set are sets (the graph is built by name and the
+/// information set read by membership; repeated nodes and information variables are
+/// refused), written sorted and deduplicated. The released digest wrote the spec as CBOR.
+fn policy_request_digest_as(
+    request: &ObservationalPolicyRequest,
+    seed: u64,
+    version: PolicyDigest,
+) -> Result<[u8; 32], CausalError> {
+    let mut writer = CanonicalWriter::new(match version {
+        PolicyDigest::Current => POLICY_PROGRAM_TAG,
+        PolicyDigest::V1 => POLICY_PROGRAM_V1_TAG,
+    });
     writer.word(seed).word(request.outcome.len() as u64);
     for value in &request.outcome {
         writer.word(value.to_bits());
@@ -643,9 +672,91 @@ fn policy_request_digest(
             writer.word(value.to_bits());
         }
     }
-    let spec = antecedent_io::to_cbor(&request.spec)?;
-    writer.bytes(&spec);
+    match version {
+        PolicyDigest::Current => write_policy_spec(&mut writer, &request.spec),
+        PolicyDigest::V1 => {
+            let spec = antecedent_io::to_cbor(&request.spec)?;
+            writer.bytes(&spec);
+        }
+    }
     Ok(writer.finish())
+}
+
+fn opt_reals(writer: &mut CanonicalWriter, values: Option<&[f64]>) {
+    match values {
+        Some(values) => {
+            writer.word(1).word(values.len() as u64);
+            for value in values {
+                writer.real(*value);
+            }
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+}
+
+fn opt_real(writer: &mut CanonicalWriter, value: Option<f64>) {
+    match value {
+        Some(value) => {
+            writer.word(1).real(value);
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+}
+
+/// Every field of the spec in declaration order, each option with a presence word and each
+/// real by its bits. Support, policy actions and known propensities are ordered (actions are
+/// indexed in support order; policy actions and probability columns are per row); the
+/// graph's node, edge and information sets are written sorted and deduplicated.
+fn write_policy_spec(writer: &mut CanonicalWriter, spec: &ObservationalPolicySpecWire) {
+    opt_reals(writer, spec.support.as_deref());
+    writer.opt_text(spec.objective.as_deref()).opt_text(spec.evaluation.as_deref());
+    opt_reals(writer, spec.policy_actions.as_deref());
+    writer.opt_text(spec.policy_origin.as_deref());
+    opt_real(writer, spec.evaluation_fraction);
+    opt_real(writer, spec.reference);
+    writer.opt_word(spec.folds.map(|folds| folds as u64));
+    opt_real(writer, spec.min_propensity);
+    opt_reals(writer, spec.known_propensity.as_deref());
+    match &spec.known_propensity_columns {
+        Some(columns) => {
+            writer.word(1).word(columns.len() as u64);
+            for column in columns {
+                opt_reals(writer, Some(column));
+            }
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    match &spec.causal_graph {
+        Some(graph) => {
+            let nodes: BTreeSet<&str> = graph.nodes.iter().map(String::as_str).collect();
+            let edges: BTreeSet<(&str, &str)> =
+                graph.edges.iter().map(|(from, to)| (from.as_str(), to.as_str())).collect();
+            let information: BTreeSet<&str> =
+                graph.information_set.iter().map(String::as_str).collect();
+            writer.word(1).word(nodes.len() as u64);
+            for node in nodes {
+                writer.text(node);
+            }
+            writer.word(edges.len() as u64);
+            for (from, to) in edges {
+                writer.text(from).text(to);
+            }
+            writer.text(&graph.treatment).text(&graph.outcome).word(information.len() as u64);
+            for name in information {
+                writer.text(name);
+            }
+        }
+        None => {
+            writer.word(0);
+        }
+    }
+    writer.word(spec.seed);
 }
 
 /// The complete learning and evaluation schedule, bound to one six-layer
@@ -655,6 +766,7 @@ fn policy_request_digest(
 pub struct CompiledObservationalPolicy {
     request: ObservationalPolicyRequest,
     seed: u64,
+    digest: PolicyDigest,
     lowered: Arc<LoweredProgram>,
 }
 
@@ -686,7 +798,7 @@ impl CompiledObservationalPolicy {
                 "the execution split seed differs from the compiled policy program",
             ));
         }
-        let expected = policy_request_digest(&self.request, self.seed)?;
+        let expected = policy_request_digest_as(&self.request, self.seed, self.digest)?;
         if self.lowered.scientific().source_digest() != Some(expected) {
             return Err(policy_compiler_refusal("the policy request changed after compilation"));
         }
@@ -1104,10 +1216,18 @@ impl CompiledObservationalPolicy {
 /// # Errors
 /// An incomplete or same-row learning declaration, malformed input shape or
 /// physical operator refusal.
-#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_observational_policy(
     request: ObservationalPolicyRequest,
     ctx: &ExecutionContext,
+) -> Result<CompiledObservationalPolicy, CausalError> {
+    compile_observational_policy_as(request, ctx, PolicyDigest::Current)
+}
+
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
+fn compile_observational_policy_as(
+    request: ObservationalPolicyRequest,
+    ctx: &ExecutionContext,
+    version: PolicyDigest,
 ) -> Result<CompiledObservationalPolicy, CausalError> {
     let (support, objective, evaluation) =
         ObservationalPolicyValue::policy_declarations(&request.spec)?;
@@ -1141,7 +1261,7 @@ pub fn compile_observational_policy(
         check_policy_graph(&request, graph)?;
     }
     let seed = ctx.rng.master_seed();
-    let digest = policy_request_digest(&request, seed)?;
+    let digest = policy_request_digest_as(&request, seed, version)?;
     let folds = request.spec.folds.unwrap_or(DEFAULT_POLICY_FOLDS);
     if folds < 2 {
         return Err(policy_compiler_refusal("policy cross-fitting requires at least two folds"));
@@ -1260,7 +1380,7 @@ pub fn compile_observational_policy(
         }
         .finish(),
     );
-    Ok(CompiledObservationalPolicy { request, seed, lowered })
+    Ok(CompiledObservationalPolicy { request, seed, digest: version, lowered })
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -1367,12 +1487,22 @@ struct PolicySubsamplingArtifactWire {
 ///
 /// # Errors
 /// Invalid policy, graph, schedule, input rows, or resource bound.
-#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
 pub fn compile_policy_subsampling(
     request: ObservationalPolicyRequest,
     subsample_rows: usize,
     replicates: usize,
     ctx: &ExecutionContext,
+) -> Result<CompiledPolicySubsampling, CausalError> {
+    compile_policy_subsampling_as(request, subsample_rows, replicates, ctx, PolicyDigest::Current)
+}
+
+#[allow(clippy::too_many_lines, reason = "one linear sequence of steps that reads top to bottom")]
+fn compile_policy_subsampling_as(
+    request: ObservationalPolicyRequest,
+    subsample_rows: usize,
+    replicates: usize,
+    ctx: &ExecutionContext,
+    version: PolicyDigest,
 ) -> Result<CompiledPolicySubsampling, CausalError> {
     require_program(ctx, &SupportKey::Unit(POLICY_UNIT), SUBSAMPLING_COMPILE_ROUTE)?;
     let n = request.outcome.len();
@@ -1395,7 +1525,7 @@ pub fn compile_policy_subsampling(
     {
         return Err(policy_compiler_refusal("policy subsampling source exceeds its byte bound"));
     }
-    let policy = compile_observational_policy(request, ctx)?;
+    let policy = compile_observational_policy_as(request, ctx, version)?;
     let seed = ctx.rng.master_seed();
     let mut writer = CanonicalWriter::new("antecedent.policy_subsampling.schedule.v1");
     writer
@@ -1587,12 +1717,20 @@ pub fn consume_policy_subsampling(
             "policy subsampling feature, seed or identity differs",
         ));
     }
-    let mut plan = compile_policy_subsampling(
-        wire.request.into_request(),
-        wire.subsample_rows,
-        wire.replicates,
-        ctx,
-    )?;
+    let request = wire.request.into_request();
+    let mut plan =
+        compile_policy_subsampling(request.clone(), wire.subsample_rows, wire.replicates, ctx)?;
+    if plan.lowered().identity() != expected {
+        // An artifact retained under the released request digest still verifies: the policy
+        // is recompiled under that digest and the schedule must then match exactly.
+        plan = compile_policy_subsampling_as(
+            request,
+            wire.subsample_rows,
+            wire.replicates,
+            ctx,
+            PolicyDigest::V1,
+        )?;
+    }
     if plan.lowered().identity() != expected {
         return Err(policy_compiler_refusal("recompiled policy subsampling program differs"));
     }
@@ -1653,7 +1791,16 @@ pub fn consume_compiled_observational_policy(
             "compiled policy artifact version, feature or split seed differs",
         ));
     }
-    let plan = compile_observational_policy(wire.request.into_request(), ctx)?;
+    let request = wire.request.into_request();
+    let mut plan = compile_observational_policy(request.clone(), ctx)?;
+    if wire.lowered_program_identity != *plan.lowered().identity().as_bytes() {
+        // An artifact retained under the released request digest still verifies: it is
+        // recompiled under that digest and must match it exactly.
+        let released = compile_observational_policy_as(request, ctx, PolicyDigest::V1)?;
+        if wire.lowered_program_identity == *released.lowered().identity().as_bytes() {
+            plan = released;
+        }
+    }
     let identity = plan.lowered().identity();
     if wire.lowered_program_identity != *identity.as_bytes()
         || expected_program.is_some_and(|expected| expected != identity)
@@ -1731,7 +1878,7 @@ impl crate::analysis::program_handle::CompiledProgramHandle for CompiledPolicySu
 mod site_tests {
     use super::*;
     use crate::identity_laws::{
-        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws, set_laws,
     };
 
     fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
@@ -1868,6 +2015,92 @@ mod site_tests {
             query(1.0, 40, 101, 5),
             query(1.0, 40, 100, 6),
         ]);
+    }
+
+    fn graph_digest(edit: impl Fn(&mut ObservationalPolicyRequest)) -> Option<[u8; 32]> {
+        let mut request = graph_request(1.0);
+        edit(&mut request);
+        policy_request_digest(&request, 7).ok()
+    }
+
+    fn graph_of(request: &mut ObservationalPolicyRequest) -> &mut PolicyGraphDeclaration {
+        request.spec.causal_graph.as_mut().expect("the request declares a graph")
+    }
+
+    #[test]
+    fn site_observational_policy_graph_and_information_are_sets() {
+        // The graph is built by name and the information set read by membership: reordering
+        // or repeating a node, an edge or an information variable is the same declaration.
+        let nodes: Vec<String> = ["x", "w", "a", "y"].iter().map(|n| (*n).to_owned()).collect();
+        set_laws(&nodes, |nodes: &[String]| graph_digest(|r| graph_of(r).nodes = nodes.to_vec()));
+        let edges: Vec<(String, String)> = [("x", "a"), ("w", "a"), ("x", "y"), ("a", "y")]
+            .iter()
+            .map(|(from, to)| ((*from).to_owned(), (*to).to_owned()))
+            .collect();
+        set_laws(&edges, |edges: &[(String, String)]| {
+            graph_digest(|r| graph_of(r).edges = edges.to_vec())
+        });
+        let information: Vec<String> = vec!["x".into(), "w".into()];
+        set_laws(&information, |names: &[String]| {
+            graph_digest(|r| graph_of(r).information_set = names.to_vec())
+        });
+        // An edge is directed: its reversal is another graph.
+        all_distinct(&[
+            graph_digest(|r| graph_of(r).edges = vec![("x".into(), "a".into())]),
+            graph_digest(|r| graph_of(r).edges = vec![("a".into(), "x".into())]),
+            graph_digest(|r| {
+                let graph = graph_of(r);
+                std::mem::swap(&mut graph.treatment, &mut graph.outcome);
+            }),
+            graph_digest(|r| r.spec.causal_graph = None),
+        ]);
+    }
+
+    #[test]
+    fn site_observational_policy_spec_reals_are_bits_and_options_are_framed() {
+        bit_exact(|value| graph_digest(|r| r.spec.reference = Some(value)));
+        bit_exact(|value| graph_digest(|r| r.spec.min_propensity = Some(value)));
+        // Support is ordered: actions and known propensities are indexed in support order.
+        ordered_laws(&[0.0, 1.0, 2.0], |support: &[f64]| {
+            graph_digest(|r| r.spec.support = Some(support.to_vec()))
+        });
+        // Each option carries a presence word, so a value cannot move between fields.
+        all_distinct(&[
+            graph_digest(|r| r.spec.reference = None),
+            graph_digest(|r| r.spec.reference = Some(0.0)),
+            graph_digest(|r| r.spec.evaluation_fraction = Some(0.0)),
+            graph_digest(|r| r.spec.min_propensity = Some(0.0)),
+            graph_digest(|r| r.spec.folds = Some(0)),
+            graph_digest(|r| r.spec.seed = 6),
+        ]);
+    }
+
+    #[test]
+    fn site_observational_policy_v1_identity_still_verifies() {
+        let ctx = ExecutionContext::for_tests(5);
+        let released = compile_observational_policy_as(graph_request(1.0), &ctx, PolicyDigest::V1)
+            .expect("the request compiles under the released digest");
+        let current = compile_observational_policy(graph_request(1.0), &ctx)
+            .expect("the request compiles under the current digest");
+        assert_ne!(released.lowered().identity(), current.lowered().identity());
+        let report = released.execute(&ctx).expect("the released program executes");
+        let bytes = released.export(&report, &ctx).expect("the released program exports");
+        let replayed = consume_compiled_observational_policy(
+            &bytes,
+            Some(released.lowered().identity()),
+            &ctx,
+        )
+        .expect("an artifact retained under the released digest still verifies");
+        assert_eq!(replayed, report);
+        // The released digest kept the declared node order; the current one reads a set.
+        let reordered = |version| {
+            let mut request = graph_request(1.0);
+            graph_of(&mut request).nodes.reverse();
+            policy_request_digest_as(&request, 5, version).ok()
+        };
+        let declared = |version| policy_request_digest_as(&graph_request(1.0), 5, version).ok();
+        assert_ne!(declared(PolicyDigest::V1), reordered(PolicyDigest::V1));
+        assert_eq!(declared(PolicyDigest::Current), reordered(PolicyDigest::Current));
     }
 
     fn candidate() -> CrossFittedPolicyValueCandidate {

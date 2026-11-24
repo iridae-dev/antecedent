@@ -257,14 +257,15 @@ fn site_structure_members_member_key_sets_edges_and_tags_kinds() {
         for &(from, to) in edges {
             graph.insert_directed(node(from), node(to)).ok()?;
         }
-        Some(super::member_key(&super::MemberGraph::Dag(graph)))
+        super::member_key(&super::MemberGraph::Dag(graph)).ok()
     });
     crate::identity_laws::set_laws(&[(0_u32, 1_u32), (1, 0), (1, 2)], |edges| {
-        Some(super::member_key(&super::MemberGraph::Cyclic(cyclic_graph(edges)?)))
+        super::member_key(&super::MemberGraph::Cyclic(cyclic_graph(edges)?)).ok()
     });
     crate::identity_laws::all_distinct(&[
-        super::member_key(&super::MemberGraph::Dag(Dag::with_variables(2))),
-        super::member_key(&super::MemberGraph::Admg(Admg::with_variables(2))),
-        super::member_key(&super::MemberGraph::Cyclic(CyclicMixedGraph::with_variables(2))),
+        super::member_key(&super::MemberGraph::Dag(Dag::with_variables(2))).expect("a key"),
+        super::member_key(&super::MemberGraph::Admg(Admg::with_variables(2))).expect("a key"),
+        super::member_key(&super::MemberGraph::Cyclic(CyclicMixedGraph::with_variables(2)))
+            .expect("a key"),
     ]);
 }

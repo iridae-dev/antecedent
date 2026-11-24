@@ -185,6 +185,32 @@ struct Wire {
 ///
 /// # Errors
 /// Invalid row ownership, outcome coordinates, structural query or contract.
+pub fn compile_trial_ipw_predictive_decision(
+    request: TrialIpwPredictiveDecisionRequest,
+) -> Result<CompiledTrialIpwPredictiveDecision, Error> {
+    compile_trial_ipw_predictive_decision_as(request, Question::Current)
+}
+
+/// Which question digest a program binds: the current one, or the released one (selection
+/// targets in declared order) a retained artifact was compiled under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Question {
+    Current,
+    V1,
+}
+
+/// The selection targets as the question writes them. They are a set: identification reads
+/// them by membership and the diagram refuses a repeated target, so the current question
+/// writes them sorted; the released one kept the declared order.
+fn selection_words(diagram: &SelectionDiagram, version: Question) -> Vec<u64> {
+    let mut words: Vec<u64> =
+        diagram.selection_targets().iter().map(|v| u64::from(v.raw())).collect();
+    if version == Question::Current {
+        words.sort_unstable();
+    }
+    words
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "one compilation from row validation through the lowered program"
@@ -193,8 +219,9 @@ struct Wire {
     clippy::cast_possible_truncation,
     reason = "the draw count is validated to at most 100_000 before the narrowing"
 )]
-pub fn compile_trial_ipw_predictive_decision(
+fn compile_trial_ipw_predictive_decision_as(
     request: TrialIpwPredictiveDecisionRequest,
+    version: Question,
 ) -> Result<CompiledTrialIpwPredictiveDecision, Error> {
     request.decision.validate()?;
     let ResponseFunctional::MeanCurve { outcome, treatment } = &request.query.response.functional
@@ -293,17 +320,14 @@ pub fn compile_trial_ipw_predictive_decision(
         "antecedent.trial_ipw_predictive_decision.rows.v1",
         &row_bytes,
     );
-    let mut writer = CanonicalWriter::new("antecedent.trial_ipw_predictive_decision.question.v1");
+    let selections = selection_words(&request.diagram, version);
+    let mut writer = CanonicalWriter::new(match version {
+        Question::Current => "antecedent.trial_ipw_predictive_decision.question.v2",
+        Question::V1 => "antecedent.trial_ipw_predictive_decision.question.v1",
+    });
     writer
         .bytes(&graph_bytes)
-        .words(
-            &request
-                .diagram
-                .selection_targets()
-                .iter()
-                .map(|v| u64::from(v.raw()))
-                .collect::<Vec<_>>(),
-        )
+        .words(&selections)
         .bytes(&query_bytes)
         .bytes(&row_bytes)
         .bytes(&coordinate)
@@ -730,7 +754,7 @@ pub fn consume_trial_ipw_predictive_decision(
     .map_err(|_| Error::Invalid("invalid stored selection diagram"))?;
     let contract =
         DecisionContractArtifact::from_bytes(&wire.decision_artifact, &wire.decision_identity)?;
-    let plan = compile_trial_ipw_predictive_decision(TrialIpwPredictiveDecisionRequest {
+    let request = TrialIpwPredictiveDecisionRequest {
         diagram,
         query: transport_query_from_wire(&wire.query)?,
         rows: wire.rows,
@@ -740,7 +764,13 @@ pub fn consume_trial_ipw_predictive_decision(
         ],
         independent_potential_outcomes_given_mass: wire.independent_potential_outcomes_given_mass,
         decision: contract.contract().clone(),
-    })?;
+    };
+    let mut plan = compile_trial_ipw_predictive_decision(request.clone())?;
+    if plan.lowered.identity() != expected {
+        // An artifact retained under the released question still verifies: it is recompiled
+        // under that question and must match it exactly.
+        plan = compile_trial_ipw_predictive_decision_as(request, Question::V1)?;
+    }
     if plan.lowered.identity() != expected {
         return Err(Error::Invalid("trial IPW compiler changed"));
     }
@@ -988,5 +1018,44 @@ mod tests {
             question(units),
             question(world_units),
         ]);
+    }
+
+    fn selection_diagram(targets: &[u32]) -> Option<SelectionDiagram> {
+        SelectionDiagram::try_new(
+            antecedent_graph::Admg::with_variables(3),
+            targets.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+        )
+        .ok()
+    }
+
+    #[test]
+    fn site_trial_ipw_predictive_decision_selection_targets_are_a_set() {
+        // Identification reads the selection targets by membership and the diagram refuses a
+        // repeat (the repeated case is refused and skipped).
+        crate::identity_laws::set_laws(&[2_u32, 0, 1], |targets: &[u32]| {
+            Some(selection_words(&selection_diagram(targets)?, Question::Current))
+        });
+        // The released question wrote them in declared order.
+        let released = |targets: &[u32]| {
+            selection_diagram(targets).map(|diagram| selection_words(&diagram, Question::V1))
+        };
+        assert_ne!(released(&[2, 0, 1]), released(&[0, 1, 2]));
+    }
+
+    #[test]
+    fn site_trial_ipw_predictive_decision_released_identity_still_verifies() {
+        let released = compile_trial_ipw_predictive_decision_as(predictive_request(), Question::V1)
+            .expect("the request compiles under the released question");
+        let current = compile_trial_ipw_predictive_decision(predictive_request())
+            .expect("the request compiles under the current question");
+        assert_ne!(released.lowered().identity(), current.lowered().identity());
+        let ctx = ExecutionContext::for_tests(31);
+        let result =
+            released.calibration_candidate(&ctx).expect("the released program runs").result;
+        let bytes = released.export(&result, "trial-ipw-predictive", &ctx).expect("it exports");
+        let replay =
+            consume_trial_ipw_predictive_decision(&bytes, result.lowered_program_identity, &ctx)
+                .expect("an artifact retained under the released question still verifies");
+        assert_eq!(replay.predictive_draws, result.predictive_draws);
     }
 }

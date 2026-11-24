@@ -1595,7 +1595,8 @@ fn continuous_search_grants_only_conditional_use_and_refuses_a_causal_scope_for_
 
 #[test]
 fn site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact() {
-    use crate::identity_laws::{bit_exact, ordered_laws};
+    use crate::identity_laws::{bit_exact, ordered_laws, set_laws};
+    use contracts::ContextEncoding::{Current, Released};
     let (_, request) = fixture();
     let program = request.worlds[0].program.clone();
     // The response adds the groups' contributions in scenario order, so a reordering can
@@ -1603,12 +1604,39 @@ fn site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact() {
     ordered_laws(&program.scenarios, |scenarios| {
         let mut reordered = program.clone();
         reordered.scenarios = scenarios.to_vec();
-        Some(contracts::history_identity(&reordered))
+        Some(contracts::history_identity_as(&reordered, Current))
     });
+    // A scenario's channel histories are read by channel id: a set keyed by id. Validation
+    // refuses a repeated id, so the repetition law is refused here.
+    let with_histories = |declared: &[engine::PanelChannelHistory]| {
+        let repeated =
+            declared.iter().enumerate().any(|(i, h)| declared[..i].iter().any(|g| g.id == h.id));
+        let mut reordered = program.clone();
+        reordered.scenarios[0].history = declared.to_vec();
+        (!repeated).then_some(reordered)
+    };
+    set_laws(&program.scenarios[0].history, |declared| {
+        with_histories(declared).map(|p| contracts::history_identity_as(&p, Current))
+    });
+    set_laws(&program.scenarios[0].history, |declared| {
+        with_histories(declared).map(|p| contracts::context_identity_as(&p, Current))
+    });
+    // The released encoding wrote them in declared order and is kept only to validate a
+    // target an earlier release built.
+    let mut swapped = program.clone();
+    swapped.scenarios[0].history.reverse();
+    assert_ne!(
+        contracts::history_identity_as(&program, Released),
+        contracts::history_identity_as(&swapped, Released)
+    );
+    assert_ne!(
+        contracts::history_identity_as(&program, Released),
+        contracts::history_identity_as(&program, Current)
+    );
     bit_exact(|value| {
         let mut declared = program.clone();
         declared.scenarios[0].history[0].values[1] = value;
-        Some(contracts::history_identity(&declared))
+        Some(contracts::history_identity_as(&declared, Current))
     });
     // Covariates and seasons are per future response time.
     ordered_laws(&[0.0, 1.0, 2.0], |confounder| {
@@ -1621,6 +1649,88 @@ fn site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact() {
         declared.scenarios[0].season = season.to_vec();
         Some(contracts::context_identity(&declared))
     });
+}
+
+#[test]
+fn site_joint_panel_contracts_released_context_law_still_validates() {
+    use contracts::ContextEncoding::Released;
+    let (source, request) = fixture();
+    let functional = JointPanelFunctional::Interaction {
+        joint: ScientificWorldId::from_raw(3),
+        a_at_reference: ScientificWorldId::from_raw(1),
+        b_at_reference: ScientificWorldId::from_raw(2),
+        reference: ScientificWorldId::from_raw(0),
+    };
+    // A target as an earlier release built it: histories in declared order under the
+    // released tags.
+    let released = contracts::target_as(
+        source.schema(),
+        &request.columns,
+        request.lag_order,
+        &request.worlds,
+        functional,
+        InferenceSelection::Frequentist,
+        Released,
+    )
+    .unwrap();
+    assert_ne!(released.identity(), request.target.identity());
+    contracts::validate_target(source.schema(), &request).unwrap();
+    let mut old = request.clone();
+    old.target = released;
+    contracts::validate_target(source.schema(), &old).unwrap();
+    // Its coordinates keep the context law the target carries.
+    for world in &old.worlds {
+        assert_eq!(
+            contracts::retained_context(&old.target, world.world),
+            Some(contracts::context_identity_as(&world.program, Released).to_hex())
+        );
+    }
+    let reverse = |request: &mut JointPanelRequest| {
+        for world in &mut request.worlds {
+            for scenario in &mut world.program.scenarios {
+                scenario.history.reverse();
+            }
+        }
+    };
+    // The current target reads the histories as a set keyed by channel id.
+    let mut reordered = request.clone();
+    reverse(&mut reordered);
+    contracts::validate_target(source.schema(), &reordered).unwrap();
+    // A released target stays bound to the declared order it was built from.
+    let mut reordered_old = old.clone();
+    reverse(&mut reordered_old);
+    assert!(contracts::validate_target(source.schema(), &reordered_old).is_err());
+}
+
+#[test]
+fn site_joint_panel_source_adapt_orders_roles_and_fit_dependency_binds_execution() {
+    use crate::identity_laws::{all_distinct, ordered_laws};
+    let ctx = ExecutionContext::for_tests(1);
+    let (data, request) = fixture();
+    let adapted = |request: &JointPanelRequest, policy| {
+        source::adapt(&data, request, policy, &ctx).ok().map(|(_, identity, _)| identity)
+    };
+    // Channels are positional: each schedule, history and parameter is read by channel index.
+    ordered_laws(&request.columns.channels, |channels| {
+        let mut declared = request.clone();
+        declared.columns.channels = channels.to_vec();
+        adapted(&declared, PanelMissingPolicy::Refuse)
+    });
+    // A declared missing-data policy is bound even when the source is complete.
+    all_distinct(&[
+        adapted(&request, PanelMissingPolicy::Refuse).unwrap(),
+        adapted(&request, PanelMissingPolicy::DropUnits).unwrap(),
+        adapted(&request, PanelMissingPolicy::DropPeriods).unwrap(),
+    ]);
+    let prepared = Study::prepare_joint_panel(data.clone(), request.clone(), &ctx).unwrap();
+    let mut longer = request;
+    longer.options.optimizer.max_iterations += 1;
+    let other = Study::prepare_joint_panel(data, longer, &ctx).unwrap();
+    all_distinct(&[
+        source::fit_dependency(&prepared.state, &ctx).unwrap(),
+        source::fit_dependency(&prepared.state, &ExecutionContext::for_tests(2)).unwrap(),
+        source::fit_dependency(&other.state, &ctx).unwrap(),
+    ]);
 }
 
 #[test]
@@ -1647,7 +1757,7 @@ fn site_joint_panel_response_model_binds_the_source_and_the_fit_policy() {
 #[test]
 fn site_joint_panel_imputation_declaration_orders_worlds_and_channels() {
     use crate::analysis::lowering::joint_panel::imputation;
-    use crate::identity_laws::{all_distinct, ordered_laws};
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
     use crate::planner::lowered::NonGraphicalIdentification;
     use antecedent_data::{ImputationDomain, ImputationSpec};
     let (_, request) = fixture();
@@ -1672,6 +1782,20 @@ fn site_joint_panel_imputation_declaration_orders_worlds_and_channels() {
         model(&declared, &[])
     });
     let named = |name: &str, domain| (Arc::<str>::from(name), domain);
+    // The declared domains are a set keyed by name: the imputer reads them through a map and
+    // refuses a repeated name before any program is built, so a repetition is refused here.
+    set_laws(
+        &[
+            named("confounder", ImputationDomain::Binary),
+            named("outcome", ImputationDomain::Continuous),
+            named("season_1", ImputationDomain::Binary),
+        ],
+        |domains| {
+            let repeated =
+                domains.iter().enumerate().any(|(i, d)| domains[..i].iter().any(|e| e.0 == d.0));
+            if repeated { None } else { model(&request, domains) }
+        },
+    );
     all_distinct(&[
         model(&request, &[]),
         model(&request, &[named("confounder", ImputationDomain::Binary)]),

@@ -33,7 +33,7 @@ use antecedent_identify::{TransportIdentification, TransportIdentifier};
 use super::compiled_point_program::PointProgram;
 use super::declared_learners::{LearnerFactories, calibration_label};
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::{Declaration, SetOf, Wire};
+use super::supplied_identity::{Declaration, SetOf, Wire, encoded};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
@@ -111,14 +111,17 @@ fn source_digest(input: &TrialAipwInput) -> [u8; 32] {
 /// Digest of the question: the diagram, the query, the options and the declared learners.
 fn question_digest(request: &TrialAipwLearnersRequest) -> Result<[u8; 32], CausalError> {
     let query = antecedent_io::query_wire::transport_query_to_wire(&request.query)?;
-    let mut declaration = Declaration::new("antecedent.trial_aipw_caller_learners.question.v1");
-    declaration
-        .field("causal_graph", request.diagram.causal_graph())
-        .field("selection_targets", &SetOf(request.diagram.selection_targets()))
-        .field("query", &Wire(&query))
-        .field("options", &Wire(&request.options))
-        .callback("caller_learner_pair", Some(request.learners.identity()));
-    Ok(declaration.finish())
+    // A graph without a canonical identity refuses the compile (`encoded`).
+    encoded(PLAN_ID, || {
+        let mut declaration = Declaration::new("antecedent.trial_aipw_caller_learners.question.v1");
+        declaration
+            .field("causal_graph", request.diagram.causal_graph())
+            .field("selection_targets", &SetOf(request.diagram.selection_targets()))
+            .field("query", &Wire(&query))
+            .field("options", &Wire(&request.options))
+            .callback("caller_learner_pair", Some(request.learners.identity()));
+        declaration.finish()
+    })
 }
 
 fn lower(request: &TrialAipwLearnersRequest) -> Result<Arc<LoweredProgram>, CausalError> {

@@ -369,15 +369,11 @@ impl<T: CanonicalEncode> Canonical for Encoded<'_, T> {
 
 /// The selective data identity of a table's searched columns (rows and digest), or the reason
 /// it has none (the kernel that reads the table refuses it when the program runs).
-struct RowSet(Result<(u64, [u8; 32]), String>);
+struct RowSet(Result<(u64, [u8; 32]), antecedent_discovery::DiscoveryError>);
 
 impl RowSet {
     fn of(data: &TabularData, variables: &[VariableId]) -> Self {
-        Self(
-            static_data_identity(data, variables)
-                .map(|identity| (identity.rows, identity.digest))
-                .map_err(|error| error.to_string()),
-        )
+        Self(static_data_identity(data, variables).map(|identity| (identity.rows, identity.digest)))
     }
 
     fn rows(&self) -> u64 {
@@ -398,7 +394,10 @@ impl Canonical for RowSet {
                 out.text("rows").word(*rows).bytes(digest);
             }
             Err(error) => {
-                out.text("unreadable").text(error);
+                // The failure's stable kind and code: the kernel refuses this table when the
+                // program runs, so the identity names that refusal, never its message.
+                out.text("unreadable");
+                error.encode(out);
             }
         }
     }
@@ -498,7 +497,9 @@ impl Canonical for ContractIdentity<'_> {
                 out.text("contract").bytes(&digest);
             }
             Err(error) => {
-                out.text("unencodable").text(&error.to_string());
+                // The refusal's registered code and detail, never its message.
+                out.text("unencodable");
+                error.encode(out);
             }
         }
     }
@@ -865,8 +866,8 @@ mod site_tests {
     use std::sync::Arc;
 
     use antecedent_core::{
-        ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, SemanticDigest,
-        TransportQuery, VariableId,
+        CanonicalWriter, ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery,
+        SemanticDigest, TransportQuery, VariableId,
     };
     use antecedent_data::TabularData;
     use antecedent_discovery::selective::{CiTestSpec, StaticAlgorithm, StaticDiscoveryContract};
@@ -875,6 +876,7 @@ mod site_tests {
         DiscoveredClassEvidence, DiscoveredClassStage, DiscoveredClassTransportRequest, RowSet,
         lower,
     };
+    use crate::analysis::supplied_identity::Canonical;
     use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
 
     fn v(raw: u32) -> VariableId {
@@ -946,5 +948,24 @@ mod site_tests {
             RowSet::of(&table(1.0), &[v(0), v(1), v(2)]).digest(),
             RowSet::of(&table(0.0), &[v(0), v(9)]).digest(),
         ]);
+    }
+
+    #[test]
+    fn site_compiled_discovered_transport_an_unreadable_table_is_named_by_its_failure_kind() {
+        // A table the kernel refuses is named by the failure's stable kind and code, never by
+        // its message: the searched variables are bound by the contract, not repeated here.
+        let missing_nine = RowSet::of(&table(0.0), &[v(0), v(9)]);
+        let missing_eight = RowSet::of(&table(0.0), &[v(0), v(8)]);
+        assert!(missing_nine.0.is_err() && missing_eight.0.is_err());
+        assert_eq!(missing_nine.digest(), missing_eight.digest());
+        let mut writer = CanonicalWriter::new("antecedent.test.discovery_error.v1");
+        antecedent_discovery::DiscoveryError::data_msg("first wording").encode(&mut writer);
+        let first = writer.finish();
+        let mut writer = CanonicalWriter::new("antecedent.test.discovery_error.v1");
+        antecedent_discovery::DiscoveryError::data_msg("second wording").encode(&mut writer);
+        assert_eq!(first, writer.finish(), "the message never enters the identity");
+        let mut writer = CanonicalWriter::new("antecedent.test.discovery_error.v1");
+        antecedent_discovery::DiscoveryError::Cancelled.encode(&mut writer);
+        assert_ne!(first, writer.finish(), "another kind is another identity");
     }
 }

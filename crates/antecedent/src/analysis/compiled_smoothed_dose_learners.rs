@@ -33,7 +33,7 @@ use antecedent_io::{TransportIdentificationWire, transport_identification_to_wir
 use super::compiled_point_program::PointProgram;
 use super::declared_learners::LearnerFactories;
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::{Canonical, SetOf, Wire};
+use super::supplied_identity::{Canonical, SetOf, Wire, encoded};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
@@ -149,13 +149,17 @@ fn lower(
     request: &SmoothedDoseLearnersRequest,
     identification: &TransportIdentification,
 ) -> Result<Arc<LoweredProgram>, CausalError> {
-    let question = question_digest(
-        &request.diagram,
-        &request.query,
-        &request.options,
-        &transport_identification_to_wire(identification),
-        request.learners.identity(),
-    );
+    let identification = transport_identification_to_wire(identification);
+    // A graph without a canonical identity refuses the compile (`encoded`).
+    let question = encoded(PLAN_ID, || {
+        question_digest(
+            &request.diagram,
+            &request.query,
+            &request.options,
+            &identification,
+            request.learners.identity(),
+        )
+    })?;
     let source = source_digest(&request.input);
     let rows = request.input.source.len() as u64;
     let columns = 4 + request.input.covariates.len() as u64;

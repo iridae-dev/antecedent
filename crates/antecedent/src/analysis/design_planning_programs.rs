@@ -57,7 +57,7 @@ use antecedent_prob::WeightedGraphSamples;
 use antecedent_stats::adaptive_inference::HierarchicalChoicePrior;
 
 use crate::analysis::supplied_identity::{
-    Canonical, Declaration, Wire, unencoded_variant, variant,
+    Canonical, Declaration, Wire, encoded, unencodable, unencoded_variant, variant,
 };
 pub use crate::analysis::supplied_terminal::TerminalError;
 use crate::analysis::supplied_terminal::{
@@ -173,17 +173,23 @@ pub fn compile_identification_repair(
     admit_compile(ctx)?;
     let contract = contract.into();
     encodable(&contract)?;
-    let question = Declaration::new("antecedent.identification_repair.v2")
-        .field("contract", &contract)
-        // The search reads the candidates in semantic-id order (a stable sort; a repeated id
-        // is refused as a duplicate), so they are written in that order and never deduplicated.
-        .field(
-            "candidates",
-            &KernelOrdered::by(&candidates, DurableStudyCandidate::semantic_id, durable_candidate),
-        )
-        .field("objective", &RepairObjectiveField(objective))
-        .field("limits", &RepairLimitsField(limits))
-        .finish();
+    let question = encoded("supplied.identification_repair.v1", || {
+        Declaration::new("antecedent.identification_repair.v2")
+            .field("contract", &contract)
+            // The search reads the candidates in semantic-id order (a stable sort; a repeated id
+            // is refused as a duplicate), so they are written in that order and never deduplicated.
+            .field(
+                "candidates",
+                &KernelOrdered::by(
+                    &candidates,
+                    DurableStudyCandidate::semantic_id,
+                    durable_candidate,
+                ),
+            )
+            .field("objective", &RepairObjectiveField(objective))
+            .field("limits", &RepairLimitsField(limits))
+            .finish()
+    })?;
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::IdentificationRepair,
         plan_id: "supplied.identification_repair.v1",
@@ -262,22 +268,24 @@ pub fn compile_study_addition_plan(
     ctx: &ExecutionContext,
 ) -> Result<CompiledStudyAdditionPlan, CausalError> {
     admit_compile(ctx)?;
-    let question = Declaration::new("antecedent.study_addition_plan.v2")
-        .field("graph", &graph)
-        .field("route", &RouteField(&route))
-        .field("catalog", &CatalogField(&catalog))
-        // The planner reads the candidates sorted by id (a stable sort), so they are written in
-        // that order and never deduplicated.
-        .field(
-            "candidates",
-            &KernelOrdered::by(
-                &candidates,
-                |c: &StudyCandidate| Arc::clone(&c.id),
-                study_candidate,
-            ),
-        )
-        .field("limits", &StudyPlanLimitsField(limits))
-        .finish();
+    let question = encoded("supplied.study_addition_planning.v1", || {
+        Declaration::new("antecedent.study_addition_plan.v2")
+            .field("graph", &graph)
+            .field("route", &RouteField(&route))
+            .field("catalog", &CatalogField(&catalog))
+            // The planner reads the candidates sorted by id (a stable sort), so they are written in
+            // that order and never deduplicated.
+            .field(
+                "candidates",
+                &KernelOrdered::by(
+                    &candidates,
+                    |c: &StudyCandidate| Arc::clone(&c.id),
+                    study_candidate,
+                ),
+            )
+            .field("limits", &StudyPlanLimitsField(limits))
+            .finish()
+    })?;
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::StudyAdditionPlanning,
         plan_id: "supplied.study_addition_planning.v1",
@@ -341,12 +349,14 @@ pub fn compile_z_transport_failure_snapshot(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransportFailureSnapshot, CausalError> {
     admit_compile(ctx)?;
-    let question = Declaration::new("antecedent.z_transport_failure_snapshot.v2")
-        .field("diagram", &DiagramField(&diagram))
-        .field("query", &Wire(&ZTransportQueryWire::from_query(&query)))
-        .field("catalog", &CatalogField(&catalog))
-        .field("limits", &SidLimitsField(limits))
-        .finish();
+    let question = encoded("supplied.z_transport_failure_snapshot.v1", || {
+        Declaration::new("antecedent.z_transport_failure_snapshot.v2")
+            .field("diagram", &DiagramField(&diagram))
+            .field("query", &Wire(&ZTransportQueryWire::from_query(&query)))
+            .field("catalog", &CatalogField(&catalog))
+            .field("limits", &SidLimitsField(limits))
+            .finish()
+    })?;
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ZTransportEvidencePlanning,
         plan_id: "supplied.z_transport_failure_snapshot.v1",
@@ -405,10 +415,12 @@ pub fn compile_z_transport_evidence_plan(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransportEvidencePlan, CausalError> {
     admit_compile(ctx)?;
-    let question = Declaration::new("antecedent.z_transport_evidence_plan.v2")
-        .field("snapshot", &SnapshotField(&snapshot))
-        .field("spec", &PlanSpecField(&spec))
-        .finish();
+    let question = encoded("supplied.z_transport_evidence_plan.v1", || {
+        Declaration::new("antecedent.z_transport_evidence_plan.v2")
+            .field("snapshot", &SnapshotField(&snapshot))
+            .field("spec", &PlanSpecField(&spec))
+            .finish()
+    })?;
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ZTransportEvidencePlanning,
         plan_id: "supplied.z_transport_evidence_plan.v1",
@@ -498,15 +510,17 @@ pub fn compile_design_ranking<A, O>(
     ctx: &ExecutionContext,
 ) -> Result<CompiledDesignRanking, CausalError> {
     admit_compile(ctx)?;
-    let evaluation = evaluation_digest(eval);
-    let question = Declaration::new("antecedent.design_ranking.v2")
-        .field("config", &RankConfigField(&ranker.config))
-        .field("constraints", &ConstraintsField(&ranker.constraints))
-        .field("objective", &ObjectiveField(&objective))
-        // The ranking reports candidates by their declared index, so their order is kept.
-        .field("candidates", &candidates.iter().map(CandidateField).collect::<Vec<_>>())
-        .field("evaluation", &Bytes32(evaluation))
-        .finish();
+    let evaluation = encoded("supplied.design_ranking.v1", || evaluation_digest(eval))?;
+    let question = encoded("supplied.design_ranking.v1", || {
+        Declaration::new("antecedent.design_ranking.v2")
+            .field("config", &RankConfigField(&ranker.config))
+            .field("constraints", &ConstraintsField(&ranker.constraints))
+            .field("objective", &ObjectiveField(&objective))
+            // The ranking reports candidates by their declared index, so their order is kept.
+            .field("candidates", &candidates.iter().map(CandidateField).collect::<Vec<_>>())
+            .field("evaluation", &Bytes32(evaluation))
+            .finish()
+    })?;
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::DesignRanking,
         plan_id: "supplied.design_ranking.v1",
@@ -604,12 +618,14 @@ pub fn compile_choice_study_ranking(
     ctx: &ExecutionContext,
 ) -> Result<CompiledChoiceStudyRanking, CausalError> {
     admit_compile(ctx)?;
-    let question = Declaration::new("antecedent.choice_study_ranking.v2")
-        .field("posterior", &posterior)
-        // Values are per option and candidates are reported in declared order: both ordered.
-        .field("values", &values)
-        .field("candidates", &candidates.iter().map(ChoiceCandidateField).collect::<Vec<_>>())
-        .finish();
+    let question = encoded("supplied.choice_study_ranking.v1", || {
+        Declaration::new("antecedent.choice_study_ranking.v2")
+            .field("posterior", &posterior)
+            // Values are per option and candidates are reported in declared order: both ordered.
+            .field("values", &values)
+            .field("candidates", &candidates.iter().map(ChoiceCandidateField).collect::<Vec<_>>())
+            .finish()
+    })?;
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::ChoiceStudyRanking,
         plan_id: "supplied.choice_study_ranking.v1",
@@ -709,11 +725,13 @@ pub fn compile_graph_identification(
     ctx: &ExecutionContext,
 ) -> Result<CompiledGraphIdentification, CausalError> {
     admit_compile(ctx)?;
-    let question = Declaration::new("antecedent.graph_identification.v2")
-        .field("graph", &graph)
-        .field("treatment", &treatment)
-        .field("outcome", &outcome)
-        .finish();
+    let question = encoded("supplied.graph_identification.v1", || {
+        Declaration::new("antecedent.graph_identification.v2")
+            .field("graph", &graph)
+            .field("treatment", &treatment)
+            .field("outcome", &outcome)
+            .finish()
+    })?;
     let lowered = lower(structure_spec(question, "supplied.graph_identification.v1", 1))?;
     Ok(CompiledGraphIdentification { lowered, graph, treatment, outcome })
 }
@@ -758,14 +776,16 @@ pub fn compile_structure_identification(
     ctx: &ExecutionContext,
 ) -> Result<CompiledStructureIdentification, CausalError> {
     admit_compile(ctx)?;
-    let question = Declaration::new("antecedent.structure_identification.v2")
-        // The flags are reported per sample in declared order, so the samples stay ordered.
-        .field("samples", &samples.iter().map(SampleField).collect::<Vec<_>>())
-        .field("treatment", &treatment)
-        .field("outcome", &outcome)
-        // Ordered: an unknown target is reported by the first one met.
-        .field("interventions", &interventions)
-        .finish();
+    let question = encoded("supplied.structure_identification.v1", || {
+        Declaration::new("antecedent.structure_identification.v2")
+            // The flags are reported per sample in declared order, so the samples stay ordered.
+            .field("samples", &samples.iter().map(SampleField).collect::<Vec<_>>())
+            .field("treatment", &treatment)
+            .field("outcome", &outcome)
+            // Ordered: an unknown target is reported by the first one met.
+            .field("interventions", &interventions)
+            .finish()
+    })?;
     let lowered =
         lower(structure_spec(question, "supplied.structure_identification.v1", samples.len()))?;
     Ok(CompiledStructureIdentification { lowered, samples, treatment, outcome, interventions })
@@ -860,14 +880,13 @@ fn variables(out: &mut CanonicalWriter, values: &[VariableId]) {
     }
 }
 
-/// A DAG's canonical identity wire (sorted edge lists), or the encoding error, then the label of
-/// every dense node in dense order (the wire indexes dense nodes; the labels name variables).
+/// A DAG's canonical identity wire (sorted edge lists), or a recorded refusal ([`unencodable`]),
+/// then the label of every dense node in dense order (the wire indexes dense nodes; the labels
+/// name variables).
 fn dag_field(out: &mut CanonicalWriter, dag: &Dag) {
     match antecedent_io_core::identity::dag_identity(dag) {
         Ok(wire) => Wire(&wire).encode(out),
-        Err(error) => {
-            out.text("unencodable").text(&error.to_string());
-        }
+        Err(_) => unencodable(out, "graph"),
     }
     dag.nodes().encode(out);
 }
@@ -1054,9 +1073,7 @@ impl Canonical for DiagramField<'_> {
     fn encode(&self, out: &mut CanonicalWriter) {
         match antecedent_io_core::transport_identity(Some(self.0), None) {
             Ok(wire) => Wire(&wire).encode(out),
-            Err(error) => {
-                out.text("unencodable").text(&error.to_string());
-            }
+            Err(_) => unencodable(out, "selection diagram"),
         }
         // The wire indexes dense nodes; each dense node's label names its variable.
         self.0.causal_graph().nodes().encode(out);
@@ -1076,9 +1093,7 @@ impl Canonical for SnapshotField<'_> {
                 wire.selection_targets.sort_unstable();
                 Wire(&wire).encode(out);
             }
-            Err(error) => {
-                out.text("unencodable").text(&error.to_string());
-            }
+            Err(_) => unencodable(out, "z-transport failure snapshot"),
         }
     }
 }

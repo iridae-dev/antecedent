@@ -306,7 +306,31 @@ fn queries(
     Ok((make(active_event), make(baseline_event)))
 }
 
+/// Which question digest a program binds: the current one, or the released one (active path
+/// edges in declared order) a retained artifact was compiled under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Question {
+    Current,
+    V1,
+}
+
+/// The path spec as the question writes it. The active path edges are a set (distinct
+/// outgoing treatment edges; the path-specific contrast reads them by membership), so the
+/// current question writes them sorted; the released one kept the declared order. Time labels
+/// are already in ascending variable order (any other order is refused).
+fn spec_bytes(spec: &TemporalPathSpec, version: Question) -> Result<Vec<u8>, IoError> {
+    match version {
+        Question::Current => {
+            let mut canonical = spec.clone();
+            canonical.active_edges.sort_unstable();
+            antecedent_io::to_cbor(&canonical)
+        }
+        Question::V1 => antecedent_io::to_cbor(spec),
+    }
+}
+
 #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+#[allow(clippy::too_many_arguments, reason = "the declared path problem and its exact evidence")]
 fn lower(
     problem: &CounterfactualTransportProblem,
     active: &CounterfactualTransportQuery,
@@ -315,6 +339,7 @@ fn lower(
     data: &ExactTransportData,
     spec: &TemporalPathSpec,
     options: &TemporalPathOptionsWire,
+    version: Question,
 ) -> Result<Arc<LoweredProgram>, TemporalPathTransportError> {
     let mut law_bytes: Vec<Vec<u8>> = data
         .laws()
@@ -330,9 +355,12 @@ fn lower(
     }
     let source_digest = source_writer.finish();
     let catalog_bytes = antecedent_io::to_cbor(&EvidenceCatalogWire::from_catalog(catalog))?;
-    let spec_bytes = antecedent_io::to_cbor(spec)?;
+    let spec_bytes = spec_bytes(spec, version)?;
     let options_bytes = antecedent_io::to_cbor(options)?;
-    let mut writer = CanonicalWriter::new("antecedent.temporal_path_transport.question.v1");
+    let mut writer = CanonicalWriter::new(match version {
+        Question::Current => "antecedent.temporal_path_transport.question.v2",
+        Question::V1 => "antecedent.temporal_path_transport.question.v1",
+    });
     writer
         .text(&problem.canonical_text())
         .text(&active.canonical_text())
@@ -453,8 +481,16 @@ pub fn compile_temporal_path_transport(
     let catalog = catalog.canonicalized()?;
     let (active_query, baseline_query) = queries(&problem, &target, &sources, &spec)?;
     let options_wire = TemporalPathOptionsWire::from(&options);
-    let lowered =
-        lower(&problem, &active_query, &baseline_query, &catalog, &data, &spec, &options_wire)?;
+    let lowered = lower(
+        &problem,
+        &active_query,
+        &baseline_query,
+        &catalog,
+        &data,
+        &spec,
+        &options_wire,
+        Question::Current,
+    )?;
     let scoped = ctx.enter_lowered_dispatch(lowered.identity());
     let prepare = |query| {
         prepare_counterfactual_transport(&problem, query, &catalog, None, &options, &scoped)
@@ -614,8 +650,24 @@ pub fn consume_temporal_path_transport(
     {
         return Err(TemporalPathTransportError::Invalid("path worlds or source laws differ"));
     }
-    let lowered =
-        lower(problem, &active_query, &baseline_query, catalog, data, &wire.spec, &wire.options)?;
+    let lower_as = |version| {
+        lower(
+            problem,
+            &active_query,
+            &baseline_query,
+            catalog,
+            data,
+            &wire.spec,
+            &wire.options,
+            version,
+        )
+    };
+    let mut lowered = lower_as(Question::Current)?;
+    if lowered.identity() != expected_program {
+        // An artifact retained under the released question still verifies: the program is
+        // rebuilt under that question and must match it exactly.
+        lowered = lower_as(Question::V1)?;
+    }
     let contrast = active.probability() - baseline.probability();
     if lowered.identity() != expected_program || contrast.to_bits() != wire.contrast_bits {
         return Err(TemporalPathTransportError::Invalid("recompiled path contrast differs"));
@@ -752,6 +804,7 @@ struct SampledPathArtifactWire {
     result: SampledPathResultWire,
 }
 
+#[allow(clippy::too_many_arguments, reason = "the declared path problem and its sampled evidence")]
 fn lower_sampled(
     problem: &CounterfactualTransportProblem,
     active: &CounterfactualTransportQuery,
@@ -760,15 +813,19 @@ fn lower_sampled(
     request: &SampledPathRequestWire,
     spec: &TemporalPathSpec,
     options: &TemporalPathOptionsWire,
+    version: Question,
 ) -> Result<Arc<LoweredProgram>, TemporalPathTransportError> {
     let request_bytes = antecedent_io::to_cbor(request)?;
     let catalog_bytes = antecedent_io::to_cbor(&EvidenceCatalogWire::from_catalog(catalog))?;
-    let spec_bytes = antecedent_io::to_cbor(spec)?;
+    let spec_bytes = spec_bytes(spec, version)?;
     let options_bytes = antecedent_io::to_cbor(options)?;
     let mut source_writer = CanonicalWriter::new("antecedent.sampled_temporal_path.evidence.v1");
     source_writer.bytes(&request_bytes);
     let source_digest = source_writer.finish();
-    let mut writer = CanonicalWriter::new("antecedent.sampled_temporal_path.question.v1");
+    let mut writer = CanonicalWriter::new(match version {
+        Question::Current => "antecedent.sampled_temporal_path.question.v2",
+        Question::V1 => "antecedent.sampled_temporal_path.question.v1",
+    });
     writer
         .text(&problem.canonical_text())
         .text(&active.canonical_text())
@@ -862,10 +919,6 @@ fn lower_sampled(
     clippy::too_many_arguments,
     reason = "one path, selection and sampled-evidence declaration"
 )]
-#[allow(
-    clippy::needless_pass_by_value,
-    reason = "the entry point takes ownership of the declared problem, evidence and options"
-)]
 pub fn compile_sampled_temporal_path_transport(
     problem: CounterfactualTransportProblem,
     target: Arc<str>,
@@ -875,6 +928,38 @@ pub fn compile_sampled_temporal_path_transport(
     spec: TemporalPathSpec,
     options: CounterfactualTransportOptions,
     ctx: &ExecutionContext,
+) -> Result<CompiledSampledTemporalPathTransport, TemporalPathTransportError> {
+    compile_sampled_temporal_path_transport_as(
+        problem,
+        target,
+        sources,
+        catalog,
+        request,
+        spec,
+        options,
+        ctx,
+        Question::Current,
+    )
+}
+
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one path, selection and sampled-evidence declaration"
+)]
+#[allow(
+    clippy::needless_pass_by_value,
+    reason = "the entry point takes ownership of the declared problem, evidence and options"
+)]
+fn compile_sampled_temporal_path_transport_as(
+    problem: CounterfactualTransportProblem,
+    target: Arc<str>,
+    sources: Arc<[CounterfactualTransportSource]>,
+    catalog: EvidenceCatalog,
+    request: SampledTransportRequest,
+    spec: TemporalPathSpec,
+    options: CounterfactualTransportOptions,
+    ctx: &ExecutionContext,
+    version: Question,
 ) -> Result<CompiledSampledTemporalPathTransport, TemporalPathTransportError> {
     let catalog = catalog.canonicalized()?;
     let (active_query, baseline_query) = queries(&problem, &target, &sources, &spec)?;
@@ -888,6 +973,7 @@ pub fn compile_sampled_temporal_path_transport(
         &request_wire,
         &spec,
         &options_wire,
+        version,
     )?;
     let scoped = ctx.enter_lowered_dispatch(lowered.identity());
     let prepare = |query| {
@@ -1089,21 +1175,29 @@ pub fn consume_sampled_temporal_path_transport(
     {
         return Err(TemporalPathTransportError::Invalid("sampled path feature or program differs"));
     }
-    let problem = wire.problem.to_problem().map_err(|error| IoError::Convert(error.to_string()))?;
     let active_query =
         wire.active_query.to_query().map_err(|error| IoError::Convert(error.to_string()))?;
-    let catalog = wire.catalog.to_catalog()?;
-    let request = wire.request.to_request()?;
-    let compiled = compile_sampled_temporal_path_transport(
-        problem,
-        Arc::clone(&active_query.target),
-        Arc::clone(&active_query.sources),
-        catalog,
-        request,
-        wire.spec,
-        wire.options.to_options(),
-        ctx,
-    )?;
+    let compile_as = |version| -> Result<_, TemporalPathTransportError> {
+        let problem =
+            wire.problem.to_problem().map_err(|error| IoError::Convert(error.to_string()))?;
+        compile_sampled_temporal_path_transport_as(
+            problem,
+            Arc::clone(&active_query.target),
+            Arc::clone(&active_query.sources),
+            wire.catalog.to_catalog()?,
+            wire.request.to_request()?,
+            wire.spec.clone(),
+            wire.options.to_options(),
+            ctx,
+            version,
+        )
+    };
+    let mut compiled = compile_as(Question::Current)?;
+    if compiled.lowered.identity() != expected_program {
+        // An artifact retained under the released question still verifies: it is recompiled
+        // under that question and must match it exactly.
+        compiled = compile_as(Question::V1)?;
+    }
     if compiled.lowered.identity() != expected_program
         || compiled.active.derivation().query.canonical_text() != active_query.canonical_text()
     {
@@ -1838,9 +1932,18 @@ mod site_tests {
         let identity = |populations: &[&str]| {
             let laws: Vec<ExactDiscreteLaw> = populations.iter().map(|name| law(name)).collect();
             let data = ExactTransportData::try_new(laws, 1 << 16).ok()?;
-            lower(&problem(), &active, &baseline, &catalog, &data, &spec, &options)
-                .ok()
-                .map(|lowered| query_of(&lowered))
+            lower(
+                &problem(),
+                &active,
+                &baseline,
+                &catalog,
+                &data,
+                &spec,
+                &options,
+                Question::Current,
+            )
+            .ok()
+            .map(|lowered| query_of(&lowered))
         };
         // The laws are keyed by population, regime and world (a repeated binding is refused),
         // so the evidence is a set of laws.
@@ -1862,12 +1965,22 @@ mod site_tests {
                 &data,
                 &other_spec,
                 &options,
+                Question::Current,
             )
             .ok()
             .map(|lowered| query_of(&lowered)),
-            lower(&problem(), &active, &baseline, &catalog, &data, &spec, &named)
-                .ok()
-                .map(|lowered| query_of(&lowered)),
+            lower(
+                &problem(),
+                &active,
+                &baseline,
+                &catalog,
+                &data,
+                &spec,
+                &named,
+                Question::Current,
+            )
+            .ok()
+            .map(|lowered| query_of(&lowered)),
         ]);
     }
 
@@ -1899,9 +2012,18 @@ mod site_tests {
                 limits: SampledTransportLimits::default(),
             };
             let wire = SampledPathRequestWire::from_request(&request);
-            lower_sampled(&problem(), &active, &baseline, &catalog, &wire, &spec, &options)
-                .ok()
-                .map(|lowered| query_of(&lowered))
+            lower_sampled(
+                &problem(),
+                &active,
+                &baseline,
+                &catalog,
+                &wire,
+                &spec,
+                &options,
+                Question::Current,
+            )
+            .ok()
+            .map(|lowered| query_of(&lowered))
         };
         // Tables are keyed by population, regime and world and sorted by that key; the sampled
         // estimator refuses a repeated key when it runs, so only reorderings are compared here.
@@ -2006,5 +2128,58 @@ mod site_tests {
             changed.contrast = contrast;
             Some(continuous_chain_fingerprint(&changed))
         });
+    }
+
+    #[test]
+    fn site_temporal_path_transport_active_edges_are_a_set() {
+        let target: Arc<str> = Arc::from("target");
+        let sources: Arc<[CounterfactualTransportSource]> = Arc::from(Vec::new());
+        // The active edges are distinct outgoing treatment edges (a repeat is refused, and
+        // skipped by the law) that the path contrast reads by membership.
+        set_laws(&[(0_u32, 2_u32), (0, 1)], |edges: &[(u32, u32)]| {
+            let spec = path_spec(edges.to_vec());
+            queries(&problem(), &target, &sources, &spec).ok()?;
+            spec_bytes(&spec, Question::Current).ok()
+        });
+        // The whole program agrees: the path worlds do not depend on the declared edge order.
+        let options = TemporalPathOptionsWire::from(&CounterfactualTransportOptions::default());
+        let catalog = EvidenceCatalog::empty();
+        let data = ExactTransportData::try_new(vec![law("target")], 1 << 16).expect("one law");
+        let program = |edges: Vec<(u32, u32)>, version: Question| {
+            let spec = path_spec(edges);
+            let (active, baseline) = worlds(&spec);
+            lower(&problem(), &active, &baseline, &catalog, &data, &spec, &options, version)
+                .ok()
+                .map(|lowered| lowered.identity())
+        };
+        assert_eq!(
+            program(vec![(0, 2), (0, 1)], Question::Current),
+            program(vec![(0, 1), (0, 2)], Question::Current)
+        );
+        // The released question kept the declared order, so a retained artifact rebuilt under it
+        // reproduces its own identity and no other.
+        assert_ne!(
+            program(vec![(0, 2), (0, 1)], Question::V1),
+            program(vec![(0, 1), (0, 2)], Question::V1)
+        );
+        assert_ne!(
+            program(vec![(0, 1), (0, 2)], Question::V1),
+            program(vec![(0, 1), (0, 2)], Question::Current)
+        );
+    }
+
+    #[test]
+    fn site_temporal_path_transport_released_question_keeps_its_bytes() {
+        // The released question wrote the spec as declared under its own tag; the rebuild a
+        // retained artifact is verified against must write exactly those bytes.
+        let spec = path_spec(vec![(0, 2), (0, 1)]);
+        assert_eq!(
+            spec_bytes(&spec, Question::V1).ok(),
+            antecedent_io::to_cbor(&spec).ok(),
+            "the released question writes the declared spec"
+        );
+        let mut sorted = spec.clone();
+        sorted.active_edges.sort_unstable();
+        assert_eq!(spec_bytes(&spec, Question::Current).ok(), antecedent_io::to_cbor(&sorted).ok());
     }
 }

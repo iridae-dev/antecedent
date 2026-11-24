@@ -49,7 +49,7 @@ use antecedent_io_core::counterfactual_transport_wire::{
 };
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::{Canonical, SetOf, Wire};
+use super::supplied_identity::{Canonical, SetOf, Wire, encoded};
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram, PhysicalLayer,
@@ -367,7 +367,7 @@ pub fn compile_transport_identification(
     if ctx.lowered_dispatch().is_some() {
         return Err(TransportIdentificationError::Reentry);
     }
-    let lowered = Arc::new(lower(&request));
+    let lowered = Arc::new(lower(&request)?);
     Ok(CompiledTransportIdentification { request, lowered })
 }
 
@@ -820,8 +820,17 @@ fn shape(
 /// The six layers of an identification program. The question digest is the problem's
 /// identity; identification runs on each execution; nothing is estimated and no uncertainty
 /// is claimed.
-fn lower(request: &TransportIdentificationRequest) -> LoweredProgram {
-    let query = question(request);
+fn lower(
+    request: &TransportIdentificationRequest,
+) -> Result<LoweredProgram, TransportIdentificationError> {
+    // A graph without a canonical identity refuses the compile rather than taking an identity
+    // another request could share (`encoded`).
+    let query = encoded("transport_identification", || question(request)).map_err(|_| {
+        TransportIdentificationError::Identification(IdentificationError::UnsupportedQuery {
+            message: "the declared graph has no canonical identity, so the compiled \
+                      identification program cannot bind it",
+        })
+    })?;
     let (plan_id, graph_class, kind, query_variables) = shape(request);
     let cell = cell_of(request);
     let design = DesignShape::not_design_based("identification reads no rows");
@@ -871,7 +880,7 @@ fn lower(request: &TransportIdentificationRequest) -> LoweredProgram {
         .build()
         .map_or_else(|_| Arc::from([]), |op| Arc::from([op]));
     let physical = PhysicalLayer { operators, design };
-    StandaloneCompositionLoweredParts {
+    Ok(StandaloneCompositionLoweredParts {
         cell,
         scientific,
         identification,
@@ -880,7 +889,7 @@ fn lower(request: &TransportIdentificationRequest) -> LoweredProgram {
         physical,
         claim: ClaimDemand { uncertainty: UncertaintyReading::None, kind: None },
     }
-    .finish()
+    .finish())
 }
 
 #[cfg(test)]

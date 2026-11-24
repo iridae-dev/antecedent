@@ -40,7 +40,7 @@ use antecedent_identify::TransportIdentification;
 
 use super::compiled_point_program::PointProgram;
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::{Canonical, SetOf};
+use super::supplied_identity::{Canonical, SetOf, encoded};
 use super::transport_supplied_nuisance::TransportResponseGridColumns;
 use crate::analysis::TransportTrialSpec;
 use crate::analysis::execute::{Study, live_transport_identification};
@@ -262,7 +262,8 @@ fn lower(
     inputs: &GridInputs,
     outcome: VariableId,
 ) -> Result<Arc<LoweredProgram>, CausalError> {
-    let question = question_digest(diagram, query, trial, columns);
+    // A graph without a canonical identity refuses the compile (`encoded`).
+    let question = encoded(PLAN_ID, || question_digest(diagram, query, trial, columns))?;
     let source = source_digest(inputs);
     let n = inputs.outcome.len() as u64;
     let points = inputs.grid.len() as u64;

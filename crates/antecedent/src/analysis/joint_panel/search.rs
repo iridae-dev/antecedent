@@ -812,3 +812,7 @@ impl crate::analysis::program_handle::CompiledProgramHandle for JointPanelContin
         &self.program.lowered
     }
 }
+
+#[cfg(test)]
+#[path = "search_site_tests.rs"]
+mod site_tests;

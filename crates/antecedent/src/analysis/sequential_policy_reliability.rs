@@ -122,12 +122,50 @@ pub struct SequentialPolicyReliabilityResult {
 ///
 /// # Errors
 /// A learned or static-score policy, duplicate candidate, invalid declaration or lowering failure.
-#[allow(clippy::too_many_lines, reason = "one validation per declared mode and policy field")]
 pub fn compile_sequential_policy_reliability(
     model: FiniteSequentialModel,
     policies: Vec<PolicySpec>,
     unit: String,
     mode: SequentialReliabilityMode,
+) -> Result<SequentialPolicyReliabilityPlan, SequentialReliabilityError> {
+    compile_sequential_policy_reliability_as(model, policies, unit, mode, Question::Current)
+}
+
+/// Which question digest a program binds: the current one, or the released one (the logged
+/// trajectories in declared order) a retained artifact was compiled under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Question {
+    Current,
+    V1,
+}
+
+/// The declaration as the question writes it. Policies are ordered (draws and the report are
+/// indexed by policy); the off-policy log is a set of trajectories keyed by id (the estimator
+/// and the bootstrap read it sorted by id and refuse a repeated id), so the current question
+/// writes it sorted by id. The released question kept the declared order.
+fn declaration_bytes(
+    declaration: &Declaration,
+    version: Question,
+) -> Result<Vec<u8>, antecedent_io::IoError> {
+    match version {
+        Question::Current => {
+            let mut canonical = declaration.clone();
+            if let ModeWire::OffPolicy { log, .. } = &mut canonical.mode {
+                log.sort_by(|a, b| a.id.cmp(&b.id));
+            }
+            antecedent_io::to_cbor(&canonical)
+        }
+        Question::V1 => antecedent_io::to_cbor(declaration),
+    }
+}
+
+#[allow(clippy::too_many_lines, reason = "one validation per declared mode and policy field")]
+fn compile_sequential_policy_reliability_as(
+    model: FiniteSequentialModel,
+    policies: Vec<PolicySpec>,
+    unit: String,
+    mode: SequentialReliabilityMode,
+    version: Question,
 ) -> Result<SequentialPolicyReliabilityPlan, SequentialReliabilityError> {
     let policies: Vec<_> =
         policies.into_iter().map(PolicySpec::into_contingent).collect::<Result<_, _>>()?;
@@ -166,6 +204,15 @@ pub fn compile_sequential_policy_reliability(
             {
                 return Err(SequentialReliabilityError::Invalid("invalid bootstrap declaration"));
             }
+            // The log is a set of trajectories keyed by id: the estimator refuses a repeated
+            // id when it runs, so the program refuses it before it is named.
+            let mut trajectory_ids: Vec<&str> = log.iter().map(|t| t.id.as_str()).collect();
+            trajectory_ids.sort_unstable();
+            if trajectory_ids.windows(2).any(|pair| pair[0] == pair[1]) {
+                return Err(SequentialReliabilityError::Invalid(
+                    "a trajectory identity appears more than once in the log",
+                ));
+            }
         }
         SequentialReliabilityMode::Rollout(_) => {}
     }
@@ -198,8 +245,11 @@ pub fn compile_sequential_policy_reliability(
         unit,
         mode: mode_wire,
     };
-    let bytes = antecedent_io::to_cbor(&declaration)?;
-    let mut writer = CanonicalWriter::new("antecedent.sequential_policy_reliability.v1");
+    let bytes = declaration_bytes(&declaration, version)?;
+    let mut writer = CanonicalWriter::new(match version {
+        Question::Current => "antecedent.sequential_policy_reliability.v2",
+        Question::V1 => "antecedent.sequential_policy_reliability.v1",
+    });
     writer.bytes(&bytes);
     let identity = writer.finish();
     let design = DesignShape::quoted(1, 1, true);
@@ -453,32 +503,43 @@ pub fn consume_sequential_policy_reliability(
         return Err(SequentialReliabilityError::Invalid("unsupported artifact version"));
     }
     let d = artifact.declaration;
-    let model = model_from_wire_body(&d.model)?;
-    let policies = d
-        .policies
-        .iter()
-        .map(policy_from_wire)
-        .map(|p| p.map(PolicySpec::Contingent))
-        .collect::<Result<Vec<_>, _>>()?;
-    let mode = match d.mode {
-        ModeWire::Rollout { seed, rollouts } => {
-            SequentialReliabilityMode::Rollout(RolloutConfig { seed, rollouts })
-        }
-        ModeWire::OffPolicy {
-            behaviour,
-            log,
-            seed,
-            replicates,
-            minimum_effective_sample_size_bits,
-        } => SequentialReliabilityMode::OffPolicy {
-            behaviour: policy_from_wire(&behaviour)?,
-            log: trajectories_from_wire(&log)?,
-            seed,
-            replicates,
-            minimum_effective_sample_size: f64::from_bits(minimum_effective_sample_size_bits),
-        },
+    let compile_as = |version| -> Result<_, SequentialReliabilityError> {
+        let model = model_from_wire_body(&d.model)?;
+        let policies = d
+            .policies
+            .iter()
+            .map(policy_from_wire)
+            .map(|p| p.map(PolicySpec::Contingent))
+            .collect::<Result<Vec<_>, _>>()?;
+        let mode = match &d.mode {
+            ModeWire::Rollout { seed, rollouts } => {
+                SequentialReliabilityMode::Rollout(RolloutConfig {
+                    seed: *seed,
+                    rollouts: *rollouts,
+                })
+            }
+            ModeWire::OffPolicy {
+                behaviour,
+                log,
+                seed,
+                replicates,
+                minimum_effective_sample_size_bits,
+            } => SequentialReliabilityMode::OffPolicy {
+                behaviour: policy_from_wire(behaviour)?,
+                log: trajectories_from_wire(log)?,
+                seed: *seed,
+                replicates: *replicates,
+                minimum_effective_sample_size: f64::from_bits(*minimum_effective_sample_size_bits),
+            },
+        };
+        compile_sequential_policy_reliability_as(model, policies, d.unit.clone(), mode, version)
     };
-    let plan = compile_sequential_policy_reliability(model, policies, d.unit, mode)?;
+    let mut plan = compile_as(Question::Current)?;
+    if artifact.program != *plan.lowered.identity().as_bytes() {
+        // An artifact retained under the released question still verifies: it is recompiled
+        // under that question and must match it exactly.
+        plan = compile_as(Question::V1)?;
+    }
     if artifact.program != *plan.lowered.identity().as_bytes()
         || expected.is_some_and(|v| v != plan.lowered.identity())
     {
@@ -690,5 +751,78 @@ mod tests {
             report_digest(&decided).unwrap(),
             report_digest(&draws).unwrap(),
         ]);
+    }
+
+    fn logging_policy() -> ContingentPolicy {
+        ContingentPolicy::new("logging")
+            .decide_stochastic(HistoryKey::root(), vec![(0, 0.5), (1, 0.5)])
+            .unwrap()
+    }
+
+    /// A logged trajectory whose content follows from its id, so reordering the log moves
+    /// whole trajectories.
+    fn trajectory(id: &str) -> LoggedTrajectory {
+        let byte = id.as_bytes().first().copied().unwrap_or(0);
+        LoggedTrajectory {
+            id: id.into(),
+            steps: vec![LoggedStep {
+                action: usize::from(byte % 2),
+                observation: None,
+                assignment_probability: 0.5,
+            }],
+            outcome_utility: f64::from(byte % 4),
+        }
+    }
+
+    fn off_policy_plan(ids: &[&str], version: Question) -> Option<SequentialPolicyReliabilityPlan> {
+        let (model, policies) = fixture();
+        compile_sequential_policy_reliability_as(
+            model,
+            policies,
+            "utility".into(),
+            SequentialReliabilityMode::OffPolicy {
+                behaviour: logging_policy(),
+                log: ids.iter().map(|id| trajectory(id)).collect(),
+                seed: 3,
+                replicates: 64,
+                minimum_effective_sample_size: 2.0,
+            },
+            version,
+        )
+        .ok()
+    }
+
+    #[test]
+    fn site_sequential_policy_reliability_off_policy_log_is_a_set() {
+        // The estimator and the bootstrap read the log sorted by trajectory id and a repeated
+        // id is refused (the repeated case is refused at compile and skipped by the law).
+        crate::identity_laws::set_laws(&["a", "b", "c", "d"], |ids: &[&str]| {
+            off_policy_plan(ids, Question::Current).map(|plan| query_of(plan.lowered()))
+        });
+        assert!(off_policy_plan(&["a", "b", "a"], Question::Current).is_none());
+        // The released question wrote the log in declared order.
+        let released =
+            |ids: &[&str]| off_policy_plan(ids, Question::V1).map(|plan| query_of(plan.lowered()));
+        assert_ne!(released(&["a", "b", "c"]), released(&["c", "a", "b"]));
+    }
+
+    #[test]
+    fn site_sequential_policy_reliability_released_identity_still_verifies() {
+        let ids: Vec<String> = (0..16).map(|i| format!("{i}")).collect();
+        let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
+        let released =
+            off_policy_plan(&ids, Question::V1).expect("compiles under the released question");
+        let current = off_policy_plan(&ids, Question::Current).expect("compiles");
+        assert_ne!(released.lowered().identity(), current.lowered().identity());
+        let ctx = ExecutionContext::for_tests(1);
+        let result = released.execute(&ctx).expect("the released program runs");
+        let bytes = released.export(&result, &ctx).expect("it exports");
+        let replay = consume_sequential_policy_reliability(
+            &bytes,
+            Some(released.lowered().identity()),
+            &ctx,
+        )
+        .expect("an artifact retained under the released question still verifies");
+        assert_eq!(replay.draws, result.draws);
     }
 }

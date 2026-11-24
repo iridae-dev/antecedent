@@ -28,7 +28,7 @@ use antecedent_io::expr_arena_to_wire;
 use antecedent_io::transport_query_wire::ZTransportQueryWire;
 
 use super::{KernelProgram, KernelProgramShape, KernelRealization, io_refusal};
-use crate::analysis::supplied_identity::{Canonical, SetOf, Wire};
+use crate::analysis::supplied_identity::{Canonical, SetOf, Wire, encoded};
 use crate::analysis::{PreparedZTransport, Study, StudyBuilder, ZTransportResult};
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -154,8 +154,10 @@ fn compile(
     ctx: &ExecutionContext,
 ) -> Result<CompiledZTransport, IoError> {
     antecedent_estimate::refuse_cancelled(ctx, "z-transport compile").map_err(IoError::from)?;
-    let bytes = canonical(&prepared, &request, limits, empirical)?;
     let shape = if empirical { &EMPIRICAL } else { &EXACT };
+    // A graph or wire without a canonical encoding refuses the compile (`encoded`).
+    let bytes = encoded(shape.plan_id, || canonical(&prepared, &request, limits, empirical))
+        .map_err(|error| compile_refusal(&error))??;
     let input = ZTransportInput { prepared, request, limits, empirical };
     let program = KernelProgram::compile(shape, input, &bytes, ctx)
         .map_err(|error| compile_refusal(&error))?;

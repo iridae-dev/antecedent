@@ -5433,8 +5433,8 @@ item = "fn:lower#0"
 feeds = "DiscoveredClassTransport question digest (the Declaration under QUESTION_TAG) -> query functional and transport-source evidence; the stage's evidence row digests -> evidence sources"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/compiled_discovered_transport.rs::site_compiled_discovered_transport_question_sets_the_targets_and_binds_the_stage", "unit:crates/antecedent/tests/compiled_twins_discovery_engines.rs::the_discovered_transport_identity_binds_the_search_the_rows_the_query_and_the_stage"]
-note = "Named fields under the family tag; the stage by its label tag, then its evidence identity (both tables' row sets, sampling, flags, limits) and options. TrialRandomization is matched exhaustively."
+checks = ["unit:crates/antecedent/src/analysis/compiled_discovered_transport.rs::site_compiled_discovered_transport_question_sets_the_targets_and_binds_the_stage", "unit:crates/antecedent/src/analysis/compiled_discovered_transport.rs::site_compiled_discovered_transport_an_unreadable_table_is_named_by_its_failure_kind", "unit:crates/antecedent/tests/compiled_twins_discovery_engines.rs::the_discovered_transport_identity_binds_the_search_the_rows_the_query_and_the_stage", "adversarial:identity_sites.facade.refuse2.discovery_error_by_kind"]
+note = "Named fields under the family tag; the stage by its label tag, then its evidence identity (both tables' row sets, sampling, flags, limits) and options. TrialRandomization is matched exhaustively. A contract or table without an identity (the kernel refuses that request when it runs) is written by the failure's stable kind and registered code (Canonical for DiscoveryError / SelectiveDiscoveryError in supplied_identity), never its message."
 [[sites.collections]]
 name = "selection targets"
 class = "set"
@@ -5443,8 +5443,8 @@ concern = ""
 [[sites.collections]]
 name = "fields (search program, contract, searched rows, targets, query, member bound, stage)"
 class = "ordered"
-canonical = "named fields in fixed order (Declaration writes each name before its value)"
-concern = "ContractIdentity and RowSet write the Display text of the discovery error when the contract or a table has no identity (the kernel refuses that request when it runs). No stable code exists for DiscoveryError, so the text is kept: it never names a runnable program, but it changes if the message is reworded."
+canonical = "named fields in fixed order (Declaration writes each name before its value); a failed contract or row-set identity by its stable kind and code"
+concern = ""
 
 [[sites]]
 id = "antecedent.compiled_discovered_transport.RowSet.digest"
@@ -5453,12 +5453,12 @@ item = "impl:RowSet#0/fn:digest#0"
 feeds = "DiscoveredClassTransport source digest (searched rows) -> scientific source_digest; the source and target row digests of a stage's evidence -> evidence sources"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/compiled_discovered_transport.rs::site_compiled_discovered_transport_rows_follow_the_search_order"]
+checks = ["unit:crates/antecedent/src/analysis/compiled_discovered_transport.rs::site_compiled_discovered_transport_rows_follow_the_search_order", "unit:crates/antecedent/src/analysis/compiled_discovered_transport.rs::site_compiled_discovered_transport_an_unreadable_table_is_named_by_its_failure_kind"]
 [[sites.collections]]
 name = "searched columns"
 class = "ordered"
-canonical = "static_data_identity over the contract's variables in search order (the search visits them in that order); rows and digest, or a tagged refusal text"
-concern = "The unreadable arm writes the Display text of the discovery error (see the lower site)."
+canonical = "static_data_identity over the contract's variables in search order (the search visits them in that order); rows and digest, or `unreadable` and the DiscoveryError's stable kind and refusal code (the variables themselves are bound by the contract identity)"
+concern = ""
 
 [[sites]]
 id = "antecedent.compiled_per_population_discovery.question_digest"
@@ -5467,13 +5467,13 @@ item = "fn:question_digest#0"
 feeds = "PerPopulationStructureSearch question digest -> query functional of the lowered program"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/compiled_per_population_discovery.rs::site_compiled_per_population_discovery_populations_are_a_set_keyed_by_label", "unit:crates/antecedent/tests/compiled_twins_discovery_engines.rs::the_per_population_identity_is_the_sorted_populations_their_rows_and_the_search", "adversarial:identity_sites.facade.intervals.per_population_label_set"]
-note = "Extracted from lower (bytes unchanged). Each population writes its label, its row-set identity and its own search contract's identity."
+checks = ["unit:crates/antecedent/src/analysis/compiled_per_population_discovery.rs::site_compiled_per_population_discovery_populations_are_a_set_keyed_by_label", "unit:crates/antecedent/tests/compiled_twins_discovery_engines.rs::the_per_population_identity_is_the_sorted_populations_their_rows_and_the_search", "adversarial:identity_sites.facade.intervals.per_population_label_set", "unit:crates/antecedent/src/analysis/compiled_discovered_transport.rs::site_compiled_discovered_transport_an_unreadable_table_is_named_by_its_failure_kind"]
+note = "Extracted from lower (bytes unchanged). Each population writes its label, its row-set identity and its own search contract's identity. A contract or table without an identity is written by the failure's stable kind and registered code through the shared DiscoveryError / SelectiveDiscoveryError encodings, never its message (the driver refuses that request when it runs)."
 [[sites.collections]]
 name = "populations (label, rows, search contract)"
 class = "set"
 canonical = "entries() sorts by label (the order the driver reports them in), count-prefixed; a repeated label is refused by the driver when the program runs"
-concern = "ContractIdentity and RowSet write the Display text of the discovery error when a contract or table has no identity (the driver refuses that request when it runs); no stable code exists."
+concern = ""
 
 [[sites]]
 id = "antecedent.compiled_per_population_discovery.source_digest"
@@ -6218,8 +6218,8 @@ item = "impl:<T:serde::Serialize>Canonical for Wire<'_,T>#0/fn:encode#0"
 feeds = "serde wire inputs of the supplied families (functionals, ranking requests, quantities, trust levels, the admg identity wire)"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_wire_lists_keep_their_order"]
-note = "Used only for wire types of scalar fields, ordered lists and no hash-ordered maps; an unencodable value writes its error under its own tag."
+checks = ["unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_wire_lists_keep_their_order", "unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_an_unencodable_value_refuses_and_never_hashes_error_text", "adversarial:identity_sites.facade.refuse2.unencodable_refuses"]
+note = "Used only for wire types of scalar fields, ordered lists and no hash-ordered maps. CBOR into a Vec of a derived Serialize type has no failure path; were one reached, the value is recorded as unencodable (a fixed marker, never the error text) and every declaration wrapped in `encoded` refuses its compile."
 [[sites.collections]]
 name = "serde sequences of the wire value"
 class = "ordered"
@@ -6283,11 +6283,11 @@ concern = ""
 id = "antecedent.supplied_identity.Admg.encode"
 file = "crates/antecedent/src/analysis/supplied_identity.rs"
 item = "impl:Canonical for Admg#0/fn:encode#0"
-feeds = "the graph field of EvidenceObligations, IdentificationRepair, graph identification and the other supplied graph declarations"
+feeds = "the graph field of EvidenceObligations, IdentificationRepair, graph identification, transport identification, trial AIPW, smoothed dose, response grid, scenario set and z-transport declarations"
 released = false
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_graph_edges_are_a_set_and_labels_dense_ordered", "unit:crates/antecedent/src/analysis/supplied_identity.rs::a_graph_is_its_sorted_edges_and_its_node_labels"]
-note = "A relabeling of dense indices that describes the same graph gives a different identity: the encoding over-distinguishes, it never merges two graphs."
+checks = ["unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_graph_edges_are_a_set_and_labels_dense_ordered", "unit:crates/antecedent/src/analysis/supplied_identity.rs::a_graph_is_its_sorted_edges_and_its_node_labels", "unit:crates/antecedent/src/analysis/supplied_identity.rs::site_supplied_identity_an_unencodable_value_refuses_and_never_hashes_error_text", "adversarial:identity_sites.facade.refuse2.unencodable_refuses"]
+note = "A relabeling of dense indices that describes the same graph gives a different identity: the encoding over-distinguishes, it never merges two graphs. A graph whose identity wire cannot be built is recorded as unencodable (never its error text) and the compiles that encode a graph (wrapped in `encoded`) refuse with route_not_supported."
 [[sites.collections]]
 name = "edges"
 class = "set"
@@ -7114,11 +7114,12 @@ concern = ""
 [[sites]]
 id = "antecedent.structure_members.member_key"
 file = "crates/antecedent/src/analysis/structure_members.rs"
-item = "fn:member_key#0"
+item = "fn:member_key_unchecked#0"
 feeds = "StructureMember key -> the member a decision across structures and a structure-identification program report and weight"
 released = false
 status = "checked"
 checks = ["unit:crates/antecedent/src/analysis/structure_members_tests.rs::site_structure_members_member_key_sets_edges_and_tags_kinds"]
+note = "member_key wraps this encoding in `encoded`: a member graph whose identity wire cannot be built refuses (Raw::push propagates it) instead of hashing the error text."
 [[sites.collections]]
 name = "edges of the member graph"
 class = "set"
@@ -7216,11 +7217,12 @@ concern = ""
 [[sites]]
 id = "antecedent.observational_policy.policy_request_digest"
 file = "crates/antecedent/src/analysis/observational_policy.rs"
-item = "fn:policy_request_digest#0"
+item = "fn:policy_request_digest_as#0"
 feeds = "ObservationalPolicy query digest, source_digest and Graph-checked/Declared policy-evaluation NonGraphical identification (and, through the program identity, PolicySubsampling)"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/observational_policy.rs::site_observational_policy_request_digest_orders_rows_and_frames_columns", "adversarial:identity_sites.facade.transport.policy_request_rows"]
+checks = ["unit:crates/antecedent/src/analysis/observational_policy.rs::site_observational_policy_request_digest_orders_rows_and_frames_columns", "unit:crates/antecedent/src/analysis/observational_policy.rs::site_observational_policy_graph_and_information_are_sets", "unit:crates/antecedent/src/analysis/observational_policy.rs::site_observational_policy_spec_reals_are_bits_and_options_are_framed", "unit:crates/antecedent/src/analysis/observational_policy.rs::site_observational_policy_v1_identity_still_verifies", "adversarial:identity_sites.facade.transport.policy_request_rows", "adversarial:identity_sites.facade.transport2.policy_graph_set", "adversarial:identity_sites.facade.transport2.policy_spec_framing", "adversarial:identity_sites.facade.transport2.policy_released_verifies"]
+note = "Versioned: antecedent.observational_policy_program.v2 writes the spec field by field; the released v1 digest (spec as CBOR, graph and information set as declared) is kept as PolicyDigest::V1, and consume_compiled_observational_policy and consume_policy_subsampling recompile under it when a retained artifact's program identity does not match the current one."
 [[sites.collections]]
 name = "outcome and treatment rows"
 class = "ordered"
@@ -7232,10 +7234,15 @@ class = "ordered"
 canonical = "declared order (columns enter the nuisance and policy design matrices in that order; names are distinct, a repeat is refused by the compiler), name framed as text, values count-prefixed by bit pattern"
 concern = ""
 [[sites.collections]]
-name = "spec (support, policy actions, propensities, causal graph)"
+name = "spec fields (support, policy actions, known propensities and columns)"
 class = "ordered"
-canonical = "CBOR of ObservationalPolicySpecWire in declared field order; support, policy_actions and known propensities are positional (support order)"
-concern = "causal_graph.nodes, causal_graph.edges and causal_graph.information_set are sets for the kernel (the graph is built by name, the information set is read by membership in policy_feature_indices) but the CBOR writes them in declared order, so one graph declared in another order gets another identity (over-split, no collision); spec reals go through CBOR rather than CanonicalWriter::real, so bit-exactness of -0.0 / NaN payloads there rests on the CBOR float encoding. Released: a change needs a versioned tag with dual-accept"
+canonical = "write_policy_spec: every field in declaration order, each option with a presence word, each list count-prefixed, every real by its bits; support, policy actions and propensities are positional (support order, row order)"
+concern = ""
+[[sites.collections]]
+name = "causal graph nodes, edges and policy information set"
+class = "set"
+canonical = "write_policy_spec: each written as a BTreeSet (sorted, deduplicated), count-prefixed and framed; check_policy_graph builds the graph by name and refuses repeated nodes and information variables, and policy_feature_indices reads the information set by membership"
+concern = ""
 
 [[sites]]
 id = "antecedent.observational_policy.compile_policy_subsampling"
@@ -7491,16 +7498,17 @@ concern = ""
 [[sites]]
 id = "antecedent.joint_transport_effect_decision.compile_joint_transport_effect_decision"
 file = "crates/antecedent/src/analysis/joint_transport_effect_decision.rs"
-item = "fn:compile_joint_transport_effect_decision#0"
+item = "fn:compile_joint_transport_effect_decision_as#0"
 feeds = "JointTransportEffectDecision question digest and SharedEvidenceContract identification; source_digest is the joint input CBOR digest"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/joint_transport_effect_decision.rs::site_joint_transport_effect_decision_question_binds_rows_options_and_contract"]
+checks = ["unit:crates/antecedent/src/analysis/joint_transport_effect_decision.rs::site_joint_transport_effect_decision_question_binds_rows_options_and_contract", "unit:crates/antecedent/src/analysis/joint_transport_effect_decision.rs::site_joint_transport_effect_decision_selection_targets_are_a_set", "unit:crates/antecedent/src/analysis/joint_transport_effect_decision.rs::site_joint_transport_effect_decision_released_identity_still_verifies"]
+note = "Versioned: question.v2 writes the selection targets sorted (selection_words); the released question.v1 (declared order) is kept as Question::V1 and consume_joint_transport_effect_decision recompiles under it when a retained artifact's program identity does not match the current one. Bundle replay (composition.rs) and the Python binding verify through that consumer."
 [[sites.collections]]
 name = "selection targets"
 class = "set"
-canonical = "written with words() in the diagram's declared order; SelectionDiagram::try_new refuses a repeat"
-concern = "A set for the kernel (read by membership, mechanism_may_differ) written in declared order: the same diagram with its selection targets listed in another order gets another identity (over-split, no collision). Released: a change needs a versioned tag with dual-accept"
+canonical = "selection_words: sorted words; SelectionDiagram::try_new refuses a repeat and identification reads them by membership (mechanism_may_differ)"
+concern = ""
 [[sites.collections]]
 name = "source and target rows (inside the joint input CBOR)"
 class = "ordered"
@@ -7515,16 +7523,17 @@ concern = ""
 [[sites]]
 id = "antecedent.joint_transport_predictive_decision.compile_joint_transport_predictive_decision"
 file = "crates/antecedent/src/analysis/joint_transport_predictive_decision.rs"
-item = "fn:compile_joint_transport_predictive_decision#0"
+item = "fn:compile_joint_transport_predictive_decision_as#0"
 feeds = "JointTransportPredictiveDecision question digest and SharedEvidenceContract identification; source_digest is the joint input CBOR digest"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/joint_transport_predictive_decision.rs::site_joint_transport_predictive_decision_question_binds_worlds_rows_and_premises"]
+checks = ["unit:crates/antecedent/src/analysis/joint_transport_predictive_decision.rs::site_joint_transport_predictive_decision_question_binds_worlds_rows_and_premises", "unit:crates/antecedent/src/analysis/joint_transport_predictive_decision.rs::site_joint_transport_predictive_decision_selection_targets_are_a_set", "unit:crates/antecedent/src/analysis/joint_transport_predictive_decision.rs::site_joint_transport_predictive_decision_released_identity_still_verifies"]
+note = "Versioned: question.v3 writes the selection targets sorted (selection_words); the released question.v2 (declared order) is kept as Question::Released and consume_joint_transport_predictive_decision recompiles under it when a retained artifact's program identity does not match the current one."
 [[sites.collections]]
 name = "selection targets"
 class = "set"
-canonical = "written with words() in the diagram's declared order; SelectionDiagram::try_new refuses a repeat"
-concern = "A set for the kernel written in declared order (over-split, no collision), as at compile_joint_transport_effect_decision. Released: a change needs a versioned tag with dual-accept"
+canonical = "selection_words: sorted words; SelectionDiagram::try_new refuses a repeat and identification reads them by membership"
+concern = ""
 [[sites.collections]]
 name = "worlds (untreated, treated)"
 class = "ordered"
@@ -7539,16 +7548,17 @@ concern = ""
 [[sites]]
 id = "antecedent.trial_ipw_transport_decision.compile_trial_ipw_transport_decision"
 file = "crates/antecedent/src/analysis/trial_ipw_transport_decision.rs"
-item = "fn:compile_trial_ipw_transport_decision#0"
+item = "fn:compile_trial_ipw_transport_decision_as#0"
 feeds = "TrialIpwTransportDecision question digest and SharedEvidenceContract identification; source_digest is the rows CBOR digest"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/trial_ipw_transport_decision.rs::site_trial_ipw_transport_decision_question_orders_rows_and_binds_parts"]
+checks = ["unit:crates/antecedent/src/analysis/trial_ipw_transport_decision.rs::site_trial_ipw_transport_decision_question_orders_rows_and_binds_parts", "unit:crates/antecedent/src/analysis/trial_ipw_transport_decision.rs::site_trial_ipw_transport_decision_selection_targets_are_a_set", "unit:crates/antecedent/src/analysis/trial_ipw_transport_decision.rs::site_trial_ipw_transport_decision_released_identity_still_verifies", "adversarial:identity_sites.facade.transport2.trial_selection_set", "adversarial:identity_sites.facade.transport2.trial_released_verifies"]
+note = "Versioned: question.v2 writes the selection targets sorted (selection_words); the released question.v1 (declared order) is kept as Question::V1 and consume_trial_ipw_transport_decision recompiles under it when a retained artifact's program identity does not match the current one."
 [[sites.collections]]
 name = "selection targets"
 class = "set"
-canonical = "written with words() in the diagram's declared order; SelectionDiagram::try_new refuses a repeat"
-concern = "A set for the kernel written in declared order (over-split, no collision). Released: a change needs a versioned tag with dual-accept"
+canonical = "selection_words: sorted words; SelectionDiagram::try_new refuses a repeat and identification reads them by membership"
+concern = ""
 [[sites.collections]]
 name = "rows (unit id, outcome, treatment, trial, selection and treatment probabilities)"
 class = "ordered"
@@ -7558,16 +7568,17 @@ concern = ""
 [[sites]]
 id = "antecedent.trial_ipw_predictive_decision.compile_trial_ipw_predictive_decision"
 file = "crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs"
-item = "fn:compile_trial_ipw_predictive_decision#0"
+item = "fn:compile_trial_ipw_predictive_decision_as#0"
 feeds = "TrialIpwPredictiveDecision question digest and SharedEvidenceContract identification; source_digest is the rows CBOR digest"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs::site_trial_ipw_predictive_decision_question_orders_rows_and_binds_parts"]
+checks = ["unit:crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs::site_trial_ipw_predictive_decision_question_orders_rows_and_binds_parts", "unit:crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs::site_trial_ipw_predictive_decision_selection_targets_are_a_set", "unit:crates/antecedent/src/analysis/trial_ipw_predictive_decision.rs::site_trial_ipw_predictive_decision_released_identity_still_verifies"]
+note = "Versioned: question.v2 writes the selection targets sorted (selection_words); the released question.v1 (declared order) is kept as Question::V1 and consume_trial_ipw_predictive_decision recompiles under it when a retained artifact's program identity does not match the current one."
 [[sites.collections]]
 name = "selection targets"
 class = "set"
-canonical = "written with words() in the diagram's declared order; SelectionDiagram::try_new refuses a repeat"
-concern = "A set for the kernel written in declared order (over-split, no collision). Released: a change needs a versioned tag with dual-accept"
+canonical = "selection_words: sorted words; SelectionDiagram::try_new refuses a repeat and identification reads them by membership"
+concern = ""
 [[sites.collections]]
 name = "rows (unit id, outcome, treatment, trial, probabilities)"
 class = "ordered"
@@ -7586,7 +7597,8 @@ item = "fn:lower#0"
 feeds = "TemporalPathTransport query digest, source_digest (exact-law digest) and SharedEvidenceContract identification"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_temporal_path_transport_exact_laws_are_a_set", "adversarial:identity_sites.facade.transport.exact_laws_set"]
+checks = ["unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_temporal_path_transport_exact_laws_are_a_set", "unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_temporal_path_transport_active_edges_are_a_set", "unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_temporal_path_transport_released_question_keeps_its_bytes", "adversarial:identity_sites.facade.transport.exact_laws_set", "adversarial:identity_sites.facade.transport2.temporal_active_edges_set"]
+note = "Versioned: question.v2 writes the spec with its active edges sorted (spec_bytes); the released question.v1 (spec as declared) is kept as Question::V1, and consume_temporal_path_transport rebuilds the program under it when a retained artifact's program identity does not match the current one."
 [[sites.collections]]
 name = "exact laws"
 class = "set"
@@ -7595,8 +7607,8 @@ concern = ""
 [[sites.collections]]
 name = "spec active edges"
 class = "set"
-canonical = "CBOR of TemporalPathSpec in declared order; queries() refuses a repeated edge"
-concern = "A set for the kernel (edges are read by membership in path_specific) written in declared order in the spec CBOR (over-split, no collision). Released: a change needs a versioned tag with dual-accept"
+canonical = "spec_bytes: the spec CBOR with active_edges sorted; queries() refuses a repeated edge and the path contrast reads them by membership"
+concern = ""
 [[sites.collections]]
 name = "spec times"
 class = "ordered"
@@ -7615,7 +7627,8 @@ item = "fn:lower_sampled#0"
 feeds = "sampled TemporalPathTransport query digest, source_digest (sampled evidence digest) and SharedEvidenceContract identification"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_sampled_temporal_path_transport_tables_are_sorted_by_key"]
+checks = ["unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_sampled_temporal_path_transport_tables_are_sorted_by_key", "unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_temporal_path_transport_active_edges_are_a_set", "unit:crates/antecedent/src/analysis/temporal_path_transport.rs::site_temporal_path_transport_released_question_keeps_its_bytes"]
+note = "Versioned: sampled question.v2 writes the spec through spec_bytes (active edges sorted); the released question.v1 is kept as Question::V1 and consume_sampled_temporal_path_transport recompiles under it when a retained artifact's program identity does not match the current one."
 [[sites.collections]]
 name = "count tables"
 class = "set"
@@ -7624,8 +7637,8 @@ concern = ""
 [[sites.collections]]
 name = "spec active edges"
 class = "set"
-canonical = "CBOR of TemporalPathSpec in declared order; queries() refuses a repeated edge"
-concern = "A set for the kernel written in declared order (over-split, no collision), as at lower. Released: a change needs a versioned tag with dual-accept"
+canonical = "spec_bytes: the spec CBOR with active_edges sorted; queries() refuses a repeated edge"
+concern = ""
 
 [[sites]]
 id = "antecedent.temporal_path_transport.compile_continuous_chain_transport"
@@ -7668,11 +7681,12 @@ concern = ""
 [[sites]]
 id = "antecedent.sequential_policy_reliability.compile_sequential_policy_reliability"
 file = "crates/antecedent/src/analysis/sequential_policy_reliability.rs"
-item = "fn:compile_sequential_policy_reliability#0"
+item = "fn:compile_sequential_policy_reliability_as#0"
 feeds = "SequentialPolicyReliability query digest, source_digest and SharedEvidenceContract identification (declaration CBOR)"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/sequential_policy_reliability.rs::site_sequential_policy_reliability_declaration_orders_policies_and_binds_mode"]
+checks = ["unit:crates/antecedent/src/analysis/sequential_policy_reliability.rs::site_sequential_policy_reliability_declaration_orders_policies_and_binds_mode", "unit:crates/antecedent/src/analysis/sequential_policy_reliability.rs::site_sequential_policy_reliability_off_policy_log_is_a_set", "unit:crates/antecedent/src/analysis/sequential_policy_reliability.rs::site_sequential_policy_reliability_released_identity_still_verifies", "adversarial:identity_sites.facade.transport2.sequential_log_set", "adversarial:identity_sites.facade.transport2.sequential_released_verifies"]
+note = "Versioned: sequential_policy_reliability.v2 writes the declaration with the off-policy log sorted by trajectory id (declaration_bytes); the released v1 (declared order) is kept as Question::V1 and consume_sequential_policy_reliability recompiles under it when a retained artifact's program identity does not match the current one. The compile now refuses a repeated trajectory id, which the evaluator refused when it ran."
 [[sites.collections]]
 name = "policies"
 class = "ordered"
@@ -7681,8 +7695,8 @@ concern = ""
 [[sites.collections]]
 name = "off-policy log trajectories"
 class = "set"
-canonical = "trajectories_to_wire in declared order inside the declaration CBOR; the off-policy evaluator sorts by id and refuses a repeated id"
-concern = "A set for the kernel (bootstrap_off_policy reads the log sorted by id) written in declared order: the same log listed in another order gets another identity (over-split, no collision). Released: a change needs a versioned tag with dual-accept"
+canonical = "declaration_bytes: the log sorted by trajectory id in the declaration CBOR; the compiler refuses a repeated id, and the evaluator and bootstrap read the log sorted by id"
+concern = ""
 
 [[sites]]
 id = "antecedent.sequential_policy_reliability.report_digest"
@@ -8047,8 +8061,8 @@ item = "fn:prepare_component_feedback_inner#0"
 feeds = "composition_identity, rendered into every structural equation id of the connected cyclic program, hence the program identity of component feedback and of JointComponentPosteriorDecision, the vector variant and BoundedComponentPosteriorDecision"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_composition_identity_is_a_set_of_components_and_connections", "adversarial:identity_sites.facade.composition.component_set"]
-note = "Count-prefixed by the component count; each component writes framed texts (name, interface identity, equation id) and bit words (intercept, self weight, activation tag from an exhaustive match). The connections follow uncounted, but they are the last fields of the stream."
+checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_composition_identity_is_a_set_of_components_and_connections", "unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_composition_ledger_has_a_presence_word", "adversarial:identity_sites.facade.composition.component_set", "adversarial:identity_sites.facade.composition2.ledger_presence_word"]
+note = "Current tag antecedent.cyclic_component_composition.v2. Count-prefixed by the component count; the ledger digest after a presence word (write_ledger); each component writes framed texts (name, interface identity, equation id) and bit words (intercept, self weight, activation tag from an exhaustive match). The connections follow uncounted, but they are the last fields of the stream. The released v1 encoding (ledger digest without a presence word) is reproduced only by IdentityEncoding::V1, which the joint, vector and bounded component consumers use to verify a handoff exported under it."
 [[sites.collections]]
 name = "components"
 class = "set"
@@ -8062,18 +8076,18 @@ concern = ""
 [[sites.collections]]
 name = "optional evidence ledger state digest"
 class = "ordered"
-canonical = "written after the component count when present"
-concern = "No presence word: with a ledger the stream is count, ledger digest (framed 32 bytes), components; without one it is count, components, so the first component's framed name sits where the ledger digest would. A collision needs a component name equal to the raw ledger digest bytes and an aligned remainder, so it is not reachable by ordinary names, but the framing is not injective by construction. Released under antecedent.cyclic_component_composition.v1; a fix needs a versioned tag with dual-accept."
+canonical = "after the component count: presence word 1 and the framed digest, or presence word 0 (v2); the released v1 wrote the digest alone"
+concern = ""
 
 [[sites]]
 id = "antecedent.cyclic_component_composition.compile_joint_component_posterior_decision"
 file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
-item = "fn:compile_joint_component_posterior_decision#0"
+item = "fn:compile_joint_component_posterior_decision_encoded#0"
 feeds = "JointComponentPosteriorDecision: source_digest (component wire digest), the QueryFunctional question and the NonGraphical SharedEvidenceContract"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_joint_posterior_question_binds_components_fit_and_seed"]
-note = "Question: feature text, component wire digest, posterior program identity and the CBOR of the outputs, each length-prefixed."
+checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_joint_posterior_question_binds_components_fit_and_seed", "unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_wire_digest_is_a_set_of_components_and_connections", "unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::common_training_rows_refit_and_replay_the_connected_action_decision", "adversarial:identity_sites.facade.composition2.component_wire_set"]
+note = "Question: feature text, component wire digest, posterior program identity and the CBOR of the outputs, each length-prefixed. The public compile writes the current encoding; consume_joint_component_posterior_decision recompiles under IdentityEncoding::V1 when the current identity differs from the stored one, so a handoff exported under component_wire.v1 still verifies (exercised in common_training_rows_refit_and_replay_the_connected_action_decision)."
 [[sites.collections]]
 name = "outputs (world, equation, coordinate)"
 class = "ordered"
@@ -8082,17 +8096,18 @@ concern = ""
 [[sites.collections]]
 name = "component wire components and connections"
 class = "set"
-canonical = "CBOR of the request as declared (ComponentFeedbackWire::from_request)"
-concern = "The kernel reads components and connections as sets (prepare sorts both), but the component wire digest encodes them in declared order, so a reordered request compiles to the same posterior program under a different outer identity (over-distinguishing, never merging); the existing test common_training_rows_refit_and_replay_the_connected_action_decision asserts that difference. The wire is also the replay carrier, so a fix must sort it before encoding under a versioned tag with dual-accept. Released under antecedent.joint_component_posterior.component_wire.v1."
+canonical = "ComponentFeedbackWire::digest under antecedent.joint_component_posterior.component_wire.v2: CBOR of the canonical wire (components by name, connections by consumer, consumed port, producer, produced port, coefficient bits); worlds stay in order. The stored replay wire keeps the declared order."
+concern = ""
 
 [[sites]]
 id = "antecedent.cyclic_component_composition.compile_joint_vector_component_posterior_decision"
 file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
-item = "fn:compile_joint_vector_component_posterior_decision#0"
+item = "fn:compile_joint_vector_component_posterior_decision_encoded#0"
 feeds = "the vector component posterior compiled under the JointComponentPosteriorDecision family: source_digest (component wire digest), the QueryFunctional question and the NonGraphical SharedEvidenceContract"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_vector_and_bounded_questions_bind_their_parts"]
+checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_vector_and_bounded_questions_bind_their_parts", "unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_vector_wire_digest_is_a_set_of_outputs_ports_and_connections", "adversarial:identity_sites.facade.composition2.vector_wire_set"]
+note = "consume_joint_vector_component_posterior_decision and consume_bounded_component_posterior_decision recompile under IdentityEncoding::V1 when the current identity differs from the stored one, so handoffs exported under component_wire.v1 still verify."
 [[sites.collections]]
 name = "outputs (world, equation, coordinate)"
 class = "ordered"
@@ -8101,8 +8116,8 @@ concern = ""
 [[sites.collections]]
 name = "component wire components, outputs per component and connections"
 class = "set"
-canonical = "CBOR of the request as declared (VectorFeedbackWire::from_request)"
-concern = "As for the scalar joint posterior: the kernel reads the components and connections as sets, the wire digest encodes declared order, so reorderings over-distinguish. Released under antecedent.joint_vector_component_posterior.component_wire.v1; a fix needs a versioned tag with dual-accept."
+canonical = "VectorComponentFeedbackWire::digest under antecedent.joint_vector_component_posterior.component_wire.v2: CBOR of the canonical wire"
+concern = ""
 
 [[sites]]
 id = "antecedent.cyclic_component_composition.compile_bounded_component_posterior_decision"
@@ -8417,10 +8432,10 @@ concern = ""
 id = "antecedent.events.digest"
 file = "crates/antecedent/src/analysis/events/mod.rs"
 item = "fn:digest#0"
-feeds = "source digest of every event-process program (EventProcess, MarkedEventProcess, HawkesExcitation, HawkesParameterBridge): it is the program's question, source and specified model"
+feeds = "source digest of every event-process program (EventProcess, MarkedEventProcess, HawkesExcitation, HawkesParameterBridge): it is the program's question, source and specified model; and the external provider request identifier (EventForecastRequest::provider_request_id) a verified provider binds"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/events/mod.rs::site_events_source_digest_orders_the_catalog_and_the_arrivals"]
+checks = ["unit:crates/antecedent/src/analysis/events/mod.rs::site_events_source_digest_orders_the_catalog_and_the_arrivals", "unit:crates/antecedent/src/analysis/events/mod.rs::site_events_external_request_binds_tied_arrivals_in_declared_order", "adversarial:identity_sites.facade.events2.external_tie_order"]
 note = "The request is serialized with serde_json (fields named, texts quoted and escaped, finite reals in shortest round-trip form) and the bytes length-prefixed under the operation's tag; validation refuses non-finite times before any digest, so JSON's null for NaN is never encoded. No map type occurs in the event requests."
 [[sites.collections]]
 name = "event catalog"
@@ -8430,8 +8445,8 @@ concern = ""
 [[sites.collections]]
 name = "arrivals (left history and window events)"
 class = "ordered"
-canonical = "time order, enforced by validation (a native history also refuses ties)"
-concern = "A non-native (fixture or external) history accepts tied arrivals, and two tied arrivals of different types in the two orders encode differently although the history is the same. Canonicalizing ties changes a released identity; it needs a versioned tag with dual acceptance."
+canonical = "time order, enforced by validation; every native route (declared or fitted forecast, likelihood, study, assessment, challenge, shock question) refuses ties, so no kernel reads a tie's order. Ties are admitted only for fixture and external sources, whose history no kernel here reads: the external provider receives the arrivals as declared and binds its request identifier to that payload (prepare_event_forecast re-checks identity.request_id against it), so the declared order of tied arrivals is part of the request it answered and stays in the identity"
+concern = ""
 
 [[sites]]
 id = "antecedent.lowering.events.lower"
@@ -8501,8 +8516,8 @@ item = "fn:declaration_digest#0"
 feeds = "specified-model identification of the JointPanelImputation program"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_imputation_declaration_orders_worlds_and_channels"]
-note = "Options, family and interactions are CBOR of their serde types (struct fields in declaration order, no maps)."
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_imputation_declaration_orders_worlds_and_channels", "adversarial:identity_sites.facade.panel2.imputation_domain_set"]
+note = "Versioned: imputation.v2 sorts the domains by name. No reader re-checks a stored digest: it feeds only the program identity of a prepared imputation (JointPanelImputedResult::program_identity, recomputed at every prepare), so the tag bump suffices. Options, family and interactions are CBOR of their serde types (struct fields in declaration order, no maps)."
 [[sites.collections]]
 name = "worlds (program id, horizon)"
 class = "ordered"
@@ -8516,8 +8531,8 @@ concern = ""
 [[sites.collections]]
 name = "variable domains (name, domain)"
 class = "set"
-canonical = "count-prefixed in declared order; the imputer keys them by name and refuses a repeat"
-concern = "Keyed by name (the imputer reads them through a map) but written in declared order: the same domains declared in another order give another model digest. Sorting by name changes a released identity; it needs a versioned tag with dual acceptance."
+canonical = "count-prefixed, sorted by name under imputation.v2; the imputer keys them by name and refuses a repeat before the program is built"
+concern = ""
 
 [[sites]]
 id = "antecedent.lowering.joint_panel.response.mechanism_identity"
@@ -8537,11 +8552,12 @@ concern = ""
 [[sites]]
 id = "antecedent.joint_panel.contracts.history_identity"
 file = "crates/antecedent/src/analysis/joint_panel/contracts.rs"
-item = "fn:history_identity#0"
+item = "fn:history_identity_as#0"
 feeds = "initial law name of each world's time frame in the joint panel ScientificTarget (ProblemTarget::Target of JointPanelResponse, JointPanelTimeVarying and JointPanelImputation), and context_identity"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact"]
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact", "unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_contracts_released_context_law_still_validates", "adversarial:identity_sites.facade.panel2.history_set", "adversarial:identity_sites.facade.panel2.released_context_validates"]
+note = "Versioned: the current encoding is initial_history.v2 (histories sorted by channel id); the released initial_history.v1 (declared order) is kept as ContextEncoding::Released only so validate_target accepts a target an earlier release built, and the response coordinates then keep the context law that target retains (retained_context)."
 [[sites.collections]]
 name = "scenarios"
 class = "ordered"
@@ -8550,21 +8566,27 @@ concern = ""
 [[sites.collections]]
 name = "channel histories of one scenario (id, two lagged values)"
 class = "set"
-canonical = "count-prefixed in declared order; each id length-prefixed and the two values by bits"
-concern = "The estimator resolves histories by channel id (ScenarioColumns::resolve) and validation refuses a missing or extra id, so their order carries no meaning, yet it is written in declared order: one scenario with its histories listed in another order has another identity. Sorting by id changes a released identity; it needs a versioned tag with dual acceptance."
+canonical = "count-prefixed, sorted by channel id under initial_history.v2 (the estimator resolves each by id and validation refuses a missing or repeated id); each id length-prefixed and the two values by bits"
+concern = ""
 
 [[sites]]
 id = "antecedent.joint_panel.contracts.context_identity"
 file = "crates/antecedent/src/analysis/joint_panel/contracts.rs"
-item = "fn:context_identity#0"
+item = "fn:context_identity_as#0"
 feeds = "per-world context law assumption of the joint panel ScientificTarget (the program's target) and the response coordinates of a joint panel reading"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact"]
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_contracts_scenarios_and_times_are_ordered_and_exact", "unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_contracts_released_context_law_still_validates", "adversarial:identity_sites.facade.panel2.released_context_validates"]
+note = "Versioned with the history identity: context.v3 binds initial_history.v2; the released context.v2 (over initial_history.v1) still validates a target an earlier release built."
 [[sites.collections]]
 name = "per-scenario confounder and season paths"
 class = "ordered"
 canonical = "count-prefixed per future response time; reals by bits"
+concern = ""
+[[sites.collections]]
+name = "channel histories (through the history identity)"
+class = "set"
+canonical = "sorted by channel id under the current encoding, as the history identity"
 concern = ""
 
 [[sites]]
@@ -8918,12 +8940,12 @@ concern = ""
 [[sites]]
 id = "antecedent.planner.statistical.StatisticalProgram.identity"
 file = "crates/antecedent/src/planner/statistical.rs"
-item = "impl:StatisticalProgram#0/fn:identity#0"
-feeds = "layer three identity inside every lowered program identity"
+item = "impl:StatisticalProgram#0/fn:digest#0"
+feeds = "StatisticalProgram::identity (v3, the public layer-three identity, and the decision-free digest of decides_over) and StatisticalProgram::lowered_layer_digest (v2, the layer-three bytes inside every lowered program identity)"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/planner/statistical.rs::site_statistical_models_and_their_inputs_are_ordered", "unit:crates/antecedent/src/planner/statistical.rs::site_statistical_realization_and_plans_are_tagged", "adversarial:identity_sites.facade.planner.model_slot_order"]
-note = "Realizations are tagged texts (checked realizations by their own identity). Folds, resampling and posterior after presence words; the design writes its column count and width source, never rows."
+checks = ["unit:crates/antecedent/src/planner/statistical.rs::site_statistical_models_and_their_inputs_are_ordered", "unit:crates/antecedent/src/planner/statistical.rs::site_statistical_realization_and_plans_are_tagged", "unit:crates/antecedent/src/planner/statistical.rs::site_statistical_operators_are_bound_by_content_in_order", "unit:crates/antecedent/src/planner/statistical.rs::site_statistical_lowered_layer_digest_keeps_the_released_layout", "adversarial:identity_sites.facade.planner.model_slot_order", "adversarial:identity_sites.facade.planner2.operator_content", "adversarial:identity_sites.facade.planner2.released_layer_layout"]
+note = "Realizations are tagged texts (checked realizations by their own identity). Folds, resampling and posterior after presence words; the design writes its column count and width source, never rows. Versioned: identity() is antecedent.lowered_program.statistical.v3 and binds every operator's content; lowered_layer_digest() keeps the released v2 bytes (operator count only), which every lowered program identity binds, so no stored program identity changes and no reader needs to accept two encodings. The v2 bytes lose nothing at the lowered level: every route builds its statistical operators as a fixed list of its program cell (none, a literal list, linear_gaussian_program_operators, temporal_program_operators, or static_response program_operators(cell.intervenes)), and the lowered identity binds the cell. Independent recomputations of the v2 bytes exist in antecedent-core (mnar_fixed_shift program identity, categorical_candidate_contract::program_identity) and are re-checked against compiled programs, which is why the lowered composition keeps v2."
 [[sites.collections]]
 name = "models (role, family, inputs, output)"
 class = "ordered"
@@ -8937,13 +8959,13 @@ concern = ""
 [[sites.collections]]
 name = "operators"
 class = "ordered"
-canonical = "only the count is written"
-concern = "Released encoding binds the operator contracts by count only: two programs whose statistical operators differ in effect, roles or graph but not in number share a layer-three identity. Today the operators follow from the route cell and query the other layers bind, so no two compiled programs are known to collide; binding their contents needs a versioned tag with dual acceptance."
+canonical = "count word in both layouts; v3 then writes each operator in pipeline order (write_operator): effect, graph, count-prefixed input roles and output roles in declaration order, causal feedback, frozen-fit reuse"
+concern = ""
 [[sites.collections]]
 name = "posterior plan (algorithm, draws, prior name)"
 class = "ordered"
-canonical = "after a presence word; the prior name is a text"
-concern = "Released encoding: prior_name renders the isotropic prior scale with format!(\"isotropic_normal(scale={})\"), a Display rendering of a real. Finite scales round-trip (and -0 differs from 0), but every NaN scale renders `NaN`, and BayesianConfig::prior_scale is not validated finite. Writing the scale by bits needs a versioned tag with dual acceptance."
+canonical = "after a presence word; the prior name is a text that names an isotropic scale exactly by its bits (isotropic_prior_name)"
+concern = ""
 
 [[sites]]
 id = "antecedent.lowering.query_digest.query_digest"
@@ -9023,4 +9045,381 @@ concern = ""
 name = "declaration arrays"
 class = "ordered"
 canonical = "as declared"
+concern = ""
+
+[[sites]]
+id = "antecedent.planner.statistical.isotropic_prior_name"
+file = "crates/antecedent/src/planner/statistical.rs"
+item = "fn:isotropic_prior_name#0"
+feeds = "the declared prior name of an isotropic Bayesian study: the posterior plan's prior and the realization's OrdinaryBayesianLikelihood prior, hence layer three and the lowered program identity"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/planner/statistical.rs::site_statistical_prior_scale_is_named_by_its_bits", "adversarial:identity_sites.facade.planner2.prior_scale_bits"]
+note = "Display of an f64 is the shortest round-trip decimal: injective on every finite value, -0 and 0 differ, infinities are inf and -inf; only NaN payloads collapsed to `NaN`. A NaN other than f64::NAN is now named by its bits (isotropic_normal(scale_bits=0x...)); every released name, the canonical NaN included, is unchanged, so no released identity moves except a non-canonical NaN scale's, which no backend fits (a NaN prior variance), so no stored result carries it."
+[[sites.collections]]
+name = "scale (one real)"
+class = "ordered"
+canonical = "released decimal rendering, injective on all bit patterns but NaN; a non-canonical NaN by its 64 bits in hexadecimal"
+concern = ""
+
+[[sites]]
+id = "antecedent.planner.lowered.chain.ChainProgram.write"
+file = "crates/antecedent/src/planner/lowered/chain.rs"
+item = "impl:ChainProgram#0/fn:write#0"
+feeds = "EvidenceDecisionProgram::identity of a propagation-chain program (layer four), hence its lowered program identity and every chain bundle that binds it"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/propagation_chain_tests.rs::site_chain_program_writes_the_dependence_status_by_its_fixed_word", "adversarial:identity_sites.facade.planner2.chain_dependence_word"]
+note = "The dependence status was written through format!(\"{:?}\"); it is now DependenceStatus::identity_word (antecedent-contract), an exhaustive match returning the same variant names, so the bytes are unchanged (the test re-derives the released Debug bytes and compares) and a renamed or added variant can no longer move them silently. No tag change, no dual acceptance needed."
+[[sites.collections]]
+name = "stages"
+class = "ordered"
+canonical = "count word, then each stage in declaration order (id, kind, representation): the chain evaluates and reports stages in that order"
+concern = ""
+[[sites.collections]]
+name = "stage sources"
+class = "set"
+canonical = "ChainPlan builds them from a BTreeSet (ascending, each once); written count-prefixed"
+concern = ""
+[[sites.collections]]
+name = "shared dependence factors (kind:id)"
+class = "set"
+canonical = "DependenceContract::assess collects them in a BTreeSet (sorted, each once); written count-prefixed after the status word"
+concern = ""
+
+[[sites]]
+id = "antecedent.cyclic_component_composition.write_ledger"
+file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+item = "fn:write_ledger#0"
+feeds = "the ledger field of the composition identity (prepare_component_feedback_inner)"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_composition_ledger_has_a_presence_word", "adversarial:identity_sites.facade.composition2.ledger_presence_word"]
+note = "Extracted from the released composition writer; the V1 arms are byte-identical to the released encoding."
+[[sites.collections]]
+name = "optional ledger digest"
+class = "ordered"
+canonical = "presence word, then the length-prefixed digest when present (Current); digest alone (V1, released)"
+concern = ""
+
+[[sites]]
+id = "antecedent.cyclic_component_composition.ComponentFeedbackWire.digest"
+file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+item = "impl:ComponentFeedbackWire#0/fn:digest#0"
+feeds = "source_digest and question of JointComponentPosteriorDecision"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_wire_digest_is_a_set_of_components_and_connections", "adversarial:identity_sites.facade.composition2.component_wire_set"]
+note = "The V1 arm reproduces the released component_wire.v1 digest (declared order) for consumers verifying a released handoff."
+[[sites.collections]]
+name = "components"
+class = "set"
+canonical = "sorted by component name (canonical); a repeated name is refused by the compiler"
+concern = ""
+[[sites.collections]]
+name = "connections"
+class = "set"
+canonical = "sorted by (consumer, consumed port, producer, produced port, coefficient bits); a repeated port pair is refused by the compiler"
+concern = ""
+[[sites.collections]]
+name = "worlds"
+class = "ordered"
+canonical = "declared order: outputs name worlds by index"
+concern = ""
+
+[[sites]]
+id = "antecedent.cyclic_component_composition.VectorComponentFeedbackWire.digest"
+file = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
+item = "impl:VectorComponentFeedbackWire#0/fn:digest#0"
+feeds = "source_digest and question of the vector component posterior and, through its identity, BoundedComponentPosteriorDecision"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/cyclic_component_composition.rs::site_cyclic_component_vector_wire_digest_is_a_set_of_outputs_ports_and_connections", "adversarial:identity_sites.facade.composition2.vector_wire_set"]
+note = "The V1 arm reproduces the released component_wire.v1 digest (declared order)."
+[[sites.collections]]
+name = "components"
+class = "set"
+canonical = "sorted by component name; a repeated produced port is refused by the compiler"
+concern = ""
+[[sites.collections]]
+name = "outputs of a component"
+class = "set"
+canonical = "sorted by produced port; a repeated output is refused by the compiler"
+concern = ""
+[[sites.collections]]
+name = "consumed ports of an output"
+class = "set"
+canonical = "sorted; a repeated consumed port is refused by the compiler"
+concern = ""
+[[sites.collections]]
+name = "connections"
+class = "set"
+canonical = "sorted by (consumer, consumed port, producer, produced port, coefficient bits, consumer output)"
+concern = ""
+[[sites.collections]]
+name = "worlds"
+class = "ordered"
+canonical = "declared order: outputs name worlds by index"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.source.adapt"
+file = "crates/antecedent/src/analysis/joint_panel/source.rs"
+item = "fn:adapt#0"
+feeds = "source_identity of a prepared joint panel (JointPanelState), hence the fit dependency, the specified-model identification and the source digest of every joint panel program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_source_adapt_orders_roles_and_fit_dependency_binds_execution"]
+note = "The role list carries no count word; it is framed by the adapted panel's identity written last (its channel list is count-prefixed), so two streams that agree agree on the roles."
+[[sites.collections]]
+name = "roles (channels, then outcome, confounder, season)"
+class = "ordered"
+canonical = "by position: each schedule, history and parameter is read by channel index"
+concern = ""
+[[sites.collections]]
+name = "units (id, interval, content digest, masked rows and cells, weight)"
+class = "ordered"
+canonical = "in PanelData order: the fit reads the groups by position (random effects and an order-dependent sum); masked rows ascending as the unit is scanned"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.source.fit_dependency"
+file = "crates/antecedent/src/analysis/joint_panel/source.rs"
+item = "fn:fit_dependency#0"
+feeds = "the fit cache key and dependency_identity of a joint panel result, hence experiment mappings and ledger model labels"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/tests.rs::site_joint_panel_source_adapt_orders_roles_and_fit_dependency_binds_execution"]
+[[sites.collections]]
+name = "parts (source identity, fit policy identity, seed, determinism and kernel flags, optional temporal specification)"
+class = "ordered"
+canonical = "fixed field order under the fit tag; the specification behind a presence word"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.designs.joint_design_world_identity"
+file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
+item = "fn:joint_design_world_identity#0"
+feeds = "JointDesignWorldBinding::target_identity, checked against every target world at compile"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs::site_joint_panel_designs_world_bindings_are_ordered_and_worlds_exact"]
+[[sites.collections]]
+name = "world (its canonical encoding)"
+class = "ordered"
+canonical = "one InterventionWorld through its CanonicalEncode under the source-world tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.designs.identity"
+file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
+item = "fn:identity#0"
+feeds = "PreparedJointDesign dependency: the joint design program's source digest, response population ids, distribution snapshot ids, decision evidence design_contract_id, native experiment dependencies and ledger model labels"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs::site_joint_panel_designs_world_bindings_are_ordered_and_worlds_exact"]
+note = "The proof is CBOR of its serde types (struct fields in declaration order, no maps); each arm's levels must be strictly sorted by variable, so they are canonical by refusal."
+[[sites.collections]]
+name = "world bindings"
+class = "ordered"
+canonical = "in design-functional output order: the law's means are read by position"
+concern = ""
+[[sites.collections]]
+name = "longitudinal arm dictionary"
+class = "set"
+canonical = "CBOR in declared order; validation refuses a repeated arm code and every schedule code is looked up by code"
+concern = "A set keyed by arm code written in declared order: the same dictionary declared in another order gives another dependency (identities split, never merge). The dependency is stored and re-checked by readers outside this digest (ledger model labels in validate_model_dependency, native experiment artifacts comparing their stored dependency), so a versioned fix needs those readers to accept the released dependency too; left for a dedicated change."
+
+[[sites]]
+id = "antecedent.joint_panel.designs.retained_law_identity"
+file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
+item = "fn:retained_law_identity#0"
+feeds = "dependency of an executed joint design (JointDesignResult and native design results): distribution snapshot ids and experiment dependencies"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs::site_joint_panel_designs_retained_law_binds_source_inference_and_ordered_law"]
+note = "Inference and law are CBOR of their serde types; CBOR writes floats in the shortest exact width (injective on finite bits)."
+[[sites.collections]]
+name = "fitted law slots"
+class = "ordered"
+canonical = "CBOR in slot order: draws and means are read by position"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.PanelExperimentEvidence.origins_identity"
+file = "crates/antecedent/src/analysis/joint_panel/experiment.rs"
+item = "impl:PanelExperimentEvidence#0/fn:origins_identity#0"
+feeds = "evidence_identity of single and joint experiment updates, hence the trial evidence of JointPanelExperiment programs"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_experiment_origins_and_evidence_are_ordered_and_exact", "adversarial:identity_sites.facade.panel2.prior_origins_order"]
+[[sites.collections]]
+name = "parts (model, experiment, mapping)"
+class = "ordered"
+canonical = "fixed order of the three roles"
+concern = ""
+[[sites.collections]]
+name = "prior origins"
+class = "ordered"
+canonical = "count-prefixed in declared order: the update's artifact metadata lists them and its persisted identity (experiment_update_identity) binds them in that order, so the program identity reads the same declaration; the independence check reads each one"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.PanelExperimentUpdate.evidence_identity"
+file = "crates/antecedent/src/analysis/joint_panel/experiment.rs"
+item = "impl:PanelExperimentUpdate#0/fn:evidence_identity#0"
+feeds = "trial evidence of the JointPanelExperiment update and native-condition programs"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_experiment_origins_and_evidence_are_ordered_and_exact"]
+[[sites.collections]]
+name = "mapping realizations (intercepts, slopes)"
+class = "ordered"
+canonical = "count-prefixed reals by bits, paired with the source's parameter draw slots by position"
+concern = ""
+[[sites.collections]]
+name = "response functional"
+class = "ordered"
+canonical = "variant tag, then its fields; weighted-sum coefficients count-prefixed by period"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.joint.PanelJointExperimentUpdate.evidence_identity"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/joint.rs"
+item = "impl:PanelJointExperimentUpdate#0/fn:evidence_identity#0"
+feeds = "trial evidence of the JointPanelExperiment joint-update program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_experiment_origins_and_evidence_are_ordered_and_exact"]
+[[sites.collections]]
+name = "components (bridge, functional, mapping)"
+class = "ordered"
+canonical = "count-prefixed component identities: the observed means and the sampling covariance are indexed by component position"
+concern = ""
+[[sites.collections]]
+name = "observed means, sampling covariance, bias bounds"
+class = "ordered"
+canonical = "count-prefixed reals by bits (covariance row-major); the bounds behind a presence word"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.experiment.joint.PanelJointExperimentComponent.evidence_identity"
+file = "crates/antecedent/src/analysis/joint_panel/experiment/joint.rs"
+item = "impl:PanelJointExperimentComponent#0/fn:evidence_identity#0"
+feeds = "the joint update's evidence identity"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/experiment/native/tests.rs::site_joint_panel_experiment_origins_and_evidence_are_ordered_and_exact"]
+[[sites.collections]]
+name = "parts (bridge identity, functional, mapping realizations)"
+class = "ordered"
+canonical = "fixed field order; mapping realizations by draw slot"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.imputed.source_identity"
+file = "crates/antecedent/src/analysis/joint_panel/imputed.rs"
+item = "fn:source_identity#0"
+feeds = "source digest and specified-model identification of the JointPanelImputation program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/imputed.rs::site_joint_panel_imputed_source_orders_units_and_binds_their_content"]
+[[sites.collections]]
+name = "units (id, row count, content digest)"
+class = "ordered"
+canonical = "in PanelData order: the imputer and each completed fit read the groups by position"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.search.write_search"
+file = "crates/antecedent/src/analysis/joint_panel/search.rs"
+item = "fn:write_search#0"
+feeds = "the finite and continuous search declarations, hence the contract identity of every JointPanelProgramSearch program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/search_site_tests.rs::site_joint_panel_search_domain_controls_and_restrictions_are_ordered", "adversarial:identity_sites.facade.panel2.search_controls_order"]
+[[sites.collections]]
+name = "controls (variable, offset, bounds, unit cost)"
+class = "ordered"
+canonical = "count-prefixed by position: candidate values, initial levels and restriction coefficients align with the control index"
+concern = ""
+[[sites.collections]]
+name = "restrictions (id, bound, coefficients)"
+class = "ordered"
+canonical = "count-prefixed in declared order: the first violated restriction is the reported reason"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.search.SearchSpec.finite"
+file = "crates/antecedent/src/analysis/joint_panel/search.rs"
+item = "impl:SearchSpec#0/fn:finite#0"
+feeds = "declaration digest of a finite JointPanelProgramSearch program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/search_site_tests.rs::site_joint_panel_search_source_and_continuous_declaration_bind_their_parts"]
+[[sites.collections]]
+name = "parts (scope, enumeration bound, declared search)"
+class = "ordered"
+canonical = "fixed order under the finite declaration tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.search.SearchSpec.continuous"
+file = "crates/antecedent/src/analysis/joint_panel/search.rs"
+item = "impl:SearchSpec#0/fn:continuous#0"
+feeds = "declaration digest of a continuous or certified JointPanelProgramSearch program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/search_site_tests.rs::site_joint_panel_search_source_and_continuous_declaration_bind_their_parts"]
+[[sites.collections]]
+name = "initial levels"
+class = "ordered"
+canonical = "count-prefixed reals by bits, one per control by position"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.search.SearchSpec.lower"
+file = "crates/antecedent/src/analysis/joint_panel/search.rs"
+item = "impl:SearchSpec#0/fn:lower#0"
+feeds = "contract identity of the decision layer of a JointPanelProgramSearch program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/search_site_tests.rs::site_joint_panel_search_source_and_continuous_declaration_bind_their_parts"]
+[[sites.collections]]
+name = "parts (declaration digest, objective contract identity)"
+class = "ordered"
+canonical = "fixed order under the search contract tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.joint_panel.search.search_source"
+file = "crates/antecedent/src/analysis/joint_panel/search.rs"
+item = "fn:search_source#0"
+feeds = "source digest of every JointPanelProgramSearch program"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/search_site_tests.rs::site_joint_panel_search_source_and_continuous_declaration_bind_their_parts"]
+[[sites.collections]]
+name = "parts (fit dependency, parent target identity, representation)"
+class = "ordered"
+canonical = "fixed order under the search source tag"
+concern = ""
+
+[[sites]]
+id = "antecedent.observational_policy.write_policy_spec"
+file = "crates/antecedent/src/analysis/observational_policy.rs"
+item = "fn:write_policy_spec#0"
+feeds = "the spec part of the ObservationalPolicy request digest (policy_request_digest_as, current version)"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/observational_policy.rs::site_observational_policy_graph_and_information_are_sets", "unit:crates/antecedent/src/analysis/observational_policy.rs::site_observational_policy_spec_reals_are_bits_and_options_are_framed", "adversarial:identity_sites.facade.transport2.policy_graph_set", "adversarial:identity_sites.facade.transport2.policy_spec_framing"]
+[[sites.collections]]
+name = "support, policy actions, known propensities, known propensity columns"
+class = "ordered"
+canonical = "presence word, count, then each real by its bits in declared order (actions are indexed in support order; actions and columns are per row)"
+concern = ""
+[[sites.collections]]
+name = "graph nodes, directed edges (from, to), information set"
+class = "set"
+canonical = "BTreeSet of names or name pairs, count-prefixed, each name framed as text; an edge is an ordered pair"
 concern = ""

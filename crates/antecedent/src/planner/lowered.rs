@@ -791,7 +791,7 @@ impl LoweredParts {
         }
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -832,7 +832,7 @@ impl CyclicLoweredParts {
         writer.text(cell.as_str()).text(self.family).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -873,7 +873,7 @@ impl PlanningLoweredParts {
         writer.text(cell.as_str()).text(self.design).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -915,7 +915,7 @@ impl ChainLoweredParts {
         writer.text(cell.as_str()).text(self.reading).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -954,7 +954,7 @@ impl StandaloneCompositionLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -992,7 +992,7 @@ impl GraphImputationLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1030,7 +1030,7 @@ impl CategoricalPosteriorLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1068,7 +1068,7 @@ impl GraphFalsificationLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1106,7 +1106,7 @@ impl TransportedPathSpecificLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1150,7 +1150,7 @@ impl ModelOperationLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1188,7 +1188,7 @@ impl LocalCyclicCallbackLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1226,7 +1226,7 @@ impl MnarFixedShiftLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1264,7 +1264,7 @@ impl DiscoveryValidationLoweredParts {
         writer.text(cell.as_str()).text(depth.as_str());
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1303,7 +1303,7 @@ impl LatentSoftInterventionLoweredParts {
         // Promotion of this capability annotates the same scientific program.
         ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1373,7 +1373,7 @@ impl EventProcessLoweredParts {
         // Promotion of this capability annotates the same scientific program.
         ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1462,7 +1462,7 @@ impl JointPanelLoweredParts {
         // Promotion of this capability annotates the same scientific program.
         ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
         self.identification.write(&mut writer);
-        writer.bytes(self.statistical.identity().as_bytes());
+        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
         writer.bytes(self.evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());
         let identity = SemanticDigest::from_bytes(writer.finish());
@@ -1779,6 +1779,8 @@ impl LoweredProgram {
         }
         self.scientific.write(&mut writer);
         self.identification.write(&mut writer);
+        // The full layer-three identity (operator content included): this digest is never
+        // stored, so it binds more than the released lowered identity does.
         writer.bytes(self.statistical.identity().as_bytes());
         writer.bytes(evidence.identity().as_bytes());
         writer.text(self.claim.uncertainty.as_str());

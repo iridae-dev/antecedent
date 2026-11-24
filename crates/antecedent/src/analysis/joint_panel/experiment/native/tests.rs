@@ -695,3 +695,107 @@ fn local_chain_fixture() -> (
         vec![1.0],
     )
 }
+
+#[test]
+fn site_joint_panel_experiment_origins_and_evidence_are_ordered_and_exact() {
+    use super::super::super::JointPanelResponseFunctional;
+    use super::super::PanelExperimentModularPolicy;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    let id = |byte: u8| SourceId::from_digest(SemanticDigest::from_bytes([byte; 32]));
+    let evidence = |priors: &[SourceId]| PanelExperimentEvidence {
+        model: id(1),
+        prior_origins: priors.to_vec(),
+        experiment: id(2),
+        mapping: id(3),
+    };
+    // Prior origins are reported in the update's artifact metadata and bound into its persisted
+    // identity in declared order, so the program identity reads them in that order too.
+    ordered_laws(&[id(4), id(5), id(6)], |priors| Some(evidence(priors).origins_identity()));
+    let mut swapped = evidence(&[]);
+    std::mem::swap(&mut swapped.model, &mut swapped.mapping);
+    all_distinct(&[
+        evidence(&[]).origins_identity(),
+        evidence(&[id(4)]).origins_identity(),
+        swapped.origins_identity(),
+    ]);
+    let quantity = ScientificQuantity {
+        variable_id: "native:site:0".into(),
+        variable_name: "response".into(),
+        role: QuantityRole::Outcome,
+        units: "response".into(),
+        population_id: "site_population".into(),
+        regime_id: "native:site:response".into(),
+        horizon: 0,
+        functional_id: "mean".into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
+    };
+    let update =
+        |intercepts: &[f64], functional: JointPanelResponseFunctional| PanelExperimentUpdate {
+            bridge: bridge(&quantity, 1.0, 0.1, 0.0, 0),
+            functional,
+            observed_mean: 0.5,
+            observation_variance: 1.0,
+            sample_size: 10,
+            modular_policy: PanelExperimentModularPolicy::FrozenJointImportance,
+            mapping: PanelExperimentMapping {
+                dependency: SemanticDigest::from_bytes([7; 32]),
+                intercepts: intercepts.to_vec(),
+                slopes: vec![1.0; intercepts.len()],
+            },
+            evidence: evidence(&[id(4)]),
+        };
+    // Mapping realizations are paired with the source's parameter draw slots by position.
+    ordered_laws(&[0.0, 1.0, 2.0], |intercepts| {
+        Some(update(intercepts, JointPanelResponseFunctional::TerminalMean).evidence_identity())
+    });
+    bit_exact(|mean| {
+        let mut declared = update(&[0.0], JointPanelResponseFunctional::TerminalMean);
+        declared.observed_mean = mean;
+        Some(declared.evidence_identity())
+    });
+    let mut other_origins = update(&[0.0], JointPanelResponseFunctional::TerminalMean);
+    other_origins.evidence = evidence(&[]);
+    let mut larger = update(&[0.0], JointPanelResponseFunctional::TerminalMean);
+    larger.sample_size = 11;
+    all_distinct(&[
+        update(&[0.0], JointPanelResponseFunctional::TerminalMean).evidence_identity(),
+        update(&[0.0], JointPanelResponseFunctional::WindowAverage { from: 0, until: 0 })
+            .evidence_identity(),
+        update(&[0.0], JointPanelResponseFunctional::WeightedSum { coefficients: vec![1.0] })
+            .evidence_identity(),
+        other_origins.evidence_identity(),
+        larger.evidence_identity(),
+    ]);
+    // A joint update's components are ordered: the observed means and the sampling covariance
+    // are indexed by component position.
+    let component = |slope: f64| super::super::PanelJointExperimentComponent {
+        bridge: bridge(&quantity, slope, 0.1, 0.0, 0),
+        functional: JointPanelResponseFunctional::TerminalMean,
+        mapping: PanelExperimentMapping {
+            dependency: SemanticDigest::from_bytes([7; 32]),
+            intercepts: vec![0.0],
+            slopes: vec![slope],
+        },
+    };
+    let joint = |slopes: &[f64], bounds: Option<Vec<f64>>| {
+        super::super::PanelJointExperimentUpdate {
+            components: slopes.iter().map(|&slope| component(slope)).collect(),
+            observed_means: vec![0.5; slopes.len()],
+            sampling_covariance: vec![1.0; slopes.len() * slopes.len()],
+            sample_size: 10,
+            modular_policy: PanelExperimentModularPolicy::FrozenJointImportance,
+            evidence: evidence(&[]),
+            contrast_bias_bounds: bounds,
+        }
+        .evidence_identity()
+    };
+    ordered_laws(&[1.0, 2.0, 3.0], |slopes| Some(joint(slopes, None)));
+    all_distinct(&[
+        joint(&[1.0, 2.0], None),
+        joint(&[1.0, 2.0], Some(vec![0.0, 0.0])),
+        joint(&[1.0, 2.0], Some(vec![0.0, 0.1])),
+        component(1.0).evidence_identity(),
+        component(2.0).evidence_identity(),
+    ]);
+}

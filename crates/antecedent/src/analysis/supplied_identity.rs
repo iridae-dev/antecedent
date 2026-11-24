@@ -118,9 +118,56 @@ pub(crate) struct Wire<'a, T>(pub(crate) &'a T);
 impl<T: serde::Serialize> Canonical for Wire<'_, T> {
     fn encode(&self, out: &mut CanonicalWriter) {
         match antecedent_io::to_cbor(self.0) {
-            Ok(bytes) => out.text("cbor").bytes(&bytes),
-            Err(error) => out.text("unencodable").text(&error.to_string()),
-        };
+            Ok(bytes) => {
+                out.text("cbor").bytes(&bytes);
+            }
+            Err(_) => unencodable(out, "cbor wire value"),
+        }
+    }
+}
+
+thread_local! {
+    /// The first value an encoding on this thread could not encode, since the innermost
+    /// [`encoded`] began.
+    static UNENCODABLE: std::cell::RefCell<Option<&'static str>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Record that the value `what` has no canonical encoding. The writer receives a fixed marker,
+/// never an error's text; the identity it is part of is never used, because [`encoded`] refuses
+/// the compile that encoded it.
+pub(crate) fn unencodable(out: &mut CanonicalWriter, what: &'static str) {
+    UNENCODABLE.with(|slot| {
+        slot.borrow_mut().get_or_insert(what);
+    });
+    out.text("unencodable").text(what);
+}
+
+/// Run `identity`, which encodes a declaration, and refuse the compile of `plan` when a value
+/// it encoded has no canonical encoding ([`unencodable`]). A nested call sees only its own
+/// encoding; the enclosing call still sees what the nested one recorded.
+///
+/// # Errors
+/// `route_not_supported` when a value could not be encoded.
+pub(crate) fn encoded<R>(
+    plan: &str,
+    identity: impl FnOnce() -> R,
+) -> Result<R, crate::CausalError> {
+    let outer = UNENCODABLE.with(|slot| slot.borrow_mut().take());
+    let value = identity();
+    let inner = UNENCODABLE.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        let inner = slot.take();
+        *slot = outer.or(inner);
+        inner
+    });
+    match inner {
+        Some(what) => Err(crate::compile_reason!(
+            "route_not_supported",
+            "{plan}.identity: the declared {what} has no canonical encoding, so the compiled \
+             route cannot bind it"
+        )),
+        None => Ok(value),
     }
 }
 
@@ -321,13 +368,31 @@ impl Canonical for Admg {
     fn encode(&self, out: &mut CanonicalWriter) {
         match antecedent_io_core::identity::admg_identity(self) {
             Ok(wire) => Wire(&wire).encode(out),
-            Err(error) => {
-                out.text("unencodable").text(&error.to_string());
-            }
+            Err(_) => unencodable(out, "graph"),
         }
         // The identity wire indexes dense nodes and records only their count; the label of
         // each dense node, in dense order, says which variable the edges are about.
         self.nodes().encode(out);
+    }
+}
+
+/// A discovery failure by its stable kind and registered reason code, never its message (which
+/// carries input values and may change wording).
+impl Canonical for antecedent_discovery::DiscoveryError {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        variant(out, "discovery").text(self.kind()).opt_text(self.refusal_code());
+    }
+}
+
+/// A selective-discovery refusal by its registered reason code and namespaced detail, or the
+/// discovery failure it wraps; never its remedy text.
+impl Canonical for antecedent_discovery::selective::SelectiveDiscoveryError {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        if let Self::Discovery(error) = self {
+            error.encode(out);
+        } else {
+            variant(out, "selective").opt_text(self.code()).opt_text(self.detail());
+        }
     }
 }
 
@@ -466,6 +531,44 @@ mod tests {
         assert_eq!(base, graph(&[0, 1, 2], &[(1, 2), (0, 1)]), "edge insertion order");
         assert_ne!(base, graph(&[0, 1, 2], &[(0, 1), (0, 2)]), "a changed edge");
         assert_ne!(base, graph(&[0, 1, 5], &[(0, 1), (1, 2)]), "a changed node label");
+    }
+
+    #[test]
+    fn site_supplied_identity_an_unencodable_value_refuses_and_never_hashes_error_text() {
+        let digest = |fail: bool| {
+            encoded("some.plan.v1", || {
+                let mut writer = CanonicalWriter::new("antecedent.supplied_identity.test.v1");
+                writer.text("graph");
+                if fail {
+                    unencodable(&mut writer, "graph");
+                }
+                writer.finish()
+            })
+        };
+        let accepted = digest(false).expect("an encodable declaration is accepted");
+        assert_eq!(accepted, digest(false).expect("repeatable"));
+        match digest(true) {
+            Err(crate::CausalError::Compile { message }) => {
+                assert!(message.contains("route_not_supported"), "{message}");
+                assert!(message.contains("some.plan.v1.identity"), "{message}");
+                assert!(message.contains("declared graph has no canonical encoding"), "{message}");
+            }
+            other => panic!("expected a compile refusal, got {other:?}"),
+        }
+        // A refusal does not leak into the next declaration.
+        assert_eq!(digest(false).expect("the slot is cleared"), accepted);
+        // A nested refusal reaches the enclosing declaration, and the nested call refuses too.
+        let outer = encoded("outer.plan.v1", || {
+            assert!(digest(true).is_err());
+        });
+        assert!(outer.is_err(), "the enclosing declaration sees the nested refusal");
+        // An outer refusal recorded before a nested, accepted declaration survives it.
+        let outer = encoded("outer.plan.v1", || {
+            let mut writer = CanonicalWriter::new("antecedent.supplied_identity.test.v1");
+            unencodable(&mut writer, "graph");
+            assert!(digest(false).is_ok(), "the nested declaration sees only its own values");
+        });
+        assert!(outer.is_err(), "the outer refusal survives a nested accepted declaration");
     }
 
     #[test]

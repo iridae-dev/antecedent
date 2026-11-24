@@ -116,12 +116,38 @@ pub struct JointPanelDesignAttempt {
     /// Validated existing randomization contract retained as the proof premise.
     pub proof: Option<JointPanelDesignProof>,
 }
-pub(super) fn history_identity(program: &PanelProgram) -> SemanticDigest {
-    let mut writer = CanonicalWriter::new("antecedent.compiler.panel.initial_history.v1");
+/// The encoding of a program's initial history and context law a target carries.
+///
+/// `Current` reads each scenario's channel histories as the kernel does, as a set keyed by
+/// channel id (`ScenarioColumns::resolve` finds each by id and validation refuses a missing or
+/// repeated id), so they are written sorted by id. `Released` is the encoding of earlier
+/// releases, which wrote them in declared order; a target built then still validates.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ContextEncoding {
+    /// Histories sorted by channel id (`initial_history.v2`, `context.v3`).
+    Current,
+    /// Histories in declared order (`initial_history.v1`, `context.v2`).
+    Released,
+}
+pub(super) fn history_identity_as(
+    program: &PanelProgram,
+    encoding: ContextEncoding,
+) -> SemanticDigest {
+    let tag = match encoding {
+        ContextEncoding::Current => "antecedent.compiler.panel.initial_history.v2",
+        ContextEncoding::Released => "antecedent.compiler.panel.initial_history.v1",
+    };
+    let mut writer = CanonicalWriter::new(tag);
+    // Scenarios stay in declared order: the response adds the groups' contributions in
+    // that order, so a reordering can change the bits of the result.
     writer.word(program.scenarios.len() as u64);
     for scenario in &program.scenarios {
-        writer.text(&scenario.group).word(scenario.history.len() as u64);
-        for history in &scenario.history {
+        let mut histories: Vec<_> = scenario.history.iter().collect();
+        if encoding == ContextEncoding::Current {
+            histories.sort_by(|a, b| a.id.cmp(&b.id));
+        }
+        writer.text(&scenario.group).word(histories.len() as u64);
+        for history in histories {
             writer.text(&history.id);
             for value in history.values {
                 writer.word(value.to_bits());
@@ -131,8 +157,20 @@ pub(super) fn history_identity(program: &PanelProgram) -> SemanticDigest {
     SemanticDigest::from_bytes(writer.finish())
 }
 pub(super) fn context_identity(program: &PanelProgram) -> SemanticDigest {
-    let mut writer = CanonicalWriter::new("antecedent.compiler.panel.context.v2");
-    writer.bytes(history_identity(program).as_bytes()).word(program.scenarios.len() as u64);
+    context_identity_as(program, ContextEncoding::Current)
+}
+pub(super) fn context_identity_as(
+    program: &PanelProgram,
+    encoding: ContextEncoding,
+) -> SemanticDigest {
+    let tag = match encoding {
+        ContextEncoding::Current => "antecedent.compiler.panel.context.v3",
+        ContextEncoding::Released => "antecedent.compiler.panel.context.v2",
+    };
+    let mut writer = CanonicalWriter::new(tag);
+    writer
+        .bytes(history_identity_as(program, encoding).as_bytes())
+        .word(program.scenarios.len() as u64);
     for scenario in &program.scenarios {
         writer.text(&scenario.group).word(scenario.confounder.len() as u64);
         for value in &scenario.confounder {
@@ -174,6 +212,7 @@ fn world(
     lag: usize,
     world: &JointPanelWorld,
     temporal: bool,
+    encoding: ContextEncoding,
 ) -> Result<InterventionWorld, JointPanelError> {
     let p = &world.program;
     let coordinates = program_coordinates(columns, p)?;
@@ -234,7 +273,7 @@ fn world(
             TimeFrame::temporal(
                 h,
                 HistoryWindow::max_lag(u32::try_from(lag).map_err(JointPanelError::compile)?),
-                InitialLaw::named(history_identity(p).to_hex())
+                InitialLaw::named(history_identity_as(p, encoding).to_hex())
                     .map_err(JointPanelError::compile)?,
             )
             .map_err(JointPanelError::compile)?,
@@ -256,10 +295,23 @@ pub fn joint_panel_target(
     functional: JointPanelFunctional,
     inference: InferenceSelection,
 ) -> Result<ScientificTarget, JointPanelError> {
+    target_as(schema, columns, lag_order, worlds, functional, inference, ContextEncoding::Current)
+}
+/// The target under a context encoding: the current one, or the released one a target built
+/// by an earlier release carries.
+pub(super) fn target_as(
+    schema: &CausalSchema,
+    columns: &JointPanelColumns,
+    lag_order: usize,
+    worlds: &[JointPanelWorld],
+    functional: JointPanelFunctional,
+    inference: InferenceSelection,
+    encoding: ContextEncoding,
+) -> Result<ScientificTarget, JointPanelError> {
     let collection = WorldCollection::new(
         worlds
             .iter()
-            .map(|w| world(schema, columns, lag_order, w, false))
+            .map(|w| world(schema, columns, lag_order, w, false, encoding))
             .collect::<Result<Vec<_>, _>>()?,
     )
     .map_err(JointPanelError::compile)?;
@@ -293,7 +345,7 @@ pub fn joint_panel_target(
         assumptions.push(antecedent_core::AssumptionRecord {
             assumption: antecedent_core::Assumption::Custom {
                 id: format!("panel.context.world.{}", w.world.raw()).into(),
-                description: context_identity(&w.program).to_hex().into(),
+                description: context_identity_as(&w.program, encoding).to_hex().into(),
             },
             source: antecedent_core::AssumptionSource::UserDeclared,
             scope: antecedent_core::AssumptionScope::Global,
@@ -324,7 +376,69 @@ pub(super) fn validate_target(
     request: &JointPanelRequest,
 ) -> Result<(), JointPanelError> {
     let actual = target_worlds(&request.target)?;
-    let expected = WorldCollection::new(
+    // A target retains each world's context law and initial history under the current
+    // encoding or, for a target built by an earlier release, under the released one.
+    let current = expected_worlds(schema, request, actual, ContextEncoding::Current)?;
+    let mut context_retained = false;
+    for encoding in [ContextEncoding::Current, ContextEncoding::Released] {
+        if !retains_context(request, encoding) {
+            continue;
+        }
+        context_retained = true;
+        let matches = match encoding {
+            ContextEncoding::Current => current.worlds() == actual,
+            ContextEncoding::Released => {
+                expected_worlds(schema, request, actual, encoding)?.worlds() == actual
+            }
+        };
+        if matches {
+            return validate_inference(request);
+        }
+    }
+    if !context_retained {
+        return Err(JointPanelError::compile(
+            "target does not retain the exact declared world context law",
+        ));
+    }
+    Err(JointPanelError::compile(
+        "target world action, history, initial/context law, population, units or outcome differs from the retained program",
+    ))
+}
+/// Whether the target retains every declared world's context law under `encoding`.
+fn retains_context(request: &JointPanelRequest, encoding: ContextEncoding) -> bool {
+    request.worlds.iter().all(|w| {
+        let id = format!("panel.context.world.{}", w.world.raw());
+        let context = context_identity_as(&w.program, encoding).to_hex();
+        request.target.assumptions().records().entries.iter().any(|r| {
+            matches!(&r.assumption, antecedent_core::Assumption::Custom { id: key, description }
+                if key.as_ref() == id && description.as_ref() == context)
+                && r.status != antecedent_core::AssumptionStatus::Contradicted
+        })
+    })
+}
+/// The context law (hex) the target retains for `world`, when it retains one.
+pub(super) fn retained_context(
+    target: &ScientificTarget,
+    world: ScientificWorldId,
+) -> Option<String> {
+    let id = format!("panel.context.world.{}", world.raw());
+    target.assumptions().records().entries.iter().find_map(|r| match &r.assumption {
+        antecedent_core::Assumption::Custom { id: key, description }
+            if key.as_ref() == id
+                && r.status != antecedent_core::AssumptionStatus::Contradicted =>
+        {
+            Some(description.to_string())
+        }
+        _ => None,
+    })
+}
+fn expected_worlds(
+    schema: &CausalSchema,
+    request: &JointPanelRequest,
+    actual: &[InterventionWorld],
+    encoding: ContextEncoding,
+) -> Result<WorldCollection, JointPanelError> {
+    WorldCollection::new(
         request
             .worlds
             .iter()
@@ -336,6 +450,7 @@ pub(super) fn validate_target(
                     request.lag_order,
                     w,
                     declared.is_some_and(|world| !world.time().is_static()),
+                    encoding,
                 )?;
                 if let TargetForm::DoseTime(surface) = request.target.form() {
                     dose_time_world(&expected, declared, w, &request.columns, surface.dose())
@@ -345,20 +460,9 @@ pub(super) fn validate_target(
             })
             .collect::<Result<Vec<_>, _>>()?,
     )
-    .map_err(JointPanelError::compile)?;
-    for w in &request.worlds {
-        let id = format!("panel.context.world.{}", w.world.raw());
-        let context = context_identity(&w.program).to_hex();
-        if !request.target.assumptions().records().entries.iter().any(|r|matches!(&r.assumption,antecedent_core::Assumption::Custom{id:key,description} if key.as_ref()==id && description.as_ref()==context) && r.status!=antecedent_core::AssumptionStatus::Contradicted) {
-            return Err(JointPanelError::compile("target does not retain the exact declared world context law"));
-        }
-    }
-
-    if expected.worlds() != actual {
-        return Err(JointPanelError::compile(
-            "target world action, history, initial/context law, population, units or outcome differs from the retained program",
-        ));
-    }
+    .map_err(JointPanelError::compile)
+}
+fn validate_inference(request: &JointPanelRequest) -> Result<(), JointPanelError> {
     let bayes = matches!(request.options.inference, engine::PanelInference::Bayesian { .. });
     let expected_inference =
         if bayes { InferenceSelection::Bayesian } else { InferenceSelection::Frequentist };
