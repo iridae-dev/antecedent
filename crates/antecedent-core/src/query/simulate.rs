@@ -400,7 +400,7 @@ impl SimulateQuery {
     ///
     /// [`QueryError::InvalidSimulate`] with [`SimulateFault::SimultaneousTargetsOverlap`] when
     /// a variable is targeted by both sets, and the errors of [`Self::validate`].
-    pub fn simultaneous_counterfactual(
+    pub fn simultaneous_world(
         outer: &[Intervention],
         inner: &[Intervention],
         outcomes: impl Into<Arc<[VariableId]>>,

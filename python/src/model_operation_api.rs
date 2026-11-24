@@ -401,7 +401,7 @@ fn model_operation_simultaneous_counterfactual(
     let outcome_id = input.id(&outcome)?;
     let outer = hard_interventions(&input.data, &outer)?;
     let inner = hard_interventions(&input.data, &inner)?;
-    let query = SimulateQuery::simultaneous_counterfactual(&outer, &inner, vec![outcome_id])
+    let query = SimulateQuery::simultaneous_world(&outer, &inner, vec![outcome_id])
         .map_err(|e| py_err(antecedent::CausalError::from(e)))?;
     let (mean, route) = detach_catch(py, move || {
         let (source, ctx, _) = input.source()?;

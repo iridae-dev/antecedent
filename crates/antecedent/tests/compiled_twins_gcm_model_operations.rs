@@ -17,7 +17,7 @@
 //!   `InterventionalSample` target with no intervention: both start from
 //!   `CausalRng::from_seed(seed)`.
 //! * `simultaneous_hard_counterfactual` and the counterfactual `SimulateQuery` declared with
-//!   `SimulateQuery::simultaneous_counterfactual`, which refuses overlapping sets when it is
+//!   `SimulateQuery::simultaneous_world`, which refuses overlapping sets when it is
 //!   declared, as the direct entry refuses them when it runs.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -387,7 +387,7 @@ fn simultaneous_counterfactual_declaration_equals_the_direct_engine_and_refuses_
         let direct =
             simultaneous_hard_counterfactual(&engine, &data, &outer, &inner, v(2), &mut ws, &ctx())
                 .unwrap();
-        let query = SimulateQuery::simultaneous_counterfactual(&outer, &inner, vec![v(2)]).unwrap();
+        let query = SimulateQuery::simultaneous_world(&outer, &inner, vec![v(2)]).unwrap();
         let SimulationOutcome::Counterfactual(values) = simulate(&data, &graph, query, &ctx())
         else {
             panic!("a counterfactual returns its values");
@@ -412,7 +412,7 @@ fn simultaneous_counterfactual_declaration_equals_the_direct_engine_and_refuses_
             .is_err()
         );
         assert!(matches!(
-            SimulateQuery::simultaneous_counterfactual(&outer, &overlapping, vec![v(2)]),
+            SimulateQuery::simultaneous_world(&outer, &overlapping, vec![v(2)]),
             Err(QueryError::InvalidSimulate(_))
         ));
     });
