@@ -32,6 +32,7 @@ pub(crate) mod program_families;
 mod query_digest;
 mod registry;
 pub(crate) mod scan;
+pub(crate) mod transported_path_specific;
 mod static_effect;
 mod static_response;
 mod structural;
