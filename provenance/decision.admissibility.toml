@@ -54,7 +54,7 @@ sha256 = "676a75c901515cfc14de86582389b03148fa4bd28e4a9de67ea668f78299309e"
 role = "implementation"
 path = "crates/antecedent-design/src/decision_contract/search.rs"
 items = ["fn expr", "fn identity", "fn validate"]
-sha256 = "7210861a22c4e87e78219a33527163610d946af866797019b9f558d7595942be"
+sha256 = "1f29c38105765e6a4562eef8d2d1b6397362f8a8c7e88f7aafec11685aaafc4a"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
