@@ -124,6 +124,16 @@ fn run(
     execution
 }
 
+/// The query the sealed, verified contract of `execution` states.
+fn sealed_query(execution: &CompiledExecution, ctx: &ExecutionContext) -> CausalQueryWire {
+    let bytes = execution
+        .prepared()
+        .encode_contracted_result(execution.result(), "fitted-model-query", ctx)
+        .unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    consumed.contract.expect("verified contract").target.query
+}
+
 /// Run `operation` on the fitted model of a study prepared on `data` and `graph`.
 fn operate(
     data: &TabularData,
@@ -185,8 +195,8 @@ fn the_nested_counterfactual_query_equals_the_direct_entries_and_the_operation_f
             panic!("a nested counterfactual query returns its mean");
         };
         assert_eq!(compiled.to_bits(), direct.to_bits());
-        let (contract, _) = execution.contract_and_claim(&ctx()).unwrap();
-        let CausalQueryWire::Simulate(wire) = &contract.target.query else {
+        let query = sealed_query(&execution, &ctx());
+        let CausalQueryWire::Simulate(wire) = &query else {
             panic!("the contract states the simulation query");
         };
         assert!(matches!(wire.target, SimulationTargetWire::NestedCounterfactual { .. }));
@@ -237,8 +247,8 @@ fn the_population_do_contrast_query_draws_from_the_target_seed_like_the_direct_e
         };
         assert_eq!(compiled.contrast.to_bits(), direct.contrast.to_bits());
         assert_eq!(compiled.stderr.to_bits(), direct.stderr.to_bits());
-        let (contract, _) = execution.contract_and_claim(&other).unwrap();
-        let CausalQueryWire::Attribute(wire) = &contract.target.query else {
+        let query = sealed_query(&execution, &other);
+        let CausalQueryWire::Attribute(wire) = &query else {
             panic!("the contract states the attribution query");
         };
         assert!(matches!(wire.target, AttributeTargetWire::PopulationDoContrast { .. }));

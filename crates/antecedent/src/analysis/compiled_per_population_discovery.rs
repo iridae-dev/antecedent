@@ -155,15 +155,6 @@ impl fmt::Display for PerPopulationSearchError {
 
 impl std::error::Error for PerPopulationSearchError {}
 
-/// A 32-byte digest written as length-prefixed bytes.
-struct Digest32([u8; 32]);
-
-impl Canonical for Digest32 {
-    fn encode(&self, out: &mut CanonicalWriter) {
-        out.bytes(&self.0);
-    }
-}
-
 /// A contract's identity, or the refusal that prevents one (the driver refuses that contract
 /// when the program runs).
 struct ContractIdentity<'a>(&'a StaticDiscoveryContract);

@@ -20,8 +20,6 @@
     reason = "the direct facade kernels are the paths under comparison and become deprecated wrappers; each broken limit is a labelled mutation of the fixture"
 )]
 #![allow(clippy::float_cmp, reason = "bit-identical equality is the property under test")]
-#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
-
 use std::sync::Arc;
 
 use antecedent::analysis::binary_policy_constraints::BinaryPolicyConstraints;

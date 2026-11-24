@@ -463,7 +463,7 @@ mod joint_cells {
         )
         .unwrap();
         assert_eq!(run.fit.scores.scores.len(), library.scores.scores.len());
-        for (a, b) in run.fit.scores.scores.iter().zip(&library.scores.scores) {
+        for (a, b) in run.fit.scores.scores.iter().zip(library.scores.scores.iter()) {
             assert!((a - b).abs() < 1e-10, "{a} vs {b}");
         }
     }

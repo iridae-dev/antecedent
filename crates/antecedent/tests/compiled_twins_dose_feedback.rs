@@ -23,8 +23,6 @@
     deprecated,
     reason = "the twins call the direct facade entries the compiled routes replace"
 )]
-#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
-
 use antecedent::Study;
 use antecedent::analysis::compiled_dose_grid_bias_aware::DoseGridBiasAwareRequest;
 use antecedent::analysis::compiled_external_feedback::{

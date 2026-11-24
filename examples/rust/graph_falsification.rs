@@ -3,6 +3,9 @@
 //! Question: do the conditional independencies a graph asserts fit the data better than those
 //! of the same graph with its node labels shuffled?
 //!
+//! Each graph is declared on a study of the table and tested with the compiled validation
+//! operation `PreparedStudy::falsify_graph` (program family `GraphFalsification`).
+//!
 //! Data and truth: eight variables form four strongly dependent pairs,
 //! `x(2k+1) = 0.9 x(2k) + 0.45 noise`, 2000 rows. The graph that joins the pairs is compared with
 //! 300 random relabellings of its nodes on the same data through the local Markov implications
@@ -20,10 +23,17 @@
 //! Run: `cargo run -p antecedent --example graph_falsification`
 //! Source: `examples/rust/graph_falsification.rs`
 
+use std::sync::Arc;
+
 use antecedent::gcm::{
-    GraphFalsificationConfig, GraphFalsificationOutcome, GraphUninformativeReason, evaluate_graph,
+    GraphFalsificationConfig, GraphFalsificationOutcome, GraphFalsificationReport,
+    GraphUninformativeReason,
 };
-use antecedent_core::{CausalRng, ExecutionContext};
+use antecedent::{RefuteSuite, Study};
+use antecedent_core::{
+    AverageEffectQuery, CausalQuery, CausalRng, ExecutionContext, Intervention, TargetPopulation,
+    Value, VariableId,
+};
 use antecedent_data::TabularData;
 use antecedent_graph::{Dag, DenseNodeId};
 use antecedent_kernels::standard_normal;
@@ -56,6 +66,34 @@ fn linear_pairs(rows: usize, seed: u64) -> Result<TabularData, Box<dyn std::erro
     )?)
 }
 
+/// Declare `graph` on a study of `data` and test it with the compiled falsification operation.
+///
+/// The study's query (the effect of `x0` on `x1`) only completes the declaration; the operation
+/// tests the study's DAG against the table it retained.
+fn falsify(
+    graph: Dag,
+    data: &TabularData,
+    config: &GraphFalsificationConfig,
+    ctx: &ExecutionContext,
+) -> Result<GraphFalsificationReport, Box<dyn std::error::Error>> {
+    let (x0, x1) = (VariableId::from_raw(0), VariableId::from_raw(1));
+    let query = AverageEffectQuery::new(
+        x0,
+        x1,
+        Arc::<[VariableId]>::from([]),
+        Intervention::set(x0, Value::f64(0.0)),
+        Intervention::set(x0, Value::f64(1.0)),
+        TargetPopulation::AllObserved,
+    );
+    let prepared = Study::tabular(data.clone())
+        .graph(graph)
+        .query(CausalQuery::AverageEffect(query))
+        .refute(RefuteSuite::None)
+        .build()?
+        .prepare(ctx)?;
+    Ok(prepared.falsify_graph(config, ctx)?.into_report())
+}
+
 /// Runs the example end to end; `main` calls it and the example test suite runs it.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let data = linear_pairs(2000, 5)?;
@@ -70,21 +108,21 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     // The graph that matches the data has far fewer violated implications than its
     // relabellings, so it is not rejected (which does not show it correct: Markov-equivalent
     // graphs cannot be told apart).
-    let right = evaluate_graph(&graph(8, &TRUE_PAIRS)?, &data, &config, &ctx)?;
+    let right = falsify(graph(8, &TRUE_PAIRS)?, &data, &config, &ctx)?;
     assert_eq!(right.outcome, GraphFalsificationOutcome::NotRejected, "{right:?}");
     assert!(right.p_value.is_some_and(|p| p < 0.05));
     assert_eq!(right.permutations_completed, 300);
     assert_eq!((right.permutation_seed, right.execution_seed), (11, 1));
 
     // Pairing variables that are independent asserts independencies the data contradicts.
-    let wrong = evaluate_graph(&graph(8, &CROSSED_PAIRS)?, &data, &config, &ctx)?;
+    let wrong = falsify(graph(8, &CROSSED_PAIRS)?, &data, &config, &ctx)?;
     assert_eq!(wrong.outcome, GraphFalsificationOutcome::Rejected, "{wrong:?}");
     assert!(wrong.p_value.is_some_and(|p| p > 0.5));
     assert!(wrong.n_violations.is_some_and(|v| v >= 6));
     assert!(wrong.evidence.iter().any(|e| e.violated && e.p_value < 0.01));
 
     // The same seeds reproduce the verdict, the p-value and every permutation count.
-    let again = evaluate_graph(&graph(8, &TRUE_PAIRS)?, &data, &config, &ctx)?;
+    let again = falsify(graph(8, &TRUE_PAIRS)?, &data, &config, &ctx)?;
     assert_eq!(again.p_value, right.p_value);
     assert_eq!(again.permutation_violations, right.permutation_violations);
 
@@ -96,7 +134,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         ["x0", "x1", "x2", "x3"].into_iter().zip(columns.iter().map(Vec::as_slice)),
     )?;
     let complete = graph(4, &[(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)])?;
-    let nothing = evaluate_graph(&complete, &noise, &config, &ctx)?;
+    let nothing = falsify(complete, &noise, &config, &ctx)?;
     assert_eq!(nothing.outcome, GraphFalsificationOutcome::Uninformative);
     assert_eq!(nothing.uninformative_reason, Some(GraphUninformativeReason::NoTestableImplication));
     Ok(())

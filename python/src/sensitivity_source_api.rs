@@ -15,6 +15,10 @@ pub(crate) struct SourceRecipe {
     pub(crate) context: antecedent::prelude::ExecutionContext,
 }
 impl PySensitivityArtifact {
+    #[allow(
+        deprecated,
+        reason = "re-estimates the prepared z-transport stage of the deprecated direct path the artifact was built on, so the source replays that baseline"
+    )]
     pub(crate) fn checked_source(
         &self,
         py: Python<'_>,

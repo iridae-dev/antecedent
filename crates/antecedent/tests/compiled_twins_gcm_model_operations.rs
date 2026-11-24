@@ -35,8 +35,6 @@
     clippy::cast_precision_loss,
     reason = "bit-identical equality is the property under test; columns come from small indices"
 )]
-#![allow(deprecated, reason = "exercises the deprecated direct facade path")]
-
 use std::sync::Arc;
 
 use antecedent::analysis::model_operation::ModelOperationAnswer;
