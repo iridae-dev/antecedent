@@ -183,6 +183,19 @@ SEED_ZERO = (
     "gcm_estimand_api.rs::interventional_mean",
     "gcm_estimand_api.rs::population_do_contrast",
     "gcm_estimand_api.rs::simultaneous_counterfactual",
+    # Compiled replacements keep the seed default of the direct path they reproduce
+    # (estimate_trial_transport, estimate_transport_response_grid, evaluate_graph_py).
+    "compiled_transport_api.rs::execute",
+    "compiled_transport_api.rs::compile_transport_response_grid",
+    "prepared_api/graph_falsification.rs::falsify_graph",
+    # Trade-off decisions over studies and joint designs keep the seed default of the
+    # joint-design execution they compile over (designs.rs::execute).
+    "joint_panel_api/designs.rs::compile_for_preference_decision",
+    "preferences_api.rs::preference_experiment_source",
+    "preferences_api.rs::preference_experiment_quantity",
+    "preferences_api.rs::execute",
+    "preferences_api.rs::preference_compile_for_study",
+    "preferences_api.rs::preference_compile_across_studies",
     # Power-prior discount selection: the seed of the cross-validated fold split.
     "prior_bank.rs::select_beta_power_prior_alpha_py",
     "prior_bank.rs::select_gamma_power_prior_alpha_py",
