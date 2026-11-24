@@ -2999,6 +2999,69 @@ fixtures = []
 why = "Keep the event capability boundary checks with the compiled scientific fixtures."
 
 [[test]]
+evidence_test = "crates/antecedent/tests/hawkes_marks.rs"
+evidence_assertion = "one_hot_marks_reproduce_the_directly_summed_catalog_likelihood"
+kind = "known_truth"
+fixtures = []
+why = "One-hot prototypes with one decay per source reproduce a two-type catalog kernel: the compiled marked and catalog likelihoods equal the log intensities at seven arrivals less the integrated intensities, summed term by term in the test, to 1e-9. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/hawkes_marks.rs"
+evidence_assertion = "marked_draws_match_the_closed_form_mean_count"
+kind = "known_truth"
+fixtures = []
+why = "The mean count of 4000 compiled one-mark draws (mu 2, alpha 0.5, beta 2, T 3) is within 0.6 of mu T / (1 - alpha) - alpha mu (1 - exp(-beta (1 - alpha) T)) / (beta (1 - alpha)^2), more than five standard errors. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/marked.rs"
+evidence_assertion = "poisson_likelihood_and_offspring_match_the_univariate_hawkes_formulas"
+kind = "known_truth"
+fixtures = []
+why = "At zero excitation the marked likelihood is the Poisson value 2 log 2 - 4, and one-mark offspring are the univariate closed forms. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/hawkes_marks.rs"
+evidence_assertion = "compiled_offspring_match_the_closed_forms"
+kind = "known_truth"
+fixtures = []
+why = "Compiled catalog and marked offspring equal alpha (1 - exp(-beta H)), alpha / (1 - alpha) and alpha / (1 - alpha) (1 - exp(-beta (1 - alpha) H)); two-type lifetime descendants equal the 2x2 inverse less the initiator. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/hawkes.rs"
+evidence_assertion = "univariate_horizon_is_the_closed_form_and_not_the_discounted_resolvent"
+kind = "known_truth"
+fixtures = []
+why = "Horizon descendants equal the univariate closed form and differ from the resolvent of the horizon-discounted matrix. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/hawkes.rs"
+evidence_assertion = "resolvent_descendants_exclude_the_initiating_event"
+kind = "known_truth"
+fixtures = []
+why = "Two-type lifetime descendants equal the resolvent column by the 2x2 inverse less the initiating event. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/hawkes_marks.rs"
+evidence_assertion = "an_immigrant_step_explains_regular_arrivals_and_withholds_the_constant_mass"
+kind = "known_truth"
+fixtures = []
+why = "Arrivals evenly spaced at rate 1 then 3 are the maximum-likelihood point of the declared step feature with zero excitation, so the alternative direct mass is exactly zero and the challenge withholds; under an agreed reading the compiled release comparison equals the closed-form masses of the fitted kernel. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/question.rs"
+evidence_assertion = "release_law_counts_match_the_linear_intensity_means"
+kind = "known_truth"
+fixtures = []
+why = "Mean release and activity counts of 4000 compiled intervened continuations equal the linear-intensity means written out in the test, within more than five and four standard errors. This source assertion is unearned."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/events/question.rs"
+evidence_assertion = "agreement_carries_the_direct_mass_when_discovery_orients_the_edge"
+kind = "known_truth"
+fixtures = []
+why = "With an affine map of slope 2 the bridged mean is twice the agreed direct mass, and each release action adds exactly one event at the declared time and type. This source assertion is unearned."
+
+[[test]]
 evidence_test = "crates/antecedent-state/src/graph_score.rs"
 evidence_assertion = "gaussian_bic_matches_closed_form_regression"
 kind = "reference"

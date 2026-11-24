@@ -112,6 +112,36 @@ def test_horizon_offspring_is_not_the_lifetime_mass_or_the_discounted_resolvent(
     assert abs(report["horizon_descendants"][0] - discounted) > 1e-3
 
 
+def test_excitation_and_marked_plans_run_under_their_own_units():
+    offspring = events.prepare(
+        {
+            "operation": "offspring",
+            "parameters": {"baseline": [0.5], "branching": [0.4], "decay": [1.0]},
+            "source": 0,
+            "horizon": 1.0,
+        }
+    )
+    assert offspring.unit_support()["unit"] == "forecast.hawkes_excitation"
+    assert offspring.inspect()["route"] == "HawkesExcitation"
+    marked = events.prepare(
+        {
+            "operation": "marked_likelihood",
+            "history": {
+                "time_unit": "hour",
+                "origin": "origin",
+                "source": "log",
+                "empty_origin": 0.0,
+                "window": {"start": 0.0, "end": 1.0},
+                "left": [],
+                "events": [{"time": 0.5, "prototype": 0}],
+                "prototypes": [{"source": [1.0], "target": [1.0], "mass": 1.0}],
+            },
+            "parameters": {"baseline": [1.0], "excitation": [0.2], "decay": [1.0]},
+        }
+    )
+    assert marked.unit_support()["unit"] == "forecast.marked_event_process"
+
+
 def _pair_history() -> dict:
     return {
         "catalog": ["release", "activity"],
