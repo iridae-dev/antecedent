@@ -540,7 +540,9 @@ fn scenario_shared_covariance_stage(
     };
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
-        match antecedent::StudyBuilder::scenario_shared_covariance(&spec, &ctx) {
+        let compiled = antecedent::Study::compile_scenario_covariance(spec.clone(), &ctx)
+            .map_err(crate::py_err)?;
+        match compiled.covariance(&ctx) {
             Ok(covariance) => Ok(Ok((spec, covariance))),
             Err(e) => refusal_or_error(e).map(Err),
         }
