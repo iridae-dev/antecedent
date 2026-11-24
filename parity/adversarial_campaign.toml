@@ -732,6 +732,30 @@ kind = "bound"
 runner = "kani"
 test = "loader_runs_only_after_binding"
 
+[[cases]]
+id = "standing.recalc_dependents_never_outrank_their_dependencies"
+kind = "changing"
+runner = "rust"
+test = "recalc_dependents_never_outrank_their_dependencies"
+
+[[cases]]
+id = "standing.stage_effect_is_its_class"
+kind = "changing"
+runner = "rust"
+test = "stage_effect_is_its_class"
+
+[[cases]]
+id = "standing.claim_domains_never_raise_without_evidence"
+kind = "invalid"
+runner = "rust"
+test = "claim_domains_never_raise_without_evidence"
+
+[[cases]]
+id = "standing.handoff_chain_of_any_length_never_restores_a_loss"
+kind = "changing"
+runner = "rust"
+test = "handoff_chain_of_any_length_never_restores_a_loss"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -1128,3 +1152,31 @@ old = """        let mut relations: Vec<[u8; 32]> =
 new = """        let relations: Vec<[u8; 32]> =
             self.preferences.relations.iter().map(encode_relation).collect();"""
 caught_by = ["identity_sites.preferences.value_model_relations_and_terms"]
+
+[[mutations]]
+id = "removed_input_masked_by_an_earlier_change"
+file = "crates/antecedent-core/src/recalc.rs"
+old = "                return StageStatus::Recomputed { because };\n            }\n            first.get_or_insert(because);"
+new = "                first.get_or_insert(because);\n            }\n            first.get_or_insert(because);"
+caught_by = ["standing.recalc_dependents_never_outrank_their_dependencies"]
+
+[[mutations]]
+id = "stage_removal_read_as_a_recomputation"
+file = "crates/antecedent-contract/src/composition_verification/revalidate.rs"
+old = "                if status.revalidation() == Revalidation::Withdrawn =>"
+new = "                if false && status.revalidation() == Revalidation::Withdrawn =>"
+caught_by = ["standing.stage_effect_is_its_class"]
+
+[[mutations]]
+id = "identified_domain_ignores_incomplete_search"
+file = "crates/antecedent-io-core/src/contract_section/consume.rs"
+old = "            && slot.unevaluable_mass == 0.0\n            && slot.incomplete_search_mass == 0.0\n"
+new = "            && slot.unevaluable_mass == 0.0\n"
+caught_by = ["standing.claim_domains_never_raise_without_evidence"]
+
+[[mutations]]
+id = "support_domain_read_from_the_matrix_alone"
+file = "crates/antecedent-io-core/src/contract_section/consume.rs"
+old = 'Some(slot) if slot.matrix_status == "supported" && slot.empirical == "supported" => {'
+new = 'Some(slot) if slot.matrix_status == "supported" => {'
+caught_by = ["standing.claim_domains_never_raise_without_evidence"]
