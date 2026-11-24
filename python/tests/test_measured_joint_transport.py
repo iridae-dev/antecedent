@@ -171,13 +171,9 @@ print(json.dumps(r.inspect(),sort_keys=True))
         MeasuredInference.load(measured.source_artifact(), expected=measured.expected_identity)
     with pytest.raises(CausalError):
         MeasuredInference.load(
-            bytes(measured.export()), expected=measured.expected_identity, memory_limit_bytes=0
-        )
-    with pytest.raises(CausalError):
-        MeasuredInference.load(
             bytes(measured.export()),
             expected=measured.expected_identity,
-            max_bytes=len(bytes(measured.export())) - 1,
+            execution=Execution(limits=ResourceLimits(memory_bytes=1)),
         )
     cancelled = _native.CancellationToken()
     cancelled.cancel()
