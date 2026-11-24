@@ -31,6 +31,7 @@ pub mod decision_robust_artifact;
 pub mod decision_robustness;
 pub mod decision_structural;
 pub mod decision_structural_artifact;
+mod decision_wire;
 pub mod design_ranking_artifact;
 pub mod error;
 pub mod evidence_plan;

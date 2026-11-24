@@ -19,13 +19,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::signal::RefusalBuilder;
 
-use crate::decision_contract::{
-    ActionKind, DecisionAction, DecisionContract, DecisionCriterion, HardConstraint,
-    StructuralPolicy, UtilityExpr,
-};
+use crate::decision_contract::{DecisionAction, DecisionContract, HardConstraint};
 use crate::decision_eval::{
     ActionOutcome, ConstraintExclusion, DecisionResult, MeanSource, SourceReceipt, Verdict,
     criterion_label_of, evaluate_contract,
+};
+use crate::decision_wire::{
+    ConstraintWire, CriterionWire, ExclusionWire, ExprWire, kind_name, kind_named, structural_name,
+    structural_named,
 };
 
 /// Maximum artifact bytes accepted before any decode allocation.
@@ -35,115 +36,12 @@ const RESULT_KIND: &str = "decision_result_v1";
 const BODY_SECTION: &str = "decision.body";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum ExprWire {
-    Const(f64),
-    Input(usize),
-    Neg(Box<ExprWire>),
-    Add(Box<ExprWire>, Box<ExprWire>),
-    Sub(Box<ExprWire>, Box<ExprWire>),
-    Mul(Box<ExprWire>, Box<ExprWire>),
-    Min(Box<ExprWire>, Box<ExprWire>),
-    Max(Box<ExprWire>, Box<ExprWire>),
-}
-
-impl From<&UtilityExpr> for ExprWire {
-    fn from(expr: &UtilityExpr) -> Self {
-        let b = |e: &UtilityExpr| Box::new(Self::from(e));
-        match expr {
-            UtilityExpr::Const(v) => Self::Const(*v),
-            UtilityExpr::Input(k) => Self::Input(*k),
-            UtilityExpr::Neg(a) => Self::Neg(b(a)),
-            UtilityExpr::Add(x, y) => Self::Add(b(x), b(y)),
-            UtilityExpr::Sub(x, y) => Self::Sub(b(x), b(y)),
-            UtilityExpr::Mul(x, y) => Self::Mul(b(x), b(y)),
-            UtilityExpr::Min(x, y) => Self::Min(b(x), b(y)),
-            UtilityExpr::Max(x, y) => Self::Max(b(x), b(y)),
-        }
-    }
-}
-
-impl From<ExprWire> for UtilityExpr {
-    fn from(wire: ExprWire) -> Self {
-        let b = |e: Box<ExprWire>| Box::new(Self::from(*e));
-        match wire {
-            ExprWire::Const(v) => Self::Const(v),
-            ExprWire::Input(k) => Self::Input(k),
-            ExprWire::Neg(a) => Self::Neg(b(a)),
-            ExprWire::Add(x, y) => Self::Add(b(x), b(y)),
-            ExprWire::Sub(x, y) => Self::Sub(b(x), b(y)),
-            ExprWire::Mul(x, y) => Self::Mul(b(x), b(y)),
-            ExprWire::Min(x, y) => Self::Min(b(x), b(y)),
-            ExprWire::Max(x, y) => Self::Max(b(x), b(y)),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum CriterionWire {
-    PosteriorExpectedUtility,
-    PosteriorExpectedLoss,
-    ThresholdProbability { threshold: f64 },
-    Quantile { p: f64 },
-    MinimaxOverIdentifiedSet,
-    MaximinOverStructures,
-    Regret,
-    ExpectedRegret,
-}
-
-impl From<DecisionCriterion> for CriterionWire {
-    fn from(c: DecisionCriterion) -> Self {
-        match c {
-            DecisionCriterion::PosteriorExpectedUtility => Self::PosteriorExpectedUtility,
-            DecisionCriterion::PosteriorExpectedLoss => Self::PosteriorExpectedLoss,
-            DecisionCriterion::ThresholdProbability { threshold } => {
-                Self::ThresholdProbability { threshold }
-            }
-            DecisionCriterion::Quantile { p } => Self::Quantile { p },
-            DecisionCriterion::MinimaxOverIdentifiedSet => Self::MinimaxOverIdentifiedSet,
-            DecisionCriterion::MaximinOverStructures => Self::MaximinOverStructures,
-            DecisionCriterion::Regret => Self::Regret,
-            DecisionCriterion::ExpectedRegret => Self::ExpectedRegret,
-        }
-    }
-}
-
-impl From<CriterionWire> for DecisionCriterion {
-    fn from(c: CriterionWire) -> Self {
-        match c {
-            CriterionWire::PosteriorExpectedUtility => Self::PosteriorExpectedUtility,
-            CriterionWire::PosteriorExpectedLoss => Self::PosteriorExpectedLoss,
-            CriterionWire::ThresholdProbability { threshold } => {
-                Self::ThresholdProbability { threshold }
-            }
-            CriterionWire::Quantile { p } => Self::Quantile { p },
-            CriterionWire::MinimaxOverIdentifiedSet => Self::MinimaxOverIdentifiedSet,
-            CriterionWire::MaximinOverStructures => Self::MaximinOverStructures,
-            CriterionWire::Regret => Self::Regret,
-            CriterionWire::ExpectedRegret => Self::ExpectedRegret,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ActionWire {
     id: String,
     kind: String,
     inputs: Vec<ScientificQuantityWire>,
     utility: ExprWire,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct ConstraintWire {
-    id: String,
-    expr: ExprWire,
-    bound: f64,
-    min_probability: f64,
-    units: String,
-    applies_to: Vec<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -161,46 +59,6 @@ pub(crate) struct ContractBody {
     structural_policy: String,
 }
 
-fn kind_name(kind: ActionKind) -> &'static str {
-    match kind {
-        ActionKind::Intervention => "intervention",
-        ActionKind::Policy => "policy",
-        ActionKind::Regime => "regime",
-        ActionKind::Study => "study",
-        ActionKind::External => "external",
-    }
-}
-
-fn kind_from(name: &str) -> Result<ActionKind, IoError> {
-    Ok(match name {
-        "intervention" => ActionKind::Intervention,
-        "policy" => ActionKind::Policy,
-        "regime" => ActionKind::Regime,
-        "study" => ActionKind::Study,
-        "external" => ActionKind::External,
-        _ => return Err(IoError::Convert(format!("unknown action kind `{name}`"))),
-    })
-}
-
-fn policy_name(policy: StructuralPolicy) -> &'static str {
-    match policy {
-        StructuralPolicy::RequireInvariantBestAction => "require_invariant_best_action",
-        StructuralPolicy::Maximin => "maximin",
-        StructuralPolicy::BayesOverStructures => "bayes_over_structures",
-        StructuralPolicy::ReportOnly => "report_only",
-    }
-}
-
-fn policy_from(name: &str) -> Result<StructuralPolicy, IoError> {
-    Ok(match name {
-        "require_invariant_best_action" => StructuralPolicy::RequireInvariantBestAction,
-        "maximin" => StructuralPolicy::Maximin,
-        "bayes_over_structures" => StructuralPolicy::BayesOverStructures,
-        "report_only" => StructuralPolicy::ReportOnly,
-        _ => return Err(IoError::Convert(format!("unknown structural policy `{name}`"))),
-    })
-}
-
 pub(crate) fn contract_from_body(body: ContractBody) -> Result<DecisionContract, IoError> {
     if body.version != 1 {
         return Err(IoError::UnsupportedVersion { version: u32::from(body.version) });
@@ -216,7 +74,8 @@ pub(crate) fn contract_from_body(body: ContractBody) -> Result<DecisionContract,
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(DecisionAction {
                 id: a.id,
-                kind: kind_from(&a.kind)?,
+                kind: kind_named(&a.kind)
+                    .ok_or_else(|| IoError::Convert(format!("unknown action kind `{}`", a.kind)))?,
                 inputs,
                 utility: a.utility.into(),
             })
@@ -226,21 +85,12 @@ pub(crate) fn contract_from_body(body: ContractBody) -> Result<DecisionContract,
         actions,
         utility_units: body.utility_units,
         criterion: body.criterion.into(),
-        constraints: body
-            .constraints
-            .into_iter()
-            .map(|c| HardConstraint {
-                id: c.id,
-                expr: c.expr.into(),
-                bound: c.bound,
-                min_probability: c.min_probability,
-                units: c.units,
-                applies_to: c.applies_to,
-            })
-            .collect(),
+        constraints: body.constraints.into_iter().map(HardConstraint::from).collect(),
         target_population: body.target_population,
         horizon: body.horizon,
-        structural_policy: policy_from(&body.structural_policy)?,
+        structural_policy: structural_named(&body.structural_policy).ok_or_else(|| {
+            IoError::Convert(format!("unknown structural policy `{}`", body.structural_policy))
+        })?,
     })
 }
 
@@ -261,21 +111,10 @@ pub(crate) fn body_from_contract(contract: &DecisionContract) -> Result<Contract
             .collect(),
         utility_units: contract.utility_units.clone(),
         criterion: contract.criterion.into(),
-        constraints: contract
-            .constraints
-            .iter()
-            .map(|c| ConstraintWire {
-                id: c.id.clone(),
-                expr: ExprWire::from(&c.expr),
-                bound: c.bound,
-                min_probability: c.min_probability,
-                units: c.units.clone(),
-                applies_to: c.applies_to.clone(),
-            })
-            .collect(),
+        constraints: contract.constraints.iter().map(ConstraintWire::from).collect(),
         target_population: contract.target_population.clone(),
         horizon: contract.horizon,
-        structural_policy: policy_name(contract.structural_policy).to_owned(),
+        structural_policy: structural_name(contract.structural_policy).to_owned(),
     })
 }
 
@@ -444,14 +283,6 @@ pub fn decision_result_fingerprint(
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ExclusionWire {
-    constraint_id: String,
-    probability: f64,
-    required: f64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct OutcomeWire {
     id: String,
     admissible: bool,
@@ -606,15 +437,7 @@ fn result_to_body(result: &DecisionResult, digest: &str) -> ResultBody {
             .map(|a| OutcomeWire {
                 id: a.id.clone(),
                 admissible: a.admissible,
-                exclusions: a
-                    .exclusions
-                    .iter()
-                    .map(|e| ExclusionWire {
-                        constraint_id: e.constraint_id.clone(),
-                        probability: e.probability,
-                        required: e.required,
-                    })
-                    .collect(),
+                exclusions: a.exclusions.iter().map(ExclusionWire::from).collect(),
                 expected_utility: a.expected_utility,
                 value: a.value,
                 standard_error: a.standard_error,
@@ -655,15 +478,7 @@ fn body_to_result(body: ResultBody) -> Result<DecisionResult, IoError> {
             .map(|a| ActionOutcome {
                 id: a.id,
                 admissible: a.admissible,
-                exclusions: a
-                    .exclusions
-                    .into_iter()
-                    .map(|e| ConstraintExclusion {
-                        constraint_id: e.constraint_id,
-                        probability: e.probability,
-                        required: e.required,
-                    })
-                    .collect(),
+                exclusions: a.exclusions.into_iter().map(ConstraintExclusion::from).collect(),
                 expected_utility: a.expected_utility,
                 value: a.value,
                 standard_error: a.standard_error,

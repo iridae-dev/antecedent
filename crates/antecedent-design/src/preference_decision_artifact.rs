@@ -28,10 +28,12 @@ use antecedent_stats::linear_program::LpOptions;
 use serde::{Deserialize, Serialize};
 
 use crate::decision_artifact::{decode_section, encode_section, source_digest};
-use crate::decision_contract::{
-    ActionKind, DecisionCriterion, HardConstraint, StructuralPolicy, UtilityExpr,
-};
+use crate::decision_contract::{ActionKind, HardConstraint, StructuralPolicy};
 use crate::decision_eval::{ConstraintExclusion, SourceReceipt};
+use crate::decision_wire::{
+    ConstraintWire, CriterionWire, ExclusionWire, kind_name, kind_named, structural_name,
+    structural_named,
+};
 use crate::preference_artifact_error::PreferenceArtifactError;
 use crate::preference_certified::{
     CertifiedActionOutcome, CertifiedOptions, CertifiedPreferenceResult, CertifiedRegion,
@@ -473,98 +475,6 @@ pub(crate) fn encode(
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum UtilityWire {
-    Const(f64),
-    Input(usize),
-    Neg(Box<UtilityWire>),
-    Add(Box<UtilityWire>, Box<UtilityWire>),
-    Sub(Box<UtilityWire>, Box<UtilityWire>),
-    Mul(Box<UtilityWire>, Box<UtilityWire>),
-    Min(Box<UtilityWire>, Box<UtilityWire>),
-    Max(Box<UtilityWire>, Box<UtilityWire>),
-}
-
-impl From<&UtilityExpr> for UtilityWire {
-    fn from(expr: &UtilityExpr) -> Self {
-        let b = |e: &UtilityExpr| Box::new(Self::from(e));
-        match expr {
-            UtilityExpr::Const(v) => Self::Const(*v),
-            UtilityExpr::Input(k) => Self::Input(*k),
-            UtilityExpr::Neg(a) => Self::Neg(b(a)),
-            UtilityExpr::Add(x, y) => Self::Add(b(x), b(y)),
-            UtilityExpr::Sub(x, y) => Self::Sub(b(x), b(y)),
-            UtilityExpr::Mul(x, y) => Self::Mul(b(x), b(y)),
-            UtilityExpr::Min(x, y) => Self::Min(b(x), b(y)),
-            UtilityExpr::Max(x, y) => Self::Max(b(x), b(y)),
-        }
-    }
-}
-
-impl From<UtilityWire> for UtilityExpr {
-    fn from(wire: UtilityWire) -> Self {
-        let b = |e: Box<UtilityWire>| Box::new(Self::from(*e));
-        match wire {
-            UtilityWire::Const(v) => Self::Const(v),
-            UtilityWire::Input(k) => Self::Input(k),
-            UtilityWire::Neg(a) => Self::Neg(b(a)),
-            UtilityWire::Add(x, y) => Self::Add(b(x), b(y)),
-            UtilityWire::Sub(x, y) => Self::Sub(b(x), b(y)),
-            UtilityWire::Mul(x, y) => Self::Mul(b(x), b(y)),
-            UtilityWire::Min(x, y) => Self::Min(b(x), b(y)),
-            UtilityWire::Max(x, y) => Self::Max(b(x), b(y)),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-enum CriterionWire {
-    PosteriorExpectedUtility,
-    PosteriorExpectedLoss,
-    ThresholdProbability { threshold: f64 },
-    Quantile { p: f64 },
-    MinimaxOverIdentifiedSet,
-    MaximinOverStructures,
-    Regret,
-    ExpectedRegret,
-}
-
-impl From<DecisionCriterion> for CriterionWire {
-    fn from(c: DecisionCriterion) -> Self {
-        match c {
-            DecisionCriterion::PosteriorExpectedUtility => Self::PosteriorExpectedUtility,
-            DecisionCriterion::PosteriorExpectedLoss => Self::PosteriorExpectedLoss,
-            DecisionCriterion::ThresholdProbability { threshold } => {
-                Self::ThresholdProbability { threshold }
-            }
-            DecisionCriterion::Quantile { p } => Self::Quantile { p },
-            DecisionCriterion::MinimaxOverIdentifiedSet => Self::MinimaxOverIdentifiedSet,
-            DecisionCriterion::MaximinOverStructures => Self::MaximinOverStructures,
-            DecisionCriterion::Regret => Self::Regret,
-            DecisionCriterion::ExpectedRegret => Self::ExpectedRegret,
-        }
-    }
-}
-
-impl From<CriterionWire> for DecisionCriterion {
-    fn from(c: CriterionWire) -> Self {
-        match c {
-            CriterionWire::PosteriorExpectedUtility => Self::PosteriorExpectedUtility,
-            CriterionWire::PosteriorExpectedLoss => Self::PosteriorExpectedLoss,
-            CriterionWire::ThresholdProbability { threshold } => {
-                Self::ThresholdProbability { threshold }
-            }
-            CriterionWire::Quantile { p } => Self::Quantile { p },
-            CriterionWire::MinimaxOverIdentifiedSet => Self::MinimaxOverIdentifiedSet,
-            CriterionWire::MaximinOverStructures => Self::MaximinOverStructures,
-            CriterionWire::Regret => Self::Regret,
-            CriterionWire::ExpectedRegret => Self::ExpectedRegret,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 enum InputWire {
     Quantity(ScientificQuantityWire),
     Fixed { value: f64, units: String },
@@ -580,17 +490,6 @@ struct ActionWire {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ConstraintWire {
-    id: String,
-    expr: UtilityWire,
-    bound: f64,
-    min_probability: f64,
-    units: String,
-    applies_to: Vec<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ContractWire {
     model: ModelWire,
     actions: Vec<ActionWire>,
@@ -602,44 +501,12 @@ struct ContractWire {
     preference_policy: String,
 }
 
-fn kind_name(kind: ActionKind) -> &'static str {
-    match kind {
-        ActionKind::Intervention => "intervention",
-        ActionKind::Policy => "policy",
-        ActionKind::Regime => "regime",
-        ActionKind::Study => "study",
-        ActionKind::External => "external",
-    }
-}
-
 fn kind_from(name: &str) -> Result<ActionKind, PreferenceArtifactError> {
-    Ok(match name {
-        "intervention" => ActionKind::Intervention,
-        "policy" => ActionKind::Policy,
-        "regime" => ActionKind::Regime,
-        "study" => ActionKind::Study,
-        "external" => ActionKind::External,
-        _ => return Err(malformed(format!("action kind `{name}`"))),
-    })
-}
-
-fn structural_name(policy: StructuralPolicy) -> &'static str {
-    match policy {
-        StructuralPolicy::RequireInvariantBestAction => "require_invariant_best_action",
-        StructuralPolicy::Maximin => "maximin",
-        StructuralPolicy::BayesOverStructures => "bayes_over_structures",
-        StructuralPolicy::ReportOnly => "report_only",
-    }
+    kind_named(name).ok_or_else(|| malformed(format!("action kind `{name}`")))
 }
 
 fn structural_from(name: &str) -> Result<StructuralPolicy, PreferenceArtifactError> {
-    Ok(match name {
-        "require_invariant_best_action" => StructuralPolicy::RequireInvariantBestAction,
-        "maximin" => StructuralPolicy::Maximin,
-        "bayes_over_structures" => StructuralPolicy::BayesOverStructures,
-        "report_only" => StructuralPolicy::ReportOnly,
-        _ => return Err(malformed(format!("structural policy `{name}`"))),
-    })
+    structural_named(name).ok_or_else(|| malformed(format!("structural policy `{name}`")))
 }
 
 fn preference_policy_name(policy: PreferencePolicy) -> &'static str {
@@ -687,18 +554,7 @@ fn contract_wire(contract: &PreferenceContract) -> ContractWire {
             })
             .collect(),
         criterion: contract.criterion.into(),
-        constraints: contract
-            .constraints
-            .iter()
-            .map(|c| ConstraintWire {
-                id: c.id.clone(),
-                expr: UtilityWire::from(&c.expr),
-                bound: c.bound,
-                min_probability: c.min_probability,
-                units: c.units.clone(),
-                applies_to: c.applies_to.clone(),
-            })
-            .collect(),
+        constraints: contract.constraints.iter().map(ConstraintWire::from).collect(),
         target_population: contract.target_population.clone(),
         horizon: contract.horizon,
         structural_policy: structural_name(contract.structural_policy).to_owned(),
@@ -728,18 +584,7 @@ fn contract_from(wire: ContractWire) -> Result<PreferenceContract, PreferenceArt
         model: model_from(wire.model),
         actions,
         criterion: wire.criterion.into(),
-        constraints: wire
-            .constraints
-            .into_iter()
-            .map(|c| HardConstraint {
-                id: c.id,
-                expr: c.expr.into(),
-                bound: c.bound,
-                min_probability: c.min_probability,
-                units: c.units,
-                applies_to: c.applies_to,
-            })
-            .collect(),
+        constraints: wire.constraints.into_iter().map(HardConstraint::from).collect(),
         target_population: wire.target_population,
         horizon: wire.horizon,
         structural_policy: structural_from(&wire.structural_policy)?,
@@ -790,41 +635,12 @@ fn options_from(wire: EvaluationOptionsWire) -> PreferenceEvaluationOptions {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ExclusionWire {
-    constraint_id: String,
-    probability: f64,
-    required: f64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 #[allow(clippy::struct_field_names, reason = "wire names mirror the source receipt fields")]
 struct ReceiptWire {
     provider_id: String,
     snapshot_id: String,
     rng_id: String,
     causal_contract_id: String,
-}
-
-fn exclusions_wire(exclusions: &[ConstraintExclusion]) -> Vec<ExclusionWire> {
-    exclusions
-        .iter()
-        .map(|e| ExclusionWire {
-            constraint_id: e.constraint_id.clone(),
-            probability: e.probability,
-            required: e.required,
-        })
-        .collect()
-}
-
-fn exclusions_from(wire: Vec<ExclusionWire>) -> Vec<ConstraintExclusion> {
-    wire.into_iter()
-        .map(|e| ConstraintExclusion {
-            constraint_id: e.constraint_id,
-            probability: e.probability,
-            required: e.required,
-        })
-        .collect()
 }
 
 fn receipt_wire(receipt: &SourceReceipt) -> ReceiptWire {
@@ -934,7 +750,7 @@ fn exact_wire(result: &PreferenceDecisionResult, declared_tie: f64) -> ExactWire
             .map(|a| ExactOutcomeWire {
                 id: a.id.clone(),
                 admissible: a.admissible,
-                exclusions: exclusions_wire(&a.exclusions),
+                exclusions: a.exclusions.iter().map(ExclusionWire::from).collect(),
                 coefficients: a.coefficients.clone(),
                 value_range: a.value_range,
                 necessarily_best: a.necessarily_best,
@@ -1007,7 +823,7 @@ fn exact_from(
             .map(|a| PreferenceActionOutcome {
                 id: a.id,
                 admissible: a.admissible,
-                exclusions: exclusions_from(a.exclusions),
+                exclusions: a.exclusions.into_iter().map(ConstraintExclusion::from).collect(),
                 coefficients: a.coefficients,
                 value_range: a.value_range,
                 necessarily_best: a.necessarily_best,
@@ -1135,7 +951,7 @@ fn certified_wire(result: &CertifiedPreferenceResult, declared_tie: f64) -> Cert
             .map(|a| CertifiedOutcomeWire {
                 id: a.id.clone(),
                 admissible: a.admissible,
-                exclusions: exclusions_wire(&a.exclusions),
+                exclusions: a.exclusions.iter().map(ExclusionWire::from).collect(),
                 best_fraction: a.best_fraction,
                 value_bounds: a.value_bounds,
                 worst_case_bounds: a.worst_case_bounds,
@@ -1209,7 +1025,7 @@ fn certified_from(
             .map(|a| CertifiedActionOutcome {
                 id: a.id,
                 admissible: a.admissible,
-                exclusions: exclusions_from(a.exclusions),
+                exclusions: a.exclusions.into_iter().map(ConstraintExclusion::from).collect(),
                 best_fraction: a.best_fraction,
                 value_bounds: a.value_bounds,
                 worst_case_bounds: a.worst_case_bounds,
