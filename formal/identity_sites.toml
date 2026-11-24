@@ -9213,12 +9213,12 @@ concern = ""
 [[sites]]
 id = "antecedent.joint_panel.designs.identity"
 file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
-item = "fn:identity#0"
-feeds = "PreparedJointDesign dependency: the joint design program's source digest, response population ids, distribution snapshot ids, decision evidence design_contract_id, native experiment dependencies and ledger model labels"
+item = "fn:identity_as#0"
+feeds = "PreparedJointDesign dependency: the joint design program's source digest, response population ids, distribution snapshot ids, the retained-law dependency of every JointDesignResult and the law-experiment source dependency, prior metadata and bridge quantity derived from it"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs::site_joint_panel_designs_world_bindings_are_ordered_and_worlds_exact"]
-note = "The proof is CBOR of its serde types (struct fields in declaration order, no maps); each arm's levels must be strictly sorted by variable, so they are canonical by refusal."
+checks = ["unit:crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs::site_joint_panel_designs_world_bindings_are_ordered_and_worlds_exact", "unit:crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs::site_joint_panel_designs_longitudinal_arms_are_a_set_keyed_by_code", "unit:crates/antecedent/src/analysis/joint_panel/designs/randomized_outcome_guard_tests.rs::site_joint_panel_designs_released_dependency_still_verifies", "adversarial:identity_sites.facade.design3.arm_set", "adversarial:identity_sites.facade.design3.released_verifies"]
+note = "Current tag antecedent.compiled_joint_design.v2; the released v1 (the proof's CBOR as declared) stays as DesignEncoding::Released. Every design also carries its released dependency: PreparedJointDesign::consume_current accepts an artifact matching either, a law-experiment replay recompiles the retained design under the released encoding when its stored source dependency is the released one, and a law experiment conditioned on a compiled design consumes an artifact sealed under the released encoding by replaying the same design bytes and comparing what no encoding names (weights, draws, the declared update). The proof is CBOR of its serde types (struct fields in declaration order, no maps); each arm's levels must be strictly sorted by variable, so they are canonical by refusal."
 [[sites.collections]]
 name = "world bindings"
 class = "ordered"
@@ -9227,8 +9227,8 @@ concern = ""
 [[sites.collections]]
 name = "longitudinal arm dictionary"
 class = "set"
-canonical = "CBOR in declared order; validation refuses a repeated arm code and every schedule code is looked up by code"
-concern = "A set keyed by arm code written in declared order: the same dictionary declared in another order gives another dependency (identities split, never merge). The dependency is stored and re-checked by readers outside this digest (ledger model labels in validate_model_dependency, native experiment artifacts comparing their stored dependency), so a versioned fix needs those readers to accept the released dependency too; left for a dedicated change."
+canonical = "sorted by arm code (a borrowed view with the proof's CBOR field layout); validation refuses a repeated arm code, every schedule looks its arm up by code and every arm sets the same coordinate axis, so declared order is never read"
+concern = ""
 
 [[sites]]
 id = "antecedent.joint_panel.designs.retained_law_identity"
@@ -9423,3 +9423,5 @@ name = "graph nodes, directed edges (from, to), information set"
 class = "set"
 canonical = "BTreeSet of names or name pairs, count-prefixed, each name framed as text; an edge is an ordered pair"
 concern = ""
+
+

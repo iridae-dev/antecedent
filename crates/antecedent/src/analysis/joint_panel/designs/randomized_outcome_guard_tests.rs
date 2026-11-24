@@ -230,3 +230,77 @@ fn site_joint_panel_designs_retained_law_binds_source_inference_and_ordered_law(
         .unwrap(),
     ]);
 }
+
+#[test]
+fn site_joint_panel_designs_longitudinal_arms_are_a_set_keyed_by_code() {
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
+    let declared = worlds(VariableId::from_raw(0), Conditioning::unconditional());
+    let (target, proof) = randomized(&declared);
+    let arm = |code: u8| JointDesignArm {
+        arm: usize::from(code),
+        levels: vec![(0, f64::from(code) + 2.0)],
+    };
+    let arms = [arm(0), arm(1), arm(2)];
+    let with = |list: &[JointDesignArm], encoding: DesignEncoding| {
+        // Validation refuses a repeated arm code before the dependency is taken.
+        let codes = list.iter().map(|a| a.arm).collect::<std::collections::BTreeSet<_>>();
+        if codes.len() != list.len() {
+            return None;
+        }
+        let mut declared = proof.clone();
+        declared.longitudinal_arms = list.to_vec();
+        identity_as(&target, &declared, encoding).ok()
+    };
+    // Every schedule looks its arm up by code: the dictionary is a set.
+    set_laws(&arms, |list| with(list, DesignEncoding::Current));
+    // The released encoding wrote the dictionary as declared.
+    ordered_laws(&arms, |list| with(list, DesignEncoding::Released));
+    let mut sorted = proof.clone();
+    sorted.longitudinal_arms = arms.to_vec();
+    let digest = |tag: &str| {
+        let mut writer = CanonicalWriter::new(tag);
+        writer
+            .bytes(target.identity().as_bytes())
+            .bytes(&antecedent_io::convert::to_cbor(&sorted).unwrap());
+        SemanticDigest::from_bytes(writer.finish())
+    };
+    // The released bytes are the proof's CBOR as declared under the released tag; a dictionary
+    // already in code order is the same CBOR under the current tag.
+    assert_eq!(
+        identity_as(&target, &sorted, DesignEncoding::Released).unwrap(),
+        digest("antecedent.compiled_joint_design.v1")
+    );
+    assert_eq!(identity(&target, &sorted).unwrap(), digest("antecedent.compiled_joint_design.v2"));
+    all_distinct(&[
+        identity(&target, &sorted).unwrap(),
+        identity_as(&target, &sorted, DesignEncoding::Released).unwrap(),
+    ]);
+}
+
+#[test]
+fn site_joint_panel_designs_released_dependency_still_verifies() {
+    let ctx = ExecutionContext::for_tests(52);
+    let declared = worlds(VariableId::from_raw(0), Conditioning::unconditional());
+    let (target, proof) = randomized(&declared);
+    let current = PreparedJointDesign::compile(target.clone(), proof.clone(), &ctx).unwrap();
+    let released =
+        PreparedJointDesign::compile_as(target, proof, &ctx, DesignEncoding::Released).unwrap();
+    assert_ne!(current.dependency(), released.dependency());
+    assert_eq!(current.released_dependency, released.dependency());
+    let current_fit = current.execute(JointDesignInference::Frequentist, &ctx).unwrap();
+    let released_fit = released.execute(JointDesignInference::Frequentist, &ctx).unwrap();
+    assert_eq!(current_fit.released_dependency_identity(), released_fit.dependency_identity());
+    // An artifact exported by a released design: replay under the released encoding re-derives
+    // the dependency it names, and both a current and a released design consume it.
+    let bytes = released_fit.export_artifact().unwrap();
+    let replayed = replay_joint_design_execution_as(
+        &bytes,
+        &ctx,
+        DesignArtifactLimits::default(),
+        DesignEncoding::Released,
+    )
+    .unwrap();
+    assert_eq!(replayed.dependency_identity(), released_fit.dependency_identity());
+    assert!(current.consume_current(&bytes, &ctx).is_ok());
+    assert!(released.consume_current(&bytes, &ctx).is_ok());
+}

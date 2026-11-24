@@ -1250,6 +1250,18 @@ kind = "preserving"
 runner = "facade"
 test = "site_sequential_policy_reliability_released_identity_still_verifies"
 
+[[cases]]
+id = "identity_sites.facade.design3.arm_set"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_designs_longitudinal_arms_are_a_set_keyed_by_code"
+
+[[cases]]
+id = "identity_sites.facade.design3.released_verifies"
+kind = "preserving"
+runner = "facade"
+test = "site_joint_panel_designs_released_dependency_still_verifies"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -2406,3 +2418,20 @@ file = "crates/antecedent/src/analysis/sequential_policy_reliability.rs"
 old = "        plan = compile_as(Question::V1)?;"
 new = "        plan = compile_as(Question::Current)?;"
 caught_by = ["identity_sites.facade.transport2.sequential_released_verifies"]
+
+[[mutations]]
+id = "design3_arms_in_declared_order"
+file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
+old = "            arms.sort_by_key(|arm| arm.arm);"
+new = ""
+caught_by = ["identity_sites.facade.design3.arm_set"]
+
+[[mutations]]
+id = "design3_released_dependency_not_accepted"
+file = "crates/antecedent/src/analysis/joint_panel/designs.rs"
+old = """        if identity(&target, &wire.proof)? != self.dependency
+            && identity_as(&target, &wire.proof, DesignEncoding::Released)?
+                != self.released_dependency
+        {"""
+new = """        if identity(&target, &wire.proof)? != self.dependency {"""
+caught_by = ["identity_sites.facade.design3.released_verifies"]
