@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::native_claims::NativeDecisionSource;
+use antecedent::analysis::preference_decision::AcceptedPreferencesError;
 use antecedent::analysis::preference_decision::{
     AcceptedPreferences, AcceptedPreferencesArtifact, BeliefSource, ChoiceModelEstimate,
     ChoiceModelOptions, ChoiceModelResult, ChoiceOption, ChoiceRecord, ChoiceRecordSet,
@@ -15,11 +16,9 @@ use antecedent::analysis::preference_decision::{
     OptionBelief, PendingReview, Pooling, PreferenceBasis, SetLearningOptions, SetLearningResult,
     SetOutcome, analysis_options,
 };
-// The learning kernels are not API; the bridge reaches them through the hidden seam until each
-// native learns through a compiled family.
-use antecedent::analysis::preference_decision::bridge::{
-    estimate_accepted_with_context, estimate_choice_model_with_context,
-    learn_compatible_set_accepted_with_context, learn_compatible_set_with_context,
+use antecedent::analysis::preference_learning_programs::{
+    TerminalError, compile_choice_model, compile_choice_model_relearn, compile_compatible_set,
+    compile_compatible_set_relearn,
 };
 use antecedent::contract::ExternalRefusal;
 use pyo3::prelude::*;
@@ -570,11 +569,13 @@ fn learn_preference_set(
         let records = records_from(records_json)?;
         let options = set_options_from(options_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        Ok(reply(
-            learn_compatible_set_with_context(&model, &records, options, &ctx)
-                .map(|result| set_result_json(&result))
-                .map_err(|e| refusal(&e.to_refusal())),
-        ))
+        let outcome = compile_compatible_set(model, records, options, &ctx)
+            .and_then(|program| program.execute(&ctx));
+        Ok(reply(match outcome {
+            Ok(result) => Ok(set_result_json(&result)),
+            Err(TerminalError::Kernel(error)) => Err(refusal(&error.to_refusal())),
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
+        }))
     })
 }
 
@@ -594,11 +595,13 @@ fn estimate_preference_choice_model(
         let records = records_from(records_json)?;
         let options = choice_options_from(options_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        Ok(reply(
-            estimate_choice_model_with_context(&model, &records, options, &ctx)
-                .map(|result| choice_result_json(&result))
-                .map_err(|e| refusal(&e.to_refusal())),
-        ))
+        let outcome = compile_choice_model(model, records, options, &ctx)
+            .and_then(|program| program.execute(&ctx));
+        Ok(reply(match outcome {
+            Ok(result) => Ok(choice_result_json(&result)),
+            Err(TerminalError::Kernel(error)) => Err(refusal(&error.to_refusal())),
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
+        }))
     })
 }
 
@@ -612,6 +615,26 @@ fn handle(outcome: Result<AcceptedPreferences, ExternalRefusal>) -> HandleReply 
     match outcome {
         Ok(inner) => (Some(PyAcceptedPreferences { inner }), None),
         Err(error) => (None, Some(refusal(&error))),
+    }
+}
+
+/// Accept through a compiled learner: compile, then accept with `accept`. A learner's refusal
+/// of its declaration at compile is read as accepting reads it (`wrap` into
+/// `AcceptedPreferencesError`), so the refusal JSON is the one the accepting kernel gives. A
+/// refusal of the compiler (a release build's support gate) is raised.
+fn accept_through<P, E>(
+    compiled: Result<P, TerminalError<E>>,
+    accept: impl FnOnce(&P) -> Result<AcceptedPreferences, TerminalError<AcceptedPreferencesError>>,
+    wrap: impl FnOnce(E) -> AcceptedPreferencesError,
+) -> PyResult<HandleReply> {
+    let outcome = match compiled {
+        Ok(program) => accept(&program),
+        Err(error) => Err(error.map_kernel(wrap)),
+    };
+    match outcome {
+        Ok(inner) => Ok(handle(Ok(inner))),
+        Err(TerminalError::Kernel(error)) => Ok(handle(Err(error.to_refusal()))),
+        Err(TerminalError::Refused(error)) => Err(crate::py_err(error)),
     }
 }
 
@@ -656,11 +679,11 @@ impl PyAcceptedPreferences {
             let records = records_from(records_json)?;
             let options = set_options_from(options_json)?;
             let ctx = crate::transport_common::execution_context(0, None, cancel);
-            Ok(handle(
-                self.inner
-                    .relearn_compatible_set_with_context(&records, decider, options, &ctx)
-                    .map_err(|e| e.to_refusal()),
-            ))
+            accept_through(
+                compile_compatible_set_relearn(self.inner.clone(), records, options, &ctx),
+                |program| program.accept(decider, &ctx),
+                AcceptedPreferencesError::SetLearning,
+            )
         })
     }
 
@@ -678,11 +701,11 @@ impl PyAcceptedPreferences {
             let records = records_from(records_json)?;
             let options = choice_options_from(options_json)?;
             let ctx = crate::transport_common::execution_context(0, None, cancel);
-            Ok(handle(
-                self.inner
-                    .relearn_estimate_with_context(&records, decider, options, &ctx)
-                    .map_err(|e| e.to_refusal()),
-            ))
+            accept_through(
+                compile_choice_model_relearn(self.inner.clone(), records, options, &ctx),
+                |program| program.accept(decider, &ctx),
+                AcceptedPreferencesError::ChoiceModel,
+            )
         })
     }
 
@@ -726,10 +749,11 @@ fn accept_preferences_compatible_set(
         let records = records_from(records_json)?;
         let options = set_options_from(options_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        Ok(handle(
-            learn_compatible_set_accepted_with_context(&model, &records, decider, options, &ctx)
-                .map_err(|e| e.to_refusal()),
-        ))
+        accept_through(
+            compile_compatible_set(model, records, options, &ctx),
+            |program| program.accept(decider, &ctx),
+            AcceptedPreferencesError::SetLearning,
+        )
     })
 }
 
@@ -749,10 +773,11 @@ fn accept_preferences_choice_model(
         let records = records_from(records_json)?;
         let options = choice_options_from(options_json)?;
         let ctx = crate::transport_common::execution_context(0, None, cancel);
-        Ok(handle(
-            estimate_accepted_with_context(&model, &records, decider, options, &ctx)
-                .map_err(|e| e.to_refusal()),
-        ))
+        accept_through(
+            compile_choice_model(model, records, options, &ctx),
+            |program| program.accept(decider, &ctx),
+            AcceptedPreferencesError::ChoiceModel,
+        )
     })
 }
 

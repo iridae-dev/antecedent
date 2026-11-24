@@ -136,13 +136,15 @@ pub(crate) enum Reading {
     Envelope,
     /// Monte Carlo over declared laws under a seeded stream.
     MonteCarlo,
+    /// A fit to declared records whose own interval reads its sampling error.
+    Sampling,
 }
 
 impl Reading {
     fn realization(self, evaluator: &'static str) -> Realization {
         let evaluator = Arc::<str>::from(evaluator);
         match self {
-            Self::Exact | Self::Envelope | Self::MonteCarlo => {
+            Self::Exact | Self::Envelope | Self::MonteCarlo | Self::Sampling => {
                 Realization::ExactPoint { evaluator }
             }
             Self::Predictive => Realization::DeclaredPredictive { evaluator },
@@ -157,6 +159,7 @@ impl Reading {
             Self::Posterior => UncertaintyReading::Posterior,
             Self::Envelope => UncertaintyReading::Envelope,
             Self::MonteCarlo => UncertaintyReading::MonteCarlo,
+            Self::Sampling => UncertaintyReading::Sampling,
         }
     }
 }

@@ -30,7 +30,9 @@ use antecedent_design::decision_adapters::{
     SuppliedClaim, adapt_finite_scenarios, adapt_graph_dependent_claims, adapt_point_claim,
     adapt_weighted_graph_atoms, evaluate_adapted, evaluate_identified_sets, utility_interval,
 };
-use antecedent_design::decision_contract::{AdmissibleDecisionContract, DecisionContract};
+use antecedent_design::decision_contract::{
+    AdmissibleDecisionContract, DecisionContract, StructuralPolicy,
+};
 use antecedent_design::decision_eval::{
     DecisionEvalError, DecisionResult, FunctionalValue, MeanEstimate, MeanSource,
     evaluate_contract, evaluate_contract_on_means, evaluate_functional,
@@ -111,12 +113,26 @@ impl SuppliedClaimSet {
         }
     }
 
-    const fn len(&self) -> usize {
+    /// Number of claims.
+    pub(crate) const fn len(&self) -> usize {
         match self {
             Self::Point { .. } => 1,
             Self::GraphDependent(claims)
             | Self::WeightedGraphAtoms(claims)
             | Self::FiniteScenarios(claims) => claims.len(),
+        }
+    }
+
+    /// Adapt the claims to structural atoms under `policy`, by how they are read: the kernel
+    /// adapter of the claims' kind. Every compiled decision over supplied claims adapts here.
+    pub(crate) fn adapt(self, policy: StructuralPolicy) -> Result<AdaptedClaims, AdapterError> {
+        match self {
+            Self::Point { id, evidence, support } => {
+                adapt_point_claim(&id, evidence, support, policy)
+            }
+            Self::GraphDependent(claims) => adapt_graph_dependent_claims(claims, policy),
+            Self::WeightedGraphAtoms(claims) => adapt_weighted_graph_atoms(claims, policy),
+            Self::FiniteScenarios(claims) => adapt_finite_scenarios(claims, policy),
         }
     }
 }
@@ -202,19 +218,7 @@ impl CompiledSuppliedClaimDecision {
     ) -> Result<SuppliedClaimReadout, TerminalError<AdapterError>> {
         let _scoped = self.enter(ctx)?;
         let policy = self.contract.contract.structural_policy;
-        let adapted = match self.claims.clone() {
-            SuppliedClaimSet::Point { id, evidence, support } => {
-                adapt_point_claim(&id, evidence, support, policy)
-            }
-            SuppliedClaimSet::GraphDependent(claims) => {
-                adapt_graph_dependent_claims(claims, policy)
-            }
-            SuppliedClaimSet::WeightedGraphAtoms(claims) => {
-                adapt_weighted_graph_atoms(claims, policy)
-            }
-            SuppliedClaimSet::FiniteScenarios(claims) => adapt_finite_scenarios(claims, policy),
-        }
-        .map_err(TerminalError::Kernel)?;
+        let adapted = self.claims.clone().adapt(policy).map_err(TerminalError::Kernel)?;
         let decision = evaluate_adapted(&self.contract, &adapted).map_err(TerminalError::Kernel)?;
         Ok(SuppliedClaimReadout { adapted, decision })
     }
@@ -407,14 +411,14 @@ pub enum ContractSource {
 }
 
 impl ContractSource {
-    const fn reading(&self) -> Reading {
+    pub(crate) const fn reading(&self) -> Reading {
         match self {
             Self::Law(_) => Reading::Predictive,
             Self::Means(_) => Reading::Exact,
         }
     }
 
-    const fn carrier(&self) -> CarrierDemand {
+    pub(crate) const fn carrier(&self) -> CarrierDemand {
         match self {
             Self::Law(_) => CarrierDemand::PredictiveLaw,
             Self::Means(_) => CarrierDemand::Mean,
