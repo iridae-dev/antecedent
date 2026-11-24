@@ -555,7 +555,7 @@ fn require_design_carrier(
     let supplied = match program.carrier() {
         CarrierDemand::Mean => {
             exact_point
-                && program.utility().is_affine()
+                && program.utility().means_suffice()
                 && matches!(inference, JointDesignInference::Frequentist)
         }
         CarrierDemand::DecisionDraws => matches!(

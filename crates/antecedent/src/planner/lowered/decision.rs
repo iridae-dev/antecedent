@@ -538,10 +538,16 @@ impl PreferenceValueFacts {
 }
 
 impl UtilityForm {
+    /// Whether the utility is affine in a scalar state.
+    #[must_use]
+    pub const fn is_affine(&self) -> bool {
+        matches!(self, Self::Affine(_))
+    }
+
     /// Whether a mean carries the utility: an affine utility of a scalar state, or a
     /// preference value whose expectation the means of its quantities answer.
     #[must_use]
-    pub const fn is_affine(&self) -> bool {
+    pub const fn means_suffice(&self) -> bool {
         matches!(self, Self::Affine(_) | Self::PreferenceValue { means_suffice: true, .. })
     }
 

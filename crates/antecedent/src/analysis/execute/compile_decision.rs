@@ -381,7 +381,7 @@ pub(crate) fn require_carrier(
             name,
             ROBUST_OVER_IDENTIFIED_SET,
         )),
-        CarrierDemand::Mean if !program.utility().is_affine() => {
+        CarrierDemand::Mean if !program.utility().means_suffice() => {
             Err(DecisionCarrierError::contract(
                 "a mean carries only a utility affine in the state; this utility declares no \
                  affine form",
