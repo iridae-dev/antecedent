@@ -19,7 +19,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _deprecation
+from . import _deprecation, _direct_status
 from ._columns import coerce_fields, hold_unresolved, resolved, resolved_opt, scalar_or_values
 from ._data import as_columns
 from ._native import evaluate_binary_policy as _evaluate_binary_policy
@@ -238,7 +238,7 @@ class DoublyRobustPolicyEvaluation:
         "training/test disjointness or excluded-fold correspondence is checked from caller-supplied IDs only",
         "nuisance predictions and randomization claims are not independently authenticated",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
 
 
 @dataclass(frozen=True, slots=True)
@@ -709,7 +709,7 @@ class ConditionalDoseResponseEstimate:
     evaluation_method: str = "stratified_triangular_kernel_inverse_density"
     policy_value_estimated: bool = False
     fixed_policy: FixedDosePolicyValueEstimate | None = None
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     assumptions: tuple[str, ...] = (
         "Conditional exchangeability of continuous dose given the supplied baseline groups.",
         "Consistency, no interference, and correct dose density at observed doses.",

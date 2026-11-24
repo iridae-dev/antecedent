@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
-"""Generate the compiled-route to support-unit table from parity/compiled_units.toml.
+"""Generate the support tables of parity/compiled_units.toml.
 
 Writes crates/antecedent/src/support/units_generated.rs: one `pub(crate) const` per bound unit
 and `unit_of`, keyed by the `PlanRoute::as_str` string so that the table does not depend on the
 `PlanRoute` enum.
 
-    python3 scripts/generate_compiled_units.py           # write the file
-    python3 scripts/generate_compiled_units.py --check   # fail when the file is not current
+Writes python/antecedent/_direct_status.py: one constant per `[[direct_status]]` row, the
+support verdict a direct (uncompiled) Python result reports, so no Python module carries a
+verdict literal of its own.
+
+    python3 scripts/generate_compiled_units.py           # write the files
+    python3 scripts/generate_compiled_units.py --check   # fail when a file is not current
 """
 
 from __future__ import annotations
@@ -19,7 +23,10 @@ from _repo import load_toml
 
 SOURCE = ROOT / "parity/compiled_units.toml"
 RUST = ROOT / "crates/antecedent/src/support/units_generated.rs"
+PYTHON = ROOT / "python/antecedent/_direct_status.py"
 UNIT_KINDS = ("capability", "graphless")
+_STATUS = re.compile(r"^[a-z][A-Za-z0-9_]*$")
+_RESULT = re.compile(r"^python/antecedent/[\w/]+\.py::[A-Z]\w*$")
 
 
 def const_name(unit: str) -> str:
@@ -113,16 +120,86 @@ def render(routes: list[dict]) -> str:
     return "\n".join(lines)
 
 
+def load_direct_statuses() -> list[dict]:
+    """The `[[direct_status]]` rows of the source, validated for shape."""
+    rows = load_toml(SOURCE).get("direct_status") or []
+    seen: set[str] = set()
+    for row in rows:
+        status = row.get("status")
+        if not isinstance(status, str) or not _STATUS.match(status):
+            sys.exit(f"{SOURCE.name}: a [[direct_status]] row needs an identifier-like `status`: {row}")
+        if status in seen:
+            sys.exit(f"{SOURCE.name}: direct status {status!r} is listed twice")
+        seen.add(status)
+        if not str(row.get("meaning") or "").strip():
+            sys.exit(f"{SOURCE.name}: direct status {status!r} needs a `meaning`")
+        results = row.get("results")
+        if not results or not all(isinstance(r, str) and _RESULT.match(r) for r in results):
+            sys.exit(
+                f"{SOURCE.name}: direct status {status!r} needs `results`, each "
+                "`python/antecedent/<module>.py::<ResultClass>`"
+            )
+    if len({const_name(row["status"]) for row in rows}) != len(rows):
+        sys.exit("two direct statuses map to one constant name")
+    return sorted(rows, key=lambda row: row["status"])
+
+
+def render_python(rows: list[dict]) -> str:
+    lines = [
+        '"""Support verdicts of the direct (uncompiled) Python results.',
+        "",
+        "Generated from ``parity/compiled_units.toml`` (``[[direct_status]]``) by",
+        "``scripts/generate_compiled_units.py``. Do not edit.",
+        '"""',
+        "",
+        "from __future__ import annotations",
+        "",
+    ]
+    for row in rows:
+        meaning = " ".join(str(row["meaning"]).split())
+        results = ", ".join(sorted(r.split("::", 1)[1] for r in row["results"]))
+        lines.append(f"# {row['status']}: {meaning}")
+        lines.append(f"# Reported by: {results}.")
+        lines.append(f'{const_name(row["status"])} = "{row["status"]}"')
+        lines.append("")
+    return "\n".join(_wrap_comments(lines)).rstrip("\n") + "\n"
+
+
+def _wrap_comments(lines: list[str], width: int = 100) -> list[str]:
+    out: list[str] = []
+    for line in lines:
+        if not line.startswith("# ") or len(line) <= width:
+            out.append(line)
+            continue
+        words = line[2:].split(" ")
+        current = "#"
+        for word in words:
+            if len(current) + 1 + len(word) > width and current != "#":
+                out.append(current)
+                current = "#  "
+            current += " " + word
+        out.append(current)
+    return out
+
+
 def main(argv: list[str]) -> int:
-    text = render(load_routes())
+    outputs = (
+        (RUST, render(load_routes())),
+        (PYTHON, render_python(load_direct_statuses())),
+    )
     if "--check" in argv:
-        current = RUST.read_text(encoding="utf-8") if RUST.is_file() else ""
-        if current != text:
-            print(f"{RUST.relative_to(ROOT)} is not current; run scripts/generate_compiled_units.py")
+        stale = False
+        for path, text in outputs:
+            current = path.read_text(encoding="utf-8") if path.is_file() else ""
+            if current != text:
+                print(f"{path.relative_to(ROOT)} is not current; run scripts/generate_compiled_units.py")
+                stale = True
+        if stale:
             return 1
         print("generated compiled units: current")
         return 0
-    RUST.write_text(text, encoding="utf-8")
+    for path, text in outputs:
+        path.write_text(text, encoding="utf-8")
     return 0
 
 

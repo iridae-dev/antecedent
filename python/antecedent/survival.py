@@ -27,7 +27,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _deprecation
+from . import _deprecation, _direct_status
 from ._columns import coerce_fields
 from ._data import as_columns
 from ._native import randomized_cumulative_incidence_ipcw as _randomized_cumulative_incidence_ipcw
@@ -234,7 +234,7 @@ class SurvivalDifferenceBand:
     replicates_ok: int
     level: float = 0.95
     method: str = "subject_stratified_bootstrap_supremum"
-    support_status: str = "unsupported_simultaneous_band"
+    support_status: str = _direct_status.UNSUPPORTED_SIMULTANEOUS_BAND
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,7 +290,7 @@ class SurvivalEstimate:
     censoring_survival_provenance: str | None = None
     difference_band: SurvivalDifferenceBand | None = None
     band_unavailable_reason: str | None = None
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "independent_right_censoring_within_arm",
@@ -331,7 +331,7 @@ class IPCWSurvivalEstimate:
     minimum_event_risk_set_treated: int | None
     censoring_survival_provenance: str = "caller_supplied_not_fitted_or_verified"
     uncertainty: str = "point_only"
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "correct_caller_supplied_conditional_censoring_survival",
@@ -373,7 +373,7 @@ class IPCWCumulativeIncidenceEstimate:
     minimum_event_risk_set_treated: int | None
     censoring_survival_provenance: str = "caller_supplied_not_fitted_or_verified"
     uncertainty: str = "point_only"
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "all_event_causes_coded_distinctly",
@@ -497,7 +497,7 @@ class CumulativeIncidenceEstimate:
     censoring_survival_provenance: str | None = None
     difference_band: SurvivalDifferenceBand | None = None
     band_unavailable_reason: str | None = None
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     assumptions: tuple[str, ...] = (
         "individual_random_assignment",
         "all_event_causes_coded_distinctly",

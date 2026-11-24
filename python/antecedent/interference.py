@@ -9,6 +9,7 @@ from typing import Any, Literal, Protocol, cast
 
 import numpy as np
 
+from . import _direct_status
 from ._columns import hold_unresolved, scalar_or_values
 from ._data import as_columns
 from ._deprecation import direct_path_deprecated
@@ -189,7 +190,7 @@ class SaturationEffects:
     direct: SaturationEffectEstimate
     spillover: SaturationEffectEstimate
     total: SaturationEffectEstimate
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
     uncertainty_semantics: str = "Covariance-free variance bounds cover both randomization stages; no confidence interval or calibration claim is made."
     assumptions: tuple[str, ...] = (
         "Clusters are completely randomized to the declared low/high saturation counts.",
@@ -229,7 +230,7 @@ class ObservationalNetworkExposureEstimate:
         "Partial interference across the explicitly supplied cluster partition.",
         "Supplied exposure probabilities are correctly specified or known.",
     )
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
 
 
 @dataclass(frozen=True, slots=True)
@@ -403,7 +404,7 @@ class InterferenceEstimate:
     )
     pointwise_interval: InterferencePointwiseInterval | None = None
     interval_unavailable_reason: str | None = None
-    support_status: str = "unsupported_point_utility"
+    support_status: str = _direct_status.UNSUPPORTED_POINT_UTILITY
 
 
 @dataclass(frozen=True, slots=True)
