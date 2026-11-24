@@ -1045,6 +1045,18 @@
     "url": "https://api.crossref.org/works/10.1093/biomet/57.1.97",
     "year": 1970
   },
+  "10.1093/biomet/58.1.83": {
+    "authors": [
+      "ALAN G. HAWKES"
+    ],
+    "doi": "10.1093/biomet/58.1.83",
+    "response_sha256": "2519cca6f93c63ec4a6b9d800e31be6e3cc7c376a9aad8cfc8bfa3d8e2c9da15",
+    "titles": [
+      "Spectra of some self-exciting and mutually exciting point processes"
+    ],
+    "url": "https://api.crossref.org/works/10.1093/biomet/58.1.83",
+    "year": 1971
+  },
   "10.1093/biomet/61.2.215": {
     "authors": [
       "LEO A. GOODMAN"
@@ -1322,6 +1334,18 @@
     ],
     "url": "https://api.crossref.org/works/10.1097/00001648-200009000-00011",
     "year": 2000
+  },
+  "10.1109/tit.1981.1056305": {
+    "authors": [
+      "Y. Ogata"
+    ],
+    "doi": "10.1109/tit.1981.1056305",
+    "response_sha256": "f4ca4883ada63a0b733bf415aa43a4a5b3bc3a2ac2aed621da9f3d01dc3eb187",
+    "titles": [
+      "On Lewis' simulation method for point processes"
+    ],
+    "url": "https://api.crossref.org/works/10.1109/tit.1981.1056305",
+    "year": 1981
   },
   "10.1111/1467-9469.00059": {
     "authors": [
