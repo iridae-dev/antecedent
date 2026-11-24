@@ -50,6 +50,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from .. import _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -506,6 +507,7 @@ class RolloutResult:
         return consume(
             bytes(rollout_ranking(self._bytes, self._expectation_json)),
             skip_expectation_check=True,
+            retained_identity=_retained.ADMITTED,
         )
 
     @property
@@ -540,8 +542,17 @@ def _rollout_result(report: str, data: bytes) -> RolloutResult:
     )
 
 
-def consume_rollout(data: bytes, *, expected_identity: Mapping[str, Any]) -> RolloutResult:
+def consume_rollout(
+    data: bytes, *, expected_identity: Mapping[str, Any], retained_identity: str | None = None
+) -> RolloutResult:
     """Replay the original source/ranking under independently retained full inputs."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.design._declarations.consume_rollout",
+        "antecedent.design._declarations.consume_rollout(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     from .._native import consume_rollout as _consume_rollout
 
@@ -1044,6 +1055,7 @@ def consume(
     *,
     expected_identity: Expectation | None = None,
     skip_expectation_check: bool = False,
+    retained_identity: str | None = None,
 ) -> ConsumedRanking:
     """Consume an exported ranking by independent recomputation.
 
@@ -1061,6 +1073,13 @@ def consume(
     pass ``skip_expectation_check=True`` to say that is intended. Supplying neither, or both,
     raises :class:`~antecedent.errors.CausalValueError`.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.design._declarations.consume",
+        "antecedent.design._declarations.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(data)
     if expected_identity is None and not skip_expectation_check:
         raise CausalValueError(

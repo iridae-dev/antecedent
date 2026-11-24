@@ -42,6 +42,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from . import _retained
 from ._artifact_protocol import container_bytes
 from ._native import NativePreparedCounterfactualId as _NativePrepared
 from ._native import consume_counterfactual_id_artifact_native as _consume
@@ -243,7 +244,11 @@ def prepare_effect_on_treated(
 
 
 def consume_counterfactual_id_artifact(
-    artifact: bytes, *, expected_data_digest: str | None = None, execution: Execution | None = None
+    artifact: bytes,
+    *,
+    expected_data_digest: str | None = None,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> EffectOnTreated:
     """Replay an exported artifact and accept only an identical derivation and point.
 
@@ -257,6 +262,13 @@ def consume_counterfactual_id_artifact(
     a bug shared by the engine and the consumer (which re-derives with the same
     engine, so such a bug replays identically).
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.counterfactual_id.consume_counterfactual_id_artifact",
+        "antecedent.counterfactual_id.consume_counterfactual_id_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_data_digest is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):

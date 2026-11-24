@@ -11,7 +11,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -167,7 +167,13 @@ class SourceEvidence:
         return artifact_from_receipt(self, bytes(self._handle.export()))
 
     @classmethod
-    def consume(cls, artifact: bytes) -> SourceEvidence:
+    def consume(cls, artifact: bytes, *, retained_identity: str | None = None) -> SourceEvidence:
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.source_evidence.SourceEvidence.consume",
+            "antecedent.source_evidence.SourceEvidence.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         artifact = container_bytes(artifact)
         return cls(_native.SourceEvidenceHandle.consume(artifact))
 

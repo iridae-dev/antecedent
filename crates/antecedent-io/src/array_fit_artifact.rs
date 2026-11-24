@@ -654,6 +654,20 @@ impl ArrayFitArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Decode and refit everything under the consumer's limits; accept only a result
     /// identical to the stored one.
     ///
@@ -666,6 +680,23 @@ impl ArrayFitArtifactWire {
         Self::consume_typed(bytes, limits).map_err(IoError::from)
     }
 
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: ArrayFitConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits)
+        })
+    }
+
     /// [`Self::consume_with_limits`] with the typed refusal kind.
     ///
     /// # Errors
@@ -675,6 +706,23 @@ impl ArrayFitArtifactWire {
         limits: ArrayFitConsumeLimits,
     ) -> Result<Self, ArrayFitError> {
         Self::consume_typed_expected(bytes, limits, None)
+    }
+
+    /// [`Self::consume_typed`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_typed_expecting(
+        bytes: &[u8],
+        limits: ArrayFitConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, ArrayFitError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| ArrayFitError::Undecodable(error.to_string()))?;
+        Self::consume_typed(bytes, limits)
     }
 
     /// Independently consume, also binding an explicit producer request digest before fitting.
@@ -692,6 +740,25 @@ impl ArrayFitArtifactWire {
             expected,
             antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
         )
+    }
+
+    /// [`Self::consume_typed_expected`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed_expected`], and `external_binding_mismatch` when the bytes are not
+    /// the retained artifact.
+    pub fn consume_typed_expected_retained(
+        bytes: &[u8],
+        limits: ArrayFitConsumeLimits,
+        expected: Option<&str>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, ArrayFitError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| ArrayFitError::Undecodable(error.to_string()))?;
+        Self::consume_typed_expected(bytes, limits, expected)
     }
 
     /// Consume with an explicit structural replay-work allowance. Existing consumers use the
@@ -729,6 +796,31 @@ impl ArrayFitArtifactWire {
             return Err(ArrayFitError::ResultMismatch);
         }
         Ok(wire)
+    }
+
+    /// [`Self::consume_typed_expected_with_replay_operations`], admitting only the artifact the
+    /// consumer retained: the bytes bind to `retained`
+    /// ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed_expected_with_replay_operations`], and `external_binding_mismatch`
+    /// when the bytes are not the retained artifact.
+    pub fn consume_typed_expected_with_replay_operations_retained(
+        bytes: &[u8],
+        limits: ArrayFitConsumeLimits,
+        expected: Option<&str>,
+        max_replay_operations: usize,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, ArrayFitError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| ArrayFitError::Undecodable(error.to_string()))?;
+        Self::consume_typed_expected_with_replay_operations(
+            bytes,
+            limits,
+            expected,
+            max_replay_operations,
+        )
     }
 }
 
@@ -831,5 +923,90 @@ mod header_and_replay_regression {
             ArrayFitError::LimitsExceeded("replay operations")
         );
         assert_eq!(ARRAY_EVALUATIONS.with(std::cell::Cell::get), before);
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn array_fit_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            ArrayFitArtifactWire::consume_typed_expected(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                None,
+            ),
+            ArrayFitArtifactWire::consume_typed_expected_retained(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                None,
+                &support::matching(),
+            ),
+            ArrayFitArtifactWire::consume_typed_expected_retained(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                None,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            ArrayFitArtifactWire::consume_typed_expected_with_replay_operations(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                None,
+                1_000_000,
+            ),
+            ArrayFitArtifactWire::consume_typed_expected_with_replay_operations_retained(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                None,
+                1_000_000,
+                &support::matching(),
+            ),
+            ArrayFitArtifactWire::consume_typed_expected_with_replay_operations_retained(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                None,
+                1_000_000,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            ArrayFitArtifactWire::consume_typed(support::BYTES, ArrayFitConsumeLimits::default()),
+            ArrayFitArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                &support::matching(),
+            ),
+            ArrayFitArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            ArrayFitArtifactWire::consume_with_limits(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+            ),
+            ArrayFitArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                &support::matching(),
+            ),
+            ArrayFitArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                ArrayFitConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            ArrayFitArtifactWire::decode(support::BYTES),
+            ArrayFitArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            ArrayFitArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

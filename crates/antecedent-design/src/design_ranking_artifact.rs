@@ -68,8 +68,8 @@ mod replay;
 mod sealing;
 use consuming::rebuild_ranking;
 pub use consuming::{
-    consume, consume_wire, consume_wire_with_limits, consume_wire_with_receipts,
-    consume_with_limits,
+    consume, consume_expecting, consume_wire, consume_wire_with_limits, consume_wire_with_receipts,
+    consume_with_limits, consume_with_limits_expecting,
 };
 use replay::{Baseline, baseline, is_native, recompute, rectangular};
 pub use sealing::{SealInputs, seal, seal_with_context};
@@ -952,6 +952,20 @@ impl DesignRankingArtifactWire {
         Self::from_bytes_with_limits(bytes, &DesignRankingReadLimits::default())
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::from_bytes)
+    }
+
     /// [`Self::from_bytes`] under the caller's byte maximum instead of the default.
     ///
     /// # Errors
@@ -980,6 +994,24 @@ impl DesignRankingArtifactWire {
             }
         })?;
         Ok(wire)
+    }
+
+    /// [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they
+    /// are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: &[u8],
+        limits: &DesignRankingReadLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with_limits(bytes, limits)
+        })
     }
 }
 

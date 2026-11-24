@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 from numpy.typing import NDArray
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import ArtifactAcceptance, ExportedArtifact, container_bytes
 from ._scientific import ScientificResult
 from .errors import CausalTypeError, CausalValueError
@@ -242,13 +242,20 @@ def _inspection(
 
 
 def consume_posterior(
-    data: Any, *, expected_encoding_sha256: str | None = None
+    data: Any, *, expected_encoding_sha256: str | None = None, retained_identity: str | None = None
 ) -> ConsumedPosterior:
     """Parse historical posterior bytes natively and retain loaded acceptance.
 
     An optional independently retained SHA-256 binds the encoding bytes only.
     It does not establish the posterior's identification or scientific validity.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent._posterior_artifact.consume_posterior",
+        "antecedent._posterior_artifact.consume_posterior(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_encoding_sha256 is not None,
+    )
     raw = container_bytes(data)
     if expected_encoding_sha256 is not None:
         if not isinstance(expected_encoding_sha256, str):

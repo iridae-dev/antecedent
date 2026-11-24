@@ -601,6 +601,20 @@ impl MzTransportArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(
         &self,
         limits: &MzTransportConsumeLimits,
@@ -655,6 +669,24 @@ impl MzTransportArtifactWire {
         ctx: &ExecutionContext,
     ) -> Result<ConsumedMzTransport, IoError> {
         Self::consume_checked(bytes, limits, ctx)
+    }
+
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: MzTransportConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedMzTransport, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
     }
 
     fn consume_checked(
@@ -845,4 +877,39 @@ fn recompute_interval(
     let expected =
         MzUncertaintyWire::from_bootstrap(&run, stored.replicates_requested, coverage, seed);
     if same_bits(stored, &expected) { Ok(()) } else { bad("interval does not recompute") }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn mz_transport_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            MzTransportArtifactWire::consume_with_limits(
+                support::BYTES,
+                MzTransportConsumeLimits::default(),
+                &ctx,
+            ),
+            MzTransportArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                MzTransportConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            MzTransportArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                MzTransportConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            MzTransportArtifactWire::decode(support::BYTES),
+            MzTransportArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            MzTransportArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
+    }
 }

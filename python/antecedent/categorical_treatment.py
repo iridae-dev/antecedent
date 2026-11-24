@@ -67,6 +67,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -880,6 +881,7 @@ def consume_categorical_effects(
     *,
     expected_identity: CategoricalTreatmentIdentity | Mapping[str, str] | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CategoricalEffects:
     """Recompute an exported categorical artifact and accept only an identical one.
 
@@ -893,6 +895,13 @@ def consume_categorical_effects(
 
     ``execution.limits.memory_bytes`` bounds the replay's planned working set (``*.memory_budget_exceeded``).
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.categorical_treatment.consume_categorical_effects",
+        "antecedent.categorical_treatment.consume_categorical_effects(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
@@ -1019,8 +1028,16 @@ class PreparedCategoricalPosteriorCandidate:
         *,
         expected: bytes,
         execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> PreparedCategoricalPosteriorCandidate:
         """Recompile original source against an independently held expectation."""
+        _retained.admit(
+            source,
+            retained_identity,
+            "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.consume_source",
+            "antecedent.categorical_treatment.PreparedCategoricalPosteriorCandidate.consume_source(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         from ._native import CompiledCategoricalPosteriorCandidateHandle
 
         if not isinstance(source, bytes) or not isinstance(expected, bytes):

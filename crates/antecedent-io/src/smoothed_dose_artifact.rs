@@ -450,6 +450,20 @@ impl SmoothedDoseArtifactWire {
         Self::decode_with_model_refusal(bytes, SMOOTHED_DOSE_BOUNDS.max_workspace_bytes)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn decode_with_model_refusal(bytes: &[u8], max_reparse_bytes: u64) -> Result<Self, IoError> {
         match crate::decode_with_version(bytes, |version| {
             if version == SMOOTHED_DOSE_ARTIFACT_VERSION {
@@ -486,6 +500,24 @@ impl SmoothedDoseArtifactWire {
         let wire = Self::decode_with_model_refusal(bytes, reparse_cap)?;
         let identification = wire.verify(limits, ctx)?;
         Ok(ConsumedSmoothedDose { wire, identification })
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        limits: SmoothedDoseConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedSmoothedDose, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume(bytes, limits, ctx)
+        })
     }
 
     /// The estimated workspace of replaying this artifact under `ctx`'s thread budget
@@ -750,5 +782,40 @@ mod tests {
             (200_000, 256, 3, 8)
         );
         assert_eq!(b.max_workspace_bytes, 512 * 1024 * 1024);
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn smoothed_dose_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            SmoothedDoseArtifactWire::consume(
+                support::BYTES,
+                SmoothedDoseConsumeLimits::default(),
+                &ctx,
+            ),
+            SmoothedDoseArtifactWire::consume_expecting(
+                support::BYTES,
+                SmoothedDoseConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            SmoothedDoseArtifactWire::consume_expecting(
+                support::BYTES,
+                SmoothedDoseConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            SmoothedDoseArtifactWire::decode(support::BYTES),
+            SmoothedDoseArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            SmoothedDoseArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

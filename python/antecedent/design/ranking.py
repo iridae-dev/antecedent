@@ -35,7 +35,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, fields, is_dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
-from .. import _native
+from .. import _native, _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -438,13 +438,22 @@ class DesignRankingResult:
         *,
         expected_identity: Expectation | None = None,
         skip_expectation_check: bool = False,
+        retained_identity: str | None = None,
     ) -> ConsumedRanking:
         """Consume an exported artifact by recomputation; see :func:`antecedent.design.consume`."""
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.design.ranking.DesignRankingResult.consume",
+            "antecedent.design.ranking.DesignRankingResult.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = container_bytes(data)
         return consume(
             data,
             expected_identity=expected_identity,
             skip_expectation_check=skip_expectation_check,
+            retained_identity=_retained.ADMITTED,
         )
 
     # -- rendering -----------------------------------------------------------------

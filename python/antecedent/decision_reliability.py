@@ -84,7 +84,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ArtifactExpectation,
@@ -865,6 +865,7 @@ def consume_decision_reliability_artifact(
     utility_unit: str | None = None,
     decided_id: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedDecisionReliability:
     """Independently consume ``decision_reliability_v1`` bytes by recomputation.
 
@@ -875,6 +876,13 @@ def consume_decision_reliability_artifact(
         DecisionReliabilityRefusal: a damaged container, an edited draw, stream, declaration or
             claimed value, or a retained expectation that differs.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.decision_reliability.consume_decision_reliability_artifact",
+        "antecedent.decision_reliability.consume_decision_reliability_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=draws_digest is not None or candidate_set_digest is not None,
+    )
     policy = _execution_policy(execution)
     artifact = container_bytes(artifact)
     expected = {
@@ -1064,6 +1072,7 @@ def consume_derived_uncertainty(
     utility_unit: str | None = None,
     decided_id: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> DerivedUncertainty:
     """Consume ``decision_reliability_v1`` bytes and re-derive the components from its draws.
 
@@ -1071,6 +1080,13 @@ def consume_derived_uncertainty(
         DecisionReliabilityRefusal: as :func:`consume_decision_reliability_artifact`, or a
             derivation refusal.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.decision_reliability.consume_derived_uncertainty",
+        "antecedent.decision_reliability.consume_derived_uncertainty(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=draws_digest is not None or candidate_set_digest is not None,
+    )
     policy = _execution_policy(execution)
     artifact = container_bytes(artifact)
     expected = {
@@ -1604,6 +1620,7 @@ def consume_sequential_policy_reliability(
     *,
     expected_identity: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> SequentialPolicyReliability:
     """Independently recompute a sealed sequential reliability diagnostic.
 
@@ -1618,6 +1635,13 @@ def consume_sequential_policy_reliability(
         DecisionReliabilityRefusal: another program identity (``external_binding_mismatch``),
             a diagnostic that does not replay, or an evaluation refusal.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.decision_reliability.consume_sequential_policy_reliability",
+        "antecedent.decision_reliability.consume_sequential_policy_reliability(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     policy = _execution_policy(execution)
     parts, refusal = policy._call(
         _native.sequential_policy_reliability_consume,

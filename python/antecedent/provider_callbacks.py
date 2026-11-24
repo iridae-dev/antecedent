@@ -60,7 +60,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1233,7 +1233,7 @@ class CallbackSession:
     unresolved=("callback_provider",),
 )
 def consume_callback_result(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> CallbackConsumed:
     """Consume a ``callback_result_v1`` artifact: every identity recomputed, every bound checked.
 
@@ -1244,6 +1244,13 @@ def consume_callback_result(
         CallbackRefusal: corruption, a bound, a refused declaration or output, a native trust
             claim or an identity mismatch.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.provider_callbacks.consume_callback_result",
+        "antecedent.provider_callbacks.consume_callback_result(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     wire, refusal = _native.callback_result_consume(bytes(artifact), expected_identity)
     _raise(refusal)

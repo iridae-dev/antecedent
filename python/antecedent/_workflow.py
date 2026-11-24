@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
+from . import _retained
 from ._api import describe_refusal
 from ._artifact_protocol import ExportedArtifact, LoadContext
 from ._freeze import freeze, thaw
@@ -306,7 +307,9 @@ class LoadedResult(ResultAPI):
         """
         from . import artifacts
 
-        receipt = Acceptance.from_receipt(artifacts.accept(self._bytes, replay=True))
+        receipt = Acceptance.from_receipt(
+            artifacts.accept(self._bytes, replay=True, retained_identity=_retained.ADMITTED)
+        )
         return replace(
             self,
             acceptance=replace(
@@ -358,15 +361,15 @@ def _load_analysis(
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
         from .transport._impl import consume_exact
 
-        return consume_exact(encoded)
+        return consume_exact(encoded, retained_identity=_retained.ADMITTED)
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
         from .transport._impl import consume_statistical
 
-        return consume_statistical(encoded)
+        return consume_statistical(encoded, retained_identity=_retained.ADMITTED)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
         from .transport._impl import consume_response_grid
 
-        return consume_response_grid(encoded)
+        return consume_response_grid(encoded, retained_identity=_retained.ADMITTED)
     if encoded.startswith(b"ANTECEDENT-Z-TRANSPORT\x01"):
         from .transport._restricted import consume_restricted_artifacts
 
@@ -374,11 +377,11 @@ def _load_analysis(
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-CERTIFICATE\x01"):
         from .transport.advanced import consume_identification
 
-        return consume_identification(encoded)
+        return consume_identification(encoded, retained_identity=_retained.ADMITTED)
     from . import _native
 
-    receipt = artifacts.accept(encoded, replay=replay)
-    artifact = artifacts.loads(encoded)
+    receipt = artifacts.accept(encoded, replay=replay, retained_identity=_retained.ADMITTED)
+    artifact = artifacts.loads(encoded, retained_identity=_retained.ADMITTED)
     carried = _native.analysis_result_method_provenance_json(encoded)
     return LoadedResult(artifact, Acceptance.from_receipt(receipt), encoded, carried)
 
@@ -405,6 +408,7 @@ def load(
     context: LoadContext | None = None,
     execution: Execution | None = None,
     replay: bool = False,
+    retained_identity: str | None = None,
 ) -> Outcome[LoadedT]: ...
 
 
@@ -416,6 +420,7 @@ def load(
     context: LoadContext | None = None,
     execution: Execution | None = None,
     replay: bool = False,
+    retained_identity: str | None = None,
 ) -> Outcome[Any]: ...
 
 
@@ -428,6 +433,7 @@ def load(
     context: LoadContext | None = None,
     execution: Execution | None = None,
     replay: bool = False,
+    retained_identity: str | None = None,
 ) -> Any:
     """Load an exported artifact and return what it holds as an outcome.
 
@@ -452,6 +458,11 @@ def load(
       <antecedent.outcomes.Outcome.replay>`). Default ``False``: the artifact is checked to be
       intact and nothing is recomputed. Other artifact families always recompute what they
       publish, so the flag does not change them.
+    * ``retained_identity`` -- the identity you retained for these bytes when they were produced
+      (``antecedent.artifacts.artifact_identity(data)``). The bytes are admitted only if they are
+      that artifact, through the same native check every Rust ``*_expecting`` loader uses;
+      otherwise the load raises with ``reason=external_binding_mismatch``. Loading with neither
+      ``expected`` nor ``retained_identity`` is deprecated.
 
     Returns an :class:`~antecedent.outcomes.Outcome`. For an analysis result its value is a loaded
     result with the same ``answer`` and ``inspect()`` report as the original; read
@@ -477,10 +488,22 @@ def load(
 
     policy = _load_execution(context, execution)
     return (
-        _load(data, expected=expected, context=context, replay=replay)
+        _load(
+            data,
+            expected=expected,
+            context=context,
+            replay=replay,
+            retained_identity=retained_identity,
+        )
         if policy is None
         else policy._call(
-            _load, data, expected=expected, context=context, execution=policy, replay=replay
+            _load,
+            data,
+            expected=expected,
+            context=context,
+            execution=policy,
+            replay=replay,
+            retained_identity=retained_identity,
         )
     )
 
@@ -492,6 +515,7 @@ def _load(
     context: LoadContext | None = None,
     execution: Execution | None = None,
     replay: bool = False,
+    retained_identity: str | None = None,
 ) -> Any:
     """Consume a scientific artifact using its native family consumer.
 
@@ -506,6 +530,13 @@ def _load(
     )
 
     encoded = container_bytes(data)
+    _retained.admit(
+        encoded,
+        retained_identity,
+        "antecedent.load",
+        "antecedent.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected is not None,
+    )
     legacy_transport = encoded.startswith(
         tuple(
             b"ANTECEDENT-" + marker + b"\x01"
@@ -546,7 +577,15 @@ def _load(
             "provider_result_v1",
             "external_callback_v1",
         ):
-            return load_scientific(encoded, expected=expected, context=context, execution=execution)
+            return load_scientific(
+                encoded,
+                expected=expected,
+                context=context,
+                execution=execution,
+                retained_identity=(
+                    _retained.ADMITTED if retained_identity is None else retained_identity
+                ),
+            )
     if execution is not None and execution.cancel is not None and execution.cancel.is_cancelled():
         # Decoding an analysis result performs no admitted native work that could observe the
         # token, so a cancelled caller is refused before the artifact is consumed.
@@ -609,6 +648,11 @@ def _load(
         object.__setattr__(
             result,
             "acceptance",
-            acceptance_from_consumer(result, identity_bound=expected is not None),
+            acceptance_from_consumer(
+                result, identity_bound=expected is not None or retained_identity is not None
+            ),
         )
+    elif retained_identity is not None and isinstance(result, LoadedResult):
+        # The bytes were admitted only as the artifact the caller retained.
+        object.__setattr__(result, "acceptance", replace(result.acceptance, identity_bound=True))
     return result

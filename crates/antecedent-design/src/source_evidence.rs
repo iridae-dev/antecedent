@@ -35,6 +35,13 @@ impl std::error::Error for SourceEvidenceError {}
 fn invalid(detail: &'static str) -> SourceEvidenceError {
     SourceEvidenceError { code: reason_code!("invalid_argument"), detail }
 }
+/// Bytes that are not the evidence the consumer retained.
+const fn not_retained() -> SourceEvidenceError {
+    SourceEvidenceError {
+        code: reason_code!("external_binding_mismatch"),
+        detail: antecedent_io_core::retained_artifact::RETAINED_ARTIFACT_REFUSAL,
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct EvidenceWire {
@@ -133,6 +140,20 @@ impl SourceEvidence {
             actions: Vec::new(),
         })
     }
+
+    /// [`Self::from_result`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    /// # Errors
+    /// As [`Self::from_result`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_result_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, SourceEvidenceError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained).map_err(|_| not_retained())?;
+        Self::from_result(bytes)
+    }
     /// Whether the contract replayed with nothing unresolved except the declared
     /// `dependencies.*` gaps (operations and criteria the bytes alone cannot re-derive, which
     /// the retained source is later re-executed against). Any other unresolved reason is a
@@ -203,6 +224,20 @@ impl SourceEvidence {
             contract: None,
             actions: Vec::new(),
         })
+    }
+
+    /// [`Self::from_external`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    /// # Errors
+    /// As [`Self::from_external`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_external_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, SourceEvidenceError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained).map_err(|_| not_retained())?;
+        Self::from_external(bytes)
     }
     /// Whether this evidence describes an original checked native analysis, rather than external attestation.
     #[must_use]
@@ -663,5 +698,48 @@ impl SourceEvidence {
             None if wire.actions.is_empty() => Ok(result),
             None => Err(invalid(antecedent_core::reason_details::source_evidence::ACTION_MISMATCH)),
         }
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    /// # Errors
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, SourceEvidenceError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained).map_err(|_| not_retained())?;
+        Self::consume(bytes)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::SourceEvidence;
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn source_evidence_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let other = other_artifact();
+        same_outcome(
+            &SourceEvidence::from_result(&bytes),
+            &SourceEvidence::from_result_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&SourceEvidence::from_result_expecting(&bytes, &other));
+        same_outcome(
+            &SourceEvidence::from_external(&bytes),
+            &SourceEvidence::from_external_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&SourceEvidence::from_external_expecting(&bytes, &other));
+        same_outcome(
+            &SourceEvidence::consume(&bytes),
+            &SourceEvidence::consume_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&SourceEvidence::consume_expecting(&bytes, &other));
     }
 }

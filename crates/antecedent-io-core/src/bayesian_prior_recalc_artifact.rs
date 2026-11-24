@@ -83,4 +83,41 @@ impl BoundBayesianPriorWire {
         ciborium::from_reader(&bytes[BOUND_PRIOR_MAGIC.len()..])
             .map_err(|e| IoError::Convert(e.to_string()))
     }
+
+    /// As [`Self::decode`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn bayesian_prior_recalc_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // BoundBayesianPriorWire::decode_expecting
+        assert_eq!(
+            format!("{:?}", BoundBayesianPriorWire::decode_expecting(bytes, &retained).err()),
+            format!("{:?}", BoundBayesianPriorWire::decode(bytes).err()),
+        );
+        let refused =
+            format!("{:?}", BoundBayesianPriorWire::decode_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    }
 }

@@ -63,7 +63,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ArtifactExpectation,
@@ -359,6 +359,7 @@ def consume_sampling_assumption_union(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> SamplingAssumptionUnion:
     """Independently replay an exported union under the identity retained beside the bytes.
 
@@ -373,6 +374,13 @@ def consume_sampling_assumption_union(
         SamplingAssumptionUnionRefusal: another program identity, seed, schedule or result
             (``external_binding_mismatch``), or a chain refusal on replay.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.sampling_assumption_union.consume_sampling_assumption_union",
+        "antecedent.sampling_assumption_union.consume_sampling_assumption_union(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     execution = resolve_execution(execution)
     data = container_bytes(artifact)
     wire, refusal = execution._call(

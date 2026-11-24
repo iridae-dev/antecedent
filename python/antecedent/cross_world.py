@@ -24,6 +24,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from . import _retained
 from ._artifact_protocol import container_bytes
 from ._columns import coerce_fields
 from ._data import as_columns
@@ -214,6 +215,7 @@ def consume_cross_world_artifact(
     *,
     expected_data_digest: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CrossWorldEffect:
     """Replay an exported artifact from its stored premises and accept only an identical one.
 
@@ -225,6 +227,13 @@ def consume_cross_world_artifact(
     edits that change the derivation or the point; it does not detect a producer
     that seals a wrong table or query on purpose.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.cross_world.consume_cross_world_artifact",
+        "antecedent.cross_world.consume_cross_world_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_data_digest is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")

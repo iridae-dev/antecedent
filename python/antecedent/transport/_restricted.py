@@ -14,6 +14,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .. import _retained
 from .._artifact_protocol import (
     ArtifactAcceptance,
     ExportedArtifact,
@@ -235,7 +236,9 @@ def consume_restricted_artifacts(
     receipts = []
     rules: tuple[str, ...] = ()
     for index, artifact in enumerate(artifacts):
-        consumed = consume_z_transport_artifact(container_bytes(artifact))
+        consumed = consume_z_transport_artifact(
+            container_bytes(artifact), retained_identity=_retained.ADMITTED
+        )
         payload = consumed.to_dict()
         receipt: object = getattr(consumed, "acceptance", None)
         if not isinstance(receipt, ArtifactAcceptance):

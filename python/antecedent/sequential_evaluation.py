@@ -65,7 +65,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1181,12 +1181,20 @@ def consume_artifact(
     policy: str | None = None,
     evaluation: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> EvaluationArtifact:
     """Re-evaluate an artifact and require every stored number to replay bit for bit.
 
     ``model``, ``policy`` and ``evaluation`` are identities the consumer retained independently
     of the bytes; one that differs is refused.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.sequential_evaluation.consume_artifact",
+        "antecedent.sequential_evaluation.consume_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=model is not None or policy is not None or evaluation is not None,
+    )
     execution = resolve_execution(execution)
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray)):

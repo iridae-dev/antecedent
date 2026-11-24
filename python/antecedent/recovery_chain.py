@@ -44,6 +44,7 @@ from numpy.typing import NDArray
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -502,6 +503,7 @@ def consume_recovery_chain_artifact(
     artifact: bytes,
     *,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> RecoveredChain:
     """Re-decide, re-evaluate and re-verify an exported artifact; accept only an identical one.
 
@@ -514,6 +516,12 @@ def consume_recovery_chain_artifact(
     ``.decision_replay_mismatch`` / ``.recovered_replay_mismatch``). Corruption and unknown
     versions raise :class:`~antecedent.errors.CausalSerializationError`.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.recovery_chain.consume_recovery_chain_artifact",
+        "antecedent.recovery_chain.consume_recovery_chain_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):

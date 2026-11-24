@@ -133,6 +133,16 @@ impl BoundIdentity {
             self_description: None,
         }
     }
+
+    /// The identity a whole artifact presents: the digest its consumer recomputed from the
+    /// bytes it was handed ([`crate::retained_artifact::artifact_identity`]), with no
+    /// self-description.
+    ///
+    /// An artifact is the envelope of its claim, so it binds in the claim slot, by that digest
+    /// alone, exactly as [`Self::claim`] binds a claim id.
+    pub const fn artifact(artifact_digest: SemanticDigest) -> Self {
+        Self::claim(artifact_digest)
+    }
 }
 
 impl ExpectedIdentity {
@@ -145,6 +155,12 @@ impl ExpectedIdentity {
             alignment: UNUSED_FACET,
             cyclic_solution: CyclicSolution::Absent,
         }
+    }
+
+    /// The artifact identity a consumer retained: the artifact digest it holds
+    /// ([`crate::retained_artifact::RetainedArtifactIdentity`]).
+    pub const fn artifact(artifact_digest: SemanticDigest) -> Self {
+        Self::claim(artifact_digest)
     }
 }
 

@@ -653,6 +653,23 @@ pub fn consume_previous_release_artifact(
     })
 }
 
+/// [`consume_previous_release_artifact`], admitting only the artifact the consumer retained: the
+/// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_previous_release_artifact`], and `external_binding_mismatch` when the bytes are not
+/// the retained artifact.
+pub fn consume_previous_release_artifact_expecting(
+    bytes: &[u8],
+    target: &ScientificTarget,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<AdoptedRelease, PreviousReleaseError> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| PreviousReleaseError::ReceiptNotLoaded { detail: error.to_string() })?;
+    consume_previous_release_artifact(bytes, target)
+}
+
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct PreviousRouteWire {
@@ -715,6 +732,23 @@ pub fn consume_previous_route_records(
         .collect())
 }
 
+/// [`consume_previous_route_records`], admitting only the artifact the consumer retained: the bytes
+/// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_previous_route_records`], and `external_binding_mismatch` when the bytes are not
+/// the retained artifact.
+pub fn consume_previous_route_records_expecting(
+    bytes: &[u8],
+    current: &[CurrentMethod],
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<Vec<RouteRecordMigration>, PreviousReleaseError> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| PreviousReleaseError::ReceiptNotLoaded { detail: error.to_string() })?;
+    consume_previous_route_records(bytes, current)
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_core::{
@@ -728,6 +762,11 @@ mod tests {
         MigrationError, RouteAxis, TargetShape, adopt_carried_target_digest,
         adopt_retained_score_row_digest, caller_world_id_and_reference_flag_enter_identity,
         current_score_row_digest, keep_refusal_reason, narrow_score_row_digest,
+    };
+
+    use super::{
+        consume_previous_release_artifact, consume_previous_release_artifact_expecting,
+        consume_previous_route_records, consume_previous_route_records_expecting,
     };
 
     fn world(id: u32, reference: bool, level: f64) -> InterventionWorld {
@@ -773,6 +812,29 @@ mod tests {
         )
         .unwrap();
         target(TargetForm::Contrast(contrast))
+    }
+
+    #[test]
+    fn release_migration_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            consume_previous_release_artifact(support::BYTES, &contrast(0, 1)),
+            consume_previous_release_artifact_expecting(
+                support::BYTES,
+                &contrast(0, 1),
+                &support::matching(),
+            ),
+            consume_previous_release_artifact_expecting(
+                support::BYTES,
+                &contrast(0, 1),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            consume_previous_route_records(support::BYTES, &[]),
+            consume_previous_route_records_expecting(support::BYTES, &[], &support::matching()),
+            consume_previous_route_records_expecting(support::BYTES, &[], &support::other()),
+        );
     }
 
     #[test]

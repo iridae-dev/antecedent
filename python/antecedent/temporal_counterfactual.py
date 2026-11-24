@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -504,6 +505,7 @@ def consume_temporal_counterfactual_artifact(
     artifact: bytes,
     *,
     expected_identity: TemporalCounterfactualIdentity | Mapping[str, str] | None = None,
+    retained_identity: str | None = None,
 ) -> TemporalCounterfactualEffect:
     """Replay both worlds of an exported artifact and accept only an identical one.
 
@@ -516,6 +518,13 @@ def consume_temporal_counterfactual_artifact(
     ``route_not_supported``, ``temporal_counterfactual.artifact_changed``). Corruption and
     unknown major versions raise :class:`~antecedent.errors.CausalSerializationError`.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.temporal_counterfactual.consume_temporal_counterfactual_artifact",
+        "antecedent.temporal_counterfactual.consume_temporal_counterfactual_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")
@@ -1005,6 +1014,7 @@ def consume_temporal_worlds_artifact(
     artifact: bytes,
     *,
     expected_identity: TemporalWorldsIdentity | Mapping[str, Any] | None = None,
+    retained_identity: str | None = None,
 ) -> TemporalWorldsEffect:
     """Replay every world of an exported artifact and accept only an identical one.
 
@@ -1017,6 +1027,13 @@ def consume_temporal_worlds_artifact(
     ``temporal_counterfactual.artifact_changed``). Corruption and unknown major versions raise
     :class:`~antecedent.errors.CausalSerializationError`.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.temporal_counterfactual.consume_temporal_worlds_artifact",
+        "antecedent.temporal_counterfactual.consume_temporal_worlds_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")

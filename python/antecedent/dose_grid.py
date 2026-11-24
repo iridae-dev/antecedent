@@ -75,6 +75,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -872,6 +873,7 @@ def consume_dose_grid_artifact(
     max_rows: int = 100_000,
     max_grid: int = 1_024,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> DoseFunctionalResult:
     """Recompute an exported dose-grid artifact and accept only an identical one.
 
@@ -885,6 +887,12 @@ def consume_dose_grid_artifact(
     :class:`~antecedent.errors.CausalSerializationError`; a stored table above ``max_rows`` or
     ``max_grid`` refuses (``dose_grid.consumer_limit_exceeded``).
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.dose_grid.consume_dose_grid_artifact",
+        "antecedent.dose_grid.consume_dose_grid_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
@@ -1062,6 +1070,7 @@ def consume_dose_grid_posterior_artifact(
     max_rows: int = 100_000,
     max_grid: int = 1_024,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> DoseGridPosteriorResult:
     """Recompute an exported dose-grid posterior and accept only an identical one.
 
@@ -1074,6 +1083,12 @@ def consume_dose_grid_posterior_artifact(
     :class:`~antecedent.errors.CausalSerializationError`.
     ``execution`` (threads, memory limit, cancellation) applies to the independent replay.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.dose_grid.consume_dose_grid_posterior_artifact",
+        "antecedent.dose_grid.consume_dose_grid_posterior_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):

@@ -51,6 +51,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -525,6 +526,7 @@ def consume_latent_class_artifact(
     treatment: Any = None,
     covariates: Any = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> LatentClassEffects:
     """Refit an exported latent-class artifact and accept only an identical one.
 
@@ -543,6 +545,13 @@ def consume_latent_class_artifact(
     (the dataset it was fitted on); any other dataset is refused (``IdentityMismatch``, ``data``)
     and omitting it refuses with ``latent_class.data_required``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.latent_class.consume_latent_class_artifact",
+        "antecedent.latent_class.consume_latent_class_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):

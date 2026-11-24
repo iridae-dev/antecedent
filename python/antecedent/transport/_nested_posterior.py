@@ -12,6 +12,7 @@ from typing import Any, ClassVar, Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from .. import _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -203,8 +204,17 @@ class NestedMarkovPosteriorCandidate(ScientificResult):
         resumable=False,
         identity=("expected_identity",),
     )
-    def load(cls, artifact: bytes, *, expected_identity: str) -> NestedMarkovPosteriorCandidate:
+    def load(
+        cls, artifact: bytes, *, expected_identity: str, retained_identity: str | None = None
+    ) -> NestedMarkovPosteriorCandidate:
         """Fresh bounded consumer independently recomputes original ID and posterior."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.transport._nested_posterior.NestedMarkovPosteriorCandidate.load",
+            "antecedent.transport._nested_posterior.NestedMarkovPosteriorCandidate.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         artifact = container_bytes(artifact)
         from .. import _native
 

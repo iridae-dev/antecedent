@@ -56,7 +56,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -790,7 +790,13 @@ class RecalcReceipt:
 
     @classmethod
     @outcome_operation
-    def consume(cls, data: bytes, *, expected_identity: str | None = None) -> RecalcReceipt:
+    def consume(
+        cls,
+        data: bytes,
+        *,
+        expected_identity: str | None = None,
+        retained_identity: str | None = None,
+    ) -> RecalcReceipt:
         """Consume an artifact by recomputing its plan from the stored declarations.
 
         The stored table, counts, totals and identities must match the recomputed plan; a
@@ -799,6 +805,13 @@ class RecalcReceipt:
         and, when ``expected_identity`` was retained independently, a consistently resealed
         receipt of another run is refused too. Corruption raises ``CausalSerializationError``.
         """
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.recalc.RecalcReceipt.consume",
+            "antecedent.recalc.RecalcReceipt.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = container_bytes(data)
         report, refusal = _native.consume_recalc_receipt(bytes(data), expected_identity)
         raise_refusal(refusal, _refusal_type)
@@ -1187,10 +1200,23 @@ class RecalcSession:
 
 
 @outcome_operation
-def consume(data: bytes, *, expected_identity: str | None = None) -> RecalcReceipt:
+def consume(
+    data: bytes, *, expected_identity: str | None = None, retained_identity: str | None = None
+) -> RecalcReceipt:
     """Consume a ``recalc_receipt_v1`` artifact; see :meth:`RecalcReceipt.consume`."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.recalc.consume",
+        "antecedent.recalc.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(data)
-    return require_success(RecalcReceipt.consume(data, expected_identity=expected_identity))
+    return require_success(
+        RecalcReceipt.consume(
+            data, expected_identity=expected_identity, retained_identity=_retained.ADMITTED
+        )
+    )
 
 
 __all__ = [

@@ -47,7 +47,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1067,7 +1067,11 @@ def transported_spread_aligned(
     input="data",
 )
 def consume_joint_law_propagation_artifact(
-    data: bytes, *, expected_identity: str | None = None, execution: Execution | None = None
+    data: bytes,
+    *,
+    expected_identity: str | None = None,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedJointLawPropagation:
     """Verify an artifact, re-run the rule and replay the result to identical bits.
 
@@ -1075,6 +1079,13 @@ def consume_joint_law_propagation_artifact(
         JointLawPropagationRefusal: an edited, truncated or foreign artifact, a retained
             identity that differs, or a stored declaration the rule no longer supports.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.joint_law_propagation.consume_joint_law_propagation_artifact",
+        "antecedent.joint_law_propagation.consume_joint_law_propagation_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError("data must be bytes")

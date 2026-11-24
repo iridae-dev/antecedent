@@ -541,6 +541,25 @@ impl TransportHandoffArtifact {
         Self::from_bytes_within(bytes, expected_identity, MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES)
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, Failure> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_TRANSPORT_HANDOFF_ARTIFACT_BYTES`].
     ///
     /// # Errors
@@ -551,6 +570,26 @@ impl TransportHandoffArtifact {
         max_bytes: usize,
     ) -> Result<Self, Failure> {
         check(&decode_meta(bytes, max_bytes)?, expected_identity)
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, Failure> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected_identity, max_bytes)
+        })
     }
 
     /// Read the stored metadata without replaying it.
@@ -673,5 +712,54 @@ impl TransportHandoffArtifact {
         artifact_id: &str,
     ) -> Result<Vec<u8>, Failure> {
         encode_meta(meta, artifact_id)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn transport_handoff_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // TransportHandoffArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                TransportHandoffArtifact::from_bytes_expecting(bytes, None, &retained).err()
+            ),
+            format!("{:?}", TransportHandoffArtifact::from_bytes(bytes, None).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            TransportHandoffArtifact::from_bytes_expecting(bytes, None, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // TransportHandoffArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                TransportHandoffArtifact::from_bytes_within_expecting(
+                    bytes,
+                    None,
+                    1 << 20,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                TransportHandoffArtifact::from_bytes_within(bytes, None, 1 << 20).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            TransportHandoffArtifact::from_bytes_within_expecting(bytes, None, 1 << 20, &other)
+                .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

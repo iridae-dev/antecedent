@@ -55,7 +55,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1242,6 +1242,7 @@ def consume_predictive_assessment_artifact(
     expected_identity: Identity | Mapping[str, Any] | str | None = None,
     *,
     max_cases: int | None = None,
+    retained_identity: str | None = None,
 ) -> PredictiveAssessment:
     """Independently consume an artifact by re-scoring every case.
 
@@ -1253,6 +1254,13 @@ def consume_predictive_assessment_artifact(
             identity, ``predictive_assessment.report_replay_mismatch`` for a stored value that
             does not recompute, and the contract's own refusal for stored declarations it refuses.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.predictive_assessment.consume_predictive_assessment_artifact",
+        "antecedent.predictive_assessment.consume_predictive_assessment_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")

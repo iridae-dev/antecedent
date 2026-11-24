@@ -17,7 +17,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -294,9 +294,15 @@ class TemporalReplay:
 
 @outcome_operation
 def consume_temporal_result(
-    artifact: bytes, *, execution: Execution | None = None
+    artifact: bytes, *, execution: Execution | None = None, retained_identity: str | None = None
 ) -> TemporalReplay:
     """Fresh actual checked execution from full source-bound histories, not a receipt."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.recalc_temporal.consume_temporal_result",
+        "antecedent.recalc_temporal.consume_temporal_result(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     run = _execution(execution)
     artifact = container_bytes(artifact)
     native, result, receipt, error = run._call(
@@ -589,8 +595,16 @@ class CheckedTemporalIntervalCandidate:
         max_histories: int = 100_000,
         max_replicates: int = 2000,
         execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> CheckedTemporalIntervalCandidate:
         """Fresh original proof/mechanism reconstruction and paired whole-unit replay."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.recalc_temporal.CheckedTemporalIntervalCandidate.load",
+            "antecedent.recalc_temporal.CheckedTemporalIntervalCandidate.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         run = _execution(execution)
         memory_limit_bytes, cancel = run.limits.memory_bytes, run.cancel
         artifact = container_bytes(artifact)

@@ -44,7 +44,7 @@ from typing import Any, Literal
 import numpy as np
 from numpy.typing import NDArray
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import ArtifactAcceptance, container_bytes
 from ._scientific import ScientificResult
 from .counterfactual import FittedGcm, native_gcm
@@ -426,6 +426,7 @@ def decode_policy_program(
     data: bytes,
     *,
     callbacks: Mapping[str, Any] | Sequence[Any] | None = None,
+    retained_identity: str | None = None,
 ) -> tuple[Any, ...]:
     """Decode and re-verify an encoded program (version, identity and validity).
 
@@ -434,11 +435,17 @@ def decode_policy_program(
     sequence. Each is verified against its record again before the program is returned
     (``policy_callback_unrecoverable`` on any difference, or when one is missing).
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.intervention_programs.decode_policy_program",
+        "antecedent.intervention_programs.decode_policy_program(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     data = container_bytes(data)
     from .intervention_callbacks import decode_programs
 
     if callbacks is not None:
-        return decode_programs(names, data, callbacks)
+        return decode_programs(names, data, callbacks, retained_identity=_retained.ADMITTED)
     return _programs(_native.decode_policy_program(list(names), bytes(data)))
 
 
@@ -491,7 +498,11 @@ class ConsumedPolicyProgram(ScientificResult):
 
 
 def consume_policy_program(
-    artifact: bytes, *, expected_identity: str | None = None, supplied: Any = None
+    artifact: bytes,
+    *,
+    expected_identity: str | None = None,
+    supplied: Any = None,
+    retained_identity: str | None = None,
 ) -> ConsumedPolicyProgram:
     """Verify a historical policy encoding under explicitly supplied ordered names.
 
@@ -501,6 +512,13 @@ def consume_policy_program(
     An optional independently retained identity is then checked against the
     decoded program's native identity. Original bytes are retained unchanged.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.intervention_programs.consume_policy_program",
+        "antecedent.intervention_programs.consume_policy_program(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     names = supplied.get("names") if isinstance(supplied, Mapping) else supplied
     if not isinstance(names, Sequence) or isinstance(names, (str, bytes, bytearray)):
         raise CausalTypeError("policy program consumption needs supplied ordered variable names")
@@ -519,7 +537,7 @@ def consume_policy_program(
         )
     data = container_bytes(artifact)
     # Both operations go through native verification; Python performs no expression evaluation.
-    programs = decode_policy_program(names, data)
+    programs = decode_policy_program(names, data, retained_identity=_retained.ADMITTED)
     identity = policy_program_identity(names, programs)
     if expected_identity is not None and identity != expected_identity.lower():
         raise CausalSerializationError("policy program does not match the expected identity")

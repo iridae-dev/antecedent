@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, get_args, runtime_checkab
 import numpy as np
 from numpy.typing import NDArray
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -606,8 +607,17 @@ class ProviderVerificationReceipt:
         return artifact_from_receipt(self, bytes(self._native_value.export(artifact_id)))
 
     @classmethod
-    def load(cls, data: bytes, *, expected_digest: str) -> ProviderVerificationReceipt:
+    def load(
+        cls, data: bytes, *, expected_digest: str, retained_identity: str | None = None
+    ) -> ProviderVerificationReceipt:
         """Load an export under the digest the consumer retained independently."""
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.extensibility.ProviderVerificationReceipt.load",
+            "antecedent.extensibility.ProviderVerificationReceipt.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         data = container_bytes(data)
         from . import _native
 

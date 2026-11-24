@@ -66,7 +66,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, overload
 
-from . import _deprecation, _native
+from . import _deprecation, _native, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -1121,7 +1121,7 @@ class ConsumedAdaptiveResult(ScientificResult):
     replayable=True,
 )
 def consume_adaptive_monitoring_contract_artifact(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> ConsumedMonitoringContract:
     """Independently consume a monitoring contract by replay and recomputation.
 
@@ -1135,6 +1135,13 @@ def consume_adaptive_monitoring_contract_artifact(
             ``adaptive_design_ignored`` or ``route_not_supported`` for a paradigm the design may
             not use.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.adaptive_inference.consume_adaptive_monitoring_contract_artifact",
+        "antecedent.adaptive_inference.consume_adaptive_monitoring_contract_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")
@@ -1166,7 +1173,11 @@ def consume_adaptive_monitoring_contract_artifact(
     replayable=True,
 )
 def consume_adaptive_inference_result_artifact(
-    artifact: bytes, expected_identity: str | None = None, *, execution: Execution | None = None
+    artifact: bytes,
+    expected_identity: str | None = None,
+    *,
+    execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedAdaptiveResult:
     """Independently consume an adaptive inference result by replay and recomputation.
 
@@ -1175,6 +1186,13 @@ def consume_adaptive_inference_result_artifact(
             ``adaptive_inference.report_replay_mismatch`` for a stored value that does not
             recompute.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.adaptive_inference.consume_adaptive_inference_result_artifact",
+        "antecedent.adaptive_inference.consume_adaptive_inference_result_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
@@ -2332,7 +2350,10 @@ class RepeatedMeasuresProcedure:
         return ExportedArtifact(text.encode("utf-8"), kind, ArtifactExpectation(kind, identity))
 
     def load_posterior(
-        self, artifact: str | bytes | ExportedArtifact[RepeatedMeasuresPosterior]
+        self,
+        artifact: str | bytes | ExportedArtifact[RepeatedMeasuresPosterior],
+        *,
+        retained_identity: str | None = None,
     ) -> RepeatedMeasuresPosterior:
         """Load a retained posterior artifact, recomputing every number from its retained units.
 
@@ -2340,6 +2361,12 @@ class RepeatedMeasuresProcedure:
             AdaptiveInferenceRefusal: for an edited artifact, a claimed support, another declared
                 procedure, or numbers the retained units do not reproduce.
         """
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.adaptive_inference.RepeatedMeasuresProcedure.load_posterior",
+            "antecedent.adaptive_inference.RepeatedMeasuresProcedure.load_posterior(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         source = (
             artifact if isinstance(artifact, str) else container_bytes(artifact).decode("utf-8")
         )
@@ -2360,8 +2387,17 @@ class RepeatedMeasuresProcedure:
 def consume_repeated_measures_posterior_artifact(
     artifact: bytes | ExportedArtifact[RepeatedMeasuresPosterior],
     expected_identity: str | None = None,
+    *,
+    retained_identity: str | None = None,
 ) -> RepeatedMeasuresPosterior:
     """Independently recompute a self-contained posterior without a live procedure."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.adaptive_inference.consume_repeated_measures_posterior_artifact",
+        "antecedent.adaptive_inference.consume_repeated_measures_posterior_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(artifact)
     text, _identity = _unwrap(
         _native.repeated_measures_posterior_consume(

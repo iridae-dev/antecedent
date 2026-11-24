@@ -162,6 +162,25 @@ impl CohortDecisionSource {
         Self::consume_with(bytes, expectation, &ExecutionContext::production_default(0))
     }
 
+    /// As [`Self::consume`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        expectation: &CohortExpectation,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CohortRefusal> {
+        crate::retained_artifact::bind_retained_artifact(bytes, retained)
+            .map_err(|error| io_refusal(&error))?;
+        Self::consume(bytes, expectation)
+    }
+
     /// As [`Self::consume`] under the caller's intake bounds instead of
     /// [`MAX_COHORT_DECISION_ARTIFACT_BYTES`] and [`super::MAX_COHORT_ROWS`].
     ///
@@ -180,6 +199,26 @@ impl CohortDecisionSource {
         )
     }
 
+    /// As [`Self::consume_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_within_expecting(
+        bytes: &[u8],
+        expectation: &CohortExpectation,
+        limits: &CohortIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CohortRefusal> {
+        crate::retained_artifact::bind_retained_artifact(bytes, retained)
+            .map_err(|error| io_refusal(&error))?;
+        Self::consume_within(bytes, expectation, limits)
+    }
+
     /// As [`Self::consume`] under a caller's execution context (cancellation, budgets).
     ///
     /// # Errors
@@ -190,6 +229,26 @@ impl CohortDecisionSource {
         ctx: &ExecutionContext,
     ) -> Result<Self, CohortRefusal> {
         Self::consume_with_limits(bytes, expectation, ctx, &CohortIntakeLimits::default())
+    }
+
+    /// As [`Self::consume_with`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_expecting(
+        bytes: &[u8],
+        expectation: &CohortExpectation,
+        ctx: &ExecutionContext,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CohortRefusal> {
+        crate::retained_artifact::bind_retained_artifact(bytes, retained)
+            .map_err(|error| io_refusal(&error))?;
+        Self::consume_with(bytes, expectation, ctx)
     }
 
     /// As [`Self::consume_with`] under the caller's intake bounds.
@@ -226,6 +285,27 @@ impl CohortDecisionSource {
             ));
         }
         Ok(recomputed)
+    }
+
+    /// As [`Self::consume_with_limits`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        expectation: &CohortExpectation,
+        ctx: &ExecutionContext,
+        limits: &CohortIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CohortRefusal> {
+        crate::retained_artifact::bind_retained_artifact(bytes, retained)
+            .map_err(|error| io_refusal(&error))?;
+        Self::consume_with_limits(bytes, expectation, ctx, limits)
     }
 }
 
@@ -363,4 +443,138 @@ fn check_expectation(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn cohort_decision_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // CohortDecisionSource::consume_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume_expecting(
+                    bytes,
+                    &CohortExpectation::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume(bytes, &CohortExpectation::default()).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            CohortDecisionSource::consume_expecting(bytes, &CohortExpectation::default(), &other)
+                .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // CohortDecisionSource::consume_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume_within_expecting(
+                    bytes,
+                    &CohortExpectation::default(),
+                    &CohortIntakeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume_within(
+                    bytes,
+                    &CohortExpectation::default(),
+                    &CohortIntakeLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            CohortDecisionSource::consume_within_expecting(
+                bytes,
+                &CohortExpectation::default(),
+                &CohortIntakeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // CohortDecisionSource::consume_with_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume_with_expecting(
+                    bytes,
+                    &CohortExpectation::default(),
+                    &ctx,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume_with(bytes, &CohortExpectation::default(), &ctx)
+                    .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            CohortDecisionSource::consume_with_expecting(
+                bytes,
+                &CohortExpectation::default(),
+                &ctx,
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // CohortDecisionSource::consume_with_limits_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume_with_limits_expecting(
+                    bytes,
+                    &CohortExpectation::default(),
+                    &ctx,
+                    &CohortIntakeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                CohortDecisionSource::consume_with_limits(
+                    bytes,
+                    &CohortExpectation::default(),
+                    &ctx,
+                    &CohortIntakeLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            CohortDecisionSource::consume_with_limits_expecting(
+                bytes,
+                &CohortExpectation::default(),
+                &ctx,
+                &CohortIntakeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    }
 }

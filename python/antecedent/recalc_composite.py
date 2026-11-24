@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ArtifactExpectation,
@@ -224,8 +224,16 @@ class ConditionalStudyRanking(ScientificResult):
         session: CompositeSession | None = None,
         *,
         expected_identity: str | None = None,
+        retained_identity: str | None = None,
     ) -> ConditionalStudyRanking:
         """Match a historical projection against explicitly replayed actual combined state."""
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.recalc_composite.ConditionalStudyRanking.consume",
+            "antecedent.recalc_composite.ConditionalStudyRanking.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = _conditional_bytes(data)
         if session is None:
             return _conditional_result(

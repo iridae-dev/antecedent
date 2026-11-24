@@ -31,6 +31,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import compile_transport_scenarios_stage as _compile_transport_scenarios_stage
@@ -372,6 +373,7 @@ def consume_transport_scenarios_artifact(
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently replay an exported scenario report.
 
@@ -383,6 +385,12 @@ def consume_transport_scenarios_artifact(
     data-identity digest, so a changed snapshot label is refused as a data
     identity mismatch.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._scenarios.consume_transport_scenarios_artifact",
+        "antecedent.transport._scenarios.consume_transport_scenarios_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

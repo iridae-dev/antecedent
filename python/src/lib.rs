@@ -232,6 +232,7 @@ mod posterior_row_api;
 mod provider_callbacks_api;
 mod repair_api;
 mod response_api;
+mod retained_artifact_api;
 mod retained_refresh_api;
 mod rollout_api;
 mod sampling_assumption_union_api;

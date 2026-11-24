@@ -21,7 +21,7 @@ from typing import Any
 
 from numpy.typing import ArrayLike
 
-from . import _native
+from . import _native, _retained
 from ._recalc_bounds import _admit, _check_resources, _columns
 from ._refusal import raise_refusal
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
@@ -275,7 +275,7 @@ class DrSession:
         raise_refusal(refusal, _refusal_type)
         if artifact is None:  # pragma: no cover - native invariant
             raise CausalSerializationError("DR predictor export returned no artifact")
-        return FittedEffectModel.load(artifact)
+        return FittedEffectModel.load(artifact, retained_identity=_retained.ADMITTED)
 
 
 __all__ = ["CatePrediction", "DrRequest", "DrSession"]

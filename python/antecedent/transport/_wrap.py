@@ -9,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, cast
 
+from .. import _retained
 from .._artifact_protocol import ExportedArtifact, artifact_export, artifact_from_receipt
 from .._columns import coerce_fields
 from .._scientific import ScientificResult
@@ -332,11 +333,11 @@ def _consume_specialist_artifact(encoded: bytes) -> Any:
         native = _native.consume_learned_trial(encoded)
         return _learned_trial(native, native.last_result())
     if encoded.startswith(b"ANTECEDENT-EXACT-TRANSPORT\x01"):
-        return consume_exact(encoded)
+        return consume_exact(encoded, retained_identity=_retained.ADMITTED)
     if encoded.startswith(b"ANTECEDENT-STATISTICAL-TRANSPORT\x01"):
-        return consume_statistical(encoded)
+        return consume_statistical(encoded, retained_identity=_retained.ADMITTED)
     if encoded.startswith(b"ANTECEDENT-TRANSPORT-GRID\x01"):
-        return consume_response_grid(encoded)
+        return consume_response_grid(encoded, retained_identity=_retained.ADMITTED)
     if encoded.startswith(Z_TRANSPORT_PREFIX):
         return consume_restricted_artifacts([encoded])
     raise CausalSerializationError("unrecognized transport specialist artifact")
@@ -461,7 +462,9 @@ def decode_transport_view(encoded: bytes) -> AnalysisResult | CausalResponseView
     )
     identified: Any = None
     if identification_artifact is not None:
-        identified = consume_identification(identification_artifact)
+        identified = consume_identification(
+            identification_artifact, retained_identity=_retained.ADMITTED
+        )
     elif identification_snapshot is not None:
         identified = identification_from_snapshot(identification_snapshot)
     shape, worlds = lower_question(query.question) if query is not None else (None, [])

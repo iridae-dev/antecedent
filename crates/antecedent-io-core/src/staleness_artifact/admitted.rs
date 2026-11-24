@@ -78,6 +78,25 @@ impl StalenessBaselineWire {
         decode.cancelled()?;
         Ok(AdmittedStalenessBaseline { wire, _storage: storage })
     }
+
+    /// As [`Self::consume_admitted`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_admitted`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_admitted_expecting(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<AdmittedStalenessBaseline, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::consume_admitted(bytes, ctx)
+        })
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -533,3 +552,30 @@ record!(StalenessBaselineWire { version: u32, required_features: Vec<String>, ki
     overlap: Option<OverlapSummaryWire> = default, checks: Vec<RecordedCheckWire>,
     outcome_model: Option<OutcomeModelWire> = default,
     implications: Option<GraphImplicationsWire> = default, seal: String });
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn staleness_artifact_admitted_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // StalenessBaselineWire::consume_admitted_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                StalenessBaselineWire::consume_admitted_expecting(bytes, &ctx, &retained).err()
+            ),
+            format!("{:?}", StalenessBaselineWire::consume_admitted(bytes, &ctx).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            StalenessBaselineWire::consume_admitted_expecting(bytes, &ctx, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    }
+}

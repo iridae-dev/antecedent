@@ -1227,6 +1227,24 @@ impl PredictiveAssessmentArtifact {
         )
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&AssessmentIdentity>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected, ctx)
+        })
+    }
+
     /// Consume an artifact by recomputation.
     ///
     /// `expected` is an identity the consumer retained independently (for example
@@ -1252,6 +1270,26 @@ impl PredictiveAssessmentArtifact {
             antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
             ctx,
         )
+    }
+
+    /// [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are not
+    /// the retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: &[u8],
+        expected: Option<&AssessmentIdentity>,
+        limits: PredictiveAssessmentConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with_limits(bytes, expected, limits, ctx)
+        })
     }
 
     /// Consume with an explicit allowance for linear, serial, and fit-overlap comparison work. The
@@ -1323,5 +1361,105 @@ impl PredictiveAssessmentArtifact {
             }
         }
         Ok(Self { meta, spec, report })
+    }
+
+    /// [`Self::from_bytes_with_replay_operations`], admitting only the artifact the consumer
+    /// retained: the bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`])
+    /// before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_replay_operations`], and `external_binding_mismatch` when the
+    /// bytes are not the retained artifact.
+    pub fn from_bytes_with_replay_operations_expecting(
+        bytes: &[u8],
+        expected: Option<&AssessmentIdentity>,
+        limits: PredictiveAssessmentConsumeLimits,
+        max_replay_operations: usize,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with_replay_operations(
+                bytes,
+                expected,
+                limits,
+                max_replay_operations,
+                ctx,
+            )
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn predictive_assessment_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            PredictiveAssessmentArtifact::from_bytes(support::BYTES, None, &ctx),
+            PredictiveAssessmentArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            PredictiveAssessmentArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            PredictiveAssessmentArtifact::from_bytes_with_limits(
+                support::BYTES,
+                None,
+                PredictiveAssessmentConsumeLimits::default(),
+                &ctx,
+            ),
+            PredictiveAssessmentArtifact::from_bytes_with_limits_expecting(
+                support::BYTES,
+                None,
+                PredictiveAssessmentConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            PredictiveAssessmentArtifact::from_bytes_with_limits_expecting(
+                support::BYTES,
+                None,
+                PredictiveAssessmentConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            PredictiveAssessmentArtifact::from_bytes_with_replay_operations(
+                support::BYTES,
+                None,
+                PredictiveAssessmentConsumeLimits::default(),
+                1_000_000,
+                &ctx,
+            ),
+            PredictiveAssessmentArtifact::from_bytes_with_replay_operations_expecting(
+                support::BYTES,
+                None,
+                PredictiveAssessmentConsumeLimits::default(),
+                1_000_000,
+                &ctx,
+                &support::matching(),
+            ),
+            PredictiveAssessmentArtifact::from_bytes_with_replay_operations_expecting(
+                support::BYTES,
+                None,
+                PredictiveAssessmentConsumeLimits::default(),
+                1_000_000,
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

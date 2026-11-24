@@ -47,6 +47,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -400,7 +401,9 @@ class CompactExport(ScientificResult):
         proof="compact_export.CompactExport.consume: independent semantic consumer checks declarations, identities and stored result",
         replayable=False,
     )
-    def consume(cls, artifact: bytes, *, expected_identity: str) -> CompactExport:
+    def consume(
+        cls, artifact: bytes, *, expected_identity: str, retained_identity: str | None = None
+    ) -> CompactExport:
         """Independently verify ``artifact`` against the identity the caller retained.
 
         Decodes with bounded sizes, recomputes the digests and identity from the stored fields
@@ -408,6 +411,13 @@ class CompactExport(ScientificResult):
         tampered coefficient, covariance, term, support, mask or scope (even when the container
         was resealed), a different identity, an oversized claim or an unknown version.
         """
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.compact_export.CompactExport.consume",
+            "antecedent.compact_export.CompactExport.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes | bytearray | memoryview):
             raise CausalTypeError("artifact must be bytes")

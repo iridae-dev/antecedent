@@ -824,6 +824,23 @@ impl LatentClassArtifact {
         Self::from_bytes_with(bytes, expected, None, &unbounded_context())
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&LatentClassIdentity>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, LatentClassArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// Consume an artifact by refitting under the stored seed and configuration, within the
     /// replay budget of `ctx`.
     ///
@@ -901,6 +918,25 @@ impl LatentClassArtifact {
         }
         Ok(Self { meta: rebuilt, request, result, hard_assignment })
     }
+
+    /// [`Self::from_bytes_with`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_with_expecting(
+        bytes: &[u8],
+        expected: Option<&LatentClassIdentity>,
+        data: Option<&LatentClassDataWire>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, LatentClassArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with(bytes, expected, data, ctx)
+        })
+    }
 }
 
 /// The request of a digest-bound record: the stored configuration on the supplied dataset,
@@ -943,5 +979,38 @@ mod data_section_tests {
         assert_eq!(bits(&again.outcome), bits(&data.outcome));
         assert_eq!(bits(&again.treatment), bits(&data.treatment));
         assert_eq!(bits(&again.covariates[0]), bits(&data.covariates[0]));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn latent_class_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            LatentClassArtifact::from_bytes(support::BYTES, None),
+            LatentClassArtifact::from_bytes_expecting(support::BYTES, None, &support::matching()),
+            LatentClassArtifact::from_bytes_expecting(support::BYTES, None, &support::other()),
+        );
+        support::assert_binds(
+            LatentClassArtifact::from_bytes_with(support::BYTES, None, None, &ctx),
+            LatentClassArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            LatentClassArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

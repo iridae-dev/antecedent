@@ -408,6 +408,23 @@ impl DecisionContractArtifact {
         }
         Ok(Self { contract, identity })
     }
+
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: &str,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
 }
 
 /// BLAKE3 of a source's aligned draws and coordinates, retained by a result.
@@ -764,6 +781,24 @@ impl DecisionResultArtifact {
         Ok(Self { result, source_digest: digest })
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_contract_identity: &str,
+        expected_source_digest: &str,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_contract_identity, expected_source_digest)
+        })
+    }
+
     /// Recompute the decision from `contract` and `source` and require the
     /// stored result to match exactly.
     ///
@@ -912,4 +947,36 @@ pub fn mean_result_to_bytes(
     let mut body = result_to_body(result, &mean_source_digest(source));
     body.lineage = Vec::new();
     encode(RESULT_KIND, artifact_id, "decision_result", &to_cbor(&body)?)
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{DecisionContractArtifact, DecisionResultArtifact};
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn decision_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        same_outcome(
+            &DecisionContractArtifact::from_bytes(&bytes, "contract"),
+            &DecisionContractArtifact::from_bytes_expecting(&bytes, "contract", &retained),
+        );
+        refused_as_not_retained(&DecisionContractArtifact::from_bytes_expecting(
+            &bytes,
+            "contract",
+            &other_artifact(),
+        ));
+        same_outcome(
+            &DecisionResultArtifact::from_bytes(&bytes, "contract", "source"),
+            &DecisionResultArtifact::from_bytes_expecting(&bytes, "contract", "source", &retained),
+        );
+        refused_as_not_retained(&DecisionResultArtifact::from_bytes_expecting(
+            &bytes,
+            "contract",
+            "source",
+            &other_artifact(),
+        ));
+    }
 }

@@ -335,3 +335,43 @@ pub fn consume_transported_decision(
     }
     Ok(ConsumedTransportedDecision { decision, response })
 }
+
+/// [`consume_transported_decision`], admitting only the artifact the consumer retained: the
+/// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+/// read.
+///
+/// # Errors
+///
+/// As [`consume_transported_decision`], and `external_binding_mismatch` when the bytes are not
+/// the retained artifact.
+pub fn consume_transported_decision_expecting(
+    bytes: &[u8],
+    expected_identity: Option<&str>,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ConsumedTransportedDecision, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        consume_transported_decision(bytes, expected_identity)
+    })
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::{consume_transported_decision, consume_transported_decision_expecting};
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn transported_decision_artifact_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        same_outcome(
+            &consume_transported_decision(&bytes, None),
+            &consume_transported_decision_expecting(&bytes, None, &retained),
+        );
+        refused_as_not_retained(&consume_transported_decision_expecting(
+            &bytes,
+            None,
+            &other_artifact(),
+        ));
+    }
+}

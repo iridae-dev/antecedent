@@ -774,6 +774,20 @@ impl PosteriorRowArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Decode and recompute everything under the consumer's limits; accept only a result
     /// identical to the stored one.
     ///
@@ -784,6 +798,23 @@ impl PosteriorRowArtifactWire {
         limits: PosteriorRowConsumeLimits,
     ) -> Result<Self, IoError> {
         Self::consume_typed(bytes, limits).map_err(IoError::from)
+    }
+
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits)
+        })
     }
 
     /// [`Self::consume_with_limits`] with the typed refusal kind.
@@ -801,6 +832,23 @@ impl PosteriorRowArtifactWire {
         )
     }
 
+    /// [`Self::consume_typed`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_typed_expecting(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, PosteriorRowArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))?;
+        Self::consume_typed(bytes, limits)
+    }
+
     /// Independently compile/replay under caller-supplied execution authority.
     pub fn consume_typed_with_context(
         bytes: &[u8],
@@ -808,6 +856,25 @@ impl PosteriorRowArtifactWire {
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Self, PosteriorRowArtifactError> {
         Self::consume_prepared_with_context(bytes, limits, ctx).map(|(wire, _program)| wire)
+    }
+
+    /// [`Self::consume_typed_with_context`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed_with_context`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn consume_typed_with_context_expecting(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, PosteriorRowArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))?;
+        Self::consume_typed_with_context(bytes, limits, ctx)
     }
 
     /// Replay once and retain the exact checked program used by the consumer.
@@ -882,6 +949,25 @@ impl PosteriorRowArtifactWire {
             1,
         );
         Ok((wire, program))
+    }
+
+    /// [`Self::consume_prepared_with_context`], admitting only the artifact the consumer retained:
+    /// the bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they
+    /// are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_prepared_with_context`], and `external_binding_mismatch` when the bytes
+    /// are not the retained artifact.
+    pub fn consume_prepared_with_context_expecting(
+        bytes: &[u8],
+        limits: PosteriorRowConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, CompiledPosteriorRow), PosteriorRowArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| PosteriorRowArtifactError::Undecodable(error.to_string()))?;
+        Self::consume_prepared_with_context(bytes, limits, ctx)
     }
 }
 
@@ -1109,5 +1195,91 @@ mod retained_artifact_tests {
         drop(replay);
         drop(artifact);
         assert_eq!(pool.available().bytes(), pool.byte_budget());
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn bayesian_posterior_row_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            PosteriorRowArtifactWire::consume_prepared_with_context(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+            ),
+            PosteriorRowArtifactWire::consume_prepared_with_context_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            PosteriorRowArtifactWire::consume_prepared_with_context_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            PosteriorRowArtifactWire::consume_typed(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+            ),
+            PosteriorRowArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &support::matching(),
+            ),
+            PosteriorRowArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            PosteriorRowArtifactWire::consume_typed_with_context(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+            ),
+            PosteriorRowArtifactWire::consume_typed_with_context_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            PosteriorRowArtifactWire::consume_typed_with_context_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            PosteriorRowArtifactWire::consume_with_limits(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+            ),
+            PosteriorRowArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &support::matching(),
+            ),
+            PosteriorRowArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                PosteriorRowConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            PosteriorRowArtifactWire::decode(support::BYTES),
+            PosteriorRowArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            PosteriorRowArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

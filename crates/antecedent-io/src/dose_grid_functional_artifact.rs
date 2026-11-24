@@ -1124,6 +1124,20 @@ impl DoseGridArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Decode and recompute everything under the consumer's limits; accept only a
     /// result identical to the stored one.
     ///
@@ -1134,6 +1148,23 @@ impl DoseGridArtifactWire {
         limits: DoseGridConsumeLimits,
     ) -> Result<Self, IoError> {
         Self::consume_typed(bytes, limits).map_err(IoError::from)
+    }
+
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: DoseGridConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits)
+        })
     }
 
     /// [`Self::consume_with_limits`] with the typed refusal kind.
@@ -1149,6 +1180,23 @@ impl DoseGridArtifactWire {
             limits,
             &antecedent_core::ExecutionContext::production_default(0),
         )
+    }
+
+    /// [`Self::consume_typed`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_typed_expecting(
+        bytes: &[u8],
+        limits: DoseGridConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, DoseGridArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| DoseGridArtifactError::Undecodable(error.to_string()))?;
+        Self::consume_typed(bytes, limits)
     }
 
     /// Recompute an artifact under execution controls.
@@ -1181,5 +1229,88 @@ impl DoseGridArtifactWire {
             return Err(DoseGridArtifactError::ResultMismatch);
         }
         Ok(wire)
+    }
+
+    /// [`Self::consume_typed_with_context`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+    /// read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed_with_context`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn consume_typed_with_context_expecting(
+        bytes: &[u8],
+        limits: DoseGridConsumeLimits,
+        ctx: &antecedent_core::ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, DoseGridArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| DoseGridArtifactError::Undecodable(error.to_string()))?;
+        Self::consume_typed_with_context(bytes, limits, ctx)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn dose_grid_functional_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            DoseGridArtifactWire::consume_typed(support::BYTES, DoseGridConsumeLimits::default()),
+            DoseGridArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+                &support::matching(),
+            ),
+            DoseGridArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            DoseGridArtifactWire::consume_typed_with_context(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+                &ctx,
+            ),
+            DoseGridArtifactWire::consume_typed_with_context_expecting(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            DoseGridArtifactWire::consume_typed_with_context_expecting(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            DoseGridArtifactWire::consume_with_limits(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+            ),
+            DoseGridArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+                &support::matching(),
+            ),
+            DoseGridArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                DoseGridConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            DoseGridArtifactWire::decode(support::BYTES),
+            DoseGridArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            DoseGridArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

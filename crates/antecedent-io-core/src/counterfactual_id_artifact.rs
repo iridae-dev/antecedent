@@ -467,6 +467,22 @@ impl CounterfactualIdArtifactWire {
         Ok(wire)
     }
 
+    /// As [`Self::decode`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CounterfactualIdArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Recompute both digests and compare them with the stored ones (and the
     /// data digest with the caller's, when given).
     ///
@@ -633,5 +649,26 @@ mod tests {
                 antecedent_core::reason_details::counterfactual_id::INVALID_ARTIFACT
             )
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn counterfactual_id_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // CounterfactualIdArtifactWire::decode_expecting
+        assert_eq!(
+            format!("{:?}", CounterfactualIdArtifactWire::decode_expecting(bytes, &retained).err()),
+            format!("{:?}", CounterfactualIdArtifactWire::decode(bytes).err()),
+        );
+        let refused =
+            format!("{:?}", CounterfactualIdArtifactWire::decode_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

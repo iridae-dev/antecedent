@@ -302,6 +302,41 @@ impl MappedArtifactReader {
         Self::from_backing(ArtifactBacking::OwnedVec(Arc::new(bytes)), limits)
     }
 
+    /// As [`Self::open_path`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes read from `path` bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_path`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn open_path_expecting(
+        path: impl AsRef<Path>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        Self::open_path_with_limits_expecting(path, ContainerLimits::default(), retained)
+    }
+
+    /// As [`Self::open_path_with_limits`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes read from `path` bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::open_path_with_limits`], and `external_binding_mismatch` when the bytes are
+    /// not the retained artifact.
+    pub fn open_path_with_limits_expecting(
+        path: impl AsRef<Path>,
+        limits: ContainerLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        let bytes = std::fs::read(path.as_ref()).map_err(IoError::from)?;
+        crate::retained_artifact::bind_retained_artifact(&bytes, retained)?;
+        Self::from_backing(ArtifactBacking::OwnedVec(Arc::new(bytes)), limits)
+    }
+
     /// Memory-map `path` without copying payloads.
     ///
     /// # Safety
@@ -656,6 +691,41 @@ mod tests {
         let again = reader.load_section_mapped("blob").unwrap();
         assert_eq!(again.as_bytes(), mapped.as_bytes());
         assert_eq!(reader.stats().mmap_views, 2);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn reader_expecting_binds_the_retained_bytes() {
+        use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+        let art = artifact_with_blob();
+        let mut written = Vec::new();
+        art.write_to(&mut written).unwrap();
+        let path = std::env::temp_dir().join(format!("causal-retained-{}.bin", std::process::id()));
+        std::fs::write(&path, &written).unwrap();
+        let retained = RetainedArtifactIdentity::of_bytes(&written);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        let mut bound = MappedArtifactReader::open_path_expecting(&path, &retained).unwrap();
+        assert_eq!(bound.load_section_mapped("blob").unwrap().as_bytes().len(), 48 * 1024);
+        assert!(
+            MappedArtifactReader::open_path_with_limits_expecting(
+                &path,
+                ContainerLimits::default(),
+                &retained
+            )
+            .is_ok()
+        );
+        for refused in [
+            MappedArtifactReader::open_path_expecting(&path, &other).err(),
+            MappedArtifactReader::open_path_with_limits_expecting(
+                &path,
+                ContainerLimits::default(),
+                &other,
+            )
+            .err(),
+        ] {
+            let refused = format!("{refused:?}");
+            assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        }
         let _ = std::fs::remove_file(&path);
     }
 

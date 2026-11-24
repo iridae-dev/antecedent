@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 from typing import TYPE_CHECKING, Any
 
+from . import _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ArtifactExpectation,
@@ -451,6 +452,7 @@ def load_artifact(
     *,
     expected_identity: str | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> NuisanceScoreProduct:
     """Independently refit the original nuisance recipe; retain no study or dataset.
 
@@ -459,6 +461,13 @@ def load_artifact(
     producer identity unbound. Scientific model/seed settings come from the
     artifact; Execution controls resources, threads, cancellation and observers.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.nuisance_scores.load_artifact",
+        "antecedent.nuisance_scores.load_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     policy = Execution() if execution is None else execution
     if not isinstance(policy, Execution):
         raise CausalTypeError("execution must be an Execution declaration")

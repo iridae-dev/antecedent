@@ -653,6 +653,24 @@ pub fn consume_cyclic_artifact(
     consume_cyclic_artifact_with_request(bytes, expected_identity, ctx).map(|(_, report)| report)
 }
 
+/// [`consume_cyclic_artifact`], admitting only the artifact the consumer retained: the bytes bind
+/// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_cyclic_artifact`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn consume_cyclic_artifact_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<CyclicExecutionReport, CyclicArtifactError> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| CyclicArtifactError::Invalid(error.to_string()))?;
+    consume_cyclic_artifact(bytes, expected_identity, ctx)
+}
+
 /// Independently verify a system once and retain its original source declaration.
 ///
 /// # Errors
@@ -684,6 +702,24 @@ pub fn consume_cyclic_artifact_with_request(
         return Err(CyclicArtifactError::Mismatch);
     }
     Ok((record.request, report))
+}
+
+/// [`consume_cyclic_artifact_with_request`], admitting only the artifact the consumer retained: the
+/// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_cyclic_artifact_with_request`], and `external_binding_mismatch` when the bytes are
+/// not the retained artifact.
+pub fn consume_cyclic_artifact_with_request_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<(CyclicExecutionRequest, CyclicExecutionReport), CyclicArtifactError> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| CyclicArtifactError::Invalid(error.to_string()))?;
+    consume_cyclic_artifact_with_request(bytes, expected_identity, ctx)
 }
 
 #[cfg(test)]
@@ -901,5 +937,36 @@ mod shared_invalid_tests {
                 other => panic!("unexpected error: {other:?}"),
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn cyclic_system_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_cyclic_artifact(support::BYTES, "0", &ctx),
+            consume_cyclic_artifact_expecting(support::BYTES, "0", &ctx, &support::matching()),
+            consume_cyclic_artifact_expecting(support::BYTES, "0", &ctx, &support::other()),
+        );
+        support::assert_binds(
+            consume_cyclic_artifact_with_request(support::BYTES, "0", &ctx),
+            consume_cyclic_artifact_with_request_expecting(
+                support::BYTES,
+                "0",
+                &ctx,
+                &support::matching(),
+            ),
+            consume_cyclic_artifact_with_request_expecting(
+                support::BYTES,
+                "0",
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

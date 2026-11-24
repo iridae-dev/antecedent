@@ -1465,6 +1465,23 @@ impl CategoricalTreatmentArtifact {
         <Self as BudgetedTreatmentArtifact>::from_bytes(bytes, expected)
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&CategoricalTreatmentIdentity>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// Consume an artifact by recomputation within the replay budget of `ctx`.
     ///
     /// # Errors
@@ -1481,6 +1498,24 @@ impl CategoricalTreatmentArtifact {
             ctx,
             antecedent_io_core::distribution_replay::MAX_REPLAY_OPERATIONS,
         )
+    }
+
+    /// [`Self::from_bytes_with`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_with_expecting(
+        bytes: &[u8],
+        expected: Option<&CategoricalTreatmentIdentity>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with(bytes, expected, ctx)
+        })
     }
 
     /// Consume with an explicit structural replay-work allowance. The default consumer uses
@@ -1563,6 +1598,26 @@ impl CategoricalTreatmentArtifact {
             }
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
+    }
+
+    /// [`Self::from_bytes_with_replay_operations`], admitting only the artifact the consumer
+    /// retained: the bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`])
+    /// before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_replay_operations`], and `external_binding_mismatch` when the
+    /// bytes are not the retained artifact.
+    pub fn from_bytes_with_replay_operations_expecting(
+        bytes: &[u8],
+        expected: Option<&CategoricalTreatmentIdentity>,
+        ctx: &ExecutionContext,
+        max_replay_operations: usize,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, CategoricalTreatmentArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with_replay_operations(bytes, expected, ctx, max_replay_operations)
+        })
     }
 }
 
@@ -1844,5 +1899,66 @@ mod number_section_tests {
             Replay::from_parts(&decl, &meta(CATEGORICAL_HC_ROW_CAP as u64 + 1, Vec::new()), &[]),
             Err(CategoricalTreatmentArtifactError::LimitsExceeded("replay rows"))
         ));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn categorical_treatment_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            CategoricalTreatmentArtifact::from_bytes(support::BYTES, None),
+            CategoricalTreatmentArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &support::matching(),
+            ),
+            CategoricalTreatmentArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            CategoricalTreatmentArtifact::from_bytes_with(support::BYTES, None, &ctx),
+            CategoricalTreatmentArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            CategoricalTreatmentArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            CategoricalTreatmentArtifact::from_bytes_with_replay_operations(
+                support::BYTES,
+                None,
+                &ctx,
+                1_000_000,
+            ),
+            CategoricalTreatmentArtifact::from_bytes_with_replay_operations_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                1_000_000,
+                &support::matching(),
+            ),
+            CategoricalTreatmentArtifact::from_bytes_with_replay_operations_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                1_000_000,
+                &support::other(),
+            ),
+        );
     }
 }

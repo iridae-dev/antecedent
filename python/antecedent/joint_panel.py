@@ -17,7 +17,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -357,17 +357,29 @@ def prepare_randomized_selection(
 
 
 def consume_program_certificate(
-    artifact: bytes, *, execution: Execution | None = None
+    artifact: bytes, *, execution: Execution | None = None, retained_identity: str | None = None
 ) -> dict[str, Any]:
     """Independently reconstruct the frozen response and repeat its numerical bound proof."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.joint_panel.consume_program_certificate",
+        "antecedent.joint_panel.consume_program_certificate(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     return json.loads(run_panel(execution, _native.consume_panel_program_certificate, artifact))
 
 
 def consume_randomized_selection(
-    artifact: bytes, *, execution: Execution | None = None
+    artifact: bytes, *, execution: Execution | None = None, retained_identity: str | None = None
 ) -> dict[str, Any]:
     """Replay the original observational selection procedure without current authorization."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.joint_panel.consume_randomized_selection",
+        "antecedent.joint_panel.consume_randomized_selection(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     return json.loads(run_panel(execution, _native.consume_randomized_program_selection, artifact))
 
@@ -444,9 +456,15 @@ def select_instrumented_program(
 
 
 def consume_instrumented_selection(
-    artifact: bytes, *, execution: Execution | None = None
+    artifact: bytes, *, execution: Execution | None = None, retained_identity: str | None = None
 ) -> dict[str, Any]:
     """Replay the complete structural selection procedure without current authorization."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.joint_panel.consume_instrumented_selection",
+        "antecedent.joint_panel.consume_instrumented_selection(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     return json.loads(run_panel(execution, _native.consume_instrumented_selection, artifact))
 
@@ -1225,8 +1243,16 @@ def prepare_imputed(
     )
 
 
-def consume(artifact: bytes, *, execution: Execution | None = None) -> dict[str, Any]:
+def consume(
+    artifact: bytes, *, execution: Execution | None = None, retained_identity: str | None = None
+) -> dict[str, Any]:
     """Replay the frozen Rust program in an independent historical consumer."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.joint_panel.consume",
+        "antecedent.joint_panel.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     return json.loads(run_panel(execution, _native.consume_joint_panel, artifact))
 
@@ -1319,9 +1345,19 @@ class PreparedJointResponse:
 
     @outcome_operation
     def consume_current(
-        self, artifact: bytes, *, execution: Execution | None = None
+        self,
+        artifact: bytes,
+        *,
+        execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> JointResponseLaw:
         """Replay an exported result and bind it to this live compiled program."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.joint_panel.PreparedJointResponse.consume_current",
+            "antecedent.joint_panel.PreparedJointResponse.consume_current(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         return JointResponseLaw._from_handle(
             run_panel(execution, self._handle.consume_current, container_bytes(artifact))
         )

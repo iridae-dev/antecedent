@@ -114,6 +114,25 @@ impl SampledRecoveryArtifactWire {
         compare_replay(&wire, &measured)?;
         Ok(measured)
     }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        limits: SampledRecoveryConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<MeasuredInference, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, limits, ctx)
+        })
+    }
 }
 
 impl TemporalIntervalArtifactWire {
@@ -187,5 +206,79 @@ impl TemporalIntervalArtifactWire {
         let measured = Self::measure(&wire.source, &source.seal, limits, ctx)?;
         compare_replay(&wire, &measured)?;
         Ok(measured)
+    }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &MeasuredExpectation,
+        limits: &TemporalIntervalConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<MeasuredInference, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, limits, ctx)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn recovery_temporal_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            TemporalIntervalArtifactWire::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &TemporalIntervalConsumeLimits::default(),
+                &ctx,
+            ),
+            TemporalIntervalArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &TemporalIntervalConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            TemporalIntervalArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &TemporalIntervalConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            SampledRecoveryArtifactWire::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                SampledRecoveryConsumeLimits::default(),
+                &ctx,
+            ),
+            SampledRecoveryArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                SampledRecoveryConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            SampledRecoveryArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                SampledRecoveryConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

@@ -551,6 +551,20 @@ impl TemporalInitialStateArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Replay every stored value from the embedded law and panel summary.
     ///
     /// # Errors
@@ -634,5 +648,54 @@ impl TemporalInitialStateArtifactWire {
         let wire = Self::decode(bytes)?;
         let replay = wire.verify(limits)?;
         Ok((wire, replay))
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        limits: &TemporalInitialStateConsumeLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, InitialStateReplay), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| Self::consume(bytes, limits))
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn temporal_initial_state_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        support::assert_binds(
+            TemporalInitialStateArtifactWire::consume(
+                support::BYTES,
+                &TemporalInitialStateConsumeLimits::default(),
+            ),
+            TemporalInitialStateArtifactWire::consume_expecting(
+                support::BYTES,
+                &TemporalInitialStateConsumeLimits::default(),
+                &support::matching(),
+            ),
+            TemporalInitialStateArtifactWire::consume_expecting(
+                support::BYTES,
+                &TemporalInitialStateConsumeLimits::default(),
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            TemporalInitialStateArtifactWire::decode(support::BYTES),
+            TemporalInitialStateArtifactWire::decode_expecting(
+                support::BYTES,
+                &support::matching(),
+            ),
+            TemporalInitialStateArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

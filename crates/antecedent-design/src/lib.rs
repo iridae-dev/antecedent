@@ -54,6 +54,8 @@ pub mod ranking;
 pub mod repair;
 pub mod repair_artifact;
 pub mod result;
+#[cfg(test)]
+mod retained_test_support;
 pub mod rollout_artifact;
 pub mod scientific_source;
 pub mod sensitivity_decision;

@@ -284,6 +284,25 @@ impl ExternalColumnClaimArtifact {
         Self::from_bytes_within(bytes, expected, MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES)
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: &ExternalColumnIdentity,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound instead of [`MAX_EXTERNAL_COLUMN_CLAIM_ARTIFACT_BYTES`].
     ///
     /// # Errors
@@ -298,6 +317,26 @@ impl ExternalColumnClaimArtifact {
             expected,
             &ExternalColumnIntakeLimits { max_bytes, ..ExternalColumnIntakeLimits::default() },
         )
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected: &ExternalColumnIdentity,
+        max_bytes: usize,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected, max_bytes)
+        })
     }
 
     /// [`Self::from_bytes`] under the caller's intake bounds instead of
@@ -332,5 +371,191 @@ impl ExternalColumnClaimArtifact {
         }
         validate(&metadata, limits.max_rows)?;
         Ok(Self { metadata })
+    }
+
+    /// As [`Self::from_bytes_with_limits`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_with_limits_expecting(
+        bytes: &[u8],
+        expected: &ExternalColumnIdentity,
+        limits: &ExternalColumnIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with_limits(bytes, expected, limits)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn external_column_claim_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // ExternalColumnClaimArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ExternalColumnClaimArtifact::from_bytes_expecting(
+                    bytes,
+                    &ExternalColumnIdentity {
+                        claim: crate::external_claim_artifact::retained_tests::placeholder_identity(
+                        ),
+                        column: ColumnIdentityWire {
+                            rows: 0,
+                            dtype: "f64".into(),
+                            support: vec![]
+                        }
+                    },
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ExternalColumnClaimArtifact::from_bytes(
+                    bytes,
+                    &ExternalColumnIdentity {
+                        claim: crate::external_claim_artifact::retained_tests::placeholder_identity(
+                        ),
+                        column: ColumnIdentityWire {
+                            rows: 0,
+                            dtype: "f64".into(),
+                            support: vec![]
+                        }
+                    }
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ExternalColumnClaimArtifact::from_bytes_expecting(
+                bytes,
+                &ExternalColumnIdentity {
+                    claim: crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                    column: ColumnIdentityWire { rows: 0, dtype: "f64".into(), support: vec![] }
+                },
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ExternalColumnClaimArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ExternalColumnClaimArtifact::from_bytes_within_expecting(
+                    bytes,
+                    &ExternalColumnIdentity {
+                        claim: crate::external_claim_artifact::retained_tests::placeholder_identity(
+                        ),
+                        column: ColumnIdentityWire {
+                            rows: 0,
+                            dtype: "f64".into(),
+                            support: vec![]
+                        }
+                    },
+                    1 << 20,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ExternalColumnClaimArtifact::from_bytes_within(
+                    bytes,
+                    &ExternalColumnIdentity {
+                        claim: crate::external_claim_artifact::retained_tests::placeholder_identity(
+                        ),
+                        column: ColumnIdentityWire {
+                            rows: 0,
+                            dtype: "f64".into(),
+                            support: vec![]
+                        }
+                    },
+                    1 << 20
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ExternalColumnClaimArtifact::from_bytes_within_expecting(
+                bytes,
+                &ExternalColumnIdentity {
+                    claim: crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                    column: ColumnIdentityWire { rows: 0, dtype: "f64".into(), support: vec![] }
+                },
+                1 << 20,
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ExternalColumnClaimArtifact::from_bytes_with_limits_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ExternalColumnClaimArtifact::from_bytes_with_limits_expecting(
+                    bytes,
+                    &ExternalColumnIdentity {
+                        claim: crate::external_claim_artifact::retained_tests::placeholder_identity(
+                        ),
+                        column: ColumnIdentityWire {
+                            rows: 0,
+                            dtype: "f64".into(),
+                            support: vec![]
+                        }
+                    },
+                    &ExternalColumnIntakeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ExternalColumnClaimArtifact::from_bytes_with_limits(
+                    bytes,
+                    &ExternalColumnIdentity {
+                        claim: crate::external_claim_artifact::retained_tests::placeholder_identity(
+                        ),
+                        column: ColumnIdentityWire {
+                            rows: 0,
+                            dtype: "f64".into(),
+                            support: vec![]
+                        }
+                    },
+                    &ExternalColumnIntakeLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ExternalColumnClaimArtifact::from_bytes_with_limits_expecting(
+                bytes,
+                &ExternalColumnIdentity {
+                    claim: crate::external_claim_artifact::retained_tests::placeholder_identity(),
+                    column: ColumnIdentityWire { rows: 0, dtype: "f64".into(), support: vec![] }
+                },
+                &ExternalColumnIntakeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

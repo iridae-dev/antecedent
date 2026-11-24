@@ -7,6 +7,9 @@ entry is removed.
 
 from __future__ import annotations
 
+import os
+import sys
+import types
 import warnings
 
 
@@ -25,3 +28,28 @@ def direct_path_deprecated(name: str, replacement: str) -> None:
         AntecedentDeprecationWarning,
         stacklevel=3,
     )
+
+
+def unbound_artifact_deprecated(name: str, replacement: str) -> None:
+    """Warn that ``name`` admitted an artifact without an identity its consumer retained.
+
+    Called through ``antecedent._retained.admit``, often under a decorator, so the warning is
+    attributed to the first frame outside the ``antecedent`` package: the caller of the loader.
+    """
+    warnings.warn(
+        f"{name} admits an artifact without the identity its consumer retained and is "
+        f"deprecated; use {replacement} instead",
+        AntecedentDeprecationWarning,
+        stacklevel=_caller_level(),
+    )
+
+
+def _caller_level() -> int:
+    """``stacklevel`` of the first frame outside this package, as seen from ``warnings.warn``."""
+    package = os.path.dirname(os.path.abspath(__file__))
+    level = 1
+    frame: types.FrameType | None = sys._getframe(1)
+    while frame is not None and os.path.abspath(frame.f_code.co_filename).startswith(package):
+        frame = frame.f_back
+        level += 1
+    return level

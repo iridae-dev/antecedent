@@ -56,7 +56,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1138,7 +1138,7 @@ class EvidenceLedger(ScientificResult):
     replayable=True,
 )
 def consume_evidence_ledger_artifact(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> ConsumedEvidenceLedger:
     """Independently consume an evidence-ledger artifact by replay and recomputation.
 
@@ -1152,6 +1152,13 @@ def consume_evidence_ledger_artifact(
             ``evidence_ledger.synthesis_mismatch`` for a stored value that does not recompute, and
             the ledger's own refusal for an operation that does not replay.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.evidence_ledger.consume_evidence_ledger_artifact",
+        "antecedent.evidence_ledger.consume_evidence_ledger_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")

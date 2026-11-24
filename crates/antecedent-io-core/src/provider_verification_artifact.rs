@@ -316,6 +316,25 @@ pub fn receipt_from_bytes(
     receipt_from_bytes_within(bytes, expected_digest, MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES)
 }
 
+/// As [`receipt_from_bytes`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`receipt_from_bytes`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn receipt_from_bytes_expecting(
+    bytes: &[u8],
+    expected_digest: &str,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<ProviderVerificationReceipt, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+        receipt_from_bytes(bytes, expected_digest)
+    })
+}
+
 /// [`receipt_from_bytes`] under the caller's byte bound instead of
 /// [`MAX_PROVIDER_VERIFICATION_ARTIFACT_BYTES`].
 ///
@@ -347,6 +366,26 @@ pub fn receipt_from_bytes_within(
         });
     }
     wire.into_receipt()
+}
+
+/// As [`receipt_from_bytes_within`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`receipt_from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn receipt_from_bytes_within_expecting(
+    bytes: &[u8],
+    expected_digest: &str,
+    max_bytes: usize,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<ProviderVerificationReceipt, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+        receipt_from_bytes_within(bytes, expected_digest, max_bytes)
+    })
 }
 
 #[cfg(test)]
@@ -415,5 +454,36 @@ mod tests {
         let mut digest_only = ProviderVerificationReceiptWire::from(&receipt);
         digest_only.evidence_origin = Some("someone-else".into());
         assert!(digest_only.into_receipt().is_err(), "digest no longer matches the content");
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn provider_verification_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // receipt_from_bytes_expecting
+        assert_eq!(
+            format!("{:?}", receipt_from_bytes_expecting(bytes, "", &retained).err()),
+            format!("{:?}", receipt_from_bytes(bytes, "").err()),
+        );
+        let refused = format!("{:?}", receipt_from_bytes_expecting(bytes, "", &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // receipt_from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                receipt_from_bytes_within_expecting(bytes, "", 1 << 20, &retained).err()
+            ),
+            format!("{:?}", receipt_from_bytes_within(bytes, "", 1 << 20).err()),
+        );
+        let refused =
+            format!("{:?}", receipt_from_bytes_within_expecting(bytes, "", 1 << 20, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

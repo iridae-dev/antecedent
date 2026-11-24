@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from . import _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ArtifactExpectation,
@@ -33,6 +34,7 @@ from ._native import (
 from ._native import (
     encode_causal_artifact as _encode_causal_artifact,
 )
+from ._retained import artifact_identity
 from ._scientific import ScientificResult
 from .joint_distribution import (
     DistributionIdentity,
@@ -105,7 +107,7 @@ def dumps(
     )
 
 
-def loads(data: bytes) -> CausalArtifact:
+def loads(data: bytes, *, retained_identity: str | None = None) -> CausalArtifact:
     """Decode and migrate a causal query/result artifact to the stable format.
 
     Also reads the two external-execution frames, as ``provider_result`` (a
@@ -116,6 +118,12 @@ def loads(data: bytes) -> CausalArtifact:
     believed only through the registry that holds its verification receipt.
     """
 
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.artifacts.loads",
+        "antecedent.artifacts.loads(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     data = container_bytes(data)
     decoded = _decode_causal_artifact(data)
     payload = json.loads(decoded.payload_json)
@@ -137,7 +145,9 @@ def loads(data: bytes) -> CausalArtifact:
     )
 
 
-def accept(data: bytes, *, replay: bool = False) -> dict[str, str]:
+def accept(
+    data: bytes, *, replay: bool = False, retained_identity: str | None = None
+) -> dict[str, str]:
     """Load an ``analysis_result`` contract from bytes alone and check it is intact.
 
     Nothing is recomputed unless ``replay`` is true, which is for a result that did not come
@@ -145,6 +155,12 @@ def accept(data: bytes, *, replay: bool = False) -> dict[str, str]:
     ``replayed``, ``not_replayable`` and ``mismatches``.
     """
 
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.artifacts.accept",
+        "antecedent.artifacts.accept(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     data = container_bytes(data)
     return dict(_accept_analysis_result_contract(data, replay))
 
@@ -165,6 +181,7 @@ __all__ = [
     "QuantityCondition",
     "ScientificQuantity",
     "accept",
+    "artifact_identity",
     "dumps",
     "loads",
 ]

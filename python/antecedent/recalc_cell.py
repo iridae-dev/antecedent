@@ -49,7 +49,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -242,7 +242,13 @@ class FrozenScores:
         return artifact_from_receipt(self, self._bytes)
 
     @classmethod
-    def load(cls, data: bytes, *, expected_identity: str | None = None) -> FrozenScores:
+    def load(
+        cls,
+        data: bytes,
+        *,
+        expected_identity: str | None = None,
+        retained_identity: str | None = None,
+    ) -> FrozenScores:
         """Validate artifact bytes by recomputation and return them as :class:`FrozenScores`.
 
         Raises:
@@ -250,6 +256,13 @@ class FrozenScores:
             CausalSerializationError: the bytes are corrupt, oversized, malformed or of an
                 unsupported version.
         """
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.recalc_cell.FrozenScores.load",
+            "antecedent.recalc_cell.FrozenScores.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_identity is not None,
+        )
         data = (
             container_bytes(data)
             if isinstance(data, (bytes, bytearray, memoryview, ExportedArtifact))

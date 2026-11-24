@@ -600,6 +600,20 @@ impl RecoveryArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(&self, limits: &RecoveryConsumeLimits) -> Result<(), RecoveryArtifactError> {
         let exceeded = RecoveryArtifactError::LimitsExceeded;
         let receipt = &self.derivation.receipt;
@@ -639,6 +653,24 @@ impl RecoveryArtifactWire {
         ctx: &ExecutionContext,
     ) -> Result<ConsumedRecovery, IoError> {
         Self::consume_typed(bytes, limits, ctx).map_err(IoError::from)
+    }
+
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: RecoveryConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedRecovery, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
     }
 
     /// [`Self::consume_with_limits`] with the typed refusal kind, for callers and
@@ -730,5 +762,40 @@ impl RecoveryArtifactWire {
             effects.push(point);
         }
         Ok(ConsumedRecovery { derivation, recovered, effects, wire })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn recovery_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            RecoveryArtifactWire::consume_with_limits(
+                support::BYTES,
+                RecoveryConsumeLimits::default(),
+                &ctx,
+            ),
+            RecoveryArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                RecoveryConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            RecoveryArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                RecoveryConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            RecoveryArtifactWire::decode(support::BYTES),
+            RecoveryArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            RecoveryArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

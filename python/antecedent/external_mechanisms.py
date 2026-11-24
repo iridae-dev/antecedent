@@ -30,7 +30,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypedDict, Unpack
 
-from . import _deprecation, _native
+from . import _deprecation, _native, _retained
 from .errors import CausalValueError
 
 __all__ = [
@@ -511,23 +511,47 @@ class ExternalFeedbackModel:
         return ExternalArtifact(bytes(data), report["identity"], report)
 
 
-def consume_artifact(data: bytes, identity: str, *, resolver: Any = None) -> dict[str, Any]:
+def consume_artifact(
+    data: bytes, identity: str, *, resolver: Any = None, retained_identity: str | None = None
+) -> dict[str, Any]:
     """Independently replay an artifact against the identity its producer retained.
 
     ``resolver`` is the caller's trusted resolver. Without it, without the recorded
     implementation, or with a changed one, replay is refused (see the module docstring).
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.external_mechanisms.consume_artifact",
+        "antecedent.external_mechanisms.consume_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     return json.loads(_native.external_consume(bytes(data), identity, _resolver(resolver)))
 
 
-def load_artifact(data: bytes, *, expected_identity: str, resolver: Any = None) -> dict[str, Any]:
+def load_artifact(
+    data: bytes,
+    *,
+    expected_identity: str,
+    resolver: Any = None,
+    retained_identity: str | None = None,
+) -> dict[str, Any]:
     """Generic-loader entry point. A resolver is required: without one it is refused.
 
     ``antecedent.artifacts`` loads by container kind and passes no resolver, so loading an
     external-mechanism artifact that way raises ``mechanism_resolver_missing`` (when it names an
     external mechanism); pass the resolver to :func:`consume_artifact` instead.
     """
-    return consume_artifact(data, expected_identity, resolver=resolver)
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.external_mechanisms.load_artifact",
+        "antecedent.external_mechanisms.load_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
+    return consume_artifact(
+        data, expected_identity, resolver=resolver, retained_identity=_retained.ADMITTED
+    )
 
 
 def inspect_artifact(data: bytes) -> dict[str, Any]:

@@ -51,7 +51,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
-from . import _deprecation
+from . import _deprecation, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -610,6 +610,7 @@ class CohortDecisionSource(ScientificResult):
         outcome_units: str | None = None,
         contrast: str | None = None,
         cohort_digest: str | None = None,
+        retained_identity: str | None = None,
     ) -> CohortDecisionSource:
         """Independently replay ``artifact`` under what the consumer retained.
 
@@ -618,6 +619,13 @@ class CohortDecisionSource(ScientificResult):
         coefficient, unit, population or parent (even when the container was resealed) and for
         any retained expectation that differs.
         """
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.cohort_decision.CohortDecisionSource.consume",
+            "antecedent.cohort_decision.CohortDecisionSource.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         artifact = container_bytes(artifact)
         return consume_cohort_decision_source(
             artifact,
@@ -627,6 +635,7 @@ class CohortDecisionSource(ScientificResult):
             outcome_units=outcome_units,
             contrast=contrast,
             cohort_digest=cohort_digest,
+            retained_identity=_retained.ADMITTED,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -839,9 +848,17 @@ def consume_cohort_decision_source(
     outcome_units: str | None = None,
     contrast: str | None = None,
     cohort_digest: str | None = None,
+    retained_identity: str | None = None,
 ) -> CohortDecisionSource:
     """Replay an exported cohort decision source under the retained identity (see
     :meth:`CohortDecisionSource.consume`)."""
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.cohort_decision.consume_cohort_decision_source",
+        "antecedent.cohort_decision.consume_cohort_decision_source(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes | bytearray | memoryview):
         raise CausalTypeError("artifact must be bytes")

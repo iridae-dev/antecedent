@@ -546,6 +546,24 @@ impl CompositionBundle {
         Ok(bundle)
     }
 
+    /// [`Self::from_bytes`], admitting only the bundle the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: &str,
+        limits: &BundleLimits,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, BundleError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity, limits)
+        })
+    }
+
     /// Build a bundle from nodes and dependencies `(upstream, dependent)`. Node
     /// and edge declaration order does not affect the identity.
     ///
@@ -1344,6 +1362,26 @@ impl BundleConsumer {
         Ok(ConsumedBundle { identity, nodes, edges: derived.edges, replayed })
     }
 
+    /// [`Self::consume`], admitting only the bundle the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        &self,
+        bytes: &[u8],
+        limits: &BundleLimits,
+        expected_identity: &str,
+        supplied: &SuppliedSources,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedBundle, BundleError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            self.consume(bytes, limits, expected_identity, supplied)
+        })
+    }
+
     fn evaluate(
         &self,
         nodes: &[BundleNode],
@@ -1503,5 +1541,42 @@ mod replay_receipt_tests {
         assert!(!refused.all_verified());
         assert!(!refused.all_replayed());
         assert_eq!(calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn composition_bundle_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+        let calls = Arc::new(AtomicUsize::new(0));
+        let consumer =
+            BundleConsumer::new().register(Box::new(EmbeddedVerifier(Arc::clone(&calls))));
+        let limits = BundleLimits::default();
+        let supplied = SuppliedSources::default();
+        let original = bundle(b"verified embedded", false);
+        let bytes = original.to_bytes("receipt", &limits).unwrap();
+        let retained = antecedent_io_core::RetainedArtifactIdentity::of_bytes(&bytes);
+        let identity = original.identity();
+
+        let bound = CompositionBundle::from_bytes_expecting(&bytes, identity, &limits, &retained);
+        same_outcome(&CompositionBundle::from_bytes(&bytes, identity, &limits), &bound);
+        assert_eq!(bound.unwrap().identity(), identity);
+        refused_as_not_retained(&CompositionBundle::from_bytes_expecting(
+            &bytes,
+            identity,
+            &limits,
+            &other_artifact(),
+        ));
+
+        let bound = consumer.consume_expecting(&bytes, &limits, identity, &supplied, &retained);
+        same_outcome(&consumer.consume(&bytes, &limits, identity, &supplied), &bound);
+        assert!(bound.unwrap().all_verified());
+        let before = calls.load(Ordering::Relaxed);
+        refused_as_not_retained(&consumer.consume_expecting(
+            &bytes,
+            &limits,
+            identity,
+            &supplied,
+            &other_artifact(),
+        ));
+        assert_eq!(calls.load(Ordering::Relaxed), before, "refused bytes reached a verifier");
     }
 }

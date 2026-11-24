@@ -237,6 +237,18 @@ impl LawFunctionalArtifact {
     pub fn consume(bytes: &[u8]) -> Result<Self, IoError> {
         Self::consume_expected(bytes, None)
     }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    /// # Errors
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::consume)
+    }
     /// Require an independently retained complete source-and-request identity before replay.
     /// # Errors
     /// Any original refusal or changed complete request identity.
@@ -280,5 +292,51 @@ impl LawFunctionalArtifact {
             ));
         }
         Ok(result)
+    }
+
+    /// [`Self::consume_expected`], admitting only the artifact the consumer retained: the
+    /// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they
+    /// are read.
+    /// # Errors
+    /// As [`Self::consume_expected`], and `external_binding_mismatch` when the bytes are not
+    /// the retained artifact.
+    pub fn consume_expected_retained(
+        bytes: &[u8],
+        expected: Option<&str>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_expected(bytes, expected)
+        })
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::LawFunctionalArtifact;
+    use crate::retained_test_support::{other_artifact, refused_as_not_retained, same_outcome};
+    use antecedent_io_core::RetainedArtifactIdentity;
+
+    #[test]
+    fn functional_source_expecting_binds_the_retained_bytes() {
+        let bytes = b"not an artifact".to_vec();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        same_outcome(
+            &LawFunctionalArtifact::consume(&bytes),
+            &LawFunctionalArtifact::consume_expecting(&bytes, &retained),
+        );
+        refused_as_not_retained(&LawFunctionalArtifact::consume_expecting(
+            &bytes,
+            &other_artifact(),
+        ));
+        same_outcome(
+            &LawFunctionalArtifact::consume_expected(&bytes, None),
+            &LawFunctionalArtifact::consume_expected_retained(&bytes, None, &retained),
+        );
+        refused_as_not_retained(&LawFunctionalArtifact::consume_expected_retained(
+            &bytes,
+            None,
+            &other_artifact(),
+        ));
     }
 }

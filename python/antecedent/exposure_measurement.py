@@ -71,7 +71,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _native, _reason_details
+from . import _native, _reason_details, _retained
 from ._artifact_protocol import container_bytes
 from ._refusal import raise_refusal
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
@@ -286,13 +286,24 @@ class ExposureDraws:
 
 
 def consume_exposure_draws(
-    data: Any, *, variable: str, expected_declaration_identity: str | None = None
+    data: Any,
+    *,
+    variable: str,
+    expected_declaration_identity: str | None = None,
+    retained_identity: str | None = None,
 ) -> ExposureDraws:
     """Read exposure draws back from the posterior artifact :meth:`ExposureDraws.export` wrote.
 
     Refuses an artifact that does not hold ``variable`` or whose declaration identity differs
     from ``expected_declaration_identity`` (retained out of band).
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.exposure_measurement.consume_exposure_draws",
+        "antecedent.exposure_measurement.consume_exposure_draws(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_declaration_identity is not None,
+    )
     _name(variable, "variable")
     try:
         text = _native.measured_exposure_consume(

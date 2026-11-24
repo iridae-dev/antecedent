@@ -545,6 +545,22 @@ pub fn decode_prior_source_meta(bytes: &[u8]) -> Result<PriorSourceMeta, IoError
     from_cbor(bytes)
 }
 
+/// As [`decode_prior_source_meta`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`decode_prior_source_meta`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn decode_prior_source_meta_expecting(
+    bytes: &[u8],
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<PriorSourceMeta, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, decode_prior_source_meta)
+}
+
 /// Attach (or replace) a `prior_source.meta` section on an encoded posterior artifact.
 ///
 /// # Errors
@@ -1290,5 +1306,25 @@ mod tests {
         let chosen =
             catalog.require_usable(&TargetDesign::new(ate_estimand(), ["t", "y"])).unwrap();
         assert_eq!(chosen.meta.estimand, ate_estimand());
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn prior_bank_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // decode_prior_source_meta_expecting
+        assert_eq!(
+            format!("{:?}", decode_prior_source_meta_expecting(bytes, &retained).err()),
+            format!("{:?}", decode_prior_source_meta(bytes).err()),
+        );
+        let refused = format!("{:?}", decode_prior_source_meta_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

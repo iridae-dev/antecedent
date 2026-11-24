@@ -168,6 +168,36 @@ kind = "bound"
 runner = "lean"
 test = "Antecedent.Generated"
 
+[[cases]]
+id = "acceptance.retained_artifact_admitted"
+kind = "preserving"
+runner = "rust"
+test = "retained_bytes_are_admitted"
+
+[[cases]]
+id = "acceptance.unretained_artifact_refused_unread"
+kind = "invalid"
+runner = "rust"
+test = "other_bytes_are_refused_unread"
+
+[[cases]]
+id = "acceptance.loaders_bind_the_retained_bytes"
+kind = "invalid"
+runner = "rust"
+test = "production_loaders_bind_the_retained_bytes"
+
+[[cases]]
+id = "acceptance.artifact_slot_binds_only_retained_digest"
+kind = "bound"
+runner = "kani"
+test = "artifact_binds_only_the_retained_digest"
+
+[[cases]]
+id = "acceptance.loader_runs_only_after_binding"
+kind = "bound"
+runner = "kani"
+test = "loader_runs_only_after_binding"
+
 # Deliberately introduced defects. Each must be caught by at least one named case.
 
 [[mutations]]
@@ -230,3 +260,31 @@ new = """    pub const fn claim(claim_id: SemanticDigest) -> Self {
         Self {
             payload: UNUSED_FACET,"""
 caught_by = ["acceptance.claim_slot_binds_only_retained_id"]
+
+[[mutations]]
+id = "load_expecting_skips_binding"
+file = "crates/antecedent-io-core/src/retained_artifact.rs"
+old = "    bind_retained_artifact(bytes, retained).map_err(E::from)?;"
+new = "    let _ = retained;"
+caught_by = [
+    "acceptance.unretained_artifact_refused_unread",
+    "acceptance.loaders_bind_the_retained_bytes",
+    "acceptance.loader_runs_only_after_binding",
+]
+
+[[mutations]]
+id = "artifact_binding_ignores_retained_digest"
+file = "crates/antecedent-io-core/src/retained_artifact.rs"
+old = "    let expected = ExpectedIdentity::artifact(retained.digest);"
+new = "    let expected = ExpectedIdentity::artifact(presented);"
+caught_by = [
+    "acceptance.unretained_artifact_refused_unread",
+    "acceptance.artifact_slot_binds_only_retained_digest",
+]
+
+[[mutations]]
+id = "loader_bound_form_reads_unbound"
+file = "crates/antecedent-io-core/src/staleness_artifact.rs"
+old = "        crate::retained_artifact::load_expecting(bytes, retained, Self::consume)"
+new = "        {\n            let _ = retained;\n            Self::consume(bytes)\n        }"
+caught_by = ["acceptance.loaders_bind_the_retained_bytes"]

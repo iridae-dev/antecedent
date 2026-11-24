@@ -47,7 +47,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -902,12 +902,19 @@ class ConsumedInterfaceContract(ScientificResult):
     replayable=False,
 )
 def consume_interface_contract_artifact(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> ConsumedInterfaceContract:
     """Rebuild and re-validate a contract and recompute both identities.
 
     ``expected_identity`` is an artifact identity retained independently of the bytes.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.interface_contract.consume_interface_contract_artifact",
+        "antecedent.interface_contract.consume_interface_contract_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     wire, refusal = _native.interface_contract_consume(bytes(artifact), expected_identity)
     _raise(refusal)

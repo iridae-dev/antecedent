@@ -245,12 +245,49 @@ pub fn open_provider_envelope(bytes: &[u8]) -> Result<ProviderEnvelope, String> 
     open_provider_envelope_within(bytes, &ProviderEnvelopeLimits::default())
 }
 
+/// As [`open_provider_envelope`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`open_provider_envelope`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn open_provider_envelope_expecting(
+    bytes: &[u8],
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<ProviderEnvelope, String> {
+    crate::retained_artifact::bind_retained_artifact(bytes, retained)
+        .map_err(|error| error.to_string())?;
+    open_provider_envelope(bytes)
+}
+
 /// [`open_provider_envelope`] under the caller's bounds.
 pub fn open_provider_envelope_within(
     bytes: &[u8],
     limits: &ProviderEnvelopeLimits,
 ) -> Result<ProviderEnvelope, String> {
     decode_provider_envelope(bytes, Expectation::Attested, limits)
+}
+
+/// As [`open_provider_envelope_within`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`open_provider_envelope_within`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn open_provider_envelope_within_expecting(
+    bytes: &[u8],
+    limits: &ProviderEnvelopeLimits,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<ProviderEnvelope, String> {
+    crate::retained_artifact::bind_retained_artifact(bytes, retained)
+        .map_err(|error| error.to_string())?;
+    open_provider_envelope_within(bytes, limits)
 }
 
 /// Decode a verified result only when its spec, request, and evidence digests
@@ -269,6 +306,32 @@ pub fn open_verified_provider_envelope(
             expected_evidence_digest,
         ),
         &ProviderEnvelopeLimits::default(),
+    )
+}
+
+/// As [`open_verified_provider_envelope`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`open_verified_provider_envelope`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn open_verified_provider_envelope_expecting(
+    bytes: &[u8],
+    expected_spec_digest: &str,
+    expected_request_digest: &str,
+    expected_evidence_digest: &str,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<ProviderEnvelope, String> {
+    crate::retained_artifact::bind_retained_artifact(bytes, retained)
+        .map_err(|error| error.to_string())?;
+    open_verified_provider_envelope(
+        bytes,
+        expected_spec_digest,
+        expected_request_digest,
+        expected_evidence_digest,
     )
 }
 
@@ -507,5 +570,64 @@ mod tests {
             open_verified_provider_envelope(&bytes, &"a".repeat(64), &"b".repeat(64), &evidence)
                 .unwrap();
         assert_eq!(opened, inspected);
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn provider_envelope_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // open_provider_envelope_expecting
+        assert_eq!(
+            format!("{:?}", open_provider_envelope_expecting(bytes, &retained).err()),
+            format!("{:?}", open_provider_envelope(bytes).err()),
+        );
+        let refused = format!("{:?}", open_provider_envelope_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // open_provider_envelope_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                open_provider_envelope_within_expecting(
+                    bytes,
+                    &ProviderEnvelopeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                open_provider_envelope_within(bytes, &ProviderEnvelopeLimits::default()).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            open_provider_envelope_within_expecting(
+                bytes,
+                &ProviderEnvelopeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // open_verified_provider_envelope_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                open_verified_provider_envelope_expecting(bytes, "", "", "", &retained).err()
+            ),
+            format!("{:?}", open_verified_provider_envelope(bytes, "", "", "").err()),
+        );
+        let refused = format!(
+            "{:?}",
+            open_verified_provider_envelope_expecting(bytes, "", "", "", &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

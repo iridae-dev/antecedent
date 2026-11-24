@@ -913,6 +913,24 @@ impl AdaptiveInferenceResultArtifact {
         check(&decode_meta(bytes)?, expected_identity, ctx)
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity, ctx)
+        })
+    }
+
     /// Validate metadata as a consumer would, for tests that reseal edits.
     ///
     /// # Errors
@@ -939,5 +957,31 @@ impl AdaptiveInferenceResultArtifact {
     #[doc(hidden)]
     pub fn decode_unchecked(bytes: &[u8]) -> Result<AdaptiveResultMeta, Error> {
         decode_meta(bytes)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn adaptive_inference_result_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            AdaptiveInferenceResultArtifact::from_bytes(support::BYTES, None, &ctx),
+            AdaptiveInferenceResultArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            AdaptiveInferenceResultArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

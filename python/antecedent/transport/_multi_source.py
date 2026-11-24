@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
@@ -192,6 +193,7 @@ def consume_multi_source_z_transport_artifact(
     max_laws: int | None = None,
     max_law_cells: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently verify an exported multi-source result and recompute its point.
 
@@ -206,6 +208,12 @@ def consume_multi_source_z_transport_artifact(
     carries an interval is refused with ``not_supported`` while the interval
     route is not supported. Nothing the artifact recorded raises the consumer's limits.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._multi_source.consume_multi_source_z_transport_artifact",
+        "antecedent.transport._multi_source.consume_multi_source_z_transport_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

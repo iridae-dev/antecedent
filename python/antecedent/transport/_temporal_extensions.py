@@ -36,7 +36,7 @@ from typing import Any, Literal, cast
 
 from antecedent import _reason_details
 
-from .. import _deprecation
+from .. import _deprecation, _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -664,8 +664,17 @@ class TemporalIntervalCandidate(ScientificResult):
         resumable=False,
         identity=("expected_identity",),
     )
-    def load(cls, artifact: bytes, *, expected_identity: str) -> TemporalIntervalCandidate:
+    def load(
+        cls, artifact: bytes, *, expected_identity: str, retained_identity: str | None = None
+    ) -> TemporalIntervalCandidate:
         """Recompute every original replicate in a fresh internal consumer."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.transport._temporal_extensions.TemporalIntervalCandidate.load",
+            "antecedent.transport._temporal_extensions.TemporalIntervalCandidate.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         artifact = container_bytes(artifact)
         from .. import _native
 
@@ -842,6 +851,7 @@ def consume_temporal_initial_state_artifact(
     *,
     max_summary_rows: int = 1_000_000,
     max_units: int = 100_000,
+    retained_identity: str | None = None,
 ) -> ConsumedInitialState:
     """Independently replay an exported initial-state artifact.
 
@@ -851,6 +861,12 @@ def consume_temporal_initial_state_artifact(
     and values must match bit for bit, so a changed population, snapshot or law is refused
     even when the artifact is resealed.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._temporal_extensions.consume_temporal_initial_state_artifact",
+        "antecedent.transport._temporal_extensions.consume_temporal_initial_state_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
@@ -906,6 +922,7 @@ def consume_temporal_refresh_artifact(
     *,
     max_summary_rows: int = 1_000_000,
     max_units: int = 100_000,
+    retained_identity: str | None = None,
 ) -> ConsumedRefresh:
     """Independently re-decide and replay an exported refresh artifact.
 
@@ -915,6 +932,12 @@ def consume_temporal_refresh_artifact(
     whose refreshed result carries an interval refuses as
     ``temporal_refresh.stale_interval``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._temporal_extensions.consume_temporal_refresh_artifact",
+        "antecedent.transport._temporal_extensions.consume_temporal_refresh_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

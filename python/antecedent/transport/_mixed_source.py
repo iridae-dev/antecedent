@@ -21,6 +21,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import consume_mixed_source_artifact as _consume_mixed_source_artifact
@@ -143,6 +144,7 @@ def consume_mixed_source_artifact(
     max_laws: int | None = None,
     max_law_cells: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently verify an exported mixed-source result and recompute its point.
 
@@ -155,6 +157,12 @@ def consume_mixed_source_artifact(
     snapshot ids by the data-identity digest; relabelled names or any other edit
     is refused. Nothing the artifact recorded raises the consumer's limits.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._mixed_source.consume_mixed_source_artifact",
+        "antecedent.transport._mixed_source.consume_mixed_source_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

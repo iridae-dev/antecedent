@@ -76,7 +76,7 @@ from typing import Any
 
 import numpy as np
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1350,6 +1350,7 @@ def consume_mechanism_composition_artifact(
     expected_identity: str | None = None,
     *,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedComposition:
     """Independently consume a composition artifact.
 
@@ -1364,6 +1365,13 @@ def consume_mechanism_composition_artifact(
             compose, and ``mechanism_composition.artifact_invalid`` for corrupt or unsupported
             bytes.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.mechanism_composition.consume_mechanism_composition_artifact",
+        "antecedent.mechanism_composition.consume_mechanism_composition_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     execution = resolve_execution(execution)
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):

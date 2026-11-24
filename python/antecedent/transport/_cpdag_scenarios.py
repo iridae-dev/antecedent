@@ -47,6 +47,7 @@ from typing import Any, Final
 
 from antecedent import _reason_details
 
+from .. import _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -529,6 +530,7 @@ def consume_cpdag_scenarios_artifact(
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CpdagScenarioResult:
     """Independently replay an exported completion report.
 
@@ -539,6 +541,12 @@ def consume_cpdag_scenarios_artifact(
     snapshot, evidence binding or CPDAG is refused even when the digests were
     re-sealed.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._cpdag_scenarios.consume_cpdag_scenarios_artifact",
+        "antecedent.transport._cpdag_scenarios.consume_cpdag_scenarios_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
@@ -910,6 +918,7 @@ def consume_scenario_covariance_artifact(
     max_replicates: int = 2000,
     max_compositions: int = 4_000_000,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ScenarioCovarianceResult:
     """Independently recompute an exported covariance.
 
@@ -919,6 +928,12 @@ def consume_scenario_covariance_artifact(
     re-sealed, and a scenario declared on a different snapshot refuses with
     ``scenario_covariance.unknown_dependence``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._cpdag_scenarios.consume_scenario_covariance_artifact",
+        "antecedent.transport._cpdag_scenarios.consume_scenario_covariance_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

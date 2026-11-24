@@ -905,6 +905,20 @@ impl SampledCounterfactualTransportArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, Error> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Recompute both digests and compare with the stored ones and the identity
     /// the caller holds.
     ///
@@ -1134,6 +1148,26 @@ pub fn consume_sampled_counterfactual_transport_with_limits(
     Ok(ConsumedSampledCounterfactualTransport { derivation, request, estimate, wire })
 }
 
+/// [`consume_sampled_counterfactual_transport_with_limits`], admitting only the artifact the
+/// consumer retained: the bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`])
+/// before they are read.
+///
+/// # Errors
+///
+/// As [`consume_sampled_counterfactual_transport_with_limits`], and `external_binding_mismatch`
+/// when the bytes are not the retained artifact.
+pub fn consume_sampled_counterfactual_transport_with_limits_expecting(
+    bytes: &[u8],
+    expected: &SampledCounterfactualTransportExpectedIdentity,
+    limits: SampledCounterfactualTransportConsumeLimits,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ConsumedSampledCounterfactualTransport, Error> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        consume_sampled_counterfactual_transport_with_limits(bytes, expected, limits, ctx)
+    })
+}
+
 /// [`consume_sampled_counterfactual_transport_with_limits`] as the io error a
 /// facade returns.
 ///
@@ -1151,6 +1185,26 @@ pub fn consume_sampled_counterfactual_transport(
             IoError::Refused { code, message }
         },
     )
+}
+
+/// [`consume_sampled_counterfactual_transport`], admitting only the artifact the consumer retained:
+/// the bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are
+/// read.
+///
+/// # Errors
+///
+/// As [`consume_sampled_counterfactual_transport`], and `external_binding_mismatch` when the bytes
+/// are not the retained artifact.
+pub fn consume_sampled_counterfactual_transport_expecting(
+    bytes: &[u8],
+    expected: &SampledCounterfactualTransportExpectedIdentity,
+    limits: SampledCounterfactualTransportConsumeLimits,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ConsumedSampledCounterfactualTransport, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        consume_sampled_counterfactual_transport(bytes, expected, limits, ctx)
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -1254,6 +1308,25 @@ impl SampledCounterfactualTransportArtifactWire {
         crate::measured_inference::compare_replay(&wire, &measured)?;
         Ok(measured)
     }
+
+    /// [`Self::consume_measured`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_measured`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_measured_expecting(
+        bytes: &[u8],
+        expected: &crate::measured_inference::MeasuredExpectation,
+        limits: SampledCounterfactualTransportConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<crate::measured_inference::MeasuredInference, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_measured(bytes, expected, limits, ctx)
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1299,4 +1372,92 @@ pub fn overlap_declaration_from_ledger(
         }
     }
     Ok(declaration)
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn sampled_counterfactual_transport_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            SampledCounterfactualTransportArtifactWire::consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+            ),
+            SampledCounterfactualTransportArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            SampledCounterfactualTransportArtifactWire::consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            consume_sampled_counterfactual_transport(
+                support::BYTES,
+                &SampledCounterfactualTransportExpectedIdentity::default(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+            ),
+            consume_sampled_counterfactual_transport_expecting(
+                support::BYTES,
+                &SampledCounterfactualTransportExpectedIdentity::default(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            consume_sampled_counterfactual_transport_expecting(
+                support::BYTES,
+                &SampledCounterfactualTransportExpectedIdentity::default(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            consume_sampled_counterfactual_transport_with_limits(
+                support::BYTES,
+                &SampledCounterfactualTransportExpectedIdentity::default(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+            ),
+            consume_sampled_counterfactual_transport_with_limits_expecting(
+                support::BYTES,
+                &SampledCounterfactualTransportExpectedIdentity::default(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            consume_sampled_counterfactual_transport_with_limits_expecting(
+                support::BYTES,
+                &SampledCounterfactualTransportExpectedIdentity::default(),
+                SampledCounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            SampledCounterfactualTransportArtifactWire::decode(support::BYTES),
+            SampledCounterfactualTransportArtifactWire::decode_expecting(
+                support::BYTES,
+                &support::matching(),
+            ),
+            SampledCounterfactualTransportArtifactWire::decode_expecting(
+                support::BYTES,
+                &support::other(),
+            ),
+        );
+    }
 }

@@ -1130,6 +1130,25 @@ impl ScientificBridgeArtifact {
         Self::from_bytes_within(bytes, expected_identity, MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES)
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound instead of
     /// [`MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES`].
     ///
@@ -1147,6 +1166,26 @@ impl ScientificBridgeArtifact {
             ));
         }
         check(&meta, expected_identity)
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected_identity, max_bytes)
+        })
     }
 
     /// The replayed bridged claim.
@@ -1353,6 +1392,25 @@ impl ScientificBridgeDrawsArtifact {
         )
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound instead of
     /// [`MAX_SCIENTIFIC_BRIDGE_ARTIFACT_BYTES`], with the embedded source draw table
     /// held to `draws_limits` instead of the `MAX_DISTRIBUTION_*` defaults.
@@ -1372,6 +1430,27 @@ impl ScientificBridgeDrawsArtifact {
             ));
         };
         check_draws(&meta, &source_draws, expected_identity, draws_limits)
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+        draws_limits: &DistributionIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected_identity, max_bytes, draws_limits)
+        })
     }
 
     /// The replayed bridged distribution.
@@ -1442,6 +1521,25 @@ impl ScientificBridgeAny {
         )
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's byte bound and, for a bridge of draws, the
     /// caller's bounds on the embedded source table.
     ///
@@ -1460,6 +1558,27 @@ impl ScientificBridgeAny {
                 check_draws(&meta, &source_draws, expected_identity, draws_limits).map(Self::Draws)
             }
         }
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        max_bytes: usize,
+        draws_limits: &DistributionIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, ScientificBridgeArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected_identity, max_bytes, draws_limits)
+        })
     }
 
     /// Which shape the container has, `point` or `draws`, without replaying it.
@@ -1624,3 +1743,148 @@ impl FullBridgeContractWire {
 #[cfg(test)]
 #[path = "bridge_artifact_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn bridge_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // ScientificBridgeArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ScientificBridgeArtifact::from_bytes_expecting(bytes, None, &retained).err()
+            ),
+            format!("{:?}", ScientificBridgeArtifact::from_bytes(bytes, None).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            ScientificBridgeArtifact::from_bytes_expecting(bytes, None, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ScientificBridgeArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ScientificBridgeArtifact::from_bytes_within_expecting(
+                    bytes,
+                    None,
+                    1 << 20,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ScientificBridgeArtifact::from_bytes_within(bytes, None, 1 << 20).err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ScientificBridgeArtifact::from_bytes_within_expecting(bytes, None, 1 << 20, &other)
+                .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ScientificBridgeDrawsArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ScientificBridgeDrawsArtifact::from_bytes_expecting(bytes, None, &retained).err()
+            ),
+            format!("{:?}", ScientificBridgeDrawsArtifact::from_bytes(bytes, None).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            ScientificBridgeDrawsArtifact::from_bytes_expecting(bytes, None, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ScientificBridgeDrawsArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ScientificBridgeDrawsArtifact::from_bytes_within_expecting(
+                    bytes,
+                    None,
+                    1 << 20,
+                    &DistributionIntakeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ScientificBridgeDrawsArtifact::from_bytes_within(
+                    bytes,
+                    None,
+                    1 << 20,
+                    &DistributionIntakeLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ScientificBridgeDrawsArtifact::from_bytes_within_expecting(
+                bytes,
+                None,
+                1 << 20,
+                &DistributionIntakeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ScientificBridgeAny::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ScientificBridgeAny::from_bytes_expecting(bytes, None, &retained).err()
+            ),
+            format!("{:?}", ScientificBridgeAny::from_bytes(bytes, None).err()),
+        );
+        let refused =
+            format!("{:?}", ScientificBridgeAny::from_bytes_expecting(bytes, None, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // ScientificBridgeAny::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                ScientificBridgeAny::from_bytes_within_expecting(
+                    bytes,
+                    None,
+                    1 << 20,
+                    &DistributionIntakeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                ScientificBridgeAny::from_bytes_within(
+                    bytes,
+                    None,
+                    1 << 20,
+                    &DistributionIntakeLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            ScientificBridgeAny::from_bytes_within_expecting(
+                bytes,
+                None,
+                1 << 20,
+                &DistributionIntakeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    }
+}

@@ -653,6 +653,20 @@ impl RecoveryChainArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Decode and recheck everything, then recompute the recovered law or re-verify
     /// the witness. No external provider is accessed.
     ///
@@ -660,6 +674,21 @@ impl RecoveryChainArtifactWire {
     /// Any reconstruction failure, with the reason code and `recovery_chain.*` detail.
     pub fn consume(bytes: &[u8], ctx: &ExecutionContext) -> Result<ConsumedRecoveryChain, IoError> {
         Self::consume_typed(bytes, ctx).map_err(IoError::from)
+    }
+
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedRecoveryChain, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| Self::consume(bytes, ctx))
     }
 
     /// [`Self::consume`] with the typed refusal kind, for callers and tests that
@@ -707,6 +736,23 @@ impl RecoveryChainArtifactWire {
         }
     }
 
+    /// [`Self::consume_typed`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_typed`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_typed_expecting(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<ConsumedRecoveryChain, RecoveryChainArtifactError> {
+        antecedent_io_core::bind_retained_artifact(bytes, retained)
+            .map_err(|error| RecoveryChainArtifactError::Undecodable(error.to_string()))?;
+        Self::consume_typed(bytes, ctx)
+    }
+
     fn replay_recovered(
         &self,
         plan: &ChainRecoveryPlan,
@@ -746,5 +792,43 @@ impl RecoveryChainArtifactWire {
             return Err(RecoveryChainArtifactError::DecisionMismatch("witness check"));
         }
         Ok(check)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn recovery_chain_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            RecoveryChainArtifactWire::consume(support::BYTES, &ctx),
+            RecoveryChainArtifactWire::consume_expecting(
+                support::BYTES,
+                &ctx,
+                &support::matching(),
+            ),
+            RecoveryChainArtifactWire::consume_expecting(support::BYTES, &ctx, &support::other()),
+        );
+        support::assert_binds(
+            RecoveryChainArtifactWire::consume_typed(support::BYTES, &ctx),
+            RecoveryChainArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                &ctx,
+                &support::matching(),
+            ),
+            RecoveryChainArtifactWire::consume_typed_expecting(
+                support::BYTES,
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            RecoveryChainArtifactWire::decode(support::BYTES),
+            RecoveryChainArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            RecoveryChainArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

@@ -52,7 +52,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeVar, cast
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import ArtifactExpectation, ExportedArtifact, container_bytes
 from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
@@ -360,6 +360,7 @@ def consume_premise_assessment(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> PremiseAssessment:
     """Recompile and refit an exported assessment under the program identity retained for it.
 
@@ -368,6 +369,13 @@ def consume_premise_assessment(
             premise, trial set or result.
         CausalSerializationError: the bytes are not an assessment artifact.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.bridge_transport_decision.consume_premise_assessment",
+        "antecedent.bridge_transport_decision.consume_premise_assessment(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     execution = resolve_execution(execution)
     raw = container_bytes(data)
     body = _unwrap(
@@ -825,6 +833,7 @@ def consume_bridge_transport_decision(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> BridgeTransportDecision:
     """Independently replay an exported bridge transport decision of any variant.
 
@@ -838,6 +847,13 @@ def consume_bridge_transport_decision(
             seed or child, ``schema_mismatch`` for an artifact of another kind.
         CausalSerializationError: the bytes do not decode.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.bridge_transport_decision.consume_bridge_transport_decision",
+        "antecedent.bridge_transport_decision.consume_bridge_transport_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     execution = resolve_execution(execution)
     raw = container_bytes(data)
     native = _unwrap(
@@ -1007,6 +1023,7 @@ def consume_bridge_bundle_recomputation(
     expected_bundle: str,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> BridgeBundleRecomputation:
     """Reconstruct the terminal bridge from a portable bundle artifact and replay it.
 
@@ -1018,6 +1035,13 @@ def consume_bridge_bundle_recomputation(
             mapping, source, stream or dependency.
         CausalSerializationError: the bytes do not decode.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.bridge_transport_decision.consume_bridge_bundle_recomputation",
+        "antecedent.bridge_transport_decision.consume_bridge_bundle_recomputation(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     execution = resolve_execution(execution)
     raw = container_bytes(data)
     body = _unwrap(

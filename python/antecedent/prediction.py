@@ -11,6 +11,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -73,13 +74,24 @@ class FittedEffectModel:
 
     @classmethod
     def load(
-        cls, artifact: bytes, *, expected_parent_claim: str | None = None
+        cls,
+        artifact: bytes,
+        *,
+        expected_parent_claim: str | None = None,
+        retained_identity: str | None = None,
     ) -> FittedEffectModel:
         """Load the portable fitted effect of a verified result.
 
         ``expected_parent_claim`` is the claim identity the consumer retained; a different
         claim refuses ``cohort_decision.wrong_parent_identity``.
         """
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.prediction.FittedEffectModel.load",
+            "antecedent.prediction.FittedEffectModel.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=expected_parent_claim is not None,
+        )
         artifact = container_bytes(artifact)
         from ._native import FittedEffectModel as NativeModel
 

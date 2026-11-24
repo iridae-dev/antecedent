@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
@@ -283,6 +284,7 @@ def consume_temporal_transport_artifact(
     max_support_rows: int = 1_000_000,
     max_laws: int = 256,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently replay an exported two-step sequence report.
 
@@ -291,6 +293,12 @@ def consume_temporal_transport_artifact(
     match exactly. The horizon, the ordered sequence and the variable names the
     report is read with are bound into the artifact's identity.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._temporal.consume_temporal_transport_artifact",
+        "antecedent.transport._temporal.consume_temporal_transport_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

@@ -143,6 +143,20 @@ impl SplitEffectSource {
         Ok(source)
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::from_bytes)
+    }
+
     fn validate(&self) -> Result<usize, IoError> {
         super::validate_split_header(
             self.version == FORMAT_VERSION,
@@ -613,4 +627,57 @@ pub fn consume_measured(
     let measured = measure(&wire.source, ctx)?;
     compare_replay(&wire, &measured)?;
     Ok(measured)
+}
+
+/// [`consume_measured`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_measured`], and `external_binding_mismatch` when the bytes are not the retained
+/// artifact.
+pub fn consume_measured_expecting(
+    bytes: &[u8],
+    expected: &MeasuredExpectation,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<MeasuredInference, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        consume_measured(bytes, expected, ctx)
+    })
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn split_effect_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_measured(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+            ),
+            consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+                &support::matching(),
+            ),
+            consume_measured_expecting(
+                support::BYTES,
+                &crate::retained_test_support::measured_expectation(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            SplitEffectSource::from_bytes(support::BYTES),
+            SplitEffectSource::from_bytes_expecting(support::BYTES, &support::matching()),
+            SplitEffectSource::from_bytes_expecting(support::BYTES, &support::other()),
+        );
+    }
 }

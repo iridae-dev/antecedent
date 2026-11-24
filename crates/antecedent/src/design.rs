@@ -1340,7 +1340,7 @@ pub mod proposal_receipt {
 /// Finite source-law to terminal-decision and study-ranking binding.
 pub mod rollout_artifact {
     pub use antecedent_design::rollout_artifact::{
-        MAX_ROLLOUT_BYTES, RolloutArtifact, RolloutExpectation, consume,
+        MAX_ROLLOUT_BYTES, RolloutArtifact, RolloutExpectation, consume, consume_expecting,
     };
 }
 /// Checked scientific standing carried from a compiled response into a decision.
@@ -1390,6 +1390,7 @@ pub mod structure_identification {
 /// Portable transported decision artifact (`transported_decision_v1`).
 pub mod transported_decision_artifact {
     pub use antecedent_design::transported_decision_artifact::{
-        ConsumedTransportedDecision, consume_transported_decision, export_transported_decision,
+        ConsumedTransportedDecision, consume_transported_decision,
+        consume_transported_decision_expecting, export_transported_decision,
     };
 }

@@ -197,6 +197,22 @@ pub fn reconstruct(
     Ok(decoded)
 }
 
+/// [`reconstruct`], admitting only the artifact the consumer retained: the bytes bind to `retained`
+/// ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`reconstruct`], and `external_binding_mismatch` when the bytes are not the retained
+/// artifact.
+pub fn reconstruct_expecting(
+    bytes: &[u8],
+    expected: &ExpectedMnarSource,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ReconstructedMnarSource, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| reconstruct(bytes, expected, ctx))
+}
+
 /// Decode and independently reconstruct the bounded native source, without granting authority.
 ///
 /// # Errors
@@ -275,6 +291,21 @@ pub fn decode_source(
         return Err(invalid("source or operation failed reconstruction"));
     }
     Ok(ReconstructedMnarSource { source, program, _lease: lease })
+}
+
+/// [`decode_source`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`decode_source`], and `external_binding_mismatch` when the bytes are not the retained
+/// artifact.
+pub fn decode_source_expecting(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ReconstructedMnarSource, IoError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| decode_source(bytes, ctx))
 }
 
 #[cfg(test)]
@@ -390,5 +421,40 @@ mod tests {
         let mut short = encoded.bytes().to_vec();
         short[header + 16..header + 20].copy_from_slice(&69u32.to_le_bytes());
         assert!(refusal(&short).starts_with("mnar_fixed_shift.invalid_source:"));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn mnar_candidate_source_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            decode_source(support::BYTES, &ctx),
+            decode_source_expecting(support::BYTES, &ctx, &support::matching()),
+            decode_source_expecting(support::BYTES, &ctx, &support::other()),
+        );
+        support::assert_binds(
+            reconstruct(
+                support::BYTES,
+                &ExpectedMnarSource { source: [0; 32], program: [0; 32] },
+                &ctx,
+            ),
+            reconstruct_expecting(
+                support::BYTES,
+                &ExpectedMnarSource { source: [0; 32], program: [0; 32] },
+                &ctx,
+                &support::matching(),
+            ),
+            reconstruct_expecting(
+                support::BYTES,
+                &ExpectedMnarSource { source: [0; 32], program: [0; 32] },
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

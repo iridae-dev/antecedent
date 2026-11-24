@@ -920,6 +920,23 @@ impl NonlinearMediationArtifact {
         Self::from_bytes_with(bytes, expected, None, &unbounded_context())
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&NonlinearMediationIdentity>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, NonlinearMediationArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// Consume an artifact by re-estimation within the replay budget of `ctx`.
     ///
     /// An artifact that embeds its dataset takes `data = None`. A digest-bound artifact
@@ -997,6 +1014,25 @@ impl NonlinearMediationArtifact {
         }
         Ok(Self { meta: rebuilt, request, estimate })
     }
+
+    /// [`Self::from_bytes_with`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_with_expecting(
+        bytes: &[u8],
+        expected: Option<&NonlinearMediationIdentity>,
+        data: Option<&MediationDataWire>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, NonlinearMediationArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with(bytes, expected, data, ctx)
+        })
+    }
 }
 
 /// The request of a digest-bound record: the stored declarations on the supplied dataset, once
@@ -1045,5 +1081,46 @@ mod data_section_tests {
         assert_eq!(bits(&again.mediator), bits(&data.mediator));
         assert_eq!(bits(&again.outcome), bits(&data.outcome));
         assert_eq!(bits(&again.covariates[0]), bits(&data.covariates[0]));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn nonlinear_mediation_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            NonlinearMediationArtifact::from_bytes(support::BYTES, None),
+            NonlinearMediationArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &support::matching(),
+            ),
+            NonlinearMediationArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            NonlinearMediationArtifact::from_bytes_with(support::BYTES, None, None, &ctx),
+            NonlinearMediationArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            NonlinearMediationArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

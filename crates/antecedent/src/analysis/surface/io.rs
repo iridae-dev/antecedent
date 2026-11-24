@@ -17,12 +17,14 @@ pub use antecedent_io::{
     cpdag_to_networkx_node_link, dag_from_dot, dag_from_gml, dag_from_json,
     dag_from_networkx_adjacency, dag_from_networkx_node_link, dag_to_dot, dag_to_gml, dag_to_json,
     dag_to_networkx_adjacency, dag_to_networkx_node_link, decode_analysis_result_artifact,
-    decode_analysis_result_contract, decode_causal_posterior_bytes,
+    decode_analysis_result_artifact_expecting, decode_analysis_result_contract,
+    decode_causal_posterior_bytes, decode_causal_posterior_bytes_expecting,
     encode_analysis_result_artifact, encode_analysis_result_artifact_with_contract,
     encode_causal_posterior_bytes, interference_estimate_from_wire, interference_estimate_to_wire,
-    interference_query_from_wire, interference_query_to_wire, load_analysis_result, pag_from_dot,
-    pag_from_gml, pag_from_json, pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json,
-    pag_to_networkx_node_link, replay_analysis_result, replay_loaded_result,
+    interference_query_from_wire, interference_query_to_wire, load_analysis_result,
+    load_analysis_result_expecting, pag_from_dot, pag_from_gml, pag_from_json,
+    pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json, pag_to_networkx_node_link,
+    replay_analysis_result, replay_analysis_result_expecting, replay_loaded_result,
     transport_effect_from_wire, transport_effect_to_wire, transport_identification_from_wire,
     transport_identification_to_wire, transport_query_from_wire, transport_query_to_wire,
 };
@@ -38,6 +40,11 @@ pub use antecedent_io::graph_mixed::{
 };
 pub use antecedent_io::graph_networkx::{
     dag_with_names_from_networkx_adjacency, dag_with_names_from_networkx_node_link,
+};
+/// Admit an artifact only as the artifact the consumer retained: every loader's `*_expecting`
+/// form binds the bytes to this identity before it reads them.
+pub use antecedent_io::{
+    RetainedArtifactIdentity, artifact_identity, bind_retained_artifact, load_expecting,
 };
 /// Accept an exported claim only as the claim the consumer retained.
 pub use antecedent_io::{RetainedClaimIdentity, accept_claim_expecting};
@@ -68,6 +75,21 @@ pub fn decode_model_bundle_bytes(bytes: &[u8]) -> Result<antecedent_io::ModelBun
     antecedent_io::decode_model_bundle(&art).map_err(CausalError::from)
 }
 
+/// [`decode_model_bundle_bytes`], admitting only the bundle the consumer retained: the bytes
+/// bind to `retained` ([`antecedent_io::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`decode_model_bundle_bytes`], and `external_binding_mismatch` when the bytes are not
+/// the retained bundle.
+pub fn decode_model_bundle_bytes_expecting(
+    bytes: &[u8],
+    retained: &antecedent_io::RetainedArtifactIdentity,
+) -> Result<antecedent_io::ModelBundle, CausalError> {
+    antecedent_io::bind_retained_artifact(bytes, retained).map_err(CausalError::from)?;
+    decode_model_bundle_bytes(bytes)
+}
+
 /// Portable checked transport proof and supplied exact-law records.
 pub use antecedent_io::{exact_law_wire::ExactLawWire, transport_proof::TransportProofWire};
 
@@ -89,7 +111,8 @@ pub use antecedent_io::{
     STABLE_FORMAT, StaticResultWire, TargetDesign, admg_from_wire, admg_to_wire,
     causal_query_from_wire, causal_query_to_wire, causal_query_to_wire_with_registry,
     causal_response_from_wire, causal_response_to_wire, dag_from_wire, dag_to_wire,
-    decode_causal_payload_artifact, decode_posterior_artifact, decode_prior_source_meta,
+    decode_causal_payload_artifact, decode_causal_payload_artifact_expecting,
+    decode_posterior_artifact, decode_prior_source_meta, decode_prior_source_meta_expecting,
     encode_causal_payload_artifact, encode_external_estimate_claim, encode_posterior_artifact,
     encode_prior_source_meta, executed_functional_labels, execution_digest,
     execution_identity_from_context, expr_arena_from_wire, expr_arena_to_wire, from_cbor,
@@ -250,7 +273,8 @@ pub mod external_column_claim_artifact {
 pub mod external_cyclic_artifact {
     pub use antecedent_io::external_cyclic_artifact::{
         ExternalCyclicRequest, MAX_EXTERNAL_CYCLIC_ARTIFACT_BYTES,
-        consume_external_cyclic_artifact, inspect_external_cyclic_artifact,
+        consume_external_cyclic_artifact, consume_external_cyclic_artifact_expecting,
+        inspect_external_cyclic_artifact,
     };
 }
 /// Feature and family-payload versions, separate from package `SemVer`.
@@ -286,7 +310,9 @@ pub mod joint_law_propagation_artifact {
 }
 /// Exact frozen joint-panel execution, replayed by the existing model engine.
 pub mod joint_panel_artifact {
-    pub use antecedent_io::joint_panel_artifact::{PanelArtifactError, consume_panel_execution};
+    pub use antecedent_io::joint_panel_artifact::{
+        PanelArtifactError, consume_panel_execution, consume_panel_execution_expecting,
+    };
 }
 /// Independent point and analytic-interval artifacts for learned continuous-outcome trial.
 pub mod learned_continuous_artifact {
@@ -332,7 +358,7 @@ pub mod mixed_source_artifact {
 }
 /// Source-bound reconstruction of the declared-shift MNAR candidate.
 pub mod mnar_candidate_source {
-    pub use antecedent_io::mnar_candidate_source::decode_source;
+    pub use antecedent_io::mnar_candidate_source::{decode_source, decode_source_expecting};
 }
 /// Independent point-result artifacts for multi-source limited-experiment transport.
 pub mod mz_transport_artifact {
@@ -410,8 +436,10 @@ pub mod recovery_artifact {
 pub mod release_migration {
     pub use antecedent_io::release_migration::{
         CurrentMethod, MethodAssignment, PreviousReleaseError, RouteRecordError,
-        RouteRecordOutcome, consume_previous_release_artifact, consume_previous_route_records,
-        current_score_row_digest, narrow_score_row_digest,
+        RouteRecordOutcome, consume_previous_release_artifact,
+        consume_previous_release_artifact_expecting, consume_previous_route_records,
+        consume_previous_route_records_expecting, current_score_row_digest,
+        narrow_score_row_digest,
     };
 }
 /// Independent replay of sampled counterfactual transport artifacts (kind.
@@ -419,6 +447,7 @@ pub mod sampled_counterfactual_transport_artifact {
     pub use antecedent_io::sampled_counterfactual_transport_artifact::{
         SampledCounterfactualTransportArtifactWire, SampledCounterfactualTransportConsumeLimits,
         SampledCounterfactualTransportExpectedIdentity, consume_sampled_counterfactual_transport,
+        consume_sampled_counterfactual_transport_expecting,
     };
 
     /// Estimate and seal: runs the sampled estimator on the stored derivation and

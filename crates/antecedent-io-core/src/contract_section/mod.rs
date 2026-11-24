@@ -503,9 +503,12 @@ pub use consume::{
     RetainedClaimIdentity, accept_claim_expecting, bind_retained_claim, claim_domain_statuses,
     claim_domain_statuses_of_section, claim_domains, claim_domains_of_section, claim_kind,
     claim_kind_name, claim_kind_name_of_section, claim_kind_of_section, contract_seal,
-    identification_not_claimed, load_analysis_result, project_claim_host, project_lossy_scalar,
-    replay_analysis_result, replay_analysis_result_with_source, replay_analysis_result_within,
-    result_digest, support_empirical, validate_mixture_masses, weight_basis_name,
+    identification_not_claimed, load_analysis_result, load_analysis_result_expecting,
+    project_claim_host, project_lossy_scalar, replay_analysis_result,
+    replay_analysis_result_expecting, replay_analysis_result_with_source,
+    replay_analysis_result_with_source_expecting, replay_analysis_result_within,
+    replay_analysis_result_within_expecting, result_digest, support_empirical,
+    validate_mixture_masses, weight_basis_name,
 };
 pub(crate) use verify::verify_contract_for_encoding_with_source;
 pub use verify::{

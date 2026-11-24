@@ -353,6 +353,26 @@ pub fn consume_counterfactual_transport_with_limits(
     Ok(ConsumedCounterfactualTransport { outcome, wire })
 }
 
+/// [`consume_counterfactual_transport_with_limits`], admitting only the artifact the consumer
+/// retained: the bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before
+/// they are read.
+///
+/// # Errors
+///
+/// As [`consume_counterfactual_transport_with_limits`], and `external_binding_mismatch` when the
+/// bytes are not the retained artifact.
+pub fn consume_counterfactual_transport_with_limits_expecting(
+    bytes: &[u8],
+    expected: &CounterfactualTransportExpectedIdentity,
+    limits: CounterfactualTransportConsumeLimits,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<ConsumedCounterfactualTransport, Error> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+        consume_counterfactual_transport_with_limits(bytes, expected, limits, ctx)
+    })
+}
+
 fn consume_identified(
     wire: &CounterfactualTransportArtifactWire,
     problem: CounterfactualTransportProblem,
@@ -480,4 +500,37 @@ pub fn consume_counterfactual_transport(
         let (code, message) = error.refusal();
         IoError::Refused { code, message }
     })
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn counterfactual_transport_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_counterfactual_transport_with_limits(
+                support::BYTES,
+                &CounterfactualTransportExpectedIdentity::default(),
+                CounterfactualTransportConsumeLimits::default(),
+                &ctx,
+            ),
+            consume_counterfactual_transport_with_limits_expecting(
+                support::BYTES,
+                &CounterfactualTransportExpectedIdentity::default(),
+                CounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            consume_counterfactual_transport_with_limits_expecting(
+                support::BYTES,
+                &CounterfactualTransportExpectedIdentity::default(),
+                CounterfactualTransportConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+    }
 }

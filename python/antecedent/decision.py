@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from antecedent import _reason_details
 
+from . import _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -668,8 +669,17 @@ class Contract:
         )
 
     @classmethod
-    def load(cls, data: bytes, *, expected_identity: str) -> Contract:
+    def load(
+        cls, data: bytes, *, expected_identity: str, retained_identity: str | None = None
+    ) -> Contract:
         """Load only under the identity the consumer retained independently."""
+        _retained.admit(
+            data,
+            retained_identity,
+            "antecedent.decision.Contract.load",
+            "antecedent.decision.Contract.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         data = container_bytes(data)
         return cls._from_wire(json.loads(_load_contract(data, expected_identity)))
 

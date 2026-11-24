@@ -46,6 +46,7 @@ from typing import Any, Final, Literal, cast
 
 import numpy as np
 
+from . import _retained
 from ._artifact_protocol import container_bytes
 from ._native import (
     BatchCallbackHandle,
@@ -624,6 +625,8 @@ def decode_programs(
     names: Sequence[str],
     data: bytes,
     callbacks: Mapping[str, InterventionCallback] | Iterable[InterventionCallback],
+    *,
+    retained_identity: str | None = None,
 ) -> tuple[Program | CallbackProgram, ...]:
     """Decode an encoded program, binding ``callbacks`` to the records it carries.
 
@@ -632,6 +635,12 @@ def decode_programs(
     signature or other dependency pins is refused, as is a record with no implementation
     (``policy_callback_unrecoverable``). Programs come back in their encoded order.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.intervention_callbacks.decode_programs",
+        "antecedent.intervention_callbacks.decode_programs(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     data = container_bytes(data)
     supplied = list(callbacks.values() if isinstance(callbacks, Mapping) else callbacks)
     if any(not isinstance(c, InterventionCallback) for c in supplied):

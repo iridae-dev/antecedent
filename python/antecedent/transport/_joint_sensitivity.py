@@ -21,6 +21,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -184,12 +185,19 @@ def consume_joint_mechanism_sensitivity_artifact(
     max_search_depth: int = 64,
     max_memory_bytes: int = 64 * 1024 * 1024,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Independently verify a joint sensitivity artifact under the consumer's limits.
 
     Stored search limits above ``max_search_operations`` / ``max_search_depth`` /
     ``max_memory_bytes`` refuse before any replay (``joint_sensitivity.consumer_limits``).
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._joint_sensitivity.consume_joint_mechanism_sensitivity_artifact",
+        "antecedent.transport._joint_sensitivity.consume_joint_mechanism_sensitivity_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

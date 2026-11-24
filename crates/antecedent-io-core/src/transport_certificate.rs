@@ -330,6 +330,26 @@ impl StructuralTransportCertificateWire {
         wire.check(limits, ctx)?;
         Ok(wire)
     }
+
+    /// As [`Self::consume`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        limits: SidLimits,
+        ctx: &ExecutionContext,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::consume(bytes, limits, ctx)
+        })
+    }
 }
 
 /// Read a transport container after checking declared decompression and decode budgets.
@@ -368,6 +388,25 @@ pub fn read_bounded_transport_artifact(
         return Err(err("transport artifact decode memory budget"));
     }
     crate::container::EncodedArtifact::read_from(bytes)
+}
+
+/// As [`read_bounded_transport_artifact`], admitting only the artifact the consumer retained.
+///
+/// The bytes bind to `retained`
+/// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`read_bounded_transport_artifact`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn read_bounded_transport_artifact_expecting(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<crate::container::EncodedArtifact, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+        read_bounded_transport_artifact(bytes, ctx)
+    })
 }
 
 #[cfg(test)]
@@ -465,5 +504,59 @@ mod tests {
             stored.check(limits, &ctx).unwrap().2,
             ClassicalTransportResult::NotCertified
         ));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn transport_certificate_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let ctx = antecedent_core::ExecutionContext::production_default(0);
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // StructuralTransportCertificateWire::consume_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                StructuralTransportCertificateWire::consume_expecting(
+                    bytes,
+                    SidLimits::default(),
+                    &ctx,
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                StructuralTransportCertificateWire::consume(bytes, SidLimits::default(), &ctx)
+                    .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            StructuralTransportCertificateWire::consume_expecting(
+                bytes,
+                SidLimits::default(),
+                &ctx,
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // read_bounded_transport_artifact_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                read_bounded_transport_artifact_expecting(bytes, &ctx, &retained).err()
+            ),
+            format!("{:?}", read_bounded_transport_artifact(bytes, &ctx).err()),
+        );
+        let refused =
+            format!("{:?}", read_bounded_transport_artifact_expecting(bytes, &ctx, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

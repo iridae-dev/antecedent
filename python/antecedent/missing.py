@@ -39,6 +39,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
+from . import _retained
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 
 if TYPE_CHECKING:
@@ -647,8 +648,15 @@ def consume_compiled_graph_imputation(
     source: bytes,
     receipt: bytes,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CompiledGraphImputationResult:
     """Recompile and replay original bytes against separately retained expected identities."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.missing.consume_compiled_graph_imputation",
+        "antecedent.missing.consume_compiled_graph_imputation(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     from ._native import consume_compiled_graph_imputation as consume
     from .execution import resolve_execution
 

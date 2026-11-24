@@ -4132,6 +4132,274 @@ path = "antecedent::validate::target_native::prior_sensitivity_target_check"
 disposition = "deprecated"
 replacement = "route:StaticAteDag"
 
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::decision_robust_artifact::JointScenarioCarrier::replay_decision_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::design_ranking_artifact::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::rollout_artifact::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::transported_decision_artifact::consume_transported_decision_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::consume_measured_interval_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact::from_bytes_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::admg_conditional_transport_artifact::AdmgConditionalObstructionWire::consume_within_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::consume_prepared_with_context_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::bayesian_posterior_row_artifact::PosteriorRowArtifactWire::consume_typed_with_context_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact::from_bytes_with_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::categorical_treatment_artifact::CategoricalTreatmentArtifact::from_bytes_with_replay_operations_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::consume_measured_interval_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::choice_inference_result_artifact::ChoiceInferenceResultArtifact::from_bytes_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::cpdag_completion_artifact::CpdagCompletionArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::cyclic_family_artifact::consume_cyclic_family_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::cyclic_system_artifact::consume_cyclic_artifact_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::decode_analysis_result_artifact_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::dose_grid_functional_artifact::DoseGridArtifactWire::consume_typed_with_context_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::external_cyclic_artifact::consume_external_cyclic_artifact_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_expecting_retained"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::joint_panel_artifact::consume_panel_execution_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::latent_class_artifact::LatentClassArtifact::from_bytes_with_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_expecting_retained"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::learned_joint_transport_artifact::LearnedJointArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::measured_inference::MeasuredInference::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::measured_inference::cohort_interval::CohortIntervalArtifactWire::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::measured_inference::count_fitted_interval::CountFittedIntervalArtifactWire::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::mixed_source_artifact::MixedSourceArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::mnar_candidate_source::decode_source_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::mz_transport_artifact::MzTransportArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_artifact::NestedFisherArtifact::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nested_markov_bayesian_artifact::Artifact::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::nonlinear_mediation_artifact::NonlinearMediationArtifact::from_bytes_with_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::randomized_ipow_artifact::replay_analysis_result_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::recovery_artifact::RecoveryArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::recovery_chain_artifact::RecoveryChainArtifactWire::consume_typed_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::release_migration::consume_previous_release_artifact_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::release_migration::consume_previous_route_records_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportArtifactWire::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_counterfactual_transport_artifact::consume_sampled_counterfactual_transport_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_expecting_retained"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::sampled_recovery_artifact::SampledRecoveryArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::scenario_covariance_artifact::ScenarioCovarianceArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire::consume_measured_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::temporal_transport_artifact::TemporalSequenceArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::transport_scenario_artifact::TransportScenarioArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::vector_treatment_artifact::VectorTreatmentArtifact::from_bytes_with_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::z_transport_artifact::ZTransportArtifactWire::consume_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::z_transport_artifact::ZTransportArtifactWire::consume_with_limits_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io::z_transport_artifact::ZTransportArtifactWire::reconstruct_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::causal_artifact::decode_causal_payload_artifact_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::contract_section::load_analysis_result_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::decode_prior_source_meta_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::decode_policy_program_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::policy_program_artifact::decode_policy_program_with_expecting"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::staleness_artifact::StalenessBaselineWire::consume_admitted_expecting"
+disposition = "consume"
+
 [[python]]
 path = "python/antecedent/cohort_decision.py::CohortDecisionSource.interval"
 disposition = "deprecated"

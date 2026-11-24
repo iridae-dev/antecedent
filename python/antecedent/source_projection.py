@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -92,8 +92,17 @@ class SourceProjectionArtifact:
         return artifact_from_receipt(self, self._bytes)
 
 
-def consume_source_projection(data: bytes, *, expected_identity: str) -> SourceProjectionArtifact:
+def consume_source_projection(
+    data: bytes, *, expected_identity: str, retained_identity: str | None = None
+) -> SourceProjectionArtifact:
     """Replay the original consumer under an independently retained identity."""
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.source_projection.consume_source_projection",
+        "antecedent.source_projection.consume_source_projection(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     data = container_bytes(data)
     if not isinstance(data, bytes):
         raise TypeError("source projection artifact must be bytes")

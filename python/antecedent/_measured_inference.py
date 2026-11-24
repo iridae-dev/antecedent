@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal, cast
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -277,7 +277,15 @@ class MeasuredInference:
         *,
         expected: MeasuredInferenceIdentity,
         execution: Execution | None = None,
+        retained_identity: str | None = None,
     ) -> MeasuredInference:
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent._measured_inference.MeasuredInference.load",
+            "antecedent._measured_inference.MeasuredInference.load(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+            bound=True,
+        )
         execution = resolve_execution(execution)
         artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):

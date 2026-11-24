@@ -726,6 +726,25 @@ impl InterfaceContractArtifact {
         Self::from_bytes_within(bytes, expected_identity, &InterfaceContractIntakeLimits::default())
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, InterfaceContractArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected_identity)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's intake bounds.
     ///
     /// # Errors
@@ -736,6 +755,26 @@ impl InterfaceContractArtifact {
         limits: &InterfaceContractIntakeLimits,
     ) -> Result<Self, InterfaceContractArtifactError> {
         check(&decode_meta(bytes, limits.max_bytes)?, expected_identity, limits)
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected_identity: Option<&str>,
+        limits: &InterfaceContractIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, InterfaceContractArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected_identity, limits)
+        })
     }
 
     /// Read the stored metadata without replaying it: the independent
@@ -795,5 +834,64 @@ impl InterfaceContractArtifact {
         artifact_id: &str,
     ) -> Result<Vec<u8>, InterfaceContractArtifactError> {
         encode_meta(meta, artifact_id)
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn interface_contract_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // InterfaceContractArtifact::from_bytes_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                InterfaceContractArtifact::from_bytes_expecting(bytes, None, &retained).err()
+            ),
+            format!("{:?}", InterfaceContractArtifact::from_bytes(bytes, None).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            InterfaceContractArtifact::from_bytes_expecting(bytes, None, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        // InterfaceContractArtifact::from_bytes_within_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                InterfaceContractArtifact::from_bytes_within_expecting(
+                    bytes,
+                    None,
+                    &InterfaceContractIntakeLimits::default(),
+                    &retained
+                )
+                .err()
+            ),
+            format!(
+                "{:?}",
+                InterfaceContractArtifact::from_bytes_within(
+                    bytes,
+                    None,
+                    &InterfaceContractIntakeLimits::default()
+                )
+                .err()
+            ),
+        );
+        let refused = format!(
+            "{:?}",
+            InterfaceContractArtifact::from_bytes_within_expecting(
+                bytes,
+                None,
+                &InterfaceContractIntakeLimits::default(),
+                &other
+            )
+            .err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

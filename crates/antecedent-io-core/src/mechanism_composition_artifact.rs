@@ -994,6 +994,22 @@ impl MechanismCompositionArtifactWire {
         Ok(wire)
     }
 
+    /// As [`Self::decode`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, MechanismCompositionArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Verify and replay.
     ///
     /// `expected_identity`, when given, is the premises digest the caller holds
@@ -1200,4 +1216,30 @@ pub fn lower_plan(
         dependence,
         admit_declared_mechanisms: plan.admit_declared_mechanisms,
     })
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn mechanism_composition_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // MechanismCompositionArtifactWire::decode_expecting
+        assert_eq!(
+            format!(
+                "{:?}",
+                MechanismCompositionArtifactWire::decode_expecting(bytes, &retained).err()
+            ),
+            format!("{:?}", MechanismCompositionArtifactWire::decode(bytes).err()),
+        );
+        let refused = format!(
+            "{:?}",
+            MechanismCompositionArtifactWire::decode_expecting(bytes, &other).err()
+        );
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+    }
 }

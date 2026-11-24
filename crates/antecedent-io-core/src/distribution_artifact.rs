@@ -552,6 +552,25 @@ impl DistributionArtifact {
         Self::from_bytes_within(bytes, expected, &DistributionIntakeLimits::default())
     }
 
+    /// As [`Self::from_bytes`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: &DistributionIdentity,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// [`Self::from_bytes`] under the caller's intake bounds instead of the
     /// `MAX_DISTRIBUTION_*` defaults.
     ///
@@ -587,6 +606,26 @@ impl DistributionArtifact {
         }
         let draws = crate::artifact_codec::f64s_from_le_bytes(&draw_bytes);
         Self::new_within(metadata, draws, limits)
+    }
+
+    /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_within`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_within_expecting(
+        bytes: &[u8],
+        expected: &DistributionIdentity,
+        limits: &DistributionIntakeLimits,
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_within(bytes, expected, limits)
+        })
     }
 
     /// Finite weighted mean of one supported coordinate.
@@ -1325,5 +1364,33 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn distribution_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+        let original = fixture(DrawAlignment::Joint);
+        let identity = original.metadata.identity.clone();
+        let bytes = original.to_bytes("retained-fixture").unwrap();
+        let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        let limits = DistributionIntakeLimits::default();
+        let bound =
+            DistributionArtifact::from_bytes_expecting(&bytes, &identity, &retained).unwrap();
+        assert_eq!(bound.metadata(), original.metadata());
+        assert_eq!(bound.draws(), original.draws());
+        let within = DistributionArtifact::from_bytes_within_expecting(
+            &bytes, &identity, &limits, &retained,
+        )
+        .unwrap();
+        assert_eq!(within.metadata(), original.metadata());
+        for refused in [
+            DistributionArtifact::from_bytes_expecting(&bytes, &identity, &other).err(),
+            DistributionArtifact::from_bytes_within_expecting(&bytes, &identity, &limits, &other)
+                .err(),
+        ] {
+            let refused = format!("{refused:?}");
+            assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        }
     }
 }

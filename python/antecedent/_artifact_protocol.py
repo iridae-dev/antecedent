@@ -10,6 +10,7 @@ from functools import wraps
 from importlib import import_module
 from typing import TYPE_CHECKING, Any, Generic, ParamSpec, TypeVar, overload
 
+from . import _retained
 from ._freeze import freeze, thaw
 from ._scientific import ScientificResult
 from .errors import CausalSerializationError, CausalTypeError, CausalValueError
@@ -246,7 +247,10 @@ def artifact_consumer(
         def call(*args: P.args, **kwargs: P.kwargs) -> T:
             arguments = signature.bind(*args, **kwargs).arguments
             result = fn(*args, **kwargs)
-            bound = any(arguments.get(name) is not None for name in identity)
+            retained = arguments.get("retained_identity")
+            bound = any(arguments.get(name) is not None for name in identity) or (
+                retained is not None and retained is not _retained.ADMITTED
+            )
             receipt = (
                 acceptance(result, bound)
                 if acceptance is not None
@@ -425,7 +429,9 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
         )
     from . import artifacts
 
-    decoded = artifacts.loads(data)  # raises for malformed bytes
+    decoded = artifacts.loads(
+        data, retained_identity=_retained.ADMITTED
+    )  # raises for malformed bytes
     return ArtifactInspection(
         decoded.payload_kind,
         {},
@@ -635,9 +641,17 @@ def load_scientific(
     expected: Any = None,
     context: LoadContext | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> Any:
     policy = _load_execution(context, execution)
     data = container_bytes(value)
+    # The caller (``antecedent.load``) has admitted the bytes or warned already; a retained
+    # identity is bound again here (one hash) so this entry never trusts its caller, and the
+    # family consumer is told the bytes are admitted so it neither binds nor warns a second time.
+    retained_bound = retained_identity is not None and retained_identity is not _retained.ADMITTED
+    if retained_bound:
+        _retained.admit(data, retained_identity, "antecedent.load", "antecedent.load")
+    retained_identity = _retained.ADMITTED
     view = inspect_artifact(data)
     if isinstance(expected, ArtifactExpectation):
         if expected.kind != view.kind:
@@ -652,7 +666,9 @@ def load_scientific(
         consumer = getattr(consumer, name)
     parameters = inspect.signature(consumer).parameters
     kwargs: dict[str, Any] = {}
-    identity_compared = False
+    identity_compared = retained_bound
+    if "retained_identity" in parameters:
+        kwargs["retained_identity"] = retained_identity
     if "execution" in parameters and policy is not None:
         kwargs["execution"] = policy
     if "expected_identity" in parameters:
@@ -665,7 +681,7 @@ def load_scientific(
             if hasattr(expected, "to_json") or hasattr(expected, "_wire")
             else thaw(expected)
         )
-        identity_compared = expected is not None
+        identity_compared = identity_compared or expected is not None
     elif expected is not None:
         if not isinstance(expected, Mapping):
             raise CausalTypeError(f"{view.kind} requires named expected identity fields")

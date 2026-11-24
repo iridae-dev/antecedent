@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from ...estimation import _PreparedEngine
 
 
+from ... import _retained
 from .authority import _no_native_authority
 from .catalog import EvidenceCatalog
 from .exact import ClassicalTransportIdentification, ExactDiscreteLaw
@@ -305,6 +306,7 @@ def consume_statistical(
     *,
     evaluation: TransportEvaluation | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> StatisticalTransportDistribution:
     """Independently verify a statistical-transport artifact and read its recorded answer.
 
@@ -313,6 +315,12 @@ def consume_statistical(
     is a read model that cannot be re-estimated. ``evaluation`` bounds replay;
     memory and cancellation belong to ``execution``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._impl.statistical.consume_statistical",
+        "antecedent.transport._impl.statistical.consume_statistical(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     from ..._workflow import _consumed_transport_view
 
     limits = TransportEvaluation() if evaluation is None else evaluation

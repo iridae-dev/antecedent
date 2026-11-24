@@ -22,6 +22,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import artifact_consumer, container_bytes
 from .._columns import coerce_fields
 from .._native import (
@@ -143,6 +144,7 @@ def consume_admg_conditional_transport_artifact(
     max_laws: int | None = None,
     max_law_cells: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Verify an exported conditional result and recompute its points.
 
@@ -156,6 +158,12 @@ def consume_admg_conditional_transport_artifact(
     search and evaluator as the producer, so it is independent of the artifact,
     not of the implementation: a bug they share replays identically.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._admg_conditional.consume_admg_conditional_transport_artifact",
+        "antecedent.transport._admg_conditional.consume_admg_conditional_transport_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
@@ -188,6 +196,7 @@ def consume_admg_conditional_obstruction_artifact(
     artifact: bytes,
     *,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> TransportConsumption:
     """Re-verify an exported proven obstruction and return it as JSON.
 
@@ -197,6 +206,12 @@ def consume_admg_conditional_obstruction_artifact(
     on the query) and re-checks the rule-2 moves and the reduced joint's
     s-hedge. Any edit is refused with a typed ``reason_code``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._admg_conditional.consume_admg_conditional_obstruction_artifact",
+        "antecedent.transport._admg_conditional.consume_admg_conditional_obstruction_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

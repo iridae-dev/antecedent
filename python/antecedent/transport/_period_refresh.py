@@ -28,6 +28,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, cast
 
+from .. import _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -395,8 +396,16 @@ class PeriodRefreshSummary(ScientificResult):
         identity=(),
         unresolved=("summary-only retention cannot replay or refit rows",),
     )
-    def consume(cls, artifact: bytes) -> PeriodRefreshSummary:
+    def consume(
+        cls, artifact: bytes, *, retained_identity: str | None = None
+    ) -> PeriodRefreshSummary:
         """Decode and verify a summary-only artifact; any change to it is refused."""
+        _retained.admit(
+            artifact,
+            retained_identity,
+            "antecedent.transport._period_refresh.PeriodRefreshSummary.consume",
+            "antecedent.transport._period_refresh.PeriodRefreshSummary.consume(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        )
         artifact = container_bytes(artifact)
         if not isinstance(artifact, bytes):
             raise CausalTypeError("artifact must be bytes")
@@ -497,13 +506,21 @@ class ConsumedPeriodRefresh(ScientificResult):
     resumable=False,
     identity=(),
 )
-def consume_period_refresh_artifact(artifact: bytes) -> ConsumedPeriodRefresh:
+def consume_period_refresh_artifact(
+    artifact: bytes, *, retained_identity: str | None = None
+) -> ConsumedPeriodRefresh:
     """Recompute a retained ledger from its blocks and refuse any change to it.
 
     The posterior and the least-squares fit are recomputed from the retained rows alone; a
     changed seal, prior, block or stored result, a period that overlaps an earlier one or
     reuses a snapshot, and a row or block used twice are refused.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._period_refresh.consume_period_refresh_artifact",
+        "antecedent.transport._period_refresh.consume_period_refresh_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

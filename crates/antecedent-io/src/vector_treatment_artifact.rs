@@ -1079,6 +1079,23 @@ impl VectorTreatmentArtifact {
         <Self as BudgetedTreatmentArtifact>::from_bytes(bytes, expected)
     }
 
+    /// [`Self::from_bytes`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn from_bytes_expecting(
+        bytes: &[u8],
+        expected: Option<&VectorTreatmentIdentity>,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, VectorTreatmentArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes(bytes, expected)
+        })
+    }
+
     /// Consume an artifact by recomputation within the replay budget of `ctx`.
     ///
     /// # Errors
@@ -1128,6 +1145,24 @@ impl VectorTreatmentArtifact {
             return Err(VectorTreatmentArtifactError::IdentityMismatch { field });
         }
         Ok(Self { meta, numbers: computed.numbers, fit: computed.fit })
+    }
+
+    /// [`Self::from_bytes_with`], admitting only the artifact the consumer retained: the bytes bind
+    /// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes_with`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn from_bytes_with_expecting(
+        bytes: &[u8],
+        expected: Option<&VectorTreatmentIdentity>,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, VectorTreatmentArtifactError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::from_bytes_with(bytes, expected, ctx)
+        })
     }
 }
 
@@ -1259,5 +1294,40 @@ mod number_section_tests {
             Replay::from_numbers(&decl, REPLAY_ROWS, &[]),
             Err(VectorTreatmentArtifactError::Malformed(_))
         ));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn vector_treatment_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            VectorTreatmentArtifact::from_bytes(support::BYTES, None),
+            VectorTreatmentArtifact::from_bytes_expecting(
+                support::BYTES,
+                None,
+                &support::matching(),
+            ),
+            VectorTreatmentArtifact::from_bytes_expecting(support::BYTES, None, &support::other()),
+        );
+        support::assert_binds(
+            VectorTreatmentArtifact::from_bytes_with(support::BYTES, None, &ctx),
+            VectorTreatmentArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::matching(),
+            ),
+            VectorTreatmentArtifact::from_bytes_with_expecting(
+                support::BYTES,
+                None,
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

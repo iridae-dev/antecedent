@@ -907,6 +907,24 @@ pub fn consume_cyclic_family(
     consume_decoded(bytes, expected_identity, ctx).map(|(_, report)| report)
 }
 
+/// [`consume_cyclic_family`], admitting only the artifact the consumer retained: the bytes bind to
+/// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_cyclic_family`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn consume_cyclic_family_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<CyclicFamilyReport, CyclicArtifactError> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| CyclicArtifactError::Invalid(error.to_string()))?;
+    consume_cyclic_family(bytes, expected_identity, ctx)
+}
+
 fn consume_decoded(
     bytes: &[u8],
     expected_identity: &str,
@@ -976,6 +994,27 @@ pub fn consume_cyclic_family_contract(
     Ok((contract, report))
 }
 
+/// [`consume_cyclic_family_contract`], admitting only the artifact the consumer retained: the bytes
+/// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_cyclic_family_contract`], and `external_binding_mismatch` when the bytes are not
+/// the retained artifact.
+pub fn consume_cyclic_family_contract_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<
+    (antecedent_io_core::contract_section::CyclicContractWire, CyclicFamilyReport),
+    CyclicArtifactError,
+> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| CyclicArtifactError::Invalid(error.to_string()))?;
+    consume_cyclic_family_contract(bytes, expected_identity, ctx)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1003,6 +1042,24 @@ pub fn consume_cyclic_family_with_request(
     Ok((decoded.record.request, report))
 }
 
+/// [`consume_cyclic_family_with_request`], admitting only the artifact the consumer retained: the
+/// bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_cyclic_family_with_request`], and `external_binding_mismatch` when the bytes are
+/// not the retained artifact.
+pub fn consume_cyclic_family_with_request_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<(CyclicFamilyRequest, CyclicFamilyReport), CyclicArtifactError> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| CyclicArtifactError::Invalid(error.to_string()))?;
+    consume_cyclic_family_with_request(bytes, expected_identity, ctx)
+}
+
 /// Consume once and retain the actual verified producer contract when carried.
 /// Historical version-one records remain replayable but have no contract section.
 ///
@@ -1022,6 +1079,32 @@ pub fn consume_cyclic_family_with_request_and_contract(
 > {
     let (decoded, report) = consume_decoded(bytes, expected_identity, ctx)?;
     Ok((decoded.record.request, report, decoded.contract))
+}
+
+/// [`consume_cyclic_family_with_request_and_contract`], admitting only the artifact the consumer
+/// retained: the bytes bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before
+/// they are read.
+///
+/// # Errors
+///
+/// As [`consume_cyclic_family_with_request_and_contract`], and `external_binding_mismatch` when the
+/// bytes are not the retained artifact.
+pub fn consume_cyclic_family_with_request_and_contract_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<
+    (
+        CyclicFamilyRequest,
+        CyclicFamilyReport,
+        Option<antecedent_io_core::contract_section::CyclicContractWire>,
+    ),
+    CyclicArtifactError,
+> {
+    antecedent_io_core::bind_retained_artifact(bytes, retained)
+        .map_err(|error| CyclicArtifactError::Invalid(error.to_string()))?;
+    consume_cyclic_family_with_request_and_contract(bytes, expected_identity, ctx)
 }
 
 #[cfg(test)]
@@ -1258,5 +1341,61 @@ mod previous_version {
             consume_cyclic_family(&bytes, program.identity(), &ctx()),
             Err(CyclicArtifactError::Mismatch)
         ));
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn cyclic_family_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_cyclic_family_contract(support::BYTES, "0", &ctx),
+            consume_cyclic_family_contract_expecting(
+                support::BYTES,
+                "0",
+                &ctx,
+                &support::matching(),
+            ),
+            consume_cyclic_family_contract_expecting(support::BYTES, "0", &ctx, &support::other()),
+        );
+        support::assert_binds(
+            consume_cyclic_family(support::BYTES, "0", &ctx),
+            consume_cyclic_family_expecting(support::BYTES, "0", &ctx, &support::matching()),
+            consume_cyclic_family_expecting(support::BYTES, "0", &ctx, &support::other()),
+        );
+        support::assert_binds(
+            consume_cyclic_family_with_request_and_contract(support::BYTES, "0", &ctx),
+            consume_cyclic_family_with_request_and_contract_expecting(
+                support::BYTES,
+                "0",
+                &ctx,
+                &support::matching(),
+            ),
+            consume_cyclic_family_with_request_and_contract_expecting(
+                support::BYTES,
+                "0",
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            consume_cyclic_family_with_request(support::BYTES, "0", &ctx),
+            consume_cyclic_family_with_request_expecting(
+                support::BYTES,
+                "0",
+                &ctx,
+                &support::matching(),
+            ),
+            consume_cyclic_family_with_request_expecting(
+                support::BYTES,
+                "0",
+                &ctx,
+                &support::other(),
+            ),
+        );
     }
 }

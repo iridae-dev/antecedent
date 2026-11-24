@@ -40,7 +40,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -887,6 +887,7 @@ def consume_decision(
     *,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CyclicDecisionResult:
     """Independently recompile, refit, re-solve and re-decide a portable cyclic decision.
 
@@ -898,6 +899,13 @@ def consume_decision(
         CausalSerializationError: a foreign or altered artifact, a different identity or seed,
             or a fit, solve or decision that does not reproduce.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.cyclic_decisions.consume_decision",
+        "antecedent.cyclic_decisions.consume_decision(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     assert execution is not None
     native = _native.cyclic_decision_consume(
         container_bytes(artifact),
@@ -1134,6 +1142,7 @@ def consume_bundle_recomputation(
     expected_bundle: str,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> BundleRecomputationReceipt:
     """Independently reconstruct, recompile and refit a portable bundle recomputation.
 
@@ -1144,6 +1153,13 @@ def consume_bundle_recomputation(
         CausalSerializationError: a changed graph, program, producer evidence, fitted terminal
             or receipt.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.cyclic_decisions.consume_bundle_recomputation",
+        "antecedent.cyclic_decisions.consume_bundle_recomputation(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     assert execution is not None
     native = _native.cyclic_bundle_consume(
         container_bytes(artifact),
@@ -1162,6 +1178,7 @@ def consume_bundle_refitting(
     supplied: SuppliedSources | None = None,
     route: Literal["native_fit", "cyclic_posterior"] = "native_fit",
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedBundle:
     """Consume a composition bundle, refitting every native fit node it embeds.
 
@@ -1174,6 +1191,13 @@ def consume_bundle_refitting(
     Raises:
         CompositionBundleRefusal: the container, its digests or the identity do not verify.
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.cyclic_decisions.consume_bundle_refitting",
+        "antecedent.cyclic_decisions.consume_bundle_refitting(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     from .composition_bundle import ConsumedBundle, SuppliedSources, _refusal_type
 
     assert execution is not None

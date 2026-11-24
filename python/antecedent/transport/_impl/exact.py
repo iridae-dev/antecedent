@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from ...estimation import _PreparedEngine
 
 
+from ... import _retained
 from .authority import _no_native_authority
 from .catalog import EvidenceCatalog, SelectionDiagram
 from .limits import _non_negative
@@ -206,12 +207,19 @@ def consume_identification(
     max_steps: int = 100_000,
     max_depth: int = 256,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ClassicalTransportIdentification:
     """Independently verify a structural certificate, without rerunning identification.
 
     ``max_steps`` and ``max_depth`` bound the proof replay; memory and
     cancellation belong to ``execution``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._impl.exact.consume_identification",
+        "antecedent.transport._impl.exact.consume_identification(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     from ..._native import consume_transport_certificate
 
@@ -416,6 +424,7 @@ def consume_exact(
     *,
     evaluation: TransportEvaluation | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> ExactTransportDistribution:
     """Independently verify an exact-transport artifact and read its checked answer.
 
@@ -425,6 +434,12 @@ def consume_exact(
     ``evaluation`` may only bound the consumer's replay; memory and cancellation
     belong to ``execution``. ``antecedent.load`` consumes the same artifact.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._impl.exact.consume_exact",
+        "antecedent.transport._impl.exact.consume_exact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     from ..._workflow import _consumed_transport_view
 
     limits = TransportEvaluation() if evaluation is None else evaluation

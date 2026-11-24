@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal, Protocol, cast, overload
 
+from . import _retained
 from ._api import attach_refusal_report, describe_refusal
 from ._temporal_design import TemporalDesignQuery
 from .descriptive import Association
@@ -842,7 +843,7 @@ def analyze(
 
         # The descriptor-bearing body has a distinct sealed claim identity.
         # Project the native exported contract so view and portable claim agree.
-        artifact = artifacts.loads(result.export())
+        artifact = artifacts.loads(result.export(), retained_identity=_retained.ADMITTED)
         if artifact.contract is not None:
             slots = ReasoningSlots.from_result_section(
                 artifact.contract,

@@ -60,7 +60,7 @@ from typing import Any
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -1194,7 +1194,7 @@ def verify_composition(
     replayable=True,
 )
 def consume_composition_verification_artifact(
-    artifact: bytes, expected_identity: str | None = None
+    artifact: bytes, expected_identity: str | None = None, *, retained_identity: str | None = None
 ) -> CompositionVerification:
     """Independently consume a composition verification artifact by classifying again.
 
@@ -1206,6 +1206,13 @@ def consume_composition_verification_artifact(
             ``invalid_argument`` for corrupt or foreign bytes, a graph the library refuses, or a
             stored classification or lineage identity that does not replay.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.composition_verification.consume_composition_verification_artifact",
+        "antecedent.composition_verification.consume_composition_verification_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, (bytes, bytearray, memoryview)):
         raise CausalTypeError("artifact must be bytes")

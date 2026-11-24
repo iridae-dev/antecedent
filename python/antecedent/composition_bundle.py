@@ -72,7 +72,7 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ArtifactExpectation,
@@ -1230,6 +1230,7 @@ def consume_bundle(
     max_nodes: int | None = None,
     max_edges: int | None = None,
     max_embedded_bytes: int | None = None,
+    retained_identity: str | None = None,
 ) -> ConsumedBundle:
     """Consume exported bundle bytes under the identity the consumer retained.
 
@@ -1257,6 +1258,13 @@ def consume_bundle(
         CompositionBundleRefusal: the container does not verify (see the stage-specific
             subclasses, for example :class:`ExpectedIdentityMismatchRefusal`).
     """
+    _retained.admit(
+        data,
+        retained_identity,
+        "antecedent.composition_bundle.consume_bundle",
+        "antecedent.composition_bundle.consume_bundle(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     data = container_bytes(data)
     if not isinstance(data, (bytes, bytearray, memoryview)):
         raise CausalTypeError(
@@ -1811,6 +1819,7 @@ def consume_bundle_recomputation(
     expected_bundle: str,
     expected_program: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> BundleRecomputation:
     """Independently consume a portable bundle recomputation.
 
@@ -1827,6 +1836,13 @@ def consume_bundle_recomputation(
         CompositionBundleRefusal: a foreign feature, a changed graph or program
             (``external_binding_mismatch``), a failed dependency or a changed live terminal.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.composition_bundle.consume_bundle_recomputation",
+        "antecedent.composition_bundle.consume_bundle_recomputation(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     if route not in RECOMPUTATION_ROUTES:
         raise CausalValueError(f"route must be one of {RECOMPUTATION_ROUTES}")
     if not isinstance(expected_bundle, str) or not isinstance(expected_program, str):
@@ -1876,6 +1892,7 @@ def consume_portable_sequential_reliability_node_bundle(
     expected_bundle: str,
     expected_identity: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> SequentialReliabilityBundleReceipt:
     """Independently reconstruct and recompute a sealed sequential reliability bundle.
 
@@ -1890,6 +1907,13 @@ def consume_portable_sequential_reliability_node_bundle(
         ExpectedIdentityMismatchRefusal: another bundle identity, program identity or receipt.
         CompositionBundleRefusal: a node that does not replay.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.composition_bundle.consume_portable_sequential_reliability_node_bundle",
+        "antecedent.composition_bundle.consume_portable_sequential_reliability_node_bundle(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=True,
+    )
     execution = resolve_execution(execution)
     text, refusal = execution._call(
         _native.sequential_reliability_bundle_consume,

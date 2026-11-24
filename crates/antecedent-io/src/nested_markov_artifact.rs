@@ -595,6 +595,20 @@ impl NestedMarkovArtifactWire {
         Ok(wire)
     }
 
+    /// [`Self::decode`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, Self::decode)
+    }
+
     fn check_limits(
         &self,
         limits: &NestedMarkovConsumeLimits,
@@ -636,6 +650,24 @@ impl NestedMarkovArtifactWire {
         ctx: &ExecutionContext,
     ) -> Result<(Self, PilotReport), IoError> {
         Self::consume_expecting(bytes, &NestedMarkovExpectation::default(), limits, ctx)
+    }
+
+    /// [`Self::consume_with_limits`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_with_limits`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_with_limits_expecting(
+        bytes: &[u8],
+        limits: NestedMarkovConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, PilotReport), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_with_limits(bytes, limits, ctx)
+        })
     }
 
     /// [`Self::consume_with_limits`] that additionally requires the stored premises and
@@ -685,6 +717,25 @@ impl NestedMarkovArtifactWire {
             return Err(NestedMarkovArtifactError::ReceiptMismatch.into());
         }
         Ok((wire, report))
+    }
+
+    /// [`Self::consume_expecting`], admitting only the artifact the consumer retained: the bytes
+    /// bind to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume_expecting`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn consume_expecting_retained(
+        bytes: &[u8],
+        expected: &NestedMarkovExpectation,
+        limits: NestedMarkovConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<(Self, PilotReport), IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume_expecting(bytes, expected, limits, ctx)
+        })
     }
 }
 
@@ -777,6 +828,25 @@ impl NestedFisherArtifact {
         Self::consume_with_uncertainty(bytes, expected, limits, ctx).map(|(artifact, _)| artifact)
     }
 
+    /// [`Self::consume`], admitting only the artifact the consumer retained: the bytes bind to
+    /// `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::consume`], and `external_binding_mismatch` when the bytes are not the retained
+    /// artifact.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        expected: &NestedMarkovExpectation,
+        limits: NestedMarkovConsumeLimits,
+        ctx: &ExecutionContext,
+        retained: &antecedent_io_core::RetainedArtifactIdentity,
+    ) -> Result<Self, IoError> {
+        antecedent_io_core::load_expecting(bytes, retained, |bytes| {
+            Self::consume(bytes, expected, limits, ctx)
+        })
+    }
+
     pub(crate) fn consume_with_uncertainty(
         bytes: &[u8],
         expected: &NestedMarkovExpectation,
@@ -817,5 +887,84 @@ impl NestedFisherArtifact {
             return Err(NestedMarkovArtifactError::ReceiptMismatch.into());
         }
         Ok((wire, uncertainty))
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn nested_markov_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            NestedFisherArtifact::consume(
+                support::BYTES,
+                &NestedMarkovExpectation::default(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+            ),
+            NestedFisherArtifact::consume_expecting(
+                support::BYTES,
+                &NestedMarkovExpectation::default(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            NestedFisherArtifact::consume_expecting(
+                support::BYTES,
+                &NestedMarkovExpectation::default(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            NestedMarkovArtifactWire::consume_expecting(
+                support::BYTES,
+                &NestedMarkovExpectation::default(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+            ),
+            NestedMarkovArtifactWire::consume_expecting_retained(
+                support::BYTES,
+                &NestedMarkovExpectation::default(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            NestedMarkovArtifactWire::consume_expecting_retained(
+                support::BYTES,
+                &NestedMarkovExpectation::default(),
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            NestedMarkovArtifactWire::consume_with_limits(
+                support::BYTES,
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+            ),
+            NestedMarkovArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::matching(),
+            ),
+            NestedMarkovArtifactWire::consume_with_limits_expecting(
+                support::BYTES,
+                NestedMarkovConsumeLimits::default(),
+                &ctx,
+                &support::other(),
+            ),
+        );
+        support::assert_binds(
+            NestedMarkovArtifactWire::decode(support::BYTES),
+            NestedMarkovArtifactWire::decode_expecting(support::BYTES, &support::matching()),
+            NestedMarkovArtifactWire::decode_expecting(support::BYTES, &support::other()),
+        );
     }
 }

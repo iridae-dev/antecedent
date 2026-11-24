@@ -36,7 +36,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from .. import _native
+from .. import _native, _retained
 from .._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -607,6 +607,7 @@ def consume_smoothed_dose(
     max_rows: int | None = None,
     max_features: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> SmoothedDoseEstimate:
     """Independently verify an exported grid and replay it.
 
@@ -622,6 +623,12 @@ def consume_smoothed_dose(
     ``CausalResourceError`` before any replay work); its cancellation token is polled before every
     quadrature chunk of the replay.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._smoothed_dose.consume_smoothed_dose",
+        "antecedent.transport._smoothed_dose.consume_smoothed_dose(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
@@ -655,6 +662,7 @@ def consume_smoothed_dose_posterior(
     max_rows: int = 100_000,
     max_points: int = 1_024,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> SmoothedDosePosterior:
     """Independently verify an exported smoothed-dose posterior and replay it.
 
@@ -668,6 +676,12 @@ def consume_smoothed_dose_posterior(
     before the replay (``CausalCancelledError``). Both carry reason code
     ``transport_budget_cancel``.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._smoothed_dose.consume_smoothed_dose_posterior",
+        "antecedent.transport._smoothed_dose.consume_smoothed_dose_posterior(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

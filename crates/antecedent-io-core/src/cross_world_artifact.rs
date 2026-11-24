@@ -371,6 +371,22 @@ impl CrossWorldArtifactWire {
         }
         Ok(wire)
     }
+
+    /// As [`Self::decode`], admitting only the artifact the consumer retained.
+    ///
+    /// The bytes bind to `retained`
+    /// ([`crate::retained_artifact::bind_retained_artifact`]) before they are read.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decode`], and `external_binding_mismatch` when the bytes are not the
+    /// retained artifact.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Self, CrossWorldArtifactError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
+    }
 }
 
 #[cfg(test)]
@@ -466,5 +482,26 @@ mod tests {
             cross_world_data_digest(&renamed.variable_names, &renamed.columns).unwrap(),
             w.data_digest
         );
+    }
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+    use crate::retained_artifact::{RETAINED_ARTIFACT_REFUSAL, RetainedArtifactIdentity};
+
+    #[test]
+    fn cross_world_artifact_expecting_binds_the_retained_bytes() {
+        let bytes: &[u8] = b"not an artifact";
+        let retained = RetainedArtifactIdentity::of_bytes(bytes);
+        let other = RetainedArtifactIdentity::of_bytes(b"another artifact");
+        // CrossWorldArtifactWire::decode_expecting
+        assert_eq!(
+            format!("{:?}", CrossWorldArtifactWire::decode_expecting(bytes, &retained).err()),
+            format!("{:?}", CrossWorldArtifactWire::decode(bytes).err()),
+        );
+        let refused =
+            format!("{:?}", CrossWorldArtifactWire::decode_expecting(bytes, &other).err());
+        assert!(refused.contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
     }
 }

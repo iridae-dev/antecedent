@@ -98,11 +98,13 @@ pub use antecedent_io_core::{
     dag_identity, dag_json_from_str, dag_to_dot, dag_to_gml, dag_to_json,
     dag_to_networkx_adjacency, dag_to_networkx_node_link, dag_to_wire, dag_wire_from_dot,
     dag_wire_from_gml, dag_wire_to_dot, dag_wire_to_gml, data_snapshot_digest,
-    decode_analysis_result_contract, decode_causal_payload_artifact, decode_container,
-    decode_external_estimate_claim, decode_posterior_artifact, decode_posterior_meta_from_path,
-    decode_posterior_meta_from_seek, decode_prior_source_meta, decode_with_version,
-    diagnostic_from_wire, diagnostic_to_wire, digest_canonical, digest_hex, digest_wire,
-    discovery_wire, distribution_artifact, distribution_replay, encode_analysis_result_artifact,
+    decode_analysis_result_contract, decode_causal_payload_artifact,
+    decode_causal_payload_artifact_expecting, decode_container, decode_external_estimate_claim,
+    decode_external_estimate_claim_expecting, decode_posterior_artifact,
+    decode_posterior_meta_from_path, decode_posterior_meta_from_seek, decode_prior_source_meta,
+    decode_prior_source_meta_expecting, decode_with_version, diagnostic_from_wire,
+    diagnostic_to_wire, digest_canonical, digest_hex, digest_wire, discovery_wire,
+    distribution_artifact, distribution_replay, encode_analysis_result_artifact,
     encode_analysis_result_artifact_with_contract, encode_causal_payload_artifact,
     encode_container, encode_external_estimate_claim, encode_posterior_artifact,
     encode_prior_source_meta, error, exact_law_wire, executed_functional_labels, execution_digest,
@@ -225,8 +227,9 @@ pub use model_bundle::{
     ModelBundle, ModelBundleEncode, ModelBundleHeaderWire, decode_model_bundle, encode_model_bundle,
 };
 pub use posterior_convert::{
-    PosteriorPayload, decode_causal_posterior_bytes, encode_causal_posterior_bytes,
-    encode_causal_posterior_bytes_with_payload, encode_causal_posterior_with_payload,
+    PosteriorPayload, decode_causal_posterior_bytes, decode_causal_posterior_bytes_expecting,
+    encode_causal_posterior_bytes, encode_causal_posterior_bytes_with_payload,
+    encode_causal_posterior_with_payload,
 };
 pub use transport_interference_wire::{
     ExposureProbabilityMethodWire, InterferenceEstimateWire, NotCertifiedCertificateWire,
@@ -550,12 +553,21 @@ pub mod joint_panel_experiment_artifact;
 pub use antecedent_io_core::randomized_ipow_wire;
 /// Whole-procedure numerical replay of supported randomized-arm IPW results.
 pub mod randomized_ipow_artifact;
+#[cfg(test)]
+mod retained_test_support;
 pub use antecedent_io_core::{
     AnalysisResultLoad, ReplayOptions, ReplayReport, RetainedClaimIdentity, load_analysis_result,
+    load_analysis_result_expecting,
+};
+/// Admit an artifact only as the artifact its consumer retained.
+pub use antecedent_io_core::{
+    RetainedArtifactIdentity, artifact_identity, bind_retained_artifact, load_expecting,
 };
 #[allow(deprecated, reason = "re-exported for 3.0 callers until 4.0")]
 pub use randomized_ipow_artifact::accept_claim;
 pub use randomized_ipow_artifact::{
-    accept_claim_expecting, decode_analysis_result_artifact, replay_analysis_result,
-    replay_analysis_result_within, replay_loaded_result,
+    accept_claim_expecting, decode_analysis_result_artifact,
+    decode_analysis_result_artifact_expecting, replay_analysis_result,
+    replay_analysis_result_expecting, replay_analysis_result_within,
+    replay_analysis_result_within_expecting, replay_loaded_result,
 };

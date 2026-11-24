@@ -17,7 +17,7 @@ from numpy.typing import ArrayLike
 
 from antecedent import _reason_details
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_export,
@@ -215,6 +215,7 @@ def consume_design_result(
     request: DesignRequest | None = None,
     *,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> DesignReplay:
     """Verify an original artifact and rerun its checked design from actual data.
 
@@ -223,6 +224,12 @@ def consume_design_result(
     through real execution, while preserving existing reader behavior. Missing
     or mismatched data refuse rather than becoming portable fitted state.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.recalc_design.consume_design_result",
+        "antecedent.recalc_design.consume_design_result(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes", reason_code="invalid_argument")

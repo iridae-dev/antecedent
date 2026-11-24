@@ -3,3 +3,6 @@
 
 #[cfg(kani)]
 mod bound_identity;
+
+#[cfg(kani)]
+mod retained_artifact;

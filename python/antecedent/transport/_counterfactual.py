@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any
 
+from .. import _retained
 from .._artifact_protocol import (
     ArtifactAcceptance,
     ExportedArtifact,
@@ -700,6 +701,7 @@ def consume_counterfactual_transport_artifact(
     max_laws: int | None = None,
     max_law_cells: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> CounterfactualTransportResult | CounterfactualTransportDecision:
     """Independently verify an exported artifact from its bytes.
 
@@ -715,6 +717,13 @@ def consume_counterfactual_transport_artifact(
     refusal that names what failed. Nothing the artifact stores raises the
     consumer's limits.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._counterfactual.consume_counterfactual_transport_artifact",
+        "antecedent.transport._counterfactual.consume_counterfactual_transport_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_premises_digest is not None or expected_data_digest is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")
@@ -1018,6 +1027,7 @@ def consume_sampled_counterfactual_transport_artifact(
     max_tables: int | None = None,
     max_table_cells: int | None = None,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> SampledCounterfactualTransportEstimate:
     """Independently verify a sampled artifact and recompute its estimate from the counts.
 
@@ -1027,6 +1037,13 @@ def consume_sampled_counterfactual_transport_artifact(
     stored number, label or report that differs from the recomputation (bit for
     bit). A stored interval cannot exist: the format has no interval slot.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.transport._counterfactual.consume_sampled_counterfactual_transport_artifact",
+        "antecedent.transport._counterfactual.consume_sampled_counterfactual_transport_artifact(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_premises_digest is not None or expected_data_digest is not None,
+    )
     artifact = container_bytes(artifact)
     if not isinstance(artifact, bytes):
         raise CausalTypeError("artifact must be bytes")

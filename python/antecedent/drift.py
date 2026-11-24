@@ -26,7 +26,7 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, fields
 from typing import TYPE_CHECKING, Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactAcceptance,
     ArtifactExpectation,
@@ -408,13 +408,22 @@ class StalenessBaseline(ScientificResult):
 
 
 @outcome_operation
-def consume_baseline(artifact: Any, *, expected_identity: str | None = None) -> StalenessBaseline:
+def consume_baseline(
+    artifact: Any, *, expected_identity: str | None = None, retained_identity: str | None = None
+) -> StalenessBaseline:
     """Read an exported staleness baseline and check it; returns an :class:`~antecedent.Outcome`.
 
     ``artifact`` is the exported artifact or its bytes. ``expected_identity``, when given, must
     match the baseline's identity. The outcome holds a :class:`StalenessBaseline`; no live study
     is recreated.
     """
+    _retained.admit(
+        artifact,
+        retained_identity,
+        "antecedent.drift.consume_baseline",
+        "antecedent.drift.consume_baseline(..., retained_identity=antecedent.artifacts.artifact_identity(retained_bytes))",
+        bound=expected_identity is not None,
+    )
     return StalenessBaseline(artifact, expected_identity=expected_identity)
 
 

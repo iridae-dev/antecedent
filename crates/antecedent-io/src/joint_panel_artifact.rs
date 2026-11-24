@@ -661,6 +661,21 @@ pub fn consume_panel_execution(
     }
     Ok(replay)
 }
+
+/// [`consume_panel_execution`], admitting only the artifact the consumer retained: the bytes bind
+/// to `retained` ([`antecedent_io_core::bind_retained_artifact`]) before they are read.
+///
+/// # Errors
+///
+/// As [`consume_panel_execution`], and `external_binding_mismatch` when the bytes are not the
+/// retained artifact.
+pub fn consume_panel_execution_expecting(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    retained: &antecedent_io_core::RetainedArtifactIdentity,
+) -> Result<HistoricalPanelExecution, PanelArtifactError> {
+    antecedent_io_core::load_expecting(bytes, retained, |bytes| consume_panel_execution(bytes, ctx))
+}
 fn decode_payload(
     bytes: &[u8],
     ctx: &ExecutionContext,
@@ -687,4 +702,20 @@ fn decode_payload(
     )
     .map_err(|error| PanelArtifactError::Io(error.into_io("panel decoding")))?;
     Ok((lease, sections.pop().ok_or_else(|| invalid("missing panel feature"))?))
+}
+
+#[cfg(test)]
+mod retained_tests {
+    use super::*;
+
+    #[test]
+    fn joint_panel_artifact_expecting_binds_the_retained_bytes() {
+        use crate::retained_test_support as support;
+        let ctx = antecedent_core::ExecutionContext::for_tests(0);
+        support::assert_binds(
+            consume_panel_execution(support::BYTES, &ctx),
+            consume_panel_execution_expecting(support::BYTES, &ctx, &support::matching()),
+            consume_panel_execution_expecting(support::BYTES, &ctx, &support::other()),
+        );
+    }
 }
