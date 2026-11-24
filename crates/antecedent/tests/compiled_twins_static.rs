@@ -604,14 +604,18 @@ fn temporal_mediation_identification_equals_the_compiled_identification() {
         ..TemporalMediationIdentifier::new()
     };
     let (direct, _) = identifier.identify_with_horizon(&graph, &query, 1).unwrap();
-    let identification = Study::series(mediation_series())
+    // A fixed temporal graph identifies temporal mediation when the study is prepared; the
+    // compiled result carries the identification of its one horizon.
+    let compiled = Study::series(mediation_series())
         .graph(graph)
         .query(query)
-        .identify_structure_within(&ExecutionContext::for_tests(5))
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(5))
         .unwrap();
-    let Identification::Point { result, .. } = identification else {
-        panic!("a fixed temporal graph identifies to a point result");
-    };
+    let result = &compiled.identification;
     assert_eq!(direct.status, result.status, "status");
     assert_eq!(direct.estimands.len(), result.estimands.len(), "estimands");
     for (left, right) in direct.estimands.iter().zip(&result.estimands) {

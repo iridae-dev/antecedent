@@ -81,7 +81,27 @@ fn ctx() -> ExecutionContext {
 }
 
 fn same<T: std::fmt::Debug>(compiled: &T, direct: &T) {
-    assert_eq!(format!("{compiled:?}"), format!("{direct:?}"));
+    assert_eq!(
+        without_lease_ids(&format!("{compiled:?}")),
+        without_lease_ids(&format!("{direct:?}"))
+    );
+}
+
+/// `text` with the sequence number of every memory admission lease blanked: the number counts
+/// the admissions of the process, not anything the result states.
+fn without_lease_ids(text: &str) -> String {
+    const LEASE: &str = "AdmissionLease { id: ";
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(LEASE) {
+        out.push_str(&rest[..at + LEASE.len()]);
+        rest = &rest[at + LEASE.len()..];
+        let digits = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+        out.push('_');
+        rest = &rest[digits..];
+    }
+    out.push_str(rest);
+    out
 }
 
 /// The route the program runs under and the unit its support is read from.

@@ -2475,7 +2475,7 @@ disposition = "consume"
 [[row]]
 path = "antecedent_identify::TemporalMediationIdentifier::adjustment_nodes_within"
 disposition = "kernel"
-reason = "kernel API; the type configures the compiled temporal mediation identification (StudyBuilder::identify_structure_within)"
+reason = "kernel API; the compiled temporal mediation route identifies each horizon with this type when the study is prepared (prepare_identification)"
 
 [[row]]
 path = "antecedent_identify::TransportIdentifier::identify_with_context"

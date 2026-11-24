@@ -355,7 +355,8 @@ fn compiled_z_transport_snapshot_and_plan_equal_the_direct_planner_and_measure_t
     .unwrap();
     assert_route!(snapshot_plan, "ZTransportEvidencePlanning", "design.identification_repair");
     let snapshot = snapshot_plan.execute(&ctx).unwrap();
-    assert_eq!(format!("{snapshot:?}"), format!("{direct_snapshot:?}"));
+    // The wire form is the snapshot in canonical order; the in-memory arena keys a hash map.
+    assert_eq!(snapshot.to_wire().unwrap(), direct_snapshot.to_wire().unwrap());
 
     let spec = ZTransportPlanSpec {
         candidates: vec![

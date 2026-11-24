@@ -500,77 +500,11 @@ fn the_named_cells_keep_their_pinned_names_route_and_family() {
     assert_eq!(chain.chain_reading(), Some("spread"));
 }
 
-/// The routes no capability record owns yet, so they run under no support unit. Each comment
-/// says why; the `[[unbound]]` rows of `parity/compiled_units.toml` list the same routes with
-/// what was found. A route leaves this list when a record that owns it is bound.
-const UNBOUND: &[&str] = &[
-    // The observation-query record owns declared error tables, not a fitted one.
-    "FittedDependentMeasuredObservation",
-    // The cyclic-systems record owns solving and replay, not this decision.
-    "CyclicActionWorldDecision",
-    // The cyclic-systems record owns solving and replay, not this decision.
-    "CyclicPosteriorActionDecision",
-    // The cyclic-systems record owns solving and replay, not this decision.
-    "CyclicTargetFeedbackDecision",
-    // No record owns the compiled bridge-transport decision.
-    "BridgeTransportDecision",
-    // The bridge-premise record owns the derivation, not this assessment.
-    "BridgeTransportPremiseAssessment",
-    // No record owns the matched bridge validation and decision.
-    "AssessedBridgeTransportDecision",
-    // The joint Bayesian transport record owns the posterior, not this decision.
-    "JointTransportEffectDecision",
-    // No record owns the trial IPW Bayesian-bootstrap decision.
-    "TrialIpwTransportDecision",
-    // No record owns the trial IPW Bayesian-bootstrap prediction.
-    "TrialIpwPredictiveDecision",
-    // The joint Bayesian transport record owns the effect, not this prediction.
-    "JointTransportPredictiveDecision",
-    // The transported path-specific record is closed and static only.
-    "TemporalPathTransport",
-    // No record owns the whole-chain bootstrap union.
-    "SamplingAssumptionUnion",
-    // No record owns the whole-chain bootstrap union.
-    "IidSamplingAssumptionUnion",
-    // No record owns the whole-chain bootstrap union.
-    "ClusterSamplingAssumptionUnion",
-    // No record owns the whole-chain bootstrap union.
-    "MovingBlockSamplingAssumptionUnion",
-    // No record owns feedback composed across components.
-    "JointComponentPosteriorDecision",
-    // No record owns feedback composed across components.
-    "BoundedComponentPosteriorDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationEffectDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationBernoulliPredictiveWorldDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationGaussianTargetPredictiveWorldDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationBernoulliPredictiveClusterBootstrapDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationGaussianPredictiveClusterBootstrapDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationTransportDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationTransportClusterBootstrapDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationConfoundedTransportDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationConfoundedTransportClusterBootstrapDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationKernelTransportDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationKernelTransportClusterBootstrapDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationConfoundedKernelTransportClusterBootstrapDecision",
-    // The graph-imputation record closes its decision route; no record owns this decision.
-    "GraphImputationMarTransportDecision",
-    // No record owns compile_propagation_chain.
-    "PropagationChain",
-    // No record owns power or assurance planning of a declared trial.
-    "ExperimentPlanning",
-];
+/// The routes that run under no support unit, each with the reason no record owns it. Every
+/// program family and named route is bound by a `[[route]]` row of
+/// `parity/compiled_units.toml` now, so none is listed; a route added without a unit fails here
+/// until it is bound or listed (with an `[[unbound]]` row) together.
+const UNBOUND: &[&str] = &[];
 
 /// The `lowering` of every `[[unbound]]` row of `parity/compiled_units.toml`.
 fn listed_unbound() -> BTreeSet<&'static str> {
