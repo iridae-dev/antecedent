@@ -19476,6 +19476,7 @@ pub fn <antecedent::analysis::preference_decision::PreferenceRouteError>::fn cod
 pub fn <antecedent::analysis::preference_decision::PreferenceRouteError>::fn compiler(&self) -> core::option::Option<&antecedent::CausalError>
 pub fn <antecedent::analysis::preference_decision::PreferenceRouteError>::fn refusal(&self) -> core::option::Option<&antecedent_contract::external_refusal::ExternalRefusal>
 pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn new(table: &str, rows: core::option::Option<alloc::vec::Vec<u64>>) -> Self
+pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn of_origin(origin: &antecedent_data::dataset::RowOrigin) -> Self
 pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn of_table(source: &antecedent_data::dataset::TabularData) -> Self
 pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn rows(&self) -> core::option::Option<&[u64]>
 pub fn <antecedent::analysis::preference_decision::RowProvenance>::fn table(&self) -> &str
@@ -25667,6 +25668,7 @@ pub use antecedent::data::MissingnessAssumption = antecedent_data::MissingnessAs
 pub use antecedent::data::OwnedColumn = antecedent_data::OwnedColumn
 pub use antecedent::data::OwnedColumnarStorage = antecedent_data::OwnedColumnarStorage
 pub use antecedent::data::RowAccounting = antecedent_data::RowAccounting
+pub use antecedent::data::RowOrigin = antecedent_data::RowOrigin
 pub use antecedent::data::SamplingRegularity = antecedent_data::SamplingRegularity
 pub use antecedent::data::TableView = antecedent_data::TableView
 pub use antecedent::data::TimeDummyEncoding = antecedent_data::TimeDummyEncoding
