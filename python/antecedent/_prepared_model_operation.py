@@ -1,8 +1,8 @@
 """Prepared fitted-model operations: the lifecycle backend of the ``model_operations`` queries.
 
 Preparation checks the declarations and retains an owned copy of the rows; estimation fits the
-standard mechanism program on the supplied graph inside the compiled ``Attribute`` or
-``Simulate`` route and runs the declared operation there.
+standard mechanism program on the supplied graph and runs the declared operation through its
+compiled program (an operation of a prepared study, or the ``Simulate`` route for the means).
 """
 
 from __future__ import annotations

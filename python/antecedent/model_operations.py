@@ -5,10 +5,13 @@ DAG: the strength of every edge (:class:`ArrowStrengths`), a population do-contr
 (:class:`PopulationContrast`), a named do-sampler (:class:`DoSampling`), the model's
 falsification evaluation (:class:`FittedModelEvaluation`), an interventional mean
 (:class:`InterventionalMean`) and the mean under two simultaneous intervention sets
-(:class:`SimultaneousCounterfactual`). ``analyze(data, graph=edges, query=...)`` fits the
-standard mechanism program inside the compiled ``Attribute`` or ``Simulate`` route and returns a
-:class:`antecedent.results.model_operation.ModelOperationResult` carrying the route's contract
-and claim.
+(:class:`SimultaneousCounterfactual`). ``analyze(data, graph=edges, query=...)`` prepares a study
+on the rows and the DAG and runs the operation on the mechanisms the standard program fits there:
+the first four as an operation of the prepared study on its own fitted model (program families
+``FittedModelAttribution`` and ``FittedModelSimulation``, gated on the fitted-model units), the
+two means through the compiled ``Simulate`` route. The answer is a
+:class:`antecedent.results.model_operation.ModelOperationResult` naming the program it ran
+under.
 
 Under ``execution=Execution(seed=...)`` an operation reproduces the numbers the corresponding
 ``FittedGcm`` method gives under the same execution, on a model fitted by ``fit_gcm`` with no

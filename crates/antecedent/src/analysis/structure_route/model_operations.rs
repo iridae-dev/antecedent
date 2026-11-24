@@ -1,6 +1,6 @@
-//! Execution of the fitted-model operations a model route answers beyond attribution and plain
-//! simulation: edge strengths, the population do-contrast, a named do-sampler and the held-out
-//! falsification evaluation.
+//! Execution of the fitted-model operations a prepared study answers on its own fitted model
+//! (`PreparedStudy::model_operation`): edge strengths, the population do-contrast, a named
+//! do-sampler, the held-out falsification evaluation and a nested counterfactual.
 //!
 //! Each runner calls the same kernel function the direct `antecedent::gcm` entry calls, with the
 //! inputs the target declares, so the compiled answer and the direct answer are the same numbers.
@@ -13,7 +13,7 @@
 
 use antecedent_core::{
     CausalRng, DoSamplerMethod, DoSamplerTarget, ExecutionContext, Intervention,
-    ModelEvaluationTarget, PopulationDoContrastTarget, RngFactory,
+    ModelEvaluationTarget, NestedCounterfactualTarget, PopulationDoContrastTarget, RngFactory,
 };
 use antecedent_data::{TableView, TabularData};
 use antecedent_model::{
@@ -133,4 +133,28 @@ pub(crate) fn run_model_evaluation(
     ModelEvaluator { alpha: target.alpha, n_permutations: target.n_permutations, seed: target.seed }
         .evaluate(&fitted.model, data, ctx)
         .map_err(CausalError::from)
+}
+
+/// The nested counterfactual mean of the target over the study's rows: abduct once, evaluate
+/// the outer world, hold the frozen variables at their outer values and evaluate the inner world,
+/// the call `antecedent::gcm::nested_counterfactual` makes on the same fitted model.
+///
+/// # Errors
+///
+/// An unsupported intervention kind, an invalid frozen set, abduction or prediction failures.
+pub(crate) fn run_nested_counterfactual(
+    fitted: &FittedGcm,
+    data: &TabularData,
+    target: &NestedCounterfactualTarget,
+    ctx: &ExecutionContext,
+) -> Result<f64, CausalError> {
+    let engine = crate::gcm::CounterfactualEngine::new(fitted.model.clone());
+    let mut ws = MechanismWorkspace::default();
+    let spec = antecedent_counterfactual::NestedSpec {
+        outer: &target.outer,
+        inner: &target.inner,
+        frozen: &target.frozen,
+        outcome: target.outcome,
+    };
+    crate::gcm::nested_counterfactual(&engine, data, &spec, &mut ws, ctx).map_err(CausalError::from)
 }

@@ -277,9 +277,6 @@ pub(crate) fn simulation_quantities(
             }
             Some(out)
         }
-        // A do-sampler and a model evaluation are point answers of the fitted model: their
-        // refits carry no smooth scalar functional this summary would report.
-        SimulationOutcome::DoSample(_) | SimulationOutcome::ModelEvaluation(_) => None,
     }
 }
 
@@ -500,12 +497,6 @@ pub(crate) fn run_attribute_with_fit(
                 ctx,
             )?)
         }
-        AttributeTarget::ArrowStrengths(_) => AttributionOutcome::ArrowStrengths(
-            super::model_operations::run_arrow_strengths(fitted)?,
-        ),
-        AttributeTarget::PopulationDoContrast(target) => AttributionOutcome::PopulationDoContrast(
-            super::model_operations::run_population_do_contrast(fitted, data, target, ctx)?,
-        ),
         AttributeTarget::MechanismChange { query: detection, test } => {
             let method = match test {
                 MechanismChangeTest::LikelihoodRatio => MechanismChangeMethod::LikelihoodRatio,
@@ -603,12 +594,6 @@ pub(crate) fn run_simulate(
                 ctx,
             )?)
         }
-        SimulationTarget::DoSample(target) => SimulationOutcome::DoSample(
-            super::model_operations::run_do_sampler(fitted, data, target, ctx)?,
-        ),
-        SimulationTarget::ModelEvaluation(target) => SimulationOutcome::ModelEvaluation(
-            super::model_operations::run_model_evaluation(fitted, data, target, ctx)?,
-        ),
         SimulationTarget::TemporalCounterfactual {
             schedule,
             n_rows,
@@ -643,14 +628,7 @@ pub(crate) fn simulated_rows(target: &SimulationTarget, data_rows: u64) -> u64 {
         | SimulationTarget::PolicyValue { draws, .. }
         | SimulationTarget::NoiseSample { draws, .. } => *draws as u64,
         SimulationTarget::NoiseReplay { n_rows, .. } => *n_rows as u64,
-        SimulationTarget::UnitEffects { .. }
-        | SimulationTarget::Counterfactual { .. }
-        | SimulationTarget::ModelEvaluation(_) => data_rows,
-        SimulationTarget::DoSample(target) => match target.method {
-            antecedent_core::DoSamplerMethod::Weighting { .. } => data_rows,
-            antecedent_core::DoSamplerMethod::Kde { .. }
-            | antecedent_core::DoSamplerMethod::Mcmc { .. } => target.draws as u64,
-        },
+        SimulationTarget::UnitEffects { .. } | SimulationTarget::Counterfactual { .. } => data_rows,
         SimulationTarget::TemporalRollout { n_rows, n_steps, .. }
         | SimulationTarget::TemporalCounterfactual { n_rows, n_steps, .. } => {
             (*n_rows as u64).saturating_mul(*n_steps as u64)

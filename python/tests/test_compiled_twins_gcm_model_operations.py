@@ -33,7 +33,7 @@ def _compiled(data: dict[str, np.ndarray], query) -> mo.ModelOperationResult:
         ant.analyze(data, graph=EDGES, query=query, execution=ant.Execution(seed=SEED))
     )
     assert isinstance(result, mo.ModelOperationResult)
-    assert result.route is not None, "the answer carries its compiled route"
+    assert result.program_identity is not None, "the answer names its compiled program"
     return result
 
 

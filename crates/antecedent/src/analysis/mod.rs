@@ -177,6 +177,7 @@ pub(crate) mod four_way;
 pub(crate) mod functional_sensitivity;
 pub(crate) mod functional_validation;
 pub mod graph_falsification;
+pub mod model_operation;
 pub mod graph_imputation;
 pub mod graph_imputation_effect_decision;
 pub mod graph_imputation_kernel_transport_decision;

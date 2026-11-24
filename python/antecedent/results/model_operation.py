@@ -10,13 +10,16 @@ from ..errors import CausalTypeError
 
 @dataclass(frozen=True, slots=True)
 class ModelOperationResult:
-    """A fitted-model operation answered by the compiled ``Attribute`` or ``Simulate`` route.
+    """A fitted-model operation answered through a compiled program.
 
     ``value`` is the engine's answer, unchanged: a list of ``ArrowStrength`` for
     ``ArrowStrengths``, a ``PopulationDoContrast`` for ``PopulationContrast``, a ``DoSample``
     for ``DoSampling``, a ``ModelEvaluation`` for ``FittedModelEvaluation`` and a float for
-    ``InterventionalMean`` and ``SimultaneousCounterfactual``. ``route`` is the compiled route
-    the answer ran under: its contract, the claim sealed over it and the inspection record.
+    ``InterventionalMean`` and ``SimultaneousCounterfactual``. ``program_route`` names the
+    program family the answer ran under (``FittedModelAttribution``, ``FittedModelSimulation``
+    or ``GcmSimulateDag``) and ``program_identity`` its lowered program. ``route`` is the
+    compiled ``Simulate`` route of the two means (contract, claim, inspection record) and
+    ``None`` for an operation of a prepared study on its own fitted model.
 
     The answer is a statement about the mechanisms fitted on the supplied graph, not an
     identified effect of the population; the route runs with calibration status
@@ -27,11 +30,20 @@ class ModelOperationResult:
     kind: str
     value: Any
     route: Any
+    program_route: str = ""
+    program_identity: str | None = None
     _prepared: Any = field(default=None, repr=False, compare=False)
 
     @classmethod
     def _from_native(cls, query: Any, native: Any) -> ModelOperationResult:
-        return cls(query=query, kind=str(native.kind), value=native.value, route=native.route)
+        return cls(
+            query=query,
+            kind=str(native.kind),
+            value=native.value,
+            route=native.route,
+            program_route=str(native.program_route),
+            program_identity=native.program_identity,
+        )
 
     def _require(self, *kinds: str) -> Any:
         if self.kind not in kinds:

@@ -82,6 +82,7 @@ pub mod migrate;
     reason = "memory-mapped reader; the caller guarantees the file is not mutated while mapped"
 )]
 pub mod mmap_file;
+pub mod model_operation_wire;
 pub mod observation_query_artifact;
 mod panel_calibration_design;
 pub mod plan_wire;
@@ -279,6 +280,7 @@ pub use migrate::{
     STABLE_FORMAT, SUPPORTED_SOURCE_FORMATS, is_supported_source, migrate_artifact,
     read_and_migrate,
 };
+pub use model_operation_wire::ModelOperationWire;
 pub use observation_query_artifact::{
     ConsumedObservationQuery, MeasuredSlotWire, OBSERVATION_QUERY_ARTIFACT_FEATURE,
     OBSERVATION_QUERY_ARTIFACT_VERSION, OBSERVATION_QUERY_GENERAL_ARTIFACT_VERSION,

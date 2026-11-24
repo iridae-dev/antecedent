@@ -1,10 +1,12 @@
-//! Fitted-model operations through the compiled `Attribute` and `Simulate` routes: the native
-//! side of the `antecedent.analyze` query forms `ArrowStrengths`, `PopulationContrast`,
-//! `DoSampling`, `FittedModelEvaluation`, `InterventionalMean` and `SimultaneousCounterfactual`.
+//! The native side of the `antecedent.analyze` query forms `ArrowStrengths`,
+//! `PopulationContrast`, `DoSampling`, `FittedModelEvaluation`, `InterventionalMean` and
+//! `SimultaneousCounterfactual`.
 //!
-//! Each entry fits the standard mechanism program on the supplied graph inside the route (the
-//! fit `fit_gcm` makes with no selection keyword) and runs the target the query declares, so the
-//! answer carries the route's contract and claim. The seeds are chosen so that a call with
+//! The first four are operations of a prepared study on its own fitted model
+//! (`PreparedStudy::model_operation`, program families `FittedModelAttribution` /
+//! `FittedModelSimulation`); the last two run the compiled `Simulate` route. Each fits the
+//! standard mechanism program on the supplied graph (the fit `fit_gcm` makes with no selection
+//! keyword). The seeds are chosen so that a call with
 //! `seed` reproduces the numbers of the corresponding `FittedGcm` method run with the same seed:
 //! the population do-contrast and the model evaluation take `seed` itself, and the do-samplers and
 //! the interventional mean take the seed of the stream the method drew from.
@@ -14,13 +16,14 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use antecedent::analysis::model_operation::ModelOperationAnswer;
 use antecedent::execution::{CausalRng, RngFactory, StreamDomain};
 use antecedent::prelude::{ExecutionContext, Intervention, TabularData, VariableId};
 use antecedent::query::{
-    ArrowStrengthsTarget, AttributeTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget,
-    PopulationDoContrastTarget, SimulateQuery, SimulationTarget,
+    ArrowStrengthsTarget, CausalQuery, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget,
+    ModelOperation, PopulationDoContrastTarget, SimulateQuery, SimulationTarget,
 };
-use antecedent::{AttributionOutcome, MechanismProgram, SimulationOutcome};
+use antecedent::{MechanismProgram, SimulationOutcome, Study};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 
@@ -58,9 +61,16 @@ pub struct PyModelOperationAnswer {
     /// a `ModelEvaluation`, or a float for the two means.
     #[pyo3(get)]
     pub value: Py<PyAny>,
-    /// The compiled route the answer ran under (contract, claim, inspection record).
+    /// The compiled `Simulate` route the two means ran under (contract, claim, inspection
+    /// record); `None` for an operation of a prepared study, which reports its program instead.
     #[pyo3(get)]
     pub route: RouteHandle,
+    /// The program family the answer ran under.
+    #[pyo3(get)]
+    pub program_route: String,
+    /// Hex identity of the lowered program the answer ran under.
+    #[pyo3(get)]
+    pub program_identity: Option<String>,
 }
 
 #[pymethods]
@@ -117,7 +127,57 @@ fn answer(
         kind: kind.to_owned(),
         value,
         route: crate::compiled_route_api::route_object(py, Some(route))?,
+        program_route: "GcmSimulateDag".to_owned(),
+        program_identity: route.execution.lowered_identity().map(|digest| digest.to_hex()),
     })
+}
+
+/// An operation answered by a prepared study, with the program it ran under.
+struct Operated {
+    answer: ModelOperationAnswer,
+    route: String,
+    identity: String,
+}
+
+fn operated(
+    py: Python<'_>,
+    kind: &str,
+    value: Py<PyAny>,
+    run: &Operated,
+) -> PyModelOperationAnswer {
+    let _ = py;
+    PyModelOperationAnswer {
+        kind: kind.to_owned(),
+        value,
+        route: None,
+        program_route: run.route.clone(),
+        program_identity: Some(run.identity.clone()),
+    }
+}
+
+/// The study whose fitted model an operation reads: the supplied rows and DAG under the standard
+/// mechanism program. Its own question is an empty interventional sample; the operation does not
+/// read it, and it neither changes the study nor enters the operation's answer.
+fn run_operation(input: Input, operation: &ModelOperation) -> PyResult<Operated> {
+    let (source, ctx, _) = input.source()?;
+    let carrier =
+        CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::InterventionalSample {
+            interventions: Arc::from([]),
+            draws: 1,
+            seed: 0,
+        }));
+    let prepared = Study::tabular((*source.data).clone())
+        .graph(source.dag.clone())
+        .query(carrier)
+        .mechanisms(source.program.clone())
+        .build()
+        .map_err(py_err)?
+        .prepare(&ctx)
+        .map_err(py_err)?;
+    let compiled = prepared.model_operation(operation, &ctx).map_err(py_err)?;
+    let route = compiled.lowered().route().to_owned();
+    let identity = compiled.lowered().identity().to_hex();
+    Ok(Operated { answer: compiled.into_answer(), route, identity })
 }
 
 fn name_of(names: &[String], id: VariableId) -> String {
@@ -136,17 +196,14 @@ fn model_operation_arrow_strengths(
     threads: Option<u32>,
 ) -> PyResult<PyModelOperationAnswer> {
     let input = Input::load(&names, columns, edges, seed, threads)?;
-    let (strengths, route) = detach_catch(py, move || {
-        let (source, ctx, _) = input.source()?;
-        let (outcome, route) =
-            source.attribute(AttributeTarget::ArrowStrengths(ArrowStrengthsTarget), &ctx)?;
-        let AttributionOutcome::ArrowStrengths(strengths) = outcome else {
-            return Err(outcome_mismatch());
-        };
-        Ok::<_, PyErr>((strengths, route))
+    let run = detach_catch(py, move || {
+        run_operation(input, &ModelOperation::ArrowStrengths(ArrowStrengthsTarget))
     })?;
+    let ModelOperationAnswer::ArrowStrengths(strengths) = &run.answer else {
+        return Err(outcome_mismatch());
+    };
     let items = strengths
-        .into_iter()
+        .iter()
         .map(|s| {
             Py::new(
                 py,
@@ -161,7 +218,7 @@ fn model_operation_arrow_strengths(
         })
         .collect::<PyResult<Vec<_>>>()?;
     let value = PyList::new(py, items)?.into_any().unbind();
-    answer(py, "arrow_strengths", value, &route)
+    Ok(operated(py, "arrow_strengths", value, &run))
 }
 
 /// The population do-contrast of `parent` on `child`, through the compiled `Attribute` route.
@@ -187,22 +244,19 @@ fn model_operation_population_contrast(
     }
     let input = Input::load(&names, columns, edges, seed, threads)?;
     let (parent_id, child_id) = (input.id(&parent)?, input.id(&child)?);
-    let (result, route) = detach_catch(py, move || {
-        let (source, ctx, seed) = input.source()?;
+    let run = detach_catch(py, move || {
         let target = PopulationDoContrastTarget {
             parent: parent_id,
             child: child_id,
             delta,
             max_units,
-            seed,
+            seed: input.seed,
         };
-        let (outcome, route) =
-            source.attribute(AttributeTarget::PopulationDoContrast(target), &ctx)?;
-        let AttributionOutcome::PopulationDoContrast(result) = outcome else {
-            return Err(outcome_mismatch());
-        };
-        Ok::<_, PyErr>((result, route))
+        run_operation(input, &ModelOperation::PopulationDoContrast(target))
     })?;
+    let ModelOperationAnswer::PopulationDoContrast(result) = &run.answer else {
+        return Err(outcome_mismatch());
+    };
     let value = Py::new(
         py,
         PyPopulationDoContrast {
@@ -214,7 +268,7 @@ fn model_operation_population_contrast(
         },
     )?
     .into_any();
-    answer(py, "population_do_contrast", value, &route)
+    Ok(operated(py, "population_do_contrast", value, &run))
 }
 
 /// A named do-sampler for `outcome` under hard `interventions`, through the compiled `Simulate`
@@ -275,23 +329,21 @@ fn model_operation_do_sample(
     let input = Input::load(&names, columns, edges, seed, threads)?;
     let outcome_id = input.id(&outcome)?;
     let ints = hard_interventions(&input.data, &interventions)?;
-    let (result, route) = detach_catch(py, move || {
-        let (source, ctx, seed) = input.source()?;
+    let run = detach_catch(py, move || {
         let target = DoSamplerTarget {
             method: sampler,
             outcome: outcome_id,
             interventions: Arc::from(ints),
             draws: n,
-            seed: stream_seed(seed, DO_SAMPLE_STREAM),
+            seed: stream_seed(input.seed, DO_SAMPLE_STREAM),
         };
-        let (outcome, route) = source.simulate(SimulationTarget::DoSample(target), &ctx)?;
-        let SimulationOutcome::DoSample(result) = outcome else {
-            return Err(outcome_mismatch());
-        };
-        Ok::<_, PyErr>((result, route))
+        run_operation(input, &ModelOperation::DoSample(target))
     })?;
-    let value = Py::new(py, PyDoSample::from_result(result))?.into_any();
-    answer(py, "do_sample", value, &route)
+    let ModelOperationAnswer::DoSample(result) = &run.answer else {
+        return Err(outcome_mismatch());
+    };
+    let value = Py::new(py, PyDoSample::from_result(result.clone()))?.into_any();
+    Ok(operated(py, "do_sample", value, &run))
 }
 
 /// The fitted model's falsification evaluation, through the compiled `Simulate` route.
@@ -312,15 +364,13 @@ fn model_operation_evaluation(
         return Err(crate::value_err(format!("alpha must lie in (0, 1), got {alpha}")));
     }
     let input = Input::load(&names, columns, edges, seed, threads)?;
-    let (report, route) = detach_catch(py, move || {
-        let (source, ctx, seed) = input.source()?;
-        let target = ModelEvaluationTarget { alpha, n_permutations, seed };
-        let (outcome, route) = source.simulate(SimulationTarget::ModelEvaluation(target), &ctx)?;
-        let SimulationOutcome::ModelEvaluation(report) = outcome else {
-            return Err(outcome_mismatch());
-        };
-        Ok::<_, PyErr>((report, route))
+    let run = detach_catch(py, move || {
+        let target = ModelEvaluationTarget { alpha, n_permutations, seed: input.seed };
+        run_operation(input, &ModelOperation::ModelEvaluation(target))
     })?;
+    let ModelOperationAnswer::ModelEvaluation(report) = &run.answer else {
+        return Err(outcome_mismatch());
+    };
     let value = Py::new(
         py,
         PyModelEvaluation {
@@ -336,7 +386,7 @@ fn model_operation_evaluation(
         },
     )?
     .into_any();
-    answer(py, "model_evaluation", value, &route)
+    Ok(operated(py, "model_evaluation", value, &run))
 }
 
 /// The mean of `outcome` over `n` interventional draws, through the compiled `Simulate` route

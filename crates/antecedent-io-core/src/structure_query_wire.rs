@@ -8,12 +8,11 @@
 use std::sync::Arc;
 
 use antecedent_core::{
-    ArrowStrengthsTarget, AttributeQuery, AttributeTarget, CausalQuery, ChangeAttributionQuery,
-    ChangeEstimator, ChangeMeasure, DiscoverQuery, DiscoveryMethod, DoSamplerMethod,
-    DoSamplerTarget, InfluenceAllocation, Intervention, InterventionSequence,
-    IntrinsicInfluenceTarget, MechanismChangeTest, ModelEvaluationTarget, NoiseDeclaration,
-    PopulationDoContrastTarget, ScreenWeight, SearchBounds, SearchSchedule, SimulateQuery,
-    SimulationTarget, StructurePriorSpec, VariableId,
+    AttributeQuery, AttributeTarget, CausalQuery, ChangeAttributionQuery, ChangeEstimator,
+    ChangeMeasure, DiscoverQuery, DiscoveryMethod, InfluenceAllocation, Intervention,
+    InterventionSequence, IntrinsicInfluenceTarget, MechanismChangeTest, NoiseDeclaration,
+    ScreenWeight, SearchBounds, SearchSchedule, SimulateQuery, SimulationTarget,
+    StructurePriorSpec, VariableId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -587,22 +586,6 @@ pub enum AttributeTargetWire {
         /// Seed.
         seed: u64,
     },
-    /// Model-implied strength of every edge of the fitted structure.
-    ArrowStrengths {},
-    /// Population do-contrast of one parent on one child.
-    PopulationDoContrast {
-        /// Intervened variable.
-        parent: u32,
-        /// Variable read.
-        child: u32,
-        /// Width of the contrast.
-        delta: f64,
-        /// Most observed rows accepted; absent accepts every row.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        max_units: Option<u64>,
-        /// Seed of the generator both arms draw from.
-        seed: u64,
-    },
 }
 
 /// Wire form of [`AttributeQuery`].
@@ -746,16 +729,6 @@ impl AttributeQueryWire {
                     measure: measure_name(*measure).into(),
                     n_samples: fit_u64(*n_samples)?,
                     seed: *seed,
-                }
-            }
-            AttributeTarget::ArrowStrengths(_) => AttributeTargetWire::ArrowStrengths {},
-            AttributeTarget::PopulationDoContrast(target) => {
-                AttributeTargetWire::PopulationDoContrast {
-                    parent: target.parent.raw(),
-                    child: target.child.raw(),
-                    delta: target.delta,
-                    max_units: target.max_units.map(fit_u64).transpose()?,
-                    seed: target.seed,
                 }
             }
         };
@@ -910,18 +883,6 @@ impl AttributeQueryWire {
                 n_samples: fit_usize(*n_samples)?,
                 seed: *seed,
             },
-            AttributeTargetWire::ArrowStrengths {} => {
-                AttributeTarget::ArrowStrengths(ArrowStrengthsTarget)
-            }
-            AttributeTargetWire::PopulationDoContrast { parent, child, delta, max_units, seed } => {
-                AttributeTarget::PopulationDoContrast(PopulationDoContrastTarget {
-                    parent: VariableId::from_raw(*parent),
-                    child: VariableId::from_raw(*child),
-                    delta: *delta,
-                    max_units: max_units.map(fit_usize).transpose()?,
-                    seed: *seed,
-                })
-            }
         };
         let query = AttributeQuery { target };
         query.validate().map_err(|e| IoError::Convert(e.to_string()))?;
@@ -946,11 +907,7 @@ impl AttributeQueryWire {
             AttributeTargetWire::StructureChange { comparison, .. } => {
                 comparison.iter().flat_map(|(a, b)| [*a, *b]).collect()
             }
-            AttributeTargetWire::PopulationDoContrast { parent, child, .. } => {
-                vec![*parent, *child]
-            }
-            AttributeTargetWire::ArrowStrengths {}
-            | AttributeTargetWire::RootCauses { .. }
+            AttributeTargetWire::RootCauses { .. }
             | AttributeTargetWire::DistributionChange { .. }
             | AttributeTargetWire::Anomaly { .. }
             | AttributeTargetWire::UnitChange { .. }
@@ -970,9 +927,7 @@ impl AttributeQueryWire {
             | AttributeTargetWire::MechanismChange { query, .. } => Some(&**query),
             AttributeTargetWire::IntrinsicInfluence { .. }
             | AttributeTargetWire::Paths { .. }
-            | AttributeTargetWire::FeatureRelevance { .. }
-            | AttributeTargetWire::ArrowStrengths {}
-            | AttributeTargetWire::PopulationDoContrast { .. } => None,
+            | AttributeTargetWire::FeatureRelevance { .. } => None,
         }
     }
 }
@@ -1066,43 +1021,6 @@ pub enum SimulationTargetWire {
         /// History before the panel.
         history: Vec<f64>,
     },
-    /// A named do-sampler for one outcome.
-    DoSample {
-        /// `weighting`, `kde` or `mcmc`.
-        method: String,
-        /// Weighting: half-width of the root-treatment match window.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        root_match_tolerance: Option<f64>,
-        /// Kernel density: bandwidth.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        bandwidth: Option<f64>,
-        /// Metropolis-Hastings: proposal standard deviation.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        proposal_sd: Option<f64>,
-        /// Metropolis-Hastings: burn-in iterations.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        burn_in: Option<u64>,
-        /// Metropolis-Hastings: thinning.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        thin: Option<u64>,
-        /// Outcome.
-        outcome: u32,
-        /// Hard interventions.
-        interventions: Vec<InterventionWire>,
-        /// Draws requested.
-        draws: u64,
-        /// Seed.
-        seed: u64,
-    },
-    /// The fitted model's falsification evaluation.
-    ModelEvaluation {
-        /// Significance level.
-        alpha: f64,
-        /// Permutation replicates.
-        n_permutations: u64,
-        /// Seed.
-        seed: u64,
-    },
     /// A simulation whose program holds an in-process callback. It runs in the process
     /// that holds the callback; the wire records the target and the canonical digest of
     /// the whole query, which commits to every callback's declaration (name, inputs,
@@ -1135,10 +1053,7 @@ fn target_portability(target: &SimulationTarget) -> antecedent_core::Portability
         | SimulationTarget::TemporalCounterfactual { schedule, .. } => {
             Intervention::sequence(schedule.clone()).portability()
         }
-        SimulationTarget::DoSample(target) => fold(&target.interventions),
-        SimulationTarget::UnitEffects { .. } | SimulationTarget::ModelEvaluation(_) => {
-            antecedent_core::Portability::Portable
-        }
+        SimulationTarget::UnitEffects { .. } => antecedent_core::Portability::Portable,
     }
 }
 
@@ -1151,92 +1066,6 @@ fn schedule_from_wire(schedule: &InterventionWire) -> Result<InterventionSequenc
         Intervention::Sequence(sequence) => Ok(sequence),
         other => Err(IoError::Convert(format!("a schedule must be a sequence, got {other:?}"))),
     }
-}
-
-fn do_sample_to_wire(target: &DoSamplerTarget) -> Result<SimulationTargetWire, IoError> {
-    let (method, root_match_tolerance, bandwidth, proposal_sd, burn_in, thin) = match target.method
-    {
-        DoSamplerMethod::Weighting { root_match_tolerance } => {
-            ("weighting", root_match_tolerance, None, None, None, None)
-        }
-        DoSamplerMethod::Kde { bandwidth } => ("kde", None, bandwidth, None, None, None),
-        DoSamplerMethod::Mcmc { proposal_sd, burn_in, thin } => (
-            "mcmc",
-            None,
-            None,
-            proposal_sd,
-            burn_in.map(fit_u64).transpose()?,
-            thin.map(fit_u64).transpose()?,
-        ),
-    };
-    Ok(SimulationTargetWire::DoSample {
-        method: method.to_owned(),
-        root_match_tolerance,
-        bandwidth,
-        proposal_sd,
-        burn_in,
-        thin,
-        outcome: target.outcome.raw(),
-        interventions: interventions_to_wire(&target.interventions)?,
-        draws: fit_u64(target.draws)?,
-        seed: target.seed,
-    })
-}
-
-fn do_sample_from_wire(wire: &SimulationTargetWire) -> Result<SimulationTarget, IoError> {
-    let SimulationTargetWire::DoSample {
-        method,
-        root_match_tolerance,
-        bandwidth,
-        proposal_sd,
-        burn_in,
-        thin,
-        outcome,
-        interventions,
-        draws,
-        seed,
-    } = wire
-    else {
-        return Err(IoError::Convert("a do-sampler wire was expected".into()));
-    };
-    // A control the named sampler does not read is refused, never dropped.
-    let foreign = |given: bool, name: &str| {
-        if given {
-            Err(IoError::Convert(format!("{name} does not apply to the {method} do-sampler")))
-        } else {
-            Ok(())
-        }
-    };
-    let mcmc_controls = proposal_sd.is_some() || burn_in.is_some() || thin.is_some();
-    let method = match method.as_str() {
-        "weighting" => {
-            foreign(bandwidth.is_some(), "bandwidth")?;
-            foreign(mcmc_controls, "a Metropolis-Hastings control")?;
-            DoSamplerMethod::Weighting { root_match_tolerance: *root_match_tolerance }
-        }
-        "kde" => {
-            foreign(root_match_tolerance.is_some(), "root_match_tolerance")?;
-            foreign(mcmc_controls, "a Metropolis-Hastings control")?;
-            DoSamplerMethod::Kde { bandwidth: *bandwidth }
-        }
-        "mcmc" => {
-            foreign(root_match_tolerance.is_some(), "root_match_tolerance")?;
-            foreign(bandwidth.is_some(), "bandwidth")?;
-            DoSamplerMethod::Mcmc {
-                proposal_sd: *proposal_sd,
-                burn_in: burn_in.map(fit_usize).transpose()?,
-                thin: thin.map(fit_usize).transpose()?,
-            }
-        }
-        other => return Err(IoError::Convert(format!("unknown do-sampler `{other}`"))),
-    };
-    Ok(SimulationTarget::DoSample(DoSamplerTarget {
-        method,
-        outcome: VariableId::from_raw(*outcome),
-        interventions: interventions_from_wire(interventions),
-        draws: fit_usize(*draws)?,
-        seed: *seed,
-    }))
 }
 
 /// Wire form of [`SimulateQuery`].
@@ -1352,12 +1181,6 @@ impl SimulateQueryWire {
                 panel: panel.to_vec(),
                 history: history.to_vec(),
             },
-            SimulationTarget::DoSample(target) => do_sample_to_wire(target)?,
-            SimulationTarget::ModelEvaluation(target) => SimulationTargetWire::ModelEvaluation {
-                alpha: target.alpha,
-                n_permutations: fit_u64(target.n_permutations)?,
-                seed: target.seed,
-            },
         };
         Ok(Self { target })
     }
@@ -1441,14 +1264,6 @@ impl SimulateQueryWire {
                 panel: Arc::from(panel.as_slice()),
                 history: Arc::from(history.as_slice()),
             },
-            SimulationTargetWire::DoSample { .. } => do_sample_from_wire(&self.target)?,
-            SimulationTargetWire::ModelEvaluation { alpha, n_permutations, seed } => {
-                SimulationTarget::ModelEvaluation(ModelEvaluationTarget {
-                    alpha: *alpha,
-                    n_permutations: fit_usize(*n_permutations)?,
-                    seed: *seed,
-                })
-            }
             SimulationTargetWire::InProcess { target, callbacks, .. } => {
                 let refusal =
                     antecedent_core::Portability::RuntimeBound { callbacks: callbacks.clone() }
@@ -1481,10 +1296,8 @@ impl SimulateQueryWire {
             | SimulationTargetWire::NoiseReplay { .. }
             | SimulationTargetWire::TemporalRollout { .. }
             | SimulationTargetWire::TemporalCounterfactual { .. }
-            | SimulationTargetWire::ModelEvaluation { .. }
             | SimulationTargetWire::InProcess { .. } => Vec::new(),
             SimulationTargetWire::Counterfactual { outcomes, .. } => outcomes.clone(),
-            SimulationTargetWire::DoSample { outcome, .. } => vec![*outcome],
             SimulationTargetWire::PolicyValue { outcome, .. } => vec![*outcome],
             SimulationTargetWire::UnitEffects { treatment, outcome, .. } => {
                 vec![*treatment, *outcome]
@@ -1500,15 +1313,16 @@ impl SimulateQueryWire {
             | SimulationTargetWire::PolicyValue { interventions, .. }
             | SimulationTargetWire::NoiseSample { interventions, .. }
             | SimulationTargetWire::NoiseReplay { interventions, .. }
-            | SimulationTargetWire::Counterfactual { interventions, .. }
-            | SimulationTargetWire::DoSample { interventions, .. } => interventions.as_slice(),
+            | SimulationTargetWire::Counterfactual { interventions, .. } => {
+                interventions.as_slice()
+            }
             SimulationTargetWire::TemporalRollout { schedule, .. }
             | SimulationTargetWire::TemporalCounterfactual { schedule, .. } => {
                 std::slice::from_ref(schedule)
             }
-            SimulationTargetWire::UnitEffects { .. }
-            | SimulationTargetWire::ModelEvaluation { .. }
-            | SimulationTargetWire::InProcess { .. } => &[],
+            SimulationTargetWire::UnitEffects { .. } | SimulationTargetWire::InProcess { .. } => {
+                &[]
+            }
         }
     }
 }

@@ -28,6 +28,7 @@ mod graph_posterior;
 pub(crate) mod joint_panel;
 pub(crate) mod latent_soft_intervention;
 pub(crate) mod mnar_fixed_shift;
+pub(crate) mod model_operation;
 pub(crate) mod program_families;
 mod query_digest;
 mod registry;

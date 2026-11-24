@@ -281,10 +281,6 @@ pub enum AttributeTarget {
         /// Sampling seed.
         seed: u64,
     },
-    /// Model-implied strength of every edge of the fitted structure (linear-family mechanisms).
-    ArrowStrengths(super::model_operations::ArrowStrengthsTarget),
-    /// Population do-contrast of one parent on one child under the fitted mechanisms.
-    PopulationDoContrast(super::model_operations::PopulationDoContrastTarget),
 }
 
 impl AttributeTarget {
@@ -301,8 +297,6 @@ impl AttributeTarget {
             Self::UnitChange(_) => "unit_change",
             Self::MechanismChange { .. } => "mechanism_change",
             Self::StructureChange { .. } => "structure_change",
-            Self::ArrowStrengths(_) => "arrow_strengths",
-            Self::PopulationDoContrast(_) => "population_do_contrast",
         }
     }
 }
@@ -349,14 +343,6 @@ impl CanonicalEncode for AttributeTarget {
                 writer.word(8);
                 query.encode(writer);
                 test.encode(writer);
-            }
-            Self::ArrowStrengths(target) => {
-                writer.word(10);
-                target.encode(writer);
-            }
-            Self::PopulationDoContrast(target) => {
-                writer.word(11);
-                target.encode(writer);
             }
             Self::StructureChange { change, comparison, measure, n_samples, seed } => {
                 writer.word(9);
@@ -406,10 +392,6 @@ impl AttributeQuery {
             | AttributeTarget::StructureChange { change, .. } => Ok(change.outcome),
             AttributeTarget::Paths { outcome, .. }
             | AttributeTarget::FeatureRelevance { outcome, .. } => Ok(*outcome),
-            AttributeTarget::ArrowStrengths(_) => {
-                Err(QueryError::InvalidAttribute(AttributeFault::AnomalyWithoutTarget))
-            }
-            AttributeTarget::PopulationDoContrast(target) => Ok(target.child),
             AttributeTarget::UnitChange(query) => Ok(query.outcome),
             AttributeTarget::Anomaly(query) => query
                 .targets
@@ -490,10 +472,6 @@ impl AttributeQuery {
                     return invalid(AttributeFault::FeatureRelevanceSampling);
                 }
                 Ok(())
-            }
-            AttributeTarget::ArrowStrengths(target) => target.validate().map_err(QueryError::from),
-            AttributeTarget::PopulationDoContrast(target) => {
-                target.validate().map_err(QueryError::from)
             }
             AttributeTarget::Anomaly(query) => query.validate(),
             AttributeTarget::UnitChange(query) => query.validate(),

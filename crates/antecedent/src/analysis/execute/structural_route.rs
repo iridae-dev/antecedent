@@ -544,16 +544,6 @@ fn simulation_reading(outcome: &SimulationOutcome) -> (f64, &'static str) {
             "a rollout of the fitted model under the declared schedule; only the draws' \
              own variation is reported",
         ),
-        SimulationOutcome::DoSample(sample) => (
-            antecedent_model::WeightingDoSampler::weighted_mean(sample),
-            "the do-sampler's weighted mean of the outcome under the fitted mechanisms; only \
-             the sampler's own variation is reported",
-        ),
-        SimulationOutcome::ModelEvaluation(_) => (
-            f64::NAN,
-            "a falsification evaluation of the fitted model on the study's rows; it reports \
-             checks, not an effect",
-        ),
         _ => (f64::NAN, "draws of the fitted model under the declared interventions"),
     }
 }
@@ -704,7 +694,6 @@ pub(super) fn run_model_query_with_fit(
                 AttributionOutcome::RootCauses { attribution, .. } => attribution.total_change,
                 AttributionOutcome::Change(change) => change.total_change,
                 AttributionOutcome::IntrinsicInfluence(influence) => influence.total_variance,
-                AttributionOutcome::PopulationDoContrast(contrast) => contrast.contrast,
                 _ => f64::NAN,
             };
             Ok(ModelAnswer {

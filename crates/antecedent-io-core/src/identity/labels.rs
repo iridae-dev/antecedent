@@ -557,10 +557,6 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 crate::AttributeTargetWire::StructureChange { .. } => {
                     ("structure_change", Vec::new())
                 }
-                crate::AttributeTargetWire::ArrowStrengths {} => ("arrow_strengths", Vec::new()),
-                crate::AttributeTargetWire::PopulationDoContrast { child, .. } => {
-                    ("population_do_contrast", vec![*child])
-                }
             };
             let mut dimensions = named_outcomes("attribute", &outcomes);
             dimensions.push(("attribution".into(), kind.into()));
@@ -598,12 +594,6 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 }
                 crate::SimulationTargetWire::TemporalCounterfactual { n_rows, n_steps, .. } => {
                     (format!("temporal_counterfactual:{n_rows}x{n_steps}"), Vec::new())
-                }
-                crate::SimulationTargetWire::DoSample { method, outcome, draws, .. } => {
-                    (format!("do_sample:{method}:{draws}"), vec![*outcome])
-                }
-                crate::SimulationTargetWire::ModelEvaluation { n_permutations, .. } => {
-                    (format!("model_evaluation:{n_permutations}"), Vec::new())
                 }
                 crate::SimulationTargetWire::InProcess { target, digest, .. } => {
                     (format!("{target}:in_process:{digest}"), Vec::new())

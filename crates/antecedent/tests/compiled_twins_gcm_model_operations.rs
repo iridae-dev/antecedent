@@ -1,18 +1,22 @@
-//! The direct fitted-model operations of `antecedent::gcm` and the compiled `Attribute` /
-//! `Simulate` routes that express them give the same numbers.
+//! The direct fitted-model operations of `antecedent::gcm` and their compiled replacements give
+//! the same numbers.
 //!
-//! The route fits the standard mechanism program, which selects the mechanisms `fit_gcm`
-//! selects, and calls the same kernel with the same inputs:
+//! `PreparedStudy::model_operation` fits the study's mechanism program (here the standard one,
+//! which selects the mechanisms `fit_gcm` selects) on the study's own DAG and table and calls the
+//! same kernel with the same inputs:
 //!
-//! * `arrow_strengths` and an `ArrowStrengths` attribute target.
-//! * `population_do_contrast` and a `PopulationDoContrast` attribute target. The route draws
-//!   both arms from the attribution stream of a generator seeded with the target's seed; the
-//!   direct call draws them from its context's generator. A context seeded with the target's
+//! * `arrow_strengths` and `ModelOperation::ArrowStrengths`.
+//! * `population_do_contrast` and `ModelOperation::PopulationDoContrast`. The operation draws
+//!   both arms from the attribution stream of a generator seeded with the operation's seed; the
+//!   direct call draws them from its context's generator. A context seeded with the operation's
 //!   seed gives the same numbers, whatever seed the study itself runs under.
-//! * `KdeDoSampler::sample`, `McmcDoSampler::sample` and `WeightingDoSampler::estimate` and a
-//!   `DoSample` simulation target: the kernel-density and Metropolis-Hastings samplers start
-//!   from `CausalRng::from_seed(seed)` on both sides; the weighting sampler draws nothing.
-//! * `ModelEvaluator::evaluate` and a `ModelEvaluation` simulation target.
+//! * `KdeDoSampler::sample`, `McmcDoSampler::sample` and `WeightingDoSampler::estimate` and
+//!   `ModelOperation::DoSample`: the kernel-density and Metropolis-Hastings samplers start from
+//!   `CausalRng::from_seed(seed)` on both sides; the weighting sampler draws nothing.
+//! * `ModelEvaluator::evaluate` and `ModelOperation::ModelEvaluation`.
+//! * `nested_counterfactual`, `nested_counterfactual_with_exo` and `nested_hard_counterfactual`
+//!   and `ModelOperation::NestedCounterfactual`: abduction is deterministic on a complete table,
+//!   so all three are one number.
 //! * `sample_interventional` and an `InterventionalSample` target, `sample_observational` and an
 //!   `InterventionalSample` target with no intervention: both start from
 //!   `CausalRng::from_seed(seed)`.
@@ -34,19 +38,22 @@
 
 use std::sync::Arc;
 
+use antecedent::analysis::model_operation::ModelOperationAnswer;
 use antecedent::gcm::{
-    CounterfactualEngine, DoSampleResult, KdeDoSampler, McmcDoSampler, MechanismWorkspace,
-    ModelEvaluator, WeightingDoSampler, arrow_strengths, fit_gcm, population_do_contrast,
-    sample_interventional, sample_observational, simultaneous_hard_counterfactual,
+    AbductionMissingPolicy, CounterfactualEngine, DoSampleResult, KdeDoSampler, McmcDoSampler,
+    MechanismWorkspace, ModelEvaluator, WeightingDoSampler, arrow_strengths, fit_gcm,
+    nested_counterfactual, nested_counterfactual_with_exo, nested_hard_counterfactual,
+    population_do_contrast, sample_interventional, sample_observational,
+    simultaneous_hard_counterfactual,
 };
-use antecedent::{
-    AttributionOutcome, CompiledExecution, InferenceMode, RefuteSuite, SimulationOutcome, Study,
-};
+use antecedent::{CompiledExecution, InferenceMode, RefuteSuite, SimulationOutcome, Study};
 use antecedent_core::{
-    ArrowStrengthsTarget, AttributeQuery, AttributeTarget, CausalQuery, CausalRng, DoSamplerMethod,
-    DoSamplerTarget, ExecutionContext, Intervention, ModelEvaluationTarget,
-    PopulationDoContrastTarget, QueryError, SimulateQuery, SimulationTarget, Value, VariableId,
+    ArrowStrengthsTarget, CausalQuery, CausalRng, DoSamplerMethod, DoSamplerTarget,
+    ExecutionContext, Intervention, ModelEvaluationTarget, ModelOperation,
+    NestedCounterfactualTarget, PopulationDoContrastTarget, QueryError, SimulateQuery,
+    SimulationTarget, Value, VariableId,
 };
+use antecedent_counterfactual::NestedSpec;
 use antecedent_data::{TableView, TabularData};
 use antecedent_graph::{Dag, DenseNodeId};
 
@@ -115,18 +122,26 @@ fn study(data: &TabularData, graph: &Dag, query: CausalQuery) -> Study {
         .unwrap()
 }
 
-/// Run `target` through the compiled `Attribute` route under `ctx`.
-fn attribute(
+/// Run `operation` on the fitted model of a study prepared on `data` and `graph`, under `ctx`.
+/// The study's own question (an empty interventional sample) is not read by the operation.
+fn operate(
     data: &TabularData,
     graph: &Dag,
-    target: AttributeTarget,
+    operation: &ModelOperation,
     ctx: &ExecutionContext,
-) -> AttributionOutcome {
-    let study = study(data, graph, CausalQuery::Attribute(AttributeQuery::new(target)));
-    let lowered = study.compile(ctx).unwrap();
-    assert_eq!(lowered.lowered().expect("a lowered program").route(), "GcmAttributeDag");
-    let execution = CompiledExecution::run(&study, ctx).unwrap();
-    execution.result().attribution().map(|payload| payload.outcome.clone()).expect("a payload")
+) -> ModelOperationAnswer {
+    let carrier =
+        CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::InterventionalSample {
+            interventions: Arc::from([]),
+            draws: 1,
+            seed: 0,
+        }));
+    let prepared = study(data, graph, carrier).prepare(ctx).unwrap();
+    let compiled = prepared.model_operation(operation, ctx).unwrap();
+    let family =
+        if operation.is_attribution() { "FittedModelAttribution" } else { "FittedModelSimulation" };
+    assert_eq!(compiled.lowered().route(), family);
+    compiled.into_answer()
 }
 
 /// Run `query` through the compiled `Simulate` route under `ctx`.
@@ -144,8 +159,8 @@ fn simulate(
 }
 
 fn do_sample(data: &TabularData, graph: &Dag, target: DoSamplerTarget) -> DoSampleResult {
-    match simulate(data, graph, SimulateQuery::new(SimulationTarget::DoSample(target)), &ctx()) {
-        SimulationOutcome::DoSample(result) => result,
+    match operate(data, graph, &ModelOperation::DoSample(target), &ctx()) {
+        ModelOperationAnswer::DoSample(result) => result,
         other => panic!("a do-sampler target returns its sample: {other:?}"),
     }
 }
@@ -167,8 +182,8 @@ fn arrow_strengths_equal_the_compiled_arrow_strengths_route() {
         let (data, graph) = linear();
         let fitted = fit_gcm(graph.clone(), &data).unwrap();
         let direct = arrow_strengths(&fitted.model).unwrap();
-        let AttributionOutcome::ArrowStrengths(compiled) =
-            attribute(&data, &graph, AttributeTarget::ArrowStrengths(ArrowStrengthsTarget), &ctx())
+        let ModelOperationAnswer::ArrowStrengths(compiled) =
+            operate(&data, &graph, &ModelOperation::ArrowStrengths(ArrowStrengthsTarget), &ctx())
         else {
             panic!("an arrow-strengths target returns the strengths");
         };
@@ -210,10 +225,10 @@ fn population_do_contrast_draws_from_the_target_seed_like_a_context_seeded_with_
             seed: target_seed,
         };
         // The study runs under another seed: the draws follow the target's.
-        let AttributionOutcome::PopulationDoContrast(compiled) = attribute(
+        let ModelOperationAnswer::PopulationDoContrast(compiled) = operate(
             &data,
             &graph,
-            AttributeTarget::PopulationDoContrast(target),
+            &ModelOperation::PopulationDoContrast(target),
             &ExecutionContext::for_tests(target_seed ^ 0xFFFF),
         ) else {
             panic!("a do-contrast target returns the contrast");
@@ -315,12 +330,13 @@ fn model_evaluator_equals_the_compiled_model_evaluation_route() {
         let direct = ModelEvaluator { alpha: 0.05, n_permutations: 8, seed: 5 }
             .evaluate(&fitted.model, &data, &ctx())
             .unwrap();
-        let query = SimulateQuery::new(SimulationTarget::ModelEvaluation(ModelEvaluationTarget {
+        let operation = ModelOperation::ModelEvaluation(ModelEvaluationTarget {
             alpha: 0.05,
             n_permutations: 8,
             seed: 5,
-        }));
-        let SimulationOutcome::ModelEvaluation(compiled) = simulate(&data, &graph, query, &ctx())
+        });
+        let ModelOperationAnswer::ModelEvaluation(compiled) =
+            operate(&data, &graph, &operation, &ctx())
         else {
             panic!("a model evaluation returns its report");
         };
@@ -415,5 +431,63 @@ fn simultaneous_counterfactual_declaration_equals_the_direct_engine_and_refuses_
             SimulateQuery::simultaneous_world(&outer, &overlapping, vec![v(2)]),
             Err(QueryError::InvalidSimulate(_))
         ));
+    });
+}
+
+#[test]
+fn the_nested_counterfactual_entries_equal_the_compiled_nested_operation() {
+    on_large_stack("nested_counterfactual_twin", || {
+        let (data, graph) = linear();
+        let fitted = fit_gcm(graph.clone(), &data).unwrap();
+        // Y_{x = 1, M_{x = 0}} with M = y: the mediation contrast of x on z through y.
+        let outer = [hard(0, 0.0)];
+        let inner = [hard(0, 1.0)];
+        let frozen = [v(1)];
+        let spec = NestedSpec { outer: &outer, inner: &inner, frozen: &frozen, outcome: v(2) };
+        let engine = CounterfactualEngine::new(fitted.model.clone());
+        let mut ws = MechanismWorkspace::default();
+        let direct = nested_counterfactual(&engine, &data, &spec, &mut ws, &ctx()).unwrap();
+        let hard_alias =
+            nested_hard_counterfactual(&engine, &data, &spec, &mut ws, &ctx()).unwrap();
+        let exo = engine.abduct(&data, AbductionMissingPolicy::Error, &ctx()).unwrap();
+        let with_exo =
+            nested_counterfactual_with_exo(&engine, &exo, &spec, &mut ws, &ctx()).unwrap();
+        assert!(direct.is_finite());
+        assert_eq!(hard_alias.to_bits(), direct.to_bits());
+        assert_eq!(with_exo.to_bits(), direct.to_bits());
+
+        let operation = ModelOperation::NestedCounterfactual(NestedCounterfactualTarget {
+            outer: Arc::from(outer),
+            inner: Arc::from(inner),
+            frozen: Arc::from(frozen),
+            outcome: v(2),
+        });
+        let ModelOperationAnswer::NestedCounterfactual(compiled) =
+            operate(&data, &graph, &operation, &ctx())
+        else {
+            panic!("a nested counterfactual returns its mean");
+        };
+        assert_eq!(compiled.to_bits(), direct.to_bits());
+    });
+}
+
+#[test]
+fn a_nested_operation_that_freezes_its_outcome_is_refused_before_it_runs() {
+    on_large_stack("nested_counterfactual_refusal", || {
+        let (data, graph) = linear();
+        let operation = ModelOperation::NestedCounterfactual(NestedCounterfactualTarget {
+            outer: Arc::from([hard(0, 0.0)]),
+            inner: Arc::from([hard(0, 1.0)]),
+            frozen: Arc::from([v(2)]),
+            outcome: v(2),
+        });
+        let carrier =
+            CausalQuery::Simulate(SimulateQuery::new(SimulationTarget::InterventionalSample {
+                interventions: Arc::from([]),
+                draws: 1,
+                seed: 0,
+            }));
+        let prepared = study(&data, &graph, carrier).prepare(&ctx()).unwrap();
+        assert!(prepared.model_operation(&operation, &ctx()).is_err());
     });
 }

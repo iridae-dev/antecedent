@@ -1,10 +1,13 @@
-//! Target vocabulary for the operations a fitted structural model answers beyond attribution and
-//! plain simulation: the model-implied strength of every edge, the population do-contrast of one
-//! parent on one child, a named do-sampler, and the model's held-out falsification evaluation.
+//! Vocabulary of the operations a prepared study answers on its own fitted structural model: the
+//! model-implied strength of every edge, the population do-contrast of one parent on one child, a
+//! named do-sampler, the model's held-out falsification evaluation and a nested counterfactual.
 //!
-//! Each target names the operation and every control of its engine; it carries no result. The
-//! operations are statements about the fitted model, not identified estimands of the population,
-//! and run with calibration status `not_measured`.
+//! [`ModelOperation`] is the declaration a prepared study runs (`PreparedStudy::model_operation`
+//! in the facade). It is not a [`crate::CausalQuery`]: the operation reads the mechanisms the
+//! study fits on its own graph and table, so the study's query, contract and identity are not
+//! changed by it. Each target names the operation and every control of its engine; it carries no
+//! result. The operations are statements about the fitted model, not identified estimands of the
+//! population, and run with calibration status `not_measured`.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -41,6 +44,15 @@ pub enum ModelOperationFault {
     /// Refused: the evaluation needs at least one permutation
     #[error("the evaluation needs at least one permutation")]
     EvaluationPermutations,
+    /// Refused: a nested counterfactual's frozen set may not hold the outcome or an inner target
+    #[error(
+        "a nested counterfactual's frozen set may not hold the outcome or an inner intervention \
+         target"
+    )]
+    NestedFrozenConflict,
+    /// Refused: an intervention of a model operation is invalid
+    #[error("an intervention of a model operation is invalid")]
+    InvalidIntervention,
 }
 
 /// Model-implied strength of every edge of the fitted structure: the cut-edge divergence and the
@@ -252,6 +264,151 @@ impl CanonicalEncode for ModelEvaluationTarget {
     }
 }
 
+/// The nested counterfactual `Y_{inner, F_{outer}}`: the mean over the study's rows of `outcome`
+/// under the `inner` interventions while every variable in `frozen` keeps the value it takes in
+/// the `outer` world, on the noise abduced from each row. For the mediation contrast
+/// `Y_{x, M_{x'}}` take `outer = do(X = x')`, `inner = do(X = x)` and `frozen = {M}`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NestedCounterfactualTarget {
+    /// Interventions of the outer world, in declared order.
+    pub outer: Arc<[Intervention]>,
+    /// Interventions of the inner world, in declared order.
+    pub inner: Arc<[Intervention]>,
+    /// Variables held at their outer-world values in the inner world.
+    pub frozen: Arc<[VariableId]>,
+    /// The variable whose mean is read.
+    pub outcome: VariableId,
+}
+
+impl NestedCounterfactualTarget {
+    /// Validate the target.
+    ///
+    /// # Errors
+    ///
+    /// [`ModelOperationFault::InvalidIntervention`] for an invalid intervention and
+    /// [`ModelOperationFault::NestedFrozenConflict`] when the frozen set holds the outcome or an
+    /// inner intervention target.
+    pub fn validate(&self) -> Result<(), ModelOperationFault> {
+        if self.outer.iter().chain(self.inner.iter()).any(|iv| iv.validate().is_err()) {
+            return Err(ModelOperationFault::InvalidIntervention);
+        }
+        let inner_targets: Vec<VariableId> =
+            self.inner.iter().filter_map(Intervention::primary_variable).collect();
+        if self.frozen.iter().any(|v| *v == self.outcome || inner_targets.contains(v)) {
+            return Err(ModelOperationFault::NestedFrozenConflict);
+        }
+        Ok(())
+    }
+}
+
+impl CanonicalEncode for NestedCounterfactualTarget {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        writer.word(5);
+        encode_list(writer, &self.outer);
+        encode_list(writer, &self.inner);
+        encode_list(writer, &self.frozen);
+        self.outcome.encode(writer);
+    }
+}
+
+/// An operation a prepared study runs on the mechanisms it fits on its own graph and table.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum ModelOperation {
+    /// Model-implied strength of every edge (linear-family mechanisms).
+    ArrowStrengths(ArrowStrengthsTarget),
+    /// Population do-contrast of one parent on one child.
+    PopulationDoContrast(PopulationDoContrastTarget),
+    /// A named do-sampler for one outcome.
+    DoSample(DoSamplerTarget),
+    /// The fitted model's falsification evaluation on the study's rows.
+    ModelEvaluation(ModelEvaluationTarget),
+    /// A nested counterfactual mean over the study's rows.
+    NestedCounterfactual(NestedCounterfactualTarget),
+}
+
+impl ModelOperation {
+    /// Stable `snake_case` name.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::ArrowStrengths(_) => "arrow_strengths",
+            Self::PopulationDoContrast(_) => "population_do_contrast",
+            Self::DoSample(_) => "do_sample",
+            Self::ModelEvaluation(_) => "model_evaluation",
+            Self::NestedCounterfactual(_) => "nested_counterfactual",
+        }
+    }
+
+    /// Whether the operation is an attribution of the fitted model (edge strengths, do-contrast)
+    /// rather than a simulation of it (sampler, evaluation, nested counterfactual).
+    #[must_use]
+    pub const fn is_attribution(&self) -> bool {
+        matches!(self, Self::ArrowStrengths(_) | Self::PopulationDoContrast(_))
+    }
+
+    /// The variables the operation names.
+    #[must_use]
+    pub fn variables(&self) -> Vec<VariableId> {
+        let mut out = Vec::new();
+        match self {
+            Self::ArrowStrengths(_) | Self::ModelEvaluation(_) => {}
+            Self::PopulationDoContrast(target) => out.extend([target.parent, target.child]),
+            Self::DoSample(target) => {
+                out.extend(target.interventions.iter().filter_map(Intervention::primary_variable));
+                out.push(target.outcome);
+            }
+            Self::NestedCounterfactual(target) => {
+                out.extend(
+                    target
+                        .outer
+                        .iter()
+                        .chain(target.inner.iter())
+                        .filter_map(Intervention::primary_variable),
+                );
+                out.extend(target.frozen.iter().copied());
+                out.push(target.outcome);
+            }
+        }
+        out.sort_unstable_by_key(|v| v.raw());
+        out.dedup();
+        out
+    }
+
+    /// Validate the operation.
+    ///
+    /// # Errors
+    ///
+    /// The fault of the operation's target.
+    pub fn validate(&self) -> Result<(), ModelOperationFault> {
+        match self {
+            Self::ArrowStrengths(target) => target.validate(),
+            Self::PopulationDoContrast(target) => target.validate(),
+            Self::DoSample(target) => {
+                if target.interventions.iter().any(|iv| iv.validate().is_err()) {
+                    return Err(ModelOperationFault::InvalidIntervention);
+                }
+                target.validate()
+            }
+            Self::ModelEvaluation(target) => target.validate(),
+            Self::NestedCounterfactual(target) => target.validate(),
+        }
+    }
+}
+
+impl CanonicalEncode for ModelOperation {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        // Each target writes its own leading tag (1 to 5), so the operation needs no other.
+        match self {
+            Self::ArrowStrengths(target) => target.encode(writer),
+            Self::PopulationDoContrast(target) => target.encode(writer),
+            Self::DoSample(target) => target.encode(writer),
+            Self::ModelEvaluation(target) => target.encode(writer),
+            Self::NestedCounterfactual(target) => target.encode(writer),
+        }
+    }
+}
+
 fn encode_optional_real(writer: &mut CanonicalWriter, value: Option<f64>) {
     match value {
         None => {
@@ -308,6 +465,24 @@ mod tests {
             seed: 1,
         };
         assert_eq!(target.validate(), Err(ModelOperationFault::WeightingInterventions));
+    }
+
+    #[test]
+    fn a_nested_counterfactual_refuses_a_frozen_outcome_or_inner_target() {
+        use crate::value::Value;
+        let target = NestedCounterfactualTarget {
+            outer: Arc::from([Intervention::set(variable(0), Value::f64(0.0))]),
+            inner: Arc::from([Intervention::set(variable(0), Value::f64(1.0))]),
+            frozen: Arc::from([variable(1)]),
+            outcome: variable(2),
+        };
+        assert!(target.validate().is_ok());
+        let frozen_outcome =
+            NestedCounterfactualTarget { frozen: Arc::from([variable(2)]), ..target.clone() };
+        assert_eq!(frozen_outcome.validate(), Err(ModelOperationFault::NestedFrozenConflict));
+        let frozen_inner =
+            NestedCounterfactualTarget { frozen: Arc::from([variable(0)]), ..target };
+        assert_eq!(frozen_inner.validate(), Err(ModelOperationFault::NestedFrozenConflict));
     }
 
     #[test]
