@@ -14,6 +14,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 antecedent-core = { path = "../../crates/antecedent-core" }
 antecedent-contract = { path = "../../crates/antecedent-contract" }
+antecedent-design = { path = "../../crates/antecedent-design" }
 antecedent-io-core = { path = "../../crates/antecedent-io-core", default-features = false }
 antecedent-expr = { path = "../../crates/antecedent-expr" }
 antecedent-graph = { path = "../../crates/antecedent-graph" }

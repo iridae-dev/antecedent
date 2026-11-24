@@ -12,7 +12,8 @@ production code. This script checks the inventory against the repository:
 A site's `item` must name a Rust item in its `file` (scripts/rust_items.py locators). A
 `checked` site names at least one check, each of which must exist: `adversarial:<case id>`
 in parity/adversarial_campaign.toml, `kani:<harness>` declared as a #[kani::proof] in
-formal/kani/src, or `assurance:<record id>` in parity/assurance_records.toml. A `listed`
+formal/kani/src, `assurance:<record id>` in parity/assurance_records.toml, or
+`unit:<file>::<test fn>` for an in-crate #[test] on a site no public API reaches. A `listed`
 site has no checks and says why.
 """
 
@@ -87,6 +88,14 @@ def validate(root: Path, inventory: dict, campaign: dict, records: dict) -> list
             errors.append(f"{sid}: a listed site has no checks and gives a reason")
         for check in site["checks"]:
             kind, _, name = check.partition(":")
+            if kind == "unit":
+                rel, _, test = name.rpartition("::")
+                unit = root / rel
+                if not unit.is_file() or not re.search(
+                    rf"#\[test\][^{{]*?fn\s+{re.escape(test)}\b", unit.read_text(), re.S
+                ):
+                    errors.append(f"{sid}: check {check!r} names no #[test] fn")
+                continue
             known = {"adversarial": cases, "kani": harnesses, "assurance": record_ids}.get(kind)
             if known is None:
                 errors.append(f"{sid}: unknown check kind in {check!r}")
@@ -146,6 +155,7 @@ def self_test(root: Path = REPO_ROOT) -> int:
         ("missing file", broken(lambda s: s.update(file="crates/no_such_crate/src/lib.rs"))),
         ("unknown check", broken(lambda s: s["checks"].append("adversarial:no.such.case"))),
         ("unknown harness", broken(lambda s: s["checks"].append("kani:no_such_harness"))),
+        ("unknown unit test", broken(lambda s: s["checks"].append(f"unit:{s['file']}::no_such_test"))),
         ("checked without checks", broken(lambda s: s.update(checks=[]))),
         ("bad class", broken(lambda s: s["collections"][0].update({"class": "bag"}))),
         ("listed with checks", broken(lambda s: s.update(status="listed"))),
