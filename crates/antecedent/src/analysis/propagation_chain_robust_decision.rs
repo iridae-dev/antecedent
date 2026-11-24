@@ -209,6 +209,7 @@ pub fn compile_chain_robust_decision(
     };
     let lowered = Arc::new(lower_chain_with_decision(
         retained.draft().clone(),
+        retained.deferred().cloned(),
         chain.plan().clone(),
         Some(decision),
     )?);

@@ -22,6 +22,10 @@
 //! decided.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(
+    deprecated,
+    reason = "the experiment fixture is the released direct cluster contrast the evidence reads"
+)]
 
 use std::sync::Arc;
 
