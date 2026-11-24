@@ -199,6 +199,7 @@ nav:
   - Compiler crate graph: architecture/compiler-crate-graph.md
   - Thread inventory: architecture/thread-inventory.md
   - Identity and coupling contract: architecture/identity-contract.md
+  - Decision layer: architecture/decision-layer.md
   - Counterfactual query scope: architecture/counterfactual-coverage.md
   - Transport query scope: architecture/transport-coverage.md
   - Test performance: guides/test-performance.md
