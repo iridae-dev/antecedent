@@ -1,0 +1,39 @@
+feature_id = "transport.classical_identification"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled classical transport identification program
+# (crates/antecedent/src/analysis/transport_identification.rs, route
+# ClassicalTransportIdentification). It runs, unchanged, the kernel identifiers whose method
+# provenance is recorded in provenance/identify.transport_sid.toml (classical sID,
+# identify_classical_transport, and the finite evidence-catalog search and binding of
+# crates/antecedent-identify/src/sid/catalog.rs and sid/meta.rs) and
+# provenance/identify.transport_meta_sid.toml (identify_meta_transport). This record adds no
+# algorithm: the compiled program lowers the request, passes the unit's support gate and calls
+# the same kernel function with the same inputs; compiled_twins_transport_identify.rs pins the
+# equality. The papers and deviations below are those of the two method records.
+papers = [
+ { title = "A General Algorithm for Deciding Transportability of Experimental Results", doi = "10.1515/jci-2012-0004", sections = ["Section 3: direct transportability", "Section 5, Figure 5: c-component decomposition and source/target factor selection"] },
+ { title = "External Validity: From Do-Calculus to Transportability Across Populations", doi = "10.1214/14-STS486", sections = ["Section 3, Definition 5: S-admissibility", "Section 3, Theorem 2 and equation (3.5): covariate-specific transportability and standardization"] },
+ { title = "Meta-Transportability of Causal Effects: A Formal Approach", sections = ["Figure 5: μsID, lines 1–4, 6–10", "Definition of μs-hedge and obstruction theorem"], url = "https://proceedings.mlr.press/v31/bareinboim13a.pdf" },
+]
+
+implementation_deviations = [
+ "Classical sID is complete only in the paper experimental-information family (arXiv:1312.7485v1); target-only ordinary ID is attempted before source experimental factors.",
+ "The finite evidence-catalog search and the binding of a derivation to a catalog are a separate sound-incomplete contract with deterministic bounded alternatives; budget exhaustion and catalog gaps are inconclusive, never s-hedge witnesses.",
+ "sID line 3 (intervention enlargement over the non-ancestors W of the outcome) is evaluated as a weighted average that needs the observational law on every W cell it weights, a support requirement the published line does not state.",
+ "Meta-transport completeness is scoped to the classical complete source-experiment family; negative claims require a common s-hedge checked against every declared source.",
+ "The compiled program identifies on each execution and claims no uncertainty; the identified functional is evaluated by the route that consumes it.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-identify/tests/transport_exact_scm.rs (independent latent-SCM enumeration of the target interventional law)",
+ "crates/antecedent-identify/tests/causaleffect_transport_subset.rs (frozen causaleffect 1.3.15 transport-subset oracle)",
+ "crates/antecedent-identify/tests/meta_transport_scm.rs (independent finite-SCM enumeration for meta-transport)",
+ "crates/antecedent/tests/compiled_twins_transport_identify.rs (the compiled program equals the direct kernel call)",
+]

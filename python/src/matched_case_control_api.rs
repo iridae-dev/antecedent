@@ -1,12 +1,27 @@
 //! Python binding for the matched case-control conditional odds ratio.
+//!
+//! The odds ratio runs through its compiled program (`MatchedCaseControl` family,
+//! `antecedent::analysis::descriptive_programs`), which calls the same kernel with the same
+//! inputs and returns its result unchanged; the kernel's refusals reach Python as before.
 use crate::transport_common::execution_context;
-use antecedent::estimate::{EstimationError, conditional_odds_ratio, parse_matched_sampling};
+use antecedent::analysis::descriptive_programs::{
+    DescriptiveOutcome, DescriptiveProgramError, DescriptiveRequest, compile_descriptive,
+};
+use antecedent::estimate::{EstimationError, parse_matched_sampling};
 use pyo3::prelude::*;
 
 fn estimation_err(error: EstimationError) -> PyErr {
     match error {
         EstimationError::Refused { code, message } => crate::refusal(code, message),
         other => crate::value_err(other.to_string()),
+    }
+}
+
+fn program_err(error: DescriptiveProgramError) -> PyErr {
+    match error {
+        DescriptiveProgramError::Estimation(error) => estimation_err(error),
+        DescriptiveProgramError::NotSupported(refusal) => crate::not_supported_err(&refusal),
+        other => crate::refusal("public_builder_reentry", other.to_string()),
     }
 }
 
@@ -46,8 +61,15 @@ fn matched_case_control_odds_ratio(
     }
     let ctx = execution_context(0, None, cancel);
     crate::detach_catch(py, move || {
-        let fitted =
-            conditional_odds_ratio(&stratum, &case, &exposed, &ctx).map_err(estimation_err)?;
+        let request = DescriptiveRequest::MatchedOddsRatio { stratum, case, exposed };
+        let outcome = compile_descriptive(request, &ctx)
+            .and_then(|program| program.evaluate(&ctx))
+            .map_err(program_err)?;
+        let DescriptiveOutcome::MatchedOddsRatio(fitted) = outcome else {
+            return Err(crate::value_err(
+                "the compiled matched case-control program returned another result kind",
+            ));
+        };
         let c = fitted.counts;
         let interval = level.and_then(|level| fitted.odds_ratio_interval(level)).map(|(lo, hi)| {
             let slot = antecedent::io::contract_section::CalibrationSlotWire::not_measured(

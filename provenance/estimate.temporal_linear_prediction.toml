@@ -1,0 +1,30 @@
+feature_id = "estimate.temporal_linear_prediction"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled lagged linear prediction program
+# (crates/antecedent/src/analysis/temporal_linear_prediction.rs, route TemporalLinearPrediction)
+# over antecedent_estimate::TemporalLinearPredictor::fit and predict_conditional. The fit is
+# ordinary least squares of a target on an intercept and caller-listed lagged columns over the
+# lag-aligned rows of one series; the prediction evaluates the fitted line with every lag of one
+# listed variable held at a level. This is textbook linear regression algebra written in-repo;
+# no paper procedure is implemented and no theorem is inherited from one.
+papers = []
+
+implementation_deviations = [
+ "The answer is the conditional expectation E[target_t | listed lags, variable = level] under the linear fit, an association of the observed series. No graph is read, nothing is identified and no adjustment set is chosen, so it is not do(variable = level); it equals an interventional mean only when the listed columns are a valid adjustment set, the relation is linear and no other listed column descends from the held variable, none of which is checked.",
+ "Point only: no standard error, interval or calibration is computed or claimed.",
+ "A rank-deficient design (collinear or constant lagged columns), a non-finite value, a non-finite level and a held variable outside the listed columns are refused by the kernel, never answered.",
+ "The compiled program polls cancellation before the fit and before the prediction; the kernel itself does not poll inside its single least-squares solve.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent/tests/temporal_linear_prediction_truth.rs (declared linear lag laws: noise-free recovery of the generating coefficients and analytic conditional predictions, seeded recovery within sampling error, refusals, cancellation)",
+ "crates/antecedent-estimate/src/prediction.rs (a confounded series where the conditional prediction differs from the interventional mean)",
+ "crates/antecedent/tests/compiled_twins_temporal_prediction.rs (the compiled program equals the direct kernel calls bit for bit)",
+]

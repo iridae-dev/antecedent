@@ -1,0 +1,38 @@
+feature_id = "transport.z_identification"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+# The compiled z-transport identification program
+# (crates/antecedent/src/analysis/transport_identification.rs, route ZTransportIdentification):
+# single-source TRz (antecedent_identify::identify_z_transport and the inspecting catalog
+# decision decide_z_transport_inspecting), the binding of a z derivation to a catalog
+# (bind_z_transport_catalog) and the two-source complementary combination
+# (decide_two_source_z_transport). The program calls the same kernel function with the same
+# inputs as the direct call; compiled_twins_transport_identify.rs pins the equality. The paper
+# was not retrieved in this pass; the line numbers below are the ones the kernel's own
+# documentation and tests cite.
+papers = [
+ { title = "Causal Transportability with Limited Experiments", sections = ["TRz: lines 1-11", "line 10: exchange of a controllable coordinate for a source experiment", "line 11: obstruction"], url = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf" },
+]
+
+implementation_deviations = [
+ "Single-source TRz is sound and incomplete within 4 controllable finite discrete variables and any number of observed ones, bounded by the search budget; a budget or cancellation is a limits receipt, never a verdict.",
+ "A line-11 obstruction is reported only as structural in the declared controllable set; other search failures are not certified.",
+ "Two-source combination searches each source separately on its own selection diagram and combines complementary factors only under two factorizations (disconnected graph components, intervention-separated outcome groups); a single connected c-factor that would need one joint law over both sources' interventions is refused as z_transport.multi_source_combination_not_searched, never fabricated. Classical meta-transport is not called.",
+ "Binding cites joint laws only: separate marginals never bind a joint factor, and duplicate evidence binds by one deterministic rule (a family regime before a concrete one, otherwise the lowest regime id).",
+ "The compiled program identifies on each execution and claims no uncertainty; the identified functional is evaluated by the route that consumes it.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/tests/z_transport_sequential_exchange.rs (recursive formulas against exact SCM truth)",
+ "crates/antecedent-estimate/tests/z_transport_c_factor_exchange.rs (line-10 source c-factor against exact SCM truth)",
+ "crates/antecedent-identify/tests/z_transport_negative_evidence.rs (direct enumeration of exogenous states for negative claims)",
+ "crates/antecedent-identify/tests/z_transport_two_source.rs",
+ "crates/antecedent-identify/tests/z_transport_outcome_inspection.rs",
+ "crates/antecedent/tests/compiled_twins_transport_identify.rs (the compiled program equals the direct kernel call)",
+]

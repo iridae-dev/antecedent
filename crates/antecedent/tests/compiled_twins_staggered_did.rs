@@ -3,7 +3,10 @@
 //!
 //! `antecedent::estimate::staggered_event_study::group_time_att` is reproduced by two compiled
 //! queries: the selected group-time query, one cohort-period cell per query, and the staggered
-//! event study, whose post-adoption event-time effects are the same cells. The assertions are
+//! event study, whose post-adoption event-time effects are the same cells. The selected
+//! group-time route calls `group_time_att` itself on the balanced panels it accepts whose
+//! selected cell keeps treated and never-treated clusters apart, as every cell here does; the
+//! event study runs the event-time kernel, which forms the same contrasts. The assertions are
 //! on `to_bits()` of the effect and standard error; a calibrated interval exists only on the
 //! event-study route, so its bounds are checked against the kernel interval function applied
 //! to the direct values.
