@@ -91,7 +91,11 @@ def test_transport_cohort_effect_runs_through_the_compiled_program(fitted_model)
         outcome_units="mmHg",
     )
     assert again.program_identity == effect.program_identity
-    assert again == effect
+    # The result compares by identity (eq=False), so the repeat is compared field by field.
+    assert again.identity == effect.identity
+    assert again.mean_contrast == effect.mean_contrast
+    assert again.row_contrasts == effect.row_contrasts
+    assert again.receipt == effect.receipt
 
 
 @pytest.mark.parametrize(

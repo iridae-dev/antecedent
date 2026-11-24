@@ -63,7 +63,13 @@ pub struct TransportScenariosRun {
 fn lower(prepared: &PreparedTransportScenarios) -> Result<Arc<LoweredProgram>, CausalError> {
     let set = prepared.prepared();
     let mut question = CanonicalWriter::new("antecedent.transport_scenario_set.question.v1");
-    question.text(&format!("{:?}", set.decision())).text(&format!("{:?}", set.request()));
+    // The declared inputs of the decision, not its per-scenario derivations: those carry an
+    // expression arena whose hash-map index prints in no fixed order, and they follow from the
+    // set, the question and the limits written here.
+    let decision = set.decision();
+    question
+        .text(&format!("{:?}", (&decision.set, &decision.question, &decision.limits)))
+        .text(&format!("{:?}", set.request()));
     question.text(&format!("{:?}", set.limits())).text(set.provider());
     for (scenario, plan) in set.plan_summary() {
         question.text(&scenario).text(&plan);

@@ -9379,7 +9379,9 @@ def temporal_dependent_interval_compiled(
     *,
     memory_limit_bytes: int | None = None,
     cancel: CancellationToken | None = None,
-) -> tuple[NativeMeasuredInference | None, str | None]: ...def temporal_dependent_interval_measured(
+) -> tuple[NativeMeasuredInference | None, str | None]: ...
+
+def temporal_dependent_interval_measured(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
     sequence: tuple[int, int],
