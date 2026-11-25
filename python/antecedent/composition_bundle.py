@@ -622,6 +622,25 @@ class BundleBuilder:
         self._last = node_id
         return self
 
+    def add_producer_reference(self, node_id: str, role: str, data: bytes) -> BundleBuilder:
+        """Add a reference whose digest is the producer identity of ``data``.
+
+        ``role`` is a catalog role shared with a compiled study: ``propagation``,
+        ``ledger``, ``composed_model``, ``measurement``, ``discovery``, or
+        ``reliability``. The node kind is the existing kind for that producer.
+        A consumer accepts the reference when the supplied bytes have that
+        identity, and refuses a different digest. The artifact is not replayed.
+
+        Raises:
+            CompositionBundleRefusal: the node id is already used, or ``data`` is
+                not an artifact of that role.
+        """
+        refusal = self._native.add_producer_reference(node_id, role, bytes(data))
+        raise_refusal(refusal, _refusal_type)
+        self._ids.append(node_id)
+        self._last = node_id
+        return self
+
     def add_graph_imputation_transport_fit(
         self,
         artifact: GraphImputationDecisionArtifact,
@@ -1225,6 +1244,7 @@ def consume_bundle(
     *,
     expected_identity: str | None = None,
     supplied: SuppliedSources | None = None,
+    producers: Mapping[str, bytes] | None = None,
     actual_claims: Mapping[str, object] | None = None,
     max_bundle_bytes: int | None = None,
     max_nodes: int | None = None,
@@ -1250,6 +1270,10 @@ def consume_bundle(
     ``expected_identity`` is required: the bundle identity (``Bundle.identity``) the consumer
     retained independently of the bytes. It is a keyword so a forgotten identity is named in
     the error rather than silently trusting the bytes.
+
+    ``producers`` maps a catalog role to the producer artifact bytes. A reference
+    declared with that role is accepted when those bytes carry the reference
+    digest, and refused when the digest differs. The artifact is not replayed.
 
     Raises:
         CausalTypeError: ``data`` is not bytes (for example a path or ``str``: read the file
@@ -1289,15 +1313,21 @@ def consume_bundle(
         if value is not None
     }
     if actual_claims is None:
+        roles = None if producers is None else list(producers)
+        payloads = None if producers is None else [bytes(producers[role]) for role in roles]
         wire, refusal = _native.consume_composition_bundle(
             bytes(data),
             expected_identity,
             None if supplied is None else supplied._json(),
+            producer_roles=roles,
+            producer_payloads=payloads,
             **bounds,
         )
     else:
         if bounds:
             raise CausalValueError("consumer bounds are not available with actual_claims")
+        if producers is not None:
+            raise CausalValueError("producer artifacts are not available with actual_claims")
         from .program_claims import NativeClaim
 
         if len(actual_claims) > 64:

@@ -3,8 +3,9 @@
 //! Supported durable formats: `0.1`–`0.4` (migrate-from) and `0.5` (stable).
 //! Format `0.5` adds the optional identified-set interval on structural-mixture
 //! results; a `0.4` payload has no such field and decodes with it absent.
-//! Analysis results with withheld mediation points also admit the scoped `0.6`
-//! format without migration. Unknown versions and other `0.6` kinds fail explicitly.
+//! Analysis results with withheld mediation points, and `compiled_study_v1`,
+//! admit format `0.6` without migration. Unknown versions and any other `0.6`
+//! kind fail explicitly.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -42,12 +43,18 @@ pub fn is_supported_source(v: FormatVersion) -> bool {
 /// Unsupported source format versions.
 pub fn migrate_artifact(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, IoError> {
     let from = artifact.manifest.format_version;
-    // Format 0.6 is an analysis-result-only extension and must retain its
-    // minimum-reader requirement; it cannot be relabeled as the stable 0.5 format.
+    // Format 0.6 stays 0.6 for an analysis result with a withheld mediation
+    // point, and for a compiled study. Neither is relabeled as 0.5.
     if from == crate::analysis_result_artifact::ABSENT_MEDIATION_POINT_FORMAT
         && artifact.manifest.minimum_reader_version == from
         && artifact.manifest.artifact_kind
             == crate::ArtifactKind::Other(crate::artifact_kinds::ANALYSIS_RESULT.into())
+    {
+        return Ok(artifact);
+    }
+    if from == crate::compiled_study::FORMAT
+        && artifact.manifest.artifact_kind
+            == crate::ArtifactKind::Other(crate::compiled_study::KIND.into())
     {
         return Ok(artifact);
     }
@@ -108,7 +115,7 @@ fn migrate_0_1_to_0_2(mut artifact: EncodedArtifact) -> Result<EncodedArtifact, 
 }
 
 /// Read a container and migrate to [`STABLE_FORMAT`], preserving a supported
-/// 0.6 analysis-result extension at its original version.
+/// 0.6 analysis-result extension and `compiled_study_v1` at their original version.
 ///
 /// # Errors
 ///
@@ -287,5 +294,20 @@ mod tests {
         let art = tiny_artifact(FormatVersion { major: 9, minor: 9 });
         let err = migrate_artifact(art).unwrap_err();
         assert!(matches!(err, IoError::UnsupportedFormat { major: 9, minor: 9 }));
+    }
+
+    #[test]
+    fn compiled_study_0_6_is_not_relabeled_and_another_0_6_kind_is_refused() {
+        let mut study = tiny_artifact(crate::compiled_study::FORMAT);
+        study.manifest.artifact_kind =
+            ArtifactKind::Other(crate::compiled_study::KIND.into());
+        study.manifest.minimum_reader_version = crate::compiled_study::FORMAT;
+        let migrated = migrate_artifact(study).unwrap();
+        assert_eq!(migrated.manifest.format_version, crate::compiled_study::FORMAT);
+        let other = tiny_artifact(FormatVersion { major: 0, minor: 6 });
+        assert!(matches!(
+            migrate_artifact(other),
+            Err(IoError::UnsupportedFormat { major: 0, minor: 6 })
+        ));
     }
 }

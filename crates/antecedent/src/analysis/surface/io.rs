@@ -45,6 +45,8 @@ pub use antecedent_io::graph_networkx::{
 pub use antecedent_io::{
     RetainedArtifactIdentity, artifact_identity, bind_retained_artifact, load_expecting,
 };
+/// Format 0.6 compiled study: invariant, catalog roles, and sealed-claim open.
+pub use antecedent_io::compiled_study;
 /// Accept an exported claim only as the claim the consumer retained.
 pub use antecedent_io::{RetainedClaimIdentity, accept_claim_expecting};
 

@@ -31,7 +31,13 @@
 //! node-level failure is reported on that node and the rest of the bundle keeps its
 //! inspected result.
 
+mod producer_reference;
 mod vocabulary;
+
+pub use producer_reference::{
+    CATALOG_ROLE_FACT, ProducerCheck, check_producer, node_kind_for_role, producer_identity,
+    producer_reference,
+};
 
 pub use vocabulary::{
     BundleEdge, BundleLimits, BundleNode, EvidenceRelationship, NodeKind, NodeSource,
@@ -960,6 +966,18 @@ pub struct SuppliedSources {
     pub providers: Vec<SuppliedProvider>,
     /// Supplied data snapshots.
     pub data: Vec<SuppliedData>,
+    /// Producer artifacts whose existing identity binds a catalog-role reference.
+    pub producers: Vec<SuppliedProducer>,
+}
+
+/// A producer artifact supplied for a catalog role.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SuppliedProducer {
+    /// Catalog role (`propagation`, `ledger`, `composed_model`, `measurement`,
+    /// `discovery`, or `reliability`).
+    pub role: String,
+    /// Producer artifact bytes.
+    pub bytes: Vec<u8>,
 }
 
 impl SuppliedSources {
@@ -985,6 +1003,20 @@ impl SuppliedSources {
         self.data
             .push(SuppliedData { snapshot_id: snapshot_id.to_owned(), digest: digest.to_owned() });
         self
+    }
+
+    /// Add a producer artifact for a catalog role.
+    #[must_use]
+    pub fn with_producer(mut self, role: &str, bytes: Vec<u8>) -> Self {
+        self.producers.push(SuppliedProducer { role: role.to_owned(), bytes });
+        self
+    }
+
+    fn producer(&self, role: &str) -> Option<&[u8]> {
+        self.producers
+            .iter()
+            .find(|producer| producer.role == role)
+            .map(|producer| producer.bytes.as_slice())
     }
 }
 
@@ -1438,7 +1470,29 @@ impl BundleConsumer {
                         verify_embedded(node, bytes, &upstream, &self.verifiers)
                     }
                     NodeSource::Reference { requires, .. } => {
-                        resolve_reference(node, requires, supplied)
+                        if let Some(role) = node.facts.get(CATALOG_ROLE_FACT) {
+                            match check_producer(role, &node.identity, supplied.producer(role)) {
+                                ProducerCheck::Match => NodeState {
+                                    status: NodeStatus::Verified,
+                                    facts: node.facts.clone(),
+                                    values: Vec::new(),
+                                    label: None,
+                                },
+                                ProducerCheck::Missing => NodeState {
+                                    status: NodeStatus::ReferenceUnresolved {
+                                        requires: requires.clone(),
+                                    },
+                                    facts: node.facts.clone(),
+                                    values: Vec::new(),
+                                    label: None,
+                                },
+                                ProducerCheck::Refused { stage, reason } => {
+                                    NodeState::failed(stage, reason)
+                                }
+                            }
+                        } else {
+                            resolve_reference(node, requires, supplied)
+                        }
                     }
                 };
                 if !state.is_failed()

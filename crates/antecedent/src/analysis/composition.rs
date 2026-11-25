@@ -20,11 +20,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_design::composition_bundle::{
-    BundleConsumer, BundleEdge, BundleError, BundleLimits, BundleNode, BundleStage, ClaimLabel,
-    CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship, FACT_EVIDENCE_DIGEST,
-    FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST, FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST,
-    LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeSource, NodeStatus, NodeVerifier,
-    ProviderOrData, SuppliedData, SuppliedProvider, SuppliedSources, UpstreamNode, VerifiedNode,
+    BundleConsumer, BundleEdge, BundleError, BundleLimits, BundleNode, BundleStage, CATALOG_ROLE_FACT,
+    ClaimLabel, CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship,
+    FACT_EVIDENCE_DIGEST, FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST, FACT_REQUIRES_LAW,
+    FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeSource,
+    NodeStatus, NodeVerifier, ProducerCheck, ProviderOrData, SuppliedData, SuppliedProducer,
+    SuppliedSources, UpstreamNode, VerifiedNode, check_producer, node_kind_for_role,
+    producer_identity, producer_reference,
 };
 pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
@@ -354,6 +356,25 @@ impl BundleBuilder {
     ) -> Result<(), BundleError> {
         self.ensure_new(node_id)?;
         self.nodes.push(BundleNode::reference(node_id, kind, identity, requires));
+        Ok(())
+    }
+
+    /// Add a reference whose digest is the producer identity of `bytes`.
+    ///
+    /// The role is one of the catalog roles shared with a compiled study. The
+    /// node kind is the existing kind for that producer. No new verifier runs.
+    ///
+    /// # Errors
+    ///
+    /// A blank or repeated id, an unknown role, or bytes that are not that producer.
+    pub fn add_producer_reference(
+        &mut self,
+        node_id: &str,
+        role: &str,
+        bytes: &[u8],
+    ) -> Result<(), BundleError> {
+        self.ensure_new(node_id)?;
+        self.nodes.push(producer_reference(node_id, role, bytes)?);
         Ok(())
     }
 

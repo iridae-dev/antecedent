@@ -25,6 +25,8 @@ pub mod bridge_distribution;
 pub mod byte_cursor;
 pub mod calibration;
 pub mod callback_result_artifact;
+pub mod catalog_role;
+pub mod compiled_study;
 pub mod canonical_json;
 pub mod capacity_account;
 pub mod causal_artifact;

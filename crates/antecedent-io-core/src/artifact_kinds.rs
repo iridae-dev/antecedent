@@ -11,6 +11,7 @@ pub(crate) const ANALYSIS_RESULT: &str = "analysis_result";
 pub(crate) const CALLBACK_RESULT: &str = "callback_result_v1";
 pub(crate) const CAUSAL_PAYLOAD: &str = "causal_payload";
 pub(crate) const COHORT_DECISION_SOURCE: &str = "cohort_decision_source_v1";
+pub(crate) const COMPILED_STUDY: &str = "compiled_study_v1";
 pub(crate) const COMPACT_RUNTIME_EXPORT: &str = "compact_runtime_export_v1";
 pub(crate) const COMPOSITION_VERIFICATION: &str = "composition_verification_v1";
 pub(crate) const COUNTERFACTUAL_TRANSPORT: &str = "counterfactual_transport_v2";
@@ -40,7 +41,7 @@ pub(crate) const TRANSPORTED_COUNTERFACTUAL: &str = "transported_counterfactual_
 mod tests {
     use super::{
         ADAPTIVE_MONITORING_CONTRACT, ANALYSIS_RESULT, CALLBACK_RESULT, CAUSAL_PAYLOAD,
-        COHORT_DECISION_SOURCE, COMPACT_RUNTIME_EXPORT, COMPOSITION_VERIFICATION,
+        COHORT_DECISION_SOURCE, COMPILED_STUDY, COMPACT_RUNTIME_EXPORT, COMPOSITION_VERIFICATION,
         COUNTERFACTUAL_TRANSPORT, EVIDENCE_LEDGER, EXTERNAL_CALLBACK, EXTERNAL_COLUMN_CLAIM,
         EXTERNAL_RESPONSE_CLAIM, FROZEN_SCORES, GENERAL_TEMPORAL_COUNTERFACTUAL,
         INTERFACE_CONTRACT, JOINT_DISTRIBUTION, JOINT_MECHANISM_SENSITIVITY, MEASUREMENT_MODEL,
@@ -57,6 +58,7 @@ mod tests {
             CALLBACK_RESULT,
             CAUSAL_PAYLOAD,
             COHORT_DECISION_SOURCE,
+            COMPILED_STUDY,
             COMPACT_RUNTIME_EXPORT,
             COMPOSITION_VERIFICATION,
             COUNTERFACTUAL_TRANSPORT,

@@ -14,7 +14,7 @@ use antecedent::analysis::composition::{
     BundleBuilder, BundleError, BundleLimits, BundleStage, ClaimLabel, CompositionBundle,
     ConsumedBundle, ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus,
     ProviderOrData, SuppliedSources, consume, consume_with_limits, describe_artifact,
-    detect_node_kind, export_bundle, mean_decision_bytes,
+    detect_node_kind, export_bundle, mean_decision_bytes, producer_identity,
 };
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_artifact::contract_from_json_refusal;
@@ -259,6 +259,20 @@ impl PyBundleBuilder {
         })
     }
 
+    /// Add a reference whose digest is the producer identity of `data`.
+    /// `role` is a catalog role shared with a compiled study.
+    fn add_producer_reference(
+        &mut self,
+        node_id: &str,
+        role: &str,
+        data: &[u8],
+    ) -> Refusal {
+        self.inner
+            .add_producer_reference(node_id, role, data)
+            .err()
+            .map(|error| error_refusal(&error))
+    }
+
     /// Declare that `dependent` was derived from `upstream`.
     fn connect(&mut self, upstream: &str, dependent: &str) -> Refusal {
         self.inner.connect(upstream, dependent).err().map(|e| error_refusal(&e))
@@ -357,7 +371,7 @@ impl PyCompositionBundle {
 /// consumer's own bounds (each omitted bound keeps its default). Returns
 /// `(consumed_json, refusal)`.
 #[pyfunction]
-#[pyo3(signature = (data, expected_identity, supplied_json=None, *, max_bundle_bytes=None, max_nodes=None, max_edges=None, max_embedded_bytes=None))]
+#[pyo3(signature = (data, expected_identity, supplied_json=None, *, max_bundle_bytes=None, max_nodes=None, max_edges=None, max_embedded_bytes=None, producer_roles=None, producer_payloads=None))]
 fn consume_composition_bundle(
     py: Python<'_>,
     data: &[u8],
@@ -367,9 +381,24 @@ fn consume_composition_bundle(
     max_nodes: Option<usize>,
     max_edges: Option<usize>,
     max_embedded_bytes: Option<usize>,
+    producer_roles: Option<Vec<String>>,
+    producer_payloads: Option<Vec<Vec<u8>>>,
 ) -> PyResult<(Option<String>, Refusal)> {
     crate::catch_ffi(|| {
-        let supplied = supplied_from(supplied_json)?;
+        let mut supplied = supplied_from(supplied_json)?;
+        match (producer_roles, producer_payloads) {
+            (None, None) => {}
+            (Some(roles), Some(payloads)) if roles.len() == payloads.len() => {
+                for (role, payload) in roles.into_iter().zip(payloads) {
+                    supplied = supplied.with_producer(&role, payload);
+                }
+            }
+            _ => {
+                return Err(crate::value_err(
+                    "producer_roles and producer_payloads must be the same length",
+                ));
+            }
+        }
         let consumed = py.detach(|| {
             if max_bundle_bytes.is_none()
                 && max_nodes.is_none()
@@ -468,10 +497,17 @@ fn composition_detect_kind(data: &[u8]) -> Option<&'static str> {
     detect_node_kind(data).map(NodeKind::as_str)
 }
 
+/// The existing identity of a producer artifact, for a catalog role.
+#[pyfunction]
+fn producer_artifact_identity(role: &str, data: &[u8]) -> PyResult<String> {
+    producer_identity(role, data).map_err(|reason| crate::value_err(reason))
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBundleBuilder>()?;
     m.add_class::<PyCompositionBundle>()?;
     m.add_function(wrap_pyfunction!(consume_composition_bundle, m)?)?;
+    m.add_function(wrap_pyfunction!(producer_artifact_identity, m)?)?;
     m.add_function(wrap_pyfunction!(composition_describe_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(composition_mean_decision, m)?)?;
     m.add_function(wrap_pyfunction!(composition_detect_kind, m)?)

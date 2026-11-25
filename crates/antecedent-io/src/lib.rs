@@ -209,6 +209,8 @@ pub mod transport_scenario_artifact;
 pub mod z_transport_artifact;
 pub use antecedent_io_core::adaptive_monitoring_contract_artifact;
 pub use antecedent_io_core::callback_result_artifact;
+pub use antecedent_io_core::catalog_role;
+pub use antecedent_io_core::compiled_study;
 pub use antecedent_io_core::cohort_decision;
 pub use antecedent_io_core::composition_verification_artifact;
 pub use antecedent_io_core::cross_world_execution_artifact;
