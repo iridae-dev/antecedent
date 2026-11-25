@@ -46,6 +46,7 @@ use super::propagation_chain_decision::{
     consume_chain_decision,
 };
 use crate::analysis::cyclic::gate_decision;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -55,7 +56,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "cyclic_posterior_action_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
@@ -448,7 +448,7 @@ impl CompiledCyclicPosteriorDecision {
     /// Inspect the retained six-layer program before sampling or solving.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     pub(super) fn joint_chain(

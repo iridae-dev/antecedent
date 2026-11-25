@@ -1,5 +1,6 @@
 //! Compiler-owned reliability diagnostics for a fixed finite set of sequential policies.
 
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -9,7 +10,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 use antecedent_contract::evidence_ledger::EvidenceLedger;
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::{
@@ -358,7 +358,7 @@ impl SequentialPolicyReliabilityPlan {
     /// Inspect the compiled program.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
     /// Exact prospective action-choice study scope for fixed policies. It
     /// binds the model, policy set and sampling design, excluding realized

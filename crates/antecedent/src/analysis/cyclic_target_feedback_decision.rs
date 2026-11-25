@@ -33,13 +33,13 @@ use super::propagation_chain_decision::{
     ChainDecisionResult, compile_action_world_chain_decision, consume_chain_decision,
 };
 use crate::analysis::cyclic::gate_decision;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceRole, EvidenceSourceRef, FunctionalKind,
     IdentificationLayer, LoweredProgram, NonGraphicalIdentification, PhysicalLayer, ProblemTarget,
     ProgramCell, ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{NestedFitLaw, Realization};
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "cyclic_target_feedback_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
@@ -376,7 +376,7 @@ impl CompiledCyclicTargetFeedbackDecision {
     /// Plan view of the lowered program at the compiled stage.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Fit the cyclic posterior, standardize over the target frame and score the decision.

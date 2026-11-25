@@ -118,10 +118,7 @@ impl PlanningPlan {
     /// One view over every layer of the planning program. Reading it simulates nothing.
     #[must_use]
     pub fn plan_view(&self) -> crate::planner::PlanView {
-        crate::planner::PlanView::of_program(
-            Arc::clone(&self.lowered),
-            crate::planner::PlanStage::Compiled,
-        )
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Identity of the lowered program.

@@ -5,12 +5,12 @@ use super::{
     Deserialize, DesignShape, EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef,
     ExecutionContext, FunctionalKind, IdentificationLayer, IoError, LoweredProgram,
     MAX_BUNDLE_RECOMPUTE_BYTES, NodeFailure, NodeKind, NodeSource, NodeVerifier,
-    NonGraphicalIdentification, PhysicalEffect, PhysicalLayer, PhysicalOperator, PlanStage,
-    PlanView, ProblemTarget, ProgramCell, ProgramIdentityScope, Realization,
-    ReplayedBundleDependency, ScientificProblem, SemanticDigest, Serialize,
-    StandaloneCompositionLoweredParts, StatisticalProgram, SuppliedSources, UncertaintyReading,
-    UpstreamNode, VerifiedNode, export_bundle, fit_node_context, fit_node_failure,
-    native_fit_consumer, node_refused, require_bundle_route, require_bundle_route_unscoped,
+    NonGraphicalIdentification, PhysicalEffect, PhysicalLayer, PhysicalOperator, PlanView,
+    ProblemTarget, ProgramCell, ProgramIdentityScope, Realization, ReplayedBundleDependency,
+    ScientificProblem, SemanticDigest, Serialize, StandaloneCompositionLoweredParts,
+    StatisticalProgram, SuppliedSources, UncertaintyReading, UpstreamNode, VerifiedNode,
+    export_bundle, fit_node_context, fit_node_failure, native_fit_consumer, node_refused,
+    require_bundle_route, require_bundle_route_unscoped,
 };
 use antecedent_design::decision_reliability::{
     DecisionDraws, ReliabilityReport, ReliabilityRequest, assess,
@@ -467,7 +467,7 @@ impl CompiledSequentialReliabilityBundle {
     /// Plan view of the lowered program at the compiled stage.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
     /// Replay the raw producer and independently reassess the exact retained draws.
     ///

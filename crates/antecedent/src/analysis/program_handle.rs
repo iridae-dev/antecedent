@@ -1,8 +1,8 @@
 //! The one shape a compiled program-family handle takes.
 //!
 //! A program family compiles to a handle that retains its lowered program. Through
-//! [`CompiledProgramHandle`] each such handle states that program, its plan view and the support
-//! decision of the unit its route runs under, read from the route and never from the handle.
+//! [`CompiledProgramHandle`] each such handle exposes its program and the corresponding plan view.
+//! The route determines which unit supplies the support decision.
 //! [`gate_program`] is the support gate the handle's execution passes through: a release build
 //! refuses a route whose unit is not supported, or that no unit is bound to, and a development
 //! build records what a release build refuses and runs the route. A support decision never

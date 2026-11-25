@@ -20,13 +20,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_design::composition_bundle::{
-    BundleConsumer, BundleEdge, BundleError, BundleLimits, BundleNode, BundleStage, CATALOG_ROLE_FACT,
-    ClaimLabel, CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship,
-    FACT_EVIDENCE_DIGEST, FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST, FACT_REQUIRES_LAW,
-    FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind, NodeSource,
-    NodeStatus, NodeVerifier, ProducerCheck, ProviderOrData, SuppliedData, SuppliedProducer,
-    SuppliedSources, UpstreamNode, VerifiedNode, check_producer, node_kind_for_role,
-    producer_identity, producer_reference,
+    BundleConsumer, BundleEdge, BundleError, BundleLimits, BundleNode, BundleStage,
+    CATALOG_ROLE_FACT, ClaimLabel, CompositionBundle, ConsumedBundle, ConsumedNode,
+    EvidenceRelationship, FACT_EVIDENCE_DIGEST, FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST,
+    FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind,
+    NodeSource, NodeStatus, NodeVerifier, ProducerCheck, ProviderOrData, SuppliedData,
+    SuppliedProducer, SuppliedSources, UpstreamNode, VerifiedNode, check_producer,
+    node_kind_for_role, producer_identity, producer_reference,
 };
 pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
@@ -41,6 +41,7 @@ use super::scientific_bridge::{
     PreparedScientificBridgeDistribution, ScientificBridgeRefusal,
     consume_scientific_bridge_distribution_artifact,
 };
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -48,7 +49,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{NestedFitLaw, Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 use crate::support::unit::{SupportKey, UnitId, require_program, require_program_unscoped};
 use crate::support::units_generated;
 use antecedent_contract::DataClassification;
@@ -709,7 +709,7 @@ impl CompiledChainBundleRecomputation {
     /// Inspect the compiled bundle recomputation without executing it.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Replay every embedded dependency and execute the terminal program.
@@ -1179,7 +1179,7 @@ impl CompiledBridgeBundleRecomputation {
     /// Inspect the retained bundle and terminal schedule without mapping.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Consume every embedded dependency and derive the scientific bridge
@@ -1723,7 +1723,7 @@ impl CompiledCyclicPosteriorBundleRecomputation {
     /// Inspect the compiled route without fitting or executing the bundle.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Refit the producer, then independently consume and execute the bundle.
@@ -1950,7 +1950,7 @@ impl CompiledCyclicPosteriorNodeBundle {
     /// Inspect the compiled route without refitting or replaying anything.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Refit the embedded source through the bundle consumer and execute the
@@ -2351,7 +2351,7 @@ impl CompiledTrialIpwNodeBundle {
     /// Inspect the outer program without fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Reidentify and refit the source through the bundle consumer, then
@@ -2767,7 +2767,7 @@ impl CompiledGraphImputationTransportNodeBundle {
     /// Inspect the outer program without fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Reidentify and refit the source through the bundle consumer, then
@@ -3201,7 +3201,7 @@ impl CompiledJointTransportEffectNodeBundle {
     /// Inspect the outer program without fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Reidentify and refit the source through the bundle consumer, then
@@ -4044,7 +4044,7 @@ impl CompiledPredictiveFitDecisionBundle {
     /// Plan view of the lowered program at the compiled stage.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
     /// Refit raw evidence, execute the predictive chain and rescore its decision.
     ///

@@ -23,6 +23,7 @@ use antecedent_core::{
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -30,7 +31,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 pub mod chain_recovery;
 pub mod counterfactual_seal;
@@ -222,7 +222,7 @@ impl<I> KernelProgram<I> {
 
     /// The plan view of the compiled program.
     pub(crate) fn view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Every layer of the compiled program.

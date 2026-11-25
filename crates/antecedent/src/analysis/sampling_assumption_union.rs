@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::propagation_chain::{PropagationChain, PropagationChainPlan, compile_propagation_chain};
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -31,7 +32,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 /// The namespace of the plan name a union gives its program; a program name, not a refusal
 /// detail.
@@ -412,7 +412,7 @@ impl CompiledSamplingAssumptionUnion {
     /// Inspect all layers before any chain arithmetic.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Rerun the original and every resampled chain, then form basic-bootstrap
@@ -790,7 +790,7 @@ impl CompiledIidSamplingAssumptionUnion {
     /// Inspect the retained program without sampling rows.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Resample every raw-unit column jointly, recompile the whole chain for
@@ -1188,7 +1188,7 @@ impl CompiledClusterSamplingAssumptionUnion {
     /// Inspect the fixed schedule before sampling any clusters.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Resample entire clusters, rerun every aligned chain source and form the
@@ -1623,7 +1623,7 @@ impl CompiledStratifiedClusterSamplingAssumptionUnion {
     /// Inspect the fixed schedule before sampling any clusters.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Resample entire clusters within strata, rerun every aligned chain source and form the
@@ -1999,7 +1999,7 @@ impl CompiledMovingBlockSamplingAssumptionUnion {
     /// Inspect the fixed schedule before sampling any moving-blocks.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Resample consecutive moving blocks, rerun every aligned chain source and form the
@@ -2433,7 +2433,7 @@ impl CompiledStratifiedMovingBlockSamplingAssumptionUnion {
     /// Inspect the fixed schedule before sampling any moving-blocks.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Resample consecutive moving blocks, rerun every aligned chain source and form the
@@ -2863,7 +2863,7 @@ impl CompiledPanelBlockSamplingAssumptionUnion {
     /// Inspect the fixed schedule before sampling any moving-blocks.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Resample panels and then their consecutive blocks, rerun the aligned chain and form the

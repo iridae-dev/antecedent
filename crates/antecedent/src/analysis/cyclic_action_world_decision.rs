@@ -37,12 +37,12 @@ use super::propagation_chain_decision::{
 };
 use super::{PreparedStudy, Study};
 use crate::analysis::cyclic::{CyclicPreparedState, gate_decision};
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, EvidenceRole, EvidenceSourceRef,
     FunctionalKind, LoweredProgram, ProblemTarget, ProgramCell, StandaloneCompositionLoweredParts,
     UncertaintyReading,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "cyclic_derived_action_world_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
@@ -337,7 +337,7 @@ impl CompiledCyclicActionDecision {
     /// Inspect all compiler layers before solving or evaluating utility.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     fn joint_chain(

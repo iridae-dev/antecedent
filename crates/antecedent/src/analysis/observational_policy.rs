@@ -42,6 +42,7 @@ use serde::{Deserialize, Serialize};
 use super::multi_level_treatment::AdjustmentColumn;
 use crate::analysis::program_handle::gate_program;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -51,7 +52,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 use crate::support::unit::{SupportKey, UnitId, require_program};
 use crate::support::units_generated;
 
@@ -780,7 +780,7 @@ impl CompiledObservationalPolicy {
     /// View the retained policy program without scoring data.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Fit and score only through the retained compiler dispatch. The context
@@ -1638,7 +1638,7 @@ impl CompiledPolicySubsampling {
     /// Inspect the compiled resampling program.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Execute all compiler-refitted subsamples; no coverage is presumed.

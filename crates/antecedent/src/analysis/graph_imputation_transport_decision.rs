@@ -43,6 +43,7 @@ use super::graph_imputation::{CompiledGraphImputation, GraphImputationError, Gra
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -52,7 +53,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "graph_imputation_transport_decision_v2";
 const CONFOUNDED_FEATURE: &str = "graph_imputation_confounded_transport_decision_v2";
@@ -850,7 +850,7 @@ impl CompiledGraphImputationTransportDecision {
     /// Inspect the retained plan without fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Reimpute, reselect graphs, fit target-standardized children and score
@@ -1338,7 +1338,10 @@ pub fn consume_graph_imputation_transport_decision(
         execution_seed: parts.execution_seed,
     };
     let producer = CompiledGraphImputation::compile_with_candidates(
-        table, &spec, parts.candidates.as_deref(), ctx,
+        table,
+        &spec,
+        parts.candidates.as_deref(),
+        ctx,
     )?;
     if producer.source_bytes() != wire.original_source.as_slice()
         || original.program() != *producer.lowered().identity().as_bytes()

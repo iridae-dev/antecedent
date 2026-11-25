@@ -302,10 +302,7 @@ macro_rules! compiled_terminal {
             /// of the route's unit. Reading it runs nothing.
             #[must_use]
             pub fn plan_view(&self) -> crate::planner::PlanView {
-                crate::planner::PlanView::of_program(
-                    std::sync::Arc::clone(&self.lowered),
-                    crate::planner::PlanStage::Compiled,
-                )
+                crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
             }
 
             /// Identity of the compiled program: the family, its version and every declared

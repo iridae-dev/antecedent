@@ -35,6 +35,7 @@ use super::graph_imputation_transport_decision::{
     effect_chain, imputation_pooled_interval_95, order_statistic_interval_95, transported_child_df,
 };
 use super::propagation_chain_decision::{compile_chain_decision, consume_chain_decision};
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -44,7 +45,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "graph_imputation_kernel_transport_decision_v2";
 const BOOTSTRAP_FEATURE: &str = "graph_imputation_kernel_transport_target_bootstrap_decision_v2";
@@ -571,7 +571,7 @@ impl CompiledGraphImputationKernelTransportDecision {
     /// Inspect the schedule before fitting or kernel standardization.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Reimpute source rows, reselect graphs, fit kernel-standardized children
@@ -1029,7 +1029,10 @@ pub fn consume_graph_imputation_kernel_transport_decision(
         execution_seed: parts.execution_seed,
     };
     let producer = CompiledGraphImputation::compile_with_candidates(
-        table, &spec, parts.candidates.as_deref(), ctx,
+        table,
+        &spec,
+        parts.candidates.as_deref(),
+        ctx,
     )?;
     if producer.source_bytes() != wire.original_source.as_slice()
         || original.program() != *producer.lowered().identity().as_bytes()

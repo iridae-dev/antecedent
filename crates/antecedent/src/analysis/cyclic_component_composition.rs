@@ -24,12 +24,12 @@ use antecedent_model::nonlinear_equilibrium::{
 
 use super::{PreparedStudy, Study};
 use crate::analysis::cyclic::{CyclicPreparedState, gate_decision};
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
     NonGraphicalIdentification, PhysicalLayer, ProblemTarget, ProgramCell,
     StandaloneCompositionLoweredParts,
 };
-use crate::planner::{PlanStage, PlanView};
 
 /// Composition identity: the component count, the ledger digest after a presence word, then each
 /// component and connection in name order.
@@ -1141,7 +1141,7 @@ impl CompiledJointComponentPosteriorDecision {
     /// Inspect the whole compiled route without fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Refit the common evidence schedule and solve all paired action worlds.
@@ -1658,7 +1658,7 @@ impl CompiledJointVectorComponentPosteriorDecision {
     /// Inspect the whole compiled route without fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Refit the common evidence schedule and solve all paired action worlds.
@@ -1944,7 +1944,7 @@ impl CompiledBoundedComponentPosteriorDecision {
     /// Inspect the retained program before fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     fn chain(

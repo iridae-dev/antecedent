@@ -47,6 +47,7 @@ use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     compile_chain_decision, consume_chain_decision,
 };
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -56,7 +57,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "graph_imputation_effect_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
@@ -327,7 +327,7 @@ impl CompiledGraphImputationEffectDecision {
     /// Inspect the retained program without fitting or scoring.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Rerun graph selection and missing-row imputation through the producer,
@@ -1226,7 +1226,7 @@ impl CompiledGraphImputationWorldDecision {
     /// Inspect the compiled program.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
     /// Refit shared graph/imputation worlds and evaluate the action decision.
     ///

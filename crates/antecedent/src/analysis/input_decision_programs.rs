@@ -1248,10 +1248,7 @@ impl<A, O> CompiledFiniteActionDecision<A, O> {
     /// The plan view of the compiled program. Reading it runs nothing.
     #[must_use]
     pub fn plan_view(&self) -> crate::planner::PlanView {
-        crate::planner::PlanView::of_program(
-            Arc::clone(&self.lowered),
-            crate::planner::PlanStage::Compiled,
-        )
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Identity of the compiled program.
@@ -1342,10 +1339,7 @@ impl CompiledAdaptivePolicySearch {
     /// The plan view of the compiled program. Reading it runs nothing.
     #[must_use]
     pub fn plan_view(&self) -> crate::planner::PlanView {
-        crate::planner::PlanView::of_program(
-            Arc::clone(&self.lowered),
-            crate::planner::PlanStage::Compiled,
-        )
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Identity of the compiled program.

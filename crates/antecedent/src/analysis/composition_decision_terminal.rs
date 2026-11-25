@@ -30,6 +30,7 @@ use super::composition::{
     BundleError, BundleLimits, CompositionBundle, NodeKind, NodeSource, ReplayedBundleDependency,
     SuppliedSources, consume, export_bundle,
 };
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -37,7 +38,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 use crate::support::unit::{SupportKey, UnitId, require_program, require_program_unscoped};
 use crate::support::units_generated;
 
@@ -364,7 +364,7 @@ impl CompiledDecisionBundleRecomputation {
     /// Inspect the compiled route without scoring its decision.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
     /// Replay every embedded dependency, score the decision and

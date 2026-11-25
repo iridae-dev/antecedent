@@ -222,10 +222,7 @@ impl PreparedCategoricalPosteriorCandidate {
     /// unit the route runs under.
     #[must_use]
     pub fn plan_view(&self) -> crate::planner::PlanView {
-        crate::planner::PlanView::of_program(
-            Arc::clone(&self.program),
-            crate::planner::PlanStage::Compiled,
-        )
+        CompiledProgramHandle::plan_view(self)
     }
     /// Identity to retain separately before a later native source replay.
     #[must_use]

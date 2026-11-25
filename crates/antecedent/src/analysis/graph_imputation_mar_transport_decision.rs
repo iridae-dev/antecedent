@@ -9,6 +9,7 @@ use super::graph_imputation_transport_decision::{
 use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_chain_decision, consume_chain_decision,
 };
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -18,7 +19,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 use antecedent_contract::{ClaimKind, DataClassification, QuantityRole, ScientificQuantity};
 use antecedent_core::graph_imputation_contract::GraphImputationSource;
 use antecedent_core::{
@@ -329,7 +329,7 @@ impl CompiledMarTransportDecision {
     /// Inspect without executing.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
     /// Refit source graphs and integrate over the weighted complete target rows.
     ///
@@ -463,7 +463,10 @@ pub fn consume_graph_imputation_mar_transport_decision(
         execution_seed: parts.execution_seed,
     };
     let producer = CompiledGraphImputation::compile_with_candidates(
-        table, &spec, parts.candidates.as_deref(), ctx,
+        table,
+        &spec,
+        parts.candidates.as_deref(),
+        ctx,
     )?;
     if producer.source_bytes() != wire.source.as_slice()
         || original.program() != *producer.lowered().identity().as_bytes()
