@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from types import MappingProxyType
 from typing import Any, Literal
 
+from ._freeze import freeze
 from ._scientific import ScientificResult
 
 Standing = Literal[
@@ -28,14 +28,6 @@ Standing = Literal[
     "insufficient_evidence",
     "sampled_estimate",
 ]
-
-
-def _frozen(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        return MappingProxyType({str(k): _frozen(v) for k, v in value.items()})
-    if isinstance(value, list):
-        return tuple(_frozen(v) for v in value)
-    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,12 +55,12 @@ class CompiledReceipt:
         return cls(
             bound_identity=str(wire["bound_identity"]),
             contract_identity=str(wire["contract_identity"]),
-            causal=_frozen(wire.get("causal")),
+            causal=freeze(wire.get("causal")),
             programs=tuple(str(p) for p in wire.get("programs") or ()),
             executed=tuple(None if e is None else str(e) for e in wire.get("executed") or ()),
-            measure=_frozen(wire.get("measure")),
-            options=_frozen(wire.get("options")),
-            mixture=None if mixture is None else _frozen(mixture),
+            measure=freeze(wire.get("measure")),
+            options=freeze(wire.get("options")),
+            mixture=freeze(mixture),
         )
 
 

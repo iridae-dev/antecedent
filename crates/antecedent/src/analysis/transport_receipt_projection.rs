@@ -6,13 +6,14 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_contract::{QuantityRole, ScientificQuantity};
+use antecedent_contract::ScientificQuantity;
 use antecedent_core::{
     CausalQuery, CausalSchema, IdentityDomain, SupportStatus, TransportQuery, VariableId,
 };
 use antecedent_estimate::EffectEstimate;
 use antecedent_identify::TransportIdentification;
 
+use super::decision_result::{causal_source_identity, mean_contrast_quantity};
 use super::{
     TransportDeclaration, TransportedRefusal, TransportedResponse, TransportedRoute,
     assumption_label,
@@ -51,18 +52,14 @@ impl TrialTransportReceipt {
         .to_hex();
         Ok(Self {
             source_population: query.source_population.to_string(),
-            quantity: ScientificQuantity {
-                variable_id: outcome.name.to_string(),
-                variable_name: outcome.name.to_string(),
-                role: QuantityRole::Outcome,
-                units: outcome.unit.as_deref().unwrap_or("undeclared").to_owned(),
-                population_id: query.target_population.to_string(),
-                regime_id: format!("contrast:do({treatment}=1)-do({treatment}=0)"),
-                horizon: 0,
-                functional_id: "mean_difference".to_owned(),
-                conditioning: Vec::new(),
-                transform_id: "identity".to_owned(),
-            },
+            quantity: mean_contrast_quantity(
+                treatment,
+                &outcome.name,
+                outcome.unit.as_deref().unwrap_or("undeclared"),
+                &query.target_population,
+                0.0,
+                1.0,
+            ),
             transport_identity,
         })
     }
@@ -139,11 +136,7 @@ pub fn project_transported_response(
         uncalibrated_standard_error: Some(effect.uncertainty.analytic.se),
         provider_id: provider_id.to_owned(),
         snapshot_id: contract.identities.data_snapshot.to_hex(),
-        causal_contract_id: contract
-            .identities
-            .program
-            .unwrap_or(contract.identities.identification)
-            .to_hex(),
+        causal_contract_id: causal_source_identity(contract),
     };
     TransportedResponse::declared_point(vec![receipt.quantity.clone()], vec![ipw], &declaration)
 }

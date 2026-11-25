@@ -38,14 +38,7 @@ def _mean_wire(source: MeanSource | BoundExternalClaim) -> dict[str, Any]:
             "rng_id": "none:mean_grid",
         }
     source._validated_original()
-    return {
-        "coordinates": [q._wire() for q in source.coordinates],
-        "means": list(source.means),
-        "provider_id": source.provider_id,
-        "snapshot_id": source.snapshot_id,
-        "causal_contract_id": source.causal_contract_id,
-        "rng_id": source.rng_id,
-    }
+    return source._wire()
 
 
 def _binding_unread(source: object) -> CausalTypeError:

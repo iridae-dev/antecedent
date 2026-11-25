@@ -338,17 +338,7 @@ pub(crate) fn ate_result_from_analysis(
     ctx: &antecedent::prelude::ExecutionContext,
 ) -> PyResult<AteAnalysisResult> {
     let effect_authority =
-        result.identification.average_effect().zip(result.estimate().as_effect()).map(
-            |(query, effect)| crate::scalar_decision_api::NativeEffectAuthority {
-                names: names.to_vec(),
-                query: query.clone(),
-                status: result.identification.status,
-                ate: effect.ate,
-                has_structural_response: result.structural_response.is_some(),
-                support_status: result.support_status(),
-                executed_contract: result.executed_contract().copied(),
-            },
-        );
+        crate::scalar_decision_api::NativeEffectAuthority::from_result(result, names);
     let effect = result.estimate().as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(result, names, ctx)?;
     // A single-outcome counterfactual answers with its own unit result; one with several

@@ -2,17 +2,25 @@
 //!
 //! A contrast is one scientific quantity, never two reconstructed outcome means.
 
+use antecedent::StudyResult;
+use antecedent::analysis::decision_result::{
+    DecisionProjectionError, NativeEffectAuthority as EffectAuthority, project_static_effect,
+};
+use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
+
+use crate::bridge::external_refusal_json;
 
 #[derive(Clone, Debug)]
 pub(crate) struct NativeEffectAuthority {
-    pub(crate) query: antecedent::query::AverageEffectQuery,
-    pub(crate) status: antecedent::schema::IdentificationStatus,
-    pub(crate) ate: f64,
-    pub(crate) has_structural_response: bool,
-    pub(crate) support_status: Option<antecedent::support::CellStatus>,
-    pub(crate) executed_contract: Option<antecedent::ExecutedContract>,
-    pub(crate) names: Vec<String>,
+    inner: EffectAuthority,
+    names: Vec<String>,
+}
+
+impl NativeEffectAuthority {
+    pub(crate) fn from_result(result: &StudyResult, names: &[String]) -> Option<Self> {
+        Some(Self { inner: EffectAuthority::from_result(result)?, names: names.to_vec() })
+    }
 }
 
 #[pymethods]
@@ -26,87 +34,41 @@ impl crate::AteAnalysisResult {
         supplied_value: f64,
     ) -> PyResult<(Option<String>, Option<String>)> {
         crate::catch_ffi(|| {
-            if units.trim().is_empty() || units.len() > 256 || population != "target" {
-                return Err(crate::value_err(
-                    "effect units must be declared (at most 256 bytes) and population must be target (the original observed sample)",
-                ));
-            }
-            let refuse = |detail: &str| {
-                (None, Some(serde_json::json!({
-                "code": if detail == antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND { "route_not_supported" } else { "invalid_argument" }, "stage": "bind", "detail": detail,
-                "offending": null, "expected": "unchanged original static mean ATE",
-                "supplied": "scalar analysis", "remedy": "use the original checked ATE contrast"
-            }).to_string()))
-            };
-            let Some(authority) = &self.effect_authority else {
-                return Ok(refuse(
-                    antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
-                ));
-            };
-            let query = &authority.query;
-            if authority.status
-                != antecedent::schema::IdentificationStatus::NonparametricallyIdentified
-                || query.target_population != antecedent::query::TargetPopulation::AllObserved
-                || query.outcome_functional != antecedent::query::OutcomeFunctional::Mean
-                || !query.effect_modifiers.is_empty()
-                || authority.has_structural_response
-                || authority
-                    .support_status
-                    .is_some_and(|s| s != antecedent::support::CellStatus::Supported)
-            {
-                return Ok(refuse(
-                    antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
-                ));
-            }
-            if !authority.ate.is_finite() || supplied_value.to_bits() != authority.ate.to_bits() {
-                return Ok(refuse(
-                    antecedent::reason::reason_details::native_claims::PROJECTION_MISMATCH,
-                ));
-            }
-            let Some(executed) = &authority.executed_contract else {
-                return Ok(refuse(
-                    antecedent::reason::reason_details::native_claims::NATIVE_STATE_UNAVAILABLE,
-                ));
-            };
-            let level = |intervention: &antecedent::prelude::Intervention| match intervention {
-                antecedent::prelude::Intervention::Set { variable, value }
-                    if *variable == query.treatment =>
-                {
-                    value.as_f64()
+            let authority = self.effect_authority.as_ref();
+            let projected = match project_static_effect(
+                authority.map(|authority| &authority.inner),
+                units,
+                population,
+                supplied_value,
+                |id| authority?.names.get(id.raw() as usize).cloned(),
+            ) {
+                Ok(projected) => projected,
+                Err(DecisionProjectionError::Declaration(message)) => {
+                    return Err(crate::value_err(message));
                 }
-                _ => None,
+                Err(DecisionProjectionError::Refusal(refusal)) => {
+                    return Ok((None, Some(external_refusal_json(&refusal))));
+                }
             };
-            let (Some(control), Some(active)) = (level(&query.control), level(&query.active))
-            else {
-                return Ok(refuse(
-                    antecedent::reason::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
-                ));
-            };
-            let treatment = authority
-                .names
-                .get(query.treatment.raw() as usize)
-                .ok_or_else(|| crate::value_err("original treatment identity unavailable"))?;
-            let outcome = authority
-                .names
-                .get(query.outcome.raw() as usize)
-                .ok_or_else(|| crate::value_err("original outcome identity unavailable"))?;
-            Ok((Some(serde_json::json!({
-            "coordinates": [{
-                "version": 1, "variable_id": outcome, "variable_name": outcome,
-                "role": "outcome", "units": units, "population_id": population,
-                "regime_id": format!("contrast:do({treatment}={active})-do({treatment}={control})"),
-                "horizon": 0, "functional_id": "mean_difference", "conditioning": [],
-                "transform_id": "identity"
-            }],
-            "means": [authority.ate], "provider_id": "native:static_ate",
-            "snapshot_id": executed.identities.data_snapshot.to_hex(),
-            "causal_contract_id": executed.identities.program.unwrap_or(executed.identities.identification).to_hex(),
-            "query": {
-                "treatment": treatment, "outcome": outcome, "control": control, "active": active,
-                "adjustment": self.adjustment_set
-            },
-            "rng_id": "none:mean_grid"
-        }).to_string()), None))
+            let source = projected.source;
+            let coordinates =
+                source.coordinates.iter().map(ScientificQuantityWire::from).collect::<Vec<_>>();
+            let wire = serde_json::json!({
+                "coordinates": coordinates,
+                "means": source.means,
+                "provider_id": source.provider_id,
+                "snapshot_id": source.snapshot_id,
+                "causal_contract_id": source.causal_contract_id,
+                "query": {
+                    "treatment": projected.treatment,
+                    "outcome": projected.outcome,
+                    "control": projected.control,
+                    "active": projected.active,
+                    "adjustment": self.adjustment_set,
+                },
+                "rng_id": source.rng_id,
+            });
+            Ok((Some(wire.to_string()), None))
         })
     }
 }
