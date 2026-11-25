@@ -343,8 +343,8 @@ struct Prepared {
     adapted: AdaptedClaims,
 }
 
-/// Adapt declarations for the legacy reader to verify their identity before replay.
-fn prepare_replay(
+/// Adapt claims for joint-scenario binding and identity-checked artifact replay.
+fn prepare_claims(
     declaration_json: &str,
     kind: &str,
     claims_json: &str,
@@ -625,7 +625,7 @@ fn replay_robust_decision(
         check_size(declaration_json)?;
         check_size(claims_json)?;
         let run = || -> Result<String, String> {
-            let prepared = prepare_replay(declaration_json, kind, claims_json, &sources)?;
+            let prepared = prepare_claims(declaration_json, kind, claims_json, &sources)?;
             let identity =
                 prepared.contract.identity().map_err(|e| external_refusal_json(&e.to_refusal()))?;
             let artifact = RobustResultArtifact::from_bytes(

@@ -2,8 +2,8 @@
 use super::{
     Bound, IoError, Prepared, PyAnyMethods, PyBytes, PyDictMethods, PyErr,
     PyJointDistributionArtifact, PyModule, PyModuleMethods, PyRef, PyResult, Python,
-    admissible_contract_from_json_refusal, check_size, external_refusal_json, prepare, pyclass,
-    pyfunction, pymethods, serialization, structural_json, wrap_pyfunction,
+    admissible_contract_from_json_refusal, check_size, external_refusal_json, prepare_claims,
+    pyclass, pyfunction, pymethods, serialization, structural_json, wrap_pyfunction,
 };
 use crate::prepared_api::PyPreparedAnalysis;
 use antecedent::execution::SearchStop;
@@ -267,7 +267,7 @@ fn joint_scenario_carrier_for_study(
     let admission =
         ctx.acquire_admission(0, json_bytes).map_err(|e| io_error(IoError::Admission(e)))?;
     let Prepared { adapted, .. } =
-        match prepare(declaration_json, "finite_scenarios", claims_json, &sources) {
+        match prepare_claims(declaration_json, "finite_scenarios", claims_json, &sources) {
             Ok(value) => value,
             Err(refusal) => return Ok((None, Some(refusal))),
         };
