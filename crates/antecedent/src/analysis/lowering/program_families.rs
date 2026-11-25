@@ -360,6 +360,24 @@ macro_rules! program_families {
             /// Every named action history replayed against each unit's once-abduced exogenous
             /// history of a declared temporal model.
             GeneralTemporalCounterfactual => Temporal, unit "counterfactual.temporal_fixed_population";
+            /// Exact evaluation of a declared finite-horizon contingent policy.
+            SequentialPolicyEvaluation => Structural, unit "sequential_evaluation.policy_evaluation";
+            /// Assessment of a sampled decision from declared draws or a producer carrier.
+            DecisionReliabilityAssessment => PropagationChain, unit "decision_reliability.sampled_decision";
+            /// The three derived uncertainty components of a sampled decision.
+            DecisionReliabilityDerivation => PropagationChain, unit "decision_reliability.derived_numerical_interval";
+            /// Assumption range of a transported point under a declared shift.
+            TransportAssumptionRange => PropagationChain, unit "transport.assumption_range";
+            /// Quantile-grid bridge from a linear-Gaussian composition to a finite SCM.
+            DiscretizedLinearGaussianBridge => Structural, unit "model.discretized_linear_gaussian_scm";
+            /// Fitted linear-Gaussian mechanisms carried under a selection diagram.
+            FittedMechanismTransport => Structural, unit "transport.fitted_linear_gaussian_mechanism";
+            /// A contingent policy's value transported to another population.
+            TransportedPolicyEvaluation => Structural, unit "transport.policy_evaluation";
+            /// A contingent policy's value shifted to another period.
+            TemporalPolicyEvaluation => Structural, unit "transport.period_shift_policy";
+            /// An adaptive trial's arm means standardized to a target stratum law.
+            AdaptiveTrialTransport => Structural, unit "transport.adaptive_trial_source";
         }
     };
 }

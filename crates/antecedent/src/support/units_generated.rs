@@ -52,6 +52,8 @@ pub(crate) const DECISION_SENSITIVITY_COMPOSITION: UnitId =
     UnitId::new("decision.sensitivity_composition");
 pub(crate) const DECISION_STRUCTURAL_ROBUSTNESS: UnitId =
     UnitId::new("decision.structural_robustness");
+pub(crate) const DECISION_RELIABILITY_DERIVED_NUMERICAL_INTERVAL: UnitId =
+    UnitId::new("decision_reliability.derived_numerical_interval");
 pub(crate) const DECISION_RELIABILITY_RANKING_STATEMENT: UnitId =
     UnitId::new("decision_reliability.ranking_statement");
 pub(crate) const DECISION_RELIABILITY_SAMPLED_DECISION: UnitId =
@@ -120,6 +122,8 @@ pub(crate) const MEASUREMENT_REPEAT_CODINGS_LATENT_CLASS: UnitId =
 pub(crate) const MEASUREMENT_SOFT_EXPOSURE: UnitId = UnitId::new("measurement.soft_exposure");
 pub(crate) const MNAR_FIXED_SHIFT_COMPILED_CANDIDATE: UnitId =
     UnitId::new("mnar_fixed_shift.compiled_candidate");
+pub(crate) const MODEL_DISCRETIZED_LINEAR_GAUSSIAN_SCM: UnitId =
+    UnitId::new("model.discretized_linear_gaussian_scm");
 pub(crate) const OBSERVATION_QUERY_CALIBRATED_PROBABILITY: UnitId =
     UnitId::new("observation_query.calibrated_probability");
 pub(crate) const OBSERVATION_QUERY_FINITE_LAW_CONDITIONING: UnitId =
@@ -142,8 +146,13 @@ pub(crate) const SENSITIVITY_MATCHED_HIDDEN_BIAS: UnitId =
     UnitId::new("sensitivity.matched_hidden_bias");
 pub(crate) const SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE: UnitId =
     UnitId::new("sensitivity.supplied_estimate_evalue");
+pub(crate) const SEQUENTIAL_EVALUATION_POLICY_EVALUATION: UnitId =
+    UnitId::new("sequential_evaluation.policy_evaluation");
 pub(crate) const TEMPORAL_DEPENDENT_INTERVAL: UnitId = UnitId::new("temporal.dependent_interval");
+pub(crate) const TRANSPORT_ADAPTIVE_TRIAL_SOURCE: UnitId =
+    UnitId::new("transport.adaptive_trial_source");
 pub(crate) const TRANSPORT_ADMG_CONDITIONAL: UnitId = UnitId::new("transport.admg_conditional");
+pub(crate) const TRANSPORT_ASSUMPTION_RANGE: UnitId = UnitId::new("transport.assumption_range");
 pub(crate) const TRANSPORT_AUGMENTED_RESPONSE_GRID: UnitId =
     UnitId::new("transport.augmented_response_grid");
 pub(crate) const TRANSPORT_BRIDGE_DECISION: UnitId = UnitId::new("transport.bridge_decision");
@@ -157,6 +166,8 @@ pub(crate) const TRANSPORT_CPDAG_CLASS_ENVELOPE: UnitId =
     UnitId::new("transport.cpdag_class_envelope");
 pub(crate) const TRANSPORT_FINITE_SCENARIO_ENVELOPE: UnitId =
     UnitId::new("transport.finite_scenario_envelope");
+pub(crate) const TRANSPORT_FITTED_LINEAR_GAUSSIAN_MECHANISM: UnitId =
+    UnitId::new("transport.fitted_linear_gaussian_mechanism");
 pub(crate) const TRANSPORT_JOINT_BAYESIAN: UnitId = UnitId::new("transport.joint_bayesian");
 pub(crate) const TRANSPORT_JOINT_TRANSPORT_DECISION: UnitId =
     UnitId::new("transport.joint_transport_decision");
@@ -164,6 +175,9 @@ pub(crate) const TRANSPORT_LEARNED_JOINT: UnitId = UnitId::new("transport.learne
 pub(crate) const TRANSPORT_MEASUREMENT_MODEL: UnitId = UnitId::new("transport.measurement_model");
 pub(crate) const TRANSPORT_MULTI_SOURCE_LIMITED_EXPERIMENT: UnitId =
     UnitId::new("transport.multi_source_limited_experiment");
+pub(crate) const TRANSPORT_PERIOD_SHIFT_POLICY: UnitId =
+    UnitId::new("transport.period_shift_policy");
+pub(crate) const TRANSPORT_POLICY_EVALUATION: UnitId = UnitId::new("transport.policy_evaluation");
 pub(crate) const TRANSPORT_SHARED_SCENARIO_COVARIANCE: UnitId =
     UnitId::new("transport.shared_scenario_covariance");
 pub(crate) const TRANSPORT_SINGLE_SOURCE_Z_TRANSPORT: UnitId =
@@ -231,8 +245,11 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "DecisionFunctionalValue" => Some(DECISION_FUNCTIONALS),
         "SensitivityDecision" => Some(DECISION_SENSITIVITY_COMPOSITION),
         "IdentifiedSetDecision" | "SuppliedClaimDecision" => Some(DECISION_STRUCTURAL_ROBUSTNESS),
+        "DecisionReliabilityDerivation" => Some(DECISION_RELIABILITY_DERIVED_NUMERICAL_INTERVAL),
         "DecisionDrawsRanking" => Some(DECISION_RELIABILITY_RANKING_STATEMENT),
-        "SequentialPolicyReliability" => Some(DECISION_RELIABILITY_SAMPLED_DECISION),
+        "DecisionReliabilityAssessment" | "SequentialPolicyReliability" => {
+            Some(DECISION_RELIABILITY_SAMPLED_DECISION)
+        }
         "AdaptivePolicySearch" => Some(DESIGN_ADAPTIVE_POLICY_SEARCH),
         "EvidenceObligations" => Some(DESIGN_EVIDENCE_OBLIGATIONS),
         "StructureIdentification" => Some(DESIGN_EVIDENCE_PLAN),
@@ -294,6 +311,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "RepeatCodingsLatentClass" => Some(MEASUREMENT_REPEAT_CODINGS_LATENT_CLASS),
         "SoftExposureCorrection" => Some(MEASUREMENT_SOFT_EXPOSURE),
         "MnarFixedShift" => Some(MNAR_FIXED_SHIFT_COMPILED_CANDIDATE),
+        "DiscretizedLinearGaussianBridge" => Some(MODEL_DISCRETIZED_LINEAR_GAUSSIAN_SCM),
         "CountFittedInterval" => Some(OBSERVATION_QUERY_CALIBRATED_PROBABILITY),
         "DependentMeasuredObservation"
         | "FittedDependentMeasuredObservation"
@@ -318,8 +336,11 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "ZTransportMechanismSensitivity" => Some(SENSITIVITY_JOINT_MECHANISM),
         "MatchedDesignSensitivity" => Some(SENSITIVITY_MATCHED_HIDDEN_BIAS),
         "SuppliedEstimateEValue" => Some(SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE),
+        "SequentialPolicyEvaluation" => Some(SEQUENTIAL_EVALUATION_POLICY_EVALUATION),
         "TemporalDependentInterval" => Some(TEMPORAL_DEPENDENT_INTERVAL),
+        "AdaptiveTrialTransport" => Some(TRANSPORT_ADAPTIVE_TRIAL_SOURCE),
         "AdmgConditionalTransportIdentification" => Some(TRANSPORT_ADMG_CONDITIONAL),
+        "TransportAssumptionRange" => Some(TRANSPORT_ASSUMPTION_RANGE),
         "TransportResponseGrid" => Some(TRANSPORT_AUGMENTED_RESPONSE_GRID),
         "AssessedBridgeTransportDecision" | "BridgeTransportDecision" => {
             Some(TRANSPORT_BRIDGE_DECISION)
@@ -329,6 +350,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "TransportedCohortEffect" => Some(TRANSPORT_COVARIATE_SHIFT_COHORT_EFFECT),
         "DiscoveredClassTransport" => Some(TRANSPORT_CPDAG_CLASS_ENVELOPE),
         "TransportScenarioSet" => Some(TRANSPORT_FINITE_SCENARIO_ENVELOPE),
+        "FittedMechanismTransport" => Some(TRANSPORT_FITTED_LINEAR_GAUSSIAN_MECHANISM),
         "JointBayesianTransport" => Some(TRANSPORT_JOINT_BAYESIAN),
         "JointTransportEffectDecision" | "JointTransportPredictiveDecision" => {
             Some(TRANSPORT_JOINT_TRANSPORT_DECISION)
@@ -336,6 +358,8 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "LearnedJointTransport" => Some(TRANSPORT_LEARNED_JOINT),
         "MeasurementModelTransport" => Some(TRANSPORT_MEASUREMENT_MODEL),
         "MzTransportIdentification" => Some(TRANSPORT_MULTI_SOURCE_LIMITED_EXPERIMENT),
+        "TemporalPolicyEvaluation" => Some(TRANSPORT_PERIOD_SHIFT_POLICY),
+        "TransportedPolicyEvaluation" => Some(TRANSPORT_POLICY_EVALUATION),
         "SharedScenarioCovariance" => Some(TRANSPORT_SHARED_SCENARIO_COVARIANCE),
         "ZTransportEstimate" => Some(TRANSPORT_SINGLE_SOURCE_Z_TRANSPORT),
         "SmoothedDoseLearnerTransport" => Some(TRANSPORT_SMOOTHED_DOSE_CALLER_LEARNERS),

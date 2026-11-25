@@ -1255,6 +1255,30 @@ name = "compiled_twins_z_transport"
 path = "tests/compiled_twins_z_transport.rs"
 
 [[test]]
+name = "compiled_twins_sequential_evaluation"
+path = "tests/compiled_twins_sequential_evaluation.rs"
+
+[[test]]
+name = "compiled_twins_discretized_bridge"
+path = "tests/compiled_twins_discretized_bridge.rs"
+
+[[test]]
+name = "compiled_twins_fitted_mechanism_transport"
+path = "tests/compiled_twins_fitted_mechanism_transport.rs"
+
+[[test]]
+name = "compiled_twins_policy_transport"
+path = "tests/compiled_twins_policy_transport.rs"
+
+[[test]]
+name = "compiled_twins_decision_reliability_doors"
+path = "tests/compiled_twins_decision_reliability_doors.rs"
+
+[[test]]
+name = "compiled_twins_transport_assumption_range"
+path = "tests/compiled_twins_transport_assumption_range.rs"
+
+[[test]]
 name = "z_transport_known_truth"
 path = "tests/z_transport_known_truth.rs"
 [[test]]

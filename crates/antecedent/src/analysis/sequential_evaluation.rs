@@ -40,8 +40,7 @@ pub use super::design_exports::design_crate::sequential_evaluation::{
     PolicySpec, RolloutConfig, RolloutEstimate, SEQUENTIAL_EVALUATION_IDENTITY_VERSION,
     SEQUENTIAL_EVALUATION_INFERENCE, STREAM_SCHEME, SequentialAssumptions,
     SequentialEvaluationError, SequentialRequest, SequentialResult, StoppingBoundary, StreamRole,
-    VoiCheck, VoiRequest, compare_policies, evaluate_off_policy, evaluate_policy, request_interval,
-    rollout_policy, stream_uniform, value_of_collecting_evidence,
+    VoiCheck, VoiRequest, request_interval, stream_uniform,
 };
 pub use super::design_exports::design_crate::sequential_evaluation_artifact::{
     EvaluationIdentities, ExpectedEvaluation, IntervalWire,
@@ -51,29 +50,168 @@ pub use super::design_exports::design_crate::sequential_evaluation_artifact::{
 };
 pub use antecedent_contract::evidence_ledger::EvidenceLedger;
 
-/// Evaluate a fixed policy by exact enumeration with the default bounds.
-///
-/// Equivalent to [`evaluate_policy`] with [`EvaluationLimits::default`].
+/// Evaluate a fixed policy by exact enumeration of its reachable histories.
 ///
 /// # Errors
 ///
 /// A malformed model or policy, a reachable history without a decision, an
 /// action without support, a resource budget exceeded, an outcome due after
-/// the horizon under the `refuse` censoring rule, or cancellation.
+/// the horizon under the `refuse` censoring rule, a bound exceeded, or cancellation.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_evaluate_policy which calls this kernel function with the same inputs"
+)]
+pub fn evaluate_policy(
+    model: &FiniteSequentialModel,
+    policy: &ContingentPolicy,
+    limits: EvaluationLimits,
+    ctx: &ExecutionContext,
+) -> SequentialResult<PolicyEvaluation> {
+    antecedent_design::sequential_evaluation::evaluate_policy(model, policy, limits, ctx)
+}
+
+/// Weight a declared log by the likelihood ratio of a target policy and the logging policy.
+///
+/// # Errors
+///
+/// A malformed model or policy, a positivity failure, an inconsistent trajectory, double
+/// counting, a bound exceeded, or cancellation.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_evaluate_off_policy which calls this kernel function with the same inputs"
+)]
+pub fn evaluate_off_policy(
+    model: &FiniteSequentialModel,
+    target: &ContingentPolicy,
+    behaviour: &ContingentPolicy,
+    log: &[LoggedTrajectory],
+    ledger: &mut EvidenceLedger,
+    limits: EvaluationLimits,
+    ctx: &ExecutionContext,
+) -> SequentialResult<OffPolicyEstimate> {
+    antecedent_design::sequential_evaluation::evaluate_off_policy(
+        model, target, behaviour, log, ledger, limits, ctx,
+    )
+}
+
+/// Roll a fixed policy out on common random streams.
+///
+/// # Errors
+///
+/// A malformed model or policy, a reachable history without a decision, an unsupported action,
+/// a resource budget exceeded, a rollout count outside the bound, or cancellation.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_rollout_policy which calls this kernel function with the same inputs"
+)]
+pub fn rollout_policy(
+    model: &FiniteSequentialModel,
+    policy: &ContingentPolicy,
+    config: RolloutConfig,
+    ctx: &ExecutionContext,
+) -> SequentialResult<RolloutEstimate> {
+    antecedent_design::sequential_evaluation::rollout_policy(model, policy, config, ctx)
+}
+
+/// Evaluate caller-supplied comparisons on one model.
+///
+/// # Errors
+///
+/// A transported request, a static score table or a policy learned from the data under
+/// evaluation, a policy that does not implement its declared kind, any evaluation refusal, or a
+/// value-of-information request the ranker and the enumeration disagree on.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_compare_policies which calls this kernel function with the same inputs"
+)]
+pub fn compare_policies(
+    model: &FiniteSequentialModel,
+    specs: Vec<ComparisonSpec>,
+    voi: Option<&VoiRequest>,
+    request: &SequentialRequest,
+    limits: EvaluationLimits,
+    ctx: &ExecutionContext,
+) -> SequentialResult<ComparisonReport> {
+    antecedent_design::sequential_evaluation::compare_policies(
+        model, specs, voi, request, limits, ctx,
+    )
+}
+
+/// Score the value of collecting one observation before committing.
+///
+/// # Errors
+///
+/// A malformed model, a collect action that is not pure information, a model outside the
+/// one-collection scope, a ranker refusal, or a disagreement between the ranker and the
+/// enumeration.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_value_of_collecting_evidence which calls this kernel function with the same inputs"
+)]
+pub fn value_of_collecting_evidence(
+    model: &FiniteSequentialModel,
+    request: &VoiRequest,
+    limits: EvaluationLimits,
+    ctx: &ExecutionContext,
+) -> SequentialResult<VoiCheck> {
+    antecedent_design::sequential_evaluation::value_of_collecting_evidence(
+        model, request, limits, ctx,
+    )
+}
+
+/// Evaluate a fixed policy by exact enumeration with the default bounds.
+///
+/// Compiles [`Study::compile_evaluate_policy`] with [`EvaluationLimits::default`] and executes
+/// that program. Equivalent to [`evaluate_policy`] with those limits.
+///
+/// # Errors
+///
+/// A malformed model or policy, a reachable history without a decision, an
+/// action without support, a resource budget exceeded, an outcome due after
+/// the horizon under the `refuse` censoring rule, cancellation, or compiling
+/// from inside a lowered dispatch.
 pub fn evaluate(
     model: &FiniteSequentialModel,
     policy: &ContingentPolicy,
     ctx: &ExecutionContext,
 ) -> SequentialResult<PolicyEvaluation> {
-    evaluate_policy(model, policy, EvaluationLimits::default(), ctx)
+    let compiled = super::Study::compile_evaluate_policy(
+        model.clone(),
+        policy.clone(),
+        EvaluationLimits::default(),
+        ctx,
+    )
+    .map_err(evaluation_compile_error)?;
+    compiled.evaluate(ctx)
+}
+
+fn evaluation_compile_error(error: crate::error::CausalError) -> SequentialEvaluationError {
+    match error {
+        crate::error::CausalError::Cancelled { .. } => SequentialEvaluationError {
+            code: antecedent_core::reason_code!("cancelled_no_claim"),
+            detail: antecedent_core::reason_details::sequential_evaluation::CANCELLED.to_owned(),
+            message: "the evaluation was cancelled before it produced a value".to_owned(),
+            remedy: "re-run the evaluation; a partial enumeration is not a result",
+        },
+        other => SequentialEvaluationError {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            detail: "kernel_program.compile".to_owned(),
+            message: other.to_string(),
+            remedy: "compile the policy evaluation outside a lowered dispatch",
+        },
+    }
 }
 
 /// Evaluate and seal a policy, with an optional off-policy estimate and an
 /// optional rollout diagnostic, as a replayable artifact.
 ///
+/// Compiles [`Study::compile_sequential_evaluation_seal`] with
+/// [`EvaluationLimits::default`] and seals through that program.
+///
 /// # Errors
 ///
-/// Any evaluation refusal, or a body over the artifact bounds.
+/// Any evaluation refusal, a body over the artifact bounds, cancellation, or
+/// compiling from inside a lowered dispatch.
 pub fn seal(
     model: &FiniteSequentialModel,
     policy: &ContingentPolicy,
@@ -81,14 +219,32 @@ pub fn seal(
     rollout: Option<RolloutConfig>,
     ctx: &ExecutionContext,
 ) -> Result<SequentialEvaluationArtifact, IoError> {
-    SequentialEvaluationArtifact::new(
-        model,
-        policy,
-        off_policy,
+    let compiled = super::Study::compile_sequential_evaluation_seal(
+        model.clone(),
+        policy.clone(),
+        off_policy.cloned(),
         rollout,
         EvaluationLimits::default(),
         ctx,
     )
+    .map_err(seal_compile_error)?;
+    compiled.seal(ctx)
+}
+
+fn seal_compile_error(error: crate::error::CausalError) -> IoError {
+    match error {
+        crate::error::CausalError::Cancelled { .. } => IoError::Refused {
+            code: antecedent_core::reason_code!("cancelled_no_claim"),
+            message: format!(
+                "{}: the evaluation was cancelled before it produced a value",
+                antecedent_core::reason_details::sequential_evaluation::CANCELLED,
+            ),
+        },
+        other => IoError::Refused {
+            code: antecedent_core::reason_code!("invalid_argument"),
+            message: other.to_string(),
+        },
+    }
 }
 
 /// Serialize an artifact through the bounded sectioned container.

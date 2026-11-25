@@ -9653,3 +9653,481 @@ name = "draws (optional per-slot hybrid decompositions) and their weights"
 class = "ordered"
 canonical = "count-prefixed draws in slot order, each behind a presence word, every real by its bits; weights behind a presence word, aligned with the draws"
 concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.sequential_evaluation.policy_evaluation_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs"
+item = "fn:policy_evaluation_bytes#0"
+feeds = "SequentialPolicyEvaluation g-formula: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs::site_sequential_policy_evaluation_boundaries_are_a_set_and_actions_are_ordered"]
+[[sites.collections]]
+name = "latent states"
+class = "ordered"
+canonical = "declaration order, count-prefixed text; the index is the column of every transition and utility table"
+concern = ""
+[[sites.collections]]
+name = "actions"
+class = "ordered"
+canonical = "declaration order; the index is the action the policy, the support flags and the stopping rule name"
+concern = ""
+[[sites.collections]]
+name = "transition and utility tables"
+class = "ordered"
+canonical = "row-major transition, then immediate utility, delayed utility and the terminal and initial laws, each count-prefixed reals in state order, by IEEE bits"
+concern = ""
+[[sites.collections]]
+name = "stopping boundaries"
+class = "ordered"
+canonical = "declaration order; crossed_boundary returns the first match"
+concern = ""
+[[sites.collections]]
+name = "boundary states"
+class = "set"
+canonical = "sorted ascending and not deduplicated; the kernel sums belief[state] and check_boundaries refuses a duplicate or an empty list, so a repeated state is not an accepted input"
+concern = ""
+[[sites.collections]]
+name = "default support flags"
+class = "ordered"
+canonical = "positional in the action index, count-prefixed words"
+concern = ""
+[[sites.collections]]
+name = "support overrides"
+class = "set"
+canonical = "keyed by history; ActionSupport::overrides yields BTreeMap order. A repeated history replaces the override"
+concern = ""
+[[sites.collections]]
+name = "support override flags"
+class = "ordered"
+canonical = "positional in the action index inside one history's override, count-prefixed words"
+concern = ""
+[[sites.collections]]
+name = "policy decisions"
+class = "set"
+canonical = "keyed by history; ContingentPolicy::entries yields BTreeMap order. A repeated history replaces the decision"
+concern = ""
+[[sites.collections]]
+name = "history steps"
+class = "ordered"
+canonical = "oldest decision cycle first; HistoryKey order is that sequence"
+concern = ""
+[[sites.collections]]
+name = "action distribution"
+class = "set"
+canonical = "keyed by action. decide_stochastic sorts by action and refuses a duplicate; the digest writes that stored order. The kernel looks the action up and does not read the list position"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.sequential_evaluation.off_policy_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs"
+item = "fn:off_policy_bytes#0"
+feeds = "SequentialPolicyEvaluation off-policy: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs::site_sequential_off_policy_log_is_a_set_and_steps_are_ordered"]
+[[sites.collections]]
+name = "boundary states"
+class = "set"
+canonical = "same encoding as policy_evaluation_bytes: sorted ascending, not deduplicated; a repeated state is refused by the kernel and the site returns None"
+concern = ""
+[[sites.collections]]
+name = "actions"
+class = "ordered"
+canonical = "same encoding as policy_evaluation_bytes: declaration order. The other model and policy collections use the classes listed on policy_evaluation_bytes"
+concern = ""
+[[sites.collections]]
+name = "logged trajectories"
+class = "set"
+canonical = "keyed by id. evaluate_off_policy sorts by id and refuses a repeated id. Encoded in that id order; equal ids keep original index and are not collapsed, and the site returns None for a repeated id"
+concern = ""
+[[sites.collections]]
+name = "trajectory steps"
+class = "ordered"
+canonical = "decision cycles, oldest first, as the kernel replays them"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.sequential_evaluation.rollout_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs"
+item = "fn:rollout_bytes#0"
+feeds = "SequentialPolicyEvaluation rollout: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs::site_sequential_rollout_boundaries_are_a_set_and_actions_are_ordered"]
+[[sites.collections]]
+name = "boundary states"
+class = "set"
+canonical = "same encoding as policy_evaluation_bytes. Seed and rollout count are scalar words, not a collection"
+concern = ""
+[[sites.collections]]
+name = "actions"
+class = "ordered"
+canonical = "same encoding as policy_evaluation_bytes. The other model and policy collections use the classes listed on policy_evaluation_bytes"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.sequential_evaluation.compare_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs"
+item = "fn:compare_bytes#0"
+feeds = "SequentialPolicyEvaluation comparison: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs::site_sequential_comparisons_are_ordered_and_boundaries_are_a_set"]
+[[sites.collections]]
+name = "comparison specs"
+class = "ordered"
+canonical = "declaration order. The first row is the baseline of difference_from_first and best is a positional index. Labels are unique in that order"
+concern = ""
+[[sites.collections]]
+name = "static scores and weights"
+class = "ordered"
+canonical = "declaration order of the score vector, then the weight vector. into_contingent reads only the two lengths for its refusal; the sequences are still encoded so two tables do not share a digest"
+concern = ""
+[[sites.collections]]
+name = "commit actions"
+class = "ordered"
+canonical = "present only when a value-of-information request is attached. The utility table is this order and a tie keeps the first index"
+concern = ""
+[[sites.collections]]
+name = "boundary states"
+class = "set"
+canonical = "same encoding as policy_evaluation_bytes"
+concern = ""
+[[sites.collections]]
+name = "actions"
+class = "ordered"
+canonical = "same encoding as policy_evaluation_bytes. The other model collections use the classes listed on policy_evaluation_bytes"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.sequential_evaluation.value_of_evidence_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs"
+item = "fn:value_of_evidence_bytes#0"
+feeds = "SequentialPolicyEvaluation value of evidence: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs::site_sequential_commit_actions_are_ordered_and_boundaries_are_a_set"]
+[[sites.collections]]
+name = "commit actions"
+class = "ordered"
+canonical = "declaration order. The utility table is positional and a tie keeps the first index (value > best_value)"
+concern = ""
+[[sites.collections]]
+name = "boundary states"
+class = "set"
+canonical = "same encoding as policy_evaluation_bytes. The collect action is a scalar index"
+concern = ""
+[[sites.collections]]
+name = "actions"
+class = "ordered"
+canonical = "same encoding as policy_evaluation_bytes. The other model collections use the classes listed on policy_evaluation_bytes"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.sequential_evaluation.seal_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs"
+item = "fn:seal_bytes#0"
+feeds = "SequentialPolicyEvaluation seal: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs::site_sequential_seal_log_is_a_set_and_actions_are_ordered"]
+[[sites.collections]]
+name = "boundary states"
+class = "set"
+canonical = "same encoding as policy_evaluation_bytes"
+concern = ""
+[[sites.collections]]
+name = "actions"
+class = "ordered"
+canonical = "same encoding as policy_evaluation_bytes. The other model and policy collections use the classes listed on policy_evaluation_bytes"
+concern = ""
+[[sites.collections]]
+name = "off-policy log"
+class = "set"
+canonical = "present when an off-policy input is sealed. Trajectories are keyed by id and encoded like off_policy_bytes; steps inside a trajectory stay ordered. The site returns None for a repeated id"
+concern = ""
+
+[[sites]]
+id = "antecedent.input_decision_programs.compile_producer_carrier_ranking"
+file = "crates/antecedent/src/analysis/input_decision_programs.rs"
+item = "fn:compile_producer_carrier_ranking#0"
+feeds = "question digest and lowered program identity of DecisionDrawsRanking (carrier ranking; plan supplied.producer_carrier_ranking.v1)"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/input_decision_programs_site_tests.rs::site_input_decision_programs_carrier_ranking_candidates_are_a_set_and_top_k_ordered", "unit:crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs::carrier_ranking_identity_reads_joint_law"]
+note = "Draws enter by DecisionDraws::digest_hex. Joint-law standing is a closed enum: tag one_shared_law, or tag marginal_only plus the reason text. A marginal-only carrier is a different program from one shared law even when the draws digest matches. expected_utility_only is private and is not a separate field: every public constructor ties it to the producer label inside the draws digest and to this standing."
+[[sites.collections]]
+name = "candidates"
+class = "set"
+canonical = "canonical candidate order (by id, content breaking ties) inside the carrier digest; a repeated id is refused by the carrier constructor, so a carrier with a repeat never ranks"
+concern = ""
+[[sites.collections]]
+name = "request.top_k"
+class = "ordered"
+canonical = "CBOR wire list as declared: one estimate is reported per size in that order"
+concern = ""
+
+[[sites]]
+id = "antecedent.decision_reliability_programs.compile_decision_reliability_assessment"
+file = "crates/antecedent/src/analysis/decision_reliability_programs.rs"
+item = "fn:compile_decision_reliability_assessment#0"
+feeds = "question digest and lowered program identity of DecisionReliabilityAssessment"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/decision_reliability_programs.rs::site_decision_reliability_programs_assessment_candidates_are_a_set_and_top_k_ordered", "unit:crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs::compiled_decision_reliability_assessment_equals_assess_and_seal_recomputes"]
+note = "Draws and validation draws enter by DecisionDraws::digest_hex. assess, and DecisionReliabilityArtifact::new, read each candidate set in canonical order and refuse a repeated id."
+[[sites.collections]]
+name = "candidates"
+class = "set"
+canonical = "canonical candidate order inside the draws digest; a repeated id is refused by DecisionDraws::validate, so those draws are never assessed"
+concern = ""
+[[sites.collections]]
+name = "validation candidates"
+class = "set"
+canonical = "same digest, present only when validation draws are supplied"
+concern = ""
+[[sites.collections]]
+name = "request.ranking.top_k"
+class = "ordered"
+canonical = "CBOR wire list inside the request: one estimate per size in declaration order, when a ranking is requested"
+concern = ""
+
+[[sites]]
+id = "antecedent.decision_reliability_programs.compile_producer_carrier_assessment"
+file = "crates/antecedent/src/analysis/decision_reliability_programs.rs"
+item = "fn:compile_producer_carrier_assessment#0"
+feeds = "question digest and lowered program identity of DecisionReliabilityAssessment (carrier; plan supplied.producer_carrier_assessment.v1)"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/decision_reliability_programs.rs::site_decision_reliability_programs_carrier_assessment_includes_joint_law", "unit:crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs::compiled_producer_carrier_assessment_equals_assess"]
+note = "Same draws digest and the same joint-law tags as compile_producer_carrier_ranking. expected_utility_only is not a separate field; see that site."
+[[sites.collections]]
+name = "candidates"
+class = "set"
+canonical = "canonical candidate order inside the carrier's draws digest; a repeated id is refused by the carrier constructor"
+concern = ""
+[[sites.collections]]
+name = "request.ranking.top_k"
+class = "ordered"
+canonical = "CBOR wire list inside the request"
+concern = ""
+
+[[sites]]
+id = "antecedent.decision_reliability_programs.compile_decision_reliability_derivation"
+file = "crates/antecedent/src/analysis/decision_reliability_programs.rs"
+item = "fn:compile_decision_reliability_derivation#0"
+feeds = "question digest and lowered program identity of DecisionReliabilityDerivation"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/decision_reliability_programs.rs::site_decision_reliability_programs_derivation_candidates_are_a_set_and_top_k_ordered", "unit:crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs::compiled_decision_reliability_derivation_equals_derive_uncertainty"]
+note = "The program returns the whole DerivedUncertainty. Interval level is encoded by IEEE bits and multiplicity by the tags marginal and simultaneous. No coverage key is invented."
+[[sites.collections]]
+name = "candidates"
+class = "set"
+canonical = "canonical candidate order inside the draws digest; a repeated id is refused by DecisionDraws::validate"
+concern = ""
+[[sites.collections]]
+name = "request.ranking.top_k"
+class = "ordered"
+canonical = "CBOR wire list inside the request"
+concern = ""
+
+[[sites]]
+id = "antecedent.decision_reliability_programs.compile_producer_carrier_derivation"
+file = "crates/antecedent/src/analysis/decision_reliability_programs.rs"
+item = "fn:compile_producer_carrier_derivation#0"
+feeds = "question digest and lowered program identity of DecisionReliabilityDerivation (carrier; plan supplied.producer_carrier_derivation.v1)"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/decision_reliability_programs.rs::site_decision_reliability_programs_carrier_derivation_includes_joint_law", "unit:crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs::compiled_producer_carrier_derivation_equals_derive_uncertainty"]
+note = "Same draws digest, joint-law tags and interval encoding as the draws derivation. Returns the whole DerivedUncertainty."
+[[sites.collections]]
+name = "candidates"
+class = "set"
+canonical = "canonical candidate order inside the carrier's draws digest; a repeated id is refused by the carrier constructor"
+concern = ""
+
+[[sites]]
+id = "antecedent.transport_assumption_program.compile_transport_assumption_range"
+file = "crates/antecedent/src/analysis/transport_assumption_program.rs"
+item = "fn:compile_transport_assumption_range#0"
+feeds = "question digest and lowered program identity of TransportAssumptionRange"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/transport_assumption_program.rs::site_transport_assumption_program_conditioning_is_ordered_and_values_are_bit_exact", "unit:crates/antecedent/tests/compiled_twins_transport_assumption_range.rs::compiled_transport_assumption_range_equals_the_kernel"]
+note = "No set-valued input. The kernel copies ScientificQuantity, including conditioning, in declaration order and does not sort it and does not call ScientificQuantity::validate. Route enters by TransportRoute::as_str. Point value and violation-family bound enter by IEEE bits. An unknown ViolationFamily variant refuses the compile."
+[[sites.collections]]
+name = "quantity.conditioning"
+class = "ordered"
+canonical = "quantity wire in stored order: the kernel copies that order into the result"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.discretized_bridge.bridge_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/discretized_bridge.rs"
+item = "fn:bridge_bytes#0"
+feeds = "DiscretizedLinearGaussianBridge: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/discretized_bridge.rs::site_discretized_bridge_levels_are_a_set_and_covariance_is_ordered"]
+[[sites.collections]]
+name = "plan level counts"
+class = "set"
+canonical = "the plan stores one count per variable in a map; SetOf of (name, count), so a permutation is the same plan and a dropped variable is not"
+concern = ""
+[[sites.collections]]
+name = "joint covariance"
+class = "ordered"
+canonical = "after ComposedModelSpec::canonical permutes the parameters, the covariance is the matrix in that parameter order, each real by its bits"
+concern = ""
+[[sites.collections]]
+name = "mechanisms, edges, invariances and selection rows"
+class = "multiset"
+canonical = "canonical() sorts each list and keeps a duplicate; caller order is not read"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.discretized_bridge.contrast_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/discretized_bridge.rs"
+item = "fn:contrast_bytes#0"
+feeds = "DiscretizedLinearGaussianBridge: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/discretized_bridge.rs::site_discretized_contrast_arms_are_ordered_and_interventions_are_a_multiset"]
+[[sites.collections]]
+name = "contrast arms"
+class = "ordered"
+canonical = "count-prefixed in the order given; arm diagnostics are emitted in that order"
+concern = ""
+[[sites.collections]]
+name = "interventions within an arm"
+class = "multiset"
+canonical = "resolve writes a position vector; naming a variable twice is a different request, and the order of distinct variables is not"
+concern = ""
+[[sites.collections]]
+name = "level names and level values"
+class = "ordered"
+canonical = "per variable, in the bridge's node order: the names, then the cell values by their bits"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.fitted_mechanism_transport.request_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/fitted_mechanism_transport.rs"
+item = "fn:request_bytes#0"
+feeds = "FittedMechanismTransport: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/fitted_mechanism_transport.rs::site_fitted_mechanism_transport_edges_are_a_multiset_and_covariance_is_ordered"]
+[[sites.collections]]
+name = "edges"
+class = "multiset"
+canonical = "canonical sort keeps a duplicate edge; caller order is not read"
+concern = ""
+[[sites.collections]]
+name = "source mechanisms, target mechanisms, invariances and selection points"
+class = "multiset"
+canonical = "each descriptor is canonicalized, then the lists are sorted without dropping a duplicate; a repeated variable is a finding the kernel still sees"
+concern = ""
+[[sites.collections]]
+name = "joint covariance"
+class = "ordered"
+canonical = "after the dependence parameters are permuted into canonical order, the covariance is that matrix, each real by its bits"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.policy_transport.policy_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs"
+item = "fn:policy_bytes#0"
+feeds = "TransportedPolicyEvaluation: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/policy_transport.rs::site_transported_policy_decisions_are_a_set_and_the_target_law_is_ordered"]
+[[sites.collections]]
+name = "policy decisions"
+class = "set"
+canonical = "the policy's map from history to a distribution; SetOf, and the distribution within a history is stored sorted by action"
+concern = ""
+[[sites.collections]]
+name = "target initial law"
+class = "ordered"
+canonical = "one probability per state, index i is state i, each real by its bits"
+concern = ""
+[[sites.collections]]
+name = "diagram mechanism rows"
+class = "multiset"
+canonical = "identity_hex sorts the rows and keeps a duplicate"
+concern = ""
+[[sites.collections]]
+name = "support overrides"
+class = "set"
+canonical = "the support map from history to an allowed-action vector; SetOf"
+concern = ""
+[[sites.collections]]
+name = "actions, transitions and stopping boundaries"
+class = "ordered"
+canonical = "action index order; boundaries are checked in the order declared"
+concern = ""
+[[sites.collections]]
+name = "boundary states"
+class = "multiset"
+canonical = "the mass is a sum, so order is irrelevant, and a repeated state changes the sum; sorted without dropping a repeat"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.policy_transport.temporal_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs"
+item = "fn:temporal_bytes#0"
+feeds = "TemporalPolicyEvaluation: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/policy_transport.rs::site_temporal_policy_symbols_are_ordered_and_mechanisms_are_a_multiset"]
+[[sites.collections]]
+name = "alphabet symbols"
+class = "ordered"
+canonical = "observation-symbol index order"
+concern = ""
+[[sites.collections]]
+name = "alphabet actions"
+class = "ordered"
+canonical = "action-index order"
+concern = ""
+[[sites.collections]]
+name = "invariance mechanism rows"
+class = "multiset"
+canonical = "the invariance identity sorts the rows and keeps a duplicate"
+concern = ""
+[[sites.collections]]
+name = "target initial law"
+class = "ordered"
+canonical = "one probability per state, index i is state i, each real by its bits"
+concern = ""
+
+[[sites]]
+id = "antecedent.kernel_programs.policy_transport.adaptive_bytes"
+file = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs"
+item = "fn:adaptive_bytes#0"
+feeds = "AdaptiveTrialTransport: canonical bytes -> input_digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/kernel_programs/policy_transport.rs::site_adaptive_trial_strata_are_ordered_and_mechanisms_are_a_multiset"]
+[[sites.collections]]
+name = "unit strata"
+class = "ordered"
+canonical = "enrollment order: index i is unit i"
+concern = ""
+[[sites.collections]]
+name = "stratum labels"
+class = "ordered"
+canonical = "index i is stratum i"
+concern = ""
+[[sites.collections]]
+name = "target stratum law"
+class = "ordered"
+canonical = "one probability per stratum, index i is stratum i, each real by its bits"
+concern = ""
+[[sites.collections]]
+name = "trial mechanism rows"
+class = "multiset"
+canonical = "the diagram identity sorts the rows and keeps a duplicate"
+concern = ""

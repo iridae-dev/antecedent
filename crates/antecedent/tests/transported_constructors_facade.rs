@@ -18,6 +18,7 @@
 //!   `0.8` maps to `0.796`.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(deprecated, reason = "the direct facade path is the oracle this file checks")]
 
 #![allow(
     clippy::float_cmp,

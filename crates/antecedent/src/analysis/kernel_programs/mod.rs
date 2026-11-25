@@ -34,16 +34,20 @@ use crate::planner::{PlanStage, PlanView};
 
 pub mod chain_recovery;
 pub mod counterfactual_seal;
+pub mod discretized_bridge;
 pub mod exposure_measurement;
 pub mod external_feedback;
+pub mod fitted_mechanism_transport;
 pub mod learned_joint_transport;
 pub mod measured_exposure_effect;
 pub mod nested_markov;
+pub mod policy_transport;
 pub mod power_prior_selection;
 pub mod prior_composition;
 pub mod sampled_counterfactual_transport;
 pub mod sampled_recovery;
 pub mod scenario_covariance;
+pub mod sequential_evaluation;
 pub mod split_effect;
 pub mod z_transport;
 

@@ -7,15 +7,22 @@
 //! to raise as a typed exception. Nothing here estimates dependence: it is declared or it
 //! refuses, and no ranking probability or interval is published.
 
+use std::fmt::Write as _;
+
 use antecedent::analysis::decision_reliability::{
     CalibrationCoordinate, CohortUtilityDraws, DecisionDraws, DecisionReliabilityExpectation,
     DecisionReliabilityInspection, DecisionReliabilityRefusal, DerivedUncertainty, IntervalRequest,
-    JointLawDeclaration, JointLawStanding, OffPolicyReturnDraws, PointOnlyOutput,
-    PreparedDecisionReliability, ProducerCarrier, ProducerOutput, PublishedRoute,
-    ReliabilityRequest, RolloutNoise, RolloutUtilityDraws, SourceParadigm, StreamId, StreamPurpose,
-    WithinStreamDependence, consume_decision_reliability_artifact, consume_derived_uncertainty,
-    decision_reliability_coverage_design, derive_decision_uncertainty, derive_producer_uncertainty,
-    publish_derived_route, reach_decision_carrier,
+    JointLawDeclaration, JointLawStanding, OffPolicyReturnDraws, PointOnlyOutput, ProducerCarrier,
+    ProducerOutput, PublishedRoute, ReliabilityReport, ReliabilityRequest, RolloutNoise,
+    RolloutUtilityDraws, SelectionUncertainty, SourceParadigm, SourceUncertainty, StreamId,
+    StreamPurpose, WithinStreamDependence, consume_decision_reliability_artifact,
+    consume_derived_uncertainty, decision_reliability_coverage_design, publish_derived_route,
+    reach_decision_carrier,
+};
+use antecedent::analysis::decision_reliability_programs::{
+    CompiledDecisionReliabilityAssessment, compile_decision_reliability_assessment,
+    compile_decision_reliability_derivation, compile_producer_carrier_assessment,
+    compile_producer_carrier_derivation,
 };
 use antecedent::analysis::input_decision_programs::{
     TerminalError, compile_decision_draws_ranking,
@@ -87,6 +94,142 @@ pub(crate) fn error_json(error: &ReliabilityError) -> String {
     .to_string()
 }
 
+/// Display of `AdmissionError::Cancelled`. This crate cannot name that type; the facade
+/// compares the variant, and this is the message that variant prints.
+const ADMISSION_CANCELLED: &str = "admission stopped because the study was cancelled";
+
+type CompilerSlot = std::sync::Mutex<Option<antecedent::CausalError>>;
+
+fn store_compiler(slot: &CompilerSlot, error: antecedent::CausalError) {
+    *slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(error);
+}
+
+fn compiler_error(slot: CompilerSlot) -> Option<antecedent::CausalError> {
+    slot.into_inner().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+/// The facade's `DecisionReliabilityRefusal::from_error` message, which is private.
+fn reliability_refusal_json(error: &ReliabilityError) -> String {
+    let refusal = error.to_refusal();
+    let mut message = refusal.detail.clone();
+    if let Some(offending) = &refusal.offending {
+        let _ = write!(message, ": {offending}");
+    }
+    if let Some(expected) = &refusal.expected {
+        let _ = write!(message, "; expected {expected}");
+    }
+    if let Some(remedy) = refusal.remedy {
+        let _ = write!(message, "; {remedy}");
+    }
+    crate::bridge::compact_refusal_json(
+        refusal.code,
+        "decision_reliability",
+        &refusal.detail,
+        &message,
+        refusal.remedy,
+    )
+}
+
+/// The facade's `DecisionReliabilityRefusal::from_io` message, which is private.
+fn io_refusal_json(error: &antecedent::io::IoError) -> String {
+    use antecedent::io::IoError;
+    use antecedent::reason::reason_details::decision_reliability as detail;
+    if let IoError::Admission(admission) = error {
+        let cancelled = admission.to_string() == ADMISSION_CANCELLED;
+        let code = if cancelled {
+            antecedent::reason::reason_code!("cancelled_no_claim")
+        } else {
+            antecedent::reason::reason_code!("invalid_argument")
+        };
+        let key = if cancelled { detail::CANCELLED } else { detail::MEMORY_BUDGET_EXCEEDED };
+        return crate::bridge::compact_refusal_json(
+            code,
+            "decision_reliability",
+            key,
+            &admission.to_string(),
+            None,
+        );
+    }
+    if let IoError::Refused { code, message } = error
+        && let Some(text) = message.strip_prefix("decision_reliability.artifact_kind_mismatch: ")
+    {
+        return crate::bridge::compact_refusal_json(
+            code,
+            "decision_reliability",
+            detail::ARTIFACT_KIND_MISMATCH,
+            text,
+            None,
+        );
+    }
+    crate::bridge::compact_refusal_json(
+        error.reason_code().unwrap_or(antecedent::reason::reason_code!("invalid_argument")),
+        "decision_reliability",
+        detail::ARTIFACT,
+        &error.to_string(),
+        None,
+    )
+}
+
+/// Same text as [`PreparedDecisionReliability::inspect`].
+fn inspection_of(report: &ReliabilityReport) -> DecisionReliabilityInspection {
+    let source = match &report.source_uncertainty {
+        SourceUncertainty::KnownLaw => {
+            "none: the law was declared known; draws carry numerical error only".to_owned()
+        }
+        SourceUncertainty::Spread { paradigm, candidates } => format!(
+            "spread of utility under the supplied {} law over {} candidate(s)",
+            paradigm.as_str(),
+            candidates.len()
+        ),
+    };
+    let mc = &report.monte_carlo_error.decision;
+    let selection = match &report.selection_uncertainty {
+        SelectionUncertainty::NotSelected => {
+            "none: the decision was fixed independently of the draws".to_owned()
+        }
+        SelectionUncertainty::Selected(assessment) => format!(
+            "in_sample maximum over {} considered candidate(s); status {:?}",
+            assessment.n_considered, assessment.status
+        ),
+    };
+    DecisionReliabilityInspection {
+        decided_id: report.decided_id.clone(),
+        standing: "uncalibrated_point_diagnostic",
+        source_uncertainty: source,
+        monte_carlo_error: format!(
+            "value {} with standard error {} (effective sample size {:.1}, {:?})",
+            mc.value, mc.standard_error, mc.effective_sample_size, mc.method
+        ),
+        selection_uncertainty: selection,
+        coordinate: report.coordinate.describe(),
+    }
+}
+
+fn seal_assessment(
+    program: &CompiledDecisionReliabilityAssessment,
+    artifact_id: &str,
+    ctx: &antecedent::prelude::ExecutionContext,
+    refused: &CompilerSlot,
+) -> Refused<(Vec<u8>, String, String)> {
+    let artifact = match program.seal(ctx) {
+        Ok(artifact) => artifact,
+        Err(TerminalError::Kernel(error)) => return (None, Some(io_refusal_json(&error))),
+        Err(TerminalError::Refused(error)) => {
+            store_compiler(refused, error);
+            return (None, None);
+        }
+    };
+    let bytes = match artifact.to_bytes(artifact_id, ctx) {
+        Ok(value) => value,
+        Err(error) => return (None, Some(io_refusal_json(&error))),
+    };
+    let report = match serde_json::to_string(&artifact.report) {
+        Ok(value) => value,
+        Err(error) => return (None, Some(invalid_json(error.to_string()))),
+    };
+    (Some((bytes, report, inspection_json(&inspection_of(&artifact.report)))), None)
+}
+
 fn invalid_json(message: String) -> String {
     crate::bridge::compact_refusal_json(
         antecedent::reason::reason_code!("invalid_argument"),
@@ -147,7 +290,8 @@ fn decision_reliability_assess(
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<Refused<AssessParts>> {
     let ctx = execution_context(seed, None, cancel);
-    let outcome = run_worker(py, ctx, move |ctx| {
+    let refused = std::sync::Mutex::new(None);
+    let outcome = run_worker(py, ctx, |ctx| {
         let draws: DecisionDraws = match parse(draws_json, "draws") {
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
@@ -162,26 +306,34 @@ fn decision_reliability_assess(
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
         };
-        let prepared = match PreparedDecisionReliability::assess(draws, validation, request, ctx) {
-            Ok(value) => value,
-            Err(refusal) => return (None, Some(refusal_json(&refusal))),
+        let program = match compile_decision_reliability_assessment(draws, validation, request, ctx)
+        {
+            Ok(program) => program,
+            Err(error) => {
+                store_compiler(&refused, error);
+                return (None, None);
+            }
         };
-        let bytes = match prepared.export(artifact_id, ctx) {
-            Ok(value) => value,
-            Err(refusal) => return (None, Some(refusal_json(&refusal))),
-        };
-        let report = match serde_json::to_string(prepared.report()) {
-            Ok(value) => value,
-            Err(error) => return (None, Some(invalid_json(error.to_string()))),
-        };
-        (Some((bytes, report, inspection_json(&prepared.inspect()))), None)
+        if let Err(error) = program.execute(ctx) {
+            return match error {
+                TerminalError::Kernel(error) => (None, Some(reliability_refusal_json(&error))),
+                TerminalError::Refused(error) => {
+                    store_compiler(&refused, error);
+                    (None, None)
+                }
+            };
+        }
+        seal_assessment(&program, artifact_id, ctx, &refused)
     })?;
-    Ok((
-        outcome.0.map(|(bytes, report, inspection)| {
-            (PyBytes::new(py, &bytes).unbind(), report, inspection)
-        }),
-        outcome.1,
-    ))
+    match compiler_error(refused) {
+        Some(error) => Err(crate::py_err(error)),
+        None => Ok((
+            outcome.0.map(|(bytes, report, inspection)| {
+                (PyBytes::new(py, &bytes).unbind(), report, inspection)
+            }),
+            outcome.1,
+        )),
+    }
 }
 
 /// Independently consume `decision_reliability_v1` bytes by recomputation.
@@ -302,7 +454,8 @@ fn decision_reliability_derive(
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<Refused<String>> {
     let ctx = execution_context(seed, None, cancel);
-    run_worker(py, ctx, move |ctx| {
+    let refused = std::sync::Mutex::new(None);
+    let outcome = run_worker(py, ctx, |ctx| {
         let draws: DecisionDraws = match parse(draws_json, "draws") {
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
@@ -321,11 +474,28 @@ fn decision_reliability_derive(
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
         };
-        match derive_decision_uncertainty(&draws, validation.as_ref(), &request, &interval, ctx) {
+        let program = match compile_decision_reliability_derivation(
+            draws, validation, request, interval, ctx,
+        ) {
+            Ok(program) => program,
+            Err(error) => {
+                store_compiler(&refused, error);
+                return (None, None);
+            }
+        };
+        match program.execute(ctx) {
             Ok(derived) => derived_json(&derived),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+            Err(TerminalError::Kernel(error)) => (None, Some(reliability_refusal_json(&error))),
+            Err(TerminalError::Refused(error)) => {
+                store_compiler(&refused, error);
+                (None, None)
+            }
         }
-    })
+    })?;
+    match compiler_error(refused) {
+        Some(error) => Err(crate::py_err(error)),
+        None => Ok(outcome),
+    }
 }
 
 fn derived_json(derived: &DerivedUncertainty) -> Refused<String> {
@@ -583,7 +753,8 @@ fn decision_reliability_assess_producer(
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<Refused<AssessParts>> {
     let ctx = execution_context(seed, None, cancel);
-    let outcome = run_worker(py, ctx, move |ctx| {
+    let refused = std::sync::Mutex::new(None);
+    let outcome = run_worker(py, ctx, |ctx| {
         let carrier = match carrier_from(output_json) {
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
@@ -598,28 +769,47 @@ fn decision_reliability_assess_producer(
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
         };
-        let prepared = match PreparedDecisionReliability::assess_producer(
-            &carrier, validation, request, ctx,
+        let draws = carrier.draws().clone();
+        let checked = match compile_producer_carrier_assessment(
+            carrier,
+            validation.clone(),
+            request.clone(),
+            ctx,
         ) {
-            Ok(value) => value,
-            Err(refusal) => return (None, Some(refusal_json(&refusal))),
+            Ok(program) => program,
+            Err(error) => {
+                store_compiler(&refused, error);
+                return (None, None);
+            }
         };
-        let bytes = match prepared.export(artifact_id, ctx) {
-            Ok(value) => value,
-            Err(refusal) => return (None, Some(refusal_json(&refusal))),
+        let sealed = match compile_decision_reliability_assessment(draws, validation, request, ctx)
+        {
+            Ok(program) => program,
+            Err(error) => {
+                store_compiler(&refused, error);
+                return (None, None);
+            }
         };
-        let report = match serde_json::to_string(prepared.report()) {
-            Ok(value) => value,
-            Err(error) => return (None, Some(invalid_json(error.to_string()))),
-        };
-        (Some((bytes, report, inspection_json(&prepared.inspect()))), None)
+        if let Err(error) = checked.execute(ctx) {
+            return match error {
+                TerminalError::Kernel(error) => (None, Some(reliability_refusal_json(&error))),
+                TerminalError::Refused(error) => {
+                    store_compiler(&refused, error);
+                    (None, None)
+                }
+            };
+        }
+        seal_assessment(&sealed, artifact_id, ctx, &refused)
     })?;
-    Ok((
-        outcome.0.map(|(bytes, report, inspection)| {
-            (PyBytes::new(py, &bytes).unbind(), report, inspection)
-        }),
-        outcome.1,
-    ))
+    match compiler_error(refused) {
+        Some(error) => Err(crate::py_err(error)),
+        None => Ok((
+            outcome.0.map(|(bytes, report, inspection)| {
+                (PyBytes::new(py, &bytes).unbind(), report, inspection)
+            }),
+            outcome.1,
+        )),
+    }
 }
 
 /// Derive the three components for a producer output (carrier standing honoured).
@@ -635,7 +825,8 @@ fn decision_reliability_derive_producer(
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<Refused<String>> {
     let ctx = execution_context(seed, None, cancel);
-    run_worker(py, ctx, move |ctx| {
+    let refused = std::sync::Mutex::new(None);
+    let outcome = run_worker(py, ctx, |ctx| {
         let carrier = match carrier_from(output_json) {
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
@@ -654,11 +845,28 @@ fn decision_reliability_derive_producer(
             Ok(value) => value,
             Err(refusal) => return (None, Some(refusal)),
         };
-        match derive_producer_uncertainty(&carrier, validation.as_ref(), &request, &interval, ctx) {
+        let program = match compile_producer_carrier_derivation(
+            carrier, validation, request, interval, ctx,
+        ) {
+            Ok(program) => program,
+            Err(error) => {
+                store_compiler(&refused, error);
+                return (None, None);
+            }
+        };
+        match program.execute(ctx) {
             Ok(derived) => derived_json(&derived),
-            Err(refusal) => (None, Some(refusal_json(&refusal))),
+            Err(TerminalError::Kernel(error)) => (None, Some(reliability_refusal_json(&error))),
+            Err(TerminalError::Refused(error)) => {
+                store_compiler(&refused, error);
+                (None, None)
+            }
         }
-    })
+    })?;
+    match compiler_error(refused) {
+        Some(error) => Err(crate::py_err(error)),
+        None => Ok(outcome),
+    }
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -167,6 +167,10 @@ impl PreparedDecisionReliability {
     /// A combined-uncertainty request, undeclared or contradicted dependence, an
     /// adaptive candidate set without its search record, validation draws that are not
     /// independent of the selection draws, or cancellation.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled DecisionReliabilityAssessment route, which calls this kernel function with the same inputs"
+    )]
     pub fn assess(
         draws: DecisionDraws,
         validation: Option<DecisionDraws>,
@@ -279,7 +283,11 @@ impl PreparedDecisionReliability {
     /// request as accepted.
     ///
     /// # Errors
-    /// Anything [`ProducerCarrier::assess`] or [`Self::assess`] refuses.
+    /// Anything [`ProducerCarrier::assess`] or the draws assessment refuses.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled DecisionReliabilityAssessment route, which calls this kernel function with the same inputs"
+    )]
     pub fn assess_producer(
         carrier: &ProducerCarrier,
         validation: Option<DecisionDraws>,
@@ -305,6 +313,10 @@ impl PreparedDecisionReliability {
     /// # Errors
     /// A level outside `[0.5, 0.9999]`, an effective sample size below
     /// [`MIN_NORMAL_ESS`], or anything the assessment itself refuses.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use the compiled DecisionReliabilityDerivation route, which calls this kernel function with the same inputs"
+    )]
     pub fn derive_uncertainty(
         &self,
         interval: &IntervalRequest,
@@ -323,8 +335,7 @@ impl PreparedDecisionReliability {
     /// Re-derive `derived` from this assessment's draws and compare.
     ///
     /// # Errors
-    /// A derivation that does not recompute, or anything [`Self::derive_uncertainty`]
-    /// refuses.
+    /// A derivation that does not recompute, or anything the derivation kernel refuses.
     pub fn verify_derived(
         &self,
         derived: &DerivedUncertainty,
@@ -344,8 +355,11 @@ impl PreparedDecisionReliability {
 /// Derive the three uncertainty components directly from draws.
 ///
 /// # Errors
-/// As [`PreparedDecisionReliability::derive_uncertainty`], plus anything
-/// [`PreparedDecisionReliability::assess`] refuses.
+/// As the derivation kernel, plus anything the assessment kernel refuses.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled DecisionReliabilityDerivation route, which calls this kernel function with the same inputs"
+)]
 pub fn derive_decision_uncertainty(
     draws: &DecisionDraws,
     validation: Option<&DecisionDraws>,
@@ -362,6 +376,10 @@ pub fn derive_decision_uncertainty(
 ///
 /// # Errors
 /// As [`ProducerCarrier::derive_uncertainty`].
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled DecisionReliabilityDerivation route, which calls this kernel function with the same inputs"
+)]
 pub fn derive_producer_uncertainty(
     carrier: &ProducerCarrier,
     validation: Option<&DecisionDraws>,
@@ -410,15 +428,23 @@ pub fn decision_reliability_coverage_design() -> Vec<CoverageCell> {
 /// never trusts a stored interval.
 ///
 /// # Errors
-/// As [`consume_decision_reliability_artifact`] and
-/// [`PreparedDecisionReliability::derive_uncertainty`].
+/// As [`consume_decision_reliability_artifact`] and the derivation kernel.
 pub fn consume_derived_uncertainty(
     bytes: &[u8],
     expected: &DecisionReliabilityExpectation,
     interval: &IntervalRequest,
     ctx: &ExecutionContext,
 ) -> Result<DerivedUncertainty, DecisionReliabilityRefusal> {
-    consume_decision_reliability_artifact(bytes, expected, ctx)?.derive_uncertainty(interval, ctx)
+    let prepared = consume_decision_reliability_artifact(bytes, expected, ctx)?;
+    let artifact = prepared.artifact();
+    derive_uncertainty(
+        &artifact.draws,
+        artifact.validation.as_ref(),
+        &artifact.request,
+        interval,
+        ctx,
+    )
+    .map_err(|error| DecisionReliabilityRefusal::from_error(&error))
 }
 
 /// Independently consume `decision_reliability_v1` bytes: every number is recomputed

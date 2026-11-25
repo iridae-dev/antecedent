@@ -3,15 +3,21 @@
 # One line per public item; do not edit by hand.
 #[deprecated(since = "3.1.0")] pub fn <antecedent::AdaptiveInferenceSession>::fn measured_interval(&self, request: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::AdaptiveInferenceRefusal>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::ChoiceInferenceSession>::fn measured_interval(&self, request: &antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::ChoiceInferenceRefusal>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::PreparedMechanismComposition>::fn discretize(&self, plan: &antecedent_model::discretized_scm::DiscretizationPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discretized_composition::PreparedDiscretizedComposition, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::PreparedMechanismComposition>::fn transport_to(&self, declaration: &antecedent::analysis::transported_mechanism::MechanismTransportDeclaration, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_mechanism::TransportedMechanismComposition, antecedent::MechanismCompositionRefusal>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::PreparedZTransport>::fn estimate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ZTransportResult, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::PreparedZTransport>::fn estimate_bayesian(&self, provider: antecedent_estimate::empirical_table::BayesianTransportLawProvider, draws: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ZTransportResult, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::PreparedZTransport>::fn estimate_independent_components(left: &Self, right: &Self, max_atoms: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ZTransportResult, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::PreparedZTransport>::fn estimate_intervention_factorized_components(left: &Self, right: &Self, max_atoms: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::ZTransportResult, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::Study>::fn compile_for_decision<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent::analysis::DecisionCompileRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::Study>::fn compile_for_evsi<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent_design::evsi::EvsiRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::PreparedDecisionReliability>::fn assess(draws: antecedent_design::decision_reliability::draws::DecisionDraws, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::DecisionReliabilityRefusal>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::PreparedDecisionReliability>::fn assess_producer(carrier: &antecedent_design::decision_reliability::producer::ProducerCarrier, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::DecisionReliabilityRefusal>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::PreparedDecisionReliability>::fn derive_uncertainty(&self, interval: &antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::DecisionReliabilityRefusal>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::count_fitted_observation::CountFittedObservation>::fn calibrated_probability(&self, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::analysis::observation_query::ObservationQueryRefusal>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::count_fitted_observation::CountFittedObservation>::fn interval(&self, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent::analysis::observation_query::ObservationQueryRefusal>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::cross_world_execution::CrossWorldExecution>::fn seal(request: &antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::cross_world_execution_artifact::CrossWorldExecutionArtifactError>
+#[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn mean_contrast(&self, contrast: &antecedent_model::discretized_scm::DiscreteContrast, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedContrast, antecedent::analysis::discretized_composition::DiscretizationRefusal>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::recovery_chain::RecoveryChain>::fn recover(self, observed: antecedent_estimate::recovery_chain::ChainPatternLaw) -> core::result::Result<Self, antecedent_identify::recovery_chain::ChainRecoveryError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::sample_split_effect::SplitEffect>::fn measure(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn <antecedent::analysis::sample_split_parent_set_effect::ParentSetEffect>::fn measure(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
@@ -22,6 +28,8 @@
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::choice_ranking::rank_studies(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::choice_ranking::rank_studies_with_context(alpha: &[f64], values: &[f64], candidates: &[antecedent_design::choice_evsi::StudyCandidate], seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_design::choice_evsi::StudyRank>, antecedent_design::choice_evsi::ChoiceEvsiError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::cohort_decision::measured_cohort_interval(native: &antecedent_estimate::cohort_linear_effect::NativeCohortFit, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::decision_reliability::derive_decision_uncertainty(draws: &antecedent_design::decision_reliability::draws::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::draws::DecisionDraws>, request: &antecedent_design::decision_reliability::report::ReliabilityRequest, interval: &antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::DecisionReliabilityRefusal>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::decision_reliability::derive_producer_uncertainty(carrier: &antecedent_design::decision_reliability::producer::ProducerCarrier, validation: core::option::Option<&antecedent_design::decision_reliability::draws::DecisionDraws>, request: &antecedent_design::decision_reliability::report::ReliabilityRequest, interval: &antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::DecisionReliabilityRefusal>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::design_ranking::consume(bytes: &[u8], expectation: &antecedent_design::design_ranking_artifact::ConsumeExpectation) -> core::result::Result<antecedent_design::design_ranking_artifact::ConsumedDesignRanking, antecedent_design::design_ranking_artifact::DesignRankingArtifactError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::discovered_transport::discover_and_transport(contract: &antecedent_discovery::selective::contract::StaticDiscoveryContract, data: &antecedent_data::dataset::TabularData, selection_targets: &[antecedent_core::ids::VariableId], query: &antecedent_core::query::transport::TransportQuery, member_bound: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discovered_transport::DiscoveredTransportRun, antecedent_discovery::selective::refusal::SelectiveDiscoveryError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::dose_grid_functional::estimate_dose_grid_bias_aware(request: &antecedent_estimate::dose_grid_functional::DoseGridRequest<'_>, curvature_bound: f64, band_replicates: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::dose_grid_functional::BiasAwareDoseGrid, antecedent_estimate::error::EstimationError>
@@ -37,10 +45,24 @@
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sample_split_effect::measure_source(source_artifact: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sample_split_parent_set_effect::measure_source(source_artifact: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sensitivity_decision::evaluate_sensitivity_decision(contract: &antecedent_design::decision_contract::DecisionContract, artifact: &antecedent_io_core::sensitivity_artifact::SensitivityArtifact, spec: &antecedent_design::sensitivity_decision::SensitivityDecisionSpec) -> core::result::Result<antecedent_design::sensitivity_decision::SensitivityDecisionResult, antecedent_design::sensitivity_decision::SensitivityDecisionError>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sequential_evaluation::compare_policies(model: &antecedent_design::sequential_evaluation::model::FiniteSequentialModel, specs: alloc::vec::Vec<antecedent_design::sequential_evaluation::comparison::ComparisonSpec>, voi: core::option::Option<&antecedent_design::sequential_evaluation::comparison::VoiRequest>, request: &antecedent_design::sequential_evaluation::SequentialRequest, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::comparison::ComparisonReport>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sequential_evaluation::evaluate_off_policy(model: &antecedent_design::sequential_evaluation::model::FiniteSequentialModel, target: &antecedent_design::sequential_evaluation::policy::ContingentPolicy, behaviour: &antecedent_design::sequential_evaluation::policy::ContingentPolicy, log: &[antecedent_design::sequential_evaluation::offpolicy::LoggedTrajectory], ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::offpolicy::OffPolicyEstimate>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sequential_evaluation::evaluate_policy(model: &antecedent_design::sequential_evaluation::model::FiniteSequentialModel, policy: &antecedent_design::sequential_evaluation::policy::ContingentPolicy, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::gformula::PolicyEvaluation>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sequential_evaluation::rollout_policy(model: &antecedent_design::sequential_evaluation::model::FiniteSequentialModel, policy: &antecedent_design::sequential_evaluation::policy::ContingentPolicy, config: antecedent_design::sequential_evaluation::rollout::RolloutConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::rollout::RolloutEstimate>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::sequential_evaluation::value_of_collecting_evidence(model: &antecedent_design::sequential_evaluation::model::FiniteSequentialModel, request: &antecedent_design::sequential_evaluation::comparison::VoiRequest, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::comparison::VoiCheck>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transport_sensitivity::transport_assumption_range(spec: &antecedent_design::transport_sensitivity::TransportSensitivitySpec) -> core::result::Result<antecedent_design::transport_sensitivity::TransportAssumptionRange, antecedent_design::transport_sensitivity::TransportSensitivityRefusal>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transport_sensitivity::transport_range(response: &antecedent_design::decision_transported_source::TransportedResponse, request: &antecedent::analysis::transport_sensitivity::TransportSensitivityRequest) -> core::result::Result<antecedent_design::transport_sensitivity::TransportAssumptionRange, antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_cohort::transport_cohort_effect(effect: &antecedent_learn::fitted_effect::FittedEffect, feature_names: &[alloc::string::String], model_identity: &str, model_population: &str, cohort: &antecedent_learn::transported_effect::TargetCohort, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_learn::transported_effect::TransportedCohortEffect, antecedent_learn::transported_effect::TransportRefusal>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_constructors::adaptive_trial_response(request: &antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'_>, value: antecedent_design::decision_transported_source::AdaptiveTransportedValue, coordinate: antecedent_contract::quantity::ScientificQuantity, provider_id: &str) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate>, antecedent_contract::external_refusal::ExternalRefusal>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_constructors::evaluate_temporal_policy(request: &antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::temporal_policy_transport::TemporalPolicyEvaluation, antecedent_design::sequential_evaluation::SequentialEvaluationError>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_constructors::evaluate_transported_policy(request: &antecedent_design::transported_policy::TransportedPolicyRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::transported_policy::TransportedPolicyEvaluation, antecedent_design::sequential_evaluation::SequentialEvaluationError>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_constructors::temporal_policy_response(request: &antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'_>, coordinate: antecedent_contract::quantity::ScientificQuantity, provider_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_design::temporal_policy_transport::TemporalPolicyEvaluation>, antecedent_contract::external_refusal::ExternalRefusal>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_constructors::transport_adaptive_trial(request: &antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'_>) -> core::result::Result<antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate, antecedent_design::sequential_evaluation::SequentialEvaluationError>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_constructors::transported_policy_response(request: &antecedent_design::transported_policy::TransportedPolicyRequest<'_>, coordinate: antecedent_contract::quantity::ScientificQuantity, provider_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_design::transported_policy::TransportedPolicyEvaluation>, antecedent_contract::external_refusal::ExternalRefusal>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_counterfactual::evaluate_transported_path_specific(input: &antecedent_counterfactual::transported_path_specific::TransportedPathSpecificInput<'_>) -> core::result::Result<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificResult, alloc::boxed::Box<antecedent_counterfactual::transported_path_specific::TransportedPathSpecificRefusal>>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_measurement::transport_measurement_model(models: &[antecedent_core::measurement_model::MeasurementModel], structure: core::option::Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>, data: &antecedent_estimate::measurement::DataBinding) -> core::result::Result<antecedent_estimate::measurement_transport::TransportedMeasurementModel, antecedent_estimate::measurement::MeasurementError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_measurement::transport_pooled_differential_prevalence(request: antecedent_estimate::measurement_transport_pooled::PooledDifferentialRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement_transport_pooled::PooledDifferentialCorrection, antecedent_estimate::error::EstimationError>
+#[deprecated(since = "3.1.0")] pub fn antecedent::analysis::transported_mechanism::transport_linear_gaussian(request: &antecedent_model::mechanism_transport::MechanismTransportRequest) -> core::result::Result<antecedent_model::mechanism_transport::TransportedLinearGaussian, antecedent_model::compose::CompositionError>
 #[deprecated(since = "3.1.0")] pub fn antecedent::decision_evidence::centered_fixed_cuped_totals(outcome_totals: &[f64], pretreatment_totals: &[f64], cluster_sizes: &[usize], coefficient: f64) -> core::option::Option<alloc::vec::Vec<f64>>
 #[deprecated(since = "3.1.0")] pub fn antecedent::decision_evidence::complete_cluster_joint_contrast(totals: &[&[f64]], assigned: &[bool], outcome_rows: usize) -> core::option::Option<antecedent_estimate::randomized_joint::JointClusterContrast>
 #[deprecated(since = "3.1.0")] pub fn antecedent::design::composition_boundary::evaluate_functional_on_input(contract: &antecedent_design::decision_contract::DecisionContract, action_id: &str, functional: antecedent_design::decision_contract::DecisionFunctional, input: &antecedent_design::composition_boundary::DecisionInput, weakest: antecedent_core::response::SupportStatus) -> core::result::Result<antecedent_design::decision_eval::FunctionalValue, antecedent_design::composition_boundary::BoundaryError>
@@ -1210,6 +1232,10 @@ impl core::clone::Clone for antecedent::analysis::decision_claims::ScenarioClaim
 impl core::clone::Clone for antecedent::analysis::decision_claims::ScenarioClaims
 impl core::clone::Clone for antecedent::analysis::decision_claims::ScenarioDecision
 impl core::clone::Clone for antecedent::analysis::decision_claims::ScenarioDigest
+impl core::clone::Clone for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment
+impl core::clone::Clone for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation
+impl core::clone::Clone for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment
+impl core::clone::Clone for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation
 impl core::clone::Clone for antecedent::analysis::declared_learners::LearnerFactories
 impl core::clone::Clone for antecedent::analysis::descriptive_programs::CompiledDescriptive
 impl core::clone::Clone for antecedent::analysis::descriptive_programs::DescriptiveOutcome
@@ -1365,6 +1391,7 @@ impl core::clone::Clone for antecedent::analysis::input_decision_programs::Compi
 impl core::clone::Clone for antecedent::analysis::input_decision_programs::CompiledInputFunctional
 impl core::clone::Clone for antecedent::analysis::input_decision_programs::CompiledInverseQuery
 impl core::clone::Clone for antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation
+impl core::clone::Clone for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking
 impl core::clone::Clone for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision
 impl core::clone::Clone for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision
 impl core::clone::Clone for antecedent::analysis::inverse_sources::ComposedActionQuery
@@ -1485,6 +1512,8 @@ impl core::clone::Clone for antecedent::analysis::joint_transport_predictive_dec
 impl core::clone::Clone for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery
 impl core::clone::Clone for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution
 impl core::clone::Clone for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual
+impl core::clone::Clone for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge
+impl core::clone::Clone for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings
@@ -1494,6 +1523,7 @@ impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_meas
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns
 impl core::clone::Clone for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod
 impl core::clone::Clone for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback
+impl core::clone::Clone for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport
 impl core::clone::Clone for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport
 impl core::clone::Clone for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport
 impl core::clone::Clone for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation
@@ -1501,6 +1531,9 @@ impl core::clone::Clone for antecedent::analysis::kernel_programs::measured_expo
 impl core::clone::Clone for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns
 impl core::clone::Clone for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher
 impl core::clone::Clone for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior
+impl core::clone::Clone for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport
+impl core::clone::Clone for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy
+impl core::clone::Clone for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy
 impl core::clone::Clone for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection
 impl core::clone::Clone for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection
 impl core::clone::Clone for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection
@@ -1515,6 +1548,12 @@ impl core::clone::Clone for antecedent::analysis::kernel_programs::sampled_count
 impl core::clone::Clone for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery
 impl core::clone::Clone for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery
 impl core::clone::Clone for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance
+impl core::clone::Clone for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation
+impl core::clone::Clone for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison
+impl core::clone::Clone for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation
+impl core::clone::Clone for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout
+impl core::clone::Clone for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal
+impl core::clone::Clone for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence
 impl core::clone::Clone for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect
 impl core::clone::Clone for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect
 impl core::clone::Clone for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport
@@ -1768,6 +1807,7 @@ impl core::clone::Clone for antecedent::analysis::tradeoff_decision_programs::Co
 impl core::clone::Clone for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision
 impl core::clone::Clone for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures
 impl core::clone::Clone for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError
+impl core::clone::Clone for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange
 impl core::clone::Clone for antecedent::analysis::transport_handoff::CallbackHandoff
 impl core::clone::Clone for antecedent::analysis::transport_handoff::TransportHandoffRefusal
 impl core::clone::Clone for antecedent::analysis::transport_identification::CompiledTransportIdentification
@@ -3947,6 +3987,10 @@ impl core::fmt::Debug for antecedent::analysis::decision_claims::ScenarioClaimBi
 impl core::fmt::Debug for antecedent::analysis::decision_claims::ScenarioClaims
 impl core::fmt::Debug for antecedent::analysis::decision_claims::ScenarioDecision
 impl core::fmt::Debug for antecedent::analysis::decision_claims::ScenarioDigest
+impl core::fmt::Debug for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment
+impl core::fmt::Debug for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation
+impl core::fmt::Debug for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment
+impl core::fmt::Debug for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation
 impl core::fmt::Debug for antecedent::analysis::declared_learners::LearnerFactories
 impl core::fmt::Debug for antecedent::analysis::descriptive_programs::CompiledDescriptive
 impl core::fmt::Debug for antecedent::analysis::descriptive_programs::DescriptiveOutcome
@@ -4113,6 +4157,7 @@ impl core::fmt::Debug for antecedent::analysis::input_decision_programs::Compile
 impl core::fmt::Debug for antecedent::analysis::input_decision_programs::CompiledInputFunctional
 impl core::fmt::Debug for antecedent::analysis::input_decision_programs::CompiledInverseQuery
 impl core::fmt::Debug for antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation
+impl core::fmt::Debug for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking
 impl core::fmt::Debug for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision
 impl core::fmt::Debug for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision
 impl core::fmt::Debug for antecedent::analysis::inverse_sources::ComposedActionQuery
@@ -4238,6 +4283,8 @@ impl core::fmt::Debug for antecedent::analysis::joint_transport_predictive_decis
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings
@@ -4247,6 +4294,7 @@ impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measur
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation
@@ -4254,6 +4302,9 @@ impl core::fmt::Debug for antecedent::analysis::kernel_programs::measured_exposu
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection
@@ -4268,6 +4319,12 @@ impl core::fmt::Debug for antecedent::analysis::kernel_programs::sampled_counter
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal
+impl core::fmt::Debug for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect
 impl core::fmt::Debug for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport
@@ -4532,6 +4589,7 @@ impl core::fmt::Debug for antecedent::analysis::tradeoff_decision_programs::Comp
 impl core::fmt::Debug for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision
 impl core::fmt::Debug for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures
 impl core::fmt::Debug for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError
+impl core::fmt::Debug for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange
 impl core::fmt::Debug for antecedent::analysis::transport_handoff::CallbackHandoff
 impl core::fmt::Debug for antecedent::analysis::transport_handoff::TransportHandoffRefusal
 impl core::fmt::Debug for antecedent::analysis::transport_identification::CompiledTransportIdentification
@@ -5725,6 +5783,10 @@ impl core::marker::Freeze for antecedent::analysis::decision_claims::ScenarioCla
 impl core::marker::Freeze for antecedent::analysis::decision_claims::ScenarioClaims [auto]
 impl core::marker::Freeze for antecedent::analysis::decision_claims::ScenarioDecision [auto]
 impl core::marker::Freeze for antecedent::analysis::decision_claims::ScenarioDigest [auto]
+impl core::marker::Freeze for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment [auto]
+impl core::marker::Freeze for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation [auto]
+impl core::marker::Freeze for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment [auto]
+impl core::marker::Freeze for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation [auto]
 impl core::marker::Freeze for antecedent::analysis::declared_learners::LearnerFactories [auto]
 impl core::marker::Freeze for antecedent::analysis::descriptive_programs::CompiledDescriptive [auto]
 impl core::marker::Freeze for antecedent::analysis::descriptive_programs::DescriptiveOutcome [auto]
@@ -5888,6 +5950,7 @@ impl core::marker::Freeze for antecedent::analysis::input_decision_programs::Com
 impl core::marker::Freeze for antecedent::analysis::input_decision_programs::CompiledInputFunctional [auto]
 impl core::marker::Freeze for antecedent::analysis::input_decision_programs::CompiledInverseQuery [auto]
 impl core::marker::Freeze for antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation [auto]
+impl core::marker::Freeze for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking [auto]
 impl core::marker::Freeze for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision [auto]
 impl core::marker::Freeze for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision [auto]
 impl core::marker::Freeze for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -6013,6 +6076,8 @@ impl core::marker::Freeze for antecedent::analysis::joint_transport_predictive_d
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -6022,6 +6087,7 @@ impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_me
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation [auto]
@@ -6029,6 +6095,9 @@ impl core::marker::Freeze for antecedent::analysis::kernel_programs::measured_ex
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection [auto]
@@ -6043,6 +6112,12 @@ impl core::marker::Freeze for antecedent::analysis::kernel_programs::sampled_cou
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal [auto]
+impl core::marker::Freeze for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect [auto]
 impl core::marker::Freeze for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport [auto]
@@ -6331,6 +6406,7 @@ impl core::marker::Freeze for antecedent::analysis::tradeoff_decision_programs::
 impl core::marker::Freeze for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision [auto]
 impl core::marker::Freeze for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures [auto]
 impl core::marker::Freeze for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError [auto]
+impl core::marker::Freeze for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange [auto]
 impl core::marker::Freeze for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Freeze for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
 impl core::marker::Freeze for antecedent::analysis::transport_identification::CompiledTransportIdentification [auto]
@@ -7164,6 +7240,10 @@ impl core::marker::Send for antecedent::analysis::decision_claims::ScenarioClaim
 impl core::marker::Send for antecedent::analysis::decision_claims::ScenarioClaims [auto]
 impl core::marker::Send for antecedent::analysis::decision_claims::ScenarioDecision [auto]
 impl core::marker::Send for antecedent::analysis::decision_claims::ScenarioDigest [auto]
+impl core::marker::Send for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment [auto]
+impl core::marker::Send for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation [auto]
+impl core::marker::Send for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment [auto]
+impl core::marker::Send for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation [auto]
 impl core::marker::Send for antecedent::analysis::declared_learners::LearnerFactories [auto]
 impl core::marker::Send for antecedent::analysis::descriptive_programs::CompiledDescriptive [auto]
 impl core::marker::Send for antecedent::analysis::descriptive_programs::DescriptiveOutcome [auto]
@@ -7368,6 +7448,7 @@ impl core::marker::Send for antecedent::analysis::input_decision_programs::Compi
 impl core::marker::Send for antecedent::analysis::input_decision_programs::CompiledInputFunctional [auto]
 impl core::marker::Send for antecedent::analysis::input_decision_programs::CompiledInverseQuery [auto]
 impl core::marker::Send for antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation [auto]
+impl core::marker::Send for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking [auto]
 impl core::marker::Send for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision [auto]
 impl core::marker::Send for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision [auto]
 impl core::marker::Send for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -7493,6 +7574,8 @@ impl core::marker::Send for antecedent::analysis::joint_transport_predictive_dec
 impl core::marker::Send for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -7502,6 +7585,7 @@ impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_meas
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation [auto]
@@ -7509,6 +7593,9 @@ impl core::marker::Send for antecedent::analysis::kernel_programs::measured_expo
 impl core::marker::Send for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection [auto]
@@ -7523,6 +7610,12 @@ impl core::marker::Send for antecedent::analysis::kernel_programs::sampled_count
 impl core::marker::Send for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal [auto]
+impl core::marker::Send for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect [auto]
 impl core::marker::Send for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport [auto]
@@ -7816,6 +7909,7 @@ impl core::marker::Send for antecedent::analysis::tradeoff_decision_programs::Co
 impl core::marker::Send for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision [auto]
 impl core::marker::Send for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures [auto]
 impl core::marker::Send for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError [auto]
+impl core::marker::Send for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange [auto]
 impl core::marker::Send for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Send for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
 impl core::marker::Send for antecedent::analysis::transport_identification::CompiledTransportIdentification [auto]
@@ -9354,6 +9448,10 @@ impl core::marker::Sync for antecedent::analysis::decision_claims::ScenarioClaim
 impl core::marker::Sync for antecedent::analysis::decision_claims::ScenarioClaims [auto]
 impl core::marker::Sync for antecedent::analysis::decision_claims::ScenarioDecision [auto]
 impl core::marker::Sync for antecedent::analysis::decision_claims::ScenarioDigest [auto]
+impl core::marker::Sync for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment [auto]
+impl core::marker::Sync for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation [auto]
+impl core::marker::Sync for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment [auto]
+impl core::marker::Sync for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation [auto]
 impl core::marker::Sync for antecedent::analysis::declared_learners::LearnerFactories [auto]
 impl core::marker::Sync for antecedent::analysis::descriptive_programs::CompiledDescriptive [auto]
 impl core::marker::Sync for antecedent::analysis::descriptive_programs::DescriptiveOutcome [auto]
@@ -9558,6 +9656,7 @@ impl core::marker::Sync for antecedent::analysis::input_decision_programs::Compi
 impl core::marker::Sync for antecedent::analysis::input_decision_programs::CompiledInputFunctional [auto]
 impl core::marker::Sync for antecedent::analysis::input_decision_programs::CompiledInverseQuery [auto]
 impl core::marker::Sync for antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation [auto]
+impl core::marker::Sync for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking [auto]
 impl core::marker::Sync for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision [auto]
 impl core::marker::Sync for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision [auto]
 impl core::marker::Sync for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -9683,6 +9782,8 @@ impl core::marker::Sync for antecedent::analysis::joint_transport_predictive_dec
 impl core::marker::Sync for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -9692,6 +9793,7 @@ impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_meas
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation [auto]
@@ -9699,6 +9801,9 @@ impl core::marker::Sync for antecedent::analysis::kernel_programs::measured_expo
 impl core::marker::Sync for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection [auto]
@@ -9713,6 +9818,12 @@ impl core::marker::Sync for antecedent::analysis::kernel_programs::sampled_count
 impl core::marker::Sync for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal [auto]
+impl core::marker::Sync for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect [auto]
 impl core::marker::Sync for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport [auto]
@@ -10006,6 +10117,7 @@ impl core::marker::Sync for antecedent::analysis::tradeoff_decision_programs::Co
 impl core::marker::Sync for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision [auto]
 impl core::marker::Sync for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures [auto]
 impl core::marker::Sync for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError [auto]
+impl core::marker::Sync for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange [auto]
 impl core::marker::Sync for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Sync for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
 impl core::marker::Sync for antecedent::analysis::transport_identification::CompiledTransportIdentification [auto]
@@ -10840,6 +10952,10 @@ impl core::marker::Unpin for antecedent::analysis::decision_claims::ScenarioClai
 impl core::marker::Unpin for antecedent::analysis::decision_claims::ScenarioClaims [auto]
 impl core::marker::Unpin for antecedent::analysis::decision_claims::ScenarioDecision [auto]
 impl core::marker::Unpin for antecedent::analysis::decision_claims::ScenarioDigest [auto]
+impl core::marker::Unpin for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment [auto]
+impl core::marker::Unpin for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation [auto]
+impl core::marker::Unpin for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment [auto]
+impl core::marker::Unpin for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation [auto]
 impl core::marker::Unpin for antecedent::analysis::declared_learners::LearnerFactories [auto]
 impl core::marker::Unpin for antecedent::analysis::descriptive_programs::CompiledDescriptive [auto]
 impl core::marker::Unpin for antecedent::analysis::descriptive_programs::DescriptiveOutcome [auto]
@@ -11044,6 +11160,7 @@ impl core::marker::Unpin for antecedent::analysis::input_decision_programs::Comp
 impl core::marker::Unpin for antecedent::analysis::input_decision_programs::CompiledInputFunctional [auto]
 impl core::marker::Unpin for antecedent::analysis::input_decision_programs::CompiledInverseQuery [auto]
 impl core::marker::Unpin for antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation [auto]
+impl core::marker::Unpin for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking [auto]
 impl core::marker::Unpin for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision [auto]
 impl core::marker::Unpin for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision [auto]
 impl core::marker::Unpin for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -11169,6 +11286,8 @@ impl core::marker::Unpin for antecedent::analysis::joint_transport_predictive_de
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -11178,6 +11297,7 @@ impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_mea
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation [auto]
@@ -11185,6 +11305,9 @@ impl core::marker::Unpin for antecedent::analysis::kernel_programs::measured_exp
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection [auto]
@@ -11199,6 +11322,12 @@ impl core::marker::Unpin for antecedent::analysis::kernel_programs::sampled_coun
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal [auto]
+impl core::marker::Unpin for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect [auto]
 impl core::marker::Unpin for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport [auto]
@@ -11492,6 +11621,7 @@ impl core::marker::Unpin for antecedent::analysis::tradeoff_decision_programs::C
 impl core::marker::Unpin for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision [auto]
 impl core::marker::Unpin for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures [auto]
 impl core::marker::Unpin for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError [auto]
+impl core::marker::Unpin for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange [auto]
 impl core::marker::Unpin for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::marker::Unpin for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
 impl core::marker::Unpin for antecedent::analysis::transport_identification::CompiledTransportIdentification [auto]
@@ -12298,6 +12428,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_claims::ScenarioClaims [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_claims::ScenarioDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_claims::ScenarioDigest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::descriptive_programs::CompiledDescriptive [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::descriptive_programs::DescriptiveOutcome [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::descriptive_programs::DescriptiveProgramError [auto]
@@ -12491,6 +12625,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::input_dec
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::input_decision_programs::CompiledFiniteEnumerationBaseline [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::input_decision_programs::CompiledInputFunctional [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::input_decision_programs::CompiledInverseQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -12601,6 +12736,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::joint_tra
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -12610,6 +12747,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_pr
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation [auto]
@@ -12617,6 +12755,9 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_pr
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection [auto]
@@ -12631,6 +12772,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_pr
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport [auto]
@@ -12910,6 +13057,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::tradeoff_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::transport_identification::CompiledTransportIdentification [auto]
@@ -13699,6 +13847,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_cla
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_claims::ScenarioClaims [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_claims::ScenarioDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_claims::ScenarioDigest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::descriptive_programs::CompiledDescriptive [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::descriptive_programs::DescriptiveOutcome [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::descriptive_programs::DescriptiveProgramError [auto]
@@ -13892,6 +14044,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::input_decisi
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::input_decision_programs::CompiledFiniteEnumerationBaseline [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::input_decision_programs::CompiledInputFunctional [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::input_decision_programs::CompiledInverseQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::input_decision_programs::CompiledSensitivityDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::inverse_sources::ComposedActionQuery [auto]
@@ -14002,6 +14155,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::joint_transp
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings [auto]
@@ -14011,6 +14166,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_progr
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation [auto]
@@ -14018,6 +14174,9 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_progr
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorLinearSelection [auto]
@@ -14032,6 +14191,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_progr
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::kernel_programs::z_transport::CompiledZTransport [auto]
@@ -14311,6 +14476,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::tradeoff_dec
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transport_handoff::CallbackHandoff [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transport_handoff::TransportHandoffRefusal [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::transport_identification::CompiledTransportIdentification [auto]
@@ -20179,7 +20345,6 @@ pub fn <antecedent::PreparedMechanismComposition>::fn compile_joint_measured_obs
 pub fn <antecedent::PreparedMechanismComposition>::fn condition_on(&self, outcome: &str, conditioning: &[antecedent_contract::observation_query::ObservedSlot], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn condition_versus_intervene(&self, outcome: &str, assignment: &[(alloc::string::String, alloc::string::String)], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn declared_mechanisms(&self) -> alloc::vec::Vec<&str>
-pub fn <antecedent::PreparedMechanismComposition>::fn discretize(&self, plan: &antecedent_model::discretized_scm::DiscretizationPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::discretized_composition::PreparedDiscretizedComposition, antecedent::analysis::discretized_composition::DiscretizationRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn export(&self, query: antecedent_io_core::mechanism_composition_artifact::CompositionQueryWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::MechanismCompositionExport, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn family(&self) -> antecedent_model::compose::descriptor::MechanismFamily
 pub fn <antecedent::PreparedMechanismComposition>::fn finite_law(&self, interventions: &[(&str, &str)], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::compose::tabular::FiniteLaw, antecedent::MechanismCompositionRefusal>
@@ -20197,7 +20362,7 @@ pub fn <antecedent::PreparedMechanismComposition>::fn plan_identity_hex(&self) -
 pub fn <antecedent::PreparedMechanismComposition>::fn refresh_mechanisms(&self, refits: alloc::vec::Vec<antecedent::MechanismRefit>, dependence: core::option::Option<antecedent::DependenceInput>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn sample(&self, interventions: &[(&str, f64)], n_rows: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::compose::gaussian::SampleTable, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn threshold_crossing(&self, outcome: &str, outcome_level: &str, signal: &str, background: &[antecedent_contract::observation_query::ObservedSlot], threshold: f64, direction: antecedent_model::observation_query::Direction, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::observation_query::ObservationClaim, antecedent::analysis::observation_query::ObservationQueryRefusal>
-pub fn <antecedent::PreparedMechanismComposition>::fn transport_to(&self, declaration: &antecedent::analysis::transported_mechanism::MechanismTransportDeclaration, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_mechanism::TransportedMechanismComposition, antecedent::MechanismCompositionRefusal>
+pub fn <antecedent::PreparedMechanismComposition>::fn transport_compiled(&self, declaration: &antecedent::analysis::transported_mechanism::MechanismTransportDeclaration, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_mechanism::TransportedMechanismComposition, antecedent::MechanismCompositionRefusal>
 pub fn <antecedent::PreparedMechanismComposition>::fn variables(&self) -> &[alloc::string::String]
 pub fn <antecedent::PreparedMixedSource>::const fn data(&self) -> &antecedent_expr::exact::transport::ExactTransportData
 pub fn <antecedent::PreparedMixedSource>::const fn functional(&self) -> &antecedent_identify::sid::mixed_source::search::BoundMixedSourceFunctional
@@ -20629,23 +20794,32 @@ pub fn <antecedent::Study>::fn candidate_templates(&self, sensitivity: core::opt
 pub fn <antecedent::Study>::fn capability(&self) -> core::result::Result<antecedent_contract::capability::OperationReport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::planner::PhysicalExecutionPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_adaptive_interval<'s>(session: &'s antecedent::AdaptiveInferenceSession, request: antecedent_io::adaptive_inference_result_artifact::AdaptiveResultSpec, artifact_id: &str) -> core::result::Result<antecedent::analysis::compiled_adaptive_interval::CompiledAdaptiveInterval<'s>, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_adaptive_trial(request: &antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_beta_power_prior_composition(base: antecedent_prob::conjugate_moment_match::BetaHyperparameters, sources: alloc::vec::Vec<(u64, u64, f64)>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::prior_composition::CompiledBetaPowerPriorComposition, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_beta_power_prior_selection(source: antecedent_prob::power_prior_alpha::BetaSource, outcomes: alloc::vec::Vec<bool>, options: antecedent_prob::power_prior_alpha::AlphaSelectionOptions, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_chain_observation_recovery(plan: antecedent_identify::recovery_chain::ChainRecoveryPlan, observed: antecedent_estimate::recovery_chain::ChainPatternLaw, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_choice_interval<'s>(session: &'s antecedent::ChoiceInferenceSession, request: antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str) -> core::result::Result<antecedent::analysis::compiled_choice_interval::CompiledChoiceInterval<'s>, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_cohort_interval(native: antecedent_estimate::cohort_linear_effect::NativeCohortFit, source: antecedent_io_core::cohort_decision::CohortDecisionSource, level: f64) -> core::result::Result<antecedent::analysis::compiled_cohort_interval::CompiledCohortInterval, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_compare_policies(model: antecedent_design::sequential_evaluation::model::FiniteSequentialModel, specs: alloc::vec::Vec<antecedent_design::sequential_evaluation::comparison::ComparisonSpec>, voi: core::option::Option<antecedent_design::sequential_evaluation::comparison::VoiRequest>, request: antecedent_design::sequential_evaluation::SequentialRequest, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_count_fitted_interval(observation: antecedent::analysis::count_fitted_observation::CountFittedObservation, level: f64) -> core::result::Result<antecedent::analysis::compiled_count_fitted_interval::CompiledCountFittedInterval, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_cross_world_execution(request: antecedent_io_core::cross_world_execution_artifact::CrossWorldRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_decision_program<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent::analysis::DecisionCompileRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::CompiledDecisionProgram, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_detection_dependent_prevalence(columns: antecedent::analysis::kernel_programs::exposure_measurement::DetectionColumns, declaration: antecedent_stats::measurement_error::detection::DetectionDeclaration, false_positive: antecedent_stats::measurement_error::detection::FalsePositiveRate, min_net_detection: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_discovered_class_transport(request: antecedent::analysis::compiled_discovered_transport::DiscoveredClassTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_discovered_transport::CompiledDiscoveredClassTransport, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_discretized_composition(composition: &antecedent::PreparedMechanismComposition, plan: &antecedent_model::discretized_scm::DiscretizationPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+pub fn <antecedent::Study>::fn compile_discretized_linear_gaussian(model: &antecedent_model::compose::gaussian::ComposedLinearGaussian, plan: &antecedent_model::discretized_scm::DiscretizationPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+pub fn <antecedent::Study>::fn compile_discretized_linear_gaussian_from_spec(spec: &antecedent_model::compose::descriptor::ComposedModelSpec, plan: &antecedent_model::discretized_scm::DiscretizationPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+pub fn <antecedent::Study>::fn compile_discretized_mean_contrast(bridge: &antecedent_model::discretized_scm::DiscretizedLinearGaussian, contrast: &antecedent_model::discretized_scm::DiscreteContrast, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast, antecedent::analysis::discretized_composition::DiscretizationRefusal>
 pub fn <antecedent::Study>::fn compile_dose_grid_bias_aware(request: antecedent::analysis::compiled_dose_grid_bias_aware::DoseGridBiasAwareRequest) -> core::result::Result<antecedent::analysis::compiled_dose_grid_bias_aware::CompiledDoseGridBiasAware, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_evaluate_off_policy(model: antecedent_design::sequential_evaluation::model::FiniteSequentialModel, target: antecedent_design::sequential_evaluation::policy::ContingentPolicy, behaviour: antecedent_design::sequential_evaluation::policy::ContingentPolicy, log: alloc::vec::Vec<antecedent_design::sequential_evaluation::offpolicy::LoggedTrajectory>, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_evaluate_policy(model: antecedent_design::sequential_evaluation::model::FiniteSequentialModel, policy: antecedent_design::sequential_evaluation::policy::ContingentPolicy, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_evsi_program<A, O>(&self, problem: &antecedent_design::decision::DecisionProblem<A, O>, request: &antecedent_design::evsi::EvsiRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::CompiledEvsiProgram, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_exposure_imputation(declaration: antecedent_estimate::measurement::measured_exposure::ExposureMeasurement, columns: antecedent::analysis::kernel_programs::measured_exposure_effect::ImputationColumns, draw_count: usize, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledExposureImputation, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_exposure_misclassification(counts: antecedent_stats::measurement_error::exposure::ExposureOutcomeCounts, structure: antecedent_stats::measurement_error::exposure::ExposureErrorStructure, min_youden: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_external_feedback(request: antecedent_io::external_cyclic_artifact::ExternalCyclicRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_external_feedback_fit(request: antecedent::analysis::compiled_external_feedback::ExternalFeedbackFitRequest) -> core::result::Result<antecedent::analysis::compiled_external_feedback::CompiledExternalFeedbackFit, antecedent::analysis::compiled_external_feedback::ExternalFeedbackFitError>
 pub fn <antecedent::Study>::fn compile_external_prior_composition(sources: alloc::vec::Vec<antecedent_prob::external_prior::ExternalPriorSource>, baseline: antecedent_prob::prior::PriorSet, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::prior_composition::CompiledExternalPriorComposition, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_fitted_mechanism_transport(request: &antecedent_model::mechanism_transport::MechanismTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_for_contract_decision(&self, contract: &antecedent_design::decision_contract::DecisionContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
 pub fn <antecedent::Study>::fn compile_for_planning(&self, request: &antecedent_design::planning::request::PlanningRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::planning::PlanningPlan, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_for_preference_decision(&self, contract: &antecedent_design::preference_contract::PreferenceContract, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::preference_decision::CompiledPreferenceDecision, antecedent::analysis::preference_decision::PreferenceRouteError>
@@ -20670,19 +20844,24 @@ pub fn <antecedent::Study>::fn compile_pooled_differential_transport(request: an
 pub fn <antecedent::Study>::fn compile_prior_tag_transport(sources: alloc::vec::Vec<antecedent_prob::external_prior::ExternalPriorSource>, baseline: antecedent_prob::prior::PriorSet, context: &antecedent_prob::transport::TransportContext<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::prior_composition::CompiledPriorTagTransport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_prior_weighted_target_transport(sources: alloc::vec::Vec<antecedent_prob::external_prior::ExternalPriorSource>, baseline: antecedent_prob::prior::PriorSet, policy: antecedent_prob::transport::TransportPolicy, target: antecedent_prob::transport_target::WeightedTarget, coef_index: core::option::Option<usize>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::prior_composition::CompiledPriorWeightedTargetTransport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_repeat_codings(codings: antecedent::analysis::kernel_programs::exposure_measurement::RepeatCodings, constraints: antecedent_stats::measurement_error::latent_class::LatentClassConstraints, settings: antecedent_stats::measurement_error::latent_class::LatentClassSettings, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::exposure_measurement::CompiledRepeatCodings, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_rollout_policy(model: antecedent_design::sequential_evaluation::model::FiniteSequentialModel, policy: antecedent_design::sequential_evaluation::policy::ContingentPolicy, config: antecedent_design::sequential_evaluation::rollout::RolloutConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_sampled_counterfactual_transport(derivation: antecedent_identify::sid::counterfactual_transport::CounterfactualTransportDerivation, request: antecedent_estimate::counterfactual_transport_sampled::SampledTransportRequest, variable_names: alloc::vec::Vec<alloc::string::String>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sampled_counterfactual_transport::CompiledSampledCounterfactualTransport, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_sampled_counterfactual_transport_interval(artifact: &[u8], expected: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportExpectedIdentity, limits: antecedent_io::sampled_counterfactual_transport_artifact::SampledCounterfactualTransportConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sampled_counterfactual_transport::CompiledSampledCounterfactualTransportInterval, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_sampled_observation_recovery(derivation: antecedent_identify::recovery::RecoveryDerivation, input: antecedent_estimate::recovery_sampled::SampledObservationInput, config: antecedent_estimate::recovery_sampled::SampledRecoveryConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_scenario_covariance(spec: antecedent_io::scenario_covariance_artifact::CovarianceSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_sequential_evaluation_seal(model: antecedent_design::sequential_evaluation::model::FiniteSequentialModel, policy: antecedent_design::sequential_evaluation::policy::ContingentPolicy, off_policy: core::option::Option<antecedent_design::sequential_evaluation_artifact::OffPolicyInput>, rollout: core::option::Option<antecedent_design::sequential_evaluation::rollout::RolloutConfig>, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_smoothed_dose_learners(request: antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_smoothed_dose_learners::CompiledSmoothedDoseLearners, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_soft_exposure_effect(columns: antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns, method: antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureMethod, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::exposure_measurement::CompiledSoftExposureEffect, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_split_effect_source(source_artifact: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_split_parent_set_effect_source(source_artifact: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_temporal_dependent_interval(request: antecedent::analysis::compiled_temporal_interval::TemporalDependentIntervalRequest) -> core::result::Result<antecedent::analysis::compiled_temporal_interval::CompiledTemporalDependentInterval, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_temporal_policy(request: &antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_transport_response_grid(request: antecedent::analysis::transport_response_grid::TransportResponseGridRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transport_response_grid::CompiledTransportResponseGrid, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_transport_scenarios(prepared: antecedent::PreparedTransportScenarios) -> core::result::Result<antecedent::analysis::compiled_transport_scenarios::CompiledTransportScenarios, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_transported_cohort(request: antecedent::analysis::compiled_transported_cohort::TransportedCohortRequest) -> core::result::Result<antecedent::analysis::compiled_transported_cohort::CompiledTransportedCohort, antecedent_learn::transported_effect::TransportRefusal>
+pub fn <antecedent::Study>::fn compile_transported_policy(request: &antecedent_design::transported_policy::TransportedPolicyRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_trial_aipw_learners(request: antecedent::analysis::compiled_trial_aipw_learners::TrialAipwLearnersRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_trial_aipw_learners::CompiledTrialAipwLearners, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_value_of_collecting_evidence(model: antecedent_design::sequential_evaluation::model::FiniteSequentialModel, request: antecedent_design::sequential_evaluation::comparison::VoiRequest, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_z_transport(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::z_transport::CompiledZTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::Study>::fn compile_z_transport_empirical(diagram: antecedent_graph::selection::SelectionDiagram, functional: antecedent_identify::sid::z_transport::BoundZTransportFunctional, data: antecedent_expr::exact::transport::ExactTransportData, request: antecedent_expr::provider::Assignment, limits: antecedent_expr::exact_plan::ExactEvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::z_transport::CompiledZTransport, antecedent_io_core::error::IoError>
 pub fn <antecedent::Study>::fn events(data: &antecedent_data::event::EventData, align_interval_ns: u64) -> core::result::Result<antecedent::StudyBuilder, antecedent::CausalError>
@@ -21148,10 +21327,7 @@ pub fn <antecedent::analysis::PreparedComponentFeedback>::const fn prepared(&sel
 pub fn <antecedent::analysis::PreparedComponentFeedback>::fn component_order(&self) -> &[alloc::string::String]
 pub fn <antecedent::analysis::PreparedDecisionReliability>::const fn artifact(&self) -> &antecedent_design::decision_reliability::artifact::DecisionReliabilityArtifact
 pub fn <antecedent::analysis::PreparedDecisionReliability>::const fn report(&self) -> &antecedent_design::decision_reliability::report::ReliabilityReport
-pub fn <antecedent::analysis::PreparedDecisionReliability>::fn assess(draws: antecedent_design::decision_reliability::draws::DecisionDraws, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::DecisionReliabilityRefusal>
-pub fn <antecedent::analysis::PreparedDecisionReliability>::fn assess_producer(carrier: &antecedent_design::decision_reliability::producer::ProducerCarrier, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn <antecedent::analysis::PreparedDecisionReliability>::fn combined_uncertainty(&self) -> core::result::Result<f64, antecedent::analysis::DecisionReliabilityRefusal>
-pub fn <antecedent::analysis::PreparedDecisionReliability>::fn derive_uncertainty(&self, interval: &antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn <antecedent::analysis::PreparedDecisionReliability>::fn export(&self, artifact_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn <antecedent::analysis::PreparedDecisionReliability>::fn inspect(&self) -> antecedent::analysis::DecisionReliabilityInspection
 pub fn <antecedent::analysis::PreparedDecisionReliability>::fn publish(&self, route: antecedent_design::decision_reliability::calibration::PublishedRoute) -> core::result::Result<antecedent_io_core::contract_section::CalibrationSlotWire, antecedent::analysis::DecisionReliabilityRefusal>
@@ -21683,6 +21859,23 @@ pub fn <antecedent::analysis::decision_claims::ClaimSource>::fn verify(&self, ex
 pub fn <antecedent::analysis::decision_claims::ScenarioClaimBinding>::fn new(outcomes: alloc::vec::Vec<antecedent::analysis::decision_claims::OutcomeBinding>, source_id: &str, provider_id: &str, causal_contract_id: &str, premises_digest: &str, data_digest: &str) -> Self
 pub fn <antecedent::analysis::decision_claims::ScenarioClaimBinding>::fn with_default_support(self, support: antecedent_design::decision_robustness::AtomSupport) -> Self
 pub fn <antecedent::analysis::decision_claims::ScenarioClaimBinding>::fn with_support(self, scenario: &str, support: antecedent_design::decision_robustness::AtomSupport) -> Self
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::report::ReliabilityReport, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::decision_reliability::ReliabilityError>>
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment>::fn seal(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::artifact::DecisionReliabilityArtifact, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_io_core::error::IoError>>
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::decision_reliability::ReliabilityError>>
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::report::ReliabilityReport, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::decision_reliability::ReliabilityError>>
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::decision_reliability::ReliabilityError>>
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::declared_learners::LearnerFactories>::fn identity(&self) -> &str
 pub fn <antecedent::analysis::declared_learners::LearnerFactories>::fn new(outcome: alloc::sync::Arc<dyn antecedent_learn::learner::LearnerFactory>, treatment: alloc::sync::Arc<dyn antecedent_learn::learner::LearnerFactory>, identity: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::analysis::declared_learners::LearnerFactories>::fn outcome(&self) -> &dyn antecedent_learn::learner::LearnerFactory
@@ -21786,9 +21979,9 @@ pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedCompos
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::const fn plan(&self) -> &antecedent_model::discretized_scm::DiscretizationPlan
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::const fn source_plan_identity_version(&self) -> u64
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn export(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn from_compiled_bridge(plan: antecedent_model::discretized_scm::DiscretizationPlan, bridge: antecedent_model::discretized_scm::DiscretizedLinearGaussian, source_plan_identity: alloc::string::String, source_plan_identity_version: u64) -> Self
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn identity_hex(&self) -> alloc::string::String
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn inspect(&self) -> antecedent::analysis::discretized_composition::DiscretizedCompositionInspection
-pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn mean_contrast(&self, contrast: &antecedent_model::discretized_scm::DiscreteContrast, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedContrast, antecedent::analysis::discretized_composition::DiscretizationRefusal>
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn refresh(&self, refit: &antecedent::PreparedMechanismComposition, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::discretized_composition::DiscretizationRefusal>
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn source_plan_identity(&self) -> &str
 pub fn <antecedent::analysis::discretized_composition::PreparedDiscretizedComposition>::fn uncertainty(&self, paradigm: antecedent_model::discretized_scm::InferenceParadigm) -> core::result::Result<core::convert::Infallible, antecedent::analysis::discretized_composition::DiscretizationRefusal>
@@ -21977,6 +22170,10 @@ pub fn <antecedent::analysis::input_decision_programs::CompiledPriorSignalAdapta
 pub fn <antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::ranking::RankingReport, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::decision_reliability::ReliabilityError>>
+pub fn <antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::input_decision_programs::CompiledSensitivityDecision>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::sensitivity_decision::SensitivityDecisionResult, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::sensitivity_decision::SensitivityDecisionError>>
 pub fn <antecedent::analysis::input_decision_programs::CompiledSensitivityDecision>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent::analysis::input_decision_programs::CompiledSensitivityDecision>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
@@ -22268,6 +22465,12 @@ pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGene
 pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::temporal_counterfactual::GeneralTemporalCounterfactual, antecedent_io_core::temporal_counterfactual_general_artifact::GeneralTemporalCounterfactualArtifactError>
 pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedLinearGaussian, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+pub fn <antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::discretized_scm::DiscretizedContrast, antecedent::analysis::discretized_composition::DiscretizationRefusal>
+pub fn <antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence>::fn correct(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::measurement::exposure_routes::DetectionDependentPrevalence, antecedent_estimate::measurement::MeasurementError>
 pub fn <antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence>::fn plan_view(&self) -> antecedent::planner::PlanView
@@ -22288,6 +22491,10 @@ pub fn <antecedent::analysis::kernel_programs::external_feedback::CompiledExtern
 pub fn <antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback>::fn evaluate(&self, resolver: core::option::Option<&dyn antecedent_model::external_mechanism::registry::TrustedMechanismResolver>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::external_cyclic_artifact::ExternalCyclicReport, antecedent_io::external_cyclic_artifact::ExternalCyclicArtifactError>
 pub fn <antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_model::mechanism_transport::TransportedLinearGaussian, antecedent_model::compose::CompositionError>
+pub fn <antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport>::fn request(&self) -> &antecedent_model::mechanism_transport::MechanismTransportRequest
 pub fn <antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport>::fn measure(&self, level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_io::joint_bayesian_transport_artifact::JointBayesianArtifactWire, antecedent_estimate::joint_bayesian_transport::JointTransportFit, antecedent_io::measured_inference::MeasuredInference), antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport>::fn plan_view(&self) -> antecedent::planner::PlanView
@@ -22310,6 +22517,15 @@ pub fn <antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMark
 pub fn <antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior>::fn measure(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(antecedent_io::nested_markov_bayesian_artifact::Artifact, antecedent_io::measured_inference::MeasuredInference), antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate, antecedent_design::sequential_evaluation::SequentialEvaluationError>
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::temporal_policy_transport::TemporalPolicyEvaluation, antecedent_design::sequential_evaluation::SequentialEvaluationError>
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::transported_policy::TransportedPolicyEvaluation, antecedent_design::sequential_evaluation::SequentialEvaluationError>
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection>::fn select_power_prior(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_prob::power_prior_alpha::SelectedAlphaReport, antecedent_prob::error::ProbError>
@@ -22364,6 +22580,30 @@ pub fn <antecedent::analysis::kernel_programs::scenario_covariance::CompiledScen
 pub fn <antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance>::fn covariance_within(&self, ctx: &antecedent_core::execution::context::ExecutionContext, limits: &antecedent_io::scenario_covariance_artifact::ScenarioCovarianceConsumeLimits) -> core::result::Result<antecedent_estimate::scenario_covariance::ScenarioCovariance, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation>::fn evaluate(&self, ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::offpolicy::OffPolicyEstimate>
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation>::fn log(&self) -> &[antecedent_design::sequential_evaluation::offpolicy::LoggedTrajectory]
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::comparison::ComparisonReport>
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison>::fn specs(&self) -> &[antecedent_design::sequential_evaluation::comparison::ComparisonSpec]
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::gformula::PolicyEvaluation>
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation>::fn model(&self) -> &antecedent_design::sequential_evaluation::model::FiniteSequentialModel
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation>::fn policy(&self) -> &antecedent_design::sequential_evaluation::policy::ContingentPolicy
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout>::fn config(&self) -> antecedent_design::sequential_evaluation::rollout::RolloutConfig
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::rollout::RolloutEstimate>
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal>::fn seal(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::sequential_evaluation_artifact::SequentialEvaluationArtifact, antecedent_io_core::error::IoError>
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence>::fn evaluate(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<antecedent_design::sequential_evaluation::comparison::VoiCheck>
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence>::fn request(&self) -> &antecedent_design::sequential_evaluation::comparison::VoiRequest
 pub fn <antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect>::fn measure(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::measured_inference::MeasuredInference, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect>::fn plan_view(&self) -> antecedent::planner::PlanView
@@ -23007,6 +23247,10 @@ pub fn <antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStruct
 pub fn <antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn <antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::transport_sensitivity::TransportAssumptionRange, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::transport_sensitivity::TransportSensitivityRefusal>>
+pub fn <antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
+pub fn <antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::transport_handoff::CallbackHandoff>::const fn artifact(&self) -> &antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact
 pub fn <antecedent::analysis::transport_handoff::CallbackHandoff>::const fn is_native_target_data(&self) -> bool
 pub fn <antecedent::analysis::transport_handoff::CallbackHandoff>::fn identity(&self) -> &str
@@ -23773,10 +24017,12 @@ pub fn antecedent::analysis::decision_claims::scenario_claims(report: &anteceden
 pub fn antecedent::analysis::decision_claims::weighted_identified_utilities(contract: &antecedent_design::decision_contract::admissibility::AdmissibleDecisionContract, weighted: &antecedent_estimate::transport_scenarios::WeightedScenarioReport, binding: &antecedent::analysis::decision_claims::ScenarioClaimBinding, support: &antecedent_design::decision_robustness::AtomSupport) -> core::result::Result<alloc::vec::Vec<antecedent_design::decision_adapters::IdentifiedUtility>, antecedent::analysis::decision_claims::ClaimError>
 pub fn antecedent::analysis::decision_reliability::consume_derived_uncertainty(bytes: &[u8], expected: &antecedent_design::decision_reliability::artifact::DecisionReliabilityExpectation, interval: &antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn antecedent::analysis::decision_reliability::decision_reliability_coverage_design() -> alloc::vec::Vec<antecedent_design::decision_reliability::coverage_design::CoverageCell>
-pub fn antecedent::analysis::decision_reliability::derive_decision_uncertainty(draws: &antecedent_design::decision_reliability::draws::DecisionDraws, validation: core::option::Option<&antecedent_design::decision_reliability::draws::DecisionDraws>, request: &antecedent_design::decision_reliability::report::ReliabilityRequest, interval: &antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::DecisionReliabilityRefusal>
-pub fn antecedent::analysis::decision_reliability::derive_producer_uncertainty(carrier: &antecedent_design::decision_reliability::producer::ProducerCarrier, validation: core::option::Option<&antecedent_design::decision_reliability::draws::DecisionDraws>, request: &antecedent_design::decision_reliability::report::ReliabilityRequest, interval: &antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::decision_reliability::interval::DerivedUncertainty, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn antecedent::analysis::decision_reliability::publish_derived_route(derived: &antecedent_design::decision_reliability::interval::DerivedUncertainty, route: antecedent_design::decision_reliability::calibration::PublishedRoute) -> core::result::Result<antecedent_io_core::contract_section::CalibrationSlotWire, antecedent::analysis::DecisionReliabilityRefusal>
 pub fn antecedent::analysis::decision_reliability::reach_decision_carrier(output: antecedent_design::decision_reliability::producer::ProducerOutput) -> core::result::Result<antecedent_design::decision_reliability::producer::ProducerCarrier, antecedent::analysis::DecisionReliabilityRefusal>
+pub fn antecedent::analysis::decision_reliability_programs::compile_decision_reliability_assessment(draws: antecedent_design::decision_reliability::draws::DecisionDraws, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment, antecedent::CausalError>
+pub fn antecedent::analysis::decision_reliability_programs::compile_decision_reliability_derivation(draws: antecedent_design::decision_reliability::draws::DecisionDraws, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, interval: antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation, antecedent::CausalError>
+pub fn antecedent::analysis::decision_reliability_programs::compile_producer_carrier_assessment(carrier: antecedent_design::decision_reliability::producer::ProducerCarrier, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment, antecedent::CausalError>
+pub fn antecedent::analysis::decision_reliability_programs::compile_producer_carrier_derivation(carrier: antecedent_design::decision_reliability::producer::ProducerCarrier, validation: core::option::Option<antecedent_design::decision_reliability::draws::DecisionDraws>, request: antecedent_design::decision_reliability::report::ReliabilityRequest, interval: antecedent_design::decision_reliability::interval::IntervalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation, antecedent::CausalError>
 pub fn antecedent::analysis::descriptive_programs::compile_descriptive(request: antecedent::analysis::descriptive_programs::DescriptiveRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::descriptive_programs::CompiledDescriptive, antecedent::analysis::descriptive_programs::DescriptiveProgramError>
 pub fn antecedent::analysis::design_planning_programs::compile_choice_study_ranking(posterior: antecedent::analysis::design_planning_programs::ChoicePosterior, values: alloc::vec::Vec<f64>, candidates: alloc::vec::Vec<antecedent_design::choice_evsi::StudyCandidate>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::design_planning_programs::CompiledChoiceStudyRanking, antecedent::CausalError>
 pub fn antecedent::analysis::design_planning_programs::compile_design_ranking<A, O>(ranker: &antecedent_design::ranker::DesignRanker, objective: antecedent_design::objective::DesignObjective, candidates: alloc::vec::Vec<antecedent_design::candidate::CandidateDesign>, eval: &antecedent_design::ranker::DesignEvaluationContext<'_, A, O>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::design_planning_programs::CompiledDesignRanking, antecedent::CausalError>
@@ -23860,6 +24106,7 @@ pub fn antecedent::analysis::input_decision_programs::compile_finite_enumeration
 pub fn antecedent::analysis::input_decision_programs::compile_input_functional(contract: antecedent_design::decision_contract::DecisionContract, action_id: &str, functional: antecedent_design::decision_contract::DecisionFunctional, input: antecedent_design::composition_boundary::DecisionInput, weakest: antecedent_core::response::SupportStatus, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::input_decision_programs::CompiledInputFunctional, antecedent::CausalError>
 pub fn antecedent::analysis::input_decision_programs::compile_inverse_query(query: antecedent_design::inverse_query::InverseQuery, evidence: antecedent_design::inverse_query::ForwardEvidence, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::input_decision_programs::CompiledInverseQuery, antecedent::CausalError>
 pub fn antecedent::analysis::input_decision_programs::compile_prior_signal_adaptation(catalog: antecedent_io_core::prior_bank::PriorCatalog, target: antecedent_io_core::prior_bank::TargetDesign, request: antecedent_design::prior_signal::PriorSignalRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation, antecedent::CausalError>
+pub fn antecedent::analysis::input_decision_programs::compile_producer_carrier_ranking(carrier: antecedent_design::decision_reliability::producer::ProducerCarrier, request: antecedent_design::decision_reliability::ranking::RankingRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking, antecedent::CausalError>
 pub fn antecedent::analysis::input_decision_programs::compile_sensitivity_decision(contract: antecedent_design::decision_contract::DecisionContract, artifact: antecedent_io_core::sensitivity_artifact::SensitivityArtifact, spec: antecedent_design::sensitivity_decision::SensitivityDecisionSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::input_decision_programs::CompiledSensitivityDecision, antecedent::CausalError>
 pub fn antecedent::analysis::input_decision_programs::compile_supported_input_decision(contract: antecedent_design::decision_contract::DecisionContract, inputs: alloc::vec::Vec<antecedent_design::composition_boundary::DecisionInput>, policy: antecedent_design::composition_boundary::SupportPolicy, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision, antecedent::CausalError>
 pub fn antecedent::analysis::inspect_callback_result(bytes: &[u8]) -> core::result::Result<antecedent_io_core::callback_result_artifact::CallbackResultMeta, antecedent_io_core::callback_result_artifact::CallbackResultArtifactError>
@@ -24082,6 +24329,7 @@ pub fn antecedent::analysis::temporal_path_transport::consume_temporal_path_tran
 pub fn antecedent::analysis::tradeoff_decision_programs::compile_tradeoff_decision(contract: antecedent_design::preference_contract::PreferenceContract, measure: core::option::Option<antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_route_choice::PreferenceEvaluationOptions, source: antecedent::analysis::claim_decision_programs::ContractSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffDecision, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::preference_route_choice::PreferenceEvaluationError>>
 pub fn antecedent::analysis::tradeoff_decision_programs::compile_tradeoff_decision_with_accepted(accepted: &antecedent_design::accepted_preferences::AcceptedPreferences, parts: antecedent_design::accepted_preferences::PreferenceContractParts, options: antecedent_design::preference_route_choice::PreferenceEvaluationOptions, source: antecedent::analysis::claim_decision_programs::ContractSource, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffDecision, antecedent::analysis::claim_decision_programs::TerminalError<antecedent_design::preference_route_choice::PreferenceEvaluationError>>
 pub fn antecedent::analysis::tradeoff_decision_programs::compile_tradeoff_structural_decision(contract: antecedent_design::preference_contract::PreferenceContract, measure: core::option::Option<antecedent_design::preference_decision::PreferenceMeasure>, options: antecedent_design::preference_route_choice::PreferenceEvaluationOptions, claims: antecedent::analysis::claim_decision_programs::SuppliedClaimSet, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructures, antecedent::analysis::claim_decision_programs::TerminalError<antecedent::analysis::tradeoff_decision_programs::TradeoffStructuralError>>
+pub fn antecedent::analysis::transport_assumption_program::compile_transport_assumption_range(spec: antecedent_design::transport_sensitivity::TransportSensitivitySpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange, antecedent::CausalError>
 pub fn antecedent::analysis::transport_handoff::consume_for_callback(bytes: &[u8], expected_identity: core::option::Option<&str>, callback: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration) -> core::result::Result<antecedent_io_core::transport_handoff_artifact::TransportHandoffArtifact, antecedent::analysis::transport_handoff::TransportHandoffRefusal>
 pub fn antecedent::analysis::transport_handoff::hand_to_callback(offer: &antecedent_contract::provider_transport::TransportedClaimOffer, callback: &antecedent_contract::callback_protocol::declaration::CallbackDeclaration, input: &str, policy: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent::analysis::transport_handoff::CallbackHandoff, antecedent::analysis::transport_handoff::TransportHandoffRefusal>
 pub fn antecedent::analysis::transport_identification::compile_transport_identification(request: antecedent::analysis::transport_identification::TransportIdentificationRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transport_identification::CompiledTransportIdentification, antecedent::analysis::transport_identification::TransportIdentificationError>
@@ -24094,16 +24342,12 @@ pub fn antecedent::analysis::transport_revalidation::revalidate(previous: core::
 pub fn antecedent::analysis::transport_revalidation::source_node_key(population: &str) -> alloc::string::String
 pub fn antecedent::analysis::transport_revalidation::transported_claim_node(key: &str, response: &antecedent_design::decision_transported_source::TransportedResponse, calibration: antecedent_contract::composition_verification::graph::CalibrationDeclaration, provider: core::option::Option<antecedent_contract::provider_trust::ProviderTrust>) -> core::result::Result<antecedent_contract::composition_verification::graph::CompositionNode, antecedent::analysis::transport_revalidation::TransportRevalidationRefusal>
 pub fn antecedent::analysis::transport_revalidation::transported_claim_standing(response: &antecedent_design::decision_transported_source::TransportedResponse, calibration: antecedent_contract::composition_verification::graph::CalibrationDeclaration, provider: core::option::Option<antecedent_contract::provider_trust::ProviderTrust>) -> core::result::Result<antecedent_contract::composition_verification::graph::ClaimStanding, antecedent::analysis::transport_revalidation::TransportRevalidationRefusal>
-pub fn antecedent::analysis::transport_sensitivity::transport_range(response: &antecedent_design::decision_transported_source::TransportedResponse, request: &antecedent::analysis::transport_sensitivity::TransportSensitivityRequest) -> core::result::Result<antecedent_design::transport_sensitivity::TransportAssumptionRange, antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal>
 pub fn antecedent::analysis::transport_sensitivity::transport_sensitivity_artifact(response: &antecedent_design::decision_transported_source::TransportedResponse, request: &antecedent::analysis::transport_sensitivity::TransportSensitivityRequest, reference: &antecedent_contract::quantity::ScientificQuantity, reference_value: f64) -> core::result::Result<antecedent_io_core::sensitivity_artifact::SensitivityArtifact, antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal>
 pub fn antecedent::analysis::transport_sensitivity::transport_sensitivity_spec(response: &antecedent_design::decision_transported_source::TransportedResponse, request: &antecedent::analysis::transport_sensitivity::TransportSensitivityRequest) -> core::result::Result<antecedent_design::transport_sensitivity::TransportSensitivitySpec, antecedent::analysis::transport_sensitivity::TransportSensitivityEntryRefusal>
 pub fn antecedent::analysis::transported_cohort::transport_cohort_effect_from_result(artifact: &[u8], expected_claim: core::option::Option<&str>, source_population: &str, cohort: &antecedent_io_core::cohort_decision::cohort_binding::CohortBinding, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_cohort::TransportedCohort, antecedent_learn::transported_effect::TransportRefusal>
 pub fn antecedent::analysis::transported_cohort::verify_cohort_transport(artifact: &[u8], expected_claim: core::option::Option<&str>, source_population: &str, cohort: &antecedent_io_core::cohort_decision::cohort_binding::CohortBinding, shift: core::option::Option<&antecedent_learn::transported_effect::SelectionShiftDeclaration>, expected_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_cohort::TransportedCohort, antecedent_learn::transported_effect::TransportRefusal>
-pub fn antecedent::analysis::transported_constructors::adaptive_trial_response(request: &antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'_>, value: antecedent_design::decision_transported_source::AdaptiveTransportedValue, coordinate: antecedent_contract::quantity::ScientificQuantity, provider_id: &str) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_design::adaptive_trial_transport::AdaptiveTransportEstimate>, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::transported_constructors::surrogate_bridge_response(bridge: &antecedent_design::transported_bridge::TransportedSurrogateBridge, claim: &antecedent_contract::claim::ClaimEnvelope, provider_id: &str) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_contract::bridge::claim::BridgedClaim>, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::transported_constructors::synthesis_refusal(refusal: &antecedent_design::transported_synthesis::TransportedSynthesisRefusal) -> antecedent_contract::external_refusal::ExternalRefusal
-pub fn antecedent::analysis::transported_constructors::temporal_policy_response(request: &antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'_>, coordinate: antecedent_contract::quantity::ScientificQuantity, provider_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_design::temporal_policy_transport::TemporalPolicyEvaluation>, antecedent_contract::external_refusal::ExternalRefusal>
-pub fn antecedent::analysis::transported_constructors::transported_policy_response(request: &antecedent_design::transported_policy::TransportedPolicyRequest<'_>, coordinate: antecedent_contract::quantity::ScientificQuantity, provider_id: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_design::transported_policy::TransportedPolicyEvaluation>, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::transported_constructors::transported_synthesis_response(ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, label: &str, contributions: &[antecedent_design::transported_synthesis::TransportedContribution], method: &antecedent_design::transported_synthesis::TransportedSynthesisMethod, native_population: core::option::Option<&str>, coordinate: antecedent_contract::quantity::ScientificQuantity, provider_id: &str) -> core::result::Result<antecedent::analysis::transported_constructors::TransportedConstruction<antecedent_design::transported_synthesis::TransportedSynthesis>, antecedent_contract::external_refusal::ExternalRefusal>
 pub fn antecedent::analysis::transported_measurement::transport_measurement(models: &[antecedent_core::measurement_model::MeasurementModel], structure: core::option::Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>, binding: &antecedent::MeasurementAnalysisBinding) -> core::result::Result<antecedent_estimate::measurement_transport::TransportedMeasurementModel, antecedent::MeasurementModelRefusal>
 pub fn antecedent::analysis::transported_measurement::transport_measurement_estimate(models: &[antecedent_core::measurement_model::MeasurementModel], structure: core::option::Option<&antecedent_estimate::measurement_transport::PopulationErrorStructure>, binding: antecedent::MeasurementAnalysisBinding, input: antecedent::MeasurementInput, provider: core::option::Option<(&antecedent_contract::external::ExternalScientificObject, &antecedent_contract::external::ExternalTrustState)>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::transported_measurement::TransportedMeasurementEstimate, antecedent::MeasurementModelRefusal>
@@ -24320,6 +24564,7 @@ pub mod antecedent::analysis::cyclic_posterior_action_decision
 pub mod antecedent::analysis::cyclic_target_feedback_decision
 pub mod antecedent::analysis::decision_claims
 pub mod antecedent::analysis::decision_reliability
+pub mod antecedent::analysis::decision_reliability_programs
 pub mod antecedent::analysis::declared_learners
 pub mod antecedent::analysis::descriptive_programs
 pub mod antecedent::analysis::design_planning_programs
@@ -24361,16 +24606,20 @@ pub mod antecedent::analysis::joint_transport_predictive_decision
 pub mod antecedent::analysis::kernel_programs
 pub mod antecedent::analysis::kernel_programs::chain_recovery
 pub mod antecedent::analysis::kernel_programs::counterfactual_seal
+pub mod antecedent::analysis::kernel_programs::discretized_bridge
 pub mod antecedent::analysis::kernel_programs::exposure_measurement
 pub mod antecedent::analysis::kernel_programs::external_feedback
+pub mod antecedent::analysis::kernel_programs::fitted_mechanism_transport
 pub mod antecedent::analysis::kernel_programs::learned_joint_transport
 pub mod antecedent::analysis::kernel_programs::measured_exposure_effect
 pub mod antecedent::analysis::kernel_programs::nested_markov
+pub mod antecedent::analysis::kernel_programs::policy_transport
 pub mod antecedent::analysis::kernel_programs::power_prior_selection
 pub mod antecedent::analysis::kernel_programs::prior_composition
 pub mod antecedent::analysis::kernel_programs::sampled_counterfactual_transport
 pub mod antecedent::analysis::kernel_programs::sampled_recovery
 pub mod antecedent::analysis::kernel_programs::scenario_covariance
+pub mod antecedent::analysis::kernel_programs::sequential_evaluation
 pub mod antecedent::analysis::kernel_programs::split_effect
 pub mod antecedent::analysis::kernel_programs::z_transport
 pub mod antecedent::analysis::latent_class_effects
@@ -24448,6 +24697,7 @@ pub mod antecedent::analysis::temporal_counterfactual
 pub mod antecedent::analysis::temporal_linear_prediction
 pub mod antecedent::analysis::temporal_path_transport
 pub mod antecedent::analysis::tradeoff_decision_programs
+pub mod antecedent::analysis::transport_assumption_program
 pub mod antecedent::analysis::transport_handoff
 pub mod antecedent::analysis::transport_identification
 pub mod antecedent::analysis::transport_response_grid
@@ -25386,6 +25636,14 @@ pub struct antecedent::analysis::decision_claims::ScenarioClaimBinding
 pub struct antecedent::analysis::decision_claims::ScenarioClaims
 pub struct antecedent::analysis::decision_claims::ScenarioDecision
 pub struct antecedent::analysis::decision_claims::ScenarioDigest
+pub struct antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment
+pub struct antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityAssessment has private fields
+pub struct antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation
+pub struct antecedent::analysis::decision_reliability_programs::CompiledDecisionReliabilityDerivation has private fields
+pub struct antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment
+pub struct antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierAssessment has private fields
+pub struct antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation
+pub struct antecedent::analysis::decision_reliability_programs::CompiledProducerCarrierDerivation has private fields
 pub struct antecedent::analysis::declared_learners::LearnerFactories
 pub struct antecedent::analysis::declared_learners::LearnerFactories has private fields
 pub struct antecedent::analysis::descriptive_programs::CompiledDescriptive
@@ -25609,6 +25867,8 @@ pub struct antecedent::analysis::input_decision_programs::CompiledInverseQuery
 pub struct antecedent::analysis::input_decision_programs::CompiledInverseQuery has private fields
 pub struct antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation
 pub struct antecedent::analysis::input_decision_programs::CompiledPriorSignalAdaptation has private fields
+pub struct antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking
+pub struct antecedent::analysis::input_decision_programs::CompiledProducerCarrierRanking has private fields
 pub struct antecedent::analysis::input_decision_programs::CompiledSensitivityDecision
 pub struct antecedent::analysis::input_decision_programs::CompiledSensitivityDecision has private fields
 pub struct antecedent::analysis::input_decision_programs::CompiledSupportedInputDecision
@@ -25750,6 +26010,10 @@ pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledC
 pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution has private fields
 pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual
 pub struct antecedent::analysis::kernel_programs::counterfactual_seal::CompiledGeneralTemporalCounterfactual has private fields
+pub struct antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge
+pub struct antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedBridge has private fields
+pub struct antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast
+pub struct antecedent::analysis::kernel_programs::discretized_bridge::CompiledDiscretizedMeanContrast has private fields
 pub struct antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence
 pub struct antecedent::analysis::kernel_programs::exposure_measurement::CompiledDetectionDependentPrevalence has private fields
 pub struct antecedent::analysis::kernel_programs::exposure_measurement::CompiledExposureMisclassification
@@ -25763,6 +26027,8 @@ pub struct antecedent::analysis::kernel_programs::exposure_measurement::RepeatCo
 pub struct antecedent::analysis::kernel_programs::exposure_measurement::SoftExposureColumns
 pub struct antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback
 pub struct antecedent::analysis::kernel_programs::external_feedback::CompiledExternalFeedback has private fields
+pub struct antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport
+pub struct antecedent::analysis::kernel_programs::fitted_mechanism_transport::CompiledFittedMechanismTransport has private fields
 pub struct antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport
 pub struct antecedent::analysis::kernel_programs::learned_joint_transport::CompiledJointBayesianTransport has private fields
 pub struct antecedent::analysis::kernel_programs::learned_joint_transport::CompiledLearnedJointTransport
@@ -25776,6 +26042,12 @@ pub struct antecedent::analysis::kernel_programs::nested_markov::CompiledNestedM
 pub struct antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher has private fields
 pub struct antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior
 pub struct antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior has private fields
+pub struct antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport
+pub struct antecedent::analysis::kernel_programs::policy_transport::CompiledAdaptiveTrialTransport has private fields
+pub struct antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy
+pub struct antecedent::analysis::kernel_programs::policy_transport::CompiledTemporalPolicy has private fields
+pub struct antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy
+pub struct antecedent::analysis::kernel_programs::policy_transport::CompiledTransportedPolicy has private fields
 pub struct antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection
 pub struct antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorBetaSelection has private fields
 pub struct antecedent::analysis::kernel_programs::power_prior_selection::CompiledPowerPriorGammaSelection
@@ -25804,6 +26076,18 @@ pub struct antecedent::analysis::kernel_programs::sampled_recovery::CompiledSamp
 pub struct antecedent::analysis::kernel_programs::sampled_recovery::CompiledSampledObservationRecovery has private fields
 pub struct antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance
 pub struct antecedent::analysis::kernel_programs::scenario_covariance::CompiledScenarioCovariance has private fields
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledOffPolicyEvaluation has private fields
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison has private fields
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyEvaluation has private fields
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyRollout has private fields
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledSequentialEvaluationSeal has private fields
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence
+pub struct antecedent::analysis::kernel_programs::sequential_evaluation::CompiledValueOfCollectingEvidence has private fields
 pub struct antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect
 pub struct antecedent::analysis::kernel_programs::split_effect::CompiledParentSetEffect has private fields
 pub struct antecedent::analysis::kernel_programs::split_effect::CompiledSplitEffect
@@ -26117,6 +26401,8 @@ pub struct antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffLaw
 pub struct antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffLawDecision has private fields
 pub struct antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision
 pub struct antecedent::analysis::tradeoff_decision_programs::CompiledTradeoffStructuralDecision has private fields
+pub struct antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange
+pub struct antecedent::analysis::transport_assumption_program::CompiledTransportAssumptionRange has private fields
 pub struct antecedent::analysis::transport_handoff::CallbackHandoff
 pub struct antecedent::analysis::transport_handoff::CallbackHandoff has private fields
 pub struct antecedent::analysis::transport_handoff::TransportHandoffRefusal
@@ -28722,13 +29008,8 @@ pub use antecedent::analysis::sequential_evaluation::StoppingBoundary = super::d
 pub use antecedent::analysis::sequential_evaluation::StreamRole = super::design_exports::design_crate::sequential_evaluation::StreamRole
 pub use antecedent::analysis::sequential_evaluation::VoiCheck = super::design_exports::design_crate::sequential_evaluation::VoiCheck
 pub use antecedent::analysis::sequential_evaluation::VoiRequest = super::design_exports::design_crate::sequential_evaluation::VoiRequest
-pub use antecedent::analysis::sequential_evaluation::compare_policies = super::design_exports::design_crate::sequential_evaluation::compare_policies
-pub use antecedent::analysis::sequential_evaluation::evaluate_off_policy = super::design_exports::design_crate::sequential_evaluation::evaluate_off_policy
-pub use antecedent::analysis::sequential_evaluation::evaluate_policy = super::design_exports::design_crate::sequential_evaluation::evaluate_policy
 pub use antecedent::analysis::sequential_evaluation::request_interval = super::design_exports::design_crate::sequential_evaluation::request_interval
-pub use antecedent::analysis::sequential_evaluation::rollout_policy = super::design_exports::design_crate::sequential_evaluation::rollout_policy
 pub use antecedent::analysis::sequential_evaluation::stream_uniform = super::design_exports::design_crate::sequential_evaluation::stream_uniform
-pub use antecedent::analysis::sequential_evaluation::value_of_collecting_evidence = super::design_exports::design_crate::sequential_evaluation::value_of_collecting_evidence
 pub use antecedent::analysis::source_evidence::MAX_SOURCE_EVIDENCE_BYTES = antecedent_design::source_evidence::MAX_SOURCE_EVIDENCE_BYTES
 pub use antecedent::analysis::source_evidence::SourceEvidence = antecedent_design::source_evidence::SourceEvidence
 pub use antecedent::analysis::source_evidence::SourceEvidenceError = antecedent_design::source_evidence::SourceEvidenceError
@@ -28855,7 +29136,6 @@ pub use antecedent::analysis::transport_sensitivity::TransportRoute = super::des
 pub use antecedent::analysis::transport_sensitivity::TransportSensitivityRefusal = super::design_exports::design_crate::transport_sensitivity::TransportSensitivityRefusal
 pub use antecedent::analysis::transport_sensitivity::TransportSensitivitySpec = super::design_exports::design_crate::transport_sensitivity::TransportSensitivitySpec
 pub use antecedent::analysis::transport_sensitivity::ViolationFamily = super::design_exports::design_crate::transport_sensitivity::ViolationFamily
-pub use antecedent::analysis::transport_sensitivity::transport_assumption_range = super::design_exports::design_crate::transport_sensitivity::transport_assumption_range
 pub use antecedent::analysis::transported_cohort::FeatureOverlap = antecedent_learn::transported_effect::FeatureOverlap
 pub use antecedent::analysis::transported_cohort::OverlapAssessment = antecedent_learn::transported_effect::OverlapAssessment
 pub use antecedent::analysis::transported_cohort::SELECTION_SHIFT_ASSUMPTION = antecedent_learn::transported_effect::SELECTION_SHIFT_ASSUMPTION
@@ -28899,10 +29179,7 @@ pub use antecedent::analysis::transported_constructors::TransportedSynthesisRefu
 pub use antecedent::analysis::transported_constructors::TrialMechanism = super::design_exports::design_crate::adaptive_trial_transport::TrialMechanism
 pub use antecedent::analysis::transported_constructors::TrialSelectionDiagram = super::design_exports::design_crate::adaptive_trial_transport::TrialSelectionDiagram
 pub use antecedent::analysis::transported_constructors::UtilityProvenance = super::design_exports::design_crate::transported_policy::UtilityProvenance
-pub use antecedent::analysis::transported_constructors::evaluate_temporal_policy = super::design_exports::design_crate::temporal_policy_transport::evaluate_temporal_policy
-pub use antecedent::analysis::transported_constructors::evaluate_transported_policy = super::design_exports::design_crate::transported_policy::evaluate_transported_policy
 pub use antecedent::analysis::transported_constructors::period_population_label = super::design_exports::design_crate::decision_transported_source::period_population_label
-pub use antecedent::analysis::transported_constructors::transport_adaptive_trial = super::design_exports::design_crate::adaptive_trial_transport::transport_adaptive_trial
 pub use antecedent::analysis::transported_constructors::verify_adaptive_transport = super::design_exports::design_crate::adaptive_trial_transport::verify_adaptive_transport
 pub use antecedent::analysis::transported_constructors::verify_temporal_policy = super::design_exports::design_crate::temporal_policy_transport::verify_temporal_policy
 pub use antecedent::analysis::transported_constructors::verify_transported_policy = super::design_exports::design_crate::transported_policy::verify_transported_policy
@@ -28968,7 +29245,6 @@ pub use antecedent::analysis::transported_mechanism::TransportedLinearGaussian =
 pub use antecedent::analysis::transported_mechanism::UNCERTAINTY_SCOPE = super::mechanism_exports::model_crate::mechanism_transport::UNCERTAINTY_SCOPE
 pub use antecedent::analysis::transported_mechanism::refusal_code = super::mechanism_exports::model_crate::mechanism_transport::refusal_code
 pub use antecedent::analysis::transported_mechanism::selection_targets = super::mechanism_exports::model_crate::mechanism_transport::selection_targets
-pub use antecedent::analysis::transported_mechanism::transport_linear_gaussian = super::mechanism_exports::model_crate::mechanism_transport::transport_linear_gaussian
 pub use antecedent::analysis::typed_transported_mechanism::ContrastEstimate = super::mechanism_exports::model_crate::typed_mechanism_transport::ContrastEstimate
 pub use antecedent::analysis::typed_transported_mechanism::CrossBlock = super::mechanism_exports::model_crate::typed_mechanism_transport::CrossBlock
 pub use antecedent::analysis::typed_transported_mechanism::DEFAULT_INVARIANCE_LEVEL = super::mechanism_exports::model_crate::typed_mechanism_transport::DEFAULT_INVARIANCE_LEVEL
@@ -32654,6 +32930,7 @@ pub variant antecedent::period_refresh::PeriodRefreshOutcome::Extended { contigu
 pub variant antecedent::period_refresh::PeriodRefreshOutcome::Restarted { invalidated: alloc::vec::Vec<antecedent_estimate::temporal_refresh::WindowProduct> }
 pub variant antecedent::planner::PlanRoute::AdaptivePolicySearch
 pub variant antecedent::planner::PlanRoute::AdaptiveResultInterval
+pub variant antecedent::planner::PlanRoute::AdaptiveTrialTransport
 pub variant antecedent::planner::PlanRoute::AdmgConditionalTransportIdentification
 pub variant antecedent::planner::PlanRoute::AssessedBridgePosteriorNodeDecisionBundleRecomputation
 pub variant antecedent::planner::PlanRoute::AssessedBridgeTransportDecision
@@ -32694,6 +32971,8 @@ pub variant antecedent::planner::PlanRoute::CyclicTargetFeedbackDecision
 pub variant antecedent::planner::PlanRoute::CyclicTargetFeedbackNodeDecisionBundleRecomputation
 pub variant antecedent::planner::PlanRoute::DecisionDrawsRanking
 pub variant antecedent::planner::PlanRoute::DecisionFunctionalValue
+pub variant antecedent::planner::PlanRoute::DecisionReliabilityAssessment
+pub variant antecedent::planner::PlanRoute::DecisionReliabilityDerivation
 pub variant antecedent::planner::PlanRoute::DependentMeasuredObservation
 pub variant antecedent::planner::PlanRoute::DescriptiveComparison
 pub variant antecedent::planner::PlanRoute::DesignRanking
@@ -32702,6 +32981,7 @@ pub variant antecedent::planner::PlanRoute::DiscoverStatic
 pub variant antecedent::planner::PlanRoute::DiscoverTemporal
 pub variant antecedent::planner::PlanRoute::DiscoveredClassTransport
 pub variant antecedent::planner::PlanRoute::DiscoveryValidation
+pub variant antecedent::planner::PlanRoute::DiscretizedLinearGaussianBridge
 pub variant antecedent::planner::PlanRoute::DistributionDag
 pub variant antecedent::planner::PlanRoute::DistributionMixed
 pub variant antecedent::planner::PlanRoute::DoseGridBiasAware
@@ -32715,6 +32995,7 @@ pub variant antecedent::planner::PlanRoute::ExternalPriorComposition
 pub variant antecedent::planner::PlanRoute::ExternalPriorTransport
 pub variant antecedent::planner::PlanRoute::FiniteActionDecision
 pub variant antecedent::planner::PlanRoute::FittedDependentMeasuredObservation
+pub variant antecedent::planner::PlanRoute::FittedMechanismTransport
 pub variant antecedent::planner::PlanRoute::FittedModelAttribution
 pub variant antecedent::planner::PlanRoute::FittedModelSimulation
 pub variant antecedent::planner::PlanRoute::GcmAttributeDag
@@ -32822,6 +33103,7 @@ pub variant antecedent::planner::PlanRoute::SampledObservationRecovery
 pub variant antecedent::planner::PlanRoute::SamplingAssumptionUnion
 pub variant antecedent::planner::PlanRoute::SensitivityDecision
 pub variant antecedent::planner::PlanRoute::SequentialContrast
+pub variant antecedent::planner::PlanRoute::SequentialPolicyEvaluation
 pub variant antecedent::planner::PlanRoute::SequentialPolicyReliability
 pub variant antecedent::planner::PlanRoute::SequentialPolicyReliabilityNodeBundleRecomputation
 pub variant antecedent::planner::PlanRoute::SharedScenarioCovariance
@@ -32855,6 +33137,7 @@ pub variant antecedent::planner::PlanRoute::TemporalMediationCpdag
 pub variant antecedent::planner::PlanRoute::TemporalMediationDag
 pub variant antecedent::planner::PlanRoute::TemporalMediationPag
 pub variant antecedent::planner::PlanRoute::TemporalPathTransport
+pub variant antecedent::planner::PlanRoute::TemporalPolicyEvaluation
 pub variant antecedent::planner::PlanRoute::TemporalResponseAdmg
 pub variant antecedent::planner::PlanRoute::TemporalResponseClass
 pub variant antecedent::planner::PlanRoute::TemporalResponseDag
@@ -32862,11 +33145,13 @@ pub variant antecedent::planner::PlanRoute::TradeoffCertifiedLawDecision
 pub variant antecedent::planner::PlanRoute::TradeoffCertifiedStructuralDecision
 pub variant antecedent::planner::PlanRoute::TradeoffLawDecision
 pub variant antecedent::planner::PlanRoute::TradeoffStructuralDecision
+pub variant antecedent::planner::PlanRoute::TransportAssumptionRange
 pub variant antecedent::planner::PlanRoute::TransportMixed
 pub variant antecedent::planner::PlanRoute::TransportResponseGrid
 pub variant antecedent::planner::PlanRoute::TransportScenarioSet
 pub variant antecedent::planner::PlanRoute::TransportedCohortEffect
 pub variant antecedent::planner::PlanRoute::TransportedPathSpecific
+pub variant antecedent::planner::PlanRoute::TransportedPolicyEvaluation
 pub variant antecedent::planner::PlanRoute::TrialAipwLearnerTransport
 pub variant antecedent::planner::PlanRoute::TrialIpwNodeBundleRecomputation
 pub variant antecedent::planner::PlanRoute::TrialIpwPredictiveDecision

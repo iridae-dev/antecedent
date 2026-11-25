@@ -711,6 +711,55 @@ const PINNED: &[(C, R, &str, F)] = &[
         "GeneralTemporalCounterfactual",
         F::Temporal,
     ),
+    (
+        C::SequentialPolicyEvaluation,
+        R::SequentialPolicyEvaluation,
+        "SequentialPolicyEvaluation",
+        F::Structural,
+    ),
+    (
+        C::DecisionReliabilityAssessment,
+        R::DecisionReliabilityAssessment,
+        "DecisionReliabilityAssessment",
+        F::PropagationChain,
+    ),
+    (
+        C::DecisionReliabilityDerivation,
+        R::DecisionReliabilityDerivation,
+        "DecisionReliabilityDerivation",
+        F::PropagationChain,
+    ),
+    (
+        C::TransportAssumptionRange,
+        R::TransportAssumptionRange,
+        "TransportAssumptionRange",
+        F::PropagationChain,
+    ),
+    (
+        C::DiscretizedLinearGaussianBridge,
+        R::DiscretizedLinearGaussianBridge,
+        "DiscretizedLinearGaussianBridge",
+        F::Structural,
+    ),
+    (
+        C::FittedMechanismTransport,
+        R::FittedMechanismTransport,
+        "FittedMechanismTransport",
+        F::Structural,
+    ),
+    (
+        C::TransportedPolicyEvaluation,
+        R::TransportedPolicyEvaluation,
+        "TransportedPolicyEvaluation",
+        F::Structural,
+    ),
+    (
+        C::TemporalPolicyEvaluation,
+        R::TemporalPolicyEvaluation,
+        "TemporalPolicyEvaluation",
+        F::Structural,
+    ),
+    (C::AdaptiveTrialTransport, R::AdaptiveTrialTransport, "AdaptiveTrialTransport", F::Structural),
 ];
 
 #[test]

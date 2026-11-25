@@ -5030,6 +5030,11 @@ routes = [
   { route = "antecedent.decision_reliability.export", stage = "representation", status = "supported", claim = "point_only" },
   { route = "antecedent.decision_reliability.consume_decision_reliability_artifact", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.decision_reliability.sampled_decision.interval", stage = "uncertainty", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.decision_reliability_programs.compile_decision_reliability_assessment", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityAssessment.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityAssessment.seal", stage = "representation", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.decision_reliability_programs.compile_producer_carrier_assessment", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierAssessment.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -5045,6 +5050,8 @@ refusals = [
 routes = [
   { route = "antecedent.decision_reliability.ranking_statements", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.decision_reliability.rank", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.input_decision_programs.compile_producer_carrier_ranking", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.input_decision_programs.CompiledProducerCarrierRanking.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -5649,6 +5656,18 @@ routes = [
   { route = "antecedent.sequential_evaluation.seal", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.sequential_evaluation.consume_artifact", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.sequential_evaluation.request_interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_evaluate_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyEvaluation.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_evaluate_off_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledOffPolicyEvaluation.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_rollout_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyRollout.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_compare_policies", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyComparison.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_value_of_collecting_evidence", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledValueOfCollectingEvidence.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_sequential_evaluation_seal", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledSequentialEvaluationSeal.seal", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -6546,6 +6565,8 @@ routes = [
   { route = "antecedent.python.mechanism_composition.PreparedMechanismComposition.transport_to", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.transported_mechanism.interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { route = "antecedent_model.mechanism_transport.transport_linear_gaussian", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.fitted_mechanism_transport.Study.compile_fitted_mechanism_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.fitted_mechanism_transport.CompiledFittedMechanismTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -6678,6 +6699,8 @@ routes = [
   { route = "antecedent_design.transported_policy.evaluate_transported_policy", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent_design.transported_policy.verify_transported_policy", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.python.transported_constructors.verify_policy", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_transported_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.policy_transport.CompiledTransportedPolicy.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -6704,6 +6727,8 @@ routes = [
   { route = "antecedent_design.temporal_policy_transport.evaluate_temporal_policy", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent_design.temporal_policy_transport.verify_temporal_policy", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.python.transported_constructors.verify_period_shift", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_temporal_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.policy_transport.CompiledTemporalPolicy.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -6735,6 +6760,8 @@ routes = [
   { route = "antecedent_design.adaptive_trial_transport.transport_adaptive_trial", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent_design.adaptive_trial_transport.verify_adaptive_transport", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.python.transported_constructors.verify_adaptive_trial", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_adaptive_trial", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.policy_transport.CompiledAdaptiveTrialTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -7053,6 +7080,10 @@ routes = [
   { route = "antecedent.python.decision_reliability.derive_uncertainty", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.python.decision_reliability.consume_derived_uncertainty", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.python.decision_reliability.coverage_design", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.compile_decision_reliability_derivation", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.compile_producer_carrier_derivation", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -7066,6 +7097,8 @@ refusals = [
 routes = [
   { route = "antecedent_design.decision_reliability.derive_uncertainty.confidence_set", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.decision_reliability.DecisionReliability.derive_uncertainty", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -7081,6 +7114,8 @@ routes = [
   { route = "antecedent_design.decision_reliability.derive_uncertainty.selection_corrected", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent_design.decision_reliability.derive_uncertainty.publish", stage = "uncertainty", status = "supported", claim = "none" },
   { route = "antecedent.decision_reliability.publish_derived_route", stage = "uncertainty", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -7173,6 +7208,8 @@ routes = [
   { route = "antecedent_design.transport_sensitivity.TransportAssumptionRange.to_artifact", stage = "representation", status = "supported", claim = "none" },
   { route = "antecedent.transport.sensitivity.transport_sensitivity", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.transport.sensitivity.TransportSensitivity.decision_source", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.transport_assumption_program.compile_transport_assumption_range", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.analysis.transport_assumption_program.CompiledTransportAssumptionRange.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -7337,6 +7374,12 @@ routes = [
   { route = "antecedent.mechanism_composition.PreparedMechanismComposition.discretize", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent.discretized_composition.PreparedDiscretizedComposition.refresh", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent_model.discretized_scm.interval_or_posterior", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_linear_gaussian", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_linear_gaussian_from_spec", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_composition", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.discretized_bridge.CompiledDiscretizedBridge.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_mean_contrast", stage = "prepare", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.kernel_programs.discretized_bridge.CompiledDiscretizedMeanContrast.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]

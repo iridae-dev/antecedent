@@ -14128,6 +14128,11 @@ routes = [
   { name = "antecedent.decision_reliability.export", stage = "representation", status = "supported", claim = "point_only" },
   { name = "antecedent.decision_reliability.consume_decision_reliability_artifact", stage = "consume", status = "supported", claim = "point_only", covers = ["consume_decision_reliability_artifact", "decision_reliability_consume", "consume_derived_uncertainty", "decision_reliability_consume_derived", "decision_reliability_verify_derived", "consume_sequential_policy_reliability"] },
   { name = "antecedent.decision_reliability.sampled_decision.interval", stage = "uncertainty", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.decision_reliability_programs.compile_decision_reliability_assessment", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityAssessment.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityAssessment.seal", stage = "representation", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.decision_reliability_programs.compile_producer_carrier_assessment", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierAssessment.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "decision_reliability.sampled_decision.derived_intervals.construction", role = "construction", intent = "The derived Wilson, Wald and Bonferroni intervals and the best-candidate set equal the definition-level reference values and the hand arithmetic on alternating mean +/- 1 series (standard error sqrt(1/(n-1)), normal_ppf critical values), not a re-evaluation of the construction.", evidence_test = "crates/antecedent-design/tests/decision_reliability_reference.rs", evidence_assertion = "derived_uncertainty_matches_the_definition_level_reference" },
@@ -14193,6 +14198,8 @@ refusals = [
 routes = [
   { name = "antecedent.decision_reliability.ranking_statements", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.decision_reliability.rank", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.input_decision_programs.compile_producer_carrier_ranking", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.input_decision_programs.CompiledProducerCarrierRanking.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "decision_reliability.ranking_statement.enumerated_four_state.positive", role = "positive", intent = "Exact best, top-2 and better-than-baseline probabilities of an enumerated four-state law including a three-way tie; permutation invariant.", evidence_test = "crates/antecedent-design/tests/decision_reliability.rs", evidence_assertion = "enumerated_four_state_law_gives_exact_best_top_k_and_baseline_probabilities" },
@@ -16002,6 +16009,18 @@ routes = [
   { name = "antecedent.sequential_evaluation.seal", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.sequential_evaluation.consume_artifact", stage = "consume", status = "supported", claim = "point_only" , covers = ["consume", "export", "value", "identities_json", "summary_json", "model_json", "policy_json"] },
   { name = "antecedent.sequential_evaluation.request_interval", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", permanent_in_release = true, refusal_test = "python/tests/test_sequential_evaluation.py", refusal_assertion = "test_another_population_or_period_and_any_interval_are_typed_refusals" , covers = ["sequential_request_interval"] },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_evaluate_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyEvaluation.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_evaluate_off_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledOffPolicyEvaluation.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_rollout_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyRollout.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_compare_policies", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyComparison.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_value_of_collecting_evidence", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledValueOfCollectingEvidence.evaluate", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_sequential_evaluation_seal", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledSequentialEvaluationSeal.seal", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "sequential_evaluation.policy_evaluation.enumerated_policy_values.positive", role = "positive", intent = "Ten fixed policies (act now, wait, inspect then choose, a stopping boundary with forced stops, delayed outcomes realized and lost to an early commit, a stochastic root) equal the hand-computed values and a forward joint-probability enumeration.", evidence_test = "crates/antecedent-design/tests/sequential_evaluation.rs", evidence_assertion = "exact_values_match_hand_computation_and_the_independent_oracle" },
@@ -18885,6 +18904,8 @@ routes = [
   { name = "antecedent.python.mechanism_composition.PreparedMechanismComposition.transport_to", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.transported_mechanism.interval", stage = "uncertainty", status = "supported", claim = "interval" },
   { name = "antecedent_model.mechanism_transport.transport_linear_gaussian", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.fitted_mechanism_transport.Study.compile_fitted_mechanism_transport", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.fitted_mechanism_transport.CompiledFittedMechanismTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.fitted_linear_gaussian_mechanism.first_order_wald_interval.construction", role = "construction", intent = "The transported contrast interval equals 7.5 -/+ 1.959964 sqrt(0.505625), the hand-computed carried-mechanism variance.", evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs", evidence_assertion = "the_variance_is_parameter_only_scoped_and_the_interval_is_its_first_order_wald_band" },
@@ -19238,6 +19259,8 @@ routes = [
   { name = "antecedent_design.transported_policy.evaluate_transported_policy", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent_design.transported_policy.verify_transported_policy", stage = "consume", status = "supported", claim = "point_only" },
   { name = "antecedent.python.transported_constructors.verify_policy", stage = "consume", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_transported_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.policy_transport.CompiledTransportedPolicy.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.policy_evaluation.hand_value_across_target_laws.positive", role = "positive", intent = "For target faulty mass p in {0, .2, .5, .8, 1} the transported value is 7.5 - 10p, the source value is 2.5, the shifted set is the initial-state law, nodes visited are 6 and the verifier replays.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "transported_value_matches_the_hand_value_across_target_laws" },
@@ -19300,6 +19323,8 @@ routes = [
   { name = "antecedent_design.temporal_policy_transport.evaluate_temporal_policy", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent_design.temporal_policy_transport.verify_temporal_policy", stage = "consume", status = "supported", claim = "point_only" },
   { name = "antecedent.python.transported_constructors.verify_period_shift", stage = "consume", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_temporal_policy", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.policy_transport.CompiledTemporalPolicy.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.period_shift_policy.period_shift_hand_value.positive", role = "positive", intent = "With target mass 0.6 the period-shifted value is 1.5 against the source value 2.5.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "a_period_shift_under_time_invariant_mechanisms_has_the_hand_value", shared_evidence = true },
@@ -19361,6 +19386,8 @@ routes = [
   { name = "antecedent_design.adaptive_trial_transport.transport_adaptive_trial", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent_design.adaptive_trial_transport.verify_adaptive_transport", stage = "consume", status = "supported", claim = "point_only" },
   { name = "antecedent.python.transported_constructors.verify_adaptive_trial", stage = "consume", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_adaptive_trial", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.policy_transport.CompiledAdaptiveTrialTransport.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "transport.adaptive_trial_source.standardized_arm_means.positive", role = "positive", intent = "Arm means standardize to the target stratum law: 29/56 and 1/2 with contrast 1/56 for law (0.25, 0.75), and 4/7 and 1 for law (1, 0),.", evidence_test = "crates/antecedent-design/tests/transported_evaluation.rs", evidence_assertion = "adaptive_trial_means_standardize_to_the_target_stratum_law", shared_evidence = true },
@@ -20162,6 +20189,10 @@ routes = [
   { name = "antecedent.python.decision_reliability.derive_uncertainty", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.python.decision_reliability.consume_derived_uncertainty", stage = "consume", status = "supported", claim = "none" },
   { name = "antecedent.python.decision_reliability.coverage_design", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.compile_decision_reliability_derivation", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.compile_producer_carrier_derivation", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 fixtures = [
   { id = "decision_reliability.derived_numerical_interval.wilson_hand_arithmetic.positive", role = "positive", intent = "A probability 0.5 at n_eff 100 gives the Wilson interval [0.40383, 0.59617]; the Wald interval comes from se = sqrt(0.25 * 100 / 99 / 100).", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "wilson_interval_at_the_effective_sample_size_matches_hand_arithmetic", shared_evidence = true },
@@ -20210,6 +20241,8 @@ refusals = [
 routes = [
   { name = "antecedent_design.decision_reliability.derive_uncertainty.confidence_set", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.decision_reliability.DecisionReliability.derive_uncertainty", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 fixtures = [
   { id = "decision_reliability.optimality_confidence_set.paired_critical_value.positive", role = "positive", intent = "Members {A, B} and excluded {C} at level 0.95 with critical value 1.95996 using paired difference errors.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "confidence_set_excludes_the_clearly_worse_candidate_with_the_paired_critical_value" },
@@ -20258,6 +20291,8 @@ routes = [
   { name = "antecedent_design.decision_reliability.derive_uncertainty.selection_corrected", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent_design.decision_reliability.derive_uncertainty.publish", stage = "uncertainty", status = "supported", claim = "none" },
   { name = "antecedent.decision_reliability.publish_derived_route", stage = "uncertainty", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 fixtures = [
   { id = "decision_reliability.selection_corrected_interval.extra_width.positive", role = "positive", intent = "With 6 considered candidates the interval uses z(0.05/6) and reports the numerical half-width plus a separate selection extra with expected-maximum bias 0.8462843753 se.", evidence_test = "crates/antecedent-design/tests/decision_reliability_intervals.rs", evidence_assertion = "selection_corrected_interval_reports_the_extra_width_the_selection_costs" },
@@ -20515,6 +20550,8 @@ routes = [
   { name = "antecedent_design.transport_sensitivity.TransportAssumptionRange.to_artifact", stage = "representation", status = "supported", claim = "none" },
   { name = "antecedent.transport.sensitivity.transport_sensitivity", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.transport.sensitivity.TransportSensitivity.decision_source", stage = "representation", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.transport_assumption_program.compile_transport_assumption_range", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.analysis.transport_assumption_program.CompiledTransportAssumptionRange.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 fixtures = [
   { id = "transport.assumption_range.additive_closed_form_band.positive", role = "positive", intent = "The additive range is the closed-form band [2,2], [1.75,2.25], [1.5,2.5] at the grid points and carries the assumption-range label.", evidence_test = "crates/antecedent-design/tests/transport_sensitivity.rs", evidence_assertion = "additive_range_is_the_closed_form_band_and_labelled_an_assumption_range" },
@@ -20942,6 +20979,12 @@ routes = [
   { name = "antecedent.mechanism_composition.PreparedMechanismComposition.discretize", stage = "prepare", status = "supported", claim = "point_only" },
   { name = "antecedent.discretized_composition.PreparedDiscretizedComposition.refresh", stage = "prepare", status = "supported", claim = "point_only" },
   { name = "antecedent_model.discretized_scm.interval_or_posterior", stage = "uncertainty", status = "closed", reason_code = "uncertainty_representation_insufficient", permanent_in_release = true, refusal_test = "crates/antecedent-model/tests/discretized_scm.rs", refusal_assertion = "an_interval_or_posterior_request_of_a_discretized_value_is_refused_by_both_paradigms" },
+  { name = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_linear_gaussian", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_linear_gaussian_from_spec", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_composition", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.discretized_bridge.CompiledDiscretizedBridge.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_mean_contrast", stage = "prepare", status = "supported", claim = "point_only" },
+  { name = "antecedent.analysis.kernel_programs.discretized_bridge.CompiledDiscretizedMeanContrast.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 fixtures = [
   { id = "model.discretized_linear_gaussian_scm.one_edge_hand_table.positive", role = "positive", intent = "One edge at two levels: cell values +-0.79788 and +-1.12838, edge 0, discretized contrast 0.64889 against the closed form 0.79788, with the bound equal to the error.", evidence_test = "crates/antecedent-model/tests/discretized_scm.rs", evidence_assertion = "one_edge_two_levels_matches_the_hand_computed_table_mean" },

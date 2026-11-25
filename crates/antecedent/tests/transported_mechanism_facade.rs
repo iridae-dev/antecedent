@@ -18,6 +18,7 @@
 //! `(a_M, b_MX, a_X, a_Y, b_YX, b_YM)` and equals `0.36 + 0.09 + 0.04 + 0.015625 = 0.505625`.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(deprecated, reason = "the direct facade path is the oracle this file checks")]
 
 use std::sync::Arc;
 

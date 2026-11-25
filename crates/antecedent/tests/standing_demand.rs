@@ -158,6 +158,30 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
         "TerminalSpec",
         "point",
     ),
+    (
+        "analysis/decision_reliability_programs.rs",
+        "compile_decision_reliability_assessment",
+        "TerminalSpec",
+        "point",
+    ),
+    (
+        "analysis/decision_reliability_programs.rs",
+        "compile_decision_reliability_derivation",
+        "TerminalSpec",
+        "point",
+    ),
+    (
+        "analysis/decision_reliability_programs.rs",
+        "compile_producer_carrier_assessment",
+        "TerminalSpec",
+        "point",
+    ),
+    (
+        "analysis/decision_reliability_programs.rs",
+        "compile_producer_carrier_derivation",
+        "TerminalSpec",
+        "point",
+    ),
     ("analysis/design_planning_programs.rs", "compile_design_ranking", "TerminalSpec", "none"),
     (
         "analysis/design_planning_programs.rs",
@@ -218,6 +242,12 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
     (
         "analysis/input_decision_programs.rs",
         "compile_decision_draws_ranking",
+        "TerminalSpec",
+        "decision",
+    ),
+    (
+        "analysis/input_decision_programs.rs",
+        "compile_producer_carrier_ranking",
         "TerminalSpec",
         "decision",
     ),
@@ -402,6 +432,12 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
         "compile_tradeoff_structural_decision",
         "TerminalSpec",
         "decision",
+    ),
+    (
+        "analysis/transport_assumption_program.rs",
+        "compile_transport_assumption_range",
+        "TerminalSpec",
+        "bounds",
     ),
     ("analysis/transport_identification.rs", "lower", "ClaimDemand", "none"),
     ("analysis/transport_response_grid.rs", "lower", "PointProgram", "response"),

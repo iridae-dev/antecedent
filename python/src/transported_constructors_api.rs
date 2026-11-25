@@ -20,13 +20,11 @@ use antecedent::analysis::sequential_evaluation as seq;
 use antecedent::analysis::transported_constructors::{
     ActionAlphabet, ActionUtility, AdaptiveTransportRequest, AdaptiveTransportedValue,
     BridgeSelectionDiagram, HistoryAlphabet, MechanismStatus, ModelMechanism, SelectionDiagram,
-    TargetUtility, TemporalPolicyRequest, TemporalTarget, TimeInvariance, TransportedContribution,
-    TransportedPolicyRequest, TransportedSurrogateBridge, TransportedSynthesisMethod,
-    TrialMechanism, TrialSelectionDiagram, UtilityProvenance, adaptive_trial_response,
-    evaluate_temporal_policy, evaluate_transported_policy, surrogate_bridge_response,
-    temporal_policy_response, transport_adaptive_trial, transported_policy_response,
-    transported_synthesis_response, verify_adaptive_transport, verify_temporal_policy,
-    verify_transported_policy,
+    TargetUtility, TemporalPolicyRequest, TemporalTarget, TimeInvariance, TransportedConstruction,
+    TransportedContribution, TransportedPolicyRequest, TransportedResponse,
+    TransportedSurrogateBridge, TransportedSynthesisMethod, TrialMechanism, TrialSelectionDiagram,
+    UtilityProvenance, surrogate_bridge_response, transported_synthesis_response,
+    verify_adaptive_transport, verify_temporal_policy, verify_transported_policy,
 };
 use antecedent::contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
 use antecedent::inference::synthesis::{MeanPrior, TauPrior};
@@ -51,6 +49,160 @@ type Built = (Option<TransportedResponseHandle>, Option<String>, Option<String>)
 
 fn refused(refusal: &antecedent::contract::ExternalRefusal) -> Built {
     (None, None, Some(external_refusal_json(refusal)))
+}
+
+fn cancelled_evaluation() -> seq::SequentialEvaluationError {
+    seq::SequentialEvaluationError {
+        code: antecedent::reason::reason_code!("cancelled_no_claim"),
+        detail: antecedent::reason::reason_details::sequential_evaluation::CANCELLED.to_owned(),
+        message: "the evaluation was cancelled before it produced a value".to_owned(),
+        remedy: "re-run the evaluation; a partial enumeration is not a result",
+    }
+}
+
+fn run_transported_policy(
+    request: &TransportedPolicyRequest<'_>,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> Result<
+    antecedent::analysis::transported_constructors::TransportedPolicyEvaluation,
+    seq::SequentialEvaluationError,
+> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled_evaluation());
+    }
+    match antecedent::analysis::Study::compile_transported_policy(request, ctx) {
+        Ok(compiled) => compiled.execute(ctx),
+        Err(antecedent::CausalError::Cancelled { .. }) => Err(cancelled_evaluation()),
+        Err(error) => Err(seq::SequentialEvaluationError {
+            code: antecedent::reason::reason_code!("invalid_argument"),
+            detail: "kernel_program.compile".to_owned(),
+            message: error.to_string(),
+            remedy: "compile the transported policy outside a lowered dispatch",
+        }),
+    }
+}
+
+fn run_temporal_policy(
+    request: &TemporalPolicyRequest<'_>,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> Result<
+    antecedent::analysis::transported_constructors::TemporalPolicyEvaluation,
+    seq::SequentialEvaluationError,
+> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(cancelled_evaluation());
+    }
+    match antecedent::analysis::Study::compile_temporal_policy(request, ctx) {
+        Ok(compiled) => compiled.execute(ctx),
+        Err(antecedent::CausalError::Cancelled { .. }) => Err(cancelled_evaluation()),
+        Err(error) => Err(seq::SequentialEvaluationError {
+            code: antecedent::reason::reason_code!("invalid_argument"),
+            detail: "kernel_program.compile".to_owned(),
+            message: error.to_string(),
+            remedy: "compile the temporal policy outside a lowered dispatch",
+        }),
+    }
+}
+
+fn run_adaptive_trial(
+    request: &AdaptiveTransportRequest<'_>,
+) -> Result<
+    antecedent::analysis::transported_constructors::AdaptiveTransportEstimate,
+    seq::SequentialEvaluationError,
+> {
+    let ctx = execution_context(0, None, None);
+    match antecedent::analysis::Study::compile_adaptive_trial(request, &ctx) {
+        Ok(compiled) => compiled.execute(&ctx),
+        Err(error) => Err(seq::SequentialEvaluationError {
+            code: antecedent::reason::reason_code!("invalid_argument"),
+            detail: "kernel_program.compile".to_owned(),
+            message: error.to_string(),
+            remedy: "compile the adaptive-trial transport outside a lowered dispatch",
+        }),
+    }
+}
+
+fn policy_construction(
+    request: &TransportedPolicyRequest<'_>,
+    coordinate: antecedent::scientific::ScientificQuantity,
+    provider_id: &str,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> Result<
+    TransportedConstruction<
+        antecedent::analysis::transported_constructors::TransportedPolicyEvaluation,
+    >,
+    antecedent::contract::ExternalRefusal,
+> {
+    let evaluation = run_transported_policy(request, ctx).map_err(|error| error.to_refusal())?;
+    let response =
+        TransportedResponse::from_transported_policy(&evaluation, coordinate, provider_id)
+            .map_err(|error| error.to_refusal())?;
+    Ok(TransportedConstruction { evaluation, response })
+}
+
+fn temporal_construction(
+    request: &TemporalPolicyRequest<'_>,
+    coordinate: antecedent::scientific::ScientificQuantity,
+    provider_id: &str,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> Result<
+    TransportedConstruction<
+        antecedent::analysis::transported_constructors::TemporalPolicyEvaluation,
+    >,
+    antecedent::contract::ExternalRefusal,
+> {
+    let evaluation = run_temporal_policy(request, ctx).map_err(|error| error.to_refusal())?;
+    let Some(invariance) = request.invariance else {
+        return Err(antecedent::contract::ExternalRefusal::new(
+            antecedent::reason::reason_code!("transport_missing_evidence"),
+            "bind",
+            "temporal_policy.invariance_missing",
+        )
+        .with_remedy("declare the status of every mechanism across the two periods"));
+    };
+    let response = TransportedResponse::from_temporal_policy(
+        &evaluation,
+        &request.source.population,
+        invariance,
+        coordinate,
+        provider_id,
+    )
+    .map_err(|error| error.to_refusal())?;
+    Ok(TransportedConstruction { evaluation, response })
+}
+
+fn adaptive_construction(
+    request: &AdaptiveTransportRequest<'_>,
+    value: AdaptiveTransportedValue,
+    coordinate: antecedent::scientific::ScientificQuantity,
+    provider_id: &str,
+) -> Result<
+    TransportedConstruction<
+        antecedent::analysis::transported_constructors::AdaptiveTransportEstimate,
+    >,
+    antecedent::contract::ExternalRefusal,
+> {
+    let evaluation = run_adaptive_trial(request).map_err(|error| error.to_refusal())?;
+    let Some(diagram) = request.diagram else {
+        return Err(antecedent::contract::ExternalRefusal::new(
+            antecedent::reason::reason_code!("transport_missing_evidence"),
+            "bind",
+            antecedent::reason::reason_details::adaptive_transport::SELECTION_DIAGRAM_MISSING,
+        )
+        .with_remedy(
+            "supply a selection diagram marking the stratum law and the outcome mechanism invariant or shifted",
+        ));
+    };
+    let response = TransportedResponse::from_adaptive_trial(
+        &evaluation,
+        value,
+        request.trial_population,
+        diagram,
+        coordinate,
+        provider_id,
+    )
+    .map_err(|error| error.to_refusal())?;
+    Ok(TransportedConstruction { evaluation, response })
 }
 
 fn declaration<T: serde::de::DeserializeOwned>(text: &str, what: &str) -> PyResult<T> {
@@ -410,7 +562,7 @@ fn transported_policy_construct(
             target_utility: target_utility.as_ref(),
             limits: limits_of(max_nodes),
         };
-        Ok(transported_policy_response(&request, coordinate, &provider, &ctx))
+        Ok(policy_construction(&request, coordinate, &provider, &ctx))
     })?;
     Ok(match outcome {
         Ok(built) => {
@@ -501,7 +653,7 @@ fn temporal_policy_construct(
             invariance: invariance.as_ref(),
             limits: limits_of(max_nodes),
         };
-        Ok(temporal_policy_response(&request, coordinate, &provider, &ctx))
+        Ok(temporal_construction(&request, coordinate, &provider, &ctx))
     })?;
     Ok(match outcome {
         Ok(built) => {
@@ -616,7 +768,7 @@ fn adaptive_trial_construct(
         control_arm,
     };
     let outcome = crate::detach_catch(py, || {
-        Ok(adaptive_trial_response(&request, value, coordinate, provider_id))
+        Ok(adaptive_construction(&request, value, coordinate, provider_id))
     })?;
     Ok(match outcome {
         Ok(built) => {
@@ -917,7 +1069,7 @@ fn transported_policy_verify(
         };
         // The stored claim is the re-derived evaluation with the stored identity and values
         // put in place, so the facade's own verifier decides.
-        let mut claimed = match evaluate_transported_policy(&request, &ctx) {
+        let mut claimed = match run_transported_policy(&request, &ctx) {
             Ok(fresh) => fresh,
             Err(error) => return Ok(Err(error)),
         };
@@ -990,7 +1142,7 @@ fn temporal_policy_verify(
             invariance: invariance.as_ref(),
             limits: limits_of(max_nodes),
         };
-        let mut claimed = match evaluate_temporal_policy(&request, &ctx) {
+        let mut claimed = match run_temporal_policy(&request, &ctx) {
             Ok(fresh) => fresh,
             Err(error) => return Ok(Err(error)),
         };
@@ -1067,7 +1219,7 @@ fn adaptive_trial_verify(
         stored_f64(&stored, "contrast")?,
     );
     crate::detach_catch(py, || {
-        let mut claimed = match transport_adaptive_trial(&request) {
+        let mut claimed = match run_adaptive_trial(&request) {
             Ok(fresh) => fresh,
             Err(error) => return Ok(Some(external_refusal_json(&error.to_refusal()))),
         };

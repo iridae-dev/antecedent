@@ -9,6 +9,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(deprecated, reason = "the direct facade path is the oracle this file checks")]
+
 use antecedent::analysis::sensitivity_decision::{consume, export};
 use antecedent::analysis::transport_sensitivity::{
     DETAIL_COORDINATE_RANGE, DETAIL_LAW_RESPONSE, DETAIL_ROUTE_UNDECLARED, TransportRoute,

@@ -8,12 +8,14 @@
 //! an interval or a calibration claim for it.
 
 use antecedent::analysis::cohort_decision::{CohortExpectation, consume_cohort_decision_source};
+use antecedent::analysis::input_decision_programs::TerminalError;
 use antecedent::analysis::inverse_sources::{
     TransportDeclaration, TransportedResponse, TransportedRoute, TransportedValue,
 };
+use antecedent::analysis::transport_assumption_program::compile_transport_assumption_range;
 use antecedent::analysis::transport_sensitivity::{
     TransportRoute, TransportSensitivityEntryRefusal, TransportSensitivityRequest, ViolationFamily,
-    transport_range, transport_sensitivity_artifact,
+    transport_sensitivity_spec,
 };
 use antecedent::analysis::{BoundDecisionContract, SupportPolicy, TransportedDemand};
 use antecedent::design::composition_boundary::UnsupportedActionPolicy;
@@ -456,18 +458,29 @@ fn transport_sensitivity_build(
         };
         let reference = quantity_of(reference_json, "reference quantity")?;
         let request = TransportSensitivityRequest { coordinate, route, family, grid_points };
-        let range = match transport_range(&response.inner, &request) {
-            Ok(range) => range,
+        let spec = match transport_sensitivity_spec(&response.inner, &request) {
+            Ok(spec) => spec,
             Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
         };
-        let artifact = match transport_sensitivity_artifact(
-            &response.inner,
-            &request,
-            &reference,
-            reference_value,
-        ) {
+        // The kernel ignores the context. The native has no seed; this context only compiles
+        // and passes the support gate.
+        let ctx = antecedent::prelude::ExecutionContext::production_default(0);
+        let program = match compile_transport_assumption_range(spec, &ctx) {
+            Ok(program) => program,
+            Err(error) => return Err(crate::py_err(error)),
+        };
+        let range = match program.execute(&ctx) {
+            Ok(range) => range,
+            Err(TerminalError::Kernel(error)) => {
+                return Ok((None, None, Some(entry_refusal_json(&error.into()))));
+            }
+            Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),
+        };
+        let artifact = match range.to_artifact(&reference, reference_value) {
             Ok(artifact) => artifact,
-            Err(error) => return Ok((None, None, Some(entry_refusal_json(&error)))),
+            Err(error) => {
+                return Ok((None, None, Some(entry_refusal_json(&error.into()))));
+            }
         };
         let (low, high) = range.range_at_bound();
         let summary = json!({

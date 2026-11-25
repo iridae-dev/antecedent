@@ -1061,3 +1061,57 @@ lowering = "GeneralTemporalCounterfactual"
 unit_kind = "capability"
 unit = "counterfactual.temporal_fixed_population"
 entry = { rust = "crates/antecedent/src/analysis/kernel_programs/counterfactual_seal.rs", python = "python/antecedent/temporal_counterfactual.py" }
+
+[[route]]
+lowering = "SequentialPolicyEvaluation"
+unit_kind = "capability"
+unit = "sequential_evaluation.policy_evaluation"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs", python = "python/antecedent/sequential_evaluation.py" }
+
+[[route]]
+lowering = "DecisionReliabilityAssessment"
+unit_kind = "capability"
+unit = "decision_reliability.sampled_decision"
+entry = { rust = "crates/antecedent/src/analysis/decision_reliability_programs.rs", python = "python/antecedent/decision_reliability.py" }
+
+[[route]]
+lowering = "DecisionReliabilityDerivation"
+unit_kind = "capability"
+unit = "decision_reliability.derived_numerical_interval"
+entry = { rust = "crates/antecedent/src/analysis/decision_reliability_programs.rs", python = "python/antecedent/decision_reliability.py" }
+
+[[route]]
+lowering = "TransportAssumptionRange"
+unit_kind = "capability"
+unit = "transport.assumption_range"
+entry = { rust = "crates/antecedent/src/analysis/transport_assumption_program.rs", python = "python/antecedent/transport/sensitivity.py" }
+
+[[route]]
+lowering = "DiscretizedLinearGaussianBridge"
+unit_kind = "capability"
+unit = "model.discretized_linear_gaussian_scm"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/discretized_bridge.rs", python = "python/antecedent/discretized_composition.py" }
+
+[[route]]
+lowering = "FittedMechanismTransport"
+unit_kind = "capability"
+unit = "transport.fitted_linear_gaussian_mechanism"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/fitted_mechanism_transport.rs", python = "python/antecedent/mechanism_composition.py" }
+
+[[route]]
+lowering = "TransportedPolicyEvaluation"
+unit_kind = "capability"
+unit = "transport.policy_evaluation"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs", python = "python/antecedent/transported_constructors.py" }
+
+[[route]]
+lowering = "TemporalPolicyEvaluation"
+unit_kind = "capability"
+unit = "transport.period_shift_policy"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs", python = "python/antecedent/transported_constructors.py" }
+
+[[route]]
+lowering = "AdaptiveTrialTransport"
+unit_kind = "capability"
+unit = "transport.adaptive_trial_source"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs", python = "python/antecedent/transported_constructors.py" }

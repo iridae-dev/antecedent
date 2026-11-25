@@ -11,6 +11,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+#![allow(deprecated, reason = "the direct facade path is the oracle this file checks")]
+
 use antecedent::analysis::sequential_evaluation::{
     ActionRole, ActionSpec, ActionSupport, CensoringRule, ContingentPolicy, ExpectedEvaluation,
     FiniteSequentialModel, HistoryKey, ObservationChannel, consume, evaluate, export, seal,

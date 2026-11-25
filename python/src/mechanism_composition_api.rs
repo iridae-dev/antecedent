@@ -705,7 +705,7 @@ impl PreparedCompositionHandle {
         let inner = self.inner.clone();
         let outcome = crate::detach_catch(py, move || {
             let ctx = execution_context(0, None, cancel);
-            Ok(inner.transport_to(&declaration, &ctx))
+            Ok(inner.transport_compiled(&declaration, &ctx))
         })?;
         Ok(match outcome {
             Ok(done) => {

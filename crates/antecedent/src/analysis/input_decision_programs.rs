@@ -11,6 +11,7 @@
 //! | [`compile_inverse_query`] | `InverseQueryDecision` | `inverse_query::evaluate_inverse_query` |
 //! | [`compile_finite_enumeration_baseline`] | `InverseQueryDecision` | `inverse_query::finite_enumeration_baseline` |
 //! | [`compile_decision_draws_ranking`] | `DecisionDrawsRanking` | `decision_reliability::rank` |
+//! | [`compile_producer_carrier_ranking`] | `DecisionDrawsRanking` | `decision_reliability::ProducerCarrier::rank` |
 //! | [`compile_prior_signal_adaptation`] | `PriorSignalAdaptation` | `prior_signal::adapt_prior_to_signal` |
 //! | [`compile_evidence_obligations`] | `EvidenceObligations` | `obligation_adapters::identification_failure_obligations` |
 //! | [`compile_finite_action_decision`] | `FiniteActionDecision` | `decision::evaluate_decision` |
@@ -47,7 +48,8 @@ use antecedent_design::composition_boundary::{
 use antecedent_design::decision_contract::DecisionContract;
 use antecedent_design::decision_eval::{FunctionalValue, MeanEstimate, MeanSource};
 use antecedent_design::decision_reliability::{
-    DecisionDraws, RankingReport, RankingRequest, ReliabilityError, rank,
+    DecisionDraws, JointLawStanding, ProducerCarrier, RankingReport, RankingRequest,
+    ReliabilityError, rank,
 };
 use antecedent_design::decision_structural::StructuralAtom;
 use antecedent_design::gaussian_forward_law::GaussianForwardLaw;
@@ -859,6 +861,95 @@ impl CompiledDecisionDrawsRanking {
     ) -> Result<RankingReport, TerminalError<ReliabilityError>> {
         let scoped = self.enter(ctx)?;
         rank(&self.draws, &self.request, &scoped).map_err(TerminalError::Kernel)
+    }
+}
+
+/// Joint-law standing of a producer carrier. A marginal-only carrier is a different program
+/// from one that ranks under one shared law, even when the draws digest matches.
+struct CarrierJointLaw(JointLawStanding);
+
+impl Canonical for CarrierJointLaw {
+    fn encode(&self, out: &mut CanonicalWriter) {
+        match self.0 {
+            JointLawStanding::OneSharedLaw => {
+                variant(out, "one_shared_law");
+            }
+            JointLawStanding::MarginalOnly { reason } => {
+                variant(out, "marginal_only").text(reason);
+            }
+        }
+    }
+}
+
+compiled_terminal! {
+    /// A compiled ranking of a producer carrier, after its joint-law standing is checked.
+    #[derive(Clone, Debug)]
+    CompiledProducerCarrierRanking {
+        carrier: ProducerCarrier,
+        request: RankingRequest,
+    }
+}
+
+/// Compile the ranking statements of `carrier` under `request`.
+///
+/// The declaration includes the carrier's joint-law standing, so a marginal-only carrier is a
+/// different program from one that ranks under one shared law. The draws enter by
+/// [`DecisionDraws::digest_hex`]: the ranking reads the candidates as a set. `request.top_k`
+/// stays in declaration order.
+///
+/// # Errors
+/// `public_builder_reentry` inside a lowered dispatch.
+pub fn compile_producer_carrier_ranking(
+    carrier: ProducerCarrier,
+    request: RankingRequest,
+    ctx: &ExecutionContext,
+) -> Result<CompiledProducerCarrierRanking, CausalError> {
+    admit_compile(ctx)?;
+    let standing = carrier.joint_law();
+    let draws = carrier.draws();
+    let question = Declaration::new("antecedent.producer_carrier_ranking.v1")
+        .field("draws", &draws.digest_hex())
+        .field("request", &Wire(&request))
+        .field("joint_law", &CarrierJointLaw(standing))
+        .finish();
+    let decision = DecisionProgram {
+        carrier: CarrierDemand::DecisionDraws,
+        utility: DecisionProgram::utility_form(None),
+        actions: draws.candidates.len(),
+        constraints: 0,
+        chance_threshold: 0.0,
+        utility_unit: Some(Arc::from(draws.utility_unit.as_str())),
+        contract_identity: None,
+        information_value: None,
+        scenario_source: Some(Arc::from("decision_draws")),
+    };
+    let lowered = lower(TerminalSpec {
+        cell: ProgramCell::DecisionDrawsRanking,
+        plan_id: "supplied.producer_carrier_ranking.v1",
+        functional: FunctionalKind::PolicyValue,
+        graph_class: "supplied_decision_draws",
+        question,
+        evaluator: "decision_reliability::ProducerCarrier::rank",
+        reading: Reading::MonteCarlo,
+        role: EvidenceRole::ChainSource,
+        composition: Composition::Single,
+        decision: Some(decision),
+        claim: Some(ClaimKind::PolicyValue),
+    })?;
+    Ok(CompiledProducerCarrierRanking { lowered, carrier, request })
+}
+
+impl CompiledProducerCarrierRanking {
+    /// Rank the carrier: its joint-law check, then the ranking kernel on its draws.
+    ///
+    /// # Errors
+    /// A marginal-only carrier, the ranking's own refusals, or the compiler's.
+    pub fn execute(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<RankingReport, TerminalError<ReliabilityError>> {
+        let scoped = self.enter(ctx)?;
+        self.carrier.rank(&self.request, &scoped).map_err(TerminalError::Kernel)
     }
 }
 

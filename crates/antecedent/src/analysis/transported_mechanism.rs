@@ -61,8 +61,24 @@ pub use super::mechanism_exports::model_crate::mechanism_transport::{
     DETAIL_SELECTION_INTO_MECHANISM, DETAIL_TARGET_NOT_NATIVE, MECHANISM_TRANSPORT_VERSION,
     MechanismDisposition, MechanismRole, MechanismTransportRequest,
     TransportedFunctionalUncertainty, TransportedLinearGaussian, UNCERTAINTY_SCOPE, refusal_code,
-    selection_targets, transport_linear_gaussian,
+    selection_targets,
 };
+
+use super::mechanism_exports::model_crate::mechanism_transport::transport_linear_gaussian as transport_linear_gaussian_kernel;
+
+/// Carry fitted linear-Gaussian mechanisms into the target population's composed model.
+///
+/// # Errors
+/// [`CompositionError`] for every finding of the library route.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_fitted_mechanism_transport which calls this kernel function with the same inputs"
+)]
+pub fn transport_linear_gaussian(
+    request: &MechanismTransportRequest,
+) -> Result<TransportedLinearGaussian, CompositionError> {
+    transport_linear_gaussian_kernel(request)
+}
 use antecedent_contract::ExternalRefusal;
 use antecedent_core::ExecutionContext;
 use antecedent_io::mechanism_composition_artifact::{
@@ -272,6 +288,10 @@ impl PreparedMechanismComposition {
     ///
     /// # Errors
     /// A [`MechanismCompositionRefusal`] naming every unmet premise; no model is issued.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_fitted_mechanism_transport which calls transport_linear_gaussian with the same inputs"
+    )]
     pub fn transport_to(
         &self,
         declaration: &MechanismTransportDeclaration,
@@ -280,6 +300,40 @@ impl PreparedMechanismComposition {
         if ctx.cancellation.is_cancelled() {
             return Err(model_error(CompositionError::Cancelled));
         }
+        let request = self.mechanism_transport_request(declaration)?;
+        let inner = transport_linear_gaussian_kernel(&request).map_err(model_error)?;
+        Ok(self.finish(&request, inner))
+    }
+
+    /// The same transport as [`Self::transport_to`], compiled under
+    /// `FittedMechanismTransport` and executed through that program.
+    ///
+    /// # Errors
+    /// As [`Self::transport_to`].
+    pub fn transport_compiled(
+        &self,
+        declaration: &MechanismTransportDeclaration,
+        ctx: &ExecutionContext,
+    ) -> Result<TransportedMechanismComposition, MechanismCompositionRefusal> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(model_error(CompositionError::Cancelled));
+        }
+        let request = self.mechanism_transport_request(declaration)?;
+        let compiled = crate::analysis::Study::compile_fitted_mechanism_transport(&request, ctx)
+            .map_err(|error| match error {
+                crate::error::CausalError::Cancelled { .. } => {
+                    model_error(CompositionError::Cancelled)
+                }
+                other => model_error(CompositionError::Unsupported { message: other.to_string() }),
+            })?;
+        let inner = compiled.execute(ctx).map_err(model_error)?;
+        Ok(self.finish(&request, inner))
+    }
+
+    fn mechanism_transport_request(
+        &self,
+        declaration: &MechanismTransportDeclaration,
+    ) -> Result<MechanismTransportRequest, MechanismCompositionRefusal> {
         let spec = self.spec();
         let source_context = spec.target.clone();
         let mut target_mechanisms = Vec::with_capacity(declaration.target_refits.len());
@@ -333,24 +387,32 @@ impl PreparedMechanismComposition {
             invariances: declaration.invariances.clone(),
             dependence: dependence_of(&declaration.dependence),
         };
-        let inner = transport_linear_gaussian(&request).map_err(model_error)?;
+        Ok(request)
+    }
+
+    fn finish(
+        &self,
+        request: &MechanismTransportRequest,
+        inner: TransportedLinearGaussian,
+    ) -> TransportedMechanismComposition {
+        let diagram = &request.diagram;
         let identity = inner.identity_hex();
         let receipt = TransportedMechanismReceipt {
             route: MECHANISM_TRANSPORT_ROUTE,
             identity,
             source_plan_identity: self.plan_identity_hex(),
             source_plan_identity_version: self.plan_identity_version(),
-            source_population: source_context.population,
-            target_population: declaration.target_population_id.clone(),
-            target_regime: declaration.target_regime_id.clone(),
+            source_population: diagram.source_population.clone(),
+            target_population: request.target.population.clone(),
+            target_regime: request.target.regime.clone(),
             selection_nodes: diagram
                 .selection_nodes
                 .iter()
                 .map(|n| (n.name.clone(), n.points_into.clone()))
                 .collect(),
-            selection_targets: selection_targets(&diagram),
+            selection_targets: selection_targets(diagram),
             dispositions: inner.dispositions().to_vec(),
-            invariances: declaration
+            invariances: request
                 .invariances
                 .iter()
                 .map(|i| (i.variable.clone(), i.assumption_id.clone()))
@@ -358,9 +420,9 @@ impl PreparedMechanismComposition {
             uncertainty_scope: UNCERTAINTY_SCOPE,
             support: MECHANISM_TRANSPORT_SUPPORT,
             inference: MECHANISM_TRANSPORT_INFERENCE,
-            assumptions: assumptions_of(&diagram, &inner),
+            assumptions: assumptions_of(diagram, &inner),
         };
-        Ok(TransportedMechanismComposition { inner, receipt })
+        TransportedMechanismComposition { inner, receipt }
     }
 }
 
@@ -545,6 +607,10 @@ impl TransportedMechanismComposition {
 /// Whatever [`PreparedMechanismComposition::transport_to`] refuses, and
 /// `mechanism_transport.transport_identity_mismatch` when the recomputed identity is not
 /// `expected_identity_hex`.
+#[allow(
+    deprecated,
+    reason = "verification re-derives the transport through transport_to's direct kernel call"
+)]
 pub fn verify_mechanism_transport(
     prepared: &PreparedMechanismComposition,
     declaration: &MechanismTransportDeclaration,

@@ -193,9 +193,19 @@ impl DiscretizedCompositionHandle {
         let contrast = contrast_of(contrast_json)?;
         let ctx: ExecutionContext = execution_context(0, None, cancel);
         let outcome = match &self.held {
-            Held::Prepared(prepared) => prepared.mean_contrast(&contrast, &ctx),
+            Held::Prepared(prepared) => {
+                antecedent::analysis::Study::compile_discretized_mean_contrast(
+                    prepared.bridge(),
+                    &contrast,
+                    &ctx,
+                )
+                .and_then(|compiled| compiled.execute(&ctx))
+            }
             Held::Consumed { bridge } => {
-                bridge.mean_contrast(&contrast, &ctx).map_err(DiscretizationRefusal::from)
+                antecedent::analysis::Study::compile_discretized_mean_contrast(
+                    bridge, &contrast, &ctx,
+                )
+                .and_then(|compiled| compiled.execute(&ctx))
             }
         };
         Ok(match outcome {
@@ -247,11 +257,22 @@ impl DiscretizedCompositionHandle {
         refit: PyRef<'_, PreparedCompositionHandle>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<Refused<DiscretizedCompositionHandle>> {
-        let plan = self.plan();
+        let plan = self.plan().clone();
         let refit = refit.inner.clone();
         let outcome = crate::detach_catch(py, move || {
             let ctx = execution_context(0, None, cancel);
-            Ok(refit.discretize(&plan, &ctx))
+            let prepared =
+                antecedent::analysis::Study::compile_discretized_composition(&refit, &plan, &ctx)
+                    .and_then(|compiled| {
+                        let bridge = compiled.execute(&ctx)?;
+                        Ok(PreparedDiscretizedComposition::from_compiled_bridge(
+                            plan,
+                            bridge,
+                            refit.plan_identity_hex(),
+                            refit.plan_identity_version(),
+                        ))
+                    });
+            Ok(prepared)
         })?;
         Ok(match outcome {
             Ok(prepared) => (Some(Self { held: Held::Prepared(Box::new(prepared)) }), None),
@@ -287,7 +308,18 @@ fn discretized_composition_prepare(
     let inner = handle.inner.clone();
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(inner.discretize(&plan, &ctx))
+        let prepared =
+            antecedent::analysis::Study::compile_discretized_composition(&inner, &plan, &ctx)
+                .and_then(|compiled| {
+                    let bridge = compiled.execute(&ctx)?;
+                    Ok(PreparedDiscretizedComposition::from_compiled_bridge(
+                        plan,
+                        bridge,
+                        inner.plan_identity_hex(),
+                        inner.plan_identity_version(),
+                    ))
+                });
+        Ok(prepared)
     })?;
     Ok(match outcome {
         Ok(prepared) => {

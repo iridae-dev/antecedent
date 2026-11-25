@@ -17,8 +17,9 @@ use antecedent_design::decision_contract::{
     ActionKind, DecisionAction, DecisionCriterion, StructuralPolicy, Tail, UtilityExpr,
 };
 use antecedent_design::decision_reliability::{
-    BatchPlan, CandidateCoupling, CandidateDraws, CandidateOrigin, DrawSegment, SourceParadigm,
-    StreamId, StreamPurpose, WithinStreamDependence,
+    BatchPlan, CandidateCoupling, CandidateDraws, CandidateOrigin, DrawSegment, JointLawStanding,
+    ProducerOutput, RolloutNoise, RolloutUtilityDraws, SourceParadigm, StreamId, StreamPurpose,
+    WithinStreamDependence, reach_carrier,
 };
 use antecedent_design::decision_structural::AtomEvidence;
 use antecedent_design::sensitivity_decision::{
@@ -383,6 +384,54 @@ fn site_input_decision_programs_draws_candidates_are_a_set_and_top_k_ordered() {
     set_laws(&candidates, |columns| rank_with(columns, vec![1]));
     // Top-k sizes are reported in the declared order.
     ordered_laws(&[1, 2, 3], |top_k| rank_with(&candidates, top_k.to_vec()));
+}
+
+fn rollout_carrier(
+    columns: &[(&str, [f64; 4])],
+    noise: RolloutNoise,
+) -> Option<antecedent_design::decision_reliability::ProducerCarrier> {
+    let policies =
+        columns.iter().map(|(id, utilities)| ((*id).to_owned(), utilities.to_vec())).collect();
+    reach_carrier(ProducerOutput::Rollout(RolloutUtilityDraws {
+        model_identity: "model".into(),
+        stream_scheme: "keyed".into(),
+        seed: 3,
+        utility_unit: "utility".into(),
+        purpose: StreamPurpose::Selection,
+        replicate: 0,
+        noise,
+        policies,
+        reported_means: Vec::new(),
+        max_standard_errors: 4.0,
+    }))
+    .ok()
+}
+
+#[test]
+fn site_input_decision_programs_carrier_ranking_candidates_are_a_set_and_top_k_ordered() {
+    let ctx = ctx();
+    let rank_with = |columns: &[(&str, [f64; 4])], top_k: Vec<u32>| {
+        // A repeated policy id is refused by the carrier's own validation.
+        let carrier = rollout_carrier(columns, RolloutNoise::StructuralExogenous)?;
+        let request = RankingRequest { baseline: None, top_k, batch_plan: BatchPlan::SquareRoot };
+        Some(compile_producer_carrier_ranking(carrier, request, &ctx).expect("compiles").identity())
+    };
+    let candidates =
+        [("A", [3.0, 3.0, 2.0, 2.0]), ("B", [2.0, 1.0, 3.0, 2.0]), ("C", [1.0, 2.0, 1.0, 2.0])];
+    set_laws(&candidates, |columns| rank_with(columns, vec![1]));
+    ordered_laws(&[1, 2, 3], |top_k| rank_with(&candidates, top_k.to_vec()));
+    // The same draws under the two rollout noises differ only in joint-law standing.
+    let shared = rollout_carrier(&candidates, RolloutNoise::StructuralExogenous).unwrap();
+    let marginal = rollout_carrier(&candidates, RolloutNoise::ImplementationKeyed).unwrap();
+    assert_eq!(shared.joint_law(), JointLawStanding::OneSharedLaw);
+    assert!(matches!(marginal.joint_law(), JointLawStanding::MarginalOnly { .. }));
+    assert_eq!(shared.draws().digest_hex(), marginal.draws().digest_hex());
+    let request =
+        RankingRequest { baseline: None, top_k: vec![1], batch_plan: BatchPlan::SquareRoot };
+    assert_ne!(
+        compile_producer_carrier_ranking(shared, request.clone(), &ctx).unwrap().identity(),
+        compile_producer_carrier_ranking(marginal, request, &ctx).unwrap().identity(),
+    );
 }
 
 fn meta(id: &str) -> PriorSourceMeta {

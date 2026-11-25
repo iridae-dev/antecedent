@@ -160,6 +160,10 @@ impl PreparedMechanismComposition {
     /// naming an unknown variable, a joint space above the enumeration bound, a
     /// declared support other than the real line, a mechanism loading on a shared
     /// latent cause, a degenerate marginal, or cancellation.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_discretized_composition which calls DiscretizedLinearGaussian::new with the same inputs"
+    )]
     pub fn discretize(
         &self,
         plan: &DiscretizationPlan,
@@ -177,6 +181,19 @@ impl PreparedMechanismComposition {
 }
 
 impl PreparedDiscretizedComposition {
+    /// The facade value [`PreparedMechanismComposition::discretize`] returns, assembled from a
+    /// bridge `DiscretizedLinearGaussian::new` produced and the source plan identity that
+    /// discretize records.
+    #[must_use]
+    pub fn from_compiled_bridge(
+        plan: DiscretizationPlan,
+        bridge: DiscretizedLinearGaussian,
+        source_plan_identity: String,
+        source_plan_identity_version: u64,
+    ) -> Self {
+        Self { plan, bridge, source_plan_identity, source_plan_identity_version }
+    }
+
     /// The declared plan.
     #[must_use]
     pub const fn plan(&self) -> &DiscretizationPlan {
@@ -214,6 +231,10 @@ impl PreparedDiscretizedComposition {
     /// # Errors
     /// An unknown outcome, variable or level, a repeated intervention or
     /// cancellation.
+    #[deprecated(
+        since = "3.1.0",
+        note = "use Study::compile_discretized_mean_contrast which calls DiscretizedLinearGaussian::mean_contrast with the same inputs"
+    )]
     pub fn mean_contrast(
         &self,
         contrast: &DiscreteContrast,
@@ -239,6 +260,10 @@ impl PreparedDiscretizedComposition {
     ///
     /// # Errors
     /// As [`PreparedMechanismComposition::discretize`].
+    #[allow(
+        deprecated,
+        reason = "refresh repeats discretize's direct kernel call under the same plan"
+    )]
     pub fn refresh(
         &self,
         refit: &PreparedMechanismComposition,

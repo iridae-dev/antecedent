@@ -65,24 +65,27 @@ use antecedent_core::ExecutionContext;
 use antecedent_design::decision_transported_source::TransportedRefusal;
 use antecedent_design::sequential_evaluation::SequentialEvaluationError;
 
+use super::design_exports::design_crate::adaptive_trial_transport::transport_adaptive_trial as transport_adaptive_trial_kernel;
 pub use super::design_exports::design_crate::adaptive_trial_transport::{
     AdaptiveTransportEstimate, AdaptiveTransportPremises, AdaptiveTransportRequest, TrialMechanism,
-    TrialSelectionDiagram, transport_adaptive_trial, verify_adaptive_transport,
+    TrialSelectionDiagram, verify_adaptive_transport,
 };
 pub use super::design_exports::design_crate::decision_transported_source::{
     TransportDeclaration, TransportReceipt, TransportedResponse, TransportedRoute,
 };
+use super::design_exports::design_crate::temporal_policy_transport::evaluate_temporal_policy as evaluate_temporal_policy_kernel;
 pub use super::design_exports::design_crate::temporal_policy_transport::{
     ActionAlphabet, HistoryAlphabet, TemporalPolicyEvaluation, TemporalPolicyRequest,
-    TemporalTarget, TimeInvariance, evaluate_temporal_policy, verify_temporal_policy,
+    TemporalTarget, TimeInvariance, verify_temporal_policy,
 };
 pub use super::design_exports::design_crate::transported_bridge::{
     BridgeSelectionDiagram, SURROGATE_TRANSPORT_PREMISE_ID, TransportedSurrogateBridge,
 };
+use super::design_exports::design_crate::transported_policy::evaluate_transported_policy as evaluate_transported_policy_kernel;
 pub use super::design_exports::design_crate::transported_policy::{
     ActionUtility, MechanismStatus, ModelMechanism, SelectionDiagram, TargetUtility,
     TransportPremises, TransportedPolicyEvaluation, TransportedPolicyRequest, UtilityProvenance,
-    evaluate_transported_policy, verify_transported_policy,
+    verify_transported_policy,
 };
 pub use super::design_exports::design_crate::transported_synthesis::{
     TransportedContribution, TransportedSynthesis, TransportedSynthesisMethod,
@@ -152,6 +155,50 @@ fn sequential(error: &SequentialEvaluationError) -> ExternalRefusal {
     error.to_refusal()
 }
 
+/// Evaluate a contingent policy in another population.
+///
+/// # Errors
+/// Every refusal of `antecedent_design::transported_policy::evaluate_transported_policy`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_transported_policy which calls this kernel function with the same inputs"
+)]
+pub fn evaluate_transported_policy(
+    request: &TransportedPolicyRequest<'_>,
+    ctx: &ExecutionContext,
+) -> Result<TransportedPolicyEvaluation, SequentialEvaluationError> {
+    evaluate_transported_policy_kernel(request, ctx)
+}
+
+/// Evaluate a contingent policy in another period.
+///
+/// # Errors
+/// Every refusal of `antecedent_design::temporal_policy_transport::evaluate_temporal_policy`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_temporal_policy which calls this kernel function with the same inputs"
+)]
+pub fn evaluate_temporal_policy(
+    request: &TemporalPolicyRequest<'_>,
+    ctx: &ExecutionContext,
+) -> Result<TemporalPolicyEvaluation, SequentialEvaluationError> {
+    evaluate_temporal_policy_kernel(request, ctx)
+}
+
+/// Standardize an adaptive trial's arm means to a target stratum law.
+///
+/// # Errors
+/// Every refusal of `antecedent_design::adaptive_trial_transport::transport_adaptive_trial`.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_adaptive_trial which calls this kernel function with the same inputs"
+)]
+pub fn transport_adaptive_trial(
+    request: &AdaptiveTransportRequest<'_>,
+) -> Result<AdaptiveTransportEstimate, SequentialEvaluationError> {
+    transport_adaptive_trial_kernel(request)
+}
+
 fn response_refusal(refusal: &TransportedRefusal) -> ExternalRefusal {
     refusal.to_refusal()
 }
@@ -196,13 +243,18 @@ pub fn synthesis_refusal(refusal: &TransportedSynthesisRefusal) -> ExternalRefus
 /// # Errors
 /// The route's refusal, or [`TransportedRefusal`] as a structured refusal for a
 /// coordinate stated in another population than the target.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_transported_policy which calls evaluate_transported_policy with the same inputs"
+)]
 pub fn transported_policy_response(
     request: &TransportedPolicyRequest<'_>,
     coordinate: ScientificQuantity,
     provider_id: &str,
     ctx: &ExecutionContext,
 ) -> Result<TransportedConstruction<TransportedPolicyEvaluation>, ExternalRefusal> {
-    let evaluation = evaluate_transported_policy(request, ctx).map_err(|e| sequential(&e))?;
+    let evaluation =
+        evaluate_transported_policy_kernel(request, ctx).map_err(|e| sequential(&e))?;
     let response =
         TransportedResponse::from_transported_policy(&evaluation, coordinate, provider_id)
             .map_err(|e| response_refusal(&e))?;
@@ -221,13 +273,17 @@ pub fn transported_policy_response(
 /// The route's refusal (a missing invariance declaration or target law, a
 /// horizon or alphabet change, a time-varying mechanism, ...), or the
 /// response refusal for a coordinate not stated in the target period.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_temporal_policy which calls evaluate_temporal_policy with the same inputs"
+)]
 pub fn temporal_policy_response(
     request: &TemporalPolicyRequest<'_>,
     coordinate: ScientificQuantity,
     provider_id: &str,
     ctx: &ExecutionContext,
 ) -> Result<TransportedConstruction<TemporalPolicyEvaluation>, ExternalRefusal> {
-    let evaluation = evaluate_temporal_policy(request, ctx).map_err(|e| sequential(&e))?;
+    let evaluation = evaluate_temporal_policy_kernel(request, ctx).map_err(|e| sequential(&e))?;
     // The route accepted the request, so the invariance declaration is present.
     let Some(invariance) = request.invariance else {
         return Err(ExternalRefusal::new(
@@ -263,13 +319,17 @@ pub fn temporal_policy_response(
 /// # Errors
 /// The route's refusal, or the response refusal for a coordinate not stated
 /// in the target population.
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_adaptive_trial which calls transport_adaptive_trial with the same inputs"
+)]
 pub fn adaptive_trial_response(
     request: &AdaptiveTransportRequest<'_>,
     value: AdaptiveTransportedValue,
     coordinate: ScientificQuantity,
     provider_id: &str,
 ) -> Result<TransportedConstruction<AdaptiveTransportEstimate>, ExternalRefusal> {
-    let evaluation = transport_adaptive_trial(request).map_err(|e| sequential(&e))?;
+    let evaluation = transport_adaptive_trial_kernel(request).map_err(|e| sequential(&e))?;
     // The route accepted the request, so the diagram is present.
     let Some(diagram) = request.diagram else {
         return Err(ExternalRefusal::new(

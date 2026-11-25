@@ -41,6 +41,36 @@ path = "antecedent::EvidenceLedgerSession::pooled_interval_candidate"
 disposition = "internal"
 
 [[row]]
+path = "antecedent::analysis::PreparedDecisionReliability::assess"
+disposition = "deprecated"
+replacement = "route:DecisionReliabilityAssessment"
+
+[[row]]
+path = "antecedent::analysis::PreparedDecisionReliability::assess_producer"
+disposition = "deprecated"
+replacement = "route:DecisionReliabilityAssessment"
+
+[[row]]
+path = "antecedent::analysis::PreparedDecisionReliability::derive_uncertainty"
+disposition = "deprecated"
+replacement = "route:DecisionReliabilityDerivation"
+
+[[row]]
+path = "antecedent::analysis::decision_reliability::derive_decision_uncertainty"
+disposition = "deprecated"
+replacement = "route:DecisionReliabilityDerivation"
+
+[[row]]
+path = "antecedent::analysis::decision_reliability::derive_producer_uncertainty"
+disposition = "deprecated"
+replacement = "route:DecisionReliabilityDerivation"
+
+[[row]]
+path = "antecedent::analysis::discretized_composition::PreparedDiscretizedComposition::mean_contrast"
+disposition = "deprecated"
+replacement = "route:DiscretizedLinearGaussianBridge"
+
+[[row]]
 path = "antecedent::analysis::graph_falsification::CompiledGraphFalsification::into_report"
 disposition = "compiled"
 route = "GraphFalsification"
@@ -361,6 +391,16 @@ disposition = "deprecated"
 replacement = "route:DiscoveredClassTransport"
 
 [[row]]
+path = "antecedent::PreparedMechanismComposition::discretize"
+disposition = "deprecated"
+replacement = "route:DiscretizedLinearGaussianBridge"
+
+[[row]]
+path = "antecedent::PreparedMechanismComposition::transport_to"
+disposition = "deprecated"
+replacement = "route:FittedMechanismTransport"
+
+[[row]]
 path = "antecedent::analysis::per_population_discovery::discover_per_population"
 disposition = "deprecated"
 replacement = "route:PerPopulationStructureSearch"
@@ -420,6 +460,31 @@ disposition = "compiled"
 route = "SampleSplitParentSetEffect"
 
 [[row]]
+path = "antecedent::analysis::sequential_evaluation::compare_policies"
+disposition = "deprecated"
+replacement = "route:SequentialPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::sequential_evaluation::evaluate_off_policy"
+disposition = "deprecated"
+replacement = "route:SequentialPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::sequential_evaluation::evaluate_policy"
+disposition = "deprecated"
+replacement = "route:SequentialPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::sequential_evaluation::rollout_policy"
+disposition = "deprecated"
+replacement = "route:SequentialPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::sequential_evaluation::value_of_collecting_evidence"
+disposition = "deprecated"
+replacement = "route:SequentialPolicyEvaluation"
+
+[[row]]
 path = "antecedent::analysis::temporal_dependent_interval_candidate"
 disposition = "internal"
 
@@ -427,6 +492,51 @@ disposition = "internal"
 path = "antecedent::analysis::transport_identification::CompiledTransportIdentification::identify"
 disposition = "compiled"
 route = "ClassicalTransportIdentification"
+
+[[row]]
+path = "antecedent::analysis::transport_sensitivity::transport_assumption_range"
+disposition = "deprecated"
+replacement = "route:TransportAssumptionRange"
+
+[[row]]
+path = "antecedent::analysis::transport_sensitivity::transport_range"
+disposition = "deprecated"
+replacement = "route:TransportAssumptionRange"
+
+[[row]]
+path = "antecedent::analysis::transported_constructors::adaptive_trial_response"
+disposition = "deprecated"
+replacement = "route:AdaptiveTrialTransport"
+
+[[row]]
+path = "antecedent::analysis::transported_constructors::evaluate_temporal_policy"
+disposition = "deprecated"
+replacement = "route:TemporalPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::transported_constructors::evaluate_transported_policy"
+disposition = "deprecated"
+replacement = "route:TransportedPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::transported_constructors::temporal_policy_response"
+disposition = "deprecated"
+replacement = "route:TemporalPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::transported_constructors::transport_adaptive_trial"
+disposition = "deprecated"
+replacement = "route:AdaptiveTrialTransport"
+
+[[row]]
+path = "antecedent::analysis::transported_constructors::transported_policy_response"
+disposition = "deprecated"
+replacement = "route:TransportedPolicyEvaluation"
+
+[[row]]
+path = "antecedent::analysis::transported_mechanism::transport_linear_gaussian"
+disposition = "deprecated"
+replacement = "route:FittedMechanismTransport"
 
 [[row]]
 path = "antecedent::gcm::evaluate_graph"
@@ -5374,11 +5484,6 @@ path = "antecedent_counterfactual::selective::whole_path_uncertainty::derive_who
 disposition = "consume"
 
 [[row]]
-path = "antecedent_design::adaptive_trial_transport::transport_adaptive_trial"
-disposition = "pending"
-owner = "adaptive-trial transport compiled program: the facade constructor adaptive_trial_response and the Python adaptive-trial transport native run it outside the compiler"
-
-[[row]]
 path = "antecedent_design::adaptive_trial_transport::verify_adaptive_transport"
 disposition = "consume"
 
@@ -5404,8 +5509,8 @@ reason = "builds a decision input, mean source, forward claim or trust record fr
 
 [[row]]
 path = "antecedent_design::decision_reliability::DecisionReliabilityArtifact::new"
-disposition = "pending"
-owner = "decision-reliability assessment compiled program: PreparedDecisionReliability::assess builds the report through this constructor outside the compiler"
+disposition = "kernel"
+reason = "kernel API; CompiledDecisionReliabilityAssessment::seal on DecisionReliabilityAssessment gates and then calls DecisionReliabilityArtifact::new, which recomputes"
 
 [[row]]
 path = "antecedent_design::decision_reliability::DecisionReliabilityArtifact::to_bytes"
@@ -5422,18 +5527,18 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_design::decision_reliability::ProducerCarrier::assess"
-disposition = "pending"
-owner = "decision-reliability assessment compiled program: the carrier's assessment runs outside the compiler"
+disposition = "kernel"
+reason = "kernel API; compile_producer_carrier_assessment on DecisionReliabilityAssessment calls ProducerCarrier::assess with the same inputs"
 
 [[row]]
 path = "antecedent_design::decision_reliability::ProducerCarrier::derive_uncertainty"
-disposition = "pending"
-owner = "decision-reliability assessment compiled program: the carrier's uncertainty derivation runs outside the compiler"
+disposition = "kernel"
+reason = "kernel API; compile_producer_carrier_derivation on DecisionReliabilityDerivation calls ProducerCarrier::derive_uncertainty with the same inputs"
 
 [[row]]
 path = "antecedent_design::decision_reliability::ProducerCarrier::rank"
-disposition = "pending"
-owner = "decision-reliability assessment compiled program: the carrier's ranking runs outside the compiler (the DecisionDrawsRanking route ranks supplied draws, not a producer carrier)"
+disposition = "kernel"
+reason = "kernel API; compile_producer_carrier_ranking on DecisionDrawsRanking calls ProducerCarrier::rank with the same inputs"
 
 [[row]]
 path = "antecedent_design::decision_transported_source::period_population_label"
@@ -5451,31 +5556,6 @@ disposition = "not_scientific"
 reason = "a gating check: names the first thing in an inverse query that a mean cannot answer and computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_design::sequential_evaluation::compare_policies"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the facade sequential_evaluation entries and the Python sequential evaluation natives run it outside the compiler (the SequentialPolicyReliability program evaluates its own policies through it)"
-
-[[row]]
-path = "antecedent_design::sequential_evaluation::evaluate_off_policy"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the facade sequential_evaluation entries and the Python sequential evaluation natives run it outside the compiler (the SequentialPolicyReliability program evaluates its own policies through it)"
-
-[[row]]
-path = "antecedent_design::sequential_evaluation::evaluate_policy"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the facade sequential_evaluation entries and the Python sequential evaluation natives run it outside the compiler (the SequentialPolicyReliability program evaluates its own policies through it)"
-
-[[row]]
-path = "antecedent_design::sequential_evaluation::rollout_policy"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the facade sequential_evaluation entries and the Python sequential evaluation natives run it outside the compiler (the SequentialPolicyReliability program evaluates its own policies through it)"
-
-[[row]]
-path = "antecedent_design::sequential_evaluation::value_of_collecting_evidence"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the facade sequential_evaluation entries and the Python sequential evaluation natives run it outside the compiler (the SequentialPolicyReliability program evaluates its own policies through it)"
-
-[[row]]
 path = "antecedent_design::sequential_evaluation::request_interval"
 disposition = "not_scientific"
 reason = "a typed refusal: it returns an error for every input and computes no estimate, identification, structure or ranking"
@@ -5487,31 +5567,16 @@ reason = "a deterministic uniform stream keyed by its identity; computes no esti
 
 [[row]]
 path = "antecedent_design::sequential_evaluation_artifact::SequentialEvaluationArtifact::new"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the artifact constructor evaluates and seals the policy outside the compiler"
+disposition = "kernel"
+reason = "kernel API; the compiled SequentialPolicyEvaluation seal gates sequential_evaluation.policy_evaluation and then calls SequentialEvaluationArtifact::new with the same arguments"
 
 [[row]]
 path = "antecedent_design::sequential_evaluation_artifact::SequentialEvaluationArtifact::verify"
 disposition = "consume"
 
 [[row]]
-path = "antecedent_design::temporal_policy_transport::evaluate_temporal_policy"
-disposition = "pending"
-owner = "transported policy compiled program: the facade constructor temporal_policy_response and the Python native run it outside the compiler"
-
-[[row]]
 path = "antecedent_design::temporal_policy_transport::verify_temporal_policy"
 disposition = "consume"
-
-[[row]]
-path = "antecedent_design::transport_sensitivity::transport_assumption_range"
-disposition = "pending"
-owner = "transport assumption-range compiled program: the facade transport_sensitivity entry runs it outside the compiler"
-
-[[row]]
-path = "antecedent_design::transported_policy::evaluate_transported_policy"
-disposition = "pending"
-owner = "transported policy compiled program: the facade constructor transported_policy_response and the Python native run it outside the compiler"
 
 [[row]]
 path = "antecedent_design::transported_policy::verify_transported_policy"
@@ -5519,18 +5584,18 @@ disposition = "consume"
 
 [[row]]
 path = "antecedent_model::discretized_scm::DiscretizedLinearGaussian::new"
-disposition = "pending"
-owner = "discretized linear-Gaussian bridge compiled program: the facade discretized composition and the Python native build and read the bridge outside the compiler"
+disposition = "kernel"
+reason = "kernel API; DiscretizedLinearGaussianBridge binds the model and the plan and calls the same DiscretizedLinearGaussian::new"
 
 [[row]]
 path = "antecedent_model::discretized_scm::DiscretizedLinearGaussian::from_spec"
-disposition = "pending"
-owner = "discretized linear-Gaussian bridge compiled program: the facade discretized composition and the Python native build and read the bridge outside the compiler"
+disposition = "kernel"
+reason = "kernel API; DiscretizedLinearGaussianBridge binds the specification and the plan and calls the same DiscretizedLinearGaussian::from_spec"
 
 [[row]]
 path = "antecedent_model::discretized_scm::DiscretizedLinearGaussian::mean_contrast"
-disposition = "pending"
-owner = "discretized linear-Gaussian bridge compiled program: the facade discretized composition and the Python native build and read the bridge outside the compiler"
+disposition = "kernel"
+reason = "kernel API; DiscretizedLinearGaussianBridge binds the bridge and the contrast and calls the same DiscretizedLinearGaussian::mean_contrast"
 
 [[row]]
 path = "antecedent_model::discretized_scm::parity_row"
@@ -5553,48 +5618,6 @@ disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
 [[row]]
-path = "antecedent_model::mechanism_transport::transport_linear_gaussian"
-disposition = "pending"
-owner = "mechanism transport compiled program: the facade transported_mechanism entry runs it outside the compiler"
-
-[[row]]
 path = "antecedent_model::typed_mechanism_transport::typed_refusal_code"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
-
-[[python]]
-path = "python/antecedent/sequential_evaluation.py::evaluate"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the native evaluates the policy through the kernel function outside the compiler"
-
-[[python]]
-path = "python/antecedent/sequential_evaluation.py::evaluate_off_policy"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the native estimates the off-policy value through the kernel function outside the compiler"
-
-[[python]]
-path = "python/antecedent/sequential_evaluation.py::rollout"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the native runs the rollout through the kernel function outside the compiler"
-
-[[python]]
-path = "python/antecedent/sequential_evaluation.py::compare"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the native compares policies through the kernel function outside the compiler"
-
-[[python]]
-path = "python/antecedent/sequential_evaluation.py::value_of_collecting_evidence"
-disposition = "pending"
-owner = "sequential policy evaluation compiled program: the native scores the value of evidence through the kernel function outside the compiler"
-
-[[python]]
-path = "python/antecedent/transported_constructors.py::verify_policy"
-disposition = "consume"
-
-[[python]]
-path = "python/antecedent/transported_constructors.py::verify_period_shift"
-disposition = "consume"
-
-[[python]]
-path = "python/antecedent/transported_constructors.py::verify_adaptive_trial"
-disposition = "consume"

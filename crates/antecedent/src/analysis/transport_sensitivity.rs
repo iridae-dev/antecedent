@@ -39,7 +39,6 @@ pub use super::design_exports::design_crate::transport_sensitivity::{
     REFERENCE_ACTION_ID, TRANSPORT_ASSUMPTION_RANGE_INTERPRETATION, TRANSPORT_SENSITIVITY_VERSION,
     TRANSPORTED_ACTION_ID, TransportAssumptionRange, TransportPremise, TransportRoute,
     TransportSensitivityRefusal, TransportSensitivitySpec, ViolationFamily,
-    transport_assumption_range,
 };
 use antecedent_contract::ScientificQuantity;
 use antecedent_design::decision_transported_source::{
@@ -47,6 +46,23 @@ use antecedent_design::decision_transported_source::{
 };
 
 use super::sensitivity_decision::SensitivityArtifact;
+
+/// Assumption range of a transported point under a declared shift.
+///
+/// Deprecated since 3.1.0 in favour of its compiled route. This forwards to
+/// [`antecedent_design::transport_sensitivity::transport_assumption_range`].
+///
+/// # Errors
+/// Anything the kernel refuses.
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled TransportAssumptionRange route, which calls this kernel function with the same inputs"
+)]
+pub fn transport_assumption_range(
+    spec: &TransportSensitivitySpec,
+) -> Result<TransportAssumptionRange, TransportSensitivityRefusal> {
+    antecedent_design::transport_sensitivity::transport_assumption_range(spec)
+}
 
 /// Detail: the response is a law, so it has no single point value to shift.
 pub const DETAIL_LAW_RESPONSE: &str =
@@ -208,13 +224,18 @@ pub fn transport_sensitivity_spec(
 /// The assumption range of a response's point value.
 ///
 /// # Errors
-/// As [`transport_sensitivity_spec`] and [`transport_assumption_range`].
+/// As [`transport_sensitivity_spec`] and
+/// [`antecedent_design::transport_sensitivity::transport_assumption_range`].
+#[deprecated(
+    since = "3.1.0",
+    note = "use the compiled TransportAssumptionRange route, which calls this kernel function with the same inputs"
+)]
 pub fn transport_range(
     response: &TransportedResponse,
     request: &TransportSensitivityRequest,
 ) -> Result<TransportAssumptionRange, TransportSensitivityEntryRefusal> {
     let spec = transport_sensitivity_spec(response, request)?;
-    Ok(transport_assumption_range(&spec)?)
+    Ok(antecedent_design::transport_sensitivity::transport_assumption_range(&spec)?)
 }
 
 /// The sealed [`SensitivityArtifact`] of a decision between acting on the
@@ -223,14 +244,16 @@ pub fn transport_range(
 /// [`super::sensitivity_decision`].
 ///
 /// # Errors
-/// As [`transport_range`], a non-finite reference and any refusal of the
-/// sensitivity surface (a reference in another population or units).
+/// As [`transport_sensitivity_spec`] and the assumption-range kernel, a non-finite
+/// reference and any refusal of the sensitivity surface (a reference in another
+/// population or units).
 pub fn transport_sensitivity_artifact(
     response: &TransportedResponse,
     request: &TransportSensitivityRequest,
     reference: &ScientificQuantity,
     reference_value: f64,
 ) -> Result<SensitivityArtifact, TransportSensitivityEntryRefusal> {
-    let range = transport_range(response, request)?;
+    let spec = transport_sensitivity_spec(response, request)?;
+    let range = antecedent_design::transport_sensitivity::transport_assumption_range(&spec)?;
     Ok(range.to_artifact(reference, reference_value)?)
 }

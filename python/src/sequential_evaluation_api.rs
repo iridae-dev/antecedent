@@ -308,6 +308,49 @@ fn io_refusal(error: &IoError) -> String {
     }
 }
 
+/// A compile-time cancellation, in the refusal JSON `evaluate_policy` returns when the walk
+/// itself is cancelled. The token is already cancelled, so the program never reaches the kernel.
+fn cancelled_evaluation() -> seq::SequentialEvaluationError {
+    seq::SequentialEvaluationError {
+        code: reason_code!("cancelled_no_claim"),
+        detail: antecedent::reason::reason_details::sequential_evaluation::CANCELLED.to_owned(),
+        message: "the evaluation was cancelled before it produced a value".to_owned(),
+        remedy: "re-run the evaluation; a partial enumeration is not a result",
+    }
+}
+
+/// A compile-time cancellation in the artifact refusal shape `SequentialEvaluationArtifact::new`
+/// uses for a cancelled evaluation (`detail: message`).
+fn cancelled_seal() -> IoError {
+    IoError::Refused {
+        code: reason_code!("cancelled_no_claim"),
+        message: format!(
+            "{}: the evaluation was cancelled before it produced a value",
+            antecedent::reason::reason_details::sequential_evaluation::CANCELLED,
+        ),
+    }
+}
+
+fn open_evaluation<T>(
+    compiled: Result<T, antecedent::CausalError>,
+) -> PyResult<std::result::Result<T, String>> {
+    match compiled {
+        Ok(value) => Ok(Ok(value)),
+        Err(antecedent::CausalError::Cancelled { .. }) => Ok(Err(refusal(&cancelled_evaluation()))),
+        Err(error) => Err(crate::py_err(error)),
+    }
+}
+
+fn open_seal<T>(
+    compiled: Result<T, antecedent::CausalError>,
+) -> PyResult<std::result::Result<T, String>> {
+    match compiled {
+        Ok(value) => Ok(Ok(value)),
+        Err(antecedent::CausalError::Cancelled { .. }) => Ok(Err(io_refusal(&cancelled_seal()))),
+        Err(error) => Err(crate::py_err(error)),
+    }
+}
+
 fn history_json(history: &seq::HistoryKey) -> Json {
     Json::Array(history.steps().iter().map(|s| json!([s.action, s.observation])).collect())
 }
@@ -435,11 +478,17 @@ fn sequential_evaluate(
     };
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(seq::evaluate_policy(&model, &policy, limits_of(max_nodes), &ctx))
+        let limits = limits_of(max_nodes);
+        match open_evaluation(antecedent::Study::compile_evaluate_policy(
+            model, policy, limits, &ctx,
+        ))? {
+            Ok(compiled) => Ok(compiled.evaluate(&ctx).map_err(|error| refusal(&error))),
+            Err(text) => Ok(Err(text)),
+        }
     })?;
     Ok(match outcome {
         Ok(evaluation) => ok_json(&evaluation_json(&evaluation)),
-        Err(error) => refused_pair(refusal(&error)),
+        Err(text) => refused_pair(text),
     })
 }
 
@@ -465,16 +514,16 @@ fn sequential_off_policy(
     };
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        let mut ledger = seq::EvidenceLedger::new();
-        Ok(seq::evaluate_off_policy(
-            &model,
-            &target,
-            &behaviour,
-            &log,
-            &mut ledger,
-            limits_of(max_nodes),
-            &ctx,
-        ))
+        let limits = limits_of(max_nodes);
+        match open_evaluation(antecedent::Study::compile_evaluate_off_policy(
+            model, target, behaviour, log, limits, &ctx,
+        ))? {
+            Ok(compiled) => {
+                let mut ledger = seq::EvidenceLedger::new();
+                Ok(compiled.evaluate(&mut ledger, &ctx).map_err(|error| refusal(&error)))
+            }
+            Err(text) => Ok(Err(text)),
+        }
     })?;
     Ok(match outcome {
         Ok(e) => ok_json(&json!({
@@ -496,7 +545,7 @@ fn sequential_off_policy(
             "ledger_state": e.ledger_state,
             "inference": e.inference,
         })),
-        Err(error) => refused_pair(refusal(&error)),
+        Err(text) => refused_pair(text),
     })
 }
 
@@ -519,7 +568,15 @@ fn sequential_rollout(
     };
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(seq::rollout_policy(&model, &policy, seq::RolloutConfig { seed, rollouts }, &ctx))
+        match open_evaluation(antecedent::Study::compile_rollout_policy(
+            model,
+            policy,
+            seq::RolloutConfig { seed, rollouts },
+            &ctx,
+        ))? {
+            Ok(compiled) => Ok(compiled.evaluate(&ctx).map_err(|error| refusal(&error))),
+            Err(text) => Ok(Err(text)),
+        }
     })?;
     Ok(match outcome {
         Ok(e) => ok_json(&json!({
@@ -534,7 +591,7 @@ fn sequential_rollout(
             "model_identity": e.model_identity,
             "inference": e.inference,
         })),
-        Err(error) => refused_pair(refusal(&error)),
+        Err(text) => refused_pair(text),
     })
 }
 
@@ -569,11 +626,17 @@ fn sequential_value_of_evidence(
         seq::VoiRequest { collect_action: voi.collect_action, commit_actions: voi.commit_actions };
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(seq::value_of_collecting_evidence(&model, &request, limits_of(max_nodes), &ctx))
+        let limits = limits_of(max_nodes);
+        match open_evaluation(antecedent::Study::compile_value_of_collecting_evidence(
+            model, request, limits, &ctx,
+        ))? {
+            Ok(compiled) => Ok(compiled.evaluate(&ctx).map_err(|error| refusal(&error))),
+            Err(text) => Ok(Err(text)),
+        }
     })?;
     Ok(match outcome {
         Ok(check) => ok_json(&voi_json(&check)),
-        Err(error) => refused_pair(refusal(&error)),
+        Err(text) => refused_pair(text),
     })
 }
 
@@ -623,7 +686,13 @@ fn sequential_compare(
     }
     let outcome = crate::detach_catch(py, move || {
         let ctx = execution_context(0, None, cancel);
-        Ok(seq::compare_policies(&model, specs, voi.as_ref(), &request, limits_of(max_nodes), &ctx))
+        let limits = limits_of(max_nodes);
+        match open_evaluation(antecedent::Study::compile_compare_policies(
+            model, specs, voi, request, limits, &ctx,
+        ))? {
+            Ok(compiled) => Ok(compiled.evaluate(&ctx).map_err(|error| refusal(&error))),
+            Err(text) => Ok(Err(text)),
+        }
     })?;
     Ok(match outcome {
         Ok(report) => {
@@ -650,7 +719,7 @@ fn sequential_compare(
                 "inference": report.inference,
             }))
         }
-        Err(error) => refused_pair(refusal(&error)),
+        Err(text) => refused_pair(text),
     })
 }
 
@@ -861,11 +930,21 @@ impl PyEvaluationArtifact {
         };
         let outcome = crate::detach_catch(py, move || {
             let ctx = execution_context(0, None, cancel);
-            Ok(seq::seal(&model, &policy, off_policy.as_ref(), rollout, &ctx))
+            match open_seal(antecedent::Study::compile_sequential_evaluation_seal(
+                model,
+                policy,
+                off_policy,
+                rollout,
+                seq::EvaluationLimits::default(),
+                &ctx,
+            ))? {
+                Ok(compiled) => Ok(compiled.seal(&ctx).map_err(|error| io_refusal(&error))),
+                Err(text) => Ok(Err(text)),
+            }
         })?;
         Ok(match outcome {
             Ok(artifact) => (Some(Self { artifact }), None),
-            Err(error) => (None, Some(io_refusal(&error))),
+            Err(text) => (None, Some(text)),
         })
     }
 

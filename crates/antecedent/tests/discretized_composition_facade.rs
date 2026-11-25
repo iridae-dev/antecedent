@@ -10,6 +10,7 @@
 //! as `1 + 3 X`, `E[Y | do(X = v)] = 2 + 9.5 v`.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(deprecated, reason = "the direct facade path is the oracle this file checks")]
 
 use std::sync::Arc;
 

@@ -32,6 +32,7 @@
 //! Ignored tests run via `scripts/measure_calibration.sh` (release build).
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(deprecated, reason = "the direct facade path is the oracle this file checks")]
 
 mod common;
 
