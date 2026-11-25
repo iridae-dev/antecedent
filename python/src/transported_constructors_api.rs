@@ -23,8 +23,8 @@ use antecedent::analysis::transported_constructors::{
     TargetUtility, TemporalPolicyRequest, TemporalTarget, TimeInvariance, TransportedConstruction,
     TransportedContribution, TransportedPolicyRequest, TransportedResponse,
     TransportedSurrogateBridge, TransportedSynthesisMethod, TrialMechanism, TrialSelectionDiagram,
-    UtilityProvenance, verify_adaptive_transport, verify_temporal_policy,
-    verify_transported_policy,
+    UtilityProvenance, transport_compile_refusal, verify_adaptive_transport,
+    verify_temporal_policy, verify_transported_policy,
 };
 use antecedent::contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
 use antecedent::inference::synthesis::{MeanPrior, TauPrior};
@@ -49,23 +49,6 @@ type Built = (Option<TransportedResponseHandle>, Option<String>, Option<String>)
 
 fn refused(refusal: &antecedent::contract::ExternalRefusal) -> Built {
     (None, None, Some(external_refusal_json(refusal)))
-}
-
-fn compile_refusal(error: &antecedent::CausalError) -> antecedent::contract::ExternalRefusal {
-    match error {
-        antecedent::CausalError::Cancelled { .. } => antecedent::contract::ExternalRefusal::new(
-            antecedent::reason::reason_code!("cancelled_no_claim"),
-            "bind",
-            antecedent::reason::reason_details::sequential_evaluation::CANCELLED,
-        )
-        .with_remedy("re-run the evaluation; a partial enumeration is not a result"),
-        _ => antecedent::contract::ExternalRefusal::new(
-            antecedent::reason::reason_code!("invalid_argument"),
-            "bind",
-            "kernel_program.compile",
-        )
-        .with_remedy("compile the route outside a lowered dispatch"),
-    }
 }
 
 fn cancelled_evaluation() -> seq::SequentialEvaluationError {
@@ -911,7 +894,7 @@ fn transported_synthesis_construct(
         &ctx,
     ) {
         Ok(compiled) => compiled,
-        Err(error) => return Ok(refused(&compile_refusal(&error))),
+        Err(error) => return Ok(refused(&transport_compile_refusal(&error))),
     };
     Ok(match compiled.execute(&mut staged, &ctx) {
         Ok(built) => {
@@ -1000,7 +983,7 @@ fn surrogate_bridge_construct(
         &ctx,
     ) {
         Ok(compiled) => compiled,
-        Err(error) => return Ok(refused(&compile_refusal(&error))),
+        Err(error) => return Ok(refused(&transport_compile_refusal(&error))),
     };
     Ok(match compiled.execute(&ctx) {
         Ok(built) => {

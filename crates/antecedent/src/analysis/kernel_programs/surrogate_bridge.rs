@@ -17,7 +17,7 @@ use antecedent_contract::{
 };
 use antecedent_core::{
     Assumption, AssumptionSource, AssumptionStatus, CanonicalEncode, CanonicalWriter,
-    ContractIdentities, ExecutionContext, NotSupported,
+    ContractIdentities, ExecutionContext,
 };
 use antecedent_design::transported_bridge::TransportedSurrogateBridge;
 
@@ -27,7 +27,7 @@ use crate::analysis::supplied_identity::{
     Canonical, Declaration, SetOf, encoded, unencodable, variant,
 };
 use crate::analysis::transported_constructors::{
-    TransportedConstruction, surrogate_bridge_response_kernel,
+    TransportedConstruction, surrogate_bridge_response_kernel, transport_support_refusal,
 };
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -256,13 +256,6 @@ fn bridge_bytes(input: &OwnedBridge) -> Result<[u8; 32], CausalError> {
     })
 }
 
-fn support_refusal(refusal: &NotSupported) -> ExternalRefusal {
-    ExternalRefusal::new(refusal.code(), "bind", refusal.detail).with_remedy(
-        "run the route in a development build, which records the missing evidence, or use a \
-         supported route",
-    )
-}
-
 /// A compiled surrogate bridge, bound to `transport.surrogate_bridge_premise`.
 #[derive(Clone, Debug)]
 pub struct CompiledSurrogateBridge {
@@ -291,7 +284,7 @@ impl CompiledSurrogateBridge {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TransportedConstruction<BridgedClaim>, ExternalRefusal> {
-        self.program.gate(ctx).map_err(|refusal| support_refusal(&refusal))?;
+        self.program.gate(ctx).map_err(|refusal| transport_support_refusal(&refusal))?;
         let input = self.program.input();
         surrogate_bridge_response_kernel(&input.bridge, &input.claim, &input.provider_id)
     }

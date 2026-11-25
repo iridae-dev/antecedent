@@ -11,7 +11,7 @@
 
 use antecedent_contract::evidence_ledger::{EvidenceLedger, SourceId};
 use antecedent_contract::{DataClassification, ExternalRefusal, ScientificQuantity};
-use antecedent_core::{CanonicalWriter, ExecutionContext, NotSupported, SemanticDigest};
+use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use antecedent_design::transported_synthesis::{
     TransportedContribution, TransportedSynthesis, TransportedSynthesisMethod,
 };
@@ -21,7 +21,7 @@ use super::{KernelProgram, KernelProgramShape, KernelRealization};
 use crate::analysis::Study;
 use crate::analysis::supplied_identity::{Canonical, Declaration, encoded, variant};
 use crate::analysis::transported_constructors::{
-    TransportedConstruction, transported_synthesis_response_kernel,
+    TransportedConstruction, transport_support_refusal, transported_synthesis_response_kernel,
 };
 use crate::error::CausalError;
 use crate::planner::PlanView;
@@ -175,13 +175,6 @@ fn synthesis_bytes(input: &OwnedSynthesis) -> Result<[u8; 32], CausalError> {
     })
 }
 
-fn support_refusal(refusal: &NotSupported) -> ExternalRefusal {
-    ExternalRefusal::new(refusal.code(), "bind", refusal.detail).with_remedy(
-        "run the route in a development build, which records the missing evidence, or use a \
-         supported route",
-    )
-}
-
 /// A compiled transported synthesis. The cell is the method's unit.
 #[derive(Clone, Debug)]
 pub struct CompiledTransportedSynthesis {
@@ -213,7 +206,7 @@ impl CompiledTransportedSynthesis {
         ledger: &mut EvidenceLedger,
         ctx: &ExecutionContext,
     ) -> Result<TransportedConstruction<TransportedSynthesis>, ExternalRefusal> {
-        self.program.gate(ctx).map_err(|refusal| support_refusal(&refusal))?;
+        self.program.gate(ctx).map_err(|refusal| transport_support_refusal(&refusal))?;
         let input = self.program.input();
         transported_synthesis_response_kernel(
             ledger,
