@@ -1183,7 +1183,28 @@ pub(crate) enum DiscoverData<'a> {
     MultiEnv(&'a MultiEnvironmentData),
 }
 
+impl<'a> From<&'a super::builder::DataInput> for DiscoverData<'a> {
+    fn from(input: &'a super::builder::DataInput) -> Self {
+        use super::builder::DataInput;
+        match input {
+            DataInput::Tabular(data) => Self::Tabular(data),
+            DataInput::Temporal(series) | DataInput::Event(series) => Self::Series(series),
+            DataInput::Panel(panel) => Self::Panel(panel),
+            DataInput::MultiEnv(multi) => Self::MultiEnv(multi),
+        }
+    }
+}
+
 impl DiscoverData<'_> {
+    pub(crate) fn admit_search(
+        &self,
+        query: &DiscoverQuery,
+        ctx: &ExecutionContext,
+        stage: &'static str,
+    ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+        admit(ctx, discovery_route::discovery_quote(query, self.rows()), stage)
+    }
+
     fn modality(&self) -> &'static str {
         match self {
             Self::Tabular(_) => "tabular",
@@ -1212,7 +1233,7 @@ mod selective_route;
 pub use selective_route::SelectiveSearchResult;
 
 pub use discovery_route::panel_of_units;
-pub(crate) use discovery_route::{admit, discovery_quote, run_discovery};
+pub(crate) use discovery_route::{admit, run_discovery};
 
 pub(crate) mod model_operations;
 mod model_routes;
@@ -1283,8 +1304,8 @@ mod acceptance;
 mod discovery_admission;
 
 pub(crate) use acceptance::attach_specifications;
-pub(crate) use discovery_admission::admit_finished_discovery;
 pub use acceptance::{AcceptedPosterior, accept_discovered, accept_discovered_posterior};
+pub(crate) use discovery_admission::admit_finished_discovery;
 
 // ---------------------------------------------------------------------------
 // One-call execution

@@ -27,7 +27,7 @@ use super::{
 use crate::analysis::structure_route::{
     AttributionFit, AttributionOutcome, AttributionPayload, ChangeReading, DiscoverData,
     DiscoveredStructure, DiscoveryPayload, MechanismProgram, SimulationOutcome, SimulationPayload,
-    admit, discovery_quote, model_quote, run_attribute_with_fit, run_discovery, run_simulate,
+    admit, model_quote, run_attribute_with_fit, run_discovery, run_simulate,
 };
 
 /// Identifier a structure search records: it identifies no causal contrast;
@@ -374,13 +374,7 @@ impl super::Study {
         physical: &PhysicalExecutionPlan,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let data = match data {
-            DataInput::Tabular(data) => DiscoverData::Tabular(data),
-            DataInput::Temporal(series) | DataInput::Event(series) => DiscoverData::Series(series),
-            DataInput::Panel(panel) => DiscoverData::Panel(panel),
-            DataInput::MultiEnv(multi) => DiscoverData::MultiEnv(multi),
-        };
-        self.run_discover(&data, physical, ctx)
+        self.run_discover(&DiscoverData::from(data), physical, ctx)
     }
 
     fn run_discover(
@@ -410,7 +404,7 @@ impl super::Study {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: DISCOVER_STAGE });
         }
-        let lease = admit(ctx, discovery_quote(query, data.rows()), "structure search")?;
+        let lease = data.admit_search(query, ctx, "structure search")?;
         let structure = run_discovery(spec, query, data, self.declared.sampling_design, ctx)?;
         drop(lease);
         if ctx.cancellation.is_cancelled() {

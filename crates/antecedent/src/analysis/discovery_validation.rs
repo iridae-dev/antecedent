@@ -39,9 +39,8 @@ pub use antecedent_validate::{
 };
 
 use crate::analysis::Study;
-use crate::analysis::builder::DataInput;
 use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
-use crate::analysis::structure_route::{DiscoverData, DiscoverySpec, admit, discovery_quote};
+use crate::analysis::structure_route::{DiscoverData, DiscoverySpec};
 use crate::discovery::DiscoverParams;
 use crate::discovery::engines::{jpcmci_plus_for, pcmci_for, pcmci_plus_for, rpcmci_for};
 use crate::error::CausalError;
@@ -269,15 +268,6 @@ fn wrong_search(message: impl std::fmt::Display) -> CausalError {
     )
 }
 
-fn data_of(data: &DataInput) -> DiscoverData<'_> {
-    match data {
-        DataInput::Tabular(data) => DiscoverData::Tabular(data),
-        DataInput::Temporal(series) | DataInput::Event(series) => DiscoverData::Series(series),
-        DataInput::Panel(panel) => DiscoverData::Panel(panel),
-        DataInput::MultiEnv(multi) => DiscoverData::MultiEnv(multi),
-    }
-}
-
 fn one_series<'a>(
     check: &DiscoveryCheck,
     data: &DiscoverData<'a>,
@@ -475,8 +465,8 @@ impl Study {
         let lowered =
             Arc::new(crate::analysis::lowering::discovery_validation::lower(search, &check)?);
         gate_program(ctx, &CheckProgram(Arc::clone(&lowered)))?;
-        let data = data_of(&self.data);
-        let lease = admit(ctx, discovery_quote(query, data.rows()), "discovery validation")?;
+        let data = DiscoverData::from(&self.data);
+        let lease = data.admit_search(query, ctx, "discovery validation")?;
         let report = run_check(&check, spec, params, &data, &query.variables, ctx)?;
         drop(lease);
         if ctx.cancellation.is_cancelled() {
