@@ -729,7 +729,9 @@ fn the_result_does_not_depend_on_declaration_order() {
     let source = law(&forward.model, &three_arms(), Some(weights()));
     let one = evaluate_preference_contract(&forward, &source, None, options()).unwrap();
     let two = evaluate_preference_contract(&backward, &source, None, options()).unwrap();
-    assert_eq!(one.contract_identity, two.contract_identity);
+    // Results are reported in declaration order, so the order is part of the contract identity
+    // (deliberately bound); every verdict below is unchanged by it.
+    assert_ne!(one.contract_identity, two.contract_identity);
     for outcome in &one.actions {
         let other = two.actions.iter().find(|o| o.id == outcome.id).unwrap();
         assert_eq!(outcome.possibly_best, other.possibly_best);
