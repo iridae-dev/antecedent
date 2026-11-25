@@ -446,7 +446,7 @@ impl Admg {
                 pairs.push((from_var, self.static_variable(to)?));
             }
         }
-        pairs.sort_unstable();
+        crate::algo::sort_small(&mut pairs);
         Some(pairs)
     }
 

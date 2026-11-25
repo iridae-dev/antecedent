@@ -337,12 +337,43 @@ struct LabelOrder {
     position: Vec<u32>,
 }
 
+/// Longest run [`sort_by_order`] orders by insertion.
+const INSERTION_SORT_MAX: usize = 32;
+
+/// Sort `order` by the strict total order `before`: a bounded insertion sort for a short run,
+/// the standard sort beyond it. Both give the same order, and the short path is a plain
+/// bounded loop, so a bounded proof over small graphs never reasons about the library sort.
+fn sort_by_order(order: &mut [usize], before: impl Fn(usize, usize) -> bool) {
+    if order.len() > INSERTION_SORT_MAX {
+        order.sort_by(|&a, &b| {
+            if before(a, b) {
+                core::cmp::Ordering::Less
+            } else if before(b, a) {
+                core::cmp::Ordering::Greater
+            } else {
+                core::cmp::Ordering::Equal
+            }
+        });
+        return;
+    }
+    for at in 1..order.len() {
+        let value = order[at];
+        let mut hole = at;
+        while hole > 0 && before(value, order[hole - 1]) {
+            order[hole] = order[hole - 1];
+            hole -= 1;
+        }
+        order[hole] = value;
+    }
+}
+
 impl LabelOrder {
     fn of(nodes: &[NodeRef]) -> Result<Self, IoError> {
         let labels: Vec<IdentityNodeWire> =
             nodes.iter().map(|&node| IdentityNodeWire::from_node(node)).collect();
         let mut order: Vec<usize> = (0..labels.len()).collect();
-        order.sort_by(|&a, &b| labels[a].cmp(&labels[b]).then(a.cmp(&b)));
+        let before = |a: usize, b: usize| labels[a].cmp(&labels[b]).then(a.cmp(&b)).is_lt();
+        sort_by_order(&mut order, before);
         let mut position = vec![0u32; labels.len()];
         for (new, &old) in order.iter().enumerate() {
             position[old] = u32::try_from(new).map_err(|_| IoError::TooLarge)?;
@@ -1311,5 +1342,28 @@ mod static_identity_bytes {
                 bidirected: vec![(0, 2), (1, 2)],
             })
         );
+    }
+}
+
+#[cfg(test)]
+mod sort_by_order_tests {
+    use super::{INSERTION_SORT_MAX, sort_by_order};
+
+    #[test]
+    fn sort_by_order_matches_the_standard_sort_on_short_and_long_runs() {
+        let mut state = 0x2545_f491_u32;
+        let mut next = move || {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (state >> 24) as usize
+        };
+        for len in [0_usize, 1, 2, 5, INSERTION_SORT_MAX, INSERTION_SORT_MAX + 3, 90] {
+            let labels: Vec<usize> = (0..len).map(|_| next() % 5).collect();
+            let before = |a: usize, b: usize| (labels[a], a) < (labels[b], b);
+            let mut ours: Vec<usize> = (0..len).collect();
+            sort_by_order(&mut ours, before);
+            let mut theirs: Vec<usize> = (0..len).collect();
+            theirs.sort_by_key(|&index| (labels[index], index));
+            assert_eq!(ours, theirs, "length {len}");
+        }
     }
 }

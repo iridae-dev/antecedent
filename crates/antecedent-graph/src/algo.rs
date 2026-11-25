@@ -29,6 +29,29 @@ pub(crate) fn insert_sorted<T: Ord>(list: &mut Vec<T>, value: T) -> bool {
     }
 }
 
+/// Longest run [`sort_small`] orders by insertion.
+const INSERTION_SORT_MAX: usize = 32;
+
+/// Sort `items` ascending: a bounded insertion sort for a short run, the standard unstable
+/// sort beyond it. Both give the same order (equal elements of a total order are identical),
+/// and the short path is a plain bounded loop, so a bounded proof over small graphs never
+/// reasons about the library sort.
+pub(crate) fn sort_small<T: Ord + Copy>(items: &mut [T]) {
+    if items.len() > INSERTION_SORT_MAX {
+        items.sort_unstable();
+        return;
+    }
+    for at in 1..items.len() {
+        let value = items[at];
+        let mut hole = at;
+        while hole > 0 && items[hole - 1] > value {
+            items[hole] = items[hole - 1];
+            hole -= 1;
+        }
+        items[hole] = value;
+    }
+}
+
 /// Directed BFS reachability from `from` to `to` over `children`.
 #[must_use]
 pub(crate) fn bfs_reaches(
@@ -354,5 +377,29 @@ mod tests {
         });
         assert_eq!(reached.into_iter().collect::<Vec<_>>(), vec![0, 1, 2, 3, 4]);
         assert_eq!(expansions, 5);
+    }
+}
+
+#[cfg(test)]
+mod sort_small_tests {
+    use super::{INSERTION_SORT_MAX, sort_small};
+
+    #[test]
+    fn sort_small_orders_as_the_standard_sort_does() {
+        let mut state = 0x9e37_79b9_u32;
+        let mut next = move || {
+            state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            state >> 24
+        };
+        for len in [0, 1, 2, 3, 7, INSERTION_SORT_MAX, INSERTION_SORT_MAX + 1, 100] {
+            for _ in 0..20 {
+                let mut ours: Vec<(u32, u32)> =
+                    (0..len).map(|_| (next() % 6, next() % 4)).collect();
+                let mut theirs = ours.clone();
+                sort_small(&mut ours);
+                theirs.sort_unstable();
+                assert_eq!(ours, theirs, "length {len}");
+            }
+        }
     }
 }

@@ -65,7 +65,7 @@ impl ClaimedLabels {
     /// Sort `recent` and merge it into `sorted`.
     fn merge(&mut self) {
         let mut recent = core::mem::take(&mut self.recent);
-        recent.sort_unstable();
+        crate::algo::sort_small(&mut recent);
         match (self.sorted.last(), recent.first()) {
             (Some(&last), Some(&first)) if last > first => {
                 let mut merged = Vec::with_capacity(self.sorted.len() + recent.len());
