@@ -239,6 +239,11 @@ pub(crate) struct LikelihoodScratch<'a> {
 /// `want_hessian: false` skips the O(n·p²) curvature accumulation entirely
 /// (leaving `neg_hess` zeroed); the gradient is bit-identical either way. HMC
 /// leapfrog steps read only the gradient, so they use the cheap form.
+///
+/// Rows are visited in panels of [`LIKELIHOOD_PANEL_ROWS`]. Each panel is copied
+/// once into the tail of `work_w`; the linear predictor still adds columns from
+/// `0` to `ncols - 1`, and each coefficient then adds that panel's rows in
+/// order. On return, `eta` and `work_w` hold the same per-row results.
 #[allow(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
@@ -252,80 +257,225 @@ pub(crate) fn accumulate_likelihood(
     want_hessian: bool,
 ) -> Result<(f64, bool), ProbError> {
     let LikelihoodScratch { grad, neg_hess, eta, work_w } = scratch;
-    let nrows = design.nrows;
-    let ncols = design.ncols;
     grad.fill(0.0);
     neg_hess.fill(0.0);
     let inv_sigma2 = gaussian_precision(likelihood, gaussian_sigma2)?;
+    let mut pass = LikelihoodPass {
+        likelihood,
+        design,
+        beta,
+        grad,
+        neg_hess,
+        eta,
+        work_w,
+        inv_sigma2,
+        want_hessian,
+        certain_weight: 0.0,
+        total_weight: 0.0,
+    };
+    pass.accumulate()?;
+    let mut ginf: f64 = 0.0;
+    for g in pass.grad.iter() {
+        ginf = ginf.max(g.abs());
+    }
+    let separation = pass.total_weight > 0.0
+        && pass.certain_weight >= SEPARATION_ROW_SHARE * pass.total_weight;
+    Ok((ginf, separation))
+}
 
-    let mut certain_weight = 0.0;
-    let mut total_weight = 0.0;
-    for r in 0..nrows {
-        let offset = design.offsets.map_or(0.0, |o| o[r]);
-        let mut e = offset;
+/// Consecutive rows copied into the tail of [`LikelihoodScratch::work_w`].
+///
+/// 256 rows is 2 KiB of one column, read once, contiguously. A few columns then
+/// keep the staged panel in L1 while each coefficient adds those rows in order.
+/// The tail must hold that panel plus one curvature per row (scores sit just
+/// past the panel's predictors in `eta`), so a short remainder uses fewer rows.
+const LIKELIHOOD_PANEL_ROWS: usize = 256;
+
+const fn panel_height(remaining: usize, ncols: usize) -> usize {
+    if ncols == 0 {
+        return 0;
+    }
+    let fit = remaining / (ncols + 1);
+    if fit < LIKELIHOOD_PANEL_ROWS { fit } else { LIKELIHOOD_PANEL_ROWS }
+}
+
+struct LikelihoodPass<'a> {
+    likelihood: BayesLikelihood,
+    design: BayesDesignRef<'a>,
+    beta: &'a [f64],
+    grad: &'a mut [f64],
+    neg_hess: &'a mut [f64],
+    eta: &'a mut [f64],
+    work_w: &'a mut [f64],
+    inv_sigma2: f64,
+    want_hessian: bool,
+    certain_weight: f64,
+    total_weight: f64,
+}
+
+impl LikelihoodPass<'_> {
+    fn accumulate(&mut self) -> Result<(), ProbError> {
+        let nrows = self.design.nrows;
+        let ncols = self.design.ncols;
+        let mut row = 0;
+        while row < nrows {
+            let height = panel_height(nrows - row, ncols);
+            if height == 0 {
+                return self.direct_from(row);
+            }
+            self.panel(row, height)?;
+            row += height;
+        }
+        Ok(())
+    }
+
+    /// Rows that do not fit a staged panel. Same per-row reads as the unpanelled sweep.
+    fn direct_from(&mut self, start: usize) -> Result<(), ProbError> {
+        let nrows = self.design.nrows;
+        let ncols = self.design.ncols;
+        for r in start..nrows {
+            let offset = self.design.offsets.map_or(0.0, |o| o[r]);
+            let mut e = offset;
+            for c in 0..ncols {
+                e += self.design.x_colmajor[c * nrows + r] * self.beta[c];
+            }
+            let w_obs = self.design.weights.map_or(1.0, |w| w[r]);
+            let Some(score) = self.commit(r, e, w_obs)? else {
+                continue;
+            };
+            for c in 0..ncols {
+                let x = self.design.x_colmajor[c * nrows + r];
+                self.grad[c] += x * score;
+            }
+            // −Hessian = X' diag(−ℓ'') X
+            if self.want_hessian {
+                for c1 in 0..ncols {
+                    let x1 = self.design.x_colmajor[c1 * nrows + r];
+                    for c2 in c1..ncols {
+                        let x2 = self.design.x_colmajor[c2 * nrows + r];
+                        let add = self.work_w[r] * x1 * x2;
+                        self.neg_hess[c1 * ncols + c2] += add;
+                        if c1 != c2 {
+                            self.neg_hess[c2 * ncols + c1] += add;
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Stage `[row, row + height)` and accumulate each coefficient across that panel.
+    fn panel(&mut self, row: usize, height: usize) -> Result<(), ProbError> {
+        let nrows = self.design.nrows;
+        let ncols = self.design.ncols;
+        let x = self.design.x_colmajor;
         for c in 0..ncols {
-            e += design.x_colmajor[c * nrows + r] * beta[c];
+            let from = c * nrows + row;
+            let to = row + height + c * height;
+            self.work_w[to..to + height].copy_from_slice(&x[from..from + height]);
         }
-        eta[r] = e;
-        let w_obs = design.weights.map_or(1.0, |w| w[r]);
-        if w_obs == 0.0 {
-            work_w[r] = 0.0;
-            continue;
+        let mut active = [false; LIKELIHOOD_PANEL_ROWS];
+        for local in 0..height {
+            let r = row + local;
+            let offset = self.design.offsets.map_or(0.0, |o| o[r]);
+            let mut e = offset;
+            let stage = row + height;
+            for c in 0..ncols {
+                e += self.work_w[stage + c * height + local] * self.beta[c];
+            }
+            match self.commit(r, e, self.design.weights.map_or(1.0, |w| w[r])) {
+                Ok(Some(score)) => {
+                    active[local] = true;
+                    // Past this panel's predictors. The next panel overwrites them
+                    // after this coefficient pass has read them.
+                    self.eta[stage + local] = score;
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    self.products(row, height, local, &active);
+                    return Err(err);
+                }
+            }
         }
-        let y = design.y[r];
+        self.products(row, height, height, &active);
+        Ok(())
+    }
 
-        let terms = glm_observation_terms(likelihood, y, e, w_obs, inv_sigma2)?;
+    /// `eta` and `work_w` for one row. `None` is a zero weight: no score, no curvature term.
+    fn commit(&mut self, row: usize, eta_value: f64, w_obs: f64) -> Result<Option<f64>, ProbError> {
+        self.eta[row] = eta_value;
+        if w_obs == 0.0 {
+            self.work_w[row] = 0.0;
+            return Ok(None);
+        }
+        let y = self.design.y[row];
+        let terms = glm_observation_terms(self.likelihood, y, eta_value, w_obs, self.inv_sigma2)?;
         // The separation flag is read only where curvature is (the mode fit);
         // gradient-only leapfrog evaluations discard it, so skip its exp/erfc.
-        if want_hessian
+        if self.want_hessian
             && matches!(
-                likelihood,
+                self.likelihood,
                 BayesLikelihood::BernoulliLogit | BayesLikelihood::BernoulliProbit
             )
         {
-            let mu = if matches!(likelihood, BayesLikelihood::BernoulliLogit) {
-                antecedent_kernels::sigmoid(e)
+            let mu = if matches!(self.likelihood, BayesLikelihood::BernoulliLogit) {
+                antecedent_kernels::sigmoid(eta_value)
             } else {
-                antecedent_kernels::norm_cdf(e)
+                antecedent_kernels::norm_cdf(eta_value)
             };
             // Certain on the *observed* side: a misclassified extreme row is an outlier, not
             // evidence that the labels are separable.
             let observed_one = y > 0.5;
             let miss = if observed_one { 1.0 - mu } else { mu };
-            total_weight += w_obs;
+            self.total_weight += w_obs;
             if miss < SEPARATION_CERTAINTY {
-                certain_weight += w_obs;
+                self.certain_weight += w_obs;
             }
         }
-        work_w[r] = terms.neg_hessian_eta;
-        let score_scale = terms.score_eta;
+        self.work_w[row] = terms.neg_hessian_eta;
+        Ok(Some(terms.score_eta))
+    }
 
+    /// Add rows `[0, apply)` of a panel whose columns are staged with stride `staged`.
+    ///
+    /// One running sum per coefficient, in row order. Not a partial reduction.
+    fn products(&mut self, row: usize, staged: usize, apply: usize, active: &[bool]) {
+        let ncols = self.design.ncols;
+        let stage = row + staged;
         for c in 0..ncols {
-            let x = design.x_colmajor[c * nrows + r];
-            grad[c] += x * score_scale;
+            let mut g = self.grad[c];
+            for local in 0..apply {
+                if active[local] {
+                    let x = self.work_w[stage + c * staged + local];
+                    g += x * self.eta[stage + local];
+                }
+            }
+            self.grad[c] = g;
         }
-        // −Hessian = X' diag(−ℓ'') X
-        if want_hessian {
+        if !self.want_hessian {
+            return;
+        }
+        for local in 0..apply {
+            if !active[local] {
+                continue;
+            }
+            let r = row + local;
+            let weight = self.work_w[r];
+            // −Hessian = X' diag(−ℓ'') X, from the staged panel, same product order.
             for c1 in 0..ncols {
-                let x1 = design.x_colmajor[c1 * nrows + r];
+                let x1 = self.work_w[stage + c1 * staged + local];
                 for c2 in c1..ncols {
-                    let x2 = design.x_colmajor[c2 * nrows + r];
-                    let add = work_w[r] * x1 * x2;
-                    neg_hess[c1 * ncols + c2] += add;
+                    let x2 = self.work_w[stage + c2 * staged + local];
+                    let add = weight * x1 * x2;
+                    self.neg_hess[c1 * ncols + c2] += add;
                     if c1 != c2 {
-                        neg_hess[c2 * ncols + c1] += add;
+                        self.neg_hess[c2 * ncols + c1] += add;
                     }
                 }
             }
         }
     }
-
-    let mut ginf: f64 = 0.0;
-    for g in grad.iter() {
-        ginf = ginf.max(g.abs());
-    }
-    let separation = total_weight > 0.0 && certain_weight >= SEPARATION_ROW_SHARE * total_weight;
-    Ok((ginf, separation))
 }
 
 fn glm_observation_terms(
