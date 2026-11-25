@@ -11,6 +11,11 @@ use std::sync::Arc;
 use antecedent_contract::DecisionRequest;
 use antecedent_core::{CanonicalWriter, SemanticDigest, VariableId};
 
+use super::planning::canon::CanonPut;
+
+#[path = "child_codec.rs"]
+pub(crate) mod child_codec;
+
 const EVIDENCE_PROGRAM_TAG: &str = "antecedent.lowered_program.evidence";
 
 /// What a source contributes.
@@ -579,7 +584,7 @@ impl UtilityForm {
         }
     }
 
-    fn write(&self, writer: &mut CanonicalWriter) {
+    fn write<S: CanonPut>(&self, writer: &mut S) {
         match self {
             Self::Affine(coefficients) => {
                 writer.text("affine").word(coefficients.len() as u64);
@@ -891,7 +896,7 @@ impl EvsiProgram {
         self.monte_carlo
     }
 
-    fn write(&self, writer: &mut CanonicalWriter) {
+    fn write<S: CanonPut>(&self, writer: &mut S) {
         writer
             .texts(&self.candidates[..])
             .texts(&self.prior_observation_ids[..])
@@ -1008,7 +1013,7 @@ impl DecisionProgram {
         self.scenario_source.as_deref()
     }
 
-    fn write(&self, writer: &mut CanonicalWriter) {
+    fn write<S: CanonPut>(&self, writer: &mut S) {
         writer.text(self.carrier.as_str());
         self.utility.write(writer);
         writer
@@ -1077,6 +1082,12 @@ impl EvidenceDecisionProgram {
     /// Identity of this layer.
     pub(crate) fn identity(&self) -> SemanticDigest {
         let mut writer = CanonicalWriter::new(EVIDENCE_PROGRAM_TAG);
+        self.encode_identity(&mut writer);
+        SemanticDigest::from_bytes(writer.finish())
+    }
+
+    /// The frames [`Self::identity`] hashes. A child codec reads them back.
+    fn encode_identity<S: CanonPut>(&self, writer: &mut S) {
         writer.word(self.sources.len() as u64);
         for source in &*self.sources {
             writer.text(source.role.as_str());
@@ -1098,7 +1109,7 @@ impl EvidenceDecisionProgram {
         match &self.decision {
             Some(decision) => {
                 writer.word(1);
-                decision.write(&mut writer);
+                decision.write(writer);
             }
             None => {
                 writer.word(0);
@@ -1107,13 +1118,12 @@ impl EvidenceDecisionProgram {
         // Written only when present, so a program without a planning request
         // keeps the identity it had before planning goals existed.
         if let Some(planning) = &self.planning {
-            planning.write(&mut writer);
+            planning.write(writer);
         }
         // Likewise for a propagation chain.
         if let Some(chain) = &self.chain {
-            chain.write(&mut writer);
+            chain.write(writer);
         }
-        SemanticDigest::from_bytes(writer.finish())
     }
 }
 

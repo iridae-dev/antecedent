@@ -644,6 +644,80 @@ pub fn identification_product_digest(
     identification_product_digest_wire(&identification_product_wire(result, search_capped)?)
 }
 
+/// Canonical bytes of a nested identity, and the digest those bytes already hash to.
+///
+/// The digest is [`digest_canonical`] of `bytes`. A later resolver refuses the pair when
+/// the bytes no longer hash to `digest`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct NestedDigestBytes {
+    /// Canonical payload.
+    pub bytes: Vec<u8>,
+    /// `digest_canonical(domain, bytes)` for the domain the caller names at resolution.
+    pub digest: SemanticDigest,
+}
+
+/// Hash `bytes` under `domain` with the existing canonical digest.
+#[must_use]
+pub fn nested_digest_bytes(domain: IdentityDomain, bytes: &[u8]) -> NestedDigestBytes {
+    NestedDigestBytes { bytes: bytes.to_vec(), digest: digest_canonical(domain, bytes) }
+}
+
+/// Accept `nested` when its bytes still hash to its digest under `domain`.
+///
+/// # Errors
+///
+/// The stored digest is not the canonical digest of the bytes.
+pub fn resolve_nested_digest(
+    domain: IdentityDomain,
+    nested: &NestedDigestBytes,
+) -> Result<(), IoError> {
+    let got = digest_canonical(domain, &nested.bytes);
+    if got != nested.digest {
+        return Err(IoError::Convert(
+            "nested digest does not match its canonical bytes".into(),
+        ));
+    }
+    Ok(())
+}
+
+/// CBOR bytes of an identification product. Their canonical digest is
+/// [`identification_product_digest_wire`].
+///
+/// # Errors
+///
+/// CBOR failure, or the bytes do not hash to the existing product digest.
+pub fn identification_product_canonical_bytes(
+    wire: &IdentificationProductWire,
+) -> Result<Vec<u8>, IoError> {
+    let bytes = crate::to_cbor(wire)?;
+    let hashed = digest_canonical(IdentityDomain::IdentificationProduct, &bytes);
+    let existing = identification_product_digest_wire(wire)?;
+    if hashed != existing {
+        return Err(IoError::Convert(
+            "identification product canonical bytes do not hash to the existing digest".into(),
+        ));
+    }
+    Ok(bytes)
+}
+
+/// Decode canonical identification-product bytes and re-check the existing digest.
+///
+/// # Errors
+///
+/// The bytes are not one canonical CBOR item, or they do not hash to the product digest.
+pub fn decode_identification_product(
+    bytes: &[u8],
+) -> Result<IdentificationProductWire, IoError> {
+    let wire: IdentificationProductWire = crate::from_cbor(bytes)?;
+    let canonical = identification_product_canonical_bytes(&wire)?;
+    if canonical.as_slice() != bytes {
+        return Err(IoError::Convert(
+            "identification product bytes are not the canonical encoding".into(),
+        ));
+    }
+    Ok(wire)
+}
+
 /// Supported inferential commitments (not numeric knobs).
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct InferentialCommitmentsWire {
@@ -2892,5 +2966,48 @@ mod tests {
             PayloadDigestWire::f64s(ROW_WEIGHTS_PAYLOAD, &[-0.0]).digest,
             "no scale or sign canonicalization"
         );
+    }
+
+    #[test]
+    fn identification_product_canonical_bytes_hash_to_the_existing_digest_and_decode() {
+        use super::{
+            IdentificationProductWire, decode_identification_product, digest_canonical,
+            identification_product_canonical_bytes, identification_product_digest_wire,
+            nested_digest_bytes, resolve_nested_digest,
+        };
+        use antecedent_core::IdentityDomain;
+
+        let wire = IdentificationProductWire {
+            format: antecedent_core::IDENTITY_FORMAT,
+            status: "not_identified".into(),
+            estimands: Vec::new(),
+            arena: crate::ExprArenaWire {
+                derivations: Vec::new(),
+                var_sets: Vec::new(),
+                interventions: Vec::new(),
+                lists: Vec::new(),
+                nodes: Vec::new(),
+            },
+            derivation_rules: vec!["backdoor".into()],
+            required_assumptions: Vec::new(),
+            hedge: false,
+            search_capped: true,
+            envelope: None,
+        };
+        let bytes = identification_product_canonical_bytes(&wire).expect("canonical bytes");
+        let nested = nested_digest_bytes(IdentityDomain::IdentificationProduct, &bytes);
+        resolve_nested_digest(IdentityDomain::IdentificationProduct, &nested).expect("resolve");
+        assert_eq!(
+            nested.digest,
+            identification_product_digest_wire(&wire).expect("existing digest")
+        );
+        assert_eq!(
+            digest_canonical(IdentityDomain::IdentificationProduct, &bytes),
+            nested.digest
+        );
+        assert_eq!(decode_identification_product(&bytes).expect("decode"), wire);
+        let mut tampered = bytes.clone();
+        tampered.push(0);
+        assert!(decode_identification_product(&tampered).is_err());
     }
 }

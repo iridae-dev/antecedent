@@ -11,8 +11,13 @@
 
 use std::sync::Arc;
 
-use antecedent_core::{CanonicalWriter, SemanticDigest};
+use antecedent_core::SemanticDigest;
 use antecedent_design::planning::PlanningRequest;
+
+#[path = "canon.rs"]
+pub(crate) mod canon;
+
+use canon::CanonPut;
 
 /// Bytes of one replicate's retained outcome: decision flags, the estimate, its
 /// variance, the stopping look and the enrolled units.
@@ -112,7 +117,7 @@ impl PlanningProgram {
 
     /// Write the program to a lowered identity. The quote is physical
     /// accounting derived from the request, which the identity already covers.
-    pub(crate) fn write(&self, writer: &mut CanonicalWriter) {
+    pub(crate) fn write<S: CanonPut>(&self, writer: &mut S) {
         writer.text("planning").bytes(self.request_identity.as_bytes());
     }
 }

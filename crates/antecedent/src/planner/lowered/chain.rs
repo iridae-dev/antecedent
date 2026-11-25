@@ -14,8 +14,9 @@
 use std::sync::Arc;
 
 use antecedent_contract::propagation_chain::ChainPlan;
-use antecedent_core::CanonicalWriter;
 use antecedent_io::propagation_chain_record::{ChainDeferredTableWire, PropagationChainRecordWire};
+
+use super::planning::canon::CanonPut;
 
 /// The chain a program was lowered from.
 #[derive(Clone, Debug, PartialEq)]
@@ -74,7 +75,7 @@ impl ChainProgram {
         self.plan.dependents_of(source)
     }
 
-    pub(crate) fn write(&self, writer: &mut CanonicalWriter) {
+    pub(crate) fn write<S: CanonPut>(&self, writer: &mut S) {
         writer.text(&self.declaration_identity).text(self.plan.label);
         writer.word(self.plan.stages.len() as u64);
         for stage in &self.plan.stages {
