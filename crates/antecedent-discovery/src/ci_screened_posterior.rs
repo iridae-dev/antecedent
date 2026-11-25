@@ -252,14 +252,13 @@ impl CiScreenedPosterior {
     /// `max_variables` of them. On that set the exact dynamic program runs with the screen as a
     /// per-edge prior: both directions of a pair the screen kept get `in_probability`, every
     /// other pair gets `out_probability`. Edges the caller's own [`GraphPrior::edge_priors`] list
-    /// keep the caller's probability. The exact ceiling
-    /// ([`crate::EXACT_MARGINAL_MAX_NODES`]) then applies to the selected set, per question,
-    /// not to the number of variables screened.
+    /// keep the caller's probability. The selected set's subset-pair visits and table bytes are
+    /// quoted against the execution, per question, not against the number of variables screened.
     ///
     /// # Errors
     ///
-    /// An empty or unknown `focus`, more focus variables than `max_variables`, a
-    /// `max_variables` above the exact ceiling, probabilities outside `(0, 1)`, an invalid
+    /// An empty or unknown `focus`, more focus variables than `max_variables`, a visit or byte
+    /// quote the execution does not hold, probabilities outside `(0, 1)`, an invalid
     /// prior, screening failures, or the exact computation's refusals.
     #[allow(
         clippy::too_many_arguments,
@@ -290,12 +289,12 @@ impl CiScreenedPosterior {
                 ),
             });
         }
-        if max_variables == 0 || max_variables > crate::exact_marginals::EXACT_MARGINAL_MAX_NODES {
+        if max_variables == 0 {
             return Err(DiscoveryError::unsupported(
-                "screen-then-exact marginals take between 1 and EXACT_MARGINAL_MAX_NODES \
-                 (15) variables per question",
+                "screen-then-exact marginals need at least one variable in the question",
             ));
         }
+        crate::exact_marginals::admit_exact_marginals(max_variables, ctx)?;
         let focus_idx: Vec<usize> = focus
             .iter()
             .map(|v| {

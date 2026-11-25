@@ -45,7 +45,19 @@ pub fn graph_imputation_supported_mask(
     outcome: usize,
     support: GraphSupport,
 ) -> bool {
-    (2..=MAX_VARIABLES).contains(&n)
+    // Eight is the word width of the `u64` listing. A wider mask is scored by
+    // [`graph_imputation_exact_from_masks`], which admits the mask's own bytes.
+    (2..=MAX_VARIABLES).contains(&n) && imputation_mask_supported(mask, n, treatment, outcome, support)
+}
+
+fn imputation_mask_supported(
+    mask: &AdjacencyMask,
+    n: usize,
+    treatment: usize,
+    outcome: usize,
+    support: GraphSupport,
+) -> bool {
+    n >= 2
         && treatment < n
         && outcome < n
         && treatment != outcome
@@ -207,6 +219,8 @@ pub fn graph_imputation_exact_dags(
 ) -> Result<GraphPosterior, BoundedExactDagError> {
     use crate::adjacency_mask::dag_from_adjacency_mask;
     let n = variables.len();
+    // Two through eight is the width of this `u64` argument (`n * (n - 1) <= 64`).
+    // Wider graphs enter through [`graph_imputation_exact_from_masks`].
     if !(2..=MAX_VARIABLES).contains(&n)
         || treatment == outcome
         || treatment.raw() as usize >= n
@@ -275,6 +289,118 @@ pub fn graph_imputation_exact_dags(
             "{rejected} DAG(s) excluded because their BIC scores were not finite"
         )));
     }
+    Ok(GraphPosterior::from_atoms(
+        n,
+        weights,
+        masks,
+        edge,
+        orient,
+        SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
+    )?
+    .with_algorithm("exact_dag_posterior"))
+}
+
+/// Score retained [`AdjacencyMask`]s. The pool admits the bytes of the widest mask before any
+/// mask is scored.
+///
+/// [`graph_imputation_exact_dags`] stays the one-word entry (2 to 8 variables, the width of its
+/// `u64` argument). This entry takes the mask itself, including a graph on more than eight
+/// variables. An inline mask is 32 bytes, the same encoding a one-word graph already has.
+///
+/// # Errors
+///
+/// A mask the pool does not hold, a graph the support rule or the DAG check rejects with no
+/// finite score left, or a native scoring refusal.
+pub fn graph_imputation_exact_from_masks(
+    data: &TabularData,
+    variables: &[VariableId],
+    treatment: VariableId,
+    outcome: VariableId,
+    support: GraphSupport,
+    retained: &[AdjacencyMask],
+    budget: &antecedent_core::search::SearchBudget<'_>,
+) -> Result<GraphPosterior, BoundedExactDagError> {
+    use crate::adjacency_mask::dag_from_adjacency_mask;
+    use crate::graph_posterior::EXACT_ENUM_MAX_NODES;
+    let n = variables.len();
+    if n < 2
+        || !crate::adjacency_mask::edge_bits_fit(n)
+        || treatment == outcome
+        || treatment.raw() as usize >= n
+        || outcome.raw() as usize >= n
+        || variables.iter().enumerate().any(|(index, id)| id.raw() as usize != index)
+    {
+        return Err(DiscoveryError::unsupported(
+            "graph imputation requires at least 2 variables whose edge bits a u32 index addresses",
+        )
+        .into());
+    }
+    let bytes =
+        retained.iter().map(AdjacencyMask::admission_bytes).max().unwrap_or(0).max(1);
+    if let Err(stop) = budget.admits(1, bytes, 0) {
+        return Err(BoundedExactDagError::Search(budget.receipt(
+            stop,
+            Vec::new(),
+            vec!["adjacency mask".into()],
+        )));
+    }
+    let score_data = tabular_score_data(data, variables)?;
+    let prior = GraphPrior::uniform();
+    let scorer = (n <= EXACT_ENUM_MAX_NODES).then(|| {
+        DagScorer::new(n, &score_data, GraphScoreFamily::GaussianBic, &prior, variables)
+    });
+    let mut cache = (n > EXACT_ENUM_MAX_NODES).then(|| {
+        antecedent_state::LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
+            GraphScoreFamily::GaussianBic,
+            n,
+            score_data.n_rows,
+        ))
+    });
+    let mut masks = Vec::new();
+    let mut log_weights = Vec::new();
+    let mut rejected = 0u64;
+    for mask in retained {
+        if !imputation_mask_supported(
+            mask,
+            n,
+            treatment.raw() as usize,
+            outcome.raw() as usize,
+            support,
+        ) || dag_from_adjacency_mask(mask, n).is_err()
+        {
+            continue;
+        }
+        let value = if let Some(scorer) = &scorer {
+            scorer.score(mask)
+        } else {
+            crate::graph_score::score_dag_mask(
+                mask,
+                n,
+                &score_data,
+                cache.as_mut().expect(
+                    "a graph past the default width scores through the local cache",
+                ),
+                &prior,
+                variables,
+            )
+        };
+        if let Some(value) = value.filter(|value| value.is_finite()) {
+            masks.push(mask.clone());
+            log_weights.push(value);
+        } else {
+            rejected += 1;
+        }
+    }
+    if rejected > 0 {
+        return Err(BoundedExactDagError::Unscorable { count: rejected });
+    }
+    if masks.is_empty() {
+        return Err(DiscoveryError::unsupported("no finite BIC scores").into());
+    }
+    let weights = normalize_log_weights(&log_weights)?;
+    let ess = kish_ess(&weights);
+    let (edge, orient) = accumulate_marginals(n, &weights, &masks);
+    let diagnostics = analytic_graph_diagnostics(masks.len(), ess);
     Ok(GraphPosterior::from_atoms(
         n,
         weights,
@@ -482,5 +608,86 @@ mod graph_imputation_budget_tests {
         assert_eq!(fresh().charge(1, limit), Ok(()));
         assert_eq!(fresh().charge(2, limit), Err(SearchStop::Depth));
         assert_eq!(fresh().charge(1, limit + 1), Err(SearchStop::Memory));
+    }
+
+    #[test]
+    fn a_one_word_mask_keeps_its_bytes() {
+        let mask = AdjacencyMask::from_word(0b1011);
+        assert_eq!(mask.to_word(), Some(0b1011));
+        let bytes = mask.to_le_bytes();
+        assert_eq!(bytes.len(), 32);
+        assert_eq!(&bytes[..8], &0b1011u64.to_le_bytes());
+        assert_eq!(mask.admission_bytes(), 32);
+    }
+
+    #[test]
+    fn nine_variables_impute_and_convert_when_the_pool_admits_the_mask() {
+        let n = 9usize;
+        let rows = 24usize;
+        let mut rng = antecedent_core::CausalRng::from_seed(9);
+        let columns: Vec<Vec<f64>> = (0..n)
+            .map(|_| (0..rows).map(|_| rng.next_f64() * 2.0 - 1.0).collect())
+            .collect();
+        let data = TabularData::from_f64_columns([
+            ("v0", columns[0].as_slice()),
+            ("v1", columns[1].as_slice()),
+            ("v2", columns[2].as_slice()),
+            ("v3", columns[3].as_slice()),
+            ("v4", columns[4].as_slice()),
+            ("v5", columns[5].as_slice()),
+            ("v6", columns[6].as_slice()),
+            ("v7", columns[7].as_slice()),
+            ("v8", columns[8].as_slice()),
+        ])
+        .unwrap();
+        let variables: Vec<_> =
+            (0..n).map(|index| VariableId::from_raw(u32::try_from(index).unwrap())).collect();
+        let mut mask = AdjacencyMask::EMPTY;
+        mask.set_edge(n, 0, 1, true);
+        mask.set_edge(n, 8, 7, true);
+        assert!(mask.to_word().is_none());
+        assert_eq!(mask.admission_bytes(), 32);
+        let dag = crate::adjacency_mask::dag_from_adjacency_mask(&mask, n).unwrap();
+        assert_eq!(dag.node_count(), 9);
+
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.set_memory_limit(Some(mask.admission_bytes()));
+        let budget = SearchBudget::with_memory(
+            SearchLimits { operations: 64, depth: 4 },
+            mask.admission_bytes(),
+            &ctx,
+        )
+        .unwrap();
+        let posterior = graph_imputation_exact_from_masks(
+            &data,
+            &variables,
+            variables[0],
+            variables[1],
+            GraphSupport::TreatmentDirectEffect,
+            std::slice::from_ref(&mask),
+            &budget,
+        )
+        .unwrap();
+        assert_eq!(posterior.atoms().len(), 1);
+        assert!((posterior.weights()[0] - 1.0).abs() < 1e-12);
+
+        ctx.set_memory_limit(Some(16));
+        let tight =
+            SearchBudget::with_memory(SearchLimits { operations: 64, depth: 4 }, 32, &ctx)
+                .unwrap();
+        let error = graph_imputation_exact_from_masks(
+            &data,
+            &variables,
+            variables[0],
+            variables[1],
+            GraphSupport::TreatmentDirectEffect,
+            std::slice::from_ref(&mask),
+            &tight,
+        )
+        .unwrap_err();
+        let text = error.to_string();
+        assert!(text.contains("search.memory"), "{text}");
+        assert!(text.contains("adjacency mask"), "{text}");
+        assert!(!text.contains("at most"), "{text}");
     }
 }

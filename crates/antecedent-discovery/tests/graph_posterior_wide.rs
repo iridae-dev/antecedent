@@ -910,7 +910,10 @@ fn exact_posterior_matches_independent_enumeration_on_tractable_cases() {
             &ExecutionContext::for_tests(1),
         )
         .unwrap_err();
-    assert!(refused.to_string().contains("n ≤ 6"), "{refused}");
+    let text = refused.to_string();
+    assert!(text.contains("search.operations"), "{text}");
+    assert!(text.contains("exact DAG enumeration"), "{text}");
+    assert!(!text.contains("order MCMC"), "{text}");
 }
 
 #[test]
@@ -939,7 +942,10 @@ fn exact_marginals_respect_the_parent_cap_and_refuse_beyond_their_size() {
         &ExecutionContext::for_tests(1),
     )
     .unwrap_err();
-    assert!(refused.to_string().contains("work budget"), "{refused}");
+    let text = refused.to_string();
+    assert!(text.contains("search.operations"), "{text}");
+    assert!(text.contains("exact marginal recursion"), "{text}");
+    assert!(!text.contains("at most"), "{text}");
 }
 
 /// Both samplers against the exact posterior at ten and twelve variables on 2,000 rows:

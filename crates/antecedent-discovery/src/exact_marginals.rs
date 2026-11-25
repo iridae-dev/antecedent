@@ -1,12 +1,13 @@
 //! Exact edge marginals of the DAG posterior by dynamic programming over node subsets.
 //!
-//! [`crate::ExactDagPosterior`] enumerates every labelled DAG and so stops at six variables
+//! [`crate::ExactDagPosterior`] lists every labelled DAG at its default width of six variables
 //! (3.8 million graphs; seven variables have 1.1 billion). The Gaussian-BIC posterior with a
 //! uniform or independent-Bernoulli edge prior and a parent cap is a product of per-node
 //! factors over the DAGs, `P(G) ∝ Π_v f_v(Pa_v(G))`, and for such a product the sum over all
 //! DAGs, and the sum over the DAGs that contain a given edge, are computed without enumerating
 //! them. The result is the exact `P(i → j)` of every ordered pair, the quantity the samplers
-//! estimate, for as many variables as fit the work budget ([`EXACT_MARGINAL_MAX_NODES`]).
+//! estimate. The subset-pair visits are quoted against the execution; the default operation
+//! declaration is [`EXACT_MARGINAL_WORK_BUDGET`] (fifteen variables is the largest `n` that fits it).
 //!
 //! # The recursion
 //!
@@ -47,20 +48,62 @@ use crate::error::DiscoveryError;
 use crate::graph_posterior::{GraphPrior, GraphPriorTable};
 use crate::graph_score::{ChainTarget, ScoredTarget, tabular_score_data};
 
-/// Work, in subset-pair visits, one exact-marginal computation may cost: `3^n` pairs per pass,
-/// `n` factors per pair, and `n (n - 1) + 1` passes.
+/// Default operation declaration of one exact-marginal computation, in subset-pair visits:
+/// `3^n` pairs per pass, `n` factors per pair, and `n (n - 1) + 1` passes.
 const EXACT_MARGINAL_WORK_BUDGET: u128 = 1 << 36;
 
 /// The subset-pair visits an exact-marginal run on `n` variables costs.
-#[allow(clippy::cast_possible_truncation, reason = "callers bound n below the machine word width")]
+///
+/// A product that does not fit in `u128` is reported as [`u128::MAX`]: it does not fit the
+/// default declaration.
 const fn exact_marginal_work(n: usize) -> u128 {
-    3u128.pow(n as u32) * n as u128 * (n * n.saturating_sub(1) + 1) as u128
+    if n >= 128 {
+        return u128::MAX;
+    }
+    let Some(base) = 3u128.checked_pow(n as u32) else {
+        return u128::MAX;
+    };
+    let n = n as u128;
+    let passes = n * n.saturating_sub(1) + 1;
+    base.saturating_mul(n).saturating_mul(passes)
 }
 
-/// Most variables the exact marginals are computed for: the largest `n` whose work
-/// ([`exact_marginal_work`]) fits the budget, `3^15 * 15 * 211` visits at fifteen. The budget,
-/// not the representation of a parent set, is the limit.
+/// Largest `n` whose subset-pair visits fit the default declaration
+/// [`EXACT_MARGINAL_WORK_BUDGET`]: `3^15 * 15 * 211` at fifteen. A larger `n` is an operations
+/// receipt against that declaration. This constant is not a second refusal: the visit quote is
+/// what stops the recursion.
 pub const EXACT_MARGINAL_MAX_NODES: usize = 15;
+
+/// Bytes of the subset tables (`3n + 3` arrays of `2^n` floats) before they are allocated.
+///
+/// `None` when `n` is at least the width of a `usize` bit index. That width is the index of a
+/// parent-set bitset, not a work cap.
+fn marginal_table_bytes(n: usize) -> Option<u64> {
+    if n >= usize::BITS as usize {
+        return None;
+    }
+    let sets = 1u64 << n;
+    let arrays = (3 * n as u64).checked_add(3)?;
+    sets.checked_mul(8)?.checked_mul(arrays)
+}
+
+/// Quote subset-pair visits and table bytes against the execution. A miss is a receipt and the
+/// recursion is not entered.
+pub(crate) fn admit_exact_marginals(
+    n: usize,
+    ctx: &ExecutionContext,
+) -> Result<(), DiscoveryError> {
+    let work = u64::try_from(exact_marginal_work(n)).unwrap_or(u64::MAX);
+    let bytes = marginal_table_bytes(n).unwrap_or(u64::MAX);
+    let operations = usize::try_from(EXACT_MARGINAL_WORK_BUDGET).unwrap_or(usize::MAX);
+    crate::exact_enumeration::admit_quote(
+        ctx,
+        operations,
+        bytes,
+        work,
+        "exact marginal recursion",
+    )
+}
 
 /// The exact edge marginals of a DAG posterior.
 #[derive(Clone, Debug, PartialEq)]
@@ -126,7 +169,7 @@ impl ExactDagMarginals {
 ///
 /// # Errors
 ///
-/// Invalid constraints, more than [`EXACT_MARGINAL_MAX_NODES`] variables, a score family outside the supported Gaussian families, data that cannot be scored, no constraint-valid DAG with a finite score,
+/// Invalid constraints, a visit or byte quote the execution does not hold, a score family outside the supported Gaussian families, data that cannot be scored, no constraint-valid DAG with a finite score,
 /// or cancellation.
 pub fn exact_dag_marginals(
     data: &TabularData,
@@ -143,14 +186,7 @@ pub fn exact_dag_marginals(
             "exact DAG marginals require at least one variable",
         ));
     }
-    // The subset tables are indexed by `1 << n`, and `3^n` pairs in `u128` stay in range below
-    // `usize::BITS` nodes; the work budget is far tighter.
-    if n >= usize::BITS as usize || exact_marginal_work(n) > EXACT_MARGINAL_WORK_BUDGET {
-        return Err(DiscoveryError::unsupported(
-            "exact DAG marginals exceed their work budget beyond 15 variables \
-             (EXACT_MARGINAL_MAX_NODES); use order_mcmc or structure_mcmc",
-        ));
-    }
+    admit_exact_marginals(n, ctx)?;
     if score_family == GraphScoreFamily::GaussianSignedUniform {
         let data = tabular_score_data(data, variables)?;
         let (prior_table, mut factors) =
@@ -395,5 +431,20 @@ mod tests {
         assert!((cell(2, 1) - r * r / z).abs() < 1e-9);
         assert!(cell(0, 2).abs() < 1e-9 && cell(2, 0).abs() < 1e-9);
         assert!((result.log_evidence - (-1000.0 + z.ln())).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_visit_quote_past_the_declaration_is_an_operations_receipt() {
+        let ctx = ExecutionContext::for_tests(0);
+        let text = admit_exact_marginals(EXACT_MARGINAL_MAX_NODES + 1, &ctx).unwrap_err().to_string();
+        assert!(text.contains("search.operations"), "{text}");
+        assert!(text.contains("unevaluated [exact marginal recursion]"), "{text}");
+        assert!(!text.contains("at most"), "{text}");
+        assert!(!text.contains("order_mcmc"), "{text}");
+        let mut tight = ExecutionContext::for_tests(0);
+        tight.set_memory_limit(Some(1));
+        let text = admit_exact_marginals(2, &tight).unwrap_err().to_string();
+        assert!(text.contains("search.memory"), "{text}");
+        assert!(text.contains("exact marginal recursion"), "{text}");
     }
 }

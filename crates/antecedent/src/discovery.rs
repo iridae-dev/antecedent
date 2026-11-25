@@ -474,11 +474,15 @@ pub fn discover_notears(
     engines::discover_notears(data, variables, params, lambda, threshold, standardize, ctx)
 }
 
-/// Exact DAG posterior enumeration (`n ≤ 6`, Gaussian BIC).
+/// Exact DAG posterior enumeration (Gaussian BIC).
+///
+/// The default engine's listing width is [`EXACT_ENUM_MAX_NODES`]. A wider graph is routed to
+/// order MCMC. A caller who declares a wider listing gets the exact posterior when the
+/// execution pool holds the byte quote, and a resource receipt when it does not.
 ///
 /// # Errors
 ///
-/// Discovery failures (oversized graph, empty support, score/data errors).
+/// Discovery failures (a quote the execution does not hold, empty support, score/data errors).
 #[doc(hidden)]
 #[deprecated(
     since = "3.1.0",
@@ -532,16 +536,16 @@ pub fn discover_pag_mcmc(
     engines::discover_pag_mcmc(data, variables, schedule, ctx)
 }
 
-/// Exact edge marginals of the DAG posterior for `7 ≤ n ≤ 12` variables (Gaussian BIC).
+/// Exact edge marginals of the DAG posterior (Gaussian BIC).
 ///
-/// Above [`EXACT_ENUM_MAX_NODES`] the enumerating engine cannot list the graphs, but the
-/// marginal `P(i → j)` of every ordered pair and the normalizing constant are still exact
-/// (sink recursion over node subsets). Graph atoms, a MAP graph and any quantity that needs the
-/// list of graphs are not computed and are not approximated.
+/// The default operation declaration admits the visit quote of [`EXACT_MARGINAL_MAX_NODES`]
+/// variables. A wider visit quote, or a table the execution pool does not hold, is a resource
+/// receipt. The recursion is not entered. Graph atoms, a MAP graph and any quantity that needs
+/// the list of graphs are not computed.
 ///
 /// # Errors
 ///
-/// More than [`EXACT_MARGINAL_MAX_NODES`] variables, invalid constraints, score/data errors.
+/// A visit quote or table the execution does not hold, invalid constraints, score/data errors.
 #[doc(hidden)]
 #[deprecated(
     since = "3.1.0",
@@ -776,12 +780,12 @@ pub fn discover_ci_screened_posterior(
 }
 
 /// Screen a wide variable set by conditional independence, then compute the exact edge
-/// marginals of at most [`EXACT_MARGINAL_MAX_NODES`] variables around `focus`, with the screen's
-/// edges as per-edge prior probabilities. Every marginal is conditional on the screen.
+/// marginals around `focus`, with the screen's edges as per-edge prior probabilities. Every
+/// marginal is conditional on the screen. The visit quote is the one exact marginals use.
 ///
 /// # Errors
 ///
-/// Screening failures, an empty or unknown `focus`, a set size above the exact ceiling,
+/// Screening failures, an empty or unknown `focus`, a visit quote the execution does not hold,
 /// probabilities outside `(0, 1)`, or the exact computation's refusals.
 #[doc(hidden)]
 #[allow(clippy::too_many_arguments, reason = "one screened question, stated field by field")]

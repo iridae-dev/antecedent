@@ -1,9 +1,10 @@
-//! Exact DAG posterior enumeration for very small graphs.
+//! Exact DAG posterior enumeration for small graphs.
 //!
-//! Enumeration lists every labeled DAG, so it reaches **`n ≤ `[`EXACT_ENUM_MAX_NODES`]**
-//! nodes (Gaussian BIC). Larger problems are routed to order MCMC, and the exact edge
-//! marginals of up to [`crate::EXACT_MARGINAL_MAX_NODES`] variables come from the subset
-//! recursion of [`crate::exact_dag_marginals`], which does not list graphs.
+//! The default engine lists every labeled DAG on at most [`EXACT_ENUM_MAX_NODES`] nodes and
+//! samples a wider graph with order MCMC. A caller who declares a wider listing gets that
+//! listing when the execution pool holds its byte quote, and a search receipt when it does
+//! not. Exact edge marginals come from the subset recursion of [`crate::exact_dag_marginals`],
+//! which does not list graphs.
 //!
 //! "Exact" means every DAG is enumerated, not that the weights are exact posterior
 //! probabilities: each graph's weight is `exp(BIC + log prior)`, the BIC approximation to the
@@ -28,15 +29,16 @@ use crate::graph_posterior::{
 };
 use crate::graph_score::{DagScorer, tabular_score_data};
 
-/// Exact enumeration engine for labeled DAGs on `n ≤ `[`EXACT_ENUM_MAX_NODES`] nodes.
+/// Exact enumeration engine for labeled DAGs.
 ///
-/// Enumeration cannot list the graphs of a larger problem (seven nodes have 1.1 billion), so
-/// above the cap the run is routed to [`crate::OrderMcmc`] when [`Self::route_larger`] is set
-/// (the default), and the posterior says so in its diagnostics notes and algorithm tag.
-/// Without routing the run is refused.
+/// The default width is [`EXACT_ENUM_MAX_NODES`]. Above that width the run is routed to
+/// [`crate::OrderMcmc`] when [`Self::route_larger`] is set (the default), and the posterior
+/// says so in its diagnostics notes and algorithm tag. A declared wider listing is enumerated
+/// when the pool holds the byte quote; a quote the pool does not hold is a receipt, and the
+/// sampler is not entered.
 #[derive(Clone, Debug)]
 pub struct ExactDagPosterior {
-    /// Node cap for enumeration (defaults to [`EXACT_ENUM_MAX_NODES`]).
+    /// Declared enumeration width (defaults to [`EXACT_ENUM_MAX_NODES`]).
     pub max_nodes: usize,
     /// Sample larger problems with order MCMC instead of refusing them.
     pub route_larger: bool,
@@ -62,10 +64,11 @@ impl ExactDagPosterior {
         self
     }
 
-    /// Override max nodes (still capped at [`EXACT_ENUM_MAX_NODES`]).
+    /// Declare the enumeration width. The pool admits the byte quote of a listing this wide;
+    /// the declaration is not clamped to [`EXACT_ENUM_MAX_NODES`].
     #[must_use]
     pub fn with_max_nodes(mut self, max_nodes: usize) -> Self {
-        self.max_nodes = max_nodes.min(EXACT_ENUM_MAX_NODES);
+        self.max_nodes = max_nodes;
         self
     }
 
@@ -95,16 +98,37 @@ impl ExactDagPosterior {
                 "exact DAG posterior requires at least one variable",
             ));
         }
-        let cap = self.max_nodes.min(EXACT_ENUM_MAX_NODES);
-        if n > cap {
-            if !self.route_larger {
-                return Err(DiscoveryError::unsupported(
-                    "exact DAG posterior requires n ≤ 6 variables (EXACT_ENUM_MAX_NODES); \
-                     use order_mcmc, structure_mcmc, or ci_screened_posterior",
-                ));
+        if n > self.max_nodes {
+            if self.route_larger {
+                return Self::sample_instead(
+                    data,
+                    variables,
+                    prior,
+                    score_family,
+                    workspace,
+                    ctx,
+                    self.max_nodes,
+                );
             }
-            return Self::sample_instead(data, variables, prior, score_family, workspace, ctx, cap);
+            let bytes = enumeration_bytes(n).max(1);
+            return match admit_quote(
+                ctx,
+                self.max_nodes,
+                bytes,
+                u64::try_from(n).unwrap_or(u64::MAX),
+                "exact DAG enumeration",
+            ) {
+                Err(error) => Err(error),
+                Ok(()) => Err(DiscoveryError::unsupported(
+                    "exact DAG enumeration was not entered",
+                )),
+            };
         }
+
+        // The byte quote is one mask per labeled DAG (32 bytes, the inline mask). It is
+        // compared with the pool before any graph is built or scored.
+        let bytes = enumeration_bytes(n).max(1);
+        admit_quote(ctx, usize::MAX, bytes, 0, "exact DAG enumeration")?;
 
         let score_data = tabular_score_data(data, variables)?;
         if !matches!(
@@ -115,34 +139,65 @@ impl ExactDagPosterior {
                 "exact DAG posterior supports GaussianBic or GaussianSignedUniform",
             ));
         }
-
-        // Check before allocating/enumerating millions of DAGs. These are the
-        // exact labeled DAG counts for the supported sizes 0..=6.
-        let dag_counts: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
-        let est_bytes = dag_counts[n].saturating_mul(32);
-        if let Some(hard) = ctx.memory_limit_bytes()
-            && est_bytes > hard
-        {
-            return Err(DiscoveryError::Resource(format!(
-                "exact DAG enumeration needs ~{est_bytes} bytes; hard limit {hard}"
-            )));
+        // The listing's node set is a byte. Eight is that width; a wider listing is not entered.
+        if n > MAX_ENUM_NODES {
+            return match admit_quote(
+                ctx,
+                MAX_ENUM_NODES,
+                bytes,
+                u64::try_from(n).unwrap_or(u64::MAX),
+                "exact DAG enumeration",
+            ) {
+                Err(error) => Err(error),
+                Ok(()) => Err(DiscoveryError::unsupported("exact DAG enumeration was not entered")),
+            };
         }
 
-        let scorer = if score_family == GraphScoreFamily::GaussianSignedUniform {
-            DagScorer::signed_uniform(&score_data, prior, variables, ctx)?
-        } else {
-            DagScorer::new(n, &score_data, score_family, prior, variables)
-        };
         let masks = enumerate_unique_dags(n);
-        let scored = ctx.map_indexed(masks.len(), |index, inner| {
-            if inner.cancellation.is_cancelled() {
-                return Err(DiscoveryError::Cancelled);
-            }
-            Ok(match scorer.score(&masks[index]) {
-                Some(lw) => (lw, 0u64),
-                None => (f64::NEG_INFINITY, 1u64),
-            })
-        })?;
+        let scored = if n <= EXACT_ENUM_MAX_NODES
+            || score_family == GraphScoreFamily::GaussianSignedUniform
+        {
+            let scorer = if score_family == GraphScoreFamily::GaussianSignedUniform {
+                DagScorer::signed_uniform(&score_data, prior, variables, ctx)?
+            } else {
+                DagScorer::new(n, &score_data, score_family, prior, variables)
+            };
+            ctx.map_indexed(masks.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
+                Ok(match scorer.score(&masks[index]) {
+                    Some(lw) => (lw, 0u64),
+                    None => (f64::NEG_INFINITY, 1u64),
+                })
+            })?
+        } else {
+            ctx.map_indexed(masks.len(), |index, inner| {
+                if inner.cancellation.is_cancelled() {
+                    return Err(DiscoveryError::Cancelled);
+                }
+                let mut cache = antecedent_state::LocalScoreCache::new(
+                    crate::graph_score::graph_score_cache_key(
+                        score_family,
+                        n,
+                        score_data.n_rows,
+                    ),
+                );
+                Ok(
+                    match crate::graph_score::score_dag_mask(
+                        &masks[index],
+                        n,
+                        &score_data,
+                        &mut cache,
+                        prior,
+                        variables,
+                    ) {
+                        Some(lw) => (lw, 0u64),
+                        None => (f64::NEG_INFINITY, 1u64),
+                    },
+                )
+            })?
+        };
         let mut log_w = Vec::with_capacity(scored.len());
         let mut rejected = 0u64;
         for (lw, rej) in scored {
@@ -231,6 +286,57 @@ impl GraphPosteriorEngine for ExactDagPosterior {
     ) -> Result<GraphPosterior, DiscoveryError> {
         let mut ws = DiscoveryWorkspace::default();
         self.run(data, variables, prior, score_family, &mut ws, ctx)
+    }
+}
+
+/// Bytes of one exact listing: 32 bytes for every labeled DAG, the inline mask.
+///
+/// Counts through six nodes are the historical table, so a default listing quotes the same
+/// bytes it always did.
+pub(crate) fn enumeration_bytes(n: usize) -> u64 {
+    const KNOWN: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
+    let count = if n < KNOWN.len() {
+        KNOWN[n]
+    } else {
+        antecedent_core::graph_imputation_contract::labeled_dag_count(n)
+    };
+    count.saturating_mul(32)
+}
+
+/// Admit `memory` bytes and `work` operations against the execution, before the search is entered.
+///
+/// The effective memory cap is the smaller of `memory` and the pool. A miss is a resource
+/// receipt. Cancellation is [`DiscoveryError::Cancelled`].
+pub(crate) fn admit_quote(
+    ctx: &ExecutionContext,
+    operations: usize,
+    memory: u64,
+    work: u64,
+    unevaluated: &str,
+) -> Result<(), DiscoveryError> {
+    use antecedent_core::search::{SearchBudget, SearchLimits};
+    let budget = SearchBudget::with_memory(
+        SearchLimits { operations, depth: 1 },
+        memory.max(1),
+        ctx,
+    )
+    .map_err(quote_error)?;
+    if let Err(stop) = budget.admits(1, memory.max(1), work) {
+        return Err(quote_error(budget.receipt(
+            stop,
+            Vec::new(),
+            vec![unevaluated.to_owned()],
+        )));
+    }
+    Ok(())
+}
+
+fn quote_error(receipt: antecedent_core::search::SearchReceipt) -> DiscoveryError {
+    use antecedent_core::search::SearchStop;
+    if receipt.stop == SearchStop::Cancelled {
+        DiscoveryError::Cancelled
+    } else {
+        DiscoveryError::Resource(receipt.summary())
     }
 }
 
@@ -454,7 +560,10 @@ mod tests {
                 &ExecutionContext::for_tests(0),
             )
             .unwrap_err();
-        assert!(matches!(err, DiscoveryError::Unsupported { .. }));
+        let text = err.to_string();
+        assert!(text.contains("search.operations"), "{text}");
+        assert!(text.contains("exact DAG enumeration"), "{text}");
+        assert!(!text.contains("order MCMC"), "{text}");
     }
 
     #[test]
@@ -481,8 +590,10 @@ mod tests {
             &mut DiscoveryWorkspace::default(),
             &context,
         );
-        assert!(matches!(result, Err(DiscoveryError::Resource(_))));
-        // Public field mutation must not bypass the documented hard cap.
+        let text = result.unwrap_err().to_string();
+        assert!(text.contains("search.memory"), "{text}");
+        assert!(text.contains("exact DAG enumeration"), "{text}");
+        // A declared width of 100 still does not enter the listing when the pool is short of the quote.
         let engine = ExactDagPosterior { max_nodes: 100, route_larger: false };
         let variables: Vec<_> = (0..7).map(VariableId::from_raw).collect();
         let error = engine
@@ -495,7 +606,28 @@ mod tests {
                 &context,
             )
             .unwrap_err();
-        assert!(error.to_string().contains("n ≤ 6"));
+        let text = error.to_string();
+        assert!(text.contains("search.memory"), "{text}");
+        assert!(!text.contains("order MCMC"), "{text}");
+    }
+
+    #[test]
+    fn seven_nodes_are_quoted_against_the_pool() {
+        let bytes = enumeration_bytes(7);
+        assert_eq!(bytes, 1_138_779_265 * 32);
+        let mut ctx = ExecutionContext::for_tests(1);
+        ctx.set_memory_limit(Some(bytes));
+        admit_quote(&ctx, usize::MAX, bytes, 0, "exact DAG enumeration").unwrap();
+        ctx.set_memory_limit(Some(bytes - 1));
+        let text =
+            admit_quote(&ctx, usize::MAX, bytes, 0, "exact DAG enumeration").unwrap_err().to_string();
+        assert!(text.contains("search.memory"), "{text}");
+        assert!(text.contains("unevaluated [exact DAG enumeration]"), "{text}");
+        assert!(!text.contains("at most"), "{text}");
+        let engine = ExactDagPosterior::new();
+        assert_eq!(engine.max_nodes, EXACT_ENUM_MAX_NODES);
+        assert!(engine.route_larger);
+        assert_eq!(engine.with_max_nodes(7).max_nodes, 7);
     }
 
     /// `cargo test --profile bench -p antecedent-discovery --lib exact_enumeration::tests::timing -- --ignored --nocapture`

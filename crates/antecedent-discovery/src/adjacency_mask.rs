@@ -111,6 +111,15 @@ impl AdjacencyMask {
         self.words().iter().flat_map(|word| word.to_le_bytes()).collect()
     }
 
+    /// Bytes the execution pool admits for this mask: eight bytes for each stored word.
+    ///
+    /// An inline mask, including every graph whose edges fit one `u64`, is four words and
+    /// 32 bytes, the same length as [`Self::to_le_bytes`].
+    #[must_use]
+    pub fn admission_bytes(&self) -> u64 {
+        u64::try_from(self.words().len()).unwrap_or(u64::MAX).saturating_mul(8)
+    }
+
     /// Inverse of [`Self::to_le_bytes`]; a length that is not a multiple of eight is padded
     /// with zero bytes, and trailing zero words are immaterial.
     #[must_use]

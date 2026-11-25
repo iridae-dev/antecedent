@@ -30,10 +30,11 @@ use crate::edge_prior::{EdgePriors, SoftTiers};
 use crate::error::DiscoveryError;
 use crate::result::LaggedLink;
 
-/// Hard cap on labeled nodes for exact DAG enumeration (~3.8M DAGs at 6).
+/// Default width of an exact DAG listing (~3.8M DAGs at 6).
 ///
-/// This is a product limit for [`crate::ExactDagPosterior`]. Larger `n` must use
-/// MCMC (`OrderMcmc` / `StructureMcmc` / `CiScreenedPosterior`).
+/// [`crate::ExactDagPosterior::new`] enumerates up to this width and, above it, samples with
+/// order MCMC. A caller who declares a wider listing with [`crate::ExactDagPosterior::with_max_nodes`]
+/// is admitted by the execution pool's byte quote, not by this constant.
 pub const EXACT_ENUM_MAX_NODES: usize = 6;
 
 /// Prior over DAG structures for Bayesian discovery.
@@ -1218,6 +1219,9 @@ pub(crate) fn ensure_nodes_fit(n: usize, message: &'static str) -> Result<(), Di
 // node count, live in `crate::adjacency_mask`.
 
 /// Refuse a node count whose directed edges do not fit one `u64` (`n * (n - 1) > 64`).
+///
+/// This is the width of the `u64` adapter. A wider graph converts through [`AdjacencyMask`];
+/// the bytes of that mask are what the execution pool admits.
 fn require_word_capacity(n_vars: usize, what: &str) -> Result<(), DiscoveryError> {
     if n_directed_edges(n_vars) > 64 {
         return Err(DiscoveryError::data_msg(format!(

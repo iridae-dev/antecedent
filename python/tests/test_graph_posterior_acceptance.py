@@ -223,13 +223,14 @@ def test_exact_marginals_beyond_their_work_budget_are_refused_naming_the_ceiling
     def wide(size: int, prefix: str) -> dict[str, np.ndarray]:
         return {f"{prefix}{i}": columns[i % len(columns)] + 0.01 * i for i in range(size)}
 
-    # The exact route's ceiling is its work budget, fifteen variables; the refusal names the
-    # ceiling and the samplers that have none.
+    # Sixteen variables exceed the default visit declaration. The refusal is the
+    # operations receipt; the recursion is not entered.
     for size in (16, 17):
-        with pytest.raises(Exception, match="work budget beyond 15 variables") as refused:
+        with pytest.raises(Exception, match="search.operations") as refused:
             ExactDagPosterior().run(wide(size, "w"))
-        assert "EXACT_MARGINAL_MAX_NODES" in str(refused.value)
-        assert "order_mcmc" in str(refused.value)
+        text = str(refused.value)
+        assert "exact marginal recursion" in text
+        assert "order_mcmc" not in text
     # Twelve variables are answered; the enumerating entry point cannot list their graphs and
     # routes the run to the order sampler, whose gate refuses the default schedule.
     assert isinstance(ExactDagPosterior().run(data), ExactDagMarginals)

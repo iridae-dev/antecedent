@@ -1614,10 +1614,11 @@ class ExactDagPosterior:
     """Exact DAG posterior with a selectable local score.
 
     Up to 6 variables every DAG is enumerated and ``run`` returns a ``GraphPosterior`` (atoms,
-    weights, marginals). From 7 to 15 variables ``run`` returns :class:`ExactDagMarginals`: the
+    weights, marginals). From 7 variables ``run`` returns :class:`ExactDagMarginals`: the
     exact ``P(i -> j)`` and the log normalizing constant by dynamic programming over node subsets,
-    with no graph atoms (and so no composition with ``analyze``). More than 15 variables are
-    refused naming that size; use ``OrderMcmc``, ``StructureMcmc`` or ``CiScreenedPosterior``.
+    with no graph atoms (and so no composition with ``analyze``). The default visit declaration
+    admits fifteen variables. A wider quote, or a table the execution pool does not hold, is a
+    resource receipt and the recursion is not entered.
 
     Composed: pass the executed ``ExactDagPosterior().run(data)`` as ``discovery=`` with
     ``inference=Bayesian(...)`` to ``analyze`` to mix effect draws over the graph posterior

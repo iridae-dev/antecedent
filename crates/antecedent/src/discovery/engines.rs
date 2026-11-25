@@ -463,7 +463,7 @@ pub(crate) fn discover_pag_mcmc(
 ///
 /// # Errors
 ///
-/// More than `EXACT_MARGINAL_MAX_NODES` variables, invalid constraints, score/data errors.
+/// A visit quote or table the execution does not hold, invalid constraints, score/data errors.
 pub(crate) fn discover_exact_dag_marginals(
     data: &TabularData,
     variables: &[VariableId],

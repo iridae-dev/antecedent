@@ -4,10 +4,12 @@
 //! `i → j` for `ℓ ∈ 1..=max_lag`. Scoring uses Gaussian BIC on the aligned
 //! lagged design (`t = max_lag .. T-1`).
 //!
-//! Exact enumeration is used only while the whole template space is small: the number of
-//! contemporaneous DAGs times `2^lag_bits` must stay within [`DBN_EXACT_MAX_TEMPLATES`]. Every
-//! larger template falls back to template MCMC automatically (or when `force_mcmc` is set);
-//! MCMC handles a template of any width, its lag-edge set being a growable [`LagMask`].
+//! Exact enumeration is the default while the template count (contemporaneous DAGs times
+//! `2^lag_bits`) stays within [`DBN_EXACT_MAX_TEMPLATES`] and the pool holds the byte quote.
+//! A larger default template is sampled. A caller who declares a wider exact listing with
+//! [`DbnPosterior::with_template_limit`] gets that listing when the product's bytes fit the
+//! pool, including a lag mask wider than 64 bits held as a [`LagMask`], and a receipt when
+//! the quote does not fit. [`DbnPosterior::force_mcmc`] stays on template MCMC.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -43,9 +45,10 @@ pub(crate) const DBN_EXACT_MAX_TEMPLATES: u64 = 25 * (1 << 9);
 /// Number of labeled DAGs on `n` nodes, `n = 0..=EXACT_ENUM_MAX_NODES`.
 const LABELED_DAG_COUNTS: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
 
-/// Whether exact enumeration of a `p`-variable template with `n_lag_bits` lag-edge bits stays
-/// within [`DBN_EXACT_MAX_TEMPLATES`]. Computed without overflow: a lag space of 64 or more
-/// bits is never exact.
+/// Whether the default exact listing of a `p`-variable template with `n_lag_bits` lag-edge
+/// bits stays within [`DBN_EXACT_MAX_TEMPLATES`]. A lag space of 64 or more bits does not fit
+/// that declaration. A caller who declares a wider listing quotes the product against the pool
+/// instead, and holds the lag set as a mask.
 fn exact_fits_budget(p: usize, n_lag_bits: usize) -> bool {
     if p > EXACT_ENUM_MAX_NODES || p >= LABELED_DAG_COUNTS.len() || n_lag_bits >= 64 {
         return false;
@@ -53,6 +56,48 @@ fn exact_fits_budget(p: usize, n_lag_bits: usize) -> bool {
     LABELED_DAG_COUNTS[p]
         .checked_mul(1u64 << n_lag_bits)
         .is_some_and(|templates| templates <= DBN_EXACT_MAX_TEMPLATES)
+}
+
+/// A template product the declaration or the word cannot hold. The operations stop is the receipt;
+/// the sampler is not entered.
+fn refuse_template_quote(ctx: &ExecutionContext) -> Result<GraphPosterior, DiscoveryError> {
+    crate::exact_enumeration::admit_quote(ctx, 1, 1, u64::MAX, "exact DBN templates")?;
+    Err(DiscoveryError::unsupported("exact DBN templates were not entered"))
+}
+
+/// Contemporaneous DAGs times `2^lag_bits`, without shifting a `u64`.
+///
+/// `None` when the shift or the product does not fit in `u128` (a lag space of 128 bits or more).
+fn template_product(p: usize, n_lag_bits: usize) -> Option<u128> {
+    let dags = if p < LABELED_DAG_COUNTS.len() {
+        u128::from(LABELED_DAG_COUNTS[p])
+    } else {
+        u128::from(antecedent_core::graph_imputation_contract::labeled_dag_count(p))
+    };
+    let shift = u32::try_from(n_lag_bits).ok()?;
+    let lags = 1u128.checked_shl(shift)?;
+    dags.checked_mul(lags)
+}
+
+/// Bytes of one stored template times the template count. `None` when that product does not fit
+/// in the memory word.
+fn template_bytes(templates: u128) -> Option<u64> {
+    u64::try_from(templates.checked_mul(32)?).ok()
+}
+
+/// Add one to the low `n_bits` of `mask`. Returns false when that addition overflows those bits.
+///
+/// This is the lag-space counter. It does not shift a `u64` by `n_bits`.
+pub(crate) fn increment_lag_mask(mask: &mut LagMask, n_bits: usize) -> bool {
+    for bit in 0..n_bits {
+        let bit = crate::indexing::dense_u32(bit);
+        if !mask.bit(bit) {
+            mask.set_bit(bit, true);
+            return true;
+        }
+        mask.set_bit(bit, false);
+    }
+    false
 }
 
 /// Bounded-lag DBN posterior over a stationary template.
@@ -72,6 +117,10 @@ pub struct DbnPosterior {
     pub n_warmup: u32,
     /// Draws per chain.
     pub n_draws: u32,
+    /// Declared exact-template count. `None` is [`DBN_EXACT_MAX_TEMPLATES`]: a larger product
+    /// is sampled. `Some` asks for an exact listing of that many templates when the pool holds
+    /// the byte quote.
+    template_limit: Option<u64>,
 }
 
 /// What a DBN template is scored against: dimensions, lagged score data, prior and scoring
@@ -110,13 +159,28 @@ impl DbnPosterior {
     /// Construct with the maximum template lag, including zero for a static template.
     #[must_use]
     pub fn new(max_lag: u32) -> Self {
-        Self { max_lag, force_mcmc: false, n_chains: 2, n_warmup: 200, n_draws: 400 }
+        Self {
+            max_lag,
+            force_mcmc: false,
+            n_chains: 2,
+            n_warmup: 200,
+            n_draws: 400,
+            template_limit: None,
+        }
     }
 
     /// Force structure-style MCMC on the template.
     #[must_use]
     pub fn with_force_mcmc(mut self, force: bool) -> Self {
         self.force_mcmc = force;
+        self
+    }
+
+    /// Ask for an exact listing of up to `templates` templates. The pool admits the byte quote
+    /// of that product; a miss is a receipt and the sampler is not entered.
+    #[must_use]
+    pub fn with_template_limit(mut self, templates: u64) -> Self {
+        self.template_limit = Some(templates);
         self
     }
 
@@ -245,7 +309,32 @@ impl DbnPosterior {
             score_family,
             pair_logs: pair_logs.as_deref(),
         };
+        if !use_exact && !self.force_mcmc && self.template_limit.is_some() {
+            return self.run_declared_exact(&target, n_lag_bits, ctx);
+        }
         if use_exact { Self::run_exact(&target, ctx) } else { self.run_mcmc(&target, ctx) }
+    }
+
+    /// Exact listing of a product the caller declared. A quote the pool does not hold is a
+    /// receipt; the sampler is not entered.
+    fn run_declared_exact(
+        &self,
+        target: &DbnTarget<'_>,
+        n_lag_bits: usize,
+        ctx: &ExecutionContext,
+    ) -> Result<GraphPosterior, DiscoveryError> {
+        let declared = u128::from(self.template_limit.unwrap_or(DBN_EXACT_MAX_TEMPLATES));
+        let Some(templates) = template_product(target.p, n_lag_bits) else {
+            return refuse_template_quote(ctx);
+        };
+        if templates > declared {
+            return refuse_template_quote(ctx);
+        }
+        let Some(bytes) = template_bytes(templates) else {
+            return refuse_template_quote(ctx);
+        };
+        crate::exact_enumeration::admit_quote(ctx, usize::MAX, bytes, 0, "exact DBN templates")?;
+        Self::run_exact(target, ctx)
     }
 
     fn run_exact(
@@ -253,45 +342,75 @@ impl DbnPosterior {
         ctx: &ExecutionContext,
     ) -> Result<GraphPosterior, DiscoveryError> {
         let DbnTarget { p, max_lag, prior, variables, .. } = *target;
+        if p > 8 {
+            // The listing's node set is a byte, the same width as the DAG enumerator.
+            crate::exact_enumeration::admit_quote(
+                ctx,
+                8,
+                1,
+                u64::try_from(p).unwrap_or(u64::MAX),
+                "exact DBN templates",
+            )?;
+            return Err(DiscoveryError::unsupported(
+                "exact DBN templates were not entered",
+            ));
+        }
         let contemp = enumerate_unique_dags(p);
         let n_lag_bits = (max_lag as usize) * p * p;
-        // Exact enumeration runs only within `DBN_EXACT_MAX_TEMPLATES`, so the lag space is
-        // far below one word and `lag_limit` cannot overflow.
-        debug_assert!(n_lag_bits < 64);
-        let lag_limit = 1u64 << n_lag_bits;
-        let n_templates = (contemp.len() as u64).saturating_mul(lag_limit);
-        // Three stored words per kept template, plus the score workspace.
-        let est_bytes = n_templates.saturating_mul(32);
-        if let Some(hard) = ctx.memory_limit_bytes()
-            && est_bytes > hard
-        {
-            return Err(DiscoveryError::Resource(format!(
-                "exact DBN enumeration needs ~{est_bytes} bytes; hard limit {hard}"
-            )));
-        }
+        let est_bytes = template_product(p, n_lag_bits)
+            .and_then(template_bytes)
+            .unwrap_or(u64::MAX);
+        crate::exact_enumeration::admit_quote(ctx, usize::MAX, est_bytes, 0, "exact DBN templates")?;
         let mut kept_masks = Vec::new();
         let mut kept_lag = Vec::new();
         let mut kept_log = Vec::new();
         let mut rejected = 0u64;
         let mut cache = target.score_cache();
+        let mut seen = 0u64;
+
+        let mut record = |cmask: &AdjacencyMask, lmask: LagMask, cache: &mut LocalScoreCache| {
+            match score_dbn_template(cmask, &lmask, target, cache) {
+                Some(lw) => {
+                    kept_masks.push(cmask.clone());
+                    kept_lag.push(lmask);
+                    kept_log.push(lw);
+                    false
+                }
+                None => true,
+            }
+        };
 
         for cmask in &contemp {
             if log_prior_mask(cmask, p, prior, variables).is_none() {
                 rejected += 1;
                 continue;
             }
-            for lword in 0..lag_limit {
-                if lword % 4096 == 0 && ctx.cancellation.is_cancelled() {
-                    return Err(DiscoveryError::Cancelled);
-                }
-                let lmask = LagMask::from_word(lword);
-                match score_dbn_template(cmask, &lmask, target, &mut cache) {
-                    Some(lw) => {
-                        kept_masks.push(cmask.clone());
-                        kept_lag.push(lmask);
-                        kept_log.push(lw);
+            if n_lag_bits >= 64 {
+                // A lag set wider than one word is the mask itself. Counting it with a shift
+                // would overflow; the bit odometer is the same order as `0..2^bits`.
+                let mut lmask = LagMask::EMPTY;
+                loop {
+                    if seen % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                        return Err(DiscoveryError::Cancelled);
                     }
-                    None => rejected += 1,
+                    let current = lmask.clone();
+                    if record(cmask, current, &mut cache) {
+                        rejected += 1;
+                    }
+                    seen += 1;
+                    if !increment_lag_mask(&mut lmask, n_lag_bits) {
+                        break;
+                    }
+                }
+            } else {
+                let lag_limit = 1u64 << n_lag_bits;
+                for lword in 0..lag_limit {
+                    if lword % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                        return Err(DiscoveryError::Cancelled);
+                    }
+                    if record(cmask, LagMask::from_word(lword), &mut cache) {
+                        rejected += 1;
+                    }
                 }
             }
         }
@@ -1180,6 +1299,37 @@ mod tests {
         (data, vars)
     }
 
+    fn one_series(n_obs: usize) -> (TimeSeriesData, Vec<VariableId>) {
+        let mut b = CausalSchemaBuilder::new();
+        b.add_variable(
+            "x",
+            ValueType::Continuous,
+            SmallRoleSet::from_hint(RoleHint::Context),
+            None,
+            None,
+            MeasurementSpec::default(),
+        )
+        .unwrap();
+        let schema = b.build().unwrap();
+        let vars = vec![VariableId::from_raw(0)];
+        let mut rng = antecedent_core::CausalRng::from_seed(3);
+        let mut x = vec![0.0; n_obs];
+        x[0] = rng.next_f64() * 2.0 - 1.0;
+        for t in 1..n_obs {
+            x[t] = 0.2 * x[t - 1] + 0.15 * (rng.next_f64() * 2.0 - 1.0);
+        }
+        let cols = vec![OwnedColumn::Float64(
+            Float64Column::new(vars[0], Arc::from(x), ValidityBitmap::all_valid(n_obs)).unwrap(),
+        )];
+        let storage = OwnedColumnarStorage::try_new(schema, cols, None, None).unwrap();
+        let data = TimeSeriesData::try_new(
+            storage,
+            TimeIndex { regularity: SamplingRegularity::Regular { interval_ns: 1 }, length: n_obs },
+        )
+        .unwrap();
+        (data, vars)
+    }
+
     #[test]
     fn invalid_public_edge_inclusion_is_refused_before_dbn_scoring() {
         let (data, vars) = lag1_series(30);
@@ -1670,6 +1820,49 @@ mod tests {
         assert!(!exact_fits_budget(1, 64));
         assert!(!exact_fits_budget(2, usize::MAX));
         assert!(!exact_fits_budget(7, 1));
+        assert!(!exact_fits_budget(1, 14));
+    }
+
+    #[test]
+    fn a_lag_mask_wider_than_a_word_counts_by_bits() {
+        let mut mask = LagMask::EMPTY;
+        for bit in 0..64 {
+            mask.set_bit(bit, true);
+        }
+        assert!(increment_lag_mask(&mut mask, 70));
+        assert!(mask.bit(64));
+        assert!((0..64).all(|bit| !mask.bit(bit)));
+        assert!(!increment_lag_mask(&mut mask, 0));
+    }
+
+    #[test]
+    fn a_declared_lag_space_past_the_pool_is_a_receipt() {
+        let (data, vars) = one_series(70);
+        let ctx = ExecutionContext::for_tests(1);
+        let err = DbnPosterior::new(64)
+            .with_template_limit(u64::MAX)
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &ctx)
+            .unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("exact DBN templates"), "{text}");
+        assert!(text.contains("search.operations") || text.contains("search.memory"), "{text}");
+        assert!(!text.contains("order MCMC"), "{text}");
+    }
+
+    #[test]
+    fn a_declared_template_product_that_fits_is_exact() {
+        let (data, vars) = one_series(20);
+        let mut ctx = ExecutionContext::for_tests(1);
+        // One contemporaneous DAG and 2^14 lag sets: past the default template declaration,
+        // inside a pool that holds 16384 * 32 bytes.
+        let bytes = 16_384u64 * 32;
+        ctx.set_memory_limit(Some(bytes));
+        let posterior = DbnPosterior::new(14)
+            .with_template_limit(16_384)
+            .run(&data, &vars, &GraphPrior::uniform(), GraphScoreFamily::GaussianBic, &ctx)
+            .unwrap();
+        assert!(posterior.weights().iter().sum::<f64>() > 0.0);
+        assert!(posterior.lag_masks().is_some() || posterior.lagged_edge_marginals().is_some());
     }
 
     #[test]
