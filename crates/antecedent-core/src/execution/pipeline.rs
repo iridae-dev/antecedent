@@ -39,9 +39,8 @@ struct WorkerScope {
 }
 
 impl WorkerScope {
-    fn capture(lease: AdmissionLease) -> Self {
+    fn capture(lease: Arc<AdmissionLease>) -> Self {
         let observation = crate::execution_attempt::ObservationToken::capture();
-        let lease = Arc::new(lease);
         let numerical = crate::numerical_admission::with_worker(
             Arc::clone(&lease),
             crate::numerical_admission::NumericalAdmissionToken::capture,
@@ -171,6 +170,27 @@ impl ExecutionContext {
         self.map_indexed_with_scratch_waiting(n, make_scratch, f, MapWait::IfFree)
     }
 
+    /// Map in index order, borrowing spare workers when called inside an admitted map.
+    ///
+    /// A nested call runs one chunk on the enclosing worker and acquires any additional
+    /// slots from the same pool without waiting. A top-level call leases workers as
+    /// [`Self::map_indexed`] does.
+    ///
+    /// # Errors
+    /// Returns an admission refusal or the lowest-index error produced by `f`.
+    pub fn map_indexed_with_spare_workers<T, E, F>(
+        &self,
+        n: usize,
+        f: F,
+    ) -> Result<Vec<T>, MapExecutionError<E>>
+    where
+        T: Send,
+        E: Send,
+        F: Fn(usize, &Self) -> Result<T, E> + Sync,
+    {
+        self.map_indexed_with_scratch_waiting(n, || (), |i, ctx, ()| f(i, ctx), MapWait::Spare)
+    }
+
     fn map_serial_with_worker<T, S, E, F>(
         &self,
         n: usize,
@@ -181,7 +201,7 @@ impl ExecutionContext {
     where
         F: Fn(usize, &Self, &mut S) -> Result<T, E>,
     {
-        let inner = self.serial_inner();
+        let inner = self.map_inner();
         crate::numerical_admission::with_context(&inner, || {
             crate::numerical_admission::with_worker(worker, || {
                 if inner.cancellation.is_cancelled() {
@@ -227,105 +247,116 @@ impl ExecutionContext {
         if self.cancellation.is_cancelled() {
             return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
         }
-        let threads = self.map_worker_count(n);
-        if let Some(worker) =
-            crate::numerical_admission::worker().filter(|lease| lease.belongs_to(&self.admission))
-        {
-            return self.map_serial_with_worker(n, worker, &make_scratch, &f);
-        }
-        let requested = u32::try_from(threads)
-            .map_err(|_| MapExecutionError::Admission(AdmissionError::Overflow))?;
-        let (granted, lease) = match wait {
-            MapWait::UntilAvailable => (requested, self.acquire_map_lease(requested)?),
-            MapWait::IfFree => match self.acquire_map_lease_if_free(requested) {
-                Ok(value) => value,
+        let enclosing =
+            crate::numerical_admission::worker().filter(|lease| lease.belongs_to(&self.admission));
+        let (granted, lease) = if let Some(worker) = &enclosing {
+            let limit = self.map_parallelism.unwrap_or(self.parallelism).max_threads.get();
+            let requested = limit
+                .min(self.admission().thread_budget())
+                .min(u32::try_from(n).unwrap_or(u32::MAX));
+            if !matches!(wait, MapWait::Spare) || requested <= 1 {
+                return self.map_serial_with_worker(n, Arc::clone(worker), &make_scratch, &f);
+            }
+            match self.acquire_map_lease_if_free(requested - 1, 1) {
+                Ok((extra, lease)) => (extra + 1, lease),
                 Err(AdmissionError::ExceedsRemainder { .. }) => {
-                    (1, self.acquire_request(AdmissionRequest::new(1, 0), None)?)
+                    return self.map_serial_with_worker(n, Arc::clone(worker), &make_scratch, &f);
                 }
                 Err(error) => return Err(error.into()),
-            },
+            }
+        } else {
+            let requested = u32::try_from(self.map_worker_count(n))
+                .map_err(|_| MapExecutionError::Admission(AdmissionError::Overflow))?;
+            match wait {
+                MapWait::UntilAvailable | MapWait::Spare => {
+                    (requested, self.acquire_map_lease(requested)?)
+                }
+                MapWait::IfFree => match self.acquire_map_lease_if_free(requested, 2) {
+                    Ok(value) => value,
+                    Err(AdmissionError::ExceedsRemainder { .. }) => {
+                        (1, self.acquire_request(AdmissionRequest::new(1, 0), None)?)
+                    }
+                    Err(error) => return Err(error.into()),
+                },
+            }
         };
         if granted == 1 {
             return self.map_serial_with_worker(n, Arc::new(lease), &make_scratch, &f);
         }
-        let threads = usize::try_from(granted).unwrap_or(threads).min(threads);
-        let inner = self.serial_inner();
+        let threads = usize::try_from(granted).unwrap_or(n);
+        let inner = self.map_inner();
         let mut slots: Vec<Option<Result<T, MapExecutionError<E>>>> =
             (0..n).map(|_| None).collect();
         let first_failure = AtomicUsize::new(usize::MAX);
-        let WorkerScope { lease, observation, numerical } = WorkerScope::capture(lease);
+        let worker_scope = WorkerScope::capture(Arc::new(lease));
+        let run_chunk = |mine: &mut [Option<Result<T, MapExecutionError<E>>>],
+                         begin: usize,
+                         worker: &WorkerScope| {
+            worker.observation.execute(|| {
+                if inner.cancellation.is_cancelled() {
+                    mine[0] = Some(Err(MapExecutionError::Admission(AdmissionError::Cancelled)));
+                    first_failure.fetch_min(begin, Ordering::Relaxed);
+                    return;
+                }
+                let mut scratch = worker.numerical.execute(&inner, &make_scratch);
+                for (offset, slot) in mine.iter_mut().enumerate() {
+                    let index = begin + offset;
+                    if first_failure.load(Ordering::Relaxed) < index {
+                        break;
+                    }
+                    let outcome = if inner.cancellation.is_cancelled() {
+                        Err(MapExecutionError::Admission(AdmissionError::Cancelled))
+                    } else {
+                        let result = worker
+                            .numerical
+                            .execute(&inner, || f(index, &inner, &mut scratch))
+                            .map_err(MapExecutionError::Work);
+                        if inner.cancellation.is_cancelled() {
+                            Err(MapExecutionError::Admission(AdmissionError::Cancelled))
+                        } else {
+                            result
+                        }
+                    };
+                    if outcome.is_err() {
+                        first_failure.fetch_min(index, Ordering::Relaxed);
+                    }
+                    *slot = Some(outcome);
+                }
+            });
+        };
         let mut spawn_failed = false;
         std::thread::scope(|scope| {
-            let f = &f;
-            let inner = &inner;
-            let first_failure = &first_failure;
-            let make_scratch = &make_scratch;
-            let mut rest = slots.as_mut_slice();
-            let mut start = 0usize;
-            for t in 0..threads {
+            let inline = enclosing.as_ref().map(|lease| WorkerScope::capture(Arc::clone(lease)));
+            let inline_count = usize::from(inline.is_some());
+            let inline_items = n.div_ceil(threads) * inline_count;
+            let (first, mut rest) = slots.split_at_mut(inline_items);
+            let mut start = inline_items;
+            let run_chunk = &run_chunk;
+            let worker_scope = &worker_scope;
+            for t in inline_count..threads {
                 let take = rest.len().div_ceil(threads - t);
                 let (mine, next) = rest.split_at_mut(take);
                 let begin = start;
-                let observation = &observation;
-                let numerical = &numerical;
                 let spawned = if inject_spawn_failure() {
                     Err(std::io::Error::other("injected worker spawn failure"))
                 } else {
-                    std::thread::Builder::new().stack_size(WORKER_STACK_BYTES).spawn_scoped(
-                        scope,
-                        move || {
-                            observation.execute(|| {
-                                if inner.cancellation.is_cancelled() {
-                                    if let Some(slot) = mine.first_mut() {
-                                        *slot = Some(Err(MapExecutionError::Admission(
-                                            AdmissionError::Cancelled,
-                                        )));
-                                        first_failure.fetch_min(begin, Ordering::Relaxed);
-                                    }
-                                    return;
-                                }
-                                let mut scratch = numerical.execute(inner, make_scratch);
-                                for (k, slot) in mine.iter_mut().enumerate() {
-                                    let index = begin + k;
-                                    if first_failure.load(Ordering::Relaxed) < index {
-                                        break;
-                                    }
-                                    let outcome = if inner.cancellation.is_cancelled() {
-                                        Err(MapExecutionError::Admission(AdmissionError::Cancelled))
-                                    } else {
-                                        let result = numerical
-                                            .execute(inner, || f(index, inner, &mut scratch))
-                                            .map_err(MapExecutionError::Work);
-                                        if inner.cancellation.is_cancelled() {
-                                            Err(MapExecutionError::Admission(
-                                                AdmissionError::Cancelled,
-                                            ))
-                                        } else {
-                                            result
-                                        }
-                                    };
-                                    if outcome.is_err() {
-                                        first_failure.fetch_min(index, Ordering::Relaxed);
-                                    }
-                                    *slot = Some(outcome);
-                                }
-                            })
-                        },
-                    )
+                    std::thread::Builder::new()
+                        .stack_size(WORKER_STACK_BYTES)
+                        .spawn_scoped(scope, move || run_chunk(mine, begin, worker_scope))
                 };
                 if spawned.is_err() {
                     first_failure.store(0, Ordering::Relaxed);
                     spawn_failed = true;
-                    break;
+                    return;
                 }
                 rest = next;
                 start += take;
-                if rest.is_empty() {
-                    break;
-                }
+            }
+            if let Some(inline) = inline.as_ref() {
+                run_chunk(first, 0, inline);
             }
         });
-        drop(lease);
+        drop(worker_scope);
         if spawn_failed {
             return Err(MapExecutionError::Admission(AdmissionError::WorkerSpawn));
         }
@@ -349,17 +380,18 @@ impl ExecutionContext {
     }
 
     /// Immediate worker lease that shrinks to the free slots the pool reports when it
-    /// refuses, down to two. The count granted is returned with the lease.
+    /// refuses, down to the requested minimum. The count granted is returned with the lease.
     pub(super) fn acquire_map_lease_if_free(
         &self,
         threads: u32,
+        minimum: u32,
     ) -> Result<(u32, AdmissionLease), AdmissionError> {
         let mut want = threads;
         loop {
             match self.acquire_request(AdmissionRequest::new(want, 0), None) {
                 Ok(lease) => return Ok((want, lease)),
                 Err(AdmissionError::ExceedsRemainder { remaining_threads, .. })
-                    if remaining_threads >= 2 && remaining_threads < want =>
+                    if remaining_threads >= minimum && remaining_threads < want =>
                 {
                     want = remaining_threads;
                 }
@@ -537,13 +569,13 @@ impl ExecutionContext {
         if self.cancellation.is_cancelled() {
             return Err(MapExecutionError::Admission(AdmissionError::Cancelled));
         }
-        let inner = self.serial_inner();
+        let inner = self.map_inner();
         let threads = self.map_worker_count(n).min(window);
         let enclosing =
             crate::numerical_admission::worker().filter(|lease| lease.belongs_to(&self.admission));
         let granted = if threads > 1 && enclosing.is_none() {
             match u32::try_from(threads) {
-                Ok(t) => match self.acquire_map_lease_if_free(t) {
+                Ok(t) => match self.acquire_map_lease_if_free(t, 2) {
                     Ok(lease) => Some(lease),
                     Err(AdmissionError::ExceedsRemainder { .. }) => None,
                     Err(error) => return Err(MapExecutionError::Admission(error)),
@@ -561,7 +593,7 @@ impl ExecutionContext {
             return Self::pipeline_serial(&inner, n, worker, &make_scratch, &produce, &mut consume);
         };
         let workers = usize::try_from(granted).unwrap_or(threads).clamp(2, threads);
-        let WorkerScope { lease, observation, numerical } = WorkerScope::capture(lease);
+        let WorkerScope { lease, observation, numerical } = WorkerScope::capture(Arc::new(lease));
         let shared = Mutex::new(PipelineState::<T, E> {
             next_claim: 0,
             next_consume: 0,
@@ -736,6 +768,7 @@ impl ExecutionContext {
 pub(super) enum MapWait {
     UntilAvailable,
     IfFree,
+    Spare,
 }
 
 /// A shared-scheduler refusal or the original lowest-index task error.

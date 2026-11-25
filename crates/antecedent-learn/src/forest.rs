@@ -1,7 +1,7 @@
 //! Random-forest learners behind [`crate::LearnerSpec::RandomForest`].
 //!
 //! [`ForestLearner::fit`] grows each tree on its own derived stream under
-//! [`ExecutionContext::map_indexed`] and records [`PER_TREE_FOREST`].
+//! [`ExecutionContext::map_indexed_with_spare_workers`] and records [`PER_TREE_FOREST`].
 //! [`ForestLearner::fit_smartcore`] is the serial SmartCore 0.4 fit: one seed,
 //! every tree on the calling worker.
 //!
@@ -13,12 +13,9 @@
 //! A one-tree forest on a derived seed would reseed the splits together with
 //! the bootstrap.
 //!
-//! A fit that already holds a worker lease — cross-fitting schedules one lease
-//! per fold — runs the tree map on that lease. `map_indexed` keeps a nested
-//! map on the enclosing worker so a fold cannot wait on a slot another fold
-//! is holding. A fit that does not already hold a lease takes one worker per
-//! tree, capped by the context's thread budget, and leaves that budget as it
-//! found it.
+//! Cross-fit trees use the fold's worker and any spare slots the fold can lease
+//! without waiting. A top-level fit leases one worker per tree up to the context's
+//! thread budget.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -156,15 +153,17 @@ impl ForestLearner {
             random_splits: self.spec.extra_trees,
         };
         #[cfg(test)]
-        let record_workers = tests::recording();
+        let recorder = tests::recording();
+        #[cfg(test)]
+        let fit_thread = std::thread::current().id();
         let trees = ctx
-            .map_indexed(n_trees, |index, inner| -> Result<Vec<PredictionNode>, LearnError> {
+            .map_indexed_with_spare_workers(n_trees, |index, inner| -> Result<Vec<PredictionNode>, LearnError> {
                 if inner.cancellation.is_cancelled() {
                     return Err(LearnError::Cancelled);
                 }
                 #[cfg(test)]
-                if record_workers {
-                    tests::note_worker();
+                if let Some(recorder) = &recorder {
+                    recorder.note_worker(fit_thread, inner);
                 }
                 let mut rng = inner.rng.stream_for(
                     StreamDomain::Learner,
@@ -679,9 +678,9 @@ fn dense_column_major(
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
-    use std::collections::HashSet;
-    use std::sync::Mutex;
+    use std::cell::RefCell;
+    use std::collections::{HashMap, HashSet};
+    use std::sync::{Arc, Mutex};
     use std::thread::ThreadId;
 
     use antecedent_core::ExecutionContext;
@@ -692,37 +691,37 @@ mod tests {
     use crate::learner::{FittedPredictor, LearnerFactory, PredictionTask};
     use crate::spec::ForestSpec;
 
+    #[derive(Clone, Default)]
+    pub(super) struct Recording(Arc<Mutex<HashMap<ThreadId, HashSet<ThreadId>>>>);
+
     thread_local! {
-        static RECORD: Cell<bool> = const { Cell::new(false) };
-    }
-    static SEEN: Mutex<Vec<ThreadId>> = Mutex::new(Vec::new());
-
-    pub(super) fn recording() -> bool {
-        RECORD.get()
+        static RECORD: RefCell<Option<Recording>> = const { RefCell::new(None) };
     }
 
-    pub(super) fn note_worker() {
-        SEEN.lock().unwrap().push(std::thread::current().id());
+    pub(super) fn recording() -> Option<Recording> {
+        RECORD.with(|record| record.borrow().clone())
     }
-
-    struct Recording;
 
     impl Recording {
-        fn start() -> Self {
-            RECORD.set(true);
-            SEEN.lock().unwrap().clear();
-            Self
+        fn with<T>(&self, f: impl FnOnce() -> T) -> T {
+            struct Reset;
+            impl Drop for Reset {
+                fn drop(&mut self) {
+                    RECORD.set(None);
+                }
+            }
+            RECORD.set(Some(self.clone()));
+            let _reset = Reset;
+            f()
         }
 
-        fn finish(self) -> usize {
-            let ids = std::mem::take(&mut *SEEN.lock().unwrap());
-            ids.into_iter().collect::<HashSet<_>>().len()
+        pub(super) fn note_worker(&self, fit: ThreadId, ctx: &ExecutionContext) {
+            assert!(ctx.admission().available().threads() < ctx.admission().thread_budget());
+            self.0.lock().unwrap().entry(fit).or_default().insert(std::thread::current().id());
         }
-    }
 
-    impl Drop for Recording {
-        fn drop(&mut self) {
-            RECORD.set(false);
+        fn max_workers_per_fit(&self) -> usize {
+            self.0.lock().unwrap().values().map(HashSet::len).max().unwrap_or(0)
         }
     }
 
@@ -870,9 +869,11 @@ mod tests {
         let serial = ExecutionContext::for_tests(3);
         let serial_budget = serial.admission().thread_budget();
         let serial_free = serial.admission().available().threads();
-        let recording = Recording::start();
-        let serial_fit = learner.fit(view, TargetView::new(&y), None, &serial).unwrap();
-        assert_eq!(recording.finish(), 1, "a one-slot pool runs every tree on that worker");
+        let recording = Recording::default();
+        let serial_fit = recording
+            .with(|| learner.fit(view, TargetView::new(&y), None, &serial))
+            .unwrap();
+        assert_eq!(recording.max_workers_per_fit(), 1);
         assert_eq!(serial.admission().thread_budget(), serial_budget);
         assert_eq!(serial.admission().available().threads(), serial_free);
 
@@ -881,9 +882,11 @@ mod tests {
         let free = parallel.admission().available().threads();
         assert_eq!(budget, n_trees);
         assert_eq!(free, n_trees);
-        let recording = Recording::start();
-        let parallel_fit = learner.fit(view, TargetView::new(&y), None, &parallel).unwrap();
-        assert_eq!(recording.finish(), usize::try_from(n_trees).unwrap());
+        let recording = Recording::default();
+        let parallel_fit = recording
+            .with(|| learner.fit(view, TargetView::new(&y), None, &parallel))
+            .unwrap();
+        assert_eq!(recording.max_workers_per_fit(), usize::try_from(n_trees).unwrap());
         assert_eq!(parallel.admission().thread_budget(), budget);
         assert_eq!(parallel.admission().available().threads(), free);
         assert_eq!(
@@ -891,4 +894,50 @@ mod tests {
             predict(parallel_fit.as_ref(), &x, n, &parallel)
         );
     }
+
+    #[test]
+    fn cross_fitted_nuisance_forest_borrows_the_single_spare_worker() {
+        struct RecordedForest {
+            forest: ForestLearner,
+            recording: Recording,
+        }
+
+        impl LearnerFactory for RecordedForest {
+            fn task(&self) -> PredictionTask {
+                self.forest.task()
+            }
+
+            fn capabilities(&self) -> crate::learner::LearnerCapabilities {
+                self.forest.capabilities()
+            }
+
+            fn fit(
+                &self,
+                x: DesignView<'_>,
+                y: TargetView<'_>,
+                weights: Option<&[f64]>,
+                ctx: &ExecutionContext,
+            ) -> Result<Box<dyn FittedPredictor>, LearnError> {
+                self.recording.with(|| self.forest.fit(x, y, weights, ctx))
+            }
+        }
+
+        let n = 24usize;
+        let (x, y) = step_design(n);
+        let view = DesignView::from_column_major(&x, n, 2).unwrap();
+        let forest = ForestLearner::new(spec(4, 1, false), PredictionTask::Regression);
+        let learner = RecordedForest { forest, recording: Recording::default() };
+        let parallel = ExecutionContext::production(3, 3);
+        let serial = ExecutionContext::for_tests(3);
+
+        let expected =
+            crate::crossfit::cross_fit(&forest, view, TargetView::new(&y), 2, &serial, None).unwrap();
+        let actual =
+            crate::crossfit::cross_fit(&learner, view, TargetView::new(&y), 2, &parallel, None).unwrap();
+        assert_eq!(actual.predictions, expected.predictions);
+        assert_eq!(actual.fold_assignment, expected.fold_assignment);
+        assert_eq!(learner.recording.max_workers_per_fit(), 2);
+        assert_eq!(parallel.admission().available().threads(), 3);
+    }
+
 }

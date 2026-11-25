@@ -34,6 +34,8 @@ impl Default for RandomizationTestLimits {
 pub struct ExecutionContext {
     /// Parallelism budget.
     pub parallelism: Parallelism,
+    /// Outer parallelism retained only for work that explicitly borrows spare map workers.
+    pub(super) map_parallelism: Option<Parallelism>,
     /// Determinism policy.
     pub determinism: Determinism,
     /// RNG factory (no global RNG).
@@ -257,6 +259,7 @@ impl ExecutionContext {
     pub fn for_tests(seed: u64) -> Self {
         Self {
             parallelism: Parallelism::serial(),
+            map_parallelism: None,
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
             admission: AdmissionPool::fixed(1, u64::MAX),
@@ -291,6 +294,13 @@ impl ExecutionContext {
     pub fn serial_inner(&self) -> Self {
         let mut inner = self.clone();
         inner.parallelism = Parallelism::serial();
+        inner.map_parallelism = None;
+        inner
+    }
+
+    pub(super) fn map_inner(&self) -> Self {
+        let mut inner = self.serial_inner();
+        inner.map_parallelism = Some(self.map_parallelism.unwrap_or(self.parallelism));
         inner
     }
 
@@ -311,6 +321,7 @@ impl ExecutionContext {
             NonZeroThreadCount::new(max_threads.max(1)).unwrap_or(NonZeroThreadCount::MIN);
         Self {
             parallelism: Parallelism::bounded(threads),
+            map_parallelism: None,
             determinism: Determinism::Strict,
             rng: RngFactory::from_seed(seed),
             admission: AdmissionPool::fixed(threads.get(), u64::MAX),
