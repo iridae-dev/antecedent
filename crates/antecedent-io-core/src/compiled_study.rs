@@ -27,7 +27,7 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::route_memory::RouteMemoryProfile;
 use serde::{Deserialize, Serialize};
@@ -470,6 +470,15 @@ pub fn open(
     if catalog.version != CATALOG_VERSION {
         return Err(IoError::UnsupportedVersion { version: u32::from(catalog.version) });
     }
+    let mut roles = BTreeSet::new();
+    for entry in &catalog.entries {
+        if !catalog_role::is_role(&entry.role) {
+            return Err(refused(format!("unknown catalog role `{}`", entry.role)));
+        }
+        if !roles.insert(entry.role.as_str()) {
+            return Err(refused(format!("catalog role `{}` is repeated", entry.role)));
+        }
+    }
     let claim = match section_data(&artifact, CLAIM_SECTION) {
         None => None,
         Some(claim) => Some(crate::load_analysis_result(claim)?),
@@ -479,9 +488,6 @@ pub fn open(
     let mut summary_only = false;
     let mut callback = false;
     for entry in &catalog.entries {
-        if !catalog_role::is_role(&entry.role) {
-            return Err(refused(format!("unknown catalog role `{}`", entry.role)));
-        }
         if entry.summary_only {
             summary_only = true;
         }
@@ -784,6 +790,33 @@ mod tests {
             from_cbor(section_data(&artifact, CATALOG_SECTION).unwrap()).unwrap();
         let roles: Vec<&str> = catalog.entries.iter().map(|entry| entry.role.as_str()).collect();
         assert_eq!(roles, vec![FROZEN_SCORES, SPILL]);
+    }
+
+    #[test]
+    fn duplicate_catalog_roles_refuse_before_resolving_bodies() {
+        let mut body = source_body();
+        body.external_uri = Some("memory://source".into());
+        let duplicate = [body.clone(), body];
+        let message = format!("catalog role `{SOURCE_ROWS}` is repeated");
+        let write_error =
+            write(StudyParts { invariant: b"invariant", bodies: &duplicate, claim: None })
+                .unwrap_err();
+        assert!(write_error.to_string().contains(&message), "{write_error}");
+        let written =
+            write(StudyParts { invariant: b"invariant", bodies: &duplicate[..1], claim: None })
+                .unwrap();
+        let mut artifact = EncodedArtifact::read_from(written.bytes.as_slice()).unwrap();
+        let mut catalog: CatalogWire =
+            from_cbor(section_data(&artifact, CATALOG_SECTION).unwrap()).unwrap();
+        catalog.entries.push(catalog.entries[0].clone());
+        let index = artifact.sections.iter().position(|item| item.id == CATALOG_SECTION).unwrap();
+        (artifact.manifest.sections[index], artifact.sections[index]) =
+            section(CATALOG_SECTION, &to_cbor(&catalog).unwrap());
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        let resolve = |_: &str| panic!("duplicate roles must refuse before resolution");
+        let error = open(&bytes, &written.expected_identity, &resolve, false).unwrap_err();
+        assert!(error.to_string().contains(&message), "{error}");
     }
 
     #[test]
