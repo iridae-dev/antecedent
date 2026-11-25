@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use super::{GraphScoreData, laplace_bic_local};
+use super::{GraphScoreData, center_all, laplace_bic_local};
 
 struct Lcg(u64);
 
@@ -98,6 +98,7 @@ fn score(cols: &[Vec<f64>], node: usize, parents: &[usize]) -> f64 {
     let data = GraphScoreData::new(n, cols.len(), Arc::from(flat)).unwrap();
     laplace_bic_local(
         &data,
+        &center_all(&data),
         u32::try_from(node).unwrap(),
         &parents.iter().map(|&p| u32::try_from(p).unwrap()).collect::<Vec<_>>(),
     )

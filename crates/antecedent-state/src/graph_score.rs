@@ -5,6 +5,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[cfg(test)]
+use std::cell::Cell;
+
 use antecedent_core::Fnv1a64;
 use antecedent_kernels::{chol_solve_into, cholesky_spd_into, equilibrate_into, symmetric_scales};
 
@@ -130,12 +133,17 @@ pub struct LocalScoreCache {
     bound_data: Option<u64>,
     /// Gram of the columns (centered for BIC, raw for the zero-intercept model).
     gram: Option<Vec<f64>>,
+    /// Mean-centered columns beside the Gram, one vector per variable. A column is centered
+    /// once, with the two-pass compensated mean, the first time a score needs it; an empty
+    /// vector has not been centered. The bytes stay charged for the life of the bound data.
+    centered_columns: Vec<Vec<f64>>,
     /// Sum of local scores under the current parent sets, maintained incrementally.
     running_total: Option<f64>,
     /// Approximate retained bytes.
     bytes: u64,
     /// Bytes the cache may retain; once exceeded the score entries (recomputable on demand)
-    /// are dropped. The Gram is retained for the life of the bound data and is never evicted.
+    /// are dropped. The Gram and the centered columns are retained for the life of the bound
+    /// data and are never evicted.
     byte_budget: u64,
 }
 
@@ -152,6 +160,7 @@ impl LocalScoreCache {
             parents: HashMap::new(),
             bound_data: None,
             gram: None,
+            centered_columns: Vec::new(),
             running_total: None,
             bytes: 0,
             byte_budget: DEFAULT_LOCAL_SCORE_CACHE_BYTES,
@@ -174,12 +183,14 @@ impl LocalScoreCache {
         self.bytes
     }
 
-    /// Clear all cached local scores and parent assignments, and unbind from the data.
+    /// Clear cached scores, parent assignments, the Gram and the centered columns, and
+    /// unbind from the data.
     pub fn clear(&mut self) {
         self.entries.clear();
         self.parents.clear();
         self.bound_data = None;
         self.gram = None;
+        self.centered_columns.clear();
         self.running_total = None;
         self.bytes = 0;
     }
@@ -277,9 +288,22 @@ impl LocalScoreCache {
                 let Some(gram) = self.gram.as_deref() else {
                     return Err(StateError::Numerical("Gaussian BIC Gram was not stored".into()));
                 };
-                gaussian_bic_from_gram(data, gram, node, parents)?
+                gaussian_bic_from_gram(data, gram, &self.centered_columns, node, parents)?
             }
-            GraphScoreFamily::LaplaceBic => laplace_bic_local(data, node, parents)?,
+            GraphScoreFamily::LaplaceBic => {
+                // A parent or node outside the table is refused by the score; centering it
+                // would read off the end of the columns.
+                if (node as usize) < data.n_vars
+                    && parents.iter().all(|&parent| (parent as usize) < data.n_vars)
+                {
+                    self.ensure_centered_columns(
+                        data,
+                        std::iter::once(node as usize)
+                            .chain(parents.iter().copied().map(|parent| parent as usize)),
+                    );
+                }
+                laplace_bic_local(data, &self.centered_columns, node, parents)?
+            }
             GraphScoreFamily::GaussianSignedUniform => {
                 let gram = self.gram.get_or_insert_with(|| {
                     let g = signed_uniform::raw_gram(data);
@@ -292,20 +316,49 @@ impl LocalScoreCache {
         };
         let cost = 32 + 8 * parents.len() as u64;
         if self.bytes.saturating_add(cost) > self.byte_budget {
+            // Score entries are recomputable. The Gram and the centered columns stay.
             self.entries.clear();
-            self.bytes =
-                self.gram.as_ref().map_or(0, |g| (g.len() * core::mem::size_of::<f64>()) as u64);
+            self.bytes = self.matrix_bytes();
         }
         self.entries.entry(node).or_default().insert(Arc::clone(parents), s);
         self.bytes = self.bytes.saturating_add(cost);
         Ok(s)
     }
 
+    /// Bytes of the Gram and the stored centered columns. Both outlive score eviction.
+    fn matrix_bytes(&self) -> u64 {
+        let gram = self.gram.as_ref().map_or(0, |g| (g.len() * core::mem::size_of::<f64>()) as u64);
+        let columns = self.centered_columns.iter().fold(0u64, |sum, column| {
+            sum.saturating_add((column.len() * core::mem::size_of::<f64>()) as u64)
+        });
+        gram.saturating_add(columns)
+    }
+
+    /// Center `indices` that are not stored yet, and charge each filled column.
+    fn ensure_centered_columns(
+        &mut self,
+        data: &GraphScoreData,
+        indices: impl IntoIterator<Item = usize>,
+    ) {
+        if self.centered_columns.len() != data.n_vars {
+            self.centered_columns.resize(data.n_vars, Vec::new());
+        }
+        for j in indices {
+            if j < data.n_vars && self.centered_columns[j].is_empty() {
+                let column = centered_column(data.col(j));
+                self.bytes =
+                    self.bytes.saturating_add((column.len() * core::mem::size_of::<f64>()) as u64);
+                self.centered_columns[j] = column;
+            }
+        }
+    }
+
     fn ensure_gram(&mut self, data: &GraphScoreData) {
         if self.gram.is_some() {
             return;
         }
-        let gram = gaussian_design_gram(data);
+        self.ensure_centered_columns(data, 0..data.n_vars);
+        let gram = gaussian_design_gram(&self.centered_columns);
         self.bytes = self.bytes.saturating_add((gram.len() * core::mem::size_of::<f64>()) as u64);
         self.gram = Some(gram);
     }
@@ -330,7 +383,8 @@ fn gaussian_bic_local(
     node: u32,
     parents: &[u32],
 ) -> Result<f64, StateError> {
-    gaussian_bic_from_gram(data, &gaussian_design_gram(data), node, parents)
+    let centered = center_all(data);
+    gaussian_bic_from_gram(data, &gaussian_design_gram(&centered), &centered, node, parents)
 }
 
 /// Neumaier-compensated sum: the rounding error of every partial sum is carried in a
@@ -350,10 +404,38 @@ fn compensated_sum(values: impl Iterator<Item = f64>) -> f64 {
     sum + carry
 }
 
+#[cfg(test)]
+thread_local! {
+    static CENTERED_COLUMN_CALLS: Cell<u64> = const { Cell::new(0) };
+    static REFINED_RSS_CALLS: Cell<u64> = const { Cell::new(0) };
+}
+
+#[cfg(test)]
+fn centered_column_calls() -> u64 {
+    CENTERED_COLUMN_CALLS.with(Cell::get)
+}
+
+#[cfg(test)]
+fn reset_centered_column_calls() {
+    CENTERED_COLUMN_CALLS.with(|calls| calls.set(0));
+}
+
+#[cfg(test)]
+fn refined_rss_calls() -> u64 {
+    REFINED_RSS_CALLS.with(Cell::get)
+}
+
+#[cfg(test)]
+fn reset_refined_rss_calls() {
+    REFINED_RSS_CALLS.with(|calls| calls.set(0));
+}
+
 /// Column `values` minus its compensated mean, with a second pass removing the rounding
 /// residue left in the mean of the first centering.
 #[allow(clippy::cast_precision_loss, reason = "row counts enter a mean as floats")]
 fn centered_column(values: &[f64]) -> Vec<f64> {
+    #[cfg(test)]
+    CENTERED_COLUMN_CALLS.with(|calls| calls.set(calls.get().saturating_add(1)));
     let n = values.len() as f64;
     let mean = compensated_sum(values.iter().copied()) / n;
     let mut centered: Vec<f64> = values.iter().map(|v| v - mean).collect();
@@ -366,7 +448,12 @@ fn centered_column(values: &[f64]) -> Vec<f64> {
     centered
 }
 
-/// Row-major `n_vars × n_vars` Gram of the mean-centered columns, accumulated with
+/// Center every column once with the two-pass compensated mean.
+fn center_all(data: &GraphScoreData) -> Vec<Vec<f64>> {
+    (0..data.n_vars).map(|j| centered_column(data.col(j))).collect()
+}
+
+/// Row-major Gram of columns that are already mean-centered, accumulated with
 /// compensated sums.
 ///
 /// The Gaussian BIC regresses a node on an intercept and its parents; the residual sum of
@@ -377,9 +464,8 @@ fn centered_column(values: &[f64]) -> Vec<f64> {
     clippy::many_single_char_names,
     reason = "j and k index the two columns of the cross-product block"
 )]
-fn gaussian_design_gram(data: &GraphScoreData) -> Vec<f64> {
-    let m = data.n_vars;
-    let centered: Vec<Vec<f64>> = (0..m).map(|j| centered_column(data.col(j))).collect();
+fn gaussian_design_gram(centered: &[Vec<f64>]) -> Vec<f64> {
+    let m = centered.len();
     let mut g = vec![0.0; m * m];
     for j in 0..m {
         for k in j..m {
@@ -394,6 +480,7 @@ fn gaussian_design_gram(data: &GraphScoreData) -> Vec<f64> {
 fn gaussian_bic_from_gram(
     data: &GraphScoreData,
     gram: &[f64],
+    centered: &[Vec<f64>],
     node: u32,
     parents: &[u32],
 ) -> Result<f64, StateError> {
@@ -418,13 +505,13 @@ fn gaussian_bic_from_gram(
     // The Schur complement `S_yy - S_yx S_xx^-1 S_xy` cancels: its relative error is about
     // `eps * cond(S_xx) / (RSS / S_yy)`, so a child fitted to 1e-5 noise (RSS/S_yy ~ 1e-11) or
     // two parents differing by 1e-6 each cost the score several digits (6e-3 and 6e-5 absolute
-    // at n = 100). When either is the case the residual sum is recomputed from the data by one
-    // corrected-semi-normal-equations step, whose error is second order in the coefficient
-    // error because the residual is orthogonal to the design.
+    // at n = 100). When either is the case the residual sum is recomputed from the stored
+    // centered columns by one corrected-semi-normal-equations step, whose error is second
+    // order in the coefficient error because the residual is orthogonal to the design.
     let s_yy = gram[node as usize * m + node as usize];
     if !parent_cols.is_empty()
         && (rss < REFINE_RSS_FRACTION * s_yy || min_pivot_sq < REFINE_PIVOT_SQ)
-        && let Some(refined) = refined_rss(data, gram, &parent_cols, node as usize)
+        && let Some(refined) = refined_rss(centered, gram, &parent_cols, node as usize)
     {
         rss = refined;
     }
@@ -442,8 +529,11 @@ const REFINE_PIVOT_SQ: f64 = 1e-4;
 /// Residual sum of squares of `node` on an intercept and `parents`, from the residuals
 /// themselves: coefficients from the Gram, one corrected-semi-normal-equations update
 /// `S d = X' r`, then `sum r^2` with compensated sums. `None` if a solve is singular.
-fn refined_rss(data: &GraphScoreData, gram: &[f64], parents: &[usize], node: usize) -> Option<f64> {
-    let m = data.n_vars;
+///
+/// `centered` is the stored mean-centered columns, one per variable. They are read as stored;
+/// this does not center them again.
+fn refined_rss(centered: &[Vec<f64>], gram: &[f64], parents: &[usize], node: usize) -> Option<f64> {
+    let m = centered.len();
     let p = parents.len();
     let mut sub = vec![0.0; p * p];
     let mut rhs = vec![0.0; p];
@@ -453,11 +543,14 @@ fn refined_rss(data: &GraphScoreData, gram: &[f64], parents: &[usize], node: usi
         }
         rhs[i] = gram[pi * m + node];
     }
-    let design: Vec<Vec<f64>> = parents.iter().map(|&j| centered_column(data.col(j))).collect();
-    let outcome = centered_column(data.col(node));
     let mut beta = solve_spd(&sub, &rhs, p)?;
+    #[cfg(test)]
+    REFINED_RSS_CALLS.with(|calls| calls.set(calls.get().saturating_add(1)));
+    let design: Vec<&[f64]> = parents.iter().map(|&j| centered[j].as_slice()).collect();
+    let outcome = centered[node].as_slice();
+    let n_rows = outcome.len();
     let residuals = |beta: &[f64]| -> Vec<f64> {
-        (0..data.n_rows)
+        (0..n_rows)
             .map(|i| {
                 outcome[i] - compensated_sum(beta.iter().zip(&design).map(|(b, col)| b * col[i]))
             })
@@ -508,17 +601,23 @@ fn solve_spd(a: &[f64], b: &[f64], k: usize) -> Option<Vec<f64>> {
 /// `-n (ln(2 b) + 1) - (k / 2) ln(n)` with `b` the mean absolute residual of the least
 /// absolute deviations fit of the node on intercept + parents and `k = |Pa| + 2`.
 ///
-/// The fit is iteratively reweighted least squares on mean-centered columns (the residuals
-/// are unchanged by centering when an intercept is fitted). The reweighting floor scales with
-/// the outcome, the weighted normal equations go through the shared equilibrated Cholesky,
-/// and the iteration stops once the objective stops improving.
+/// The fit is iteratively reweighted least squares on the stored mean-centered columns (the
+/// residuals are unchanged by centering when an intercept is fitted). The reweighting floor
+/// scales with the outcome, the weighted normal equations go through the shared equilibrated
+/// Cholesky, and the iteration stops once the objective stops improving. This does not center
+/// the columns again.
 #[allow(
     clippy::cast_precision_loss,
     clippy::needless_range_loop,
     clippy::many_single_char_names,
     reason = "row counts enter a likelihood as floats; the loops index the design by row and column"
 )]
-fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Result<f64, StateError> {
+fn laplace_bic_local(
+    data: &GraphScoreData,
+    centered: &[Vec<f64>],
+    node: u32,
+    parents: &[u32],
+) -> Result<f64, StateError> {
     let n = data.n_rows;
     if n < 2 {
         return Err(StateError::Numerical("need n≥2 for BIC".into()));
@@ -530,17 +629,20 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
         return Err(StateError::Shape("parent out of range".into()));
     }
     let k = parents.len() + 1;
-    let y = centered_column(data.col(node as usize));
+    let y = centered[node as usize].as_slice();
+    debug_assert_eq!(y.len(), n, "the outcome column was not stored centered");
     let outcome_scale = compensated_sum(y.iter().copied().map(f64::abs)) / n as f64;
     if !(outcome_scale.is_finite() && outcome_scale > 0.0) {
         return Err(StateError::DegenerateScore("Laplace BIC fit (zero residual scale)".into()));
     }
     let floor = LAD_RESIDUAL_FLOOR * outcome_scale;
-    // Design columns: the intercept, then each centered parent.
-    let mut design: Vec<Vec<f64>> = Vec::with_capacity(k);
-    design.push(vec![1.0; n]);
+    // Design columns: the intercept, then each stored centered parent.
+    let intercept = vec![1.0; n];
+    let mut design: Vec<&[f64]> = Vec::with_capacity(k);
+    design.push(intercept.as_slice());
     for &p in parents {
-        design.push(centered_column(data.col(p as usize)));
+        debug_assert_eq!(centered[p as usize].len(), n, "parent {p} was not stored centered");
+        design.push(centered[p as usize].as_slice());
     }
     let mut weights = vec![1.0; n];
     let mut residuals = vec![0.0; n];
@@ -580,7 +682,7 @@ fn laplace_bic_local(data: &GraphScoreData, node: u32, parents: &[u32]) -> Resul
         }
         previous = objective;
     }
-    objective = polish_lad_vertex(&design, &y, &residuals, objective);
+    objective = polish_lad_vertex(&design, y, &residuals, objective);
     let scale = objective / n as f64;
     if !(scale.is_finite() && scale > 1e-12 * outcome_scale) {
         return Err(StateError::DegenerateScore("Laplace BIC fit (zero residual scale)".into()));
@@ -603,7 +705,7 @@ const LAD_POLISH_MOVES_PER_COEFFICIENT: usize = 64;
 /// another row becomes interpolated. A move is kept only if it strictly lowers the objective, so
 /// descent ends at a vertex with no improving edge, which is a global minimum of the convex
 /// objective, and the result is never worse than the input objective.
-fn polish_lad_vertex(design: &[Vec<f64>], y: &[f64], residuals: &[f64], objective: f64) -> f64 {
+fn polish_lad_vertex(design: &[&[f64]], y: &[f64], residuals: &[f64], objective: f64) -> f64 {
     let k = design.len();
     let n = y.len();
     if k == 0 || k > n {
@@ -792,8 +894,12 @@ pub fn full_graph_score(
     family: GraphScoreFamily,
     parents: &HashMap<u32, Arc<[u32]>>,
 ) -> Result<f64, StateError> {
+    let centered = match family {
+        GraphScoreFamily::GaussianBic | GraphScoreFamily::LaplaceBic => center_all(data),
+        GraphScoreFamily::GaussianSignedUniform => Vec::new(),
+    };
     let gram = match family {
-        GraphScoreFamily::GaussianBic => gaussian_design_gram(data),
+        GraphScoreFamily::GaussianBic => gaussian_design_gram(&centered),
         GraphScoreFamily::LaplaceBic => Vec::new(),
         GraphScoreFamily::GaussianSignedUniform => signed_uniform::raw_gram(data),
     };
@@ -805,8 +911,10 @@ pub fn full_graph_score(
     for node in 0..data.n_vars as u32 {
         let pa = parents.get(&node).cloned().unwrap_or_else(|| Arc::from([]));
         total += match family {
-            GraphScoreFamily::GaussianBic => gaussian_bic_from_gram(data, &gram, node, &pa)?,
-            GraphScoreFamily::LaplaceBic => laplace_bic_local(data, node, &pa)?,
+            GraphScoreFamily::GaussianBic => {
+                gaussian_bic_from_gram(data, &gram, &centered, node, &pa)?
+            }
+            GraphScoreFamily::LaplaceBic => laplace_bic_local(data, &centered, node, &pa)?,
             GraphScoreFamily::GaussianSignedUniform => {
                 signed_uniform::score(data, &gram, node, &pa)?
             }
@@ -859,7 +967,9 @@ mod tests {
         let mut cols = x;
         cols.extend(y);
         let data = GraphScoreData::new(n, 2, Arc::from(cols)).unwrap();
-        let score = |node: u32, parents: &[u32]| laplace_bic_local(&data, node, parents).unwrap();
+        let score = |node: u32, parents: &[u32]| {
+            laplace_bic_local(&data, &center_all(&data), node, parents).unwrap()
+        };
         let causal = score(0, &[]) + score(1, &[0]);
         let anticausal = score(1, &[]) + score(0, &[1]);
         assert!(causal > anticausal, "causal {causal} anticausal {anticausal}");
@@ -871,7 +981,7 @@ mod tests {
         // A perfect fit has no residual scale and is refused, not scored.
         let twin: Vec<f64> = data.col(0).iter().chain(data.col(0)).copied().collect();
         let twin = GraphScoreData::new(n, 2, Arc::from(twin)).unwrap();
-        assert!(laplace_bic_local(&twin, 1, &[0]).is_err());
+        assert!(laplace_bic_local(&twin, &center_all(&twin), 1, &[0]).is_err());
     }
 
     fn fresh_cache(data: &GraphScoreData) -> LocalScoreCache {
@@ -1188,8 +1298,10 @@ mod tests {
             cols.extend(y.iter().map(|v| v + offset));
             GraphScoreData::new(n, 2, Arc::from(cols)).unwrap()
         };
-        let a = laplace_bic_local(&build(0.0), 1, &[0]).unwrap();
-        let b = laplace_bic_local(&build(1.0e6), 1, &[0]).unwrap();
+        let origin = build(0.0);
+        let shifted = build(1.0e6);
+        let a = laplace_bic_local(&origin, &center_all(&origin), 1, &[0]).unwrap();
+        let b = laplace_bic_local(&shifted, &center_all(&shifted), 1, &[0]).unwrap();
         assert!((a - b).abs() < 1e-3, "offset changed the Laplace score: {a} vs {b}");
     }
 
@@ -1207,6 +1319,100 @@ mod tests {
         }
         let entries: usize = cache.entries.values().map(HashMap::len).sum();
         assert!(entries <= 1, "budget kept {entries} entries");
+    }
+
+    /// A Laplace chain centers each column once. Later parent sets, including ones that
+    /// recompute a score the byte budget evicted, read the stored columns. Each local score
+    /// matches a one-shot score bit for bit, and `clear` drops the columns.
+    #[test]
+    fn centered_columns_are_reused_on_a_laplace_chain() {
+        let data = chain_data();
+        let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+            data_version: 1,
+            family: GraphScoreFamily::LaplaceBic,
+            var_fingerprint: data.fingerprint(),
+            penalty_fingerprint: data.n_rows as u64,
+        })
+        .with_byte_budget(1);
+        reset_centered_column_calls();
+        let total_empty = cache.score_graph(&data).unwrap();
+        let n_vars = u64::try_from(data.n_vars).unwrap();
+        assert_eq!(centered_column_calls(), n_vars);
+        let (_, total_edge) = cache
+            .delta_score(&data, ParentSetOp::SetParents { node: 1, parents: Arc::from([0u32]) })
+            .unwrap();
+        assert_eq!(centered_column_calls(), n_vars);
+        let (_, total_chain) = cache
+            .delta_score(&data, ParentSetOp::SetParents { node: 2, parents: Arc::from([1u32]) })
+            .unwrap();
+        assert_eq!(centered_column_calls(), n_vars, "a second parent set centered a column again");
+        let column_bytes = (data.n_rows * data.n_vars * core::mem::size_of::<f64>()) as u64;
+        assert!(cache.retained_bytes() >= column_bytes);
+        assert!(cache.gram.is_none());
+        let entries: usize = cache.entries.values().map(HashMap::len).sum();
+        assert!(entries <= 1, "budget kept {entries} entries");
+        // Locals are bit-identical to a one-shot score. The running total is an incremental
+        // sum, so it is checked against a full rescore rather than by bits.
+        let locals = [
+            (0u32, Arc::<[u32]>::from([])),
+            (1, Arc::<[u32]>::from([0u32])),
+            (2, Arc::<[u32]>::from([1u32])),
+        ];
+        for (node, parents) in locals {
+            let cached = cache.local_score(&data, node, &parents).unwrap();
+            let direct = laplace_bic_local(&data, &center_all(&data), node, &parents).unwrap();
+            assert_eq!(cached.to_bits(), direct.to_bits(), "node {node}");
+        }
+        let full = full_graph_score(&data, GraphScoreFamily::LaplaceBic, &cache.parents).unwrap();
+        assert!(
+            (total_chain - full).abs() < 1e-12,
+            "chain {total_chain} full {full} (empty {total_empty}, edge {total_edge})"
+        );
+        cache.clear();
+        assert_eq!(cache.retained_bytes(), 0);
+        assert!(cache.centered_columns.is_empty());
+        assert!(cache.gram.is_none());
+        reset_centered_column_calls();
+        cache.local_score(&data, 1, &Arc::from([0u32])).unwrap();
+        assert_eq!(centered_column_calls(), 2);
+    }
+
+    /// A Gaussian score that refines the Gram residual reads the columns stored with the Gram.
+    /// A second parent set of those columns does not center them again, and both scores match
+    /// a one-shot score bit for bit. The column bytes stay charged until `clear`.
+    #[test]
+    fn centered_columns_are_reused_when_a_gaussian_score_is_refined() {
+        let n = 100usize;
+        let mut cols = vec![0.0; 3 * n];
+        for i in 0..n {
+            let x = i as f64 - 50.0;
+            cols[i] = x + 1.0e7;
+            cols[n + i] = 3.0 * x + 1.0e-5 * ((i % 7) as f64 - 3.0) + 1.0e7;
+            cols[2 * n + i] = (i as f64).sin() + 1.0e7;
+        }
+        let data = GraphScoreData::new(n, 3, Arc::from(cols)).unwrap();
+        let mut cache = fresh_cache(&data);
+        reset_centered_column_calls();
+        reset_refined_rss_calls();
+        let first: Arc<[u32]> = Arc::from([0u32]);
+        let got = cache.local_score(&data, 1, &first).unwrap();
+        assert_eq!(centered_column_calls(), 3);
+        assert_eq!(refined_rss_calls(), 1);
+        let payload =
+            (n * 3 * core::mem::size_of::<f64>() + 9 * core::mem::size_of::<f64>()) as u64;
+        let after_first = cache.retained_bytes();
+        assert_eq!(after_first, payload + 32 + 8);
+        let second: Arc<[u32]> = Arc::from([0u32, 2]);
+        let got_second = cache.local_score(&data, 1, &second).unwrap();
+        assert_eq!(centered_column_calls(), 3, "a second parent set centered a column again");
+        assert_eq!(refined_rss_calls(), 2);
+        assert_eq!(cache.retained_bytes(), after_first + 32 + 16);
+        assert_eq!(got.to_bits(), gaussian_bic_local(&data, 1, &[0]).unwrap().to_bits());
+        assert_eq!(got_second.to_bits(), gaussian_bic_local(&data, 1, &[0, 2]).unwrap().to_bits());
+        cache.clear();
+        assert_eq!(cache.retained_bytes(), 0);
+        assert!(cache.centered_columns.is_empty());
+        assert!(cache.gram.is_none());
     }
 
     /// Local Gaussian BIC against 80-digit residual sums of squares on designs that stress the
@@ -1232,6 +1438,12 @@ mod tests {
             let n = cols[0].len();
             let flat: Vec<f64> = cols.iter().flatten().copied().collect();
             let data = GraphScoreData::new(n, cols.len(), Arc::from(flat)).unwrap();
+            let mut cache = LocalScoreCache::new(GraphScoreCacheKey {
+                data_version: 1,
+                family: GraphScoreFamily::GaussianBic,
+                var_fingerprint: data.fingerprint(),
+                penalty_fingerprint: data.n_rows as u64,
+            });
             for q in case["queries"].as_array().unwrap() {
                 let node = u32::try_from(q["node"].as_u64().unwrap()).unwrap();
                 let parents: Vec<u32> = q["parents"]
@@ -1248,6 +1460,14 @@ mod tests {
                             failures.push(format!(
                                 "{name} node {node} pa {parents:?}: got {got} want {want}"
                             ));
+                        }
+                        match cache.local_score(&data, node, &Arc::from(parents.as_slice())) {
+                            Ok(cached) if cached.to_bits() == got.to_bits() => {}
+                            Ok(cached) => failures.push(format!(
+                                "{name} node {node} pa {parents:?}: cache {cached} one-shot {got}"
+                            )),
+                            Err(e) => failures
+                                .push(format!("{name} node {node} pa {parents:?}: cache {e}")),
                         }
                     }
                     Err(e) => failures.push(format!("{name} node {node} pa {parents:?}: {e}")),
