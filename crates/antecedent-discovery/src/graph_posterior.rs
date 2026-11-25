@@ -1362,6 +1362,10 @@ pub fn adjacency_mask_from_admg(admg: &Admg) -> Result<u64, DiscoveryError> {
 /// sets could in principle share one. Downstream caches index atoms by key; a shared key would
 /// merge two graphs, so it is refused instead.
 fn distinct_graph_keys(adjacency: &[AdjacencyMask]) -> Result<Arc<[u64]>, DiscoveryError> {
+    // In single-word storage the key is the mask itself, so collisions are impossible.
+    if adjacency.iter().all(|mask| mask.to_word().is_some()) {
+        return Ok(adjacency.iter().map(AdjacencyMask::key).collect());
+    }
     let mut owner: std::collections::HashMap<u64, &AdjacencyMask> =
         std::collections::HashMap::with_capacity(adjacency.len());
     let mut keys = Vec::with_capacity(adjacency.len());

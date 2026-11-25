@@ -15,6 +15,8 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::execution::MapExecutionError;
+use antecedent_core::search::{SearchBudget, SearchLimits};
 use antecedent_core::{ExecutionContext, VariableId};
 use antecedent_data::TabularData;
 use antecedent_prob::kish_ess;
@@ -125,10 +127,9 @@ impl ExactDagPosterior {
             };
         }
 
-        // The byte quote is one mask per labeled DAG (32 bytes, the inline mask). It is
-        // compared with the pool before any graph is built or scored.
-        let bytes = enumeration_bytes(n).max(1);
-        admit_quote(ctx, usize::MAX, bytes, 0, "exact DAG enumeration")?;
+        let bytes = enumeration_bytes(n);
+        let route = "exact DAG enumeration";
+        let budget = check_quote(ctx, usize::MAX, bytes, 0, route)?;
 
         let score_data = tabular_score_data(data, variables)?;
         if !matches!(
@@ -153,7 +154,10 @@ impl ExactDagPosterior {
             };
         }
 
-        let masks = enumerate_unique_dags(n);
+        let _listing = budget.lease_storage(bytes).map_err(|stop| {
+            quote_error(budget.receipt(stop, Vec::new(), vec![route.to_owned()]))
+        })?;
+        let mut masks = enumerate_unique_dags(n);
         let scored = if n <= EXACT_ENUM_MAX_NODES
             || score_family == GraphScoreFamily::GaussianSignedUniform
         {
@@ -198,32 +202,35 @@ impl ExactDagPosterior {
                 )
             })?
         };
-        let mut log_w = Vec::with_capacity(scored.len());
-        let mut rejected = 0u64;
-        for (lw, rej) in scored {
-            log_w.push(lw);
-            rejected += rej;
-        }
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
         }
-        // Keep only finite-weight graphs.
-        let mut kept_masks = Vec::new();
-        let mut kept_log = Vec::new();
-        for (mask, lw) in masks.into_iter().zip(log_w) {
-            if lw.is_finite() {
-                kept_masks.push(mask);
-                kept_log.push(lw);
-            }
-        }
-        if kept_masks.is_empty() {
+
+        // Compact the mask listing in place and retain only finite log weights.
+        let kept = scored.iter().filter(|(log_weight, _)| log_weight.is_finite()).count();
+        if kept == 0 {
             return Err(DiscoveryError::unsupported("no constraint-valid DAGs under prior"));
         }
+        let mut kept_log = Vec::with_capacity(kept);
+        let mut scored = scored.into_iter();
+        let mut rejected = 0u64;
+        masks.retain(|_| {
+            let (log_weight, invalid) = scored.next().expect("one score per mask");
+            rejected += invalid;
+            if log_weight.is_finite() {
+                kept_log.push(log_weight);
+                true
+            } else {
+                false
+            }
+        });
+        drop(scored);
 
         let weights = normalize_log_weights(&kept_log)?;
+        drop(kept_log);
         let ess = kish_ess(&weights);
-        let (edge, orient) = accumulate_marginals(n, &weights, &kept_masks);
-        let mut diagnostics = analytic_graph_diagnostics(kept_masks.len(), ess);
+        let (edge, orient) = accumulate_marginals(n, &weights, &masks);
+        let mut diagnostics = analytic_graph_diagnostics(masks.len(), ess);
         if rejected > 0 && score_family == GraphScoreFamily::GaussianSignedUniform {
             diagnostics
                 .notes
@@ -237,7 +244,7 @@ impl ExactDagPosterior {
         GraphPosterior::from_atoms(
             n,
             weights,
-            kept_masks,
+            masks,
             edge,
             orient,
             SamplingSummary { ess, diagnostics, rejected_invalid: rejected },
@@ -289,18 +296,34 @@ impl GraphPosteriorEngine for ExactDagPosterior {
     }
 }
 
-/// Bytes of one exact listing: 32 bytes for every labeled DAG, the inline mask.
-///
-/// Counts through six nodes are the historical table, so a default listing quotes the same
-/// bytes it always did.
-pub(crate) fn enumeration_bytes(n: usize) -> u64 {
+fn exact_dag_count(n: usize) -> u64 {
     const KNOWN: [u64; 7] = [1, 1, 3, 25, 543, 29_281, 3_781_503];
-    let count = if n < KNOWN.len() {
-        KNOWN[n]
-    } else {
-        antecedent_core::graph_imputation_contract::labeled_dag_count(n)
-    };
-    count.saturating_mul(32)
+    KNOWN
+        .get(n)
+        .copied()
+        .unwrap_or_else(|| antecedent_core::graph_imputation_contract::labeled_dag_count(n))
+}
+
+/// Peak array storage while building, scoring, compacting, and publishing the listing.
+pub(crate) fn enumeration_bytes(n: usize) -> u64 {
+    let count = exact_dag_count(n);
+    let word = size_of::<u64>() as u64;
+    let mask = size_of::<AdjacencyMask>() as u64;
+    let weight = size_of::<f64>() as u64;
+    let score = size_of::<(f64, u64)>() as u64;
+    let slot = size_of::<Option<Result<(f64, u64), MapExecutionError<DiscoveryError>>>>() as u64;
+    let listing = count.saturating_mul(mask + word);
+    // The indexed map's slots live while its result vector is collected. Allow for both
+    // old and new output buffers when the vector grows geometrically.
+    let scoring = count.saturating_mul(mask + slot + 3 * score).saturating_add(4 * score);
+    let filtering = count.saturating_mul(mask + 2 * score + weight).saturating_add(4 * score);
+    let normalizing = count.saturating_mul(mask + 2 * weight);
+    // Publishing copies the masks into an Arc while the source vec is still live.
+    // Weights, graph keys and two marginal arrays are also charged for construction.
+    let publishing = count
+        .saturating_mul(2 * mask + 2 * weight + 2 * word)
+        .saturating_add((n as u64).saturating_pow(2).saturating_mul(3 * weight));
+    listing.max(scoring).max(filtering).max(normalizing).max(publishing)
 }
 
 /// Admit `memory` bytes and `work` operations against the execution, before the search is entered.
@@ -314,7 +337,16 @@ pub(crate) fn admit_quote(
     work: u64,
     unevaluated: &str,
 ) -> Result<(), DiscoveryError> {
-    use antecedent_core::search::{SearchBudget, SearchLimits};
+    check_quote(ctx, operations, memory, work, unevaluated).map(|_| ())
+}
+
+fn check_quote<'a>(
+    ctx: &'a ExecutionContext,
+    operations: usize,
+    memory: u64,
+    work: u64,
+    unevaluated: &str,
+) -> Result<SearchBudget<'a>, DiscoveryError> {
     let budget = SearchBudget::with_memory(
         SearchLimits { operations, depth: 1 },
         memory.max(1),
@@ -328,7 +360,7 @@ pub(crate) fn admit_quote(
             vec![unevaluated.to_owned()],
         )));
     }
-    Ok(())
+    Ok(budget)
 }
 
 fn quote_error(receipt: antecedent_core::search::SearchReceipt) -> DiscoveryError {
@@ -358,10 +390,13 @@ pub(crate) fn enumerate_unique_dags(n: usize) -> Vec<AdjacencyMask> {
             }
         }
     }
-    let mut words = Vec::new();
+    let count = usize::try_from(exact_dag_count(n)).expect("exact DAG listing fits usize");
+    let mut words = Vec::with_capacity(count);
     grow_dags(n, 0, [0u8; MAX_ENUM_NODES], 0, &bit, &mut words);
     words.sort_unstable();
-    words.into_iter().map(AdjacencyMask::from_word).collect()
+    let mut masks = Vec::with_capacity(count);
+    masks.extend(words.into_iter().map(AdjacencyMask::from_word));
+    masks
 }
 
 const MAX_ENUM_NODES: usize = 8;
@@ -614,7 +649,10 @@ mod tests {
     #[test]
     fn seven_nodes_are_quoted_against_the_pool() {
         let bytes = enumeration_bytes(7);
-        assert_eq!(bytes, 1_138_779_265 * 32);
+        let count = 1_138_779_265;
+        assert_eq!(exact_dag_count(7), count);
+        let masks_only = count * size_of::<AdjacencyMask>() as u64;
+        assert!(bytes >= masks_only + count * size_of::<(f64, u64)>() as u64);
         let mut ctx = ExecutionContext::for_tests(1);
         ctx.set_memory_limit(Some(bytes));
         admit_quote(&ctx, usize::MAX, bytes, 0, "exact DAG enumeration").unwrap();
@@ -625,6 +663,24 @@ mod tests {
         assert!(text.contains("unevaluated [exact DAG enumeration]"), "{text}");
         assert!(!text.contains("at most"), "{text}");
         let engine = ExactDagPosterior::new();
+        ctx.set_memory_limit(Some(masks_only));
+        let (data, _) = chain_tabular(20, 5);
+        let variables: Vec<_> = (0..7).map(VariableId::from_raw).collect();
+        let text = engine
+            .clone()
+            .with_max_nodes(7)
+            .run(
+                &data,
+                &variables,
+                &GraphPrior::uniform(),
+                GraphScoreFamily::GaussianBic,
+                &mut DiscoveryWorkspace::default(),
+                &ctx,
+            )
+            .unwrap_err()
+            .to_string();
+        assert!(text.contains("search.memory"), "{text}");
+        assert!(text.contains("unevaluated [exact DAG enumeration]"), "{text}");
         assert_eq!(engine.max_nodes, EXACT_ENUM_MAX_NODES);
         assert!(engine.route_larger);
         assert_eq!(engine.with_max_nodes(7).max_nodes, 7);
