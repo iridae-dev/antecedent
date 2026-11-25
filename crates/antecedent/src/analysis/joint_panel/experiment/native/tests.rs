@@ -1076,3 +1076,80 @@ fn site_joint_panel_native_condition_and_component_law_bind_their_parts() {
         super::super::joint::component_law_digest(SemanticDigest::from_bytes([4; 32]), 0),
     ]);
 }
+
+/// An experiment whose bridge names the released (unframed) projection of its binding is
+/// accepted, exported, replayed and consumed: artifacts retained before the projection was
+/// framed keep verifying under the dual accept.
+#[test]
+fn site_joint_panel_native_experiment_old_format_artifact_exports_and_replays() {
+    let ctx = ExecutionContext::for_tests(445);
+    let (recipe, inference, coefficients) =
+        super::super::super::designs::native_experiment_fixtures().remove(0);
+    let prepared =
+        super::super::super::designs::PreparedNativeJointDesign::compile(recipe, &ctx).unwrap();
+    let original = prepared.execute(inference, &ctx).unwrap();
+    let binding = NativeExperimentBinding {
+        coefficients,
+        outcome_units: "original_response_unit".into(),
+        local_ratio_regularization: None,
+    };
+    let current = original.experiment_quantity(&binding).unwrap();
+    let released = original.experiment_quantity_as(&binding, TargetEncoding::Released).unwrap();
+    assert_ne!(current, released, "the projection is versioned");
+
+    let prior = reference_prior(&original, &binding);
+    let width = binding.coefficients.len();
+    let values = prior
+        .draws()
+        .chunks_exact(width)
+        .map(|row| row.iter().zip(&binding.coefficients).map(|(v, c)| v * c).sum::<f64>())
+        .collect::<Vec<_>>();
+    let n = values.len();
+    let center = values.iter().sum::<f64>() / n as f64;
+    let slopes = vec![1.0; n];
+    let mut ledger = EvidenceLedger::new();
+    let model = ledger
+        .add_source(
+            SourceDeclaration::new(
+                original.dependency_identity().to_hex(),
+                SourceKind::FittedModel,
+            )
+            .with_observations([ObservationId::from_key("original-native-data", b"sample")]),
+        )
+        .unwrap();
+    let experiment = ledger
+        .add_source(
+            SourceDeclaration::new("independent_experiment", SourceKind::Experiment)
+                .with_observations([ObservationId::from_key(
+                    "new-independent-experiment",
+                    b"sample",
+                )]),
+        )
+        .unwrap();
+    let mapping = ledger
+        .add_source(
+            SourceDeclaration::new("native_target_mapping", SourceKind::FittedModel)
+                .with_observations([ObservationId::from_key("external-mapping", b"sample")]),
+        )
+        .unwrap();
+    let request = JointLawExperimentRequest {
+        bridge: bridge(&released, 1.0, 0.0, 0.0, 0),
+        observed_mean: center + 0.2,
+        observation_variance: 0.3,
+        sample_size: 8,
+        mapping: PanelExperimentMapping {
+            dependency: original.dependency_identity(),
+            intercepts: vec![0.0; n],
+            slopes,
+        },
+        evidence: PanelExperimentEvidence { model, experiment, mapping, prior_origins: vec![] },
+    };
+    let updated = original.condition_native_experiment(binding, request, &ledger, &ctx).unwrap();
+    let artifact = updated.export(&ledger, &ctx).unwrap();
+    let replay = NativeJointExperimentResult::replay(&artifact, &ctx).unwrap();
+    assert!(!replay.grants_current_authority());
+    let law = updated.numerical_law_source(&ledger).unwrap();
+    assert_eq!(replay.numerical_law().draws(), law.draws());
+    assert_eq!(replay.numerical_law().metadata(), law.metadata());
+    updated.consume_current(&artifact, &ledger, &ctx).unwrap();
+}

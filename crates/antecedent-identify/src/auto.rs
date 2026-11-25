@@ -388,7 +388,13 @@ impl AutoIdentifier {
         // its strongest alternative and never stronger than every admitted strategy; each
         // estimand's own status and assumptions are its claim. The listing-level set is the
         // union over the alternatives, so it never understates what a listed estimand relies on.
-        let listing = listing_status(&acc.claims).filter(|_| !acc.estimands.is_empty());
+        // A whole-query strategy (response back-door, distribution recovery) lists its estimands
+        // without per-estimand claims and is admitted only when nonparametrically identified.
+        let listing = if acc.claims.is_empty() {
+            (!acc.estimands.is_empty()).then_some(IdentificationStatus::NonparametricallyIdentified)
+        } else {
+            listing_status(&acc.claims)
+        };
         let Some(status) = listing else {
             let mut out = IdentificationResult::not_identified(
                 query.clone(),
