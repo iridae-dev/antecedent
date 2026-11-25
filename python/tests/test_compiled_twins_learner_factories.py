@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import warnings
 
+import antecedent as ant
 import numpy as np
 import pytest
 from antecedent._deprecation import AntecedentDeprecationWarning
@@ -147,6 +148,40 @@ def test_dr_learner_and_causal_forest_entries_warn_and_match_the_declared_learne
             data, GRAPH, "t", "y", learners=Learners(outcome, treatment), estimator="causal_forest"
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("legacy_call", "selector", "options"),
+    [
+        (aipw_ate, "aipw", {}),
+        (dml_ate, "dml", {"score": "partially_linear"}),
+        (dr_learner_ate, "dr_learner", {}),
+        (causal_forest_ate, "causal_forest", {}),
+    ],
+)
+def test_warned_study_selector_reproduces_the_legacy_fit(legacy_call, selector, options):
+    data = _data()
+    outcome, treatment = _learners()
+    with pytest.warns(FutureWarning, match=f"antecedent.analyze.*estimator='{selector}'"):
+        legacy = legacy_call(data, GRAPH, "t", "y", outcome=outcome, treatment=treatment, **options)
+    study = ant.analyze(
+        data,
+        graph=GRAPH,
+        query=ant.AverageEffect("t", "y"),
+        learners=Learners(outcome, treatment),
+        estimator=selector,
+    )
+    assert study.refusal is None
+    assert study.answer.value == legacy.estimate
+    assert study.value.estimate.method == legacy.score
+    assert study.value.provenance["fold_ids"] == legacy.fold_ids
+    receipts = study.value.provenance["fold_receipts"]
+    for migrated, original in zip(receipts, legacy.receipts, strict=True):
+        model_id, fit, prediction = migrated
+        legacy_id, legacy_fit, legacy_prediction = original
+        assert model_id == legacy_id
+        assert fit.host_artifact == legacy_fit.host_artifact
+        np.testing.assert_array_equal(prediction.estimate, legacy_prediction.estimate)
 
 
 def test_direct_entry_still_returns_its_numbers_after_the_warning():

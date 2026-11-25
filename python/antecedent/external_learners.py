@@ -556,8 +556,9 @@ def dml_ate(
     is implemented; temporal training and validation are explicitly refused.
     Provider receipts are returned for every fold and treatment arm.
 
-    Deprecated: :func:`antecedent.analyze` declares the learners on the study and returns the
-    same numbers. This entry keeps the estimator and score arguments.
+    For a partially linear fit use :func:`antecedent.analyze` with ``estimator="dml"``.
+    To keep this wrapper's default DML fit with its AIPW score, use :func:`analyze_ate`
+    with the same folds, weights and execution.
     """
     _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.dml_ate",
@@ -619,7 +620,8 @@ def aipw_ate(
     Deprecated: :func:`antecedent.analyze` with ``estimator="aipw"`` returns the same numbers.
     """
     _deprecation.compiled_wrapper_deprecated(
-        "antecedent.external_learners.aipw_ate", _study_replacement("aipw", folds=kwargs.get("folds", 5), weights=kwargs.get("weights"))
+        "antecedent.external_learners.aipw_ate",
+        _study_replacement("aipw", folds=kwargs.get("folds", 5), weights=kwargs.get("weights")),
     )
     return _direct_ate(data, edges, treatment_name, outcome_name, estimator="aipw", **kwargs)
 
