@@ -126,6 +126,10 @@ fn graph_identity_exhaustive_three_nodes_dag() {
                 assert_eq!(dag_identity(&dag(labels, edges, order)).unwrap(), reference);
             }
             let graph = labelled(labels, edges, none);
+            if let GraphIdentityWire::Dag(wire) = &reference {
+                assert_eq!(wire.node_count, 3);
+                assert_eq!(wire.edges, graph.1);
+            }
             for (wire, other) in &seen {
                 assert_eq!(*wire == reference, *other == graph, "{labels:?} {edges:?}");
             }
@@ -150,6 +154,13 @@ fn graph_identity_exhaustive_three_nodes_admg() {
                     );
                 }
                 let graph = labelled(labels, directed, bidirected);
+                assert_eq!(matches!(reference, GraphIdentityWire::Admg(_)), aligned(labels));
+                assert_eq!(matches!(reference, GraphIdentityWire::LabeledAdmg(_)), !aligned(labels));
+                if let GraphIdentityWire::Admg(wire) = &reference {
+                    assert_eq!(wire.node_count, 3);
+                    assert_eq!(wire.directed, graph.1);
+                    assert_eq!(wire.bidirected, graph.2);
+                }
                 for (wire, other) in &seen {
                     assert_eq!(*wire == reference, *other == graph, "{labels:?} {directed:?}");
                 }

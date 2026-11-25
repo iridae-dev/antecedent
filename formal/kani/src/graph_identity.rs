@@ -1,33 +1,26 @@
-//! `antecedent_io_core::identity::dag_identity` and `admg_identity` on every static graph of
-//! three nodes labelled with distinct variables below four.
-//!
-//! The identity wire is what the identification digest hashes, so these proofs need no
-//! property of the hash: the wire depends only on the labelled graph, never on the dense
-//! order its nodes were added in, and two labelled graphs with different variables or edges
-//! never share a wire. The released unlabelled wire failed the second property (the same
-//! edges over different variables shared one wire).
-//!
-//! No stubs: graph construction and both encoders run as in production. Nodes are built with
-//! `Dag::from_nodes` and `Admg::from_nodes`, which claim static labels as one sorted run and
-//! do not call `ClaimedLabels::merge`. Their loops are bounded by the node count (three)
-//! or the edge count (at most three per kind), and they run no recursion, hashing or tree
-//! code, so an unwind of six covers every loop with margin.
-//! The reference side is written with bit masks rather than sorted vectors, so the
-//! specification adds no sort of its own.
+//! Symbolic checks of the label permutation, endpoint mapping, sorting and aligned-form
+//! selection used by the production DAG and ADMG encoders. Graph construction and wire
+//! assembly are exercised through the public encoders by graph_identity_exhaustive.
 
 use antecedent_core::{NodeRef, VariableId};
-use antecedent_graph::{Admg, Dag, DenseNodeId};
-use antecedent_io_core::identity::{admg_identity, dag_identity};
-
+use antecedent_graph::DenseNodeId;
 #[cfg(kani)]
-use antecedent_io_core::identity::GraphIdentityWire;
+use antecedent_io_core::identity::{
+    IdentityNodeWire, canonical_label_order, canonical_pair, schema_aligned, sort_identity_pairs,
+};
 
 const NODES: usize = 3;
 /// The edges `slot i -> slot j` with `i < j`; acyclic in any dense order.
 const PAIRS: [(usize, usize); 3] = [(0, 1), (0, 2), (1, 2)];
-/// Every insertion order of the three slots.
+/// Every dense order of the three topological slots.
 const ORDERS: [[usize; NODES]; 6] =
     [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
+#[cfg(kani)]
+fn any_order() -> [usize; NODES] {
+    let index: u8 = kani::any();
+    kani::assume(index < 6);
+    ORDERS[usize::from(index)]
+}
 
 #[cfg(kani)]
 fn any_labels() -> [u32; NODES] {
@@ -40,13 +33,6 @@ fn any_labels() -> [u32; NODES] {
 #[cfg(kani)]
 fn any_edges() -> [bool; 3] {
     [kani::any(), kani::any(), kani::any()]
-}
-
-#[cfg(kani)]
-fn any_order() -> [usize; NODES] {
-    let index: usize = kani::any();
-    kani::assume(index < ORDERS.len());
-    ORDERS[index]
 }
 
 /// Dense id of each slot when the slots are added in `order`.
@@ -66,25 +52,8 @@ fn nodes_in(labels: [u32; NODES], order: [usize; NODES]) -> [NodeRef; NODES] {
     nodes
 }
 
-fn dag(labels: [u32; NODES], edges: [bool; 3], order: [usize; NODES]) -> Dag {
-    // One sorted claim run of length three. `ClaimedLabels::merge` is not on this path.
-    let mut graph = Dag::from_nodes(&nodes_in(labels, order)).unwrap();
-    let dense = dense_ids(order);
-    for (index, &(from, to)) in PAIRS.iter().enumerate() {
-        if edges[index] {
-            graph.insert_directed(dense[from], dense[to]).unwrap();
-        }
-    }
-    graph
-}
-
-/// The variable set as a mask (bit `v` for variable `v`). Labels are distinct, so two label
-/// triples name the same variables exactly when their masks agree.
-fn variables(labels: [u32; NODES]) -> u8 {
-    labels.iter().fold(0, |mask, &label| mask | (1 << label))
-}
-
 /// The directed variable pairs as a mask (bit `4 * from + to`).
+#[cfg(kani)]
 fn directed_pairs(labels: [u32; NODES], edges: [bool; 3]) -> u16 {
     let mut mask = 0u16;
     for (index, &(from, to)) in PAIRS.iter().enumerate() {
@@ -96,6 +65,7 @@ fn directed_pairs(labels: [u32; NODES], edges: [bool; 3]) -> u16 {
 }
 
 /// The unordered variable pairs as a mask (bit `4 * min + max`).
+#[cfg(kani)]
 fn unordered_pairs(labels: [u32; NODES], edges: [bool; 3]) -> u16 {
     let mut mask = 0u16;
     for (index, &(a, b)) in PAIRS.iter().enumerate() {
@@ -107,91 +77,166 @@ fn unordered_pairs(labels: [u32; NODES], edges: [bool; 3]) -> u16 {
     mask
 }
 
-/// The DAG identity does not depend on the dense order of the nodes, and is canonical.
+/// Labels in ascending variable order. The three labels are distinct and below four.
+#[cfg(kani)]
+fn sorted_variables(labels: [u32; NODES]) -> [u32; NODES] {
+    let mut sorted = [0u32; NODES];
+    let mut count = 0usize;
+    for variable in 0..4u32 {
+        for &label in &labels {
+            if label == variable {
+                sorted[count] = variable;
+                count += 1;
+            }
+        }
+    }
+    sorted
+}
+
+/// Index of `variable` in `sorted`.
+#[cfg(kani)]
+fn rank(sorted: [u32; NODES], variable: u32) -> u32 {
+    let mut index = 0u32;
+    for &label in &sorted {
+        if label == variable {
+            return index;
+        }
+        index += 1;
+    }
+    index
+}
+
+/// Selected mask bits, scanned in variable order and written as indexes into the sorted labels.
+///
+/// At most three pairs are selected. The scan order is the ascending endpoint order.
+#[cfg(kani)]
+fn endpoints(mask: u16, sorted: [u32; NODES], unordered: bool) -> ([(u32, u32); 3], usize) {
+    let mut pairs = [(0u32, 0u32); 3];
+    let mut count = 0usize;
+    for from in 0..4u32 {
+        for to in 0..4u32 {
+            let selected = if unordered { from <= to } else { true };
+            if selected && mask & (1u16 << (from * 4 + to)) != 0 {
+                pairs[count] = (rank(sorted, from), rank(sorted, to));
+                count += 1;
+            }
+        }
+    }
+    (pairs, count)
+}
+
+#[cfg(kani)]
+fn assert_pair_list(actual: &[(u32, u32)], expected: [(u32, u32); 3], count: usize) {
+    assert_eq!(actual.len(), count);
+    for index in 0..3 {
+        match actual.get(index) {
+            Some(&pair) => {
+                assert!(index < count);
+                assert_eq!(pair.0, expected[index].0);
+                assert_eq!(pair.1, expected[index].1);
+            }
+            None => assert!(index >= count),
+        }
+    }
+}
+
+#[cfg(kani)]
+fn assert_sorted_nodes(nodes: &[IdentityNodeWire], sorted: [u32; NODES]) {
+    assert_eq!(nodes.len(), NODES);
+    for (index, &variable) in sorted.iter().enumerate() {
+        match nodes.get(index) {
+            Some(IdentityNodeWire::Static { variable: found }) => assert_eq!(*found, variable),
+            _ => assert!(false),
+        }
+    }
+}
+
+/// Check the production kernels against a reference in variable space. The dense positions
+/// are an independent permutation of topological slots. Forward and bidirected edges vary
+/// independently. The edge list may also arrive in any order.
+#[cfg(kani)]
+fn check_parts(labels: [u32; 3], selected: [bool; 3], bidirected: bool) {
+    let dense_order = any_order();
+    let dense = dense_ids(dense_order);
+    let labels_in_dense_order =
+        dense_order.map(|i| IdentityNodeWire::Static { variable: labels[i] });
+    let mut order = [0, 1, 2];
+    let mut position = [0; 3];
+    canonical_label_order(&labels_in_dense_order, &mut order, &mut position).unwrap();
+    let sorted = sorted_variables(labels);
+    let ordered_nodes = order.map(|i| labels_in_dense_order[i].clone());
+    assert_sorted_nodes(&ordered_nodes, sorted);
+    assert_eq!(schema_aligned(&ordered_nodes), sorted[0] == 0 && sorted[1] == 1 && sorted[2] == 2);
+    let mut pairs = [(0, 0); 3];
+    let mut n = 0;
+    for index in any_order() {
+        if selected[index] {
+            let (a, b) = PAIRS[index];
+            let (a, b) = (dense[a].raw(), dense[b].raw());
+            let pair = if bidirected && b < a { (b, a) } else { (a, b) };
+            pairs[n] = canonical_pair(&position, pair, bidirected).unwrap();
+            n += 1;
+        }
+    }
+    let mut result = [(0, 0); 3];
+    sort_identity_pairs(&pairs[..n], &mut [(0, 0); 3][..n], &mut result[..n], &mut [0; 4]);
+    let mask = if bidirected {
+        unordered_pairs(labels, selected)
+    } else {
+        directed_pairs(labels, selected)
+    };
+    let (expected, count) = endpoints(mask, sorted, bidirected);
+    assert_pair_list(&result[..n], expected, count);
+}
+
 #[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn dag_identity_ignores_dense_order() {
-    let labels = any_labels();
-    let edges = any_edges();
-    let first = dag_identity(&dag(labels, edges, any_order())).unwrap();
-    let second = dag_identity(&dag(labels, edges, any_order())).unwrap();
-    assert!(first == second);
-    assert!(first.is_canonical());
+    check_parts(any_labels(), any_edges(), false);
 }
 
-/// Two DAGs share an identity wire only when they have the same variables and the same
-/// directed edges between them.
 #[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn dag_identity_binds_labels_and_edges() {
-    let (left_labels, left_edges) = (any_labels(), any_edges());
-    let (right_labels, right_edges) = (any_labels(), any_edges());
-    let left = dag_identity(&dag(left_labels, left_edges, any_order())).unwrap();
-    let right = dag_identity(&dag(right_labels, right_edges, any_order())).unwrap();
-    if left == right {
-        assert!(variables(left_labels) == variables(right_labels));
-        assert!(
-            directed_pairs(left_labels, left_edges) == directed_pairs(right_labels, right_edges)
-        );
-    }
+    let labels = any_labels();
+    let dense = any_order();
+    let nodes = dense.map(|i| IdentityNodeWire::Static { variable: labels[i] });
+    let mut order = [0, 1, 2];
+    let mut position = [0; 3];
+    canonical_label_order(&nodes, &mut order, &mut position).unwrap();
+    let a: u8 = kani::any();
+    let b: u8 = kani::any();
+    kani::assume(a < 3 && b < 3);
+    let (x, y) = canonical_pair(&position, (u32::from(a), u32::from(b)), false).unwrap();
+    assert_eq!(order[x as usize], usize::from(a));
+    assert_eq!(order[y as usize], usize::from(b));
 }
 
-/// A schema-aligned DAG (variables 0, 1, 2) is written in the unlabelled form of earlier
-/// releases; any other is labelled.
 #[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn dag_identity_keeps_the_aligned_form() {
     let labels = any_labels();
-    let identity = dag_identity(&dag(labels, any_edges(), any_order())).unwrap();
-    let aligned = labels.iter().all(|&label| label < 3);
-    assert!(matches!(identity, GraphIdentityWire::Dag(_)) == aligned);
-    assert!(matches!(identity, GraphIdentityWire::LabeledDag(_)) == !aligned);
-}
-
-fn admg(
-    labels: [u32; NODES],
-    directed: [bool; 3],
-    bidirected: [bool; 3],
-    order: [usize; NODES],
-) -> Admg {
-    // Same claim construction as [`dag`]: one sorted run, no `ClaimedLabels::merge`.
-    let mut graph = Admg::from_nodes(&nodes_in(labels, order)).unwrap();
-    let dense = dense_ids(order);
-    for (index, &(from, to)) in PAIRS.iter().enumerate() {
-        if directed[index] {
-            graph.insert_directed(dense[from], dense[to]).unwrap();
-        }
-        if bidirected[index] {
-            graph.insert_bidirected(dense[to], dense[from]).unwrap();
+    let nodes = labels.map(|variable| IdentityNodeWire::Static { variable });
+    let mut order = [0, 1, 2];
+    let mut position = [0; 3];
+    canonical_label_order(&nodes, &mut order, &mut position).unwrap();
+    let aligned = schema_aligned(&order.map(|i| nodes[i].clone()));
+    assert_eq!(aligned, labels.iter().all(|&v| v < 3));
+    if aligned {
+        for i in 0..3 {
+            assert_eq!(position[i], labels[i]);
         }
     }
-    graph
 }
 
-/// The ADMG identity does not depend on dense order, and two ADMGs share it only when their
-/// variables, directed edges and bidirected pairs agree.
 #[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn admg_identity_binds_labels_not_dense_order() {
-    let (labels, directed, bidirected) = (any_labels(), any_edges(), any_edges());
-    let first = admg_identity(&admg(labels, directed, bidirected, any_order())).unwrap();
-    let second = admg_identity(&admg(labels, directed, bidirected, any_order())).unwrap();
-    assert!(first == second);
-    assert!(first.is_canonical());
-    let (other_labels, other_directed, other_bidirected) = (any_labels(), any_edges(), any_edges());
-    let other =
-        admg_identity(&admg(other_labels, other_directed, other_bidirected, any_order())).unwrap();
-    if first == other {
-        assert!(variables(labels) == variables(other_labels));
-        assert!(directed_pairs(labels, directed) == directed_pairs(other_labels, other_directed));
-        assert!(
-            unordered_pairs(labels, bidirected) == unordered_pairs(other_labels, other_bidirected)
-        );
-    }
+    check_parts(any_labels(), any_edges(), kani::any());
 }
 
 /// `from_nodes` and `add_node` claim the same static labels: a repeated label is refused, and

@@ -312,6 +312,8 @@ impl PayloadDigestWire {
 }
 
 mod graph;
+#[doc(hidden)]
+pub use graph::{canonical_label_order, canonical_pair, schema_aligned, sort_identity_pairs};
 
 use graph::selection_graph_wire;
 pub use graph::{

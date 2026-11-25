@@ -788,7 +788,7 @@ justification = [
 implementation = { public_path = "antecedent_io_core::dag_identity", bound_by = ["identity.static_graph_and_law_identities"] }
 obligations = []
 limitations = [
-    "Kani covers graphs of three nodes with variables below four; larger graphs are covered by generated cases only.",
+    "Kani checks the shared label and edge canonicalization kernels for three nodes with variables below four. Graph storage, extraction and wire assembly are exercised by the exhaustive native integration tests. Larger graphs have generated tests.",
 ]
 empty = { obligations = "Its output is an identity; it carries nothing to a user." }
 
@@ -811,7 +811,7 @@ justification = [
 implementation = { public_path = "antecedent_io_core::admg_identity", bound_by = ["identity.static_graph_and_law_identities"] }
 obligations = []
 limitations = [
-    "Kani covers graphs of three nodes with variables below four; larger graphs are covered by generated cases only.",
+    "Kani checks the shared label and edge canonicalization kernels for three nodes with variables below four. Graph storage, extraction and wire assembly are exercised by the exhaustive native integration tests. Larger graphs have generated tests.",
 ]
 empty = { obligations = "Its output is an identity; it carries nothing to a user." }
 

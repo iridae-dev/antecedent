@@ -325,7 +325,8 @@ fn dense_schema_aligned(nodes: &[NodeRef]) -> bool {
 }
 
 /// Whether sorted node labels are exactly `Static(0), Static(1), ...`.
-fn schema_aligned(nodes: &[IdentityNodeWire]) -> bool {
+#[doc(hidden)]
+pub fn schema_aligned(nodes: &[IdentityNodeWire]) -> bool {
     nodes.iter().enumerate().all(|(index, node)| {
         matches!(node, IdentityNodeWire::Static { variable } if *variable as usize == index)
     })
@@ -392,27 +393,46 @@ fn sort_by_order(order: &mut [usize], before: impl Fn(usize, usize) -> bool) {
     }
 }
 
+/// Sort the dense indices and write their inverse permutation. Caller supplies identity order.
+#[doc(hidden)]
+pub fn canonical_label_order(
+    labels: &[IdentityNodeWire],
+    order: &mut [usize],
+    position: &mut [u32],
+) -> Option<()> {
+    sort_by_order(order, |a, b| labels[a].cmp(&labels[b]).then(a.cmp(&b)).is_lt());
+    for (new, &old) in order.iter().enumerate() {
+        position[old] = u32::try_from(new).ok()?;
+    }
+    Some(())
+}
+
+/// Look up both dense endpoints and orient an unordered pair in label order.
+#[doc(hidden)]
+pub fn canonical_pair(position: &[u32], (a, b): (u32, u32), orient: bool) -> Option<(u32, u32)> {
+    let a = *position.get(a as usize)?;
+    let b = *position.get(b as usize)?;
+    Some(if orient && a > b { (b, a) } else { (a, b) })
+}
+
 impl LabelOrder {
     fn of(nodes: &[NodeRef]) -> Result<Self, IoError> {
         let labels: Vec<IdentityNodeWire> =
             nodes.iter().map(|&node| IdentityNodeWire::from_node(node)).collect();
         let mut order: Vec<usize> = (0..labels.len()).collect();
-        let before = |a: usize, b: usize| labels[a].cmp(&labels[b]).then(a.cmp(&b)).is_lt();
-        sort_by_order(&mut order, before);
         let mut position = vec![0u32; labels.len()];
-        for (new, &old) in order.iter().enumerate() {
-            position[old] = u32::try_from(new).map_err(|_| IoError::TooLarge)?;
-        }
+        canonical_label_order(&labels, &mut order, &mut position).ok_or(IoError::TooLarge)?;
         Ok(Self { nodes: order.iter().map(|&index| labels[index].clone()).collect(), position })
     }
 
     fn remap(&self, pairs: &[(u32, u32)]) -> Result<Vec<(u32, u32)>, IoError> {
-        let at = |index: u32| {
-            self.position.get(index as usize).copied().ok_or_else(|| {
-                IoError::Convert("graph edge references a node outside the graph".into())
-            })
-        };
-        pairs.iter().map(|&(a, b)| Ok((at(a)?, at(b)?))).collect()
+        pairs.iter().map(|&pair| self.map_pair(pair, false)).collect()
+    }
+
+    fn map_pair(&self, pair: (u32, u32), orient: bool) -> Result<(u32, u32), IoError> {
+        canonical_pair(&self.position, pair, orient).ok_or_else(|| {
+            IoError::Convert("graph edge references a node outside the graph".into())
+        })
     }
 
     /// [`Self::remap`], each pair oriented to `a <= b` when `orient`, then sorted ascending.
@@ -422,39 +442,47 @@ impl LabelOrder {
     /// identity path runs no loop longer than the node or pair count and no recursion. The
     /// result is the ascending order of the pairs, the same as any sort of them.
     fn remap_sorted(&self, pairs: &[(u32, u32)], orient: bool) -> Result<Vec<(u32, u32)>, IoError> {
-        let mut mapped = self.remap(pairs)?;
-        if orient {
-            for pair in &mut mapped {
-                if pair.0 > pair.1 {
-                    *pair = (pair.1, pair.0);
-                }
-            }
-        }
-        let by_second = counting_sort(&mapped, self.position.len(), |pair| pair.1);
-        Ok(counting_sort(&by_second, self.position.len(), |pair| pair.0))
+        let mapped =
+            pairs.iter().map(|&pair| self.map_pair(pair, orient)).collect::<Result<Vec<_>, _>>()?;
+        let mut scratch = vec![(0, 0); pairs.len()];
+        let mut sorted = vec![(0, 0); pairs.len()];
+        let mut counts = vec![0; self.position.len() + 1];
+        sort_identity_pairs(&mapped, &mut scratch, &mut sorted, &mut counts);
+        Ok(sorted)
     }
+
 }
 
-/// Stable counting sort of `pairs` by `key`, every key below `keys`.
-fn counting_sort(
+/// Sort valid label-space pairs. Both buffers have input length and counts has node count plus one slots.
+#[doc(hidden)]
+pub fn sort_identity_pairs(
     pairs: &[(u32, u32)],
-    keys: usize,
+    scratch: &mut [(u32, u32)],
+    sorted: &mut [(u32, u32)],
+    counts: &mut [usize],
+) {
+    counting_pass(pairs, scratch, counts, |pair| pair.1);
+    counting_pass(scratch, sorted, counts, |pair| pair.0);
+}
+
+fn counting_pass(
+    pairs: &[(u32, u32)],
+    sorted: &mut [(u32, u32)],
+    start: &mut [usize],
     key: impl Fn((u32, u32)) -> u32,
-) -> Vec<(u32, u32)> {
-    let mut start = vec![0usize; keys + 1];
+) {
+    start.fill(0);
     for &pair in pairs {
         start[key(pair) as usize + 1] += 1;
     }
-    for index in 0..keys {
-        start[index + 1] += start[index];
+    for index in 1..start.len() {
+        start[index] += start[index - 1];
     }
-    let mut sorted = vec![(0u32, 0u32); pairs.len()];
     for &pair in pairs {
         let slot = &mut start[key(pair) as usize];
         sorted[*slot] = pair;
         *slot += 1;
     }
-    sorted
 }
 
 /// Temporal CPDAG / PAG identity: lagged edges plus contemporaneous marks.

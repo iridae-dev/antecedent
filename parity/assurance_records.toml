@@ -414,9 +414,9 @@ checked_commit = "e70acee826841f385bb6b9afb44d1e3edb73f3f3"
 [[records]]
 id = "identity.static_graph_and_law_identities"
 proposition = "The static DAG and ADMG identification identity wires depend only on the labelled graph: building the same graph with its nodes in any dense order gives the same wire, a schema-aligned graph keeps the unlabelled wire of earlier releases, and two graphs share a wire only when their variables, directed edges and bidirected pairs agree. Every identity site that canonicalizes a collection is listed in formal/identity_sites.toml with its classification (ordered, set, multiset) and the production checks that cover it."
-scope = "dag_identity and admg_identity in antecedent-io-core, for every static graph of three nodes labelled with distinct variables below four, all edge sets and all insertion orders (Kani). The exact-law content identity v2, larger graphs and canonical values are checked by generated cases (adversarial campaign, identity_sites.* cases), not by this bound. Sites marked listed in the inventory are classified but have no generated check."
+scope = "Kani symbolically checks the shared production label permutation, inverse rank, endpoint remapping, bidirected orientation, two-pass pair sorting and aligned-form selection on three distinct static variables below four, all DAG edge subsets, bidirected subsets and dense orders. The exhaustive native graph_identity_exhaustive tests cover the constructors, graph-to-pair extraction and final wire assembly. Larger graphs and exact-law identity v2 have generated adversarial checks."
 trusted = [
-    "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of dag_identity, admg_identity and the antecedent-graph constructors they read",
+    "Kani 0.68.0 and CBMC 6.11.0 model the Rust semantics of the production canonicalization functions. Composition with graph extraction and wire assembly is checked by native integration tests.",
     "the identification digest is collision-free on the wires it hashes (the proofs are about the wire, not the hash)",
     "the inventory's classification of listed sites is reviewed, not machine-checked",
 ]
@@ -442,13 +442,11 @@ harnesses = [
 ]
 rust_items = [
     { file = "crates/antecedent-io-core/src/identity/graph.rs", items = [
-        "fn:dag_identity#0",
-        "fn:admg_identity#0",
-        "fn:schema_aligned#0",
-        "impl:LabelOrder#0/fn:of#0",
-        "impl:LabelOrder#0/fn:remap#0",
-        "impl:LabeledStaticGraphIdentityWire#0/fn:is_canonical#0",
-        "impl:GraphIdentityWire#0/fn:is_canonical#0",
+        "fn:dag_identity#0", "fn:admg_identity#0", "fn:schema_aligned#0",
+        "fn:canonical_label_order#0", "fn:sort_by_order#0", "fn:canonical_pair#0",
+        "fn:sort_identity_pairs#0", "fn:counting_pass#0",
+        "impl:LabelOrder#0/fn:of#0", "impl:LabelOrder#0/fn:map_pair#0",
+        "impl:LabelOrder#0/fn:remap_sorted#0",
     ] },
 ]
 
