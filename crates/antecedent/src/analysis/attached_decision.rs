@@ -31,11 +31,11 @@ use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::analysis::supplied_identity::Declaration;
 use crate::analysis::supplied_terminal::{Reading, TerminalSpec, lower_over};
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, Composition, DecisionProgram, EvidenceRole, EvidenceSourceRef, FunctionalKind,
     LoweredProgram, ProgramCell,
 };
-use crate::planner::{PlanStage, PlanView};
 use crate::support::unit::{UnitDecision, require_decided};
 
 /// What a parent whose route no unit is bound to is missing, in a refusal.
@@ -152,7 +152,7 @@ impl ParentDecisionProgram {
     /// The plan view of the parent program: its route, its layers and, through
     /// [`PlanView::unit_support`], the support decision of the decision's own unit.
     pub(crate) fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Identity of the parent program.

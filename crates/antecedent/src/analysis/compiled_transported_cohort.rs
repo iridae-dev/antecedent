@@ -26,8 +26,8 @@ use super::compiled_point_program::PointProgram;
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::transported_cohort::{TransportedCohort, transport_cohort_effect_from_result};
 use crate::analysis::execute::Study;
+use crate::planner::PlanView;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
-use crate::planner::{PlanStage, PlanView};
 
 /// Whether `execute` passes the support gate of the unit the route is bound to
 /// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
@@ -187,7 +187,7 @@ impl CompiledTransportedCohort {
     /// Inspect the plan, including the support decision of its unit, without transporting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Verify the result, check the premises and issue the transported cohort mean.

@@ -44,6 +44,7 @@ use super::propagation_chain_decision::{
     ChainDecisionError, ChainDecisionResult, compile_action_world_chain_decision,
     consume_chain_decision,
 };
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -53,7 +54,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "trial_ipw_transport_predictive_decision_v1";
 const MAX_BYTES: usize = 80 * 1024 * 1024;
@@ -544,7 +544,7 @@ impl CompiledTrialIpwPredictiveDecision {
     /// Inspect the plan without fitting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
     /// Refit the trial posterior and evaluate the decision.
     ///

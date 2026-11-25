@@ -40,6 +40,7 @@ use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, Declaration};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram, PhysicalLayer,
@@ -47,7 +48,6 @@ use crate::planner::lowered::{
     StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "per_population_structure_search.v1";
 const QUESTION_TAG: &str = "antecedent.per_population_structure_search.question.v1";
@@ -390,7 +390,7 @@ impl CompiledPerPopulationDiscovery {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The bound request.

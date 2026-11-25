@@ -23,8 +23,8 @@ use antecedent_model::nonlinear_equilibrium::{Clamp, EquilibriumError, Equilibri
 
 use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::LoweredProgram;
-use crate::planner::{PlanStage, PlanView};
 
 /// One mechanism of a local feedback system: its stable id, the endogenous coordinates it reads
 /// (in the callback's declared input order) and the declared callback that evaluates it.
@@ -127,7 +127,7 @@ impl CompiledLocalCyclic {
     /// Every layer of the program, with the support decision of the unit its route runs under.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 }
 

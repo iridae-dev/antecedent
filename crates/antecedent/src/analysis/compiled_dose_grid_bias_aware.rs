@@ -43,6 +43,7 @@ use super::dose_grid_functional::DoseGridFunctional;
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -50,7 +51,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "dose_grid_bias_aware.v1";
 /// The estimator key the measured coverage of this kernel is recorded under.
@@ -452,7 +452,7 @@ impl CompiledDoseGridBiasAware {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The bound request.

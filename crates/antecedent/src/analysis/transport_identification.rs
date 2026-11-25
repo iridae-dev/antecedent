@@ -50,6 +50,7 @@ use antecedent_io_core::counterfactual_transport_wire::{
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, SetOf, Wire, encoded};
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram, PhysicalLayer,
@@ -57,7 +58,6 @@ use crate::planner::lowered::{
     StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 /// One transport or observation-recovery identification question, with every input its
 /// kernel identifier reads.
@@ -387,7 +387,7 @@ impl CompiledTransportIdentification {
     /// The plan view of the retained program, as compiled.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Run the kernel identifier of the request inside the program's dispatch, after the

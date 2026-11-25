@@ -28,6 +28,7 @@ use super::observation_query::{
     unsupported_refusal,
 };
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, EvidenceRole, EvidenceSourceRef, FunctionalKind, LoweredProgram,
     ProblemTarget, ProgramCell, StandaloneCompositionLoweredParts, UncertaintyReading,
@@ -35,7 +36,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     ModelRole, ModelSlot, PosteriorAlgorithm, PosteriorPlan, Realization,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "fitted_dependent_measurement_v1";
 const MAX_ARTIFACT_BYTES: usize = 16 * 1024 * 1024;
@@ -342,7 +342,7 @@ impl CompiledFittedDependentMeasurement {
     /// Inspect the retained program without drawing parameters.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The exact repeated-sampling construction of this model, query, prior

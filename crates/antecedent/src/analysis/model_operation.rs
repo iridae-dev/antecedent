@@ -45,8 +45,8 @@ use crate::analysis::structure_route::{
 };
 use crate::error::CausalError;
 use crate::gcm::MechanismAssignment;
+use crate::planner::PlanView;
 use crate::planner::lowered::LoweredProgram;
-use crate::planner::{PlanStage, PlanView};
 
 /// What a fitted-model operation answered.
 #[derive(Clone, Debug)]
@@ -115,7 +115,7 @@ impl CompiledModelOperation {
     /// Every layer of the program, with the support decision of the unit its route runs under.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 }
 

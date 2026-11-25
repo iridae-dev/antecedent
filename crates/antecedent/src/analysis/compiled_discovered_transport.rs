@@ -70,6 +70,7 @@ use super::structure_route::{CompiledExecution, DiscoveredStructure, DiscoverySp
 use super::supplied_identity::{Canonical, Declaration, SetOf, variant};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram, PhysicalLayer,
@@ -79,7 +80,6 @@ use crate::planner::lowered::{
 use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const QUESTION_TAG: &str = "antecedent.discovered_class_transport.question.v1";
 const ROWS_TAG: &str = "antecedent.discovered_class_transport.rows.v1";
@@ -729,7 +729,7 @@ impl CompiledDiscoveredClassTransport {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The bound request.

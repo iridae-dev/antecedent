@@ -68,6 +68,7 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -75,7 +76,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_contract::{
     ComposedCoordinate, ContinuousSlotsRequest, CoverageRecord, ExternalRefusal, InferenceBasis,
@@ -921,7 +921,7 @@ impl JointMeasuredObservationPlan {
     /// Inspect the program without evaluating the requested law.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Condition the intervened or observational finite law on the joint

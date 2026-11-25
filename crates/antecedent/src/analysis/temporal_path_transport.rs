@@ -49,6 +49,7 @@ use super::counterfactual_transport::{
     prepare_counterfactual_transport,
 };
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -56,7 +57,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "temporal_path_transport_v1";
 const SAMPLED_FEATURE: &str = "sampled_temporal_path_transport_v1";
@@ -533,7 +533,7 @@ impl CompiledTemporalPathTransport {
     /// Inspect the compiled program without evaluating its exact laws.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Evaluate both identified target-population probabilities on the same
@@ -1017,7 +1017,7 @@ impl CompiledSampledTemporalPathTransport {
     /// Inspect the compiled route without estimating the contrast.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Evaluate both stored derivations and their shared-data delta gradient.
@@ -1599,7 +1599,7 @@ impl CompiledContinuousChainTransport {
     /// Inspect the compiled route before execution.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Refit both worlds on each shared source and target resample.

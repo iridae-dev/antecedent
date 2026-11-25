@@ -49,6 +49,7 @@ use super::scientific_bridge::{
     PreparedScientificBridgeDistribution, ScientificBridgeDistributionResult,
     ScientificBridgeRefusal, consume_scientific_bridge_distribution_artifact,
 };
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, EvidenceDecisionProgram,
     EvidenceRole, EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -59,7 +60,6 @@ use crate::planner::statistical::{
     ModelRole, ModelSlot, NestedFitLaw, PosteriorAlgorithm, PosteriorPlan, Realization,
     StatisticalProgram,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "bridge_transport_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
@@ -290,7 +290,7 @@ impl CompiledBridgeTransportDecision {
     /// Inspect the retained program without mapping or scoring draws.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     fn chain_draft(
@@ -632,7 +632,7 @@ impl CompiledAssessedBridgeTransportDecision {
     /// Inspect the combined schedule before fitting or mapping.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Refit both validation scopes, then derive and score the conditional law.
@@ -1032,7 +1032,7 @@ impl CompiledAssessedBridgeRobustDecision {
     /// Inspect the bound graph, validation, mapping and utility before execution.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Refit validation, derive the predictive bridge, enclose every mapped
@@ -1357,7 +1357,7 @@ impl CompiledAssessedBridgePosteriorDecision {
     /// Inspect all retained layers before posterior sampling.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     #[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]

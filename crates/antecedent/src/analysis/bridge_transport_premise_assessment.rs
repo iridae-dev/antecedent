@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 
 use super::program_handle::{CompiledProgramHandle, gate_program};
 
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -31,7 +32,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "bridge_transport_premise_assessment_v1";
 const MAX_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
@@ -476,7 +476,7 @@ impl CompiledBridgeTransportPremiseAssessment {
     /// Inspect the retained program without fitting diagnostics.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Whether the assessment matches a trial-level bridge's own source

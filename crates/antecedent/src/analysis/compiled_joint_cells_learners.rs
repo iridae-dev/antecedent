@@ -36,6 +36,7 @@ use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, Declaration, Wire};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     ClaimDemand, Composition, DesignShape, EvidenceDecisionProgram, EvidenceRole,
     EvidenceSourceRef, FunctionalKind, IdentificationLayer, LoweredProgram,
@@ -43,7 +44,6 @@ use crate::planner::lowered::{
     ScientificProblem, StandaloneCompositionLoweredParts, UncertaintyReading,
 };
 use crate::planner::statistical::{ModelRole, ModelSlot, Realization, StatisticalProgram};
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "joint_cells_learner_fit.v1";
 const EVALUATOR: &str = "antecedent_estimate::fit_factorized_joint_cells_with_factories";
@@ -299,7 +299,7 @@ impl CompiledJointCellsLearners {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Fit the caller learners and evaluate every joint cell.

@@ -19,8 +19,8 @@ use crate::analysis::builder::DataInput;
 use crate::analysis::prepared::PreparedStudy;
 use crate::analysis::program_handle::{CompiledProgramHandle, gate_program};
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::LoweredProgram;
-use crate::planner::{PlanStage, PlanView};
 
 /// The lowered program of a falsification, before it has run.
 struct FalsificationProgram(Arc<LoweredProgram>);
@@ -67,7 +67,7 @@ impl CompiledGraphFalsification {
     /// Every layer of the program, with the support decision of the unit its route runs under.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 }
 

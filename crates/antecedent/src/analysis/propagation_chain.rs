@@ -92,8 +92,8 @@ use antecedent_contract::evidence_ledger::{EvidenceLedger, LedgerError, SourceId
 
 use super::lowering::chain::{declaration_identity, lower_chain};
 use super::program_handle::{CompiledProgramHandle, gate_program};
+use crate::planner::PlanView;
 use crate::planner::lowered::{ChainProgram, LoweredProgram};
-use crate::planner::{PlanStage, PlanView};
 use crate::support::unit::{SupportKey, require_program};
 use crate::support::units_generated::unit_of;
 
@@ -330,7 +330,7 @@ impl PropagationChainPlan {
     /// One view over every layer of the chain's program. Reading it computes nothing.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Identity of the lowered program.

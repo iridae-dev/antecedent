@@ -33,8 +33,8 @@ use super::compiled_point_program::PointProgram;
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "external_feedback_fit.v1";
 const EVALUATOR: &str = "antecedent_estimate::external_cyclic_fit::fit_external_feedback";
@@ -200,7 +200,7 @@ impl CompiledExternalFeedbackFit {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The bound request.

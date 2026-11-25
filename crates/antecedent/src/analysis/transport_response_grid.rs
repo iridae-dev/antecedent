@@ -45,8 +45,8 @@ use super::transport_supplied_nuisance::TransportResponseGridColumns;
 use crate::analysis::TransportTrialSpec;
 use crate::analysis::execute::{Study, live_transport_identification};
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "transport_augmented_response_grid.v1";
 const EVALUATOR: &str = "antecedent_estimate::transport_augmented_response_grid";
@@ -312,7 +312,7 @@ impl CompiledTransportResponseGrid {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The certificate the grid is evaluated under.

@@ -36,8 +36,8 @@ use super::program_handle::{CompiledProgramHandle, gate_program};
 use super::supplied_identity::{Canonical, SetOf, Wire, encoded};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "smoothed_dose_caller_learners.v1";
 const EVALUATOR: &str = "antecedent_estimate::estimate_smoothed_dose_with_factories";
@@ -232,7 +232,7 @@ impl CompiledSmoothedDoseLearners {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The transport certificate the program was decided on.

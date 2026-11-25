@@ -38,10 +38,10 @@ use super::supplied_identity::variant;
 use super::temporal_extensions::{IntervalEstimand, measure_dependent_interval};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell, UncertaintyReading,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "temporal_dependent_interval.v1";
 /// The measured route the coverage of this interval is recorded under.
@@ -230,7 +230,7 @@ impl CompiledTemporalDependentInterval {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The bound request.

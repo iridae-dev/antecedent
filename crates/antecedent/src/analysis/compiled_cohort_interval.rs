@@ -32,10 +32,10 @@ use super::compiled_measured_interval::{
 use super::program_handle::{CompiledProgramHandle, gate_program};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{
     EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell, UncertaintyReading,
 };
-use crate::planner::{PlanStage, PlanView};
 
 const PLAN_ID: &str = "cohort_mean_interval.v1";
 /// The measured route the coverage of this interval is recorded under.
@@ -130,7 +130,7 @@ impl CompiledCohortInterval {
     /// Inspect the plan, including the support decision of its unit, without evaluating.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The bound native fit.

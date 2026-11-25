@@ -53,8 +53,8 @@ use super::transported_measurement::{
 };
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
-use crate::planner::{PlanStage, PlanView};
 
 /// Whether `execute` passes the support gate of the unit the route is bound to
 /// (`parity/compiled_units.toml`). It stays off until that unit's record has earned its support,
@@ -412,7 +412,7 @@ impl CompiledMeasurementTransport {
     /// Inspect the plan, including the support decision of its unit, without correcting.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// The re-bound model and its receipt, as the transport decision issued them.
@@ -607,7 +607,7 @@ impl CompiledPooledDifferentialTransport {
     /// Inspect the plan, including the support decision of its unit, without drawing.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 
     /// Pool the rates and draw the corrected prevalence from the context's seed.

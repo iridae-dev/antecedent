@@ -20,8 +20,8 @@ use crate::analysis::transported_counterfactual::{
     TransportedCounterfactualRequestWire,
 };
 use crate::error::CausalError;
+use crate::planner::PlanView;
 use crate::planner::lowered::LoweredProgram;
-use crate::planner::{PlanStage, PlanView};
 
 /// Why a compiled transported counterfactual did not return an answer.
 #[derive(Debug)]
@@ -96,7 +96,7 @@ impl CompiledTransportedCounterfactual {
     /// Every layer of the program, with the support decision of the unit its route runs under.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
-        PlanView::of_program(Arc::clone(&self.lowered), PlanStage::Compiled)
+        CompiledProgramHandle::plan_view(self)
     }
 }
 

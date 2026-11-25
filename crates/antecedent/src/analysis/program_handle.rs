@@ -10,15 +10,13 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-#![allow(dead_code, reason = "the program families take the handle one family at a time")]
-
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, NotSupported};
 
 use crate::planner::lowered::LoweredProgram;
 use crate::planner::{PlanStage, PlanView};
-use crate::support::unit::{SupportKey, UnitDecision, require_program, route_decision};
+use crate::support::unit::{SupportKey, require_program};
 use crate::support::units_generated::unit_of;
 
 /// What a route with no bound unit is missing, in a refusal.
@@ -37,12 +35,6 @@ pub(crate) trait CompiledProgramHandle {
     /// The plan view of the retained program, as compiled.
     fn plan_view(&self) -> PlanView {
         PlanView::of_program(Arc::clone(self.program()), PlanStage::Compiled)
-    }
-
-    /// The support decision of the unit the route runs under, `None` while no unit is bound
-    /// to the route.
-    fn support(&self) -> Option<UnitDecision> {
-        route_decision(self.lowered().route())
     }
 }
 
