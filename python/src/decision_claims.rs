@@ -5,16 +5,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::claim_decision_programs::SuppliedClaimSet;
-use antecedent::analysis::inverse_query::{AtomEvidence, StructuralPolicy};
+use antecedent::analysis::inverse_query::AtomEvidence;
 use antecedent::contract::ExternalRefusal;
-#[allow(
-    deprecated,
-    reason = "the Python binding of the deprecated direct path; the Python function warns"
-)]
-use antecedent::design::decision_adapters::{
-    AdaptedClaims, ClaimProbability, SuppliedClaim, adapt_finite_scenarios,
-    adapt_graph_dependent_claims, adapt_point_claim, adapt_weighted_graph_atoms,
-};
+use antecedent::design::decision_adapters::{ClaimProbability, SuppliedClaim};
 use antecedent::design::decision_robustness::{AtomSupport, InputSupport};
 use pyo3::prelude::*;
 
@@ -156,28 +149,6 @@ fn claim_from(
     };
     let probability = probability_from(wire.probability, &wire.id)?;
     Ok(SuppliedClaim { id: wire.id, probability, evidence, support: support_from(wire.support)? })
-}
-
-/// Adapt a supplied claim set under `policy` with the direct adapters. The error is a refusal
-/// JSON. Only the deprecated direct paths adapt here; compiled decisions adapt inside their
-/// program.
-#[allow(
-    deprecated,
-    reason = "the Python binding of the deprecated direct path; the Python function warns"
-)]
-pub(crate) fn adapt_supplied(
-    claims: SuppliedClaimSet,
-    policy: StructuralPolicy,
-) -> Result<AdaptedClaims, String> {
-    match claims {
-        SuppliedClaimSet::Point { id, evidence, support } => {
-            adapt_point_claim(&id, evidence, support, policy)
-        }
-        SuppliedClaimSet::GraphDependent(claims) => adapt_graph_dependent_claims(claims, policy),
-        SuppliedClaimSet::WeightedGraphAtoms(claims) => adapt_weighted_graph_atoms(claims, policy),
-        SuppliedClaimSet::FiniteScenarios(claims) => adapt_finite_scenarios(claims, policy),
-    }
-    .map_err(|e| external_refusal_json(&e.to_refusal()))
 }
 
 /// Parse the claims of `kind`, one per source, into the supplied claim set a compiled

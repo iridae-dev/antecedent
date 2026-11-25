@@ -12,13 +12,8 @@ use antecedent::analysis::claim_decision_programs::{
 use antecedent::analysis::inverse_query::MeanSource;
 use antecedent::analysis::preference_decision::DecisionOutcome;
 use antecedent::contract::ExternalRefusal;
-#[allow(
-    deprecated,
-    reason = "the Python binding of the deprecated direct path; the Python function warns"
-)]
 use antecedent::design::decision_adapters::{
     AdaptedClaims, AdaptedDecision, IdentifiedSetDecision, IdentifiedUtility, IdentifiedVerdict,
-    evaluate_adapted,
 };
 use antecedent::design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, MAX_DECISION_ARTIFACT_BYTES,
@@ -44,9 +39,7 @@ use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
-use crate::decision_claims::{
-    SupportWire, adapt_supplied, invalid_json, supplied_claims, support_from,
-};
+use crate::decision_claims::{SupportWire, invalid_json, supplied_claims, support_from};
 use crate::distribution_api::PyJointDistributionArtifact;
 
 fn check_size(json: &str) -> PyResult<()> {
@@ -350,22 +343,23 @@ struct Prepared {
     adapted: AdaptedClaims,
 }
 
-/// Parse the declaration and claims and adapt them under the contract's policy with the
-/// direct adapters (the deprecated direct path). The error is a refusal JSON.
-fn prepare(
+/// Adapt declarations for the legacy reader to verify their identity before replay.
+fn prepare_replay(
     declaration_json: &str,
     kind: &str,
     claims_json: &str,
     sources: &[Option<PyRef<'_, PyJointDistributionArtifact>>],
 ) -> Result<Prepared, String> {
     let (contract, claims) = parse_claims(declaration_json, kind, claims_json, sources)?;
-    let adapted = adapt_supplied(claims, contract.contract.structural_policy)?;
+    let adapted = claims
+        .adapt(contract.contract.structural_policy)
+        .map_err(|e| external_refusal_json(&e.to_refusal()))?;
     Ok(Prepared { contract, adapted })
 }
 
 /// Parse the declaration and claims, then adapt and decide over them through the compiled
 /// supplied-claim program. The outer error is the compiler's refusal, raised; the inner one
-/// is a refusal JSON, the same one the direct adaptation and evaluation give.
+/// is a refusal JSON from adaptation or evaluation.
 fn decide_compiled(
     declaration_json: &str,
     kind: &str,
@@ -547,15 +541,6 @@ fn seal(
     .map_err(|e| io_refusal(&e, "seal"))
 }
 
-#[allow(
-    deprecated,
-    reason = "the Python binding of the deprecated direct path; the Python function warns"
-)]
-fn evaluate_prepared(prepared: &Prepared) -> Result<AdaptedDecision, String> {
-    evaluate_adapted(&prepared.contract, &prepared.adapted)
-        .map_err(|e| external_refusal_json(&e.to_refusal()))
-}
-
 fn robust_value(artifact: &RobustResultArtifact) -> Result<serde_json::Value, String> {
     let json = artifact.to_json().map_err(|e| io_refusal(&e, "seal"))?;
     serde_json::from_str(&json)
@@ -578,9 +563,7 @@ fn evaluate_robust_decision(
         check_size(declaration_json)?;
         check_size(claims_json)?;
         check_size(receipts_json)?;
-        let run = || -> Result<String, String> {
-            let prepared = prepare(declaration_json, kind, claims_json, &sources)?;
-            let decision = evaluate_prepared(&prepared)?;
+        let run = |(prepared, decision): (Prepared, AdaptedDecision)| -> Result<String, String> {
             let artifact = seal(&prepared, &decision, receipts_json)?;
             Ok(serde_json::json!({
                 "kind": kind,
@@ -592,7 +575,7 @@ fn evaluate_robust_decision(
             })
             .to_string())
         };
-        Ok(match run() {
+        Ok(match decide_compiled(declaration_json, kind, claims_json, &sources)?.and_then(run) {
             Ok(json) => (Some(json), None),
             Err(refusal) => (None, Some(refusal)),
         })
@@ -642,7 +625,7 @@ fn replay_robust_decision(
         check_size(declaration_json)?;
         check_size(claims_json)?;
         let run = || -> Result<String, String> {
-            let prepared = prepare(declaration_json, kind, claims_json, &sources)?;
+            let prepared = prepare_replay(declaration_json, kind, claims_json, &sources)?;
             let identity =
                 prepared.contract.identity().map_err(|e| external_refusal_json(&e.to_refusal()))?;
             let artifact = RobustResultArtifact::from_bytes(

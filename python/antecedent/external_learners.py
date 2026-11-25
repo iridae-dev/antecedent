@@ -545,7 +545,7 @@ def dml_ate(
     Deprecated: :func:`antecedent.analyze` declares the learners on the study and returns the
     same numbers. This entry keeps the estimator and score arguments.
     """
-    _deprecation.direct_path_deprecated(
+    _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.dml_ate", _ANALYZE.format(estimator=estimator)
     )
     return _direct_ate(
@@ -603,7 +603,7 @@ def aipw_ate(
 
     Deprecated: :func:`antecedent.analyze` with ``estimator="aipw"`` returns the same numbers.
     """
-    _deprecation.direct_path_deprecated(
+    _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.aipw_ate", _ANALYZE.format(estimator="aipw")
     )
     return _direct_ate(data, edges, treatment_name, outcome_name, estimator="aipw", **kwargs)
@@ -616,7 +616,7 @@ def dr_learner_ate(
 
     Deprecated: :func:`antecedent.analyze` with ``estimator="dr_learner"`` returns the same numbers.
     """
-    _deprecation.direct_path_deprecated(
+    _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.dr_learner_ate",
         _ANALYZE.format(estimator="dr_learner"),
     )
@@ -631,7 +631,7 @@ def causal_forest_ate(
     Deprecated: :func:`antecedent.analyze` with ``estimator="causal_forest"`` returns the same
     numbers.
     """
-    _deprecation.direct_path_deprecated(
+    _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.causal_forest_ate",
         _ANALYZE.format(estimator="causal_forest"),
     )

@@ -14,11 +14,20 @@ import warnings
 
 
 class AntecedentDeprecationWarning(FutureWarning):
-    """A direct entry that bypasses the causal compiler and will be removed.
+    """A deprecated entry that will be removed.
 
     A ``FutureWarning`` so it reaches end users (a ``DeprecationWarning`` is hidden outside
     ``__main__`` by default).
     """
+
+
+def compiled_wrapper_deprecated(name: str, replacement: str) -> None:
+    """Name the supported entry for a legacy wrapper that now compiles its request."""
+    warnings.warn(
+        f"{name} is deprecated; use {replacement} instead",
+        AntecedentDeprecationWarning,
+        stacklevel=_caller_level(),
+    )
 
 
 def direct_path_deprecated(name: str, replacement: str) -> None:

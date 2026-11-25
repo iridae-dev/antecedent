@@ -916,14 +916,13 @@ def robust(
     structures whose values an external callback supplied; the result then keeps
     them and is never natively verified.
 
-    Deprecated for ``kind="finite_scenarios"``: that direct path runs without the causal
-    compiler. Build the explicit joint source with :func:`joint_scenario_carrier` (or load one
-    under its retained identity with :func:`consume_joint_scenarios`), bind it to the study
-    with :func:`compile_robust_decision` and call ``evaluate()``. The other kinds have no
-    compiled form yet.
+    This runs a compiled program over the supplied claims. For ``kind="finite_scenarios"``,
+    the preferred entry is :func:`compile_robust_decision`: build the explicit joint source
+    with :func:`joint_scenario_carrier` (or load one under its retained identity with
+    :func:`consume_joint_scenarios`), bind it to the study and call ``evaluate()``.
     """
     if kind == "finite_scenarios":
-        _deprecation.direct_path_deprecated(
+        _deprecation.compiled_wrapper_deprecated(
             "antecedent.decision_robust.robust(kind='finite_scenarios')",
             "antecedent.decision_robust.compile_robust_decision(study, contract, "
             "joint_scenario_carrier(study, contract, claims, joint_structure=..., "

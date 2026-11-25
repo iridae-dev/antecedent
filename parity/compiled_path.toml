@@ -4733,11 +4733,6 @@ disposition = "deprecated"
 replacement = "route:CyclicFamily"
 
 [[python]]
-path = "python/antecedent/decision_robust.py::robust"
-disposition = "deprecated"
-replacement = "antecedent::PreparedStudy::compile_for_robust_decision"
-
-[[python]]
 path = "python/antecedent/experiment.py::SwitchbackEffect.estimate"
 disposition = "deprecated"
 replacement = "route:RandomizedEffect"

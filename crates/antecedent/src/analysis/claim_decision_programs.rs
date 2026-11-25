@@ -123,9 +123,13 @@ impl SuppliedClaimSet {
         }
     }
 
-    /// Adapt the claims to structural atoms under `policy`, by how they are read: the kernel
-    /// adapter of the claims' kind. Every compiled decision over supplied claims adapts here.
-    pub(crate) fn adapt(self, policy: StructuralPolicy) -> Result<AdaptedClaims, AdapterError> {
+    /// Adapt the claims to structural atoms under `policy`. Every compiled decision and
+    /// legacy robust artifact replay over supplied claims adapts here.
+    ///
+    /// # Errors
+    /// The adapter's refusal when the claims cannot be read under `policy`.
+    #[doc(hidden)]
+    pub fn adapt(self, policy: StructuralPolicy) -> Result<AdaptedClaims, AdapterError> {
         match self {
             Self::Point { id, evidence, support } => {
                 adapt_point_claim(&id, evidence, support, policy)
