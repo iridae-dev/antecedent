@@ -4,7 +4,7 @@
 #[cfg(kani)]
 mod bound_identity;
 
-#[cfg(kani)]
+#[cfg(any(kani, test))]
 mod graph_identity;
 
 #[cfg(kani)]

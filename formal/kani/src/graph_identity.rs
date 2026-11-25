@@ -7,15 +7,20 @@
 //! never share a wire. The released unlabelled wire failed the second property (the same
 //! edges over different variables shared one wire).
 //!
-//! No stubs: graph construction and both encoders run as in production. Their loops are
-//! bounded by the node count (three) or the edge count (at most three per kind), and they run
-//! no recursion, hashing or tree code, so an unwind of six covers every loop with margin.
+//! No stubs: graph construction and both encoders run as in production. Nodes are built with
+//! `Dag::from_nodes` and `Admg::from_nodes`, which claim static labels as one sorted run and
+//! do not call `ClaimedLabels::merge`. Their loops are bounded by the node count (three)
+//! or the edge count (at most three per kind), and they run no recursion, hashing or tree
+//! code, so an unwind of six covers every loop with margin.
 //! The reference side is written with bit masks rather than sorted vectors, so the
 //! specification adds no sort of its own.
 
 use antecedent_core::{NodeRef, VariableId};
 use antecedent_graph::{Admg, Dag, DenseNodeId};
-use antecedent_io_core::identity::{GraphIdentityWire, admg_identity, dag_identity};
+use antecedent_io_core::identity::{admg_identity, dag_identity};
+
+#[cfg(kani)]
+use antecedent_io_core::identity::GraphIdentityWire;
 
 const NODES: usize = 3;
 /// The edges `slot i -> slot j` with `i < j`; acyclic in any dense order.
@@ -24,6 +29,7 @@ const PAIRS: [(usize, usize); 3] = [(0, 1), (0, 2), (1, 2)];
 const ORDERS: [[usize; NODES]; 6] =
     [[0, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0]];
 
+#[cfg(kani)]
 fn any_labels() -> [u32; NODES] {
     let labels: [u32; NODES] = [kani::any(), kani::any(), kani::any()];
     kani::assume(labels.iter().all(|&label| label < 4));
@@ -31,10 +37,12 @@ fn any_labels() -> [u32; NODES] {
     labels
 }
 
+#[cfg(kani)]
 fn any_edges() -> [bool; 3] {
     [kani::any(), kani::any(), kani::any()]
 }
 
+#[cfg(kani)]
 fn any_order() -> [usize; NODES] {
     let index: usize = kani::any();
     kani::assume(index < ORDERS.len());
@@ -50,11 +58,17 @@ fn dense_ids(order: [usize; NODES]) -> [DenseNodeId; NODES] {
     dense
 }
 
-fn dag(labels: [u32; NODES], edges: [bool; 3], order: [usize; NODES]) -> Dag {
-    let mut graph = Dag::empty();
-    for slot in order {
-        graph.add_node(NodeRef::Static(VariableId::from_raw(labels[slot]))).unwrap();
+fn nodes_in(labels: [u32; NODES], order: [usize; NODES]) -> [NodeRef; NODES] {
+    let mut nodes = [NodeRef::Static(VariableId::from_raw(0)); NODES];
+    for (position, &slot) in order.iter().enumerate() {
+        nodes[position] = NodeRef::Static(VariableId::from_raw(labels[slot]));
     }
+    nodes
+}
+
+fn dag(labels: [u32; NODES], edges: [bool; 3], order: [usize; NODES]) -> Dag {
+    // One sorted claim run of length three. `ClaimedLabels::merge` is not on this path.
+    let mut graph = Dag::from_nodes(&nodes_in(labels, order)).unwrap();
     let dense = dense_ids(order);
     for (index, &(from, to)) in PAIRS.iter().enumerate() {
         if edges[index] {
@@ -94,6 +108,7 @@ fn unordered_pairs(labels: [u32; NODES], edges: [bool; 3]) -> u16 {
 }
 
 /// The DAG identity does not depend on the dense order of the nodes, and is canonical.
+#[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn dag_identity_ignores_dense_order() {
@@ -107,6 +122,7 @@ fn dag_identity_ignores_dense_order() {
 
 /// Two DAGs share an identity wire only when they have the same variables and the same
 /// directed edges between them.
+#[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn dag_identity_binds_labels_and_edges() {
@@ -124,6 +140,7 @@ fn dag_identity_binds_labels_and_edges() {
 
 /// A schema-aligned DAG (variables 0, 1, 2) is written in the unlabelled form of earlier
 /// releases; any other is labelled.
+#[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn dag_identity_keeps_the_aligned_form() {
@@ -140,10 +157,8 @@ fn admg(
     bidirected: [bool; 3],
     order: [usize; NODES],
 ) -> Admg {
-    let mut graph = Admg::empty();
-    for slot in order {
-        graph.add_node(NodeRef::Static(VariableId::from_raw(labels[slot]))).unwrap();
-    }
+    // Same claim construction as [`dag`]: one sorted run, no `ClaimedLabels::merge`.
+    let mut graph = Admg::from_nodes(&nodes_in(labels, order)).unwrap();
     let dense = dense_ids(order);
     for (index, &(from, to)) in PAIRS.iter().enumerate() {
         if directed[index] {
@@ -158,6 +173,7 @@ fn admg(
 
 /// The ADMG identity does not depend on dense order, and two ADMGs share it only when their
 /// variables, directed edges and bidirected pairs agree.
+#[cfg(kani)]
 #[kani::proof]
 #[kani::unwind(6)]
 fn admg_identity_binds_labels_not_dense_order() {
@@ -175,5 +191,103 @@ fn admg_identity_binds_labels_not_dense_order() {
         assert!(
             unordered_pairs(labels, bidirected) == unordered_pairs(other_labels, other_bidirected)
         );
+    }
+}
+
+/// `from_nodes` and `add_node` claim the same static labels: a repeated label is refused, and
+/// two insertion orders of one labelled graph have the same identity wire.
+#[cfg(test)]
+mod constructor_agreement {
+    use antecedent_core::{NodeRef, VariableId};
+    use antecedent_graph::{Admg, Dag};
+    use antecedent_io_core::identity::{admg_identity, dag_identity};
+
+    use super::{NODES, dense_ids, nodes_in};
+
+    fn static_node(variable: u32) -> NodeRef {
+        NodeRef::Static(VariableId::from_raw(variable))
+    }
+
+    fn add_dag(nodes: &[NodeRef; NODES]) -> Result<Dag, antecedent_graph::GraphError> {
+        let mut graph = Dag::empty();
+        for &node in nodes {
+            graph.add_node(node)?;
+        }
+        Ok(graph)
+    }
+
+    fn add_admg(nodes: &[NodeRef; NODES]) -> Result<Admg, antecedent_graph::GraphError> {
+        let mut graph = Admg::empty();
+        for &node in nodes {
+            graph.add_node(node)?;
+        }
+        Ok(graph)
+    }
+
+    /// Both graphs refuse every static label they already hold, and both accept one new label.
+    fn dag_claims_agree(nodes: &[NodeRef; NODES], built: &Dag, added: &Dag) {
+        let (mut built, mut added) = (built.clone(), added.clone());
+        for &node in nodes {
+            assert!(built.add_node(node).is_err());
+            assert!(added.add_node(node).is_err());
+        }
+        let fresh = static_node(40);
+        assert!(built.add_node(fresh).is_ok());
+        assert!(added.add_node(fresh).is_ok());
+    }
+
+    fn admg_claims_agree(nodes: &[NodeRef; NODES], built: &Admg, added: &Admg) {
+        let (mut built, mut added) = (built.clone(), added.clone());
+        for &node in nodes {
+            assert!(built.add_node(node).is_err());
+            assert!(added.add_node(node).is_err());
+        }
+        let fresh = static_node(40);
+        assert!(built.add_node(fresh).is_ok());
+        assert!(added.add_node(fresh).is_ok());
+    }
+
+    #[test]
+    fn from_nodes_agrees_with_add_node_on_repeats_and_two_orders() {
+        let repeated = [static_node(1), static_node(2), static_node(1)];
+        assert!(Dag::from_nodes(&repeated).is_err());
+        assert!(add_dag(&repeated).is_err());
+        assert!(Admg::from_nodes(&repeated).is_err());
+        assert!(add_admg(&repeated).is_err());
+
+        let orders = [[0usize, 1, 2], [2, 0, 1]];
+        for labels in [[0u32, 1, 2], [0, 1, 3]] {
+            let mut dag_wires = Vec::with_capacity(2);
+            let mut admg_wires = Vec::with_capacity(2);
+            for order in orders {
+                let nodes = nodes_in(labels, order);
+                let dense = dense_ids(order);
+                let (from, to, other) = (dense[0], dense[1], dense[2]);
+
+                let mut built = Dag::from_nodes(&nodes).unwrap();
+                let mut added = add_dag(&nodes).unwrap();
+                built.insert_directed(from, to).unwrap();
+                added.insert_directed(from, to).unwrap();
+                assert_eq!(built, added);
+                dag_claims_agree(&nodes, &built, &added);
+                let wire = dag_identity(&built).unwrap();
+                assert_eq!(wire, dag_identity(&added).unwrap());
+                dag_wires.push(wire);
+
+                let mut built = Admg::from_nodes(&nodes).unwrap();
+                let mut added = add_admg(&nodes).unwrap();
+                built.insert_directed(from, to).unwrap();
+                added.insert_directed(from, to).unwrap();
+                built.insert_bidirected(other, to).unwrap();
+                added.insert_bidirected(other, to).unwrap();
+                assert_eq!(built, added);
+                admg_claims_agree(&nodes, &built, &added);
+                let wire = admg_identity(&built).unwrap();
+                assert_eq!(wire, admg_identity(&added).unwrap());
+                admg_wires.push(wire);
+            }
+            assert_eq!(dag_wires[0], dag_wires[1]);
+            assert_eq!(admg_wires[0], admg_wires[1]);
+        }
     }
 }

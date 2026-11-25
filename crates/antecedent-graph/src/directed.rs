@@ -14,7 +14,10 @@ use std::sync::Arc;
 
 use antecedent_core::VariableId;
 
-use crate::algo::{bfs_reaches, insert_sorted, kahn_order, kahn_order_polled};
+use crate::algo::{
+    INSERTION_SORT_MAX, bfs_reaches, insert_sorted, kahn_order, kahn_order_polled, sort_insertion,
+    sort_small,
+};
 use crate::error::GraphError;
 use crate::types::{DenseNodeId, MarkedEdge, NodeRef};
 use crate::workspace::GraphWorkspace;
@@ -112,6 +115,85 @@ impl StaticLabels {
         Arc::make_mut(self.0.get_or_insert_with(Default::default)).insert(variable);
         Ok(())
     }
+
+    /// Claim every static label in `nodes` as one ascending run.
+    ///
+    /// The set is what [`Self::claim`] records for these nodes one at a time, including the
+    /// refusal of a repeated static variable. Non-static nodes carry no variable label. The run
+    /// is stored in `sorted` and `recent` stays empty, so this path never calls
+    /// [`ClaimedLabels::merge`].
+    ///
+    /// That merge allocates `sorted.len() + recent.len()`. A bounded checker does not keep those
+    /// lengths concrete once vector growth has a symbolic capacity, so it enters the merge and
+    /// the allocation-failure path before it can emit a verification condition. A monomorphized
+    /// `N` of at most [`crate::algo::INSERTION_SORT_MAX`] (the identity harnesses use three)
+    /// insertion-sorts one buffer of capacity `N` and never builds that sum.
+    pub(crate) fn claim_sorted<const N: usize>(
+        &mut self,
+        nodes: &[NodeRef; N],
+    ) -> Result<(), GraphError> {
+        let sorted = sorted_static_labels(nodes)?;
+        if sorted.is_empty() {
+            return Ok(());
+        }
+        self.0 = Some(Arc::new(ClaimedLabels { sorted, recent: Vec::new() }));
+        Ok(())
+    }
+}
+
+/// Static labels of `nodes`, strictly ascending.
+///
+/// `N <= INSERTION_SORT_MAX` and the larger case are separate functions, so a monomorphization
+/// for three nodes contains the insertion sort only.
+fn sorted_static_labels<const N: usize>(
+    nodes: &[NodeRef; N],
+) -> Result<Vec<VariableId>, GraphError> {
+    if N <= INSERTION_SORT_MAX {
+        sorted_static_labels_insertion(nodes)
+    } else {
+        sorted_static_labels_large(nodes)
+    }
+}
+
+fn sorted_static_labels_insertion<const N: usize>(
+    nodes: &[NodeRef; N],
+) -> Result<Vec<VariableId>, GraphError> {
+    // Capacity is the const node count, so pushes do not grow the buffer and the sort does
+    // not allocate. `ClaimedLabels::merge` is not called.
+    let mut sorted = Vec::with_capacity(N);
+    for node in nodes {
+        if let NodeRef::Static(variable) = *node {
+            sorted.push(variable);
+        }
+    }
+    sort_insertion(&mut sorted);
+    reject_repeated_labels(&sorted)?;
+    Ok(sorted)
+}
+
+fn sorted_static_labels_large<const N: usize>(
+    nodes: &[NodeRef; N],
+) -> Result<Vec<VariableId>, GraphError> {
+    let mut sorted = Vec::with_capacity(N);
+    for node in nodes {
+        if let NodeRef::Static(variable) = *node {
+            sorted.push(variable);
+        }
+    }
+    sort_small(&mut sorted);
+    reject_repeated_labels(&sorted)?;
+    Ok(sorted)
+}
+
+fn reject_repeated_labels(sorted: &[VariableId]) -> Result<(), GraphError> {
+    for index in 1..sorted.len() {
+        if sorted[index] == sorted[index - 1] {
+            return Err(GraphError::InvalidEndpoints {
+                message: "a variable labels at most one static node",
+            });
+        }
+    }
+    Ok(())
 }
 
 impl PartialEq for StaticLabels {
@@ -176,6 +258,34 @@ impl DirectedCore {
             edge_index: None,
             insert_ws: GraphWorkspace::default(),
         }
+    }
+
+    /// Node table in `nodes`' order, static labels claimed as one sorted run.
+    ///
+    /// See [`StaticLabels::claim_sorted`]. The duplicate-edge index is left unset: it is built
+    /// only when [`Self::push_node`] passes [`EDGE_INDEX_FROM_NODES`], and a graph with no edges
+    /// yet checks duplicates by scanning the rows. The identity harnesses pass three nodes, so
+    /// this constructor does not hash.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::TooManyNodes`] when `N` does not fit in `u32`, and
+    /// [`GraphError::InvalidEndpoints`] when a static variable is repeated.
+    pub(crate) fn from_nodes<const N: usize>(nodes: &[NodeRef; N]) -> Result<Self, GraphError> {
+        if u32::try_from(N).is_err() {
+            return Err(GraphError::TooManyNodes);
+        }
+        let mut static_labels = StaticLabels::new();
+        static_labels.claim_sorted(nodes)?;
+        Ok(Self {
+            nodes: Arc::new(nodes.to_vec()),
+            static_labels,
+            children: Arc::new(vec![Vec::<DenseNodeId>::new(); N]),
+            parents: Arc::new(vec![Vec::<DenseNodeId>::new(); N]),
+            // Scanning rows, not a hashed index. See the function docs.
+            edge_index: None,
+            insert_ws: GraphWorkspace::default(),
+        })
     }
 
     /// Node labels in dense order.

@@ -70,6 +70,30 @@ impl Dag {
         g
     }
 
+    /// DAG whose dense nodes are `nodes`, in that order.
+    ///
+    /// Static labels are the set [`Self::add_node`] would claim for these nodes one at a time.
+    /// A repeated static variable is refused, and so is a node that is not [`NodeRef::Static`]
+    /// or [`NodeRef::Unfolded`]. The labels are written as one sorted run. They are not recorded
+    /// by [`Self::add_node`]'s recent-buffer merge: that merge allocates a buffer of
+    /// `sorted.len() + recent.len()`, which a bounded checker treats as a symbolic capacity,
+    /// including allocation failure, before it emits a verification condition.
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::TooManyNodes`] when `N` does not fit in `u32`, or
+    /// [`GraphError::InvalidEndpoints`] for a non-static node or a repeated static label.
+    pub fn from_nodes<const N: usize>(nodes: &[NodeRef; N]) -> Result<Self, GraphError> {
+        for node in nodes {
+            if !node.is_static_graph_node() {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "Dag accepts only Static or Unfolded nodes",
+                });
+            }
+        }
+        Ok(Self { directed: DirectedCore::from_nodes(nodes)? })
+    }
+
     /// Copy every node, preserving its label and dense id, and the directed edges `keep` accepts.
     ///
     /// # Errors

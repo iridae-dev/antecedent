@@ -29,18 +29,13 @@ pub(crate) fn insert_sorted<T: Ord>(list: &mut Vec<T>, value: T) -> bool {
     }
 }
 
-/// Longest run [`sort_small`] orders by insertion.
-const INSERTION_SORT_MAX: usize = 32;
+/// Longest run [`sort_insertion`] orders. [`sort_small`] uses the merge sort beyond it.
+pub(crate) const INSERTION_SORT_MAX: usize = 32;
 
-/// Sort `items` ascending: a bounded insertion sort for a short run, a bottom-up merge sort
-/// beyond it. Both give the same order as the standard sort (equal elements of a total order
-/// are identical), and both are plain loops, so a bounded proof over small graphs never
-/// reasons about the library sort.
-pub(crate) fn sort_small<T: Ord + Copy>(items: &mut [T]) {
-    if items.len() > INSERTION_SORT_MAX {
-        merge_sort(items);
-        return;
-    }
+/// Sort `items` ascending by insertion. The same order as [`sort_small`] on a run of at most
+/// [`INSERTION_SORT_MAX`]. Plain loops, no allocation: a monomorphized caller whose const bound
+/// is at most that long calls this and does not contain the merge sort.
+pub(crate) fn sort_insertion<T: Ord + Copy>(items: &mut [T]) {
     for at in 1..items.len() {
         let value = items[at];
         let mut hole = at;
@@ -50,6 +45,18 @@ pub(crate) fn sort_small<T: Ord + Copy>(items: &mut [T]) {
         }
         items[hole] = value;
     }
+}
+
+/// Sort `items` ascending: [`sort_insertion`] for a short run, a bottom-up merge sort beyond
+/// [`INSERTION_SORT_MAX`]. Both give the same order as the standard sort (equal elements of a
+/// total order are identical), and both are plain loops, so a bounded proof over small graphs
+/// never reasons about the library sort.
+pub(crate) fn sort_small<T: Ord + Copy>(items: &mut [T]) {
+    if items.len() > INSERTION_SORT_MAX {
+        merge_sort(items);
+        return;
+    }
+    sort_insertion(items);
 }
 
 /// Bottom-up merge sort of `items` through one scratch buffer: `O(n log n)`, no recursion.

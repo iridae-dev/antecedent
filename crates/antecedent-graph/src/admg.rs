@@ -60,6 +60,31 @@ impl Admg {
         g
     }
 
+    /// ADMG whose dense nodes are `nodes`, in that order, with no edges yet.
+    ///
+    /// Static labels are the set [`Self::add_node`] would claim for these nodes one at a time.
+    /// A repeated static variable is refused, and so is a node that is not [`NodeRef::Static`]
+    /// or [`NodeRef::Unfolded`]. The labels are one sorted run, as in [`crate::Dag::from_nodes`],
+    /// not the recent-buffer merge inside [`Self::add_node`].
+    ///
+    /// # Errors
+    ///
+    /// [`GraphError::TooManyNodes`] when `N` does not fit in `u32`, or
+    /// [`GraphError::InvalidEndpoints`] for a non-static node or a repeated static label.
+    pub fn from_nodes<const N: usize>(nodes: &[NodeRef; N]) -> Result<Self, GraphError> {
+        for node in nodes {
+            if !node.is_static_graph_node() {
+                return Err(GraphError::InvalidEndpoints {
+                    message: "Admg accepts only Static or Unfolded nodes",
+                });
+            }
+        }
+        Ok(Self {
+            directed: DirectedCore::from_nodes(nodes)?,
+            bidirected: vec![Vec::<DenseNodeId>::new(); N],
+        })
+    }
+
     /// Copy nodes and the edges the predicates keep.
     ///
     /// `keep_bidirected` is the bidirected rule. Callers that drop latent
