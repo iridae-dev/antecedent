@@ -32,13 +32,13 @@ pub(crate) fn insert_sorted<T: Ord>(list: &mut Vec<T>, value: T) -> bool {
 /// Longest run [`sort_small`] orders by insertion.
 const INSERTION_SORT_MAX: usize = 32;
 
-/// Sort `items` ascending: a bounded insertion sort for a short run, the standard unstable
-/// sort beyond it. Both give the same order (equal elements of a total order are identical),
-/// and the short path is a plain bounded loop, so a bounded proof over small graphs never
+/// Sort `items` ascending: a bounded insertion sort for a short run, a bottom-up merge sort
+/// beyond it. Both give the same order as the standard sort (equal elements of a total order
+/// are identical), and both are plain loops, so a bounded proof over small graphs never
 /// reasons about the library sort.
 pub(crate) fn sort_small<T: Ord + Copy>(items: &mut [T]) {
     if items.len() > INSERTION_SORT_MAX {
-        items.sort_unstable();
+        merge_sort(items);
         return;
     }
     for at in 1..items.len() {
@@ -49,6 +49,44 @@ pub(crate) fn sort_small<T: Ord + Copy>(items: &mut [T]) {
             hole -= 1;
         }
         items[hole] = value;
+    }
+}
+
+/// Bottom-up merge sort of `items` through one scratch buffer: `O(n log n)`, no recursion.
+fn merge_sort<T: Ord + Copy>(items: &mut [T]) {
+    let len = items.len();
+    let mut scratch = items.to_vec();
+    let mut width = 1;
+    while width < len {
+        let mut start = 0;
+        while start < len {
+            let middle = (start + width).min(len);
+            let end = (start + 2 * width).min(len);
+            let (mut left, mut right, mut at) = (start, middle, start);
+            while left < middle && right < end {
+                if items[right] < items[left] {
+                    scratch[at] = items[right];
+                    right += 1;
+                } else {
+                    scratch[at] = items[left];
+                    left += 1;
+                }
+                at += 1;
+            }
+            while left < middle {
+                scratch[at] = items[left];
+                left += 1;
+                at += 1;
+            }
+            while right < end {
+                scratch[at] = items[right];
+                right += 1;
+                at += 1;
+            }
+            start = end;
+        }
+        items.copy_from_slice(&scratch);
+        width *= 2;
     }
 }
 

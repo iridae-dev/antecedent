@@ -33,15 +33,15 @@ pub(crate) struct StaticLabels(Option<Arc<ClaimedLabels>>);
 
 /// Claimed variables: an ascending run plus the variables claimed since the last merge.
 ///
-/// A claim appends to `recent`; `recent` is sorted and merged into `sorted` once it holds at
+/// A claim is inserted into the ascending `recent`; `recent` is merged into `sorted` once it holds at
 /// least [`Self::MERGE_AT`] variables and at least the square root of `sorted.len()`. A lookup is
-/// one binary search plus a scan of `recent`. `n` claims in ascending order cost `O(n log n)`
+/// a binary search of each run. `n` claims in ascending order cost `O(n log n)`
 /// (every merge appends); in the worst order the merges move `O(n^1.5)` elements.
 #[derive(Clone, Debug, Default)]
 struct ClaimedLabels {
     /// Merged variables, strictly ascending.
     sorted: Vec<VariableId>,
-    /// Variables claimed since the last merge, in claim order.
+    /// Variables claimed since the last merge, strictly ascending.
     recent: Vec<VariableId>,
 }
 
@@ -50,22 +50,21 @@ impl ClaimedLabels {
     const MERGE_AT: usize = 32;
 
     fn contains(&self, variable: VariableId) -> bool {
-        self.recent.contains(&variable) || self.sorted.binary_search(&variable).is_ok()
+        self.recent.binary_search(&variable).is_ok() || self.sorted.binary_search(&variable).is_ok()
     }
 
     /// Record a variable that is not yet claimed.
     fn insert(&mut self, variable: VariableId) {
-        self.recent.push(variable);
+        insert_sorted(&mut self.recent, variable);
         let run = self.recent.len();
         if run >= Self::MERGE_AT && run.saturating_mul(run) >= self.sorted.len() {
             self.merge();
         }
     }
 
-    /// Sort `recent` and merge it into `sorted`.
+    /// Merge the ascending `recent` into `sorted`.
     fn merge(&mut self) {
         let mut recent = core::mem::take(&mut self.recent);
-        crate::algo::sort_small(&mut recent);
         match (self.sorted.last(), recent.first()) {
             (Some(&last), Some(&first)) if last > first => {
                 let mut merged = Vec::with_capacity(self.sorted.len() + recent.len());

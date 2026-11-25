@@ -341,22 +341,47 @@ struct LabelOrder {
 const INSERTION_SORT_MAX: usize = 32;
 
 /// Sort `order` by the strict total order `before`: a bounded insertion sort for a short run,
-/// the standard sort beyond it. Both give the same order, and the short path is a plain
-/// bounded loop, so a bounded proof over small graphs never reasons about the library sort.
+/// a bottom-up merge sort beyond it. Both give the same order as the standard sort, and both
+/// are plain loops, so a bounded proof over small graphs never reasons about the library sort.
 fn sort_by_order(order: &mut [usize], before: impl Fn(usize, usize) -> bool) {
-    if order.len() > INSERTION_SORT_MAX {
-        order.sort_by(|&a, &b| {
-            if before(a, b) {
-                core::cmp::Ordering::Less
-            } else if before(b, a) {
-                core::cmp::Ordering::Greater
-            } else {
-                core::cmp::Ordering::Equal
+    let len = order.len();
+    if len > INSERTION_SORT_MAX {
+        let mut scratch = order.to_vec();
+        let mut width = 1;
+        while width < len {
+            let mut start = 0;
+            while start < len {
+                let middle = (start + width).min(len);
+                let end = (start + 2 * width).min(len);
+                let (mut left, mut right, mut at) = (start, middle, start);
+                while left < middle && right < end {
+                    if before(order[right], order[left]) {
+                        scratch[at] = order[right];
+                        right += 1;
+                    } else {
+                        scratch[at] = order[left];
+                        left += 1;
+                    }
+                    at += 1;
+                }
+                while left < middle {
+                    scratch[at] = order[left];
+                    left += 1;
+                    at += 1;
+                }
+                while right < end {
+                    scratch[at] = order[right];
+                    right += 1;
+                    at += 1;
+                }
+                start = end;
             }
-        });
+            order.copy_from_slice(&scratch);
+            width *= 2;
+        }
         return;
     }
-    for at in 1..order.len() {
+    for at in 1..len {
         let value = order[at];
         let mut hole = at;
         while hole > 0 && before(value, order[hole - 1]) {
