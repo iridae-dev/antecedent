@@ -21,12 +21,12 @@ mod compiled_twins_survival_ipcw;
 mod counterfactual_class_route;
 #[path = "mediation_mixed_graph.rs"]
 mod mediation_mixed_graph;
+#[path = "ordinary_contract_compiled.rs"]
+mod ordinary_contract_compiled;
 #[path = "predictive_score_interval_facade.rs"]
 mod predictive_score_interval_facade;
 #[path = "preference_decision_class_weighting.rs"]
 mod preference_decision_class_weighting;
-#[path = "ordinary_contract_compiled.rs"]
-mod ordinary_contract_compiled;
 #[path = "preference_decision_compiled.rs"]
 mod preference_decision_compiled;
 #[path = "preference_decision_compiled_atoms.rs"]

@@ -11,6 +11,7 @@
 pub mod affine_certificate;
 pub mod basis;
 pub mod batch;
+pub mod callback_cyclic;
 pub mod compile;
 mod complex_schur;
 pub mod compose;
@@ -34,7 +35,6 @@ pub mod lgssm;
 pub(crate) mod linear_algebra;
 pub mod linear_moments;
 pub mod linear_solution;
-pub mod callback_cyclic;
 pub mod local_cyclic;
 pub mod mechanism;
 pub mod mechanism_expr;

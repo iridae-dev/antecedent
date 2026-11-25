@@ -253,8 +253,8 @@ mod staleness_api;
 mod state_api;
 mod structure_stability_api;
 mod study_planning_api;
-mod support_matrix_api;
 mod supplied_sensitivity_api;
+mod support_matrix_api;
 mod survival_api;
 mod target_validation_api;
 mod temporal_api;
@@ -351,8 +351,8 @@ use antecedent::graph::{
 };
 use antecedent::inference::{FdrAdjustment, PartialCorrelation};
 use antecedent::io::{
-    CausalPosteriorWire, IoError, PosteriorQuantityWire,
-    encode_causal_posterior_bytes, encode_posterior_artifact as encode_posterior_wire,
+    CausalPosteriorWire, IoError, PosteriorQuantityWire, encode_causal_posterior_bytes,
+    encode_posterior_artifact as encode_posterior_wire,
 };
 use antecedent::prelude::{
     ExecutionContext, Intervention, MultiEnvironmentData, TimeSeriesData, Value, VariableId,

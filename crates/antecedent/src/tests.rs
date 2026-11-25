@@ -197,7 +197,8 @@ fn graph_posterior_records_its_real_algorithm() {
     let params = crate::discovery::BayesianDiscoverParams::default();
 
     let exact =
-        crate::discovery::engines::discover_exact_dag_posterior(&data, &vars, &params, &ctx).unwrap();
+        crate::discovery::engines::discover_exact_dag_posterior(&data, &vars, &params, &ctx)
+            .unwrap();
     assert_eq!(exact.algorithm().map(AsRef::as_ref), Some("exact_dag_posterior"));
 
     let schedule = crate::discovery::GraphMcmcSchedule {
@@ -206,9 +207,10 @@ fn graph_posterior_records_its_real_algorithm() {
         n_draws: 40,
         ..Default::default()
     };
-    let order =
-        crate::discovery::engines::discover_order_mcmc(&data, &vars, &params, &schedule, false, &ctx)
-            .unwrap();
+    let order = crate::discovery::engines::discover_order_mcmc(
+        &data, &vars, &params, &schedule, false, &ctx,
+    )
+    .unwrap();
     assert_eq!(
         order.algorithm().map(AsRef::as_ref),
         Some("order_mcmc"),
