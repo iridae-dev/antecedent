@@ -318,6 +318,29 @@ def test_antecedent_state_rejected_replace_preserves_existing_data():
     assert state.batch_ids() == before_ids
 
 
+def test_antecedent_state_retains_columns_and_does_not_consume_a_rejected_batch_id():
+    state = antecedent.state.CausalState(execution=Execution(cache=CachePolicy.bounded(1 << 20)))
+    contiguous = np.arange(4.0)
+    strided = np.arange(8.0)[::2]
+    state.append_data(["x", "y"], [contiguous, strided])
+    contiguous[:] = 100.0
+    strided[:] = 200.0
+
+    names, columns = state.get_batch("b0")
+    assert names == ["x", "y"]
+    np.testing.assert_array_equal(columns[0], np.arange(4.0))
+    np.testing.assert_array_equal(columns[1], np.arange(0.0, 8.0, 2.0))
+    columns[1][:] = 300.0
+    np.testing.assert_array_equal(state.get_batch("b0")[1][1], np.arange(0.0, 8.0, 2.0))
+
+    version = state.version
+    with pytest.raises(ValueError, match="column length mismatch"):
+        state.append_data(["x", "y"], [contiguous, strided[:2]])
+    assert state.version == version
+    state.append_data(["x"], [contiguous])
+    assert state.batch_ids() == ["b0", "b1"]
+
+
 def test_rank_designs_full_surface():
     ranking = design.rank_designs(
         [

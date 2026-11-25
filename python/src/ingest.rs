@@ -39,6 +39,25 @@ pub(crate) struct ColumnBatch {
 }
 
 impl ColumnBatch {
+    pub(crate) fn names(&self) -> &[String] {
+        &self.names
+    }
+
+    pub(crate) fn columns(&self) -> &[antecedent::data::F64Buffer] {
+        &self.columns
+    }
+
+    /// Freeze explicitly borrowed Arrow inputs before retaining a batch in mutable state.
+    pub(crate) fn freeze_foreign_columns(&mut self) {
+        for column in &mut self.columns {
+            if column.is_foreign() {
+                self.receipt.owned_copies += 1;
+                self.receipt.bytes_copied += column.nbytes();
+                *column = antecedent::data::F64Buffer::owned(column.as_slice());
+            }
+        }
+    }
+
     /// Rows in every column.
     pub(crate) fn num_rows(&self) -> usize {
         self.columns.first().map_or(0, antecedent::data::F64Buffer::len)

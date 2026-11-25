@@ -26,7 +26,7 @@ use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule};
 
-use crate::{catch_ffi, numeric_columns_to_batch, py_err};
+use crate::{catch_ffi, ingest::ColumnBatch, numeric_columns_to_batch, py_err};
 
 type IdentityMap = HashMap<String, Option<String>>;
 
@@ -102,12 +102,6 @@ type BatchColumnsPy<'py> = (Vec<String>, Vec<Bound<'py, PyArray1<f64>>>);
 
 const DEFAULT_CACHE_BYTES: u64 = 1_048_576;
 
-#[derive(Clone, Debug)]
-struct RetainedBatch {
-    names: Vec<String>,
-    columns: Vec<Vec<f64>>,
-}
-
 /// Largest dimension of a sufficient-statistics slot; the slot holds a dense square matrix.
 const MAX_STATE_DIMENSION: usize = 4096;
 
@@ -126,7 +120,7 @@ pub struct PyCausalState {
     inner: CausalState,
     next_batch: u64,
     /// Python-owned column data keyed by batch id (Rust catalog stays metadata-only).
-    retained: HashMap<String, RetainedBatch>,
+    retained: HashMap<String, ColumnBatch>,
 }
 
 impl PyCausalState {
@@ -135,28 +129,24 @@ impl PyCausalState {
         Ok(ver.raw())
     }
 
-    fn store_batch(
-        &mut self,
-        names: Vec<String>,
-        columns: Vec<NumericColumn<'_>>,
-    ) -> PyResult<(Arc<str>, u64, u64)> {
+    fn prepare_batch(names: &[String], columns: &[NumericColumn<'_>]) -> PyResult<ColumnBatch> {
         if names.len() != columns.len() {
             return Err(crate::value_err("names/columns length mismatch"));
         }
-        let batch = numeric_columns_to_batch(&names, &columns)?;
+        let mut batch = numeric_columns_to_batch(names, columns)?;
+        batch.freeze_foreign_columns();
+        Ok(batch)
+    }
+
+    fn store_batch(&mut self, batch: ColumnBatch) -> PyResult<u64> {
         let nrows = u64::try_from(batch.num_rows()).unwrap_or(u64::MAX);
         let bytes = u64::try_from(batch.get_array_memory_size()).unwrap_or(u64::MAX);
         let id_str = format!("b{}", self.next_batch);
-        let mut owned = Vec::with_capacity(columns.len());
-        for (name, col) in names.iter().zip(&columns) {
-            owned.push(col.to_vec(name)?);
-        }
-        // Advance the public batch-id sequence only after every fallible
-        // conversion has succeeded. Rejected appends/replacements must not
-        // consume an id while leaving no corresponding catalog entry.
+        let id = Arc::from(id_str.as_str());
+        let version = self.apply(StateEvent::AppendData(DataBatchRef { id, nrows, bytes }))?;
         self.next_batch = self.next_batch.wrapping_add(1);
-        self.retained.insert(id_str.clone(), RetainedBatch { names, columns: owned });
-        Ok((Arc::from(id_str), nrows, bytes))
+        self.retained.insert(id_str, batch);
+        Ok(version)
     }
 }
 
@@ -208,8 +198,7 @@ impl PyCausalState {
         names: Vec<String>,
         columns: Vec<NumericColumn<'_>>,
     ) -> PyResult<u64> {
-        let (id, nrows, bytes) = self.store_batch(names, columns)?;
-        self.apply(StateEvent::AppendData(DataBatchRef { id, nrows, bytes }))
+        self.store_batch(Self::prepare_batch(&names, &columns)?)
     }
 
     /// Replace all retained batches; optionally load one new batch.
@@ -222,7 +211,7 @@ impl PyCausalState {
         columns: Option<Vec<NumericColumn<'_>>>,
     ) -> PyResult<u64> {
         let replacement = match (names, columns) {
-            (Some(names), Some(columns)) => Some(self.store_batch(names, columns)?),
+            (Some(names), Some(columns)) => Some(Self::prepare_batch(&names, &columns)?),
             (None, None) => None,
             _ => {
                 return Err(crate::value_err(
@@ -232,17 +221,11 @@ impl PyCausalState {
         };
         let new_ver = self.inner.data_catalog.version.next();
         let ver = self.apply(StateEvent::ReplaceData(new_ver))?;
-        if let Some((id, nrows, bytes)) = replacement {
-            // `store_batch` validated and retained the replacement before the
-            // destructive state transition. Keep only that new batch now that
-            // ReplaceData has committed; invalid input leaves the old catalog
-            // and retained columns untouched.
-            self.retained.retain(|batch_id, _| batch_id == id.as_ref());
-            // Catalog was cleared by ReplaceData; append the replacement batch.
-            return self.apply(StateEvent::AppendData(DataBatchRef { id, nrows, bytes }));
-        }
         self.retained.clear();
-        Ok(ver)
+        match replacement {
+            Some(batch) => self.store_batch(batch),
+            None => Ok(ver),
+        }
     }
 
     /// Fetch retained columns for `batch_id` as `(names, list[ndarray])`.
@@ -251,9 +234,12 @@ impl PyCausalState {
             .retained
             .get(batch_id)
             .ok_or_else(|| crate::value_err(format!("unknown batch_id `{batch_id}`")))?;
-        let cols: Vec<_> =
-            batch.columns.iter().map(|c| PyArray1::from_vec(py, c.clone())).collect();
-        Ok((batch.names.clone(), cols))
+        let cols = batch
+            .columns()
+            .iter()
+            .map(|column| PyArray1::from_slice(py, column.as_slice()))
+            .collect();
+        Ok((batch.names().to_vec(), cols))
     }
 
     /// Row count for a retained batch.
@@ -262,7 +248,7 @@ impl PyCausalState {
             .retained
             .get(batch_id)
             .ok_or_else(|| crate::value_err(format!("unknown batch_id `{batch_id}`")))?;
-        Ok(batch.columns.first().map_or(0, Vec::len))
+        Ok(batch.num_rows())
     }
 
     /// Add opaque graph evidence; returns new version.
@@ -681,15 +667,7 @@ pub(crate) fn antecedent_state_append(n_appends: u64, cache_bytes: u64) -> PyRes
         state.inner.refresh_results_at(computed_at, &[(q, 1, 16)]).map_err(py_err)?;
         for i in 0..n_appends {
             let id: Arc<str> = Arc::from(format!("synth{i}"));
-            state.retained.insert(
-                id.to_string(),
-                RetainedBatch { names: vec!["x".into()], columns: vec![vec![0.0; 8]] },
-            );
-            apply_state_event(
-                &mut state.inner,
-                StateEvent::AppendData(DataBatchRef { id, nrows: 8, bytes: 64 }),
-            )
-            .map_err(py_err)?;
+            state.apply(StateEvent::AppendData(DataBatchRef { id, nrows: 8, bytes: 64 }))?;
         }
         Ok((state.inner.version.raw(), state.inner.stale_queries().len()))
     })
