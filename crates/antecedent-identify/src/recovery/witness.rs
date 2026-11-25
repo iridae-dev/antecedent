@@ -666,9 +666,11 @@ pub fn verify_observation_recovery(
         },
         memory_bytes: record.receipt.memory_bytes,
     };
+    let memory_cap =
+        ctx.memory_limit_bytes().map_or(max.memory_bytes, |hard| hard.min(max.memory_bytes));
     if stored.search.operations > max.search.operations
         || stored.search.depth > max.search.depth
-        || stored.memory_bytes > max.memory_bytes
+        || stored.memory_bytes > memory_cap
     {
         return Err(refuse(
             RecoveryDetail::BoundsExceeded,

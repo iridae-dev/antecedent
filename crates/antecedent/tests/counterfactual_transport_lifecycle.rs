@@ -610,20 +610,13 @@ fn refusals_name_what_would_support_the_request() {
     cancelled.cancellation.cancel();
     let error = prepare(&case, target, false, &options_of(&case), &cancelled).unwrap_err();
     assert_eq!(refusal(&error).0, "transport_budget_cancel");
-    // Limits above the contract's maxima are refused by bound.
+    // A declaration above the old operation ceiling is the caller's limit.
     let oversized = CounterfactualTransportOptions {
         search: SearchLimits { operations: usize::MAX, depth: 8 },
         ..options_of(&case)
     };
-    let error = prepare(&case, target, false, &oversized, &ctx()).unwrap_err();
-    let (code, message) = refusal(&error);
-    assert_eq!(code, "route_not_supported");
-    assert!(
-        message.starts_with(
-            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
-        ),
-        "{message}"
-    );
+    prepare(&case, target, false, &oversized, &ctx())
+        .expect("operations above the old ceiling are admitted");
     // Names that do not cover the variables are refused, not truncated.
     let misnamed = CounterfactualTransportOptions {
         variable_names: vec!["only".into()],

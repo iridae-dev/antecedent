@@ -440,10 +440,6 @@ fn a_missing_source_experiment_is_missing_evidence_naming_the_leaf() {
 #[test]
 fn only_limit_bounds_refuse_as_bounds_exceeded() {
     let ctx = ExecutionContext::for_tests(1);
-    let bounds = Some((
-        "route_not_supported",
-        antecedent_core::reason_details::admg_transport::BOUNDS_EXCEEDED,
-    ));
     let chain = |n: u32| {
         let edges: Vec<_> = (0..n - 1).map(|i| (i, i + 1)).collect();
         SelectionDiagram::try_new(graph(n, &edges, &[]), []).unwrap()
@@ -459,7 +455,7 @@ fn only_limit_bounds_refuse_as_bounds_exceeded() {
     assert!(run(&chain(7), &q, limits).is_ok());
     assert!(run(&chain(6), &query(&[5], &[0, 1, 2, 3], &[4]), limits).is_ok());
     assert!(run(&chain(6), &query(&[5], &[0], &[1, 2, 3, 4]), limits).is_ok());
-    // Limits at the maxima run; one more operation or depth level refuses.
+    // Limits at the old ceiling run, and a larger declaration is admitted.
     let small = chain(3);
     let q = query(&[2], &[0], &[1]);
     assert!(run(&small, &q, limits).is_ok());
@@ -467,7 +463,7 @@ fn only_limit_bounds_refuse_as_bounds_exceeded() {
         SearchLimits { operations: limits.operations + 1, depth: limits.depth },
         SearchLimits { operations: limits.operations, depth: limits.depth + 1 },
     ] {
-        assert_eq!(admg_conditional_refusal(&run(&small, &q, over).unwrap_err()), bounds);
+        assert!(run(&small, &q, over).is_ok());
     }
 }
 

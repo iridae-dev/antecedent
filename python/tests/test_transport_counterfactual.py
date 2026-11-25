@@ -947,11 +947,9 @@ def test_budget_cancellation_and_bounds_are_coded_stops_never_verdicts():
     assert cancelled.status == "budget_cancel"
     assert cancelled.reason_code == "transport_budget_cancel"
 
-    # Search limits above the contract's maxima are refused by bound.
-    with pytest.raises(CausalUnsupportedError) as raised:
-        case.decide(worlds, event, max_operations=10**12)
-    assert raised.value.reason_code == "route_not_supported"
-    assert reason_details.counterfactual_transport.BOUNDS_EXCEEDED in str(raised.value)
+    # A declaration above the old operation ceiling is the caller's limit.
+    admitted = case.decide(worlds, event, max_operations=10**12)
+    assert admitted.status == case.decide(worlds, event).status
 
 
 def test_malformed_requests_refuse_as_invalid_arguments():

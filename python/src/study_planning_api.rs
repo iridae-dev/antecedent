@@ -407,7 +407,7 @@ fn plan_studies_stage(
     let shared = graph.aligned_to_names(&names)?;
     let limits = StudyPlanLimits {
         search: SearchLimits { operations: max_operations, depth: max_depth },
-        memory_limit_bytes: STUDY_PLAN_MEMORY_BYTES,
+        memory_limit_bytes: memory_bytes.unwrap_or(STUDY_PLAN_MEMORY_BYTES),
     };
     let result = crate::detach_catch(py, move || {
         let ctx = execution_context(0, memory_bytes, cancel);
@@ -438,7 +438,7 @@ fn replay_study_plan(
         antecedent::io::from_cbor(&bytes).map_err(serialization_error)?;
     let limits = StudyPlanConsumeLimits {
         search: SearchLimits { operations: max_operations, depth: max_depth },
-        memory_limit_bytes: STUDY_PLAN_MEMORY_BYTES,
+        memory_limit_bytes: memory_bytes.unwrap_or(STUDY_PLAN_MEMORY_BYTES),
     };
     crate::detach_catch(py, move || {
         let graph =

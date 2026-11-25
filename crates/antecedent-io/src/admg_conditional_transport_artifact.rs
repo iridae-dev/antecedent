@@ -370,18 +370,13 @@ pub struct AdmgConditionalArtifactInput<'a> {
 }
 
 impl AdmgConditionalArtifactWire {
-    /// Build an artifact from checked premises and points. Producer-side bounds
-    /// are enforced here: search limits above the route's maxima and counted
-    /// laws are refused.
+    /// Build an artifact from checked premises and points. Counted laws are
+    /// refused. Search limits are the caller's declaration.
     ///
     /// # Errors
     /// The premises do not encode, exceed the route's bounds, or the results are
     /// inconsistent.
     pub fn checked(input: &AdmgConditionalArtifactInput<'_>) -> Result<Self, IoError> {
-        let maxima = antecedent_identify::ADMG_CONDITIONAL_DEFAULT_LIMITS;
-        if input.search.operations > maxima.operations || input.search.depth > maxima.depth {
-            return Err(AdmgConditionalArtifactError::LimitsExceeded("search limits").into());
-        }
         if input.data.laws().iter().any(|law| law.empirical_counts().is_some()) {
             return Err(AdmgConditionalArtifactError::CountedLawsUnsupported.into());
         }

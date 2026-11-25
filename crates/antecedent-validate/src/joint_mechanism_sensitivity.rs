@@ -18,8 +18,8 @@
 //!
 //! The kernel stage reuses the one-factor [`DiscreteKernelSensitivity`] evaluator,
 //! so a single kernel factor is bit-equal to [`crate::z_transport_mechanism_sensitivity`].
-//! The law's shape is checked against the declared bounds before its cells
-//! are read; the read itself is charged one operation per parent level to one
+//! The law's byte quote is compared with the memory cap before its cells are
+//! read; the read itself is charged one operation per parent level to one
 //! [`antecedent_core::SearchBudget`], which the closed-form range and then the
 //! frontier's certified brackets (the only iterative work) share. The range is
 //! an assumption range, never a confidence interval. Sampling uncertainty is
@@ -54,7 +54,8 @@ pub const JOINT_SENSITIVITY_MAX_PARENT_LEVELS: usize = 4096;
 pub const JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES: usize = 1024;
 /// Hard cap on frontier grid points (a resolution choice, each point one bisection).
 pub const JOINT_SENSITIVITY_MAX_FRONTIER_POINTS: usize = 257;
-/// Hard cap on the operation limit of the shared budget.
+/// Default operation limit of the shared budget when the caller sets nothing.
+/// A larger declaration is the caller's limit.
 pub const JOINT_SENSITIVITY_MAX_OPERATIONS: usize = 100_000;
 /// Number of source factors of the registered formula `psi = sum_w P_W(w) [m(w, 1) - m(w, 0)]`
 /// (the outcome kernel and the shared parent marginal). This is the formula's arity, not a
@@ -69,7 +70,9 @@ pub const JOINT_SENSITIVITY_MAX_FACTORS: usize = 2;
 pub const JOINT_SENSITIVITY_MAX_DEPTH: usize = 64;
 /// Default memory cap of the shared budget.
 pub(crate) const JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES: u64 = 64 * 1024 * 1024;
-/// Hard ceiling on a declared memory cap (the shared search default).
+/// Historical memory ceiling. Not a refusal: a declared cap is limited by the
+/// execution pool. The default for a caller who sets nothing is
+/// [`JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES`].
 pub const JOINT_SENSITIVITY_MAX_MEMORY_BYTES: u64 = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
 /// Hard cap on replicates of the (not supported) endpoint bootstrap. This is the upper end of the
 /// replicate range the recorded coverage measurements of the route cover (record
@@ -165,12 +168,14 @@ pub struct JointFactorBound {
 /// Limits of the one shared budget: every range and bracketing step is charged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct JointSensitivityLimits {
-    /// Operation limit (hard cap [`JOINT_SENSITIVITY_MAX_OPERATIONS`]).
+    /// Operation limit. [`JOINT_SENSITIVITY_MAX_OPERATIONS`] is the default, not a ceiling.
     pub operations: usize,
-    /// Depth limit: bisection iterations per bracket (hard cap [`JOINT_SENSITIVITY_MAX_DEPTH`]).
+    /// Depth limit: bisection iterations per bracket. [`JOINT_SENSITIVITY_MAX_DEPTH`]
+    /// is a numerical fact of `f64` bisection and stays a refusal.
     pub depth: usize,
-    /// Memory cap (hard ceiling [`JOINT_SENSITIVITY_MAX_MEMORY_BYTES`]); the
-    /// effective cap is also bounded by the context's hard limit.
+    /// Memory cap. The effective cap is the smaller of this declaration and the
+    /// execution pool. [`JOINT_SENSITIVITY_DEFAULT_MEMORY_BYTES`] applies when
+    /// the caller sets nothing.
     pub memory_bytes: u64,
 }
 
@@ -628,42 +633,22 @@ fn validate_spec(spec: &JointDeviationSpec) -> Result<JointBox, JointSensitivity
             format!("tolerance {} is outside [1e-12, 1e-2]", spec.tolerance),
         ));
     }
+    // Depth is a numerical fact of f64 bisection (see JOINT_SENSITIVITY_MAX_DEPTH),
+    // not a work ceiling. Operations and memory are the caller's declaration.
     if spec.frontier_points == 0
         || spec.frontier_points > JOINT_SENSITIVITY_MAX_FRONTIER_POINTS
-        || spec.limits.operations > JOINT_SENSITIVITY_MAX_OPERATIONS
         || spec.limits.depth > JOINT_SENSITIVITY_MAX_DEPTH
-        || spec.limits.memory_bytes > JOINT_SENSITIVITY_MAX_MEMORY_BYTES
     {
         return Err(refuse(
             reason_code!("route_not_supported"),
             antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
             format!(
-                "frontier grid {} (1-{JOINT_SENSITIVITY_MAX_FRONTIER_POINTS}), operations {} (<= 100000), depth {} (<= 64) or memory cap {} (<= 512 MiB) is outside the declared bounds",
-                spec.frontier_points,
-                spec.limits.operations,
-                spec.limits.depth,
-                spec.limits.memory_bytes
+                "frontier grid {} (1-{JOINT_SENSITIVITY_MAX_FRONTIER_POINTS}) or depth {} (<= {JOINT_SENSITIVITY_MAX_DEPTH}, an f64 bisection fact) is outside the declared bounds",
+                spec.frontier_points, spec.limits.depth
             ),
         ));
     }
     Ok(JointBox { kernel, parent })
-}
-
-/// Refuse a law larger than the declared bounds; runs on the law's shape,
-/// before any of its cells is read.
-fn check_shape(levels: usize, categories: usize) -> Result<(), JointSensitivityError> {
-    if levels > JOINT_SENSITIVITY_MAX_PARENT_LEVELS
-        || categories > JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES
-    {
-        return Err(refuse(
-            reason_code!("route_not_supported"),
-            antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED,
-            format!(
-                "{levels} parent levels (<= {JOINT_SENSITIVITY_MAX_PARENT_LEVELS}) or {categories} outcome categories (<= {JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES})"
-            ),
-        ));
-    }
-    Ok(())
 }
 
 /// Live-state bytes of the factors the evaluator holds for a law of this
@@ -675,15 +660,18 @@ fn factor_bytes(levels: usize, categories: usize) -> u64 {
     (cells * std::mem::size_of::<f64>()) as u64
 }
 
-/// Read the surrogate factors with the bounds checked on the law's shape and
-/// the read charged one operation per parent level (at the factors' byte
-/// estimate) to `budget`, when one is given.
+/// Read the surrogate factors. The factors' byte quote is compared with
+/// `memory_cap` before any kernel storage is allocated; a quote that does not
+/// fit returns [`SearchStop::Memory`] and does not start the scan. The read is
+/// then charged one operation per parent level to `budget`, when one is given.
 fn read_factors(
     diagram: &SelectionDiagram,
     functional: &BoundZTransportFunctional,
     data: &ExactTransportData,
     ctx: &ExecutionContext,
     mut budget: Option<&mut SearchBudget<'_>>,
+    limits: SearchLimits,
+    memory_cap: u64,
 ) -> Result<JointFactors, JointSensitivityError> {
     let bytes = std::cell::Cell::new(0);
     let read = z_surrogate_kernels_metered(
@@ -692,8 +680,20 @@ fn read_factors(
         data,
         ctx,
         &mut |levels, categories| {
-            check_shape(levels, categories)?;
-            bytes.set(factor_bytes(levels, categories));
+            let quoted = factor_bytes(levels, categories);
+            bytes.set(quoted);
+            if quoted > memory_cap {
+                return Err(JointSensitivityError::Budget(SearchReceipt {
+                    stop: SearchStop::Memory,
+                    operations_limit: limits.operations,
+                    depth_limit: limits.depth,
+                    memory_limit_bytes: Some(memory_cap),
+                    operations_consumed: None,
+                    depth_reached: None,
+                    explored: Vec::new(),
+                    unevaluated: vec!["range".into()],
+                }));
+            }
             Ok(())
         },
         &mut |_| match budget.as_deref_mut() {
@@ -1015,13 +1015,14 @@ pub fn z_transport_joint_mechanism_sensitivity(
     ctx: &ExecutionContext,
 ) -> Result<JointMechanismSensitivityResult, JointSensitivityError> {
     let joint_box = validate_spec(spec)?;
-    let mut budget = SearchBudget::with_memory(
-        SearchLimits { operations: spec.limits.operations, depth: spec.limits.depth },
-        spec.limits.memory_bytes,
-        ctx,
-    )
-    .map_err(JointSensitivityError::Budget)?;
-    let factors = read_factors(diagram, functional, data, ctx, Some(&mut budget))?;
+    let limits = SearchLimits { operations: spec.limits.operations, depth: spec.limits.depth };
+    let memory_cap = ctx
+        .memory_limit_bytes()
+        .map_or(spec.limits.memory_bytes, |hard| hard.min(spec.limits.memory_bytes));
+    let mut budget = SearchBudget::with_memory(limits, spec.limits.memory_bytes, ctx)
+        .map_err(JointSensitivityError::Budget)?;
+    let factors =
+        read_factors(diagram, functional, data, ctx, Some(&mut budget), limits, memory_cap)?;
     let (kernel, parent) = (joint_box.kernel(), joint_box.parent());
     let bytes = factors.bytes();
     let baseline = factors.baseline();
@@ -1273,7 +1274,11 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
             format!("{replicates} replicates (2-2000) or level {level} (strictly inside (0, 1))"),
         ));
     }
-    read_factors(diagram, functional, data, ctx, None)?;
+    let limits = SearchLimits { operations: spec.limits.operations, depth: spec.limits.depth };
+    let memory_cap = ctx
+        .memory_limit_bytes()
+        .map_or(spec.limits.memory_bytes, |hard| hard.min(spec.limits.memory_bytes));
+    read_factors(diagram, functional, data, ctx, None, limits, memory_cap)?;
     let draws =
         antecedent_estimate::z_transport_bootstrap_law_draws(functional, data, replicates, ctx)
             .map_err(|error| {
@@ -1306,7 +1311,8 @@ pub fn joint_sensitivity_bootstrap_interval_internal(
             ));
         }
         let evaluated = draw.and_then(|draw| {
-            let factors = read_factors(diagram, functional, &draw, ctx, None).ok()?;
+            let factors =
+                read_factors(diagram, functional, &draw, ctx, None, limits, memory_cap).ok()?;
             let range = factors.bounds_at(joint_box.kernel(), joint_box.parent()).ok()?;
             Some((range.minimum, range.maximum, factors.baseline()))
         });

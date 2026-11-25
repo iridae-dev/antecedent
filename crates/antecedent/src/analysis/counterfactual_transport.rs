@@ -395,9 +395,7 @@ pub fn prepare_counterfactual_transport(
         }
         CounterfactualTransportDecision::ProvenNonTransportable(obstruction) => {
             let memory_limit_bytes =
-                ctx.memory_limit_bytes().map_or(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES, |hard| {
-                    hard.min(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES)
-                });
+                ctx.memory_limit_bytes().unwrap_or(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES);
             Ok(CounterfactualTransportPreparation::ProvenNonTransportable(Box::new(
                 CounterfactualTransportObstructionReport {
                     obstruction: *obstruction,

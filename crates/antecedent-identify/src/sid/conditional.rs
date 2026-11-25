@@ -941,9 +941,9 @@ fn check_reduction(
 /// receipt of explored and unevaluated stages, never a verdict.
 ///
 /// # Errors
-/// Limits above [`ADMG_CONDITIONAL_DEFAULT_LIMITS`]
-/// (`admg_transport.bounds_exceeded`), an invalid query or catalog, or a
-/// derivation that fails its own check.
+/// An invalid query or catalog, or a derivation that fails its own check.
+/// Search limits are the caller's. Memory is the execution pool, or
+/// [`ADMG_CONDITIONAL_MEMORY_BYTES`] when the pool is unset.
 pub fn decide_admg_conditional_transport(
     diagram: &SelectionDiagram,
     query: &ConditionalTransportQuery,
@@ -951,11 +951,6 @@ pub fn decide_admg_conditional_transport(
     limits: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<ConditionalTransportDecision, IdentificationError> {
-    if limits.operations > ADMG_CONDITIONAL_DEFAULT_LIMITS.operations
-        || limits.depth > ADMG_CONDITIONAL_DEFAULT_LIMITS.depth
-    {
-        return Err(bounds_exceeded());
-    }
     validate(diagram, query)?;
     catalog.validate().map_err(|error| {
         IdentificationError::invalid_catalog(format!("admg_transport.invalid_catalog: {error}"))
@@ -972,7 +967,8 @@ pub fn decide_admg_conditional_transport(
         }
     }
     let unevaluated = || STAGES.iter().map(|s| format!("stage:{s}")).collect::<Vec<_>>();
-    match SearchBudget::with_memory(limits, ADMG_CONDITIONAL_MEMORY_BYTES, ctx) {
+    let memory = ctx.memory_limit_bytes().unwrap_or(ADMG_CONDITIONAL_MEMORY_BYTES);
+    match SearchBudget::with_memory(limits, memory, ctx) {
         Ok(budget) => decide_charged(diagram, query, catalog, &mut SharedSearch::new(budget), ctx),
         Err(receipt) => Ok(ConditionalTransportDecision::Exhausted(SearchReceipt {
             unevaluated: unevaluated(),

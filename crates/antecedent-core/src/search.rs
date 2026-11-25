@@ -86,17 +86,25 @@ pub struct SearchReceipt {
 
 impl SearchReceipt {
     /// One-line account of the stop for error text a binding surfaces: the
-    /// stop code, the operations charged against the limit, and every explored
-    /// and unevaluated region, so a stopped search never reads as a list of
-    /// its successes alone.
+    /// stop code, each bound in force and how much of it was consumed, and
+    /// every explored and unevaluated region. A region in `unevaluated` was
+    /// not entered. A stopped search never reads as a list of its successes
+    /// alone, and the text names the limits in force rather than a fixed
+    /// problem size.
     #[must_use]
     pub fn summary(&self) -> String {
-        let consumed = self.operations_consumed.map_or_else(
+        let operations = self.operations_consumed.map_or_else(
             || "not entered".to_owned(),
             |n| format!("{n} of {}", self.operations_limit),
         );
+        let depth = self
+            .depth_reached
+            .map_or_else(|| "not entered".to_owned(), |n| format!("{n} of {}", self.depth_limit));
+        let memory = self
+            .memory_limit_bytes
+            .map_or_else(|| "not entered".to_owned(), |bytes| format!("{bytes} bytes"));
         format!(
-            "receipt: stop {}; operations {consumed}; explored [{}]; unevaluated [{}]",
+            "receipt: stop {}; operations {operations}; depth {depth}; memory {memory}; explored [{}]; unevaluated [{}]",
             self.stop.code(),
             self.explored.join(", "),
             self.unevaluated.join(", ")
@@ -319,8 +327,8 @@ mod tests {
             budget.receipt(SearchStop::Operations, vec!["stage:a".into()], vec!["stage:b".into()]);
         assert_eq!(
             receipt.summary(),
-            "receipt: stop search.operations; operations 3 of 3; explored [stage:a]; \
-             unevaluated [stage:b]"
+            "receipt: stop search.operations; operations 3 of 3; depth 1 of 2; \
+             memory 536870912 bytes; explored [stage:a]; unevaluated [stage:b]"
         );
         let mut entered = receipt;
         entered.operations_consumed = None;

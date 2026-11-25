@@ -468,25 +468,18 @@ fn budget_cancellation_and_bounds_are_typed_stops_not_verdicts() {
         panic!("expected a cancelled search, got {cancelled:?}");
     };
     assert_eq!(receipt.stop, SearchStop::Cancelled);
-    // Limits above the contract's maxima are refused by bound.
+    // A declaration above the old operation ceiling is the caller's limit.
     let problem = adapter::problem(case);
     let adapted = adapter::catalog(case);
     let query = adapter::query(case, &target.query, adapter::sources(case, &[]));
-    let error = identify_counterfactual_transport(
+    identify_counterfactual_transport(
         &problem,
         &query,
         &adapted.catalog,
         SearchLimits { operations: usize::MAX, depth: 8 },
         &ctx,
     )
-    .unwrap_err();
-    assert_eq!(
-        counterfactual_transport_refusal(&error),
-        Some((
-            "route_not_supported",
-            antecedent_core::reason_details::counterfactual_transport::BOUNDS_EXCEEDED
-        ))
-    );
+    .expect("operations above the old ceiling are admitted");
     // Nine variables and five levels are declarable: the search budget, not a count, pays for them.
     let nine: Vec<(VariableId, Vec<f64>)> =
         (0..9).map(|i| (VariableId::from_raw(i), vec![0.0, 1.0, 2.0, 3.0, 4.0])).collect();

@@ -624,20 +624,15 @@ fn one_budget_is_shared_by_every_stage() {
 }
 
 #[test]
-fn bounds_refuse_as_bounds_exceeded() {
+fn limits_above_the_old_ceiling_are_the_callers() {
     let ctx = ExecutionContext::for_tests(1);
-    let bounds = IdentificationError::UnsupportedInput {
-        code: antecedent_core::reason_details::mixed_search::BOUNDS_EXCEEDED,
-    };
     let g = chain();
     for limits in [
         SearchLimits { operations: MIXED_SOURCE_DEFAULT_LIMITS.operations + 1, depth: 16 },
         SearchLimits { operations: 100, depth: MIXED_SOURCE_DEFAULT_LIMITS.depth + 1 },
     ] {
-        assert_eq!(
-            decide_mixed_source(&g, &query(), &complementary(), limits, &ctx).unwrap_err(),
-            bounds
-        );
+        decide_mixed_source(&g, &query(), &complementary(), limits, &ctx)
+            .expect("a declaration above the old ceiling is admitted");
     }
 }
 

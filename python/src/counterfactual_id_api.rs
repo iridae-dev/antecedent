@@ -181,7 +181,7 @@ fn law_of(
 
 /// Decide the effect of treatment on the treated once.
 #[pyfunction]
-#[pyo3(signature = (names, directed, bidirected, levels, treatment, active, observed, outcome, outcome_level, *, operations=20_000, depth=48, interval_requested=false, seed=0, cancel=None))]
+#[pyo3(signature = (names, directed, bidirected, levels, treatment, active, observed, outcome, outcome_level, *, operations=20_000, depth=48, memory_bytes=None, interval_requested=false, seed=0, cancel=None))]
 #[allow(clippy::too_many_arguments, reason = "one native entry mirrors the Python signature")]
 fn prepare_counterfactual_id_native(
     py: Python<'_>,
@@ -196,6 +196,7 @@ fn prepare_counterfactual_id_native(
     outcome_level: f64,
     operations: usize,
     depth: usize,
+    memory_bytes: Option<u64>,
     interval_requested: bool,
     seed: u64,
     cancel: Option<crate::PyCancellationToken>,
@@ -227,22 +228,19 @@ fn prepare_counterfactual_id_native(
         outcome_level,
     )
     .map_err(invalid_query)?;
-    let options = CounterfactualIdOptions {
+    let mut options = CounterfactualIdOptions {
         limits: SearchLimits { operations, depth },
         interval_requested,
         ..CounterfactualIdOptions::default()
     };
+    if let Some(bytes) = memory_bytes {
+        options.memory_limit_bytes = bytes;
+    }
     let kept_levels = levels.clone();
     let prepared = detach_catch(py, move || {
-        prepare_counterfactual_id(
-            graph,
-            names,
-            levels,
-            &query,
-            options,
-            &crate::py_execution_context_cancel(seed, 1, cancel),
-        )
-        .map_err(refused)
+        let mut ctx = crate::py_execution_context_cancel(seed, 1, cancel);
+        ctx.set_memory_limit(memory_bytes);
+        prepare_counterfactual_id(graph, names, levels, &query, options, &ctx).map_err(refused)
     })?;
     Ok(NativePreparedCounterfactualId { prepared, levels: kept_levels })
 }
@@ -251,16 +249,21 @@ fn prepare_counterfactual_id_native(
 /// recomputing it: `(json, artifact bytes)`. With `expected_data_digest` the
 /// artifact's law must also carry that digest.
 #[pyfunction]
-#[pyo3(signature = (artifact, *, seed=0, expected_data_digest=None))]
+#[pyo3(signature = (artifact, *, seed=0, memory_bytes=None, expected_data_digest=None))]
 fn consume_counterfactual_id_artifact_native(
     py: Python<'_>,
     artifact: &[u8],
     seed: u64,
+    memory_bytes: Option<u64>,
     expected_data_digest: Option<String>,
 ) -> PyResult<(String, Vec<u8>)> {
     detach_catch(py, move || {
-        let ctx = py_execution_context(seed, 1);
-        let limits = CounterfactualIdConsumeLimits::default();
+        let mut ctx = py_execution_context(seed, 1);
+        ctx.set_memory_limit(memory_bytes);
+        let mut limits = CounterfactualIdConsumeLimits::default();
+        if let Some(bytes) = memory_bytes {
+            limits.search_memory_bytes = bytes;
+        }
         let effect = match &expected_data_digest {
             Some(digest) => {
                 consume_counterfactual_id_artifact_for_data(artifact, digest, limits, &ctx)

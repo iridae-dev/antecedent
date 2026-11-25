@@ -260,8 +260,8 @@ def test_alternative_derivations_appear_only_when_found():
 
 
 def test_bounds_and_model_artifacts_are_refused_by_name():
-    with pytest.raises(CausalUnsupportedError, match="bounds_exceeded"):
-        decide(chain_graph(), CHAIN_STUDIES, max_operations=20_001)
+    admitted = decide(chain_graph(), CHAIN_STUDIES, max_operations=20_001)
+    assert admitted.outcome == decide(chain_graph(), CHAIN_STUDIES).outcome
     posterior = transport.EvidenceCatalog(
         environments=(
             transport.Environment(

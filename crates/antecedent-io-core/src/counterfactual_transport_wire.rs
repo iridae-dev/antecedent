@@ -39,9 +39,8 @@ use antecedent_core::{IdentityDomain, VariableId};
 use antecedent_expr::{ExactEvaluationLimits, ExactTransportData};
 use antecedent_identify::{
     COUNTERFACTUAL_TRANSPORT_CONTRACT, COUNTERFACTUAL_TRANSPORT_MASK_VARIABLES,
-    COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
-    COUNTERFACTUAL_TRANSPORT_MAX_REGIMES, COUNTERFACTUAL_TRANSPORT_MAX_SOURCES,
-    COUNTERFACTUAL_TRANSPORT_MAX_WORLDS, COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
+    COUNTERFACTUAL_TRANSPORT_MAX_ATOMS, COUNTERFACTUAL_TRANSPORT_MAX_REGIMES,
+    COUNTERFACTUAL_TRANSPORT_MAX_SOURCES, COUNTERFACTUAL_TRANSPORT_MAX_WORLDS,
     CounterfactualTransportDerivation, CounterfactualTransportProblem,
     CounterfactualTransportQuery, CounterfactualTransportSearchRecord,
     CounterfactualTransportSource, CounterfactualTransportWitness,
@@ -628,7 +627,8 @@ pub enum DecisionInputFault {
 }
 
 /// Bound the stored inputs of a counterfactual transport decision (model class, query,
-/// catalog, search limits and names) by the contract's maxima.
+/// catalog and names) by the contract's shape bounds. Search limits are the
+/// caller's declaration.
 ///
 /// Every artifact that re-decides a stored derivation calls this before any work, so the
 /// bounds of the decision are one definition.
@@ -639,7 +639,7 @@ pub fn check_decision_inputs(
     problem: &CounterfactualTransportProblemWire,
     query: &CounterfactualTransportQueryWire,
     variable_names: &[String],
-    search: &CounterfactualTransportSearchLimitsWire,
+    _search: &CounterfactualTransportSearchLimitsWire,
     catalog: &EvidenceCatalogWire,
 ) -> Result<(), DecisionInputFault> {
     let n = problem.variables.len();
@@ -657,13 +657,6 @@ pub fn check_decision_inputs(
     }
     if catalog.regimes.len() > COUNTERFACTUAL_TRANSPORT_MAX_REGIMES {
         return Err(DecisionInputFault::Limit("regimes"));
-    }
-    let maxima = COUNTERFACTUAL_TRANSPORT_MAX_LIMITS;
-    if search.operations > maxima.operations
-        || search.depth > maxima.depth
-        || search.memory_limit_bytes > COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
-    {
-        return Err(DecisionInputFault::Limit("search limits"));
     }
     if !variable_names.is_empty()
         && (variable_names.len() != n

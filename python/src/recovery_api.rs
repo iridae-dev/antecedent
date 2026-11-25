@@ -836,7 +836,7 @@ fn identify_observation_recovery_stage(
     };
     let limits = RecoveryLimits {
         search: SearchLimits { operations: max_operations, depth: max_depth },
-        memory_bytes: RECOVERY_DEFAULT_LIMITS.memory_bytes,
+        memory_bytes: memory_bytes.unwrap_or(RECOVERY_DEFAULT_LIMITS.memory_bytes),
     };
     let (decision_graph, decision_query, decision_catalog, decision_effect) =
         (shared.clone(), query.clone(), catalog.clone(), effect.clone());
@@ -883,7 +883,7 @@ fn consume_observation_recovery_artifact(
     let limits = RecoveryConsumeLimits {
         decision: RecoveryLimits {
             search: SearchLimits { operations: max_search_operations, depth: max_search_depth },
-            memory_bytes: RECOVERY_DEFAULT_LIMITS.memory_bytes,
+            memory_bytes: memory_bytes.unwrap_or(RECOVERY_DEFAULT_LIMITS.memory_bytes),
         },
         evaluation: ExactEvaluationLimits { operations: max_operations, depth: max_depth },
         max_requests,

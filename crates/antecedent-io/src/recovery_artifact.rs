@@ -614,7 +614,11 @@ impl RecoveryArtifactWire {
         antecedent_io_core::load_expecting(bytes, retained, Self::decode)
     }
 
-    fn check_limits(&self, limits: &RecoveryConsumeLimits) -> Result<(), RecoveryArtifactError> {
+    fn check_limits(
+        &self,
+        limits: &RecoveryConsumeLimits,
+        ctx: &ExecutionContext,
+    ) -> Result<(), RecoveryArtifactError> {
         let exceeded = RecoveryArtifactError::LimitsExceeded;
         let receipt = &self.derivation.receipt;
         if receipt.operations_limit > limits.decision.search.operations {
@@ -623,7 +627,10 @@ impl RecoveryArtifactWire {
         if receipt.depth_limit > limits.decision.search.depth {
             return Err(exceeded("search depth limit"));
         }
-        if receipt.memory_bytes > limits.decision.memory_bytes {
+        let memory_cap = ctx
+            .memory_limit_bytes()
+            .map_or(limits.decision.memory_bytes, |hard| hard.min(limits.decision.memory_bytes));
+        if receipt.memory_bytes > memory_cap {
             return Err(exceeded("search memory cap"));
         }
         if self.operation_limit > limits.evaluation.operations {
@@ -690,7 +697,7 @@ impl RecoveryArtifactWire {
             IoError::Refused { .. } => RecoveryArtifactError::UnsupportedSemantics("shape"),
             other => unsupported(other),
         })?;
-        wire.check_limits(&limits)?;
+        wire.check_limits(&limits, ctx)?;
         crate::require_digest(
             &wire.premises_digest,
             wire.expected_premises_digest(),

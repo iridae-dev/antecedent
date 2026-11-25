@@ -473,21 +473,15 @@ fn bounds_and_cancellation_are_refusals_or_reports_not_verdicts() {
         search: SearchLimits { operations: REPAIR_MAX_OPERATIONS + 1, depth: 1 },
         ..defaults()
     };
-    let error = repair(
+    let report = repair(
         &family,
         &[observation("a", &[T, Y, Z1], 1)],
         RepairObjective::MinimizeCost,
         too_many_operations,
         &ctx(),
     )
-    .unwrap_err();
-    assert_eq!(
-        (error.code, error.detail),
-        (
-            "invalid_argument",
-            antecedent_core::reason_details::identification_repair::BOUNDS_EXCEEDED
-        )
-    );
+    .expect("a declaration above the old operation ceiling is the caller's limit");
+    assert!(report.receipt.stop.is_none());
     let cancelled = ctx();
     cancelled.cancellation.cancel();
     let error = repair(

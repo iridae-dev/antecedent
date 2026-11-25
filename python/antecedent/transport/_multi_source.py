@@ -137,8 +137,9 @@ def identify_multi_source_z_transport(
     ``not_supported``: the multi-source interval route is not supported until its
     coverage records are measured, so ``interval["available"]`` is ``False``.
     The search memory bound is never absent: ``memory_bytes`` (default ``None``)
-    tightens the 512 MiB default cap, it cannot remove it, and the live-state
-    estimate is cumulative across every stage of the one decision. An identified
+    is the cap, or 512 MiB when it is omitted, and a smaller execution pool
+    lowers it. The live-state estimate is cumulative across every stage of the
+    one decision. An identified
     decision reports its ``search_receipt`` (limits in force, operations consumed,
     depth reached, stages explored and left unevaluated), which the exported
     artifact stores and a consumer replays and compares exactly.

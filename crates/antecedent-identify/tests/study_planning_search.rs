@@ -533,8 +533,6 @@ fn bounds_and_impossible_designs_refuse_by_detail() {
     };
     let invalid =
         ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_CANDIDATE);
-    let bound =
-        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED);
     // The number of candidates and of regimes per candidate is bounded by the plan's budget,
     // not by a constant: seventeen candidates and nine regimes in one are admitted.
     let many = |n: u32| {
@@ -554,14 +552,14 @@ fn bounds_and_impossible_designs_refuse_by_detail() {
         )
         .is_ok()
     );
-    // Plan limits above the declared caps.
+    // A declaration above the old route ceilings is the caller's limit.
     let over = |operations, depth| StudyPlanLimits {
         search: SearchLimits { operations, depth },
         ..StudyPlanLimits::default()
     };
     let one = || vec![candidate(&base, "b_do_z1", 1, vec![proposed(3, "b", &[(Z1, false)])])];
-    assert_eq!(refuse(one(), over(200_001, 24)), bound);
-    assert_eq!(refuse(one(), over(200_000, 25)), bound);
+    assert!(plan(&route, &base, &one(), over(200_001, 24), &ctx).is_ok());
+    assert!(plan(&route, &base, &one(), over(200_000, 25), &ctx).is_ok());
     // Impossible designs.
     let target_trial = candidate(&base, "t", 1, vec![proposed(3, "target", &[(X, true)])]);
     assert_eq!(refuse(vec![target_trial], StudyPlanLimits::default()), invalid);
@@ -622,8 +620,8 @@ fn bounds_and_impossible_designs_refuse_by_detail() {
         r.intervention_values = Arc::from([]);
         candidate(&base, "trial", 1, vec![r])
     };
-    let refusal = plan(&mixed, &base, &[family], over(200_000, 17), &ctx).unwrap_err();
-    assert_eq!((refusal.code, refusal.detail), bound);
+    plan(&mixed, &base, &[family], over(200_000, 17), &ctx)
+        .expect("depth above the old mixed ceiling is the caller's limit");
 }
 
 #[test]

@@ -625,9 +625,11 @@ def identify_counterfactual(
 ) -> CounterfactualTransportDecision:
     """Decide a counterfactual transport query against one evidence catalog.
 
-    The decision is taken once under one bounded search (default and maximum:
-    the route's contract limits; ``memory_bytes`` tightens the search memory cap,
-    it cannot remove it). Preparing a decision that did not identify raises its
+    The decision is taken once under one bounded search. ``operations`` and
+    ``depth`` are that search's limits (the route defaults apply when they are
+    omitted). ``memory_bytes`` is the search memory cap, or the route default
+    when it is omitted; a smaller execution pool lowers it. Preparing a
+    decision that did not identify raises its
     typed reason: ``transport_missing_evidence`` (naming the regimes),
     ``transport_not_certified``, ``transport_budget_cancel`` or
     ``transport_proven_non_transportable``. Out-of-contract requests refuse as

@@ -464,14 +464,17 @@ pub fn decide_chain_recovery(
     query: &ChainRecoveryQuery,
     ctx: &ExecutionContext,
 ) -> Result<ChainRecoveryDecision, ChainRecoveryError> {
+    let memory = ctx.memory_limit_bytes().unwrap_or(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES);
     let budget =
-        SearchBudget::new(CHAIN_RECOVERY_LIMITS, ctx).map_err(|receipt| ChainRecoveryError {
-            detail: ChainRecoveryDetail::Budget,
-            message: format!(
-                "the chain recovery budget stopped before entry ({})",
-                receipt.stop.code()
-            ),
-            receipt: Some(Box::new(receipt)),
+        SearchBudget::with_memory(CHAIN_RECOVERY_LIMITS, memory, ctx).map_err(|receipt| {
+            ChainRecoveryError {
+                detail: ChainRecoveryDetail::Budget,
+                message: format!(
+                    "the chain recovery budget stopped before entry ({})",
+                    receipt.stop.code()
+                ),
+                receipt: Some(Box::new(receipt)),
+            }
         })?;
     let mut meter = Meter { budget };
     check_roles(graph, query)?;
@@ -698,14 +701,17 @@ pub fn verify_chain_witness(
     witness: &ChainRecoveryWitness,
     ctx: &ExecutionContext,
 ) -> Result<ChainWitnessCheck, ChainRecoveryError> {
+    let memory = ctx.memory_limit_bytes().unwrap_or(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES);
     let budget =
-        SearchBudget::new(CHAIN_RECOVERY_LIMITS, ctx).map_err(|receipt| ChainRecoveryError {
-            detail: ChainRecoveryDetail::Budget,
-            message: format!(
-                "the chain recovery budget stopped before entry ({})",
-                receipt.stop.code()
-            ),
-            receipt: Some(Box::new(receipt)),
+        SearchBudget::with_memory(CHAIN_RECOVERY_LIMITS, memory, ctx).map_err(|receipt| {
+            ChainRecoveryError {
+                detail: ChainRecoveryDetail::Budget,
+                message: format!(
+                    "the chain recovery budget stopped before entry ({})",
+                    receipt.stop.code()
+                ),
+                receipt: Some(Box::new(receipt)),
+            }
         })?;
     let mut meter = Meter { budget };
     check_roles(graph, query)?;

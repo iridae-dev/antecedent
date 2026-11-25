@@ -104,8 +104,9 @@ pub fn structure_posterior(
 /// shared search budget (see `antecedent_identify::plan_study_additions`).
 /// The result is invariant to candidate and source declaration order.
 ///
-/// The declared bounds (plan limits, at most 16 candidates, at most 8 level
-/// combinations per candidate) are checked before any candidate is compiled.
+/// The caller's operation budget is compared with the candidate count before
+/// any candidate is compiled. Memory is that declaration, further limited by
+/// the execution pool.
 ///
 /// Deprecated since 3.1.0 in favour of its compiled route, which the deprecation note
 /// names. This forwards to [`antecedent_design::plan_studies`].

@@ -226,11 +226,11 @@ pub fn identify_meta_transport(
 ///
 /// # Errors
 ///
-/// Limits above `COUNTERFACTUAL_TRANSPORT_MAX_LIMITS`
-/// (`counterfactual_transport.bounds_exceeded`), a malformed query or catalog
+/// A malformed query or catalog
 /// (`counterfactual_transport.invalid_query`,
 /// `counterfactual_transport.invalid_catalog`), or a derivation that fails its own
-/// check.
+/// check. Search limits are the caller's; memory is the execution pool or the
+/// route default when the pool is unset.
 #[deprecated(
     since = "3.1.0",
     note = "compile_transport_identification(TransportIdentificationRequest::..) then identify"

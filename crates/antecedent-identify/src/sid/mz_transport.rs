@@ -489,12 +489,9 @@ impl MzTransportDerivation {
             operations: record.search.operations_limit,
             depth: record.search.depth_limit,
         };
-        let memory_cap = ctx
-            .memory_limit_bytes()
-            .map_or(MZ_TRANSPORT_MEMORY_BYTES, |h| h.min(MZ_TRANSPORT_MEMORY_BYTES));
         if stored.operations > limits.operations
             || stored.depth > limits.depth
-            || record.search.memory_limit_bytes > memory_cap
+            || ctx.memory_limit_bytes().is_some_and(|hard| record.search.memory_limit_bytes > hard)
         {
             return Err(bounds_exceeded());
         }
@@ -678,13 +675,14 @@ pub fn decide_mz_transport(
         antecedent_core::execution_attempt::Operation::Identification,
         || {
             crate::execution_counts::note_check();
-            decide_bounded(graph, query, catalog, limits, MZ_TRANSPORT_MEMORY_BYTES, ctx)
+            let memory = ctx.memory_limit_bytes().unwrap_or(MZ_TRANSPORT_MEMORY_BYTES);
+            decide_bounded(graph, query, catalog, limits, memory, ctx)
         },
     )
 }
 
-/// [`decide_mz_transport`] under an explicit memory cap (at most
-/// [`MZ_TRANSPORT_MEMORY_BYTES`]).
+/// [`decide_mz_transport`] under an explicit memory cap. The cap is the
+/// execution pool, or [`MZ_TRANSPORT_MEMORY_BYTES`] when the pool is unset.
 fn decide_bounded(
     graph: &antecedent_graph::Admg,
     query: &MzTransportQuery,
@@ -693,12 +691,6 @@ fn decide_bounded(
     memory_limit_bytes: u64,
     ctx: &ExecutionContext,
 ) -> Result<MzTransportDecision, IdentificationError> {
-    if limits.operations > MZ_TRANSPORT_DEFAULT_LIMITS.operations
-        || limits.depth > MZ_TRANSPORT_DEFAULT_LIMITS.depth
-        || memory_limit_bytes > MZ_TRANSPORT_MEMORY_BYTES
-    {
-        return Err(bounds_exceeded());
-    }
     let validated = validated_input(graph, query, catalog)?;
     match SearchBudget::with_memory(limits, memory_limit_bytes, ctx) {
         Ok(budget) => {

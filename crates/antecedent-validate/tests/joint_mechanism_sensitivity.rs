@@ -859,22 +859,23 @@ fn declared_bounds_admit_the_cap_and_refuse_one_more() {
     assert_eq!(refusal(bounded(&|s| s.frontier_points = widest + 1)), exceeded);
     assert_eq!(refusal(bounded(&|s| s.frontier_points = 0)), exceeded);
     bounded(&|s| s.limits.operations = 100_000).unwrap();
-    assert_eq!(refusal(bounded(&|s| s.limits.operations = 100_001)), exceeded);
+    bounded(&|s| s.limits.operations = 100_001).unwrap();
     bounded(&|s| s.limits.depth = 64).unwrap();
     assert_eq!(refusal(bounded(&|s| s.limits.depth = 65)), exceeded);
-    // The declared memory cap has a hard ceiling (512 MiB); a larger request is
-    // refused, not silently raised.
+    // Memory is the caller's declaration, further limited by the pool. There is
+    // no third ceiling above the default.
     bounded(&|s| s.limits.memory_bytes = 512 << 20).unwrap();
-    assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = (512 << 20) + 1)), exceeded);
-    assert_eq!(refusal(bounded(&|s| s.limits.memory_bytes = u64::MAX)), exceeded);
-    // The sanity bounds on parent levels and outcome categories are admitted; one more refuses.
+    bounded(&|s| s.limits.memory_bytes = (512 << 20) + 1).unwrap();
+    bounded(&|s| s.limits.memory_bytes = u64::MAX).unwrap();
+    // Parent levels and outcome categories are a byte quote against the memory
+    // cap, not a fixed ceiling. One past the old constants still fits the default budget.
     let (levels, categories) =
         (JOINT_SENSITIVITY_MAX_PARENT_LEVELS, JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES);
     let mut rng = Rng::new(3);
     run(&rng.model(levels, 2), &spec(Some(0.1), Some(0.1))).unwrap();
-    assert_eq!(refusal(run(&rng.model(levels + 1, 2), &spec(Some(0.1), Some(0.1)))), exceeded);
+    run(&rng.model(levels + 1, 2), &spec(Some(0.1), Some(0.1))).unwrap();
     run(&rng.model(1, categories), &spec(Some(0.1), Some(0.1))).unwrap();
-    assert_eq!(refusal(run(&rng.model(1, categories + 1), &spec(Some(0.1), Some(0.1)))), exceeded);
+    run(&rng.model(1, categories + 1), &spec(Some(0.1), Some(0.1))).unwrap();
 }
 
 #[test]
@@ -892,19 +893,32 @@ fn law_bounds_refuse_before_the_charged_read_of_the_law() {
         }
         other => panic!("expected the read to be charged, got {other:?}"),
     }
-    // ... while a law past the level (or category) bound refuses on its shape, before any
-    // cell is read or charged.
+    // A law past the old level or category constants is still a quote. Under a
+    // one-operation budget the quote fits and the second level stops the read.
     for model in [
         rng.model(JOINT_SENSITIVITY_MAX_PARENT_LEVELS + 1, 2),
         rng.model(2, JOINT_SENSITIVITY_MAX_OUTCOME_CATEGORIES + 1),
     ] {
-        assert_eq!(
-            refusal(run(&model, &one)),
-            (
-                "route_not_supported",
-                antecedent_core::reason_details::joint_sensitivity::BOUNDS_EXCEEDED
-            )
-        );
+        match run(&model, &one) {
+            Err(JointSensitivityError::Budget(receipt)) => {
+                assert_eq!(receipt.stop, SearchStop::Operations);
+                assert_eq!(receipt.operations_consumed, Some(1));
+                assert_eq!(receipt.unevaluated, ["range"]);
+            }
+            other => panic!("expected the read to be charged, got {other:?}"),
+        }
+    }
+    // A quote that does not fit the memory cap stops before the scan is entered.
+    let mut tiny = spec(Some(0.1), Some(0.1));
+    tiny.limits.memory_bytes = 1;
+    match run(&rng.model(2, 2), &tiny) {
+        Err(JointSensitivityError::Budget(receipt)) => {
+            assert_eq!(receipt.stop, SearchStop::Memory);
+            assert_eq!(receipt.memory_limit_bytes, Some(1));
+            assert!(receipt.operations_consumed.is_none());
+            assert_eq!(receipt.unevaluated, ["range"]);
+        }
+        other => panic!("expected the quote to stop the read, got {other:?}"),
     }
     // Cancellation is observed when the budget is created, before the shape is
     // read, so a cancelled context is a budget stop even for an oversized law.

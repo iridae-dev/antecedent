@@ -69,9 +69,11 @@ pub(super) const DIRECT_SUM_TOLERANCE: f64 = 1e-10;
 /// What the caller asks of the cell beyond the query.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CounterfactualIdOptions {
-    /// Search limits of the identification (at most 100000 operations, depth 64).
+    /// Search limits of the identification. The default is 20000 operations and
+    /// depth 48; a larger declaration is the limit.
     pub limits: SearchLimits,
-    /// Memory cap of the search (further limited by the context's hard limit).
+    /// Memory cap of the search. The default is 64 MiB. The effective cap is
+    /// the smaller of this declaration and the execution pool.
     pub memory_limit_bytes: u64,
     /// The caller asked for a sampling interval or Bayesian inference. Refused:
     /// the claim is point-only.

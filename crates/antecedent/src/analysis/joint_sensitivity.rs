@@ -487,8 +487,7 @@ impl JointSensitivityArtifactWire {
     /// Independently verify an exported artifact and return the recomputed one.
     ///
     /// Order: version, decoding (unknown fields refused), stored limits against
-    /// the consumer's maxima, the producer's 512 MiB memory ceiling and the
-    /// consumer's hard memory limit (before any work), premises
+    /// the consumer's maxima and the execution pool (before any work), premises
     /// and data digests, the interval and inference-claim labels, then the
     /// baseline replay and a bit-for-bit recomputation of the body under the
     /// stored limits and effective memory cap.
@@ -512,12 +511,14 @@ impl JointSensitivityArtifactWire {
         let declared = &wire.body.perturbation;
         let effective = wire.body.receipt.memory_limit_bytes;
         let affordable = ctx.memory_limit_bytes().is_none_or(|hard| hard >= effective);
+        let memory_cap = ctx
+            .memory_limit_bytes()
+            .map_or(limits.max_memory_bytes, |hard| hard.min(limits.max_memory_bytes));
         if declared.operations > limits.max_operations
             || declared.depth > limits.max_depth
-            || declared.memory_bytes > limits.max_memory_bytes
-            || declared.memory_bytes
-                > antecedent_validate::joint_mechanism_sensitivity::JOINT_SENSITIVITY_MAX_MEMORY_BYTES
+            || declared.memory_bytes > memory_cap
             || effective > declared.memory_bytes
+            || effective > memory_cap
             || !affordable
         {
             return Err(IoError::Refused {

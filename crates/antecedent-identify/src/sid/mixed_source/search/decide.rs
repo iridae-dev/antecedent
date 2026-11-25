@@ -8,13 +8,12 @@ use super::super::super::{
     SearchStop, SelectionDiagram, SharedSearch, VariableId, identify_catalog_transport_metered,
 };
 use super::super::{
-    EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, MIXED_SOURCE_DEFAULT_LIMITS,
-    MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE, MIXED_SOURCE_RULE_SET, MetaSource,
-    MetaTransportQuery, MixedInput, MixedQuantity, MixedSearchSummary, MixedSourceDerivation,
-    MixedSourceQuery, MixedStageRecord, RegimeId, ValidatedMixedSourceQuery, ZTransportDecision,
-    ZTransportLimitsReceipt, ZTransportQuery, bounds_exceeded, decide_z_transport_reporting,
-    dense_variables, identify_meta_catalog_metered, invalid_derivation, invalid_query,
-    validate_mixed_source_query,
+    EvidenceCatalog, FRONTIER_SHOWN, INVALID_QUERY, MIXED_SOURCE_MAX_DO, MIXED_SOURCE_MAX_MOVE,
+    MIXED_SOURCE_RULE_SET, MetaSource, MetaTransportQuery, MixedInput, MixedQuantity,
+    MixedSearchSummary, MixedSourceDerivation, MixedSourceQuery, MixedStageRecord, RegimeId,
+    ValidatedMixedSourceQuery, ZTransportDecision, ZTransportLimitsReceipt, ZTransportQuery,
+    decide_z_transport_reporting, dense_variables, identify_meta_catalog_metered,
+    invalid_derivation, invalid_query, validate_mixed_source_query,
 };
 
 use super::{
@@ -71,7 +70,7 @@ pub(crate) fn stage_names(query: &MixedSourceQuery, meta: bool) -> Vec<&'static 
 ///
 /// # Errors
 ///
-/// Limits above [`MIXED_SOURCE_DEFAULT_LIMITS`] or a query outside its bounds
+/// A query outside its shape bounds
 /// (`mixed_search.bounds_exceeded`), a malformed query or catalog
 /// (`mixed_search.invalid_query`), a model artifact offered as an experimental
 /// law (`mixed_search.posterior_as_law`), or a derivation that fails its own check.
@@ -82,16 +81,12 @@ pub fn decide_mixed_source(
     limits: SearchLimits,
     ctx: &ExecutionContext,
 ) -> Result<MixedSourceDecision, IdentificationError> {
-    if limits.operations > MIXED_SOURCE_DEFAULT_LIMITS.operations
-        || limits.depth > MIXED_SOURCE_DEFAULT_LIMITS.depth
-    {
-        return Err(bounds_exceeded());
-    }
     let validated = validate_mixed_source_query(graph, query, catalog)?;
     catalog.validate().map_err(|error| {
         IdentificationError::invalid_catalog(format!("{INVALID_QUERY}: {error}"))
     })?;
-    match SearchBudget::new(limits, ctx) {
+    let memory = ctx.memory_limit_bytes().unwrap_or(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES);
+    match SearchBudget::with_memory(limits, memory, ctx) {
         Ok(budget) => {
             decide_charged(graph, &validated, catalog, &mut SharedSearch::new(budget), ctx)
         }

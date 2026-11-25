@@ -723,15 +723,16 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
     with pytest.raises(Exception, match=reason_details.mz_transport.BUDGET) as raised:
         exhausted.prepare_exact(laws(), {"x": 1.0})
     assert raised.value.reason_code == "transport_budget_cancel"
-    # A bound: route_not_supported.
-    with pytest.raises(CausalUnsupportedError) as raised:
-        transport.identify_multi_source_z_transport(
-            graph=graph(),
-            query=query(source_a(), source_b()),
-            catalog=catalog(),
-            max_operations=4097,
-        )
-    assert _pair(raised) == ("route_not_supported", reason_details.mz_transport.BOUNDS_EXCEEDED)
+    # A declaration above the old operation ceiling is the caller's limit.
+    admitted = transport.identify_multi_source_z_transport(
+        graph=graph(),
+        query=query(source_a(), source_b()),
+        catalog=catalog(),
+        max_operations=4097,
+    )
+    assert admitted.outcome == transport.identify_multi_source_z_transport(
+        graph=graph(), query=query(source_a(), source_b()), catalog=catalog()
+    ).outcome
     # An invalid catalog (the target supplies an experiment): invalid_argument.
     bad = catalog()
     experimental = transport.EvidenceRegime(

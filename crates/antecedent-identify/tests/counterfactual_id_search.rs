@@ -1009,16 +1009,7 @@ fn the_memory_charged_is_cumulative_across_the_decision() {
 // ---------------------------------------------------------------- bounds
 
 #[test]
-fn graph_size_is_unbounded_and_search_limits_are_capped() {
-    let bounds = |r: CounterfactualIdRefusal| {
-        assert_eq!(
-            (r.code, r.detail),
-            (
-                "route_not_supported",
-                antecedent_core::reason_details::counterfactual_id::BOUNDS_EXCEEDED
-            )
-        );
-    };
+fn graph_size_and_search_limits_follow_the_caller() {
     // Graph size is not capped: six and seven variables are both admitted.
     let chain: Vec<(u32, u32)> = (0..5).map(|i| (i, i + 1)).collect();
     let six = CounterfactualIdProblem::new(binary(6), &chain, &[(0, 5)]).unwrap();
@@ -1041,7 +1032,7 @@ fn graph_size_is_unbounded_and_search_limits_are_capped() {
         )
         .is_ok()
     );
-    // Search limits at the caps pass; one more refuses before any search.
+    // Search limits at the old caps pass, and a larger declaration is admitted.
     let at_cap = SearchLimits {
         operations: COUNTERFACTUAL_ID_MAX_OPERATIONS,
         depth: COUNTERFACTUAL_ID_MAX_DEPTH,
@@ -1055,9 +1046,9 @@ fn graph_size_is_unbounded_and_search_limits_are_capped() {
         SearchLimits { operations: COUNTERFACTUAL_ID_MAX_OPERATIONS + 1, ..at_cap },
         SearchLimits { depth: COUNTERFACTUAL_ID_MAX_DEPTH + 1, ..at_cap },
     ] {
-        bounds(
+        assert!(
             decide_counterfactual_id(&four, &query, over, COUNTERFACTUAL_ID_MEMORY_BYTES, &ctx())
-                .unwrap_err(),
+                .is_ok()
         );
     }
 }

@@ -1682,11 +1682,11 @@ def repair(
     sufficient subsets by ``minimize_cost`` (all candidates must declare the same
     cost unit) or ``minimize_sample_budget``.
 
-    Refusals carry their reason code: ``invalid_argument`` for a request beyond
-    the declared bounds (``identification_repair.bounds_exceeded``: at most 16
-    candidates, depth 4, 100000 operations), ``design_cost_units_mismatch`` for
-    cost ranking over different cost units and ``transport_budget_cancel`` when
-    the budget stops before the search (:class:`RepairBudgetRefusal`). A stop
+    Refusals carry their reason code: ``design_cost_units_mismatch`` for cost
+    ranking over different cost units and ``transport_budget_cancel`` when the
+    budget stops before the search (:class:`RepairBudgetRefusal`). Operation,
+    depth, and memory limits are the caller's; memory is further limited by the
+    execution pool. A stop
     during the search is a result with ``outcome == "exhausted"``.
     """
     if isinstance(contract, FailureContract):

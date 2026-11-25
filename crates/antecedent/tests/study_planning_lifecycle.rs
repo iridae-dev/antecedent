@@ -912,8 +912,6 @@ fn bounds_are_checked_before_any_candidate_compiles() {
             plan_studies(&graph(), &mz_route(), &mz_base(), candidates, limits, &ctx).unwrap_err();
         (error.code, error.detail)
     };
-    let bound =
-        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED);
     let invalid =
         ("invalid_argument", antecedent_core::reason_details::study_plan::INVALID_CANDIDATE);
     // A candidate that cannot compile (no recruitment declaration), sorted first.
@@ -927,12 +925,12 @@ fn bounds_are_checked_before_any_candidate_compiles() {
     assert_eq!(refuse(&many, StudyPlanLimits::default()), invalid);
     let wide = study("z_wide", "a", &[Z2], Some(vec![vec![(Z2, false)]; 9]), &[Z1, X, Y], 1);
     assert_eq!(refuse(&[broken.clone(), wide], StudyPlanLimits::default()), invalid);
-    // Plan limits above the route maxima refuse before the broken candidate compiles.
+    // A declaration above the old route ceiling reaches the broken candidate.
     let over = StudyPlanLimits {
         search: SearchLimits { operations: 200_001, depth: 24 },
         ..StudyPlanLimits::default()
     };
-    assert_eq!(refuse(&[broken], over), bound);
+    assert_eq!(refuse(&[broken], over), invalid);
 }
 
 #[test]

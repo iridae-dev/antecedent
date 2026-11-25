@@ -131,10 +131,13 @@ const INITIAL_COMPLEMENT_DEPTH: usize = 2;
 /// Default search limits: operations charged across every stage, and depth.
 pub const COUNTERFACTUAL_TRANSPORT_DEFAULT_LIMITS: SearchLimits =
     SearchLimits { operations: 50_000, depth: 64 };
-/// Largest limits a caller may ask for.
+/// Operation and depth budget of the witness verifier, which takes no caller
+/// [`SearchLimits`], and the default consumer maximum. An identify call's
+/// limits are the caller's declaration; this constant does not refuse a larger one.
 pub const COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =
     SearchLimits { operations: 400_000, depth: 256 };
-/// Estimated live-state cap of one decision, further limited by the context.
+/// Default memory cap when the caller sets no execution pool. A pool is the
+/// declaration, and a smaller pool is the effective cap.
 pub const COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 
 /// A request outside a declared bound.
@@ -1176,7 +1179,7 @@ impl CounterfactualTransportDerivation {
             operations: self.search.operations_limit,
             depth: self.search.depth_limit,
         };
-        if self.search.memory_limit_bytes > COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES {
+        if ctx.memory_limit_bytes().is_some_and(|hard| self.search.memory_limit_bytes > hard) {
             return Err(bounds_exceeded());
         }
         let decision = decide_bounded(
@@ -1488,11 +1491,10 @@ impl Search<'_> {
 ///
 /// # Errors
 ///
-/// Limits above [`COUNTERFACTUAL_TRANSPORT_MAX_LIMITS`]
-/// (`counterfactual_transport.bounds_exceeded`), a malformed query or catalog
-/// (`counterfactual_transport.invalid_query`,
+/// A malformed query or catalog (`counterfactual_transport.invalid_query`,
 /// `counterfactual_transport.invalid_catalog`), or a derivation that fails its own
-/// check.
+/// check. The search limits are the caller's; memory is the execution pool, or
+/// [`COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES`] when the pool is unset.
 pub fn identify_counterfactual_transport(
     problem: &CounterfactualTransportProblem,
     query: &CounterfactualTransportQuery,
@@ -1504,14 +1506,8 @@ pub fn identify_counterfactual_transport(
         antecedent_core::execution_attempt::Operation::Identification,
         || {
             crate::execution_counts::note_check();
-            decide_bounded(
-                problem,
-                query,
-                catalog,
-                limits,
-                COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
-                ctx,
-            )
+            let memory = ctx.memory_limit_bytes().unwrap_or(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES);
+            decide_bounded(problem, query, catalog, limits, memory, ctx)
         },
     )
 }
@@ -1559,12 +1555,6 @@ fn decide_bounded(
     memory_limit_bytes: u64,
     ctx: &ExecutionContext,
 ) -> Result<CounterfactualTransportDecision, IdentificationError> {
-    if limits.operations > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS.operations
-        || limits.depth > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS.depth
-        || memory_limit_bytes > COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES
-    {
-        return Err(bounds_exceeded());
-    }
     let validated = match validate(problem, query, catalog) {
         Ok(v) => v,
         Err(Rejection::Invalid(error)) => return Err(error),
@@ -1918,12 +1908,9 @@ pub fn verify_counterfactual_transport_witness(
         }
     };
     let bad = || IdentificationError::invalid_derivation(INVALID_WITNESS);
-    let budget = SearchBudget::with_memory(
-        COUNTERFACTUAL_TRANSPORT_MAX_LIMITS,
-        COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES,
-        ctx,
-    )
-    .map_err(|receipt| super::stop_error(receipt.stop))?;
+    let memory = ctx.memory_limit_bytes().unwrap_or(COUNTERFACTUAL_TRANSPORT_MEMORY_BYTES);
+    let budget = SearchBudget::with_memory(COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, memory, ctx)
+        .map_err(|receipt| super::stop_error(receipt.stop))?;
     let mut search = Search { budget, stop: None, stages: Vec::new(), failures: Vec::new() };
     let supplied = supplied_seeds(&validated);
     let candidates = candidate_seeds(&validated, problem, &mut |depth, bytes, leaves| {

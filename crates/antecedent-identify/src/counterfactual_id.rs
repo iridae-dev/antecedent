@@ -113,9 +113,11 @@ pub const COUNTERFACTUAL_ID_MAX_VARIABLES: usize = 6;
 /// Most levels per variable the exact finite-state evidence stage accepts from a stored
 /// artifact. Graph-level identification in this module does not apply it.
 pub const COUNTERFACTUAL_ID_MAX_LEVELS: usize = 4;
-/// Largest operation limit a caller may ask for.
+/// Default consumer maximum for a stored identification's operation limit.
+/// A live search's operation limit is the caller's [`SearchLimits`].
 pub const COUNTERFACTUAL_ID_MAX_OPERATIONS: usize = 100_000;
-/// Largest depth limit a caller may ask for.
+/// Default consumer maximum for a stored identification's depth limit.
+/// A live search's depth limit is the caller's [`SearchLimits`].
 pub const COUNTERFACTUAL_ID_MAX_DEPTH: usize = 64;
 /// Default search limits.
 pub const COUNTERFACTUAL_ID_DEFAULT_LIMITS: SearchLimits =
@@ -734,8 +736,9 @@ impl CounterfactualIdDerivation {
 /// obstruction when ID* (and, for a binary treatment, the consistency
 /// complement) does not identify the query (not a non-identifiability proof),
 /// `transport_budget_cancel` with a receipt, `route_not_supported` for a shape
-/// outside the contract (or deferred, or over a bound), `invalid_argument` for
-/// a malformed query.
+/// outside the contract (or deferred), `invalid_argument` for a malformed
+/// query. Operation and depth limits are the caller's; memory is the declared
+/// cap further limited by the execution pool.
 pub fn decide_counterfactual_id(
     problem: &CounterfactualIdProblem,
     query: &CounterfactualEventQuery,
@@ -743,15 +746,6 @@ pub fn decide_counterfactual_id(
     memory_limit_bytes: u64,
     ctx: &ExecutionContext,
 ) -> Result<CounterfactualIdDerivation, CounterfactualIdRefusal> {
-    if limits.operations > COUNTERFACTUAL_ID_MAX_OPERATIONS
-        || limits.depth > COUNTERFACTUAL_ID_MAX_DEPTH
-    {
-        return Err(CounterfactualIdRefusal::bounds(format!(
-            "search limits {} operations / depth {} exceed the contract's \
-             {COUNTERFACTUAL_ID_MAX_OPERATIONS} / {COUNTERFACTUAL_ID_MAX_DEPTH}",
-            limits.operations, limits.depth
-        )));
-    }
     let shape = classify(problem, query)?;
     let given: Vec<(u32, u64)> =
         query.given().iter().map(|a| (a.variable().raw(), a.level_bits())).collect();

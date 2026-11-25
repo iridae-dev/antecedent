@@ -104,7 +104,7 @@ impl super::super::Study {
                             )
                         }
                     };
-                    matrix.push(case_values(cases, &table.weighted_law(&weights)?, ctx)?);
+                    matrix.push(case_values(cases, &table.weighted_law(&weights, ctx)?, ctx)?);
                 }
                 Ok(Resampled::Draws {
                     held: AdmittedCounterfactualMatrix { matrix, _lease: lease },
@@ -146,7 +146,7 @@ impl super::super::Study {
                         ),
                     };
                     let values = table
-                        .empirical_law(table.counts(&counts))
+                        .empirical_law(table.counts(&counts, ctx)?)
                         .and_then(|law| case_values(cases, &law, ctx));
                     match values {
                         Ok(values) => matrix.push(values),

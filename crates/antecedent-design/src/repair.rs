@@ -61,9 +61,14 @@ use crate::study_candidate::DurableStudyCandidate;
 /// candidate count and the depth are not bounded as such: the operation count below bounds
 /// the work, whatever its shape.
 pub const REPAIR_DEFAULT_DEPTH: usize = 4;
-/// Largest operation count a repair request may declare.
+/// Default consumer maximum for a stored repair's operation limit. A repair
+/// request's operation limit is the caller's [`RepairLimits`]; this constant
+/// does not refuse a larger declaration.
 pub const REPAIR_MAX_OPERATIONS: usize = 100_000;
-/// Largest memory cap, in bytes, a repair request may declare.
+/// Default consumer maximum for a stored repair's memory cap. A repair
+/// request's memory cap is the caller's [`RepairLimits::memory_limit_bytes`],
+/// further limited by the execution pool; this constant does not refuse a
+/// larger declaration the pool would admit.
 pub const REPAIR_MAX_MEMORY_BYTES: u64 = 256 * 1024 * 1024;
 /// Most explored or unevaluated subsets a receipt lists; the total is counted.
 pub(crate) const REPAIR_RECEIPT_REGIONS: usize = 1024;
@@ -244,14 +249,6 @@ impl RepairError {
         )
     }
 
-    fn bounds(message: impl Into<String>) -> Self {
-        Self::new(
-            reason_code!("invalid_argument"),
-            antecedent_core::reason_details::identification_repair::BOUNDS_EXCEEDED,
-            message,
-        )
-    }
-
     pub(crate) fn not_a_failure(message: impl Into<String>) -> Self {
         Self::new(
             reason_code!("invalid_argument"),
@@ -275,20 +272,6 @@ impl RepairError {
         } else {
             Self::invalid_request(error.to_string())
         }
-    }
-}
-
-impl RepairLimits {
-    fn check_bounds(&self) -> Result<(), RepairError> {
-        if self.search.operations > REPAIR_MAX_OPERATIONS
-            || self.memory_limit_bytes > REPAIR_MAX_MEMORY_BYTES
-        {
-            return Err(RepairError::bounds(format!(
-                "a repair request declares at most {REPAIR_MAX_OPERATIONS} operations and \
-                 {REPAIR_MAX_MEMORY_BYTES} bytes"
-            )));
-        }
-        Ok(())
     }
 }
 
@@ -738,11 +721,12 @@ fn rank(outcomes: &[RepairOutcome], objective: RepairObjective) -> Vec<usize> {
 /// unresolved assumption obligation (never satisfiable by a study) remains.
 ///
 /// # Errors
-/// `identification_repair.bounds_exceeded` for a request beyond the declared
-/// bounds, `identification_repair.cost_units_mismatch` when cost ranking
-/// compares different unit labels, and `identification_repair.budget` when the
-/// budget is stopped before the search is entered. A stop during the search is
-/// a report, never an error.
+/// `identification_repair.cost_units_mismatch` when cost ranking compares
+/// different unit labels, and `identification_repair.budget` when the budget
+/// is stopped before the search is entered. A stop during the search is a
+/// report, never an error. The operation, depth, and memory limits are the
+/// caller's [`RepairLimits`], and the memory cap is further limited by the
+/// execution pool.
 pub fn repair(
     family: &dyn RepairFamily,
     candidates: &[DurableStudyCandidate],
@@ -750,7 +734,6 @@ pub fn repair(
     limits: RepairLimits,
     ctx: &ExecutionContext,
 ) -> Result<RepairReport, RepairError> {
-    limits.check_bounds()?;
     let obligations = family.unresolved_obligations();
     let (studies, mut outcomes) = prepare(candidates, &obligations);
     if objective == RepairObjective::MinimizeCost

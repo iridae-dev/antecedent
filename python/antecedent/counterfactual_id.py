@@ -200,8 +200,10 @@ def prepare_effect_on_treated(
     """Decide ``P(outcome_{treatment = active} = outcome_level | treatment = observed)``.
 
     ``levels`` maps every variable of ``graph`` to its levels. ``uncertainty``
-    must be ``None``: the claim is point-only. ``operations`` and ``depth`` bound
-    the one search budget (at most 100000 and 64). ``cancel`` is an optional
+    must be ``None``: the claim is point-only. ``operations`` and ``depth`` are
+    the one search budget (defaults 20000 and 48). Memory is
+    ``execution.limits.memory_bytes``, or 64 MiB when that is unset, and a
+    smaller execution pool lowers it. ``cancel`` is an optional
     :class:`antecedent.state.CancellationToken`; a cancelled search stops with
     ``transport_budget_cancel`` (``counterfactual_id.budget``) and its receipt,
     never a verdict.
@@ -236,6 +238,7 @@ def prepare_effect_on_treated(
         float(outcome_level),
         operations=operations,
         depth=depth,
+        memory_bytes=execution.limits.memory_bytes,
         interval_requested=uncertainty is not None,
         seed=execution.seed,
         cancel=execution.cancel,
@@ -276,5 +279,10 @@ def consume_counterfactual_id_artifact(
     if expected_data_digest is not None and not isinstance(expected_data_digest, str):
         raise CausalTypeError("expected_data_digest must be a string or None")
     return _effect(
-        _consume(bytes(artifact), seed=execution.seed, expected_data_digest=expected_data_digest)
+        _consume(
+            bytes(artifact),
+            seed=execution.seed,
+            memory_bytes=execution.limits.memory_bytes,
+            expected_data_digest=expected_data_digest,
+        )
     )

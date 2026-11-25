@@ -54,8 +54,8 @@ class JointDeviation:
     ``fixed_graph_conditional``, ``source_target_discrepancy``) exist so that their requests refuse with a
     reason code instead of being ignored. ``total_budget`` (a coupled budget)
     always refuses. At most two factors may be declared. The search's live-state
-    memory is the execution's memory limit, at most 64 MiB when that is unset or larger
-    (``joint_sensitivity.bounds_exceeded`` above 512 MiB).
+    memory is the execution's memory limit, or 64 MiB when that limit is unset.
+    A larger execution limit is the cap; the execution pool still lowers it.
     A non-finite ``decision_threshold`` raises ``CausalValueError`` with
     ``reason_code == "invalid_argument"`` (``joint_sensitivity.invalid_threshold``).
     """
@@ -88,7 +88,7 @@ class JointDeviation:
 
     def _kwargs(self, execution: Execution | None = None) -> dict[str, Any]:
         limit = resolve(execution).limits.memory_bytes
-        search_memory = _SEARCH_MEMORY if limit is None else min(limit, _SEARCH_MEMORY)
+        search_memory = _SEARCH_MEMORY if limit is None else limit
         return {
             "decision_threshold": self.decision_threshold,
             "total_budget": self.total_budget,

@@ -1043,7 +1043,7 @@ fn budget_error(search: &SharedSearch<'_>, at: At, stop: SearchStop) -> Recovery
 ///
 /// # Errors
 ///
-/// A typed [`RecoveryError`]: bounds, invalid query, unsupported mechanism,
+/// A typed [`RecoveryError`]: invalid query, unsupported mechanism,
 /// missing margin, witness unavailable, handoff mismatch, effect not identified,
 /// or a budget stop with its receipt.
 pub fn decide_observation_recovery(
@@ -1054,16 +1054,6 @@ pub fn decide_observation_recovery(
     limits: RecoveryLimits,
     ctx: &ExecutionContext,
 ) -> Result<RecoveryDecision, RecoveryError> {
-    let max = RECOVERY_DEFAULT_LIMITS;
-    if limits.search.operations > max.search.operations
-        || limits.search.depth > max.search.depth
-        || limits.memory_bytes > max.memory_bytes
-    {
-        return Err(refuse(
-            RecoveryDetail::BoundsExceeded,
-            "search limits above 50000 operations / depth 32 / the default memory cap",
-        ));
-    }
     let query = query.canonical();
     let m = resolve_roles(graph, &query)?;
     let budget =

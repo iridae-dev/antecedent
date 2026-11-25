@@ -298,7 +298,7 @@ fn role_counts_are_bounded_only_by_the_budget() {
             ..RecoveryLimits::default()
         },
     ] {
-        let error = decide_observation_recovery(
+        let decision = decide_observation_recovery(
             &model.graph,
             &model.query(),
             &model.catalog(),
@@ -306,8 +306,8 @@ fn role_counts_are_bounded_only_by_the_budget() {
             limits,
             &ctx(),
         )
-        .unwrap_err();
-        assert_eq!(error.detail, RecoveryDetail::BoundsExceeded);
+        .expect("a declaration above the old ceiling is the caller's limit");
+        assert!(matches!(decision, RecoveryDecision::Recovered(_)));
     }
     assert_eq!(RECOVERY_DEFAULT_LIMITS.search, SearchLimits { operations: 50_000, depth: 32 });
 }

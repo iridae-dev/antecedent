@@ -261,8 +261,9 @@ pub struct StudyPlanCandidate {
 pub struct StudyPlanLimits {
     /// Operation and depth limits of the one plan budget.
     pub search: SearchLimits,
-    /// Memory cap, at most [`STUDY_PLAN_MEMORY_BYTES`]; the context's hard limit
-    /// lowers it further.
+    /// Memory cap. The effective cap is the smaller of this declaration and the
+    /// execution pool. [`STUDY_PLAN_MEMORY_BYTES`] is the default when the caller
+    /// sets nothing.
     pub memory_limit_bytes: u64,
 }
 
@@ -286,36 +287,27 @@ impl StudyPlanLimits {
         }
     }
 
-    /// Check a request against the declared bounds before any work: these
-    /// limits against the route's maxima (at most
-    /// [`STUDY_PLAN_DEFAULT_LIMITS`] operations, the route's depth and
-    /// [`STUDY_PLAN_MEMORY_BYTES`]), and the number of candidates against
-    /// [`Self::max_candidates`], the universe the operation budget can enter. The regimes per
-    /// candidate are not bounded here: the plan charges their preview bytes to its budget.
+    /// Check a request before any work. Operation, depth, and memory limits are
+    /// the caller's declaration; memory is further limited by the execution pool.
+    /// [`STUDY_PLAN_DEFAULT_LIMITS`] and [`STUDY_PLAN_MEMORY_BYTES`] are the
+    /// defaults when the caller sets nothing. The number of candidates is
+    /// compared with [`Self::max_candidates`], the universe the operation budget
+    /// can enter. The regimes per candidate are not bounded here: the plan
+    /// charges their preview bytes to its budget.
     ///
     /// # Errors
-    /// `study_plan.bounds_exceeded` naming the first bound exceeded.
+    /// `study_plan.bounds_exceeded` when the declared candidates exceed the
+    /// operation budget's universe.
     pub fn check_bounds(
         &self,
-        route: &StudyPlanRoute,
+        _route: &StudyPlanRoute,
         regimes_per_candidate: &[usize],
     ) -> Result<(), StudyPlanRefusal> {
-        if self.search.operations > STUDY_PLAN_DEFAULT_LIMITS.operations
-            || self.search.depth > route.max_depth()
-            || self.memory_limit_bytes > STUDY_PLAN_MEMORY_BYTES
-        {
-            return Err(StudyPlanRefusal::bounds_exceeded(format!(
-                "plan limits must be at most {} operations, depth {} and \
-                 {STUDY_PLAN_MEMORY_BYTES} bytes",
-                STUDY_PLAN_DEFAULT_LIMITS.operations,
-                route.max_depth()
-            )));
-        }
         if regimes_per_candidate.len() > self.max_candidates() {
             return Err(StudyPlanRefusal::bounds_exceeded(format!(
-                "a plan under {} operations admits at most {} candidates, got {}: every subset \
-                 entered charges an operation, and validation and enumeration run before the \
-                 budget is entered",
+                "the operation budget of {} enters {} candidates and this plan declares {}: \
+                 every subset entered charges an operation, and validation and enumeration run \
+                 before the budget is entered",
                 self.search.operations,
                 self.max_candidates(),
                 regimes_per_candidate.len()

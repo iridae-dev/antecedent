@@ -486,8 +486,9 @@ fn compile(
 /// shared search budget (see `antecedent_identify::plan_study_additions`).
 /// The result is invariant to candidate and source declaration order.
 ///
-/// The declared bounds (plan limits, at most 16 candidates, at most 8 level
-/// combinations per candidate) are checked before any candidate is compiled.
+/// The caller's operation budget is compared with the candidate count before
+/// any candidate is compiled. Memory is that declaration, further limited by
+/// the execution pool.
 ///
 /// # Errors
 /// Every [`StudyPlanRefusal`] of the planner, plus

@@ -449,23 +449,20 @@ fn one_budget_is_shared_by_every_stage() {
 }
 
 #[test]
-fn limits_above_the_declared_maxima_refuse_as_bounds_exceeded() {
+fn limits_above_the_old_ceiling_are_the_callers() {
     let q = query(vec![source_a(), source_b()]);
-    let exceeded = IdentificationError::UnsupportedInput {
-        code: antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED,
-    };
     for limits in [
         SearchLimits { operations: MZ_TRANSPORT_DEFAULT_LIMITS.operations + 1, depth: 24 },
         SearchLimits { operations: 4096, depth: MZ_TRANSPORT_DEFAULT_LIMITS.depth + 1 },
     ] {
-        let refused = decide_mz_transport(
+        decide_mz_transport(
             &figure_1_graph(),
             &q,
             &complementary_catalog(),
             limits,
             &ExecutionContext::for_tests(1),
-        );
-        assert_eq!(refused.unwrap_err(), exceeded);
+        )
+        .expect("a declaration above the old ceiling is admitted");
     }
 }
 

@@ -52,13 +52,14 @@ use crate::gcm::{
 };
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSet, AssumptionSource,
-    AssumptionStatus, CounterfactualEventQuery, CounterfactualQuery, RegimeId, Value,
+    AssumptionStatus, CounterfactualEventQuery, CounterfactualQuery, RegimeId, SearchReceipt,
+    SearchStop, Value,
 };
 use antecedent_estimate::BootstrapAccounting;
 use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
 use antecedent_graph::{Admg, Cpdag, Dag, Pag};
 use antecedent_identify::counterfactual_id::{
-    COUNTERFACTUAL_ID_MAX_LEVELS, COUNTERFACTUAL_ID_MAX_VARIABLES, CounterfactualIdRefusal,
+    COUNTERFACTUAL_ID_DEFAULT_LIMITS, COUNTERFACTUAL_ID_MEMORY_BYTES,
 };
 use antecedent_identify::{GraphIdentificationCase, ProbabilityMass};
 
@@ -92,11 +93,6 @@ fn invalid_query(message: impl std::fmt::Display) -> CausalError {
         antecedent_core::reason_details::counterfactual_id::INVALID_QUERY,
         message,
     )
-}
-
-fn bounds(message: impl Into<String>) -> CausalError {
-    let refusal = CounterfactualIdRefusal::bounds(message);
-    CausalError::Compile { message: format!("{}{refusal}", crate::error::REASON_PREFIX) }
 }
 
 /// Say which outcome of a multi-outcome query a refusal belongs to (the text of a single outcome
@@ -234,11 +230,6 @@ impl Table {
         if variables == 0 || data.row_count() == 0 {
             return Err(invalid_query("a counterfactual table needs variables and rows"));
         }
-        if variables > COUNTERFACTUAL_ID_MAX_VARIABLES {
-            return Err(bounds(format!(
-                "{variables} variables exceed the contract's {COUNTERFACTUAL_ID_MAX_VARIABLES}"
-            )));
-        }
         let mut names = Vec::with_capacity(variables);
         let mut levels: Vec<Vec<f64>> = Vec::with_capacity(variables);
         let mut columns: Vec<Vec<f64>> = Vec::with_capacity(variables);
@@ -258,13 +249,6 @@ impl Table {
             let mut distinct = values.clone();
             distinct.sort_by(f64::total_cmp);
             distinct.dedup();
-            if distinct.len() > COUNTERFACTUAL_ID_MAX_LEVELS {
-                return Err(bounds(format!(
-                    "variable {raw} has {} levels; the contract covers at most \
-                     {COUNTERFACTUAL_ID_MAX_LEVELS}",
-                    distinct.len()
-                )));
-            }
             levels.push(distinct);
             columns.push(values);
         }
@@ -297,18 +281,46 @@ impl Table {
             .collect()
     }
 
+    /// The dense cell table's byte quote against the execution pool, or the
+    /// route default when the pool is unset. A quote that does not fit stops
+    /// before the allocation.
+    fn admit_cells(&self, ctx: &ExecutionContext) -> Result<(), CausalError> {
+        let width = u64::try_from(std::mem::size_of::<u64>()).unwrap_or(u64::MAX);
+        let bytes = u64::try_from(self.cell_count).ok().and_then(|cells| cells.checked_mul(width));
+        let cap = ctx.memory_limit_bytes().unwrap_or(COUNTERFACTUAL_ID_MEMORY_BYTES);
+        if bytes.is_none_or(|bytes| bytes > cap) {
+            let receipt = SearchReceipt {
+                stop: SearchStop::Memory,
+                operations_limit: COUNTERFACTUAL_ID_DEFAULT_LIMITS.operations,
+                depth_limit: COUNTERFACTUAL_ID_DEFAULT_LIMITS.depth,
+                memory_limit_bytes: Some(cap),
+                operations_consumed: None,
+                depth_reached: None,
+                explored: Vec::new(),
+                unevaluated: vec!["table".into()],
+            };
+            return Err(reasoned(
+                "transport_budget_cancel",
+                antecedent_core::reason_details::counterfactual_id::BUDGET,
+                format!("the cell table was not entered ({})", receipt.summary()),
+            ));
+        }
+        Ok(())
+    }
+
     /// Cell counts of the rows weighted by integer `row_counts`.
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
         reason = "replicate row counts are non-negative whole numbers below the row count"
     )]
-    fn counts(&self, row_counts: &[f64]) -> Vec<u64> {
+    fn counts(&self, row_counts: &[f64], ctx: &ExecutionContext) -> Result<Vec<u64>, CausalError> {
+        self.admit_cells(ctx)?;
         let mut counts = vec![0_u64; self.cell_count];
         for (&cell, &count) in self.cells.iter().zip(row_counts) {
             counts[cell] += count as u64;
         }
-        counts
+        Ok(counts)
     }
 
     /// The empirical plug-in law of observed cell counts.
@@ -334,7 +346,12 @@ impl Table {
     }
 
     /// The law the Dirichlet-weighted rows put on the cells.
-    fn weighted_law(&self, row_weights: &[f64]) -> Result<ExactDiscreteLaw, CausalError> {
+    fn weighted_law(
+        &self,
+        row_weights: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<ExactDiscreteLaw, CausalError> {
+        self.admit_cells(ctx)?;
         let mut mass = vec![0.0_f64; self.cell_count];
         for (&cell, &weight) in self.cells.iter().zip(row_weights) {
             mass[cell] += weight;
@@ -875,7 +892,7 @@ impl super::Study {
             Self::identify_latent_completions(completions, &shape, &table, &events, ctx)?;
 
         // The point: the identified functionals on the observed cell counts.
-        let point_law = table.empirical_law(table.counts(&vec![1.0; table.cells.len()]))?;
+        let point_law = table.empirical_law(table.counts(&vec![1.0; table.cells.len()], ctx)?)?;
         let values = case_values(&cases, &point_law, ctx)?;
         let columns: Vec<Vec<f64>> =
             (0..width).map(|outcome| outcome_column(&values, width, outcome)).collect();

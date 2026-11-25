@@ -438,12 +438,8 @@ def test_a_proven_obstruction_bounds_and_invalid_queries_carry_reason_codes():
     assert exhausted.decision()["identification_status"] == "budget_cancel"
     receipt = exhausted.decision()["receipt"]
     assert receipt["stop"] == "search.operations" and receipt["operations_consumed"] == 2
-    # Limits above the frozen maxima refuse as bounds_exceeded.
-    with pytest.raises(
-        CausalUnsupportedError, match=reason_details.admg_transport.BOUNDS_EXCEEDED
-    ) as info:
-        decide(max_operations=4097)
-    assert info.value.reason_code == "route_not_supported"
+    # A declaration above the old operation ceiling is the caller's limit.
+    assert decide(max_operations=4097).outcome == decide().outcome
     # Overlapping roles are refused before native code.
     with pytest.raises(CausalValueError, match="distinct and disjoint"):
         transport.ConditionalTransportQuery(

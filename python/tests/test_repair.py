@@ -409,10 +409,10 @@ def test_request_bounds_are_refusals():
     assert found.outcome == "repaired"
     assert found.best.labels == ("cohort",)
     assert found.receipt.unevaluated_total == 0
-    with pytest.raises(repair.RepairRefusal) as caught:
-        repair.repair(backdoor(), candidates(), limits=repair.RepairLimits(max_operations=10**9))
-    assert caught.value.detail == reason_details.identification_repair.BOUNDS_EXCEEDED
-    assert caught.value.reason_code == "invalid_argument"
+    admitted = repair.repair(
+        backdoor(), candidates(), limits=repair.RepairLimits(max_operations=10**9)
+    )
+    assert admitted.outcome == repair.repair(backdoor(), candidates()).outcome
 
 
 # ------------------------------------------------------------------- artifact

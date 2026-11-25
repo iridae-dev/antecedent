@@ -265,16 +265,16 @@ scope_fixture = { path = "crates/antecedent-contract/tests/evidence_obligation.r
 record = "design.identification_repair"
 key = "max_operations"
 implementation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_OPERATIONS" }]
-guard = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.search\.operations > REPAIR_MAX_OPERATIONS' }
-refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.search\.operations > REPAIR_MAX_OPERATIONS[\s\S]{0,300}?Err\s*\(' }
+guard = { path = "crates/antecedent-design/src/repair_artifact.rs", pattern = 'stored\.operations > limits\.search\.operations' }
+refusal = { path = "crates/antecedent-design/src/repair_artifact.rs", pattern = 'stored\.operations > limits\.search\.operations[\s\S]{0,400}?RepairArtifactError::bounds' }
 scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = '\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\b' }
 
 [[bound]]
 record = "design.identification_repair"
 key = "max_memory_bytes"
 implementation = [{ path = "crates/antecedent-design/src/repair.rs", constant = "REPAIR_MAX_MEMORY_BYTES" }]
-guard = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.memory_limit_bytes > REPAIR_MAX_MEMORY_BYTES' }
-refusal = { path = "crates/antecedent-design/src/repair.rs", pattern = 'self\.memory_limit_bytes > REPAIR_MAX_MEMORY_BYTES[\s\S]{0,300}?Err\s*\(' }
+guard = { path = "crates/antecedent-design/src/repair_artifact.rs", pattern = 'stored\.memory_limit_bytes > memory_cap' }
+refusal = { path = "crates/antecedent-design/src/repair_artifact.rs", pattern = 'stored\.memory_limit_bytes > memory_cap[\s\S]{0,400}?RepairArtifactError::bounds' }
 scope_fixture = { path = "crates/antecedent-design/tests/repair_facade.rs", pattern = '\bbounds_and_cancellation_are_refusals_or_reports_not_verdicts\b' }
 
 [[bound]]
@@ -936,16 +936,16 @@ refusal = { path = "crates/antecedent-io-core/src/counterfactual_transport_wire.
 record = "counterfactual.transport_general"
 key = "max_operations"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =\s*SearchLimits \{ operations: ([0-9_]+),' }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.operations > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.operations' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.operations > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.operations[\s\S]{0,400}return Err\(bounds_exceeded' }
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'SearchBudget::with_memory\(COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, memory, ctx\)' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'SearchBudget::with_memory\(COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, memory, ctx\)[\s\S]{0,120}stop_error' }
 scope_fixture = { path = "crates/antecedent-identify/tests/counterfactual_transport_decisions.rs", pattern = '\bbudget_cancellation_and_bounds_are_typed_stops_not_verdicts\b' }
 
 [[bound]]
 record = "counterfactual.transport_general"
 key = "max_depth"
 implementation = [{ path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'COUNTERFACTUAL_TRANSPORT_MAX_LIMITS: SearchLimits =\s*SearchLimits \{ operations: [0-9_]+, depth: ([0-9_]+) \}' }]
-guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.depth > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.depth' }
-refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'limits\.depth > COUNTERFACTUAL_TRANSPORT_MAX_LIMITS\.depth[\s\S]{0,400}return Err\(bounds_exceeded' }
+guard = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'SearchBudget::with_memory\(COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, memory, ctx\)' }
+refusal = { path = "crates/antecedent-identify/src/sid/counterfactual_transport.rs", pattern = 'SearchBudget::with_memory\(COUNTERFACTUAL_TRANSPORT_MAX_LIMITS, memory, ctx\)[\s\S]{0,120}stop_error' }
 
 [[bound]]
 record = "counterfactual.transport_sampled"
