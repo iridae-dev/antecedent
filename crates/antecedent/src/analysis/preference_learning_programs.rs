@@ -409,3 +409,130 @@ impl CompiledPreferenceChoiceModel {
         .map_err(TerminalError::Kernel)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_design::choice_record::{
+        BeliefSource, ChoiceOption, ChoiceRecord, OptionBelief, Pooling,
+    };
+    use antecedent_design::preference_model::{
+        Attribute, PreferenceExpr as P, PreferenceParameter, PreferenceSet,
+    };
+
+    use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    /// `x0 + t * x1` with `t` in `[-4, 4]`.
+    fn rate_model() -> ValueModel {
+        ValueModel {
+            attributes: vec![
+                Attribute { id: "x0".into(), units: "unit_0".into() },
+                Attribute { id: "x1".into(), units: "unit_1".into() },
+            ],
+            preferences: PreferenceSet::new(
+                vec![PreferenceParameter {
+                    id: "t0".into(),
+                    units: "utility/unit".into(),
+                    lower: -4.0,
+                    upper: 4.0,
+                    assumption_id: "declared_t0".into(),
+                }],
+                vec![],
+            ),
+            value: P::sum(P::Attribute(0), P::product(P::Parameter(0), P::Attribute(1))),
+            utility_units: "utility".into(),
+        }
+    }
+
+    fn record(id: &str, low: f64) -> ChoiceRecord {
+        ChoiceRecord {
+            id: id.into(),
+            decider: "d".into(),
+            options: vec![
+                ChoiceOption { id: "a".into(), belief: OptionBelief::Means(vec![0.0, 1.0]) },
+                ChoiceOption { id: "b".into(), belief: OptionBelief::Means(vec![low, 0.0]) },
+            ],
+            chosen: "a".into(),
+            belief_source: BeliefSource::RecordedForecast { source_id: "forecast".into() },
+            observation_rows: vec![format!("{id}#row")],
+        }
+    }
+
+    fn records(order: &[usize]) -> ChoiceRecordSet {
+        let all = [record("r1", 1.0), record("r2", 3.0), record("r3", 2.0)];
+        ChoiceRecordSet {
+            attributes: rate_model().attributes,
+            population: "decision makers".into(),
+            records: order.iter().map(|&i| all[i].clone()).collect(),
+            pooling: Pooling::PerDecider,
+        }
+    }
+
+    /// `declare_inputs` and the learners' declarations: the record ids are ordered beside the
+    /// records' set digest (per-decider outcomes and conflicts are reported in record order);
+    /// the revised preferences, the family and every option enter; reals by their bits.
+    #[test]
+    fn site_preference_learning_programs_record_ids_are_ordered_and_options_enter() {
+        let ctx = ExecutionContext::for_tests(23);
+        let set_options = SetLearningOptions::default();
+        let set = |order: &[usize], options: SetLearningOptions| {
+            compile_compatible_set(rate_model(), records(order), options, &ctx)
+                .ok()
+                .map(|program| program.identity())
+        };
+        ordered_laws(&[0_usize, 1, 2], |order| set(order, set_options));
+        bit_exact(|x| {
+            let mut options = set_options;
+            options.tolerance = x;
+            set(&[0, 1, 2], options)
+        });
+
+        let base = set(&[0, 1, 2], set_options).expect("the records compile");
+        let declared = AcceptedPreferences::declared(rate_model()).expect("a declared model");
+        let relearn =
+            compile_compatible_set_relearn(declared, records(&[0, 1, 2]), set_options, &ctx)
+                .ok()
+                .map(|program| program.identity())
+                .expect("the relearning compiles");
+        let model_options = ChoiceModelOptions::default();
+        let model = |options: ChoiceModelOptions| {
+            compile_choice_model(rate_model(), records(&[0, 1, 2]), options, &ctx)
+                .ok()
+                .map(|program| program.identity())
+                .expect("the estimate compiles")
+        };
+        let mut identities = vec![base, relearn, model(model_options)];
+        let set_edits: [fn(&mut SetLearningOptions); 7] = [
+            |o| o.tolerance *= 2.0,
+            |o| o.conflict_search_size += 1,
+            |o| o.lp.feasibility_tolerance *= 2.0,
+            |o| o.lp.optimality_tolerance *= 2.0,
+            |o| o.lp.max_pivots += 1,
+            |o| o.max_boxes += 1,
+            |o| o.min_width_fraction *= 2.0,
+        ];
+        for edit in set_edits {
+            let mut options = set_options;
+            edit(&mut options);
+            identities.push(set(&[0, 1, 2], options).expect("the records compile"));
+        }
+        let model_edits: [fn(&mut ChoiceModelOptions); 10] = [
+            |o| o.level /= 2.0,
+            |o| o.n_draws += 1,
+            |o| o.seed += 1,
+            |o| o.fit.max_iterations += 1,
+            |o| o.fit.gradient_tolerance *= 2.0,
+            |o| o.fit.separation_bound *= 2.0,
+            |o| o.shape_search.grid_points += 1,
+            |o| o.shape_search.max_dimensions += 1,
+            |o| o.shape_search.profile_points += 1,
+            |o| o.shape_search.max_refinements += 1,
+        ];
+        for edit in model_edits {
+            let mut options = model_options;
+            edit(&mut options);
+            identities.push(model(options));
+        }
+        all_distinct(&identities);
+    }
+}

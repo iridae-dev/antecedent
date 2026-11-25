@@ -50,6 +50,7 @@ pub mod error;
 pub mod execution;
 pub mod execution_attempt;
 pub mod execution_facts;
+mod framing;
 pub mod graph_imputation_contract;
 pub mod identification;
 pub mod identity;

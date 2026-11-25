@@ -409,11 +409,18 @@ mod identity_tests {
     use std::sync::Arc;
 
     use antecedent_prob::{
-        AlphaCriterion, AlphaSelectionOptions, ExternalPriorSource, ExternalPriorWeight,
+        AlphaCriterion, AlphaSelectionOptions, BetaHyperparameters, BetaSource,
+        ExternalPriorSource, ExternalPriorWeight, GammaHyperparameters, GammaSource,
         GaussianCoefficientPrior, PriorSet, PriorSpec,
     };
 
-    use super::{LinearSelectionInput, linear_canonical};
+    use super::{
+        BetaSelectionInput, GammaSelectionInput, LinearSelectionInput, beta_canonical,
+        gamma_canonical, linear_canonical,
+    };
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
 
     fn prior(mean: f64) -> PriorSet {
         PriorSet {
@@ -464,5 +471,90 @@ mod identity_tests {
             "the sources are ordered"
         );
         assert_ne!(base, linear_canonical(&input(two(), -0.0)), "reals by their bits");
+    }
+
+    /// `linear_canonical`: the sources are ordered (the kernel composes and reports them in
+    /// declared order) and their ids framed; the target rows are ordered; reals by their bits.
+    #[test]
+    fn site_power_prior_selection_linear_sources_are_ordered_and_framed() {
+        ordered_laws(&[("a", 0.5), ("b", 1.0), ("c", 2.0)], |sources| {
+            let sources = sources.iter().map(|&(id, mean)| source(id, mean)).collect();
+            Some(linear_canonical(&input(sources, 0.0)))
+        });
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(a, b)| Some(linear_canonical(&input(vec![source(a, 0.5), source(b, 0.5)], 0.0))),
+        );
+        let rows = |y: Vec<f64>| {
+            let mut changed = input(vec![source("a", 0.5)], 0.0);
+            changed.y = y;
+            linear_canonical(&changed)
+        };
+        assert_ne!(rows(vec![0.5, 1.5]), rows(vec![1.5, 0.5]), "the target rows are ordered");
+        bit_exact(|x| Some(linear_canonical(&input(vec![source("a", x)], 0.0))));
+    }
+
+    fn options(grid: &[f64], criterion: AlphaCriterion) -> AlphaSelectionOptions {
+        let mut options = AlphaSelectionOptions::new(criterion);
+        options.grid = grid.to_vec();
+        options
+    }
+
+    fn beta(outcomes: &[bool], options: AlphaSelectionOptions) -> [u8; 32] {
+        beta_canonical(&BetaSelectionInput {
+            source: BetaSource {
+                base: BetaHyperparameters { alpha: 1.0, beta: 1.0 },
+                successes: 3,
+                trials: 10,
+            },
+            outcomes: outcomes.to_vec(),
+            options,
+        })
+    }
+
+    fn gamma(counts: &[u64], exposure: f64) -> [u8; 32] {
+        gamma_canonical(&GammaSelectionInput {
+            source: GammaSource {
+                base: GammaHyperparameters { shape: 1.0, rate: 1.0 },
+                total_count: 4,
+                exposure,
+            },
+            counts: counts.to_vec(),
+            options: AlphaSelectionOptions::new(AlphaCriterion::EmpiricalBayes),
+        })
+    }
+
+    /// `beta_canonical` / `gamma_canonical` (and `write_options`): the target trials and counts
+    /// are ordered (the cross-validated folds are assigned by position), the grid is ordered
+    /// (strictly increasing, the report follows it), the criterion is tagged with its folds and
+    /// the optional bound carries a presence word.
+    #[test]
+    fn site_power_prior_selection_counts_and_options_are_ordered() {
+        let eb = AlphaCriterion::EmpiricalBayes;
+        let grid = [0.0, 0.5, 1.0];
+        ordered_laws(&[true, false, false, true, true], |outcomes| {
+            Some(beta(outcomes, options(&grid, eb)))
+        });
+        ordered_laws(&[0.0, 0.5, 1.0], |grid| Some(beta(&[true, false], options(grid, eb))));
+        ordered_laws(&[1_u64, 4, 2], |counts| Some(gamma(counts, 2.0)));
+        let bounded = {
+            let mut bounded = options(&grid, eb);
+            bounded.discrepancy_bound = Some(0.0);
+            bounded
+        };
+        let seeded = {
+            let mut seeded = options(&grid, eb);
+            seeded.seed = 1;
+            seeded
+        };
+        all_distinct(&[
+            beta(&[true, false], options(&grid, eb)),
+            beta(&[true, false], options(&grid, AlphaCriterion::CrossValidated { folds: 2 })),
+            beta(&[true, false], options(&grid, AlphaCriterion::CrossValidated { folds: 3 })),
+            beta(&[true, false], bounded),
+            beta(&[true, false], seeded),
+        ]);
+        bit_exact(|x| Some(gamma(&[1, 2], x)));
     }
 }

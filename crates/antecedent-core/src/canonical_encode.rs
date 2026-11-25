@@ -58,9 +58,7 @@ pub(crate) fn encode_variables(writer: &mut CanonicalWriter, variables: &[Variab
 /// order a caller listed them in does not reach the bytes. Repeats are kept, so
 /// two lists encode alike only when one is a permutation of the other.
 pub(crate) fn encode_variable_set(writer: &mut CanonicalWriter, variables: &[VariableId]) {
-    let mut sorted = variables.to_vec();
-    sorted.sort_unstable();
-    encode_variables(writer, &sorted);
+    writer.u32_multiset(variables.iter().map(|variable| variable.raw()).collect());
 }
 
 /// A length-prefixed list of encodable items in the order given.
@@ -78,7 +76,7 @@ const SET_ITEM_TAG: &str = "antecedent.canonical_set_item";
 /// and the digests are written in ascending order. Repeats are kept, so two
 /// collections encode alike only when one is a permutation of the other.
 pub(crate) fn encode_set<T: CanonicalEncode>(writer: &mut CanonicalWriter, items: &[T]) {
-    let mut digests = items
+    let digests = items
         .iter()
         .map(|item| {
             let mut item_writer = CanonicalWriter::new(SET_ITEM_TAG);
@@ -86,22 +84,18 @@ pub(crate) fn encode_set<T: CanonicalEncode>(writer: &mut CanonicalWriter, items
             item_writer.finish()
         })
         .collect::<Vec<[u8; 32]>>();
-    digests.sort_unstable();
-    writer.word(count(digests.len()));
-    for digest in &digests {
-        writer.bytes(digest);
-    }
+    writer.digest_multiset(digests);
 }
 
 /// An optional encodable value: a presence word (`0` or `1`), then the value.
 pub(crate) fn encode_option<T: CanonicalEncode>(writer: &mut CanonicalWriter, value: Option<&T>) {
     match value {
         Some(value) => {
-            writer.word(1);
+            writer.presence(true);
             value.encode(writer);
         }
         None => {
-            writer.word(0);
+            writer.presence(false);
         }
     }
 }

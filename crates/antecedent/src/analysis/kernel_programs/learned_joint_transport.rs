@@ -276,3 +276,158 @@ impl CompiledJointBayesianTransport {
         )
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{SemanticDigest, VariableId};
+    use antecedent_estimate::joint_bayesian_transport::{
+        DataIdentity, GaussianPrior, JointPriors, PriorProvenance, SourceDependence, SourceSharing,
+        TransportGraphClass, VaryingBlock,
+    };
+    use antecedent_identify::{PopulationFactor, TransportCertificate, TransportFormula};
+
+    use super::*;
+    use crate::identity_laws::{all_distinct, ordered_laws};
+
+    fn factor(population: &str, variables: &[u32], conditioned_on: &[u32]) -> PopulationFactor {
+        PopulationFactor {
+            population: Arc::from(population),
+            regime: None,
+            variables: variables.iter().copied().map(VariableId::from_raw).collect(),
+            conditioned_on: conditioned_on.iter().copied().map(VariableId::from_raw).collect(),
+            interventions: Arc::from([]),
+        }
+    }
+
+    fn identification() -> TransportIdentification {
+        TransportIdentification::Transportable {
+            formula: TransportFormula::Standardize {
+                over: Arc::from([VariableId::from_raw(7)]),
+                source_response: factor("source", &[100], &[7]),
+                target_law: factor("target", &[7], &[]),
+            },
+            certificate: TransportCertificate {
+                rule: Arc::from("transport.sid.standardize"),
+                selection_targets: Arc::from([VariableId::from_raw(7)]),
+                premises: Arc::from([Arc::from("standardizers are pre-treatment")]),
+            },
+        }
+    }
+
+    fn source(id: &str) -> SourceData {
+        SourceData {
+            id: id.into(),
+            identity: DataIdentity {
+                snapshot_digest: format!("snap-{id}"),
+                datum_ids: vec![format!("{id}-0"), format!("{id}-1")],
+            },
+            treatment: vec![true, false],
+            outcome: vec![1.0, 0.5],
+            covariates: vec![vec![0.2, 0.4]],
+            noise_variance: 0.09,
+        }
+    }
+
+    fn target(first: f64) -> TargetData {
+        TargetData {
+            identity: DataIdentity {
+                snapshot_digest: "snap-target".into(),
+                datum_ids: vec!["t-0".into(), "t-1".into()],
+            },
+            rows: 2,
+            covariates: vec![vec![first, 0.3]],
+        }
+    }
+
+    fn gaussian_model() -> JointTransportModel {
+        JointTransportModel {
+            graph: TransportGraphClass::FixedDag,
+            features: vec![7],
+            varying: VaryingBlock::Intercept,
+            sharing: SourceSharing::IndependentVaryingBlocks,
+            dependence: SourceDependence::IndependentSamples,
+            priors: JointPriors {
+                invariant: GaussianPrior::isotropic(3, 0.0, 4.0, PriorProvenance::Declared),
+                varying: GaussianPrior::isotropic(1, 0.0, 4.0, PriorProvenance::Declared),
+            },
+            max_unsupported_mass: 0.0,
+            conflict_z_threshold: 3.0,
+        }
+    }
+
+    fn learned_model(basis_degree: usize) -> LearnedJointModel {
+        let gaussian = gaussian_model();
+        LearnedJointModel {
+            graph: gaussian.graph,
+            features: gaussian.features,
+            basis_degree,
+            varying: gaussian.varying,
+            sharing: gaussian.sharing,
+            dependence: gaussian.dependence,
+            priors: gaussian.priors,
+            max_unsupported_mass: gaussian.max_unsupported_mass,
+            conflict_z_threshold: gaussian.conflict_z_threshold,
+        }
+    }
+
+    const OPTIONS: JointTransportOptions = JointTransportOptions { draws: 100, seed: 7 };
+
+    fn gaussian(
+        sources: Vec<SourceData>,
+        target: TargetData,
+        options: JointTransportOptions,
+    ) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        Study::compile_joint_bayesian_transport(
+            identification(),
+            gaussian_model(),
+            sources,
+            target,
+            options,
+            &ctx,
+        )
+        .unwrap()
+        .lowered()
+        .identity()
+    }
+
+    fn learned(basis_degree: usize, sources: Vec<SourceData>) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        Study::compile_learned_joint_transport(
+            identification(),
+            learned_model(basis_degree),
+            sources,
+            target(0.1),
+            OPTIONS,
+            &ctx,
+        )
+        .unwrap()
+        .lowered()
+        .identity()
+    }
+
+    /// `compile_joint_bayesian_transport` / `compile_learned_joint_transport`: the sources are
+    /// ordered (each carries its own varying block, indexed in declared order), the target and
+    /// the draw request are read, and the learned family's basis degree is a present option
+    /// where the Gaussian family writes its absence.
+    #[test]
+    fn site_learned_joint_transport_sources_are_ordered() {
+        ordered_laws(&["s1", "s2", "s3"], |ids| {
+            Some(gaussian(ids.iter().map(|id| source(id)).collect(), target(0.1), OPTIONS))
+        });
+        ordered_laws(&["s1", "s2", "s3"], |ids| {
+            Some(learned(2, ids.iter().map(|id| source(id)).collect()))
+        });
+        let two = || vec![source("s1"), source("s2")];
+        all_distinct(&[
+            gaussian(two(), target(0.1), OPTIONS),
+            gaussian(two(), target(0.2), OPTIONS),
+            gaussian(two(), target(0.1), JointTransportOptions { draws: 101, seed: 7 }),
+            gaussian(two(), target(0.1), JointTransportOptions { draws: 100, seed: 8 }),
+            learned(2, two()),
+            learned(3, two()),
+        ]);
+    }
+}

@@ -22,7 +22,7 @@
 use std::sync::Arc;
 
 use antecedent_contract::ClaimKind;
-use antecedent_core::{CanonicalWriter, ExecutionContext};
+use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 
 use super::adaptive_inference::{
     AdaptiveInferenceRefusal, AdaptiveInferenceSession, AdaptiveRequest, InferenceParadigm,
@@ -128,9 +128,10 @@ fn question_digest(request: &AdaptiveRequest, artifact_id: &str) -> Result<[u8; 
     Ok(writer.finish())
 }
 
-fn source_digest(session: &AdaptiveInferenceSession) -> [u8; 32] {
+/// The source: the identity of the validated adaptive contract the result is replayed from.
+fn source_digest(contract: &SemanticDigest) -> [u8; 32] {
     let mut writer = CanonicalWriter::new("antecedent.adaptive_result_interval.contract.v1");
-    writer.bytes(session.contract().identity().as_bytes());
+    writer.bytes(contract.as_bytes());
     writer.finish()
 }
 
@@ -165,7 +166,7 @@ fn lower(
         kind: FunctionalKind::AssignmentContrast,
         graph_class: "caller_attested_adaptive_assignment",
         question: question_digest(request, artifact_id)?,
-        source: source_digest(session),
+        source: source_digest(&session.contract().identity()),
         source_role: EvidenceRole::Trial,
         realization,
         uncertainty,
@@ -259,7 +260,62 @@ impl CompiledAdaptiveInterval<'_> {
 
 #[cfg(test)]
 mod identity_tests {
-    use super::{AdaptiveRequest, question_digest};
+    use antecedent_core::SemanticDigest;
+
+    use super::{AdaptiveRequest, question_digest, source_digest};
+    use crate::identity_laws::{
+        ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+    };
+
+    #[test]
+    fn site_compiled_adaptive_interval_question_orders_the_arms_and_frames_the_request() {
+        ordered_laws(&[1_u32, 0], |arms| {
+            question_digest(&sequence(Some((arms[0], arms[1]))), "a").ok()
+        });
+        ordered_laws(&[1_u32, 0], |arms| {
+            question_digest(&weighting(arms[0], Some(arms[1]), 0.5), "a").ok()
+        });
+        bit_exact(|prior_mean| question_digest(&weighting(1, Some(0), prior_mean), "a").ok());
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |(scheme, artifact_id)| {
+                let request = AdaptiveRequest::AdaptiveWeighting {
+                    look: 2,
+                    plus_arm: 1,
+                    minus_arm: None,
+                    scheme: (*scheme).to_owned(),
+                    prior_mean: 0.5,
+                    prior_strength: 1.0,
+                    size_weighted: false,
+                };
+                question_digest(&request, artifact_id).ok()
+            },
+        );
+        let variants = [
+            AdaptiveRequest::BayesianPosterior { look: 2, prior_alpha: 1.0, prior_beta: 1.0 },
+            AdaptiveRequest::PosteriorStopping { look: 2, prior_alpha: 1.0, prior_beta: 1.0 },
+            AdaptiveRequest::GroupSequential { look: 2, control_arm: 0, treatment_arm: 1 },
+            AdaptiveRequest::GroupSequential { look: 2, control_arm: 1, treatment_arm: 0 },
+            sequence(None),
+            sequence(Some((0, 1))),
+            weighting(1, None, 0.5),
+        ];
+        all_distinct(
+            &variants
+                .iter()
+                .map(|request| question_digest(request, "a").expect("encoded"))
+                .collect::<Vec<_>>(),
+        );
+    }
+
+    #[test]
+    fn site_compiled_adaptive_interval_source_binds_the_contract_identity() {
+        all_distinct(&[
+            source_digest(&SemanticDigest::from_bytes([0; 32])),
+            source_digest(&SemanticDigest::from_bytes([1; 32])),
+        ]);
+    }
 
     fn weighting(plus_arm: u32, minus_arm: Option<u32>, prior_mean: f64) -> AdaptiveRequest {
         AdaptiveRequest::AdaptiveWeighting {

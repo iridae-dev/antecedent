@@ -682,4 +682,37 @@ mod tests {
         assert_eq!(invalid.reason_code(), Some(antecedent_core::reason_code!("invalid_argument")));
         assert_eq!(invalid.detail(), Some(cyclic_component::INVALID_REQUEST));
     }
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    #[test]
+    fn site_cyclic_action_world_decision_question_orders_outputs_and_binds_parts() {
+        let ctx = ExecutionContext::for_tests(47);
+        let compile = |request: CyclicExecutionRequest,
+                       outputs: &[CyclicDecisionOutput],
+                       contract: DecisionContract| {
+            compile_cyclic_action_world_decision(request, outputs.to_vec(), contract, &ctx)
+                .ok()
+                .map(|plan| query_of(plan.lowered()))
+        };
+        // Output i becomes chain stage `cyclic.outcome.i` and the first output is the chain's
+        // reported quantity, so the outputs are read in declared order.
+        crate::identity_laws::ordered_laws(&outputs(), |outputs: &[CyclicDecisionOutput]| {
+            compile(request(), outputs, contract())
+        });
+        let mut units = contract();
+        units.utility_units = "wishlist_value".into();
+        let mut shifted = request();
+        shifted.noise[0][0] = -0.3;
+        crate::identity_laws::all_distinct(&[
+            compile(request(), &outputs(), contract()),
+            compile(request(), &outputs(), units),
+            compile(shifted, &outputs(), contract()),
+        ]);
+    }
 }

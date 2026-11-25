@@ -237,9 +237,36 @@ fn check_worlds(
 ///
 /// # Errors
 /// An invalid premise, graph query, coordinate or decision is refused.
-#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_joint_transport_predictive_decision(
     request: JointTransportPredictiveDecisionRequest,
+) -> Result<CompiledJointTransportPredictiveDecision, JointTransportPredictiveDecisionError> {
+    compile_joint_transport_predictive_decision_as(request, Question::Current)
+}
+
+/// Which question digest a program binds: the current one, or the released one (selection
+/// targets in declared order) a retained artifact was compiled under.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Question {
+    Current,
+    Released,
+}
+
+/// The selection targets as the question writes them. They are a set: identification reads
+/// them by membership and the diagram refuses a repeated target, so the current question
+/// writes them sorted; the released one kept the declared order.
+fn selection_words(diagram: &SelectionDiagram, version: Question) -> Vec<u64> {
+    let mut words: Vec<u64> =
+        diagram.selection_targets().iter().map(|v| u64::from(v.raw())).collect();
+    if version == Question::Current {
+        words.sort_unstable();
+    }
+    words
+}
+
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+fn compile_joint_transport_predictive_decision_as(
+    request: JointTransportPredictiveDecisionRequest,
+    version: Question,
 ) -> Result<CompiledJointTransportPredictiveDecision, JointTransportPredictiveDecisionError> {
     request.decision.validate()?;
     let outcome = check_worlds(&request)?;
@@ -255,8 +282,7 @@ pub fn compile_joint_transport_predictive_decision(
         .identify(&request.diagram, &request.query)
         .map_err(|error| JointTransportPredictiveDecisionError::Identify(error.to_string()))?;
     let contract_identity = request.decision.identity()?;
-    let selections: Vec<u32> =
-        request.diagram.selection_targets().iter().map(|v| v.raw()).collect();
+    let selections = selection_words(&request.diagram, version);
     let input_bytes = antecedent_io::to_cbor(&input)?;
     let graph_bytes = antecedent_io::to_cbor(&graph)?;
     let query_bytes = antecedent_io::to_cbor(&query)?;
@@ -266,11 +292,13 @@ pub fn compile_joint_transport_predictive_decision(
         "antecedent.joint_transport_predictive_decision.inputs.v2",
         &input_bytes,
     );
-    let mut writer =
-        CanonicalWriter::new("antecedent.joint_transport_predictive_decision.question.v2");
+    let mut writer = CanonicalWriter::new(match version {
+        Question::Current => "antecedent.joint_transport_predictive_decision.question.v3",
+        Question::Released => "antecedent.joint_transport_predictive_decision.question.v2",
+    });
     writer
         .bytes(&graph_bytes)
-        .words(&selections.iter().map(|v| u64::from(*v)).collect::<Vec<_>>())
+        .words(&selections)
         .bytes(&query_bytes)
         .bytes(&input_bytes)
         .bytes(&worlds_bytes)
@@ -791,19 +819,24 @@ pub fn consume_joint_transport_predictive_decision(
     ];
     let contract =
         DecisionContractArtifact::from_bytes(&wire.decision_artifact, &wire.decision_identity)?;
-    let plan =
-        compile_joint_transport_predictive_decision(JointTransportPredictiveDecisionRequest {
-            diagram,
-            query,
-            model,
-            sources,
-            target,
-            options,
-            target_noise_variance: wire.target_noise_variance,
-            target_noise_correlation: wire.target_noise_correlation,
-            worlds,
-            decision: contract.contract().clone(),
-        })?;
+    let request = JointTransportPredictiveDecisionRequest {
+        diagram,
+        query,
+        model,
+        sources,
+        target,
+        options,
+        target_noise_variance: wire.target_noise_variance,
+        target_noise_correlation: wire.target_noise_correlation,
+        worlds,
+        decision: contract.contract().clone(),
+    };
+    let mut plan = compile_joint_transport_predictive_decision(request.clone())?;
+    if plan.lowered.identity() != expected_program {
+        // An artifact retained under the released question still verifies: it is recompiled
+        // under that question and must match it exactly.
+        plan = compile_joint_transport_predictive_decision_as(request, Question::Released)?;
+    }
     if plan.lowered.identity() != expected_program {
         return Err(JointTransportPredictiveDecisionError::Invalid(
             "recompiled predictive program differs",
@@ -978,5 +1011,198 @@ mod tests {
             .unwrap();
         assert_eq!(other.fit, result.fit);
         assert_ne!(other.decision.chain.identity(), result.decision.chain.identity());
+    }
+
+    /// The paired-outcome declaration above, rebuilt for each identity the site test compares.
+    #[allow(clippy::too_many_lines, reason = "one declaration read top to bottom")]
+    fn predictive_request() -> JointTransportPredictiveDecisionRequest {
+        let treatment = VariableId::from_raw(0);
+        let outcome = VariableId::from_raw(2);
+        let mut graph = antecedent_graph::Admg::with_variables(3);
+        let from = graph.dense_of_static(treatment).unwrap();
+        let to = graph.dense_of_static(outcome).unwrap();
+        graph.insert_directed(from, to).unwrap();
+        let diagram = SelectionDiagram::try_new(graph, [VariableId::from_raw(1)]).unwrap();
+        let query = TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome,
+                treatment: ContinuousDomain::new(
+                    treatment,
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [treatment],
+        );
+        let world = |value: u8| ScientificQuantity {
+            variable_id: "2".into(),
+            variable_name: "target outcome".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
+            population_id: "target".into(),
+            regime_id: format!("do(0={value})"),
+            horizon: 0,
+            functional_id: "outcome".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let worlds = [world(0), world(1)];
+        let decision = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![worlds[0].clone()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![worlds[1].clone()],
+                    utility: UtilityExpr::difference(
+                        UtilityExpr::Input(0),
+                        UtilityExpr::Const(1.0),
+                    ),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let rows = 40;
+        let source = SourceData {
+            id: "trial-a".into(),
+            identity: DataIdentity {
+                snapshot_digest: "trial-snapshot".into(),
+                datum_ids: (0..rows).map(|i| format!("trial-{i}")).collect(),
+            },
+            treatment: (0..rows).map(|i| i % 2 == 0).collect(),
+            outcome: (0..rows).map(|i| 3.0 + if i % 2 == 0 { 2.0 } else { 0.0 }).collect(),
+            covariates: Vec::new(),
+            noise_variance: 0.1,
+        };
+        let target = TargetData {
+            identity: DataIdentity {
+                snapshot_digest: "target-snapshot".into(),
+                datum_ids: (0..rows).map(|i| format!("target-{i}")).collect(),
+            },
+            rows,
+            covariates: Vec::new(),
+        };
+        let model = JointTransportModel {
+            graph: TransportGraphClass::FixedDag,
+            features: Vec::new(),
+            varying: VaryingBlock::Intercept,
+            sharing: SourceSharing::SharedVaryingBlock,
+            dependence: SourceDependence::IndependentSamples,
+            priors: JointPriors {
+                invariant: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
+                varying: GaussianPrior::isotropic(1, 0.0, 10.0, PriorProvenance::Declared),
+            },
+            max_unsupported_mass: 0.0,
+            conflict_z_threshold: 3.0,
+        };
+        JointTransportPredictiveDecisionRequest {
+            diagram,
+            query,
+            model,
+            sources: vec![source],
+            target,
+            options: JointTransportOptions { draws: 1024, seed: 92 },
+            target_noise_variance: 0.1,
+            target_noise_correlation: 1.0,
+            worlds,
+            decision,
+        }
+    }
+
+    fn question(request: JointTransportPredictiveDecisionRequest) -> Option<[u8; 32]> {
+        let plan = compile_joint_transport_predictive_decision(request).ok()?;
+        match plan.lowered().scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn site_joint_transport_predictive_decision_question_binds_worlds_rows_and_premises() {
+        let mut seed = predictive_request();
+        seed.options.seed = 93;
+        // Source rows are positional: the posterior schedule and the datum identities read them
+        // in declared order.
+        let mut swapped = predictive_request();
+        swapped.sources[0].treatment.swap(0, 1);
+        swapped.sources[0].outcome.swap(0, 1);
+        let mut variance = predictive_request();
+        variance.target_noise_variance = 0.2;
+        let mut correlation = predictive_request();
+        correlation.target_noise_correlation = 0.5;
+        let mut units = predictive_request();
+        units.decision.utility_units = "points".into();
+        // The worlds are (untreated, treated): the order names which world is which.
+        let mut worlds = predictive_request();
+        worlds.worlds.swap(0, 1);
+        crate::identity_laws::all_distinct(&[
+            question(predictive_request()),
+            question(seed),
+            question(swapped),
+            question(variance),
+            question(correlation),
+            question(units),
+            question(worlds),
+        ]);
+        crate::identity_laws::bit_exact(|value| {
+            let mut request = predictive_request();
+            request.target_noise_correlation = value;
+            question(request)
+        });
+    }
+
+    fn selection_diagram(targets: &[u32]) -> Option<SelectionDiagram> {
+        SelectionDiagram::try_new(
+            antecedent_graph::Admg::with_variables(3),
+            targets.iter().copied().map(VariableId::from_raw).collect::<Vec<_>>(),
+        )
+        .ok()
+    }
+
+    #[test]
+    fn site_joint_transport_predictive_decision_selection_targets_are_a_set() {
+        // Identification reads the selection targets by membership and the diagram refuses a
+        // repeat (the repeated case is refused and skipped).
+        crate::identity_laws::set_laws(&[2_u32, 0, 1], |targets: &[u32]| {
+            Some(selection_words(&selection_diagram(targets)?, Question::Current))
+        });
+        // The released question wrote them in declared order.
+        let released = |targets: &[u32]| {
+            selection_diagram(targets).map(|diagram| selection_words(&diagram, Question::Released))
+        };
+        assert_ne!(released(&[2, 0, 1]), released(&[0, 1, 2]));
+    }
+
+    #[test]
+    fn site_joint_transport_predictive_decision_released_identity_still_verifies() {
+        let released = compile_joint_transport_predictive_decision_as(
+            predictive_request(),
+            Question::Released,
+        )
+        .expect("the request compiles under the released question");
+        let current = compile_joint_transport_predictive_decision(predictive_request())
+            .expect("the request compiles under the current question");
+        assert_ne!(released.lowered().identity(), current.lowered().identity());
+        let ctx = ExecutionContext::for_tests(92);
+        let result = released.execute(&ctx).expect("the released program runs");
+        let bytes = released.export(&result, "released-paired-outcomes", &ctx).expect("it exports");
+        let replay = consume_joint_transport_predictive_decision(
+            &bytes,
+            result.lowered_program_identity,
+            &ctx,
+        )
+        .expect("an artifact retained under the released question still verifies");
+        assert_eq!(replay.fit, result.fit);
     }
 }

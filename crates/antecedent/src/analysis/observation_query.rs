@@ -1720,3 +1720,254 @@ pub fn consume_observation_query_artifact(
         result: consumed.result,
     })
 }
+
+#[cfg(test)]
+pub(crate) mod site_tests {
+    use super::*;
+    use crate::analysis::StudyBuilder;
+    use crate::analysis::mechanism_composition::{
+        DependenceInput, MechanismCompositionRequest, MechanismInput, MechanismSource,
+    };
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
+    use antecedent_contract::{
+        MechanismDeclaration, MechanismOriginKind, QuantityRole, ScientificQuantity,
+    };
+    use antecedent_core::measurement_model::{
+        ArmBinding, BinaryArmRates, ErrorStructure, MeasurementBinding, MeasurementKind,
+        MeasurementModel, MeasurementParameters, MeasurementRoute, MeasurementVariable,
+        ParameterEvidence, RepresentationVersion,
+    };
+    use antecedent_model::compose::{Domain, TabularRow};
+
+    pub(crate) fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    fn quantity(variable: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: variable.into(),
+            variable_name: format!("label of {variable}"),
+            role: if variable == "Y" { QuantityRole::Outcome } else { QuantityRole::Covariate },
+            units: "category".into(),
+            population_id: "pop".into(),
+            regime_id: "observational".into(),
+            horizon: 0,
+            functional_id: "realization".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn table_input(
+        variable: &str,
+        parents: &[&str],
+        rows: &[(&[&str], [f64; 2])],
+    ) -> MechanismInput {
+        let levels = vec!["0".to_owned(), "1".to_owned()];
+        MechanismInput {
+            declaration: MechanismDeclaration {
+                output: quantity(variable),
+                parents: parents.iter().map(|parent| quantity(parent)).collect(),
+                conditioning_variable_ids: parents
+                    .iter()
+                    .map(|parent| (*parent).to_owned())
+                    .collect(),
+                origin: MechanismOriginKind::Declared,
+                artifact_id: format!("declared:{variable}"),
+                evidence_id: format!("assumed:{variable}"),
+                latent_causes: Vec::new(),
+            },
+            source: MechanismSource::DeclaredTable {
+                levels: levels.clone(),
+                rows: rows
+                    .iter()
+                    .map(|(config, p)| TabularRow {
+                        parent_levels: parents
+                            .iter()
+                            .zip(config.iter())
+                            .map(|(parent, level)| ((*parent).to_owned(), (*level).to_owned()))
+                            .collect(),
+                        probabilities: vec![("0".to_owned(), p[0]), ("1".to_owned(), p[1])],
+                    })
+                    .collect(),
+            },
+            output_support: Domain::Levels(levels.clone()),
+            parent_domains: parents
+                .iter()
+                .map(|parent| ((*parent).to_owned(), Domain::Levels(levels.clone())))
+                .collect(),
+            uncertainty: None,
+            latent_loadings: Vec::new(),
+        }
+    }
+
+    /// A binary construct `C` with `P(C = 1) = prevalence` and the outcome `Y` it causes.
+    pub(crate) fn construct_model(prevalence: f64) -> PreparedMechanismComposition {
+        StudyBuilder::mechanism_composition(
+            MechanismCompositionRequest {
+                target_population_id: "pop".into(),
+                target_regime_id: "observational".into(),
+                mechanisms: vec![
+                    table_input("C", &[], &[(&[], [1.0 - prevalence, prevalence])]),
+                    table_input("Y", &["C"], &[(&["0"], [0.9, 0.1]), (&["1"], [0.3, 0.7])]),
+                ],
+                edges: vec![("C".into(), "Y".into())],
+                admissions: Vec::new(),
+                dependence: DependenceInput::Unknown,
+                admit_declared_mechanisms: true,
+            },
+            &ExecutionContext::for_tests(1),
+        )
+        .expect("a declared finite composition")
+    }
+
+    /// The two recorded indicators of the dependent-error table, in table order.
+    pub(crate) fn measured_pairs() -> Vec<(String, String)> {
+        vec![("assay_a".into(), "1".into()), ("assay_b".into(), "1".into())]
+    }
+
+    /// Row-major `[construct level][joint indicator cell]` error probabilities, as bits.
+    pub(crate) fn table_bits() -> Vec<u64> {
+        [0.7_f64, 0.1, 0.1, 0.1, 0.05, 0.05, 0.05, 0.85].into_iter().map(f64::to_bits).collect()
+    }
+
+    pub(crate) fn dependent_request(
+        measured: &[(String, String)],
+        probability_bits: &[u64],
+    ) -> DependentMeasuredObservationRequest {
+        DependentMeasuredObservationRequest {
+            outcome: "Y".into(),
+            observed: Vec::new(),
+            measured: measured.to_vec(),
+            interventions: Vec::new(),
+            error_law: DependentMeasurementWire {
+                construct: "C".into(),
+                population_id: "pop".into(),
+                regime_id: "observational".into(),
+                evidence_id: "joint-assay-validation".into(),
+                indicator_ids: vec!["assay_a".into(), "assay_b".into()],
+                indicator_levels: vec![vec!["0".into(), "1".into()], vec!["0".into(), "1".into()]],
+                construct_levels: vec!["0".into(), "1".into()],
+                probability_bits: probability_bits.to_vec(),
+            },
+        }
+    }
+
+    fn representation() -> RepresentationVersion {
+        RepresentationVersion { coordinate_system_id: "assay".into(), version: 1 }
+    }
+
+    fn indicator(index: u32, sensitivity: f64) -> ObservedSlot {
+        let id = format!("test_result_{index}");
+        let model = MeasurementModel {
+            model_id: format!("assay-validation-{index}"),
+            route: MeasurementRoute::BinaryMisclassification,
+            indicator: MeasurementVariable {
+                id: id.clone(),
+                kind: MeasurementKind::NoisyMisclassified,
+                units: "category".into(),
+            },
+            construct: MeasurementVariable {
+                id: "C".into(),
+                kind: MeasurementKind::LatentScientific,
+                units: "category".into(),
+            },
+            binding: MeasurementBinding {
+                population_id: "pop".into(),
+                regime_id: "observational".into(),
+                arm: ArmBinding::AllArms,
+            },
+            structure: ErrorStructure::NonDifferential,
+            parameters: MeasurementParameters::Binary {
+                rates: vec![BinaryArmRates {
+                    arm_id: None,
+                    sensitivity,
+                    specificity: 0.8,
+                    sensitivity_variance: 0.0,
+                    specificity_variance: 0.0,
+                }],
+                min_youden: 0.1,
+            },
+            representation: representation(),
+            evidence: ParameterEvidence::Declared { declarer: "lab".into() },
+        };
+        ObservedSlot {
+            variable_id: "C".into(),
+            level: "1".into(),
+            provenance: SlotProvenance::Recorded,
+            value: SlotValue::Measured(MeasuredIndicator {
+                indicator_id: id,
+                kind: MeasurementKind::NoisyMisclassified,
+                model: Some(model),
+                positive_level: Some("1".into()),
+                representation: representation(),
+            }),
+        }
+    }
+
+    #[test]
+    fn site_observation_query_joint_measured_indicators_are_a_set() {
+        let prepared = construct_model(0.1);
+        let identity = |conditioning: &[ObservedSlot]| {
+            prepared
+                .compile_joint_measured_observation(&JointMeasuredObservationRequest {
+                    outcome: "Y".into(),
+                    conditioning: conditioning.to_vec(),
+                    interventions: Vec::new(),
+                    dependence: "conditionally_independent_given_construct".into(),
+                })
+                .ok()
+                .map(|plan| query_of(plan.lowered()))
+        };
+        // The indicators are keyed by their identity (a repeated identity is refused); the
+        // likelihood multiplies their independent errors, so listing order is not meaning.
+        let slots = vec![indicator(1, 0.9), indicator(2, 0.7), indicator(3, 0.8)];
+        set_laws(&slots, identity);
+        let other_model = construct_model(0.2)
+            .compile_joint_measured_observation(&JointMeasuredObservationRequest {
+                outcome: "Y".into(),
+                conditioning: slots.clone(),
+                interventions: Vec::new(),
+                dependence: "conditionally_independent_given_construct".into(),
+            })
+            .ok()
+            .map(|plan| query_of(plan.lowered()));
+        let mut recorded = slots.clone();
+        recorded[0].level = "0".into();
+        all_distinct(&[identity(&slots), identity(&recorded), other_model]);
+    }
+
+    #[test]
+    fn site_observation_query_dependent_indicators_are_a_set_and_the_table_is_ordered() {
+        let prepared = construct_model(0.1);
+        let identity = |measured: &[(String, String)], bits: &[u64]| {
+            prepared
+                .compile_dependent_measured_observation(&dependent_request(measured, bits))
+                .ok()
+                .map(|plan| query_of(plan.lowered()))
+        };
+        set_laws(&measured_pairs(), |measured: &[(String, String)]| {
+            identity(measured, &table_bits())
+        });
+        // The error table is row-major over the sorted indicator identities: a cell is read by
+        // its position.
+        ordered_laws(&table_bits(), |bits: &[u64]| identity(&measured_pairs(), bits));
+        let mut recorded = measured_pairs();
+        recorded[0].1 = "0".into();
+        let other_model = construct_model(0.2)
+            .compile_dependent_measured_observation(&dependent_request(
+                &measured_pairs(),
+                &table_bits(),
+            ))
+            .ok()
+            .map(|plan| query_of(plan.lowered()));
+        all_distinct(&[
+            identity(&measured_pairs(), &table_bits()),
+            identity(&recorded, &table_bits()),
+            other_model,
+        ]);
+    }
+}

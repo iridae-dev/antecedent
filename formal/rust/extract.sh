@@ -28,16 +28,27 @@ work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 export CARGO_TARGET_DIR="${CHARON_TARGET_DIR:-$work/target}"
 
+# EXTRACT_ONLY names one kernel to retranslate; the others are left as committed.
 # extract <Kernel> <package> <charon args...>
 extract() {
   local kernel="$1" package="$2"
   shift 2
+  if [[ -n "${EXTRACT_ONLY:-}" && "$EXTRACT_ONLY" != "$kernel" ]]; then
+    return 0
+  fi
   local out="$here/AntecedentRust/Extracted/$kernel"
   (cd "$repo" && "$AENEAS_DIR/charon" cargo --preset=aeneas "$@" \
     --dest-file "$work/$kernel.llbc" -- -p "$package" >"$work/$kernel.charon.log" 2>&1) || {
     cat "$work/$kernel.charon.log" >&2
     exit 1
   }
+  # FunsExternal.lean models the items translated as opaque (--opaque); it is written by
+  # hand, so it survives retranslation.
+  local external=""
+  if [[ -f "$out/FunsExternal.lean" ]]; then
+    external="$work/$kernel.FunsExternal.lean"
+    cp "$out/FunsExternal.lean" "$external"
+  fi
   rm -rf "$out"
   mkdir -p "$out"
   "$AENEAS_DIR/aeneas" -backend lean -split-files -subdir "AntecedentRust/Extracted/$kernel" \
@@ -54,7 +65,10 @@ extract() {
   # Source spans move with unrelated edits; the assurance record binds the items by
   # their tokens instead, so the committed translation drops them.
   sed -i.bak -E 's/, lines [0-9]+:[0-9]+-[0-9]+:[0-9]+//' "$out"/*.lean
-  rm -f "$out"/*.bak
+  rm -f "$out"/*.bak "$out/FunsExternal_Template.lean"
+  if [[ -n "$external" ]]; then
+    cp "$external" "$out/FunsExternal.lean"
+  fi
 }
 
 extract Standing antecedent-contract \
@@ -89,3 +103,21 @@ extract Revalidation antecedent-contract \
 # Revalidation a second time beside the translation above.
 extract Support antecedent-core \
   --start-from 'antecedent_core::response::SupportStatus::severity'
+
+# The canonical framing of identities. The two standard-library sorts are opaque; their
+# model is AntecedentRust/Extracted/Framing/FunsExternal.lean.
+extract Framing antecedent-core \
+  --start-from 'antecedent_core::framing::frame_word' \
+  --start-from 'antecedent_core::framing::frame_count' \
+  --start-from 'antecedent_core::framing::frame_bytes' \
+  --start-from 'antecedent_core::framing::frame_presence' \
+  --start-from 'antecedent_core::framing::frame_real_bits' \
+  --start-from 'antecedent_core::framing::frame_words' \
+  --start-from 'antecedent_core::framing::frame_u32s' \
+  --start-from 'antecedent_core::framing::frame_digests' \
+  --start-from 'antecedent_core::framing::dedup_sorted_digests' \
+  --start-from 'antecedent_core::framing::frame_digest_set' \
+  --start-from 'antecedent_core::framing::frame_digest_multiset' \
+  --start-from 'antecedent_core::framing::frame_u32_multiset' \
+  --opaque 'antecedent_core::framing::sort_digests' \
+  --opaque 'antecedent_core::framing::sort_u32s'

@@ -16,6 +16,8 @@ mutation did not apply or a runner could not run); undetected and unexecuted bot
 the campaign. Each mutated file is restored, and the run fails if any is left changed.
 
 The `aeneas` runner retranslates Rust and needs AENEAS_DIR (formal/rust/extract.sh); the
+`facade` runner runs the in-crate site tests of the facade crate (unit tests named `site_*`, whose
+private identity functions no public crate reaches); the
 `kani` runner needs cargo kani at the pinned version (formal/toolchain.toml) and checks one named
 harness per invocation under its timeout; the `python` runner runs in the pinned interpreter the
 review digests are bound under, with the extension already built into that environment. The

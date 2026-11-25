@@ -645,3 +645,7 @@ impl Canonical for ContractSource {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "claim_decision_programs_site_tests.rs"]
+mod site_tests;

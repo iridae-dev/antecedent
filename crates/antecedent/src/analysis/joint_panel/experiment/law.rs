@@ -55,6 +55,10 @@ pub struct JointLawExperimentResult {
     dependency: SemanticDigest,
     retention: Arc<antecedent_core::execution::AdmissionLease>,
     native_design: Option<Arc<NativeDesignReplay>>,
+    /// The original design's dependency under the released design encoding, when this update
+    /// conditioned a compiled design: an artifact sealed under it is consumed by replaying the
+    /// same design under that encoding.
+    released_source: Option<SemanticDigest>,
     program: ExecutedProgram,
 }
 
@@ -239,6 +243,7 @@ impl JointLawExperimentResult {
             dependency,
             retention,
             native_design: None,
+            released_source: None,
             program,
         })
     }
@@ -574,11 +579,24 @@ impl JointLawExperimentResult {
         let source_dependency = SemanticDigest::from_bytes(wire.source_dependency);
         validate_model_dependency(source_dependency, &update, history.ledger())?;
         let native_design_replayed = if let Some(bytes) = &wire.native_design {
-            let native = super::super::designs::replay_joint_design_execution(
+            let mut native = super::super::designs::replay_joint_design_execution(
                 bytes,
                 ctx,
                 super::super::designs::DesignArtifactLimits { max_bytes: limits.max_bytes },
             )?;
+            // An artifact sealed under the released design encoding names the released
+            // dependency, and its prior metadata and bridge quantity name it too: replay the same
+            // design under that encoding so every identity it derives is the one it sealed.
+            if native.dependency_identity() != source_dependency
+                && native.released_dependency_identity() == source_dependency
+            {
+                native = super::super::designs::replay_joint_design_execution_as(
+                    bytes,
+                    ctx,
+                    super::super::designs::DesignArtifactLimits { max_bytes: limits.max_bytes },
+                    super::super::designs::DesignEncoding::Released,
+                )?;
+            }
             let original = native.posterior_source()?;
             let ScientificSourcePayload::Law(law) = original.as_numerical_source() else {
                 return Err(JointPanelError::compile(
@@ -693,27 +711,66 @@ impl JointLawExperimentResult {
         let ScientificSourcePayload::Law(prior) = self.original.as_numerical_source() else {
             return Err(JointPanelError::compile("missing original native law"));
         };
-        if wire.native_design.as_deref() != self.native_design.as_ref().map(|n| n.bytes.as_slice())
-            || wire.source_dependency != *self.original.dependency_identity().as_bytes()
-            || wire.prior_metadata != *prior.metadata()
-            || wire.prior_draws.iter().copied().ne(prior.draws().iter().map(|v| v.to_bits()))
-            || wire.coefficients.iter().copied().ne(self.coefficients.iter().map(|v| v.to_bits()))
-        {
+        let same_inputs = wire.native_design.as_deref()
+            == self.native_design.as_ref().map(|n| n.bytes.as_slice())
+            && wire.prior_draws.iter().copied().eq(prior.draws().iter().map(|v| v.to_bits()))
+            && wire.coefficients.iter().copied().eq(self.coefficients.iter().map(|v| v.to_bits()));
+        let sealed_current = wire.source_dependency
+            == *self.original.dependency_identity().as_bytes()
+            && wire.prior_metadata == *prior.metadata();
+        // Sealed under the released design encoding: the same design bytes, whose replay below
+        // re-derives the released dependency, prior metadata and bridge quantity it names.
+        let sealed_released = self.native_design.is_some()
+            && self.released_source.is_some_and(|released| {
+                wire.source_dependency == *released.as_bytes()
+                    && released != self.original.dependency_identity()
+            });
+        if !same_inputs || !(sealed_current || sealed_released) {
             return Err(JointPanelError::compile(
                 "artifact names another original native law or contrast",
             ));
         }
+        let stored = wire.update()?;
         let replay = Self::replay(bytes, ctx)?;
-        if replay.dependency != self.dependency
-            || replay.law.metadata() != self.law.metadata()
-            || replay.law.draws() != self.law.draws()
-        {
+        let differs = if sealed_current {
+            replay.dependency != self.dependency || replay.law.metadata() != self.law.metadata()
+        } else {
+            // Every identity of a released artifact names the released dependency, so compare
+            // what no encoding names: the conditioned weights and the declared update.
+            weight_bits(&replay.law) != weight_bits(&self.law)
+                || !same_declared_update(&stored, &self.update)
+        };
+        if differs || replay.law.draws() != self.law.draws() {
             return Err(JointPanelError::compile(
                 "artifact differs from this current native experiment update",
             ));
         }
         Ok(current)
     }
+}
+
+/// The conditioning weights of a law, by their bits.
+fn weight_bits(law: &DistributionArtifact) -> Option<Vec<u64>> {
+    law.metadata().weights.as_ref().map(|weights| weights.iter().map(|w| w.to_bits()).collect())
+}
+
+/// Whether two updates declare the same experiment, apart from what names the design's
+/// dependency: the mapping's dependency, the model origin (a ledger source labelled by it) and
+/// the bridge target quantity (the design contrast, whose population id carries it). Each of
+/// those is checked against its own design by the update's validation and by replay.
+fn same_declared_update(stored: &PanelExperimentUpdate, current: &PanelExperimentUpdate) -> bool {
+    let bits = |values: &[f64]| values.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
+    let mut bridge = stored.bridge.clone();
+    bridge.target.quantity = current.bridge.target.quantity.clone();
+    bridge == current.bridge
+        && stored.observed_mean.to_bits() == current.observed_mean.to_bits()
+        && stored.observation_variance.to_bits() == current.observation_variance.to_bits()
+        && stored.sample_size == current.sample_size
+        && bits(&stored.mapping.intercepts) == bits(&current.mapping.intercepts)
+        && bits(&stored.mapping.slopes) == bits(&current.mapping.slopes)
+        && stored.evidence.experiment == current.evidence.experiment
+        && stored.evidence.mapping == current.evidence.mapping
+        && stored.evidence.prior_origins == current.evidence.prior_origins
 }
 
 fn decode_wire(
@@ -814,6 +871,7 @@ impl super::super::designs::JointDesignResult {
             })?;
         let retention = Arc::new(admit(&scoped, quote)?);
         result.native_design = Some(Arc::new(NativeDesignReplay { bytes, _retention: retention }));
+        result.released_source = Some(self.released_dependency_identity());
         Ok(result)
     }
 }

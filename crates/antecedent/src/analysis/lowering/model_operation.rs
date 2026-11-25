@@ -163,3 +163,91 @@ pub(crate) fn lower(
     }
     .finish())
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::{
+        ArrowStrengthsTarget, ModelOperation, NodeRef, PopulationDoContrastTarget, SemanticDigest,
+        VariableId,
+    };
+    use antecedent_data::TabularData;
+    use antecedent_graph::{Dag, DenseNodeId};
+
+    use super::{OperationSource, model_digest, query_digest};
+    use crate::identity_laws::{all_distinct, ordered_laws, set_laws};
+
+    /// The DAG of `labels` and `edges`, `None` when the graph refuses an edge.
+    fn try_dag(labels: &[u32], edges: &[(u32, u32)]) -> Option<Dag> {
+        let mut dag = Dag::empty();
+        for &label in labels {
+            dag.add_node(NodeRef::Static(VariableId::from_raw(label))).ok()?;
+        }
+        for &(from, to) in edges {
+            dag.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to)).ok()?;
+        }
+        Some(dag)
+    }
+
+    fn table() -> TabularData {
+        TabularData::from_f64_columns([("a", &[0.0, 1.0][..])]).expect("a one-column table")
+    }
+
+    fn model(mechanisms: &str, graph: &Dag) -> [u8; 32] {
+        let data = table();
+        model_digest(&OperationSource {
+            study_program: None,
+            mechanism_program: mechanisms,
+            graph,
+            data: &data,
+        })
+    }
+
+    #[test]
+    fn site_model_operation_model_edges_are_a_set_and_labels_are_ordered() {
+        // The mechanisms are fitted on the edge set; the edges index dense nodes, whose labels
+        // name the fitted variables in dense order.
+        set_laws(&[(0_u32, 1_u32), (1, 2), (0, 2)], |edges| {
+            try_dag(&[0, 1, 2], edges).map(|graph| model("gcm", &graph))
+        });
+        ordered_laws(&[0_u32, 1, 7], |labels| {
+            try_dag(labels, &[(0, 1), (1, 2)]).map(|graph| model("gcm", &graph))
+        });
+    }
+
+    #[test]
+    fn site_model_operation_query_frames_the_study_the_label_and_the_operation() {
+        let graph = try_dag(&[0, 1], &[(0, 1)]).expect("a two-node DAG");
+        let data = table();
+        let query =
+            |program: Option<SemanticDigest>, mechanisms: &str, operation: &ModelOperation| {
+                query_digest(
+                    &OperationSource {
+                        study_program: program,
+                        mechanism_program: mechanisms,
+                        graph: &graph,
+                        data: &data,
+                    },
+                    operation,
+                )
+            };
+        let strengths = ModelOperation::ArrowStrengths(ArrowStrengthsTarget);
+        let contrast = |delta: f64| {
+            ModelOperation::PopulationDoContrast(PopulationDoContrastTarget {
+                parent: VariableId::from_raw(0),
+                child: VariableId::from_raw(1),
+                delta,
+                max_units: None,
+                seed: 7,
+            })
+        };
+        let program = Some(SemanticDigest::from_bytes([1; 32]));
+        all_distinct(&[
+            query(None, "gcm", &strengths),
+            query(program, "gcm", &strengths),
+            query(Some(SemanticDigest::from_bytes([2; 32])), "gcm", &strengths),
+            query(program, "gcm.v2", &strengths),
+            query(program, "gcm", &contrast(1.0)),
+            query(program, "gcm", &contrast(0.5)),
+        ]);
+    }
+}

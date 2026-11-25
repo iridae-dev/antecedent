@@ -156,7 +156,11 @@ fn declaration_digest(
     domains: &[(Arc<str>, ImputationDomain)],
     source: SemanticDigest,
 ) -> Result<[u8; 32], CausalError> {
-    let mut writer = CanonicalWriter::new("antecedent.lowering.joint_panel.imputation.v1");
+    // v2: the declared domains are a set keyed by variable name (the imputer reads them
+    // through a map and refuses a repeated name), so they are written sorted by name.
+    let mut writer = CanonicalWriter::new("antecedent.lowering.joint_panel.imputation.v2");
+    let mut domains: Vec<&(Arc<str>, ImputationDomain)> = domains.iter().collect();
+    domains.sort_by(|a, b| a.0.cmp(&b.0));
     writer
         .bytes(source.as_bytes())
         .text(spec.model.name())

@@ -78,7 +78,7 @@ use antecedent_io_core::{PriorCatalog, TargetDesign};
 pub use crate::analysis::supplied_terminal::TerminalError;
 
 use crate::analysis::program_handle::CompiledProgramHandle;
-use crate::analysis::supplied_identity::{Canonical, Declaration, SetOf, Wire, variant};
+use crate::analysis::supplied_identity::{Canonical, Declaration, SetOf, Wire, encoded, variant};
 use crate::analysis::supplied_terminal::{
     Reading, TerminalSpec, admit_compile, compiled_terminal, lower,
 };
@@ -1004,21 +1004,24 @@ pub fn compile_evidence_obligations(
     // outcome; the query is written by its own canonical encoding.
     let mut query = CanonicalWriter::new("antecedent.evidence_obligations.query.v1");
     result.query.encode(&mut query);
-    let question = Declaration::new("antecedent.evidence_obligations.v2")
-        .field("status", result.status.as_str())
-        .field("query", &SemanticDigest::from_bytes(query.finish()).to_hex())
-        .field("graph", &graph)
-        // A set: the observed variables are read by membership, so order and repetition are
-        // dropped.
-        .field("observed", &SetOf(&observed))
-        .field("population", population)
-        .field(
-            "sensitivity",
-            &sensitivity
-                .as_ref()
-                .map(|finding| (finding.method.as_str(), (finding.strength, finding.robust))),
-        )
-        .finish();
+    // A graph without a canonical identity refuses the compile (`encoded`).
+    let question = encoded("supplied.evidence_obligations.v1", || {
+        Declaration::new("antecedent.evidence_obligations.v2")
+            .field("status", result.status.as_str())
+            .field("query", &SemanticDigest::from_bytes(query.finish()).to_hex())
+            .field("graph", &graph)
+            // A set: the observed variables are read by membership, so order and repetition
+            // are dropped.
+            .field("observed", &SetOf(&observed))
+            .field("population", population)
+            .field(
+                "sensitivity",
+                &sensitivity
+                    .as_ref()
+                    .map(|finding| (finding.method.as_str(), (finding.strength, finding.robust))),
+            )
+            .finish()
+    })?;
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::EvidenceObligations,
         plan_id: "supplied.evidence_obligations.v1",
@@ -1284,3 +1287,7 @@ impl CompiledAdaptivePolicySearch {
         self.search.execute(source, &scoped).map_err(TerminalError::Kernel)
     }
 }
+
+#[cfg(test)]
+#[path = "input_decision_programs_site_tests.rs"]
+mod site_tests;

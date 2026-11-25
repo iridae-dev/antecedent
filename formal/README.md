@@ -64,3 +64,10 @@ run it, write the equality proof in `rust/AntecedentRust/`, and add a
 `verified_implementation` check, naming the Rust items it covers, to the record. List the
 kernel in the record's `operations`, run `python3 scripts/operation_records.py --write`, and
 fill in the hand-written fields of its new operation record.
+
+A kernel may be generic over a trait whose implementation is not translated (the framing
+kernels append to any `FrameSink`; production passes a BLAKE3 hasher, the proofs a byte
+log). A standard-library call with no Aeneas model goes in its own function, translated as
+opaque (`--opaque`) and modelled by hand in `Extracted/<Kernel>/FunsExternal.lean`, which
+`extract.sh` keeps across retranslation; the model is a trusted item of the record.
+`EXTRACT_ONLY=<Kernel>` retranslates one kernel.

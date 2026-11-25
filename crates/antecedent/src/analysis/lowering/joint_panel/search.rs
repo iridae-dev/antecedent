@@ -367,4 +367,31 @@ mod tests {
             assert_eq!(program.cell(), operation.route().cell());
         }
     }
+
+    #[test]
+    fn site_joint_panel_search_question_frames_its_parts_with_presence_words() {
+        use crate::identity_laws::all_distinct;
+        let parent = SemanticDigest::from_bytes([1; 32]);
+        let source = SemanticDigest::from_bytes([2; 32]);
+        let question = |operation: SearchOperation,
+                        parent: Option<SemanticDigest>,
+                        source: SemanticDigest,
+                        contract: Option<&str>| {
+            let mut declared = decision(CarrierDemand::Mean, "a");
+            declared.contract_identity = contract.map(Arc::from);
+            super::question(operation, parent, source, &declared)
+        };
+        all_distinct(&[
+            question(SearchOperation::Finite, Some(parent), source, Some("a")),
+            question(SearchOperation::Continuous, Some(parent), source, Some("a")),
+            question(SearchOperation::Certified, Some(parent), source, Some("a")),
+            question(SearchOperation::RandomizedSelection, Some(parent), source, Some("a")),
+            question(SearchOperation::InstrumentedSelection, Some(parent), source, Some("a")),
+            question(SearchOperation::Finite, None, source, Some("a")),
+            question(SearchOperation::Finite, Some(source), parent, Some("a")),
+            question(SearchOperation::Finite, Some(parent), source, Some("b")),
+            question(SearchOperation::Finite, Some(parent), source, Some("")),
+            question(SearchOperation::Finite, Some(parent), source, None),
+        ]);
+    }
 }

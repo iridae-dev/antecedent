@@ -24,6 +24,9 @@ use crate::{EstimatorId, IdentifierId, InferenceMode};
 /// difference-in-differences, synthetic control and the local ratios, which v1 recorded as
 /// absent, and the declared posterior algorithm.
 const STATISTICAL_PROGRAM_TAG: &str = "antecedent.lowered_program.statistical.v2";
+/// v3 binds each operator's content (effect, graph, input and output roles in declaration
+/// order, causal feedback and frozen-fit reuse) where v2 wrote only how many there are.
+const STATISTICAL_PROGRAM_TAG_V3: &str = "antecedent.lowered_program.statistical.v3";
 /// Declaration name used when the route record names no estimator.
 const UNNAMED_ESTIMATOR: &str = "unnamed";
 
@@ -553,7 +556,21 @@ impl StatisticalProgram {
     /// same encoded design does not change the program.
     #[must_use]
     pub fn identity(&self) -> SemanticDigest {
-        let mut writer = CanonicalWriter::new(STATISTICAL_PROGRAM_TAG);
+        self.digest(STATISTICAL_PROGRAM_TAG_V3, true)
+    }
+
+    /// The layer digest a lowered program's identity binds: the v2 layout, which writes the
+    /// operators' count and not their content. Every route builds its statistical operators
+    /// as a fixed list of its program cell (none, a literal list, or the linear-Gaussian,
+    /// temporal or response list of that cell), and the lowered identity binds the cell, so
+    /// the content adds nothing there; keeping v2 keeps every released program identity, which
+    /// bundle replay and the portable consume paths re-check against stored identities.
+    pub(crate) fn lowered_layer_digest(&self) -> SemanticDigest {
+        self.digest(STATISTICAL_PROGRAM_TAG, false)
+    }
+
+    fn digest(&self, tag: &str, operator_content: bool) -> SemanticDigest {
+        let mut writer = CanonicalWriter::new(tag);
         writer
             .opt_text(self.identifier.as_ref().map(IdentifierId::as_str))
             .opt_text(self.estimator.as_ref().map(EstimatorId::as_str));
@@ -594,19 +611,55 @@ impl StatisticalProgram {
             .opt_word(self.design.columns())
             .text(self.design.source().as_str())
             .word(self.operators.len() as u64);
+        if operator_content {
+            // Ordered: an operator list is the program's pipeline, in execution order.
+            for operator in &*self.operators {
+                write_operator(&mut writer, operator);
+            }
+        }
         SemanticDigest::from_bytes(writer.finish())
     }
 }
 
+/// One operator edge: its effect and graph, its roles in declaration order (count-prefixed),
+/// whether it carries causal feedback, and whether it allows frozen-fit reuse.
+fn write_operator(writer: &mut CanonicalWriter, operator: &Operator) {
+    writer
+        .text(operator.effect().as_str())
+        .text(operator.graph().as_str())
+        .word(operator.inputs().len() as u64);
+    for role in operator.inputs() {
+        writer.text(role.as_str());
+    }
+    writer.word(operator.outputs().len() as u64);
+    for role in operator.outputs() {
+        writer.text(role.as_str());
+    }
+    writer.word(u64::from(operator.causal_feedback())).text(operator.frozen_fit_reuse().as_str());
+}
+
 /// The declared name of a study's prior. The name is the prior's identity, so the
-/// isotropic scale is part of it.
+/// isotropic scale is part of it, exactly by its bits.
 fn prior_name(config: &crate::BayesianConfig) -> String {
     if config.prior.is_some() {
         "explicit_prior_set".to_owned()
     } else if config.prior_artifact.is_some() {
         "prior_artifact".to_owned()
     } else {
-        format!("isotropic_normal(scale={})", config.prior_scale)
+        isotropic_prior_name(config.prior_scale)
+    }
+}
+
+/// The released name renders the scale through `Display`, which is injective on every bit
+/// pattern but NaN: the shortest round-trip decimal names a finite value exactly, `-0` and `0`
+/// differ, and the infinities are `inf` and `-inf`. Every NaN rendered as `NaN`, so a NaN other
+/// than the canonical `f64::NAN` is named by its bits; the canonical NaN, and every other
+/// scale, keep their released name.
+fn isotropic_prior_name(scale: f64) -> String {
+    if scale.is_nan() && scale.to_bits() != f64::NAN.to_bits() {
+        format!("isotropic_normal(scale_bits=0x{:016x})", scale.to_bits())
+    } else {
+        format!("isotropic_normal(scale={scale})")
     }
 }
 
@@ -617,6 +670,9 @@ fn declaration_error(error: antecedent_core::DeclarationError) -> CausalError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+    use antecedent_core::{EvidenceClaims, OperatorDeclaration, OperatorEffect, OperatorGraph};
+    use antecedent_core::{OperatorPorts, OperatorRole};
 
     fn declared_algorithm(estimator: EstimatorId) -> PosteriorAlgorithm {
         let inference = InferenceMode::Bayesian(crate::BayesianConfig::laplace());
@@ -647,5 +703,180 @@ mod tests {
         }
         assert!(EstimatorId::BayesianRobustAte.posterior_is_bayesian_bootstrap());
         assert!(!EstimatorId::BayesianGcomp.posterior_is_bayesian_bootstrap());
+    }
+
+    fn declared() -> StatisticalProgram {
+        StatisticalProgram::declared(DeclaredProgram {
+            identifier: None,
+            estimator: None,
+            inference: &InferenceMode::Frequentist,
+            bootstrap_replicates: 0,
+            sampling_design: None,
+            design: DesignShape::not_design_based("test"),
+            operators: Vec::new(),
+        })
+        .expect("declared program")
+    }
+
+    fn slot(role: ModelRole, inputs: &[u32]) -> ModelSlot {
+        ModelSlot {
+            role,
+            family: Arc::from("ols"),
+            inputs: inputs.iter().copied().map(VariableId::from_raw).collect(),
+            output: Some(VariableId::from_raw(9)),
+        }
+    }
+
+    fn with_models(models: Vec<ModelSlot>) -> SemanticDigest {
+        let mut program = declared();
+        program.models = Arc::from(models);
+        program.identity()
+    }
+
+    #[test]
+    fn site_statistical_models_and_their_inputs_are_ordered() {
+        // Slots are in the estimator's fixed role order (the plan view lists them and the
+        // associational route reads the first); inputs are design columns in column order.
+        ordered_laws(
+            &[ModelRole::Propensity, ModelRole::Outcome, ModelRole::Nuisance],
+            |roles: &[ModelRole]| {
+                Some(with_models(roles.iter().map(|&role| slot(role, &[0, 1])).collect()))
+            },
+        );
+        ordered_laws(&[0_u32, 1, 2], |inputs: &[u32]| {
+            Some(with_models(vec![slot(ModelRole::Outcome, inputs)]))
+        });
+        all_distinct(&[
+            with_models(Vec::new()),
+            with_models(vec![slot(ModelRole::Outcome, &[0, 1])]),
+            with_models(vec![slot(ModelRole::Outcome, &[0]), slot(ModelRole::Outcome, &[1])]),
+            with_models(vec![ModelSlot { output: None, ..slot(ModelRole::Outcome, &[0, 1]) }]),
+            with_models(vec![ModelSlot {
+                family: Arc::from("glm"),
+                ..slot(ModelRole::Outcome, &[0, 1])
+            }]),
+        ]);
+    }
+
+    fn with(edit: fn(&mut StatisticalProgram)) -> SemanticDigest {
+        let mut program = declared();
+        edit(&mut program);
+        program.identity()
+    }
+
+    #[test]
+    fn site_statistical_realization_and_plans_are_tagged() {
+        all_distinct(&[
+            declared().identity(),
+            with(|p| p.realization = Realization::ExactPoint { evaluator: Arc::from("e") }),
+            with(|p| p.realization = Realization::DeclaredPosterior { evaluator: Arc::from("e") }),
+            with(|p| p.realization = Realization::DeclaredPredictive { evaluator: Arc::from("e") }),
+            with(|p| p.realization = Realization::GraphImputationV1),
+            with(|p| p.realization = Realization::CategoricalPosteriorCandidateV1),
+            with(|p| p.realization = Realization::SequentialKnownLawMonteCarlo),
+            with(|p| p.realization = Realization::SequentialTrajectoryBootstrap),
+            with(|p| {
+                p.realization = Realization::NestedFit {
+                    producer_program: SemanticDigest::from_bytes([0; 32]),
+                    method: Arc::from("e"),
+                    law: NestedFitLaw::Posterior,
+                };
+            }),
+            with(|p| {
+                p.realization = Realization::NestedFit {
+                    producer_program: SemanticDigest::from_bytes([0; 32]),
+                    method: Arc::from("e"),
+                    law: NestedFitLaw::Predictive,
+                };
+            }),
+            with(|p| p.folds = Some(FoldPlan { folds: 2, unit: ResampleUnit::Row, embargo: None })),
+            with(|p| {
+                p.folds = Some(FoldPlan { folds: 2, unit: ResampleUnit::Row, embargo: Some(0) });
+            }),
+            with(|p| {
+                p.resampling = Some(ResamplingPlan {
+                    method: ResamplingMethod::Bootstrap,
+                    replicates: 2,
+                    unit: ResampleUnit::Row,
+                });
+            }),
+            with(|p| p.design = DesignShape::quoted(10, 2, true)),
+        ]);
+    }
+
+    /// (layer identity, the released layer digest the lowered identity binds)
+    fn with_operators(operators: Vec<Operator>) -> (SemanticDigest, SemanticDigest) {
+        let mut program = declared();
+        program.operators = Arc::from(operators);
+        (program.identity(), program.lowered_layer_digest())
+    }
+
+    fn fit(inputs: &[OperatorRole]) -> Operator {
+        Operator::new(
+            OperatorDeclaration::new(
+                OperatorEffect::Fit,
+                OperatorGraph::Execution,
+                OperatorPorts::new(inputs.iter().copied(), [OperatorRole::FitHandle]),
+            )
+            .with_evidence_claims(EvidenceClaims::nuisance_fit()),
+        )
+        .expect("a fit edge")
+    }
+
+    #[test]
+    fn site_statistical_operators_are_bound_by_content_in_order() {
+        let operators = crate::planner::linear_gaussian_program_operators().expect("operators");
+        ordered_laws(&operators, |ops: &[Operator]| Some(with_operators(ops.to_vec()).0));
+        // A fit reads its input roles in declaration order.
+        ordered_laws(&[OperatorRole::Outcome, OperatorRole::WorldOrSchedule], |roles| {
+            Some(with_operators(vec![fit(roles)]).0)
+        });
+        // One operator each, different content: the layer identity tells them apart.
+        let read = with_operators(vec![operators[0].clone()]);
+        let intervene = with_operators(vec![operators[2].clone()]);
+        assert_ne!(read.0, intervene.0, "the layer identity binds each operator's content");
+        // The lowered identity binds the released digest, which counts operators: every route's
+        // operator list is fixed by its cell, which the lowered identity binds.
+        assert_eq!(read.1, intervene.1, "the released digest is unchanged");
+        assert_ne!(read.1, with_operators(Vec::new()).1, "the released digest counts operators");
+        assert_ne!(read.0, read.1, "the layer identity is versioned apart from the released one");
+    }
+
+    #[test]
+    fn site_statistical_lowered_layer_digest_keeps_the_released_layout() {
+        let program = declared();
+        let mut writer = CanonicalWriter::new("antecedent.lowered_program.statistical.v2");
+        writer.opt_text(None).opt_text(None);
+        program.realization.write(&mut writer);
+        writer.word(0).word(0).word(0).word(0).opt_word(None).text("not_design_based").word(0);
+        assert_eq!(program.lowered_layer_digest(), SemanticDigest::from_bytes(writer.finish()));
+    }
+
+    #[test]
+    fn site_statistical_prior_scale_is_named_by_its_bits() {
+        // Released names are unchanged, the canonical NaN included.
+        assert_eq!(isotropic_prior_name(10.0), "isotropic_normal(scale=10)");
+        assert_eq!(isotropic_prior_name(f64::NAN), "isotropic_normal(scale=NaN)");
+        bit_exact(|scale| Some(isotropic_prior_name(scale)));
+        all_distinct(
+            &[0.1, 0.2, 1e-300, f64::INFINITY, f64::NEG_INFINITY, 0.0, -0.0, f64::NAN]
+                .map(isotropic_prior_name),
+        );
+        // Through the program: the prior name is the posterior plan's prior and the realization's.
+        bit_exact(|scale| {
+            let inference =
+                InferenceMode::Bayesian(crate::BayesianConfig::laplace().prior_scale(scale));
+            StatisticalProgram::declared(DeclaredProgram {
+                identifier: None,
+                estimator: None,
+                inference: &inference,
+                bootstrap_replicates: 0,
+                sampling_design: None,
+                design: DesignShape::not_design_based("test"),
+                operators: Vec::new(),
+            })
+            .ok()
+            .map(|program| (program.identity(), program.lowered_layer_digest()))
+        });
     }
 }

@@ -103,3 +103,63 @@ impl CompiledExternalFeedback {
         self.program.input().execute(resolver, ctx)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::SemanticDigest;
+    use antecedent_model::external_mechanism::{ExternalFeedbackSystem, SystemEquation};
+    use antecedent_model::nonlinear_equilibrium::{Activation, Clamp, Equation, SolvePolicy};
+
+    use super::*;
+    use crate::identity_laws::{all_distinct, ordered_laws};
+
+    fn equation(id: &str, weights: Vec<f64>) -> SystemEquation {
+        SystemEquation::Builtin {
+            equation: Equation {
+                id: id.to_owned(),
+                intercept: 0.0,
+                weights,
+                activation: Activation::Tanh,
+                expression: None,
+                parameters: vec![],
+            },
+        }
+    }
+
+    fn request(levels: &[f64], noise: Vec<Vec<f64>>) -> ExternalCyclicRequest {
+        ExternalCyclicRequest {
+            system: ExternalFeedbackSystem {
+                equations: vec![equation("a", vec![0.0, 0.3]), equation("b", vec![0.2, 0.0])],
+                noise_covariance: vec![1.0, 0.0, 0.0, 1.0],
+            },
+            fit: None,
+            worlds: levels.iter().map(|&value| vec![Clamp { variable: 1, value }]).collect(),
+            noise,
+            initial: vec![0.0; 2],
+            policy: SolvePolicy::default(),
+            factual: None,
+        }
+    }
+
+    fn identity(request: ExternalCyclicRequest) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        Study::compile_external_feedback(request, &ctx).unwrap().lowered().identity()
+    }
+
+    /// `compile_external_feedback`: the worlds and the disturbance rows are ordered (results are
+    /// indexed by world, then row), the equations are ordered (indexed by variable), and the
+    /// optional factual state is read.
+    #[test]
+    fn site_external_feedback_worlds_and_rows_are_ordered() {
+        let rows = || vec![vec![0.1, 0.2], vec![-0.1, -0.2]];
+        ordered_laws(&[0.0, 1.0, 2.0], |levels| Some(identity(request(levels, rows()))));
+        ordered_laws(&[0.1, 0.2, 0.3], |first| {
+            Some(identity(request(&[1.0], first.iter().map(|&x| vec![x, 0.0]).collect())))
+        });
+        let mut swapped = request(&[1.0], rows());
+        swapped.system.equations.swap(0, 1);
+        let mut factual = request(&[1.0], rows());
+        factual.factual = Some(vec![0.3, 0.7]);
+        all_distinct(&[identity(request(&[1.0], rows())), identity(swapped), identity(factual)]);
+    }
+}

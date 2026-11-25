@@ -120,6 +120,17 @@ fn question_digest(
     question.finish()
 }
 
+/// The inputs the kernel reads: the exported result's bytes, then the target cohort's wire
+/// encoding (its rows, features, columns and weights in their bound order), each framed.
+fn source_digest(artifact: &[u8], cohort: &CohortBinding) -> Result<[u8; 32], TransportRefusal> {
+    let mut source = CanonicalWriter::new("antecedent.transported_cohort.inputs.v1");
+    source.bytes(artifact);
+    source.bytes(
+        &antecedent_io::to_cbor(cohort).map_err(|error| refusal(format!("cohort: {error}")))?,
+    );
+    Ok(source.finish())
+}
+
 impl Study {
     /// Bind a cohort transport of a retained fitted effect into a compiled program.
     ///
@@ -136,13 +147,7 @@ impl Study {
             &request.source_population,
             request.shift.as_ref(),
         );
-        let mut source = CanonicalWriter::new("antecedent.transported_cohort.inputs.v1");
-        source.bytes(&request.artifact);
-        source.bytes(
-            &antecedent_io::to_cbor(&request.cohort)
-                .map_err(|error| refusal(format!("cohort: {error}")))?,
-        );
-        let source = source.finish();
+        let source = source_digest(&request.artifact, &request.cohort)?;
         let lowered = PointProgram {
             cell: ProgramCell::TransportedCohortEffect,
             plan_id: "transported_cohort_effect.v1",
@@ -212,7 +217,51 @@ impl CompiledTransportedCohort {
 mod identity_tests {
     use antecedent_learn::transported_effect::SelectionShiftDeclaration;
 
-    use super::question_digest;
+    use super::{question_digest, source_digest};
+    use crate::analysis::cohort_decision::{CohortBinding, CohortColumn};
+    use crate::identity_laws::{ADVERSARIAL_TEXT, all_distinct, injective, ordered_laws};
+
+    #[test]
+    fn site_compiled_transported_cohort_question_orders_the_name_lists_and_frames_the_texts() {
+        ordered_laws(&["age", "sex", "bmi"], |children| {
+            Some(digest(&shift(children, &["age"], "S")))
+        });
+        ordered_laws(&["age", "sex", "bmi"], |modifiers| {
+            Some(digest(&shift(&["age"], modifiers, "S")))
+        });
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(claim, population)| Some(question_digest(Some(claim), population, None)),
+        );
+    }
+
+    fn cohort(rows: &[(f64, f64)]) -> Option<CohortBinding> {
+        CohortBinding::new(
+            "snapshot",
+            "target",
+            (0..rows.len()).map(|i| format!("row-{i}")).collect(),
+            vec!["z".to_owned()],
+            vec![CohortColumn::Numeric(rows.iter().map(|&(z, _)| z).collect())],
+            rows.iter().map(|&(_, weight)| weight).collect(),
+        )
+        .ok()
+    }
+
+    #[test]
+    fn site_compiled_transported_cohort_source_frames_the_artifact_and_orders_the_cohort() {
+        ordered_laws(&[(-1.0, 0.2), (0.5, 0.3), (1.0, 0.5)], |rows| {
+            source_digest(b"artifact", &cohort(rows)?).ok()
+        });
+        let base = cohort(&[(-1.0, 0.5), (1.0, 0.5)]).expect("a cohort");
+        all_distinct(&[
+            source_digest(b"artifact", &base).expect("encoded"),
+            source_digest(b"artifacT", &base).expect("encoded"),
+            source_digest(b"", &base).expect("encoded"),
+            source_digest(b"artifact", &cohort(&[(-1.0, 0.25), (1.0, 0.75)]).expect("a cohort"))
+                .expect("encoded"),
+        ]);
+    }
 
     fn shift(children: &[&str], modifiers: &[&str], node: &str) -> SelectionShiftDeclaration {
         SelectionShiftDeclaration {

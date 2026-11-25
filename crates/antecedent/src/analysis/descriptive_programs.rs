@@ -453,6 +453,96 @@ mod tests {
         assert_eq!(compiled.lowered().cell(), ProgramCell::MatchedCaseControl);
     }
 
+    /// `question`: the rows are unit-ordered (index `i` of every column is unit `i`) and
+    /// count-framed, the matched-set labels are framed per row, the scales are ordered (results
+    /// are reported in that order), every request kind is tagged, and the pair's covariance
+    /// carries a presence word.
+    #[test]
+    fn site_descriptive_programs_question_orders_rows_and_scales() {
+        use crate::identity_laws::{
+            ADVERSARIAL_TEXT, all_distinct, bit_exact, injective, ordered_laws,
+        };
+
+        let treatment = vec![0.0, 1.0, 0.0];
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| {
+            Some(question(&DescriptiveRequest::RawContrast {
+                outcome: outcome.to_vec(),
+                treatment: treatment.clone(),
+            }))
+        });
+        let pair = MeanPair {
+            active: 0.4,
+            control: 0.2,
+            covariance: Availability::Available([0.1, 0.0, 0.1]),
+        };
+        ordered_laws(
+            &[
+                ReportingScale::MeanDifference,
+                ReportingScale::LogRiskRatio,
+                ReportingScale::LogOddsRatio,
+            ],
+            |scales| {
+                Some(question(&DescriptiveRequest::TransformMeanPair {
+                    pair: pair.clone(),
+                    scales: scales.to_vec(),
+                }))
+            },
+        );
+        injective(
+            &ADVERSARIAL_TEXT,
+            |parts| *parts,
+            |&(a, b)| {
+                Some(question(&DescriptiveRequest::MatchedOddsRatio {
+                    stratum: vec![a.to_owned(), b.to_owned()],
+                    case: vec![1.0, 0.0],
+                    exposed: vec![1.0, 0.0],
+                }))
+            },
+        );
+        let adjusted = AdjustedEstimate {
+            estimate: 0.3,
+            se: None,
+            active: 0.5,
+            control: 0.2,
+            scale: ReportingScale::MeanDifference,
+            all_observed_population: true,
+        };
+        let rows = || (vec![1.0, 2.0], vec![0.0, 1.0]);
+        all_distinct(&[
+            question(&DescriptiveRequest::RawContrast { outcome: rows().0, treatment: rows().1 }),
+            question(&DescriptiveRequest::RawContrast {
+                outcome: vec![1.0],
+                treatment: vec![2.0, 0.0, 1.0],
+            }),
+            question(&DescriptiveRequest::CompareRawAdjusted {
+                outcome: rows().0,
+                treatment: rows().1,
+                adjusted,
+            }),
+            question(&DescriptiveRequest::CompareRawAdjusted {
+                outcome: rows().0,
+                treatment: rows().1,
+                adjusted: AdjustedEstimate { se: Some(0.0), ..adjusted },
+            }),
+            question(&DescriptiveRequest::RawArmsTransform {
+                outcome: rows().0,
+                treatment: rows().1,
+                scales: vec![],
+            }),
+            question(&DescriptiveRequest::TransformMeanPair { pair: pair.clone(), scales: vec![] }),
+            question(&DescriptiveRequest::TransformMeanPair {
+                pair: MeanPair { covariance: Availability::Available([0.0, 0.0, 0.0]), ..pair },
+                scales: vec![],
+            }),
+        ]);
+        bit_exact(|x| {
+            Some(question(&DescriptiveRequest::RawContrast {
+                outcome: vec![x, 1.0],
+                treatment: vec![0.0, 1.0],
+            }))
+        });
+    }
+
     #[test]
     fn a_compiled_descriptive_program_refuses_reentry() {
         let ctx = ExecutionContext::for_tests(0);

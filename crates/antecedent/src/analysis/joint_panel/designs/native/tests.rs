@@ -887,3 +887,42 @@ fn the_design_proof_carries_the_prepared_identification_and_source_into_an_attem
     };
     assert_eq!(attempt.proof.as_ref(), Some(&proof));
 }
+
+#[test]
+fn site_joint_panel_native_design_dependency_is_the_ordered_recipe() {
+    use crate::identity_laws::{all_distinct, ordered_laws};
+    use antecedent_estimate::joint_design::local_instrument::{
+        LocalInstrumentDesign, LocalInstrumentUnit,
+    };
+    let design = || LocalInstrumentDesign {
+        key: "site encouragement compliers".into(),
+        population: "site population".into(),
+        exclusion: "no direct effect".into(),
+        monotonicity: "no defiers".into(),
+        consistency_and_isolation: "independent units".into(),
+    };
+    let unit = |i: usize| LocalInstrumentUnit {
+        id: format!("unit{i}"),
+        assigned: i % 2 == 0,
+        received: i % 4 == 0,
+        probability: 0.5,
+        outcome: i as f64,
+    };
+    let recipe = |units: &[usize]| JointDesignRecipe::InstrumentedLocal {
+        design: design(),
+        units: units.iter().map(|&i| unit(i)).collect(),
+    };
+    // Units are read positionally by the native estimators and their seeded resampling.
+    ordered_laws(&[0, 1, 2, 3], |units| native_dependency(&recipe(units)).ok());
+    assert_eq!(
+        native_dependency(&recipe(&[0, 1])).unwrap(),
+        native_dependency(&recipe(&[0, 1])).unwrap()
+    );
+    let mut dependencies: Vec<SemanticDigest> = native_experiment_fixtures()
+        .iter()
+        .map(|(recipe, _, _)| native_dependency(recipe).unwrap())
+        .collect();
+    dependencies.push(native_dependency(&recipe(&[0, 1])).unwrap());
+    dependencies.push(native_dependency(&recipe(&[0, 1, 2])).unwrap());
+    all_distinct(&dependencies);
+}

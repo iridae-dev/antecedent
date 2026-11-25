@@ -280,3 +280,41 @@ fn native_digest(native: &NativeJointIdentification) -> [u8; 32] {
     }
     writer.finish()
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::native_digest;
+    use crate::analysis::joint_panel::designs::NativeJointIdentification;
+    use crate::identity_laws::{ADVERSARIAL_TEXT, injective, ordered_laws};
+
+    fn native(targets: &[&str], assumptions: &[&str]) -> NativeJointIdentification {
+        NativeJointIdentification {
+            version: 1,
+            method: "joint_design.native".to_owned(),
+            identifying_functional: "difference_in_means".to_owned(),
+            target_kind: "local_effect".to_owned(),
+            targets: targets.iter().map(|target| (*target).to_owned()).collect(),
+            population: "units".to_owned(),
+            sampling_unit: "unit".to_owned(),
+            required_assumptions: assumptions.iter().map(|text| (*text).to_owned()).collect(),
+        }
+    }
+
+    #[test]
+    fn site_joint_panel_design_native_digest_orders_and_frames_its_lists() {
+        // Target keys are ordered (each names a program, history, cohort or feature by
+        // position), and the assumptions fill the recipe's fixed slots in order.
+        ordered_laws(&["p0", "p1", "p2"], |targets| {
+            Some(native_digest(&native(targets, &["exchangeability"])))
+        });
+        ordered_laws(&["positivity", "consistency"], |assumptions| {
+            Some(native_digest(&native(&["p0"], assumptions)))
+        });
+        // A text moved across the boundary between the two lists is another declaration.
+        injective(
+            &ADVERSARIAL_TEXT,
+            |pair| *pair,
+            |pair| Some(native_digest(&native(&[pair.0], &[pair.1]))),
+        );
+    }
+}

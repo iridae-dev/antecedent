@@ -31,7 +31,32 @@ use crate::planner::lowered::{
 };
 use crate::planner::{PlanStage, PlanView};
 
-const COMPOSITION_TAG: &str = "antecedent.cyclic_component_composition.v1";
+/// Composition identity: the component count, the ledger digest after a presence word, then each
+/// component and connection in name order.
+const COMPOSITION_TAG: &str = "antecedent.cyclic_component_composition.v2";
+/// The released composition identity: the ledger digest without a presence word. Reproduced only
+/// to verify a handoff exported under it.
+const COMPOSITION_TAG_V1: &str = "antecedent.cyclic_component_composition.v1";
+/// Component wire digests: the wire with its components, outputs, consumed ports and connections
+/// in canonical order, since the compiler reads each as a set keyed by name.
+const JOINT_COMPONENT_WIRE_TAG: &str = "antecedent.joint_component_posterior.component_wire.v2";
+const JOINT_COMPONENT_WIRE_TAG_V1: &str = "antecedent.joint_component_posterior.component_wire.v1";
+const JOINT_VECTOR_COMPONENT_WIRE_TAG: &str =
+    "antecedent.joint_vector_component_posterior.component_wire.v2";
+const JOINT_VECTOR_COMPONENT_WIRE_TAG_V1: &str =
+    "antecedent.joint_vector_component_posterior.component_wire.v1";
+
+/// Which encoding of the composition and component wire identities a compile writes. Compiles
+/// write [`Self::Current`]; a consumer whose recompilation differs from the stored program
+/// identity recompiles under [`Self::V1`], the released encoding, so handoffs exported before the
+/// canonical encodings still verify.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum IdentityEncoding {
+    /// Ledger presence word; component wires in canonical order.
+    Current,
+    /// The released encoding: no ledger presence word; component wires in declared order.
+    V1,
+}
 
 fn activation_tag(activation: Activation) -> u64 {
     match activation {
@@ -160,7 +185,7 @@ pub fn prepare_vector_component_feedback(
     request: VectorFeedbackRequest,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
-    prepare_vector_component_feedback_inner(request, None, ctx)
+    prepare_vector_component_feedback_inner(request, None, IdentityEncoding::Current, ctx)
 }
 
 /// Compile multi-output feedback with a ledger check over the original
@@ -175,7 +200,7 @@ pub fn prepare_vector_component_feedback_with_ledger(
     ledger: &EvidenceLedger,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
-    prepare_vector_component_feedback_inner(request, Some(ledger), ctx)
+    prepare_vector_component_feedback_inner(request, Some(ledger), IdentityEncoding::Current, ctx)
 }
 
 #[allow(
@@ -185,6 +210,7 @@ pub fn prepare_vector_component_feedback_with_ledger(
 fn prepare_vector_component_feedback_inner(
     request: VectorFeedbackRequest,
     ledger: Option<&EvidenceLedger>,
+    encoding: IdentityEncoding,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
     check_aggregate_evidence(
@@ -294,6 +320,7 @@ fn prepare_vector_component_feedback_inner(
             factual: request.factual,
         },
         ledger,
+        encoding,
         ctx,
     )
 }
@@ -443,7 +470,7 @@ pub fn prepare_component_feedback(
     request: ComponentFeedbackRequest,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
-    prepare_component_feedback_inner(request, None, ctx)
+    prepare_component_feedback_inner(request, None, IdentityEncoding::Current, ctx)
 }
 
 /// Compile scalar feedback with a checked aggregate evidence ledger. The
@@ -458,7 +485,7 @@ pub fn prepare_component_feedback_with_ledger(
     ledger: &EvidenceLedger,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
-    prepare_component_feedback_inner(request, Some(ledger), ctx)
+    prepare_component_feedback_inner(request, Some(ledger), IdentityEncoding::Current, ctx)
 }
 
 #[allow(
@@ -468,6 +495,7 @@ pub fn prepare_component_feedback_with_ledger(
 fn prepare_component_feedback_inner(
     mut request: ComponentFeedbackRequest,
     ledger: Option<&EvidenceLedger>,
+    encoding: IdentityEncoding,
     ctx: &ExecutionContext,
 ) -> Result<PreparedComponentFeedback, ComponentFeedbackError> {
     check_aggregate_evidence(
@@ -498,11 +526,12 @@ fn prepare_component_feedback_inner(
     }
     let positions: BTreeMap<&str, usize> =
         order.iter().enumerate().map(|(index, name)| (name.as_str(), index)).collect();
-    let mut writer = CanonicalWriter::new(COMPOSITION_TAG);
+    let mut writer = CanonicalWriter::new(match encoding {
+        IdentityEncoding::Current => COMPOSITION_TAG,
+        IdentityEncoding::V1 => COMPOSITION_TAG_V1,
+    });
     writer.word(order.len() as u64);
-    if let Some(ledger) = ledger {
-        writer.bytes(ledger.state_digest().as_bytes());
-    }
+    write_ledger(&mut writer, encoding, ledger.map(EvidenceLedger::state_digest).as_ref());
     for component in &request.components {
         component
             .interface
@@ -682,6 +711,40 @@ struct ComponentConnectionWire {
     coefficient: f64,
 }
 
+/// The ledger digest of a composition identity. The current encoding writes a presence word
+/// first, so a composition with a ledger never shares a stream with one without; the released
+/// encoding wrote the digest alone.
+fn write_ledger(
+    writer: &mut CanonicalWriter,
+    encoding: IdentityEncoding,
+    ledger: Option<&SemanticDigest>,
+) {
+    match (encoding, ledger) {
+        (IdentityEncoding::Current, Some(digest)) => {
+            writer.word(1).bytes(digest.as_bytes());
+        }
+        (IdentityEncoding::Current, None) => {
+            writer.word(0);
+        }
+        (IdentityEncoding::V1, Some(digest)) => {
+            writer.bytes(digest.as_bytes());
+        }
+        (IdentityEncoding::V1, None) => {}
+    }
+}
+
+/// A connection's sort key; the coefficient's bits break a tie between repeated ports, which the
+/// compiler refuses.
+fn connection_key(connection: &ComponentConnectionWire) -> (&str, &str, &str, &str, u64) {
+    (
+        connection.consumer.as_str(),
+        connection.consumed_port.as_str(),
+        connection.producer.as_str(),
+        connection.produced_port.as_str(),
+        connection.coefficient.to_bits(),
+    )
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ComponentWorldWire {
@@ -736,6 +799,29 @@ impl ComponentFeedbackWire {
                 .collect(),
             policy: request.policy,
         }
+    }
+
+    /// The wire in the order the compiler reads it: components by name, connections by
+    /// (consumer, consumed port, producer, produced port). Worlds stay in order.
+    fn canonical(&self) -> Self {
+        let mut wire = self.clone();
+        wire.components.sort_by(|left, right| left.0.component.cmp(&right.0.component));
+        wire.connections.sort_by(|left, right| connection_key(left).cmp(&connection_key(right)));
+        wire
+    }
+
+    /// Digest of the wire under `encoding`.
+    fn digest(&self, encoding: IdentityEncoding) -> Result<[u8; 32], antecedent_io::IoError> {
+        Ok(match encoding {
+            IdentityEncoding::Current => CanonicalWriter::digest_bytes(
+                JOINT_COMPONENT_WIRE_TAG,
+                &antecedent_io::to_cbor(&self.canonical())?,
+            ),
+            IdentityEncoding::V1 => CanonicalWriter::digest_bytes(
+                JOINT_COMPONENT_WIRE_TAG_V1,
+                &antecedent_io::to_cbor(self)?,
+            ),
+        })
     }
 
     fn to_request(&self) -> Result<ComponentFeedbackRequest, JointComponentPosteriorError> {
@@ -878,6 +964,28 @@ pub fn compile_joint_component_posterior_decision(
     contract: antecedent_design::decision_contract::DecisionContract,
     ctx: &ExecutionContext,
 ) -> Result<CompiledJointComponentPosteriorDecision, JointComponentPosteriorError> {
+    compile_joint_component_posterior_decision_encoded(
+        request,
+        schedule,
+        outputs,
+        contract,
+        IdentityEncoding::Current,
+        ctx,
+    )
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one compilation from component fits through the joint posterior program"
+)]
+fn compile_joint_component_posterior_decision_encoded(
+    request: ComponentFeedbackRequest,
+    schedule: ComponentJointPosteriorSchedule,
+    outputs: Vec<super::cyclic_action_world_decision::CyclicDecisionOutput>,
+    contract: antecedent_design::decision_contract::DecisionContract,
+    encoding: IdentityEncoding,
+    ctx: &ExecutionContext,
+) -> Result<CompiledJointComponentPosteriorDecision, JointComponentPosteriorError> {
     if request.factual.is_some()
         || request.noise.len() != 1
         || request.noise[0].iter().any(|value| *value != 0.0)
@@ -899,7 +1007,7 @@ pub fn compile_joint_component_posterior_decision(
     }
     let wire = ComponentFeedbackWire::from_request(&request);
     let declarations = request.components.clone();
-    let prepared = prepare_component_feedback(request, ctx)?;
+    let prepared = prepare_component_feedback_inner(request, None, encoding, ctx)?;
     for output in &outputs {
         let name = prepared
             .order
@@ -949,10 +1057,7 @@ pub fn compile_joint_component_posterior_decision(
             ctx,
         )?;
     let component_bytes = antecedent_io::to_cbor(&wire)?;
-    let component_digest = CanonicalWriter::digest_bytes(
-        "antecedent.joint_component_posterior.component_wire.v1",
-        &component_bytes,
-    );
+    let component_digest = wire.digest(encoding)?;
     let mut writer = CanonicalWriter::new("antecedent.joint_component_posterior.question.v1");
     writer
         .text(JOINT_COMPONENT_POSTERIOR_FEATURE)
@@ -1129,13 +1234,21 @@ pub fn consume_joint_component_posterior_decision(
         &wire.contract_artifact,
         &wire.contract_identity,
     )?;
-    let plan = compile_joint_component_posterior_decision(
-        wire.components.to_request()?,
-        wire.schedule,
-        wire.outputs,
-        contract.contract().clone(),
-        ctx,
-    )?;
+    // A handoff exported under the released identity encoding recompiles under it.
+    let compile = |encoding| {
+        compile_joint_component_posterior_decision_encoded(
+            wire.components.to_request()?,
+            wire.schedule.clone(),
+            wire.outputs.clone(),
+            contract.contract().clone(),
+            encoding,
+            ctx,
+        )
+    };
+    let mut plan = compile(IdentityEncoding::Current)?;
+    if plan.lowered().identity() != expected_program {
+        plan = compile(IdentityEncoding::V1)?;
+    }
     if plan.lowered().identity() != expected_program {
         return Err(JointComponentPosteriorError::Invalid(
             "recompiled component posterior differs",
@@ -1232,6 +1345,39 @@ impl VectorComponentFeedbackWire {
                 .collect(),
             policy: request.policy,
         }
+    }
+
+    /// The wire in the order the compiler reads it: components by name, each component's
+    /// outputs by produced port and their consumed ports by name, connections by their ports and
+    /// consumer output. Worlds stay in order.
+    fn canonical(&self) -> Self {
+        let mut wire = self.clone();
+        for component in &mut wire.components {
+            for output in &mut component.outputs {
+                output.consumed_ports.sort();
+            }
+            component.outputs.sort_by(|left, right| left.produced_port.cmp(&right.produced_port));
+        }
+        wire.components.sort_by(|a, b| a.interface.component.cmp(&b.interface.component));
+        wire.connections.sort_by(|left, right| {
+            (connection_key(&left.ports), &left.consumer_output)
+                .cmp(&(connection_key(&right.ports), &right.consumer_output))
+        });
+        wire
+    }
+
+    /// Digest of the wire under `encoding`.
+    fn digest(&self, encoding: IdentityEncoding) -> Result<[u8; 32], antecedent_io::IoError> {
+        Ok(match encoding {
+            IdentityEncoding::Current => CanonicalWriter::digest_bytes(
+                JOINT_VECTOR_COMPONENT_WIRE_TAG,
+                &antecedent_io::to_cbor(&self.canonical())?,
+            ),
+            IdentityEncoding::V1 => CanonicalWriter::digest_bytes(
+                JOINT_VECTOR_COMPONENT_WIRE_TAG_V1,
+                &antecedent_io::to_cbor(self)?,
+            ),
+        })
     }
 
     fn to_request(&self) -> Result<VectorFeedbackRequest, JointComponentPosteriorError> {
@@ -1335,6 +1481,28 @@ pub fn compile_joint_vector_component_posterior_decision(
     contract: antecedent_design::decision_contract::DecisionContract,
     ctx: &ExecutionContext,
 ) -> Result<CompiledJointVectorComponentPosteriorDecision, JointComponentPosteriorError> {
+    compile_joint_vector_component_posterior_decision_encoded(
+        request,
+        schedule,
+        outputs,
+        contract,
+        IdentityEncoding::Current,
+        ctx,
+    )
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one compilation from component fits through the joint posterior program"
+)]
+fn compile_joint_vector_component_posterior_decision_encoded(
+    request: VectorFeedbackRequest,
+    schedule: ComponentJointPosteriorSchedule,
+    outputs: Vec<super::cyclic_action_world_decision::CyclicDecisionOutput>,
+    contract: antecedent_design::decision_contract::DecisionContract,
+    encoding: IdentityEncoding,
+    ctx: &ExecutionContext,
+) -> Result<CompiledJointVectorComponentPosteriorDecision, JointComponentPosteriorError> {
     if request.factual.is_some()
         || request.noise.len() != 1
         || request.noise[0].iter().any(|value| *value != 0.0)
@@ -1356,7 +1524,7 @@ pub fn compile_joint_vector_component_posterior_decision(
     }
     let wire = VectorComponentFeedbackWire::from_request(&request);
     let declarations = request.components.clone();
-    let prepared = prepare_vector_component_feedback(request, ctx)?;
+    let prepared = prepare_vector_component_feedback_inner(request, None, encoding, ctx)?;
     for output in &outputs {
         let name = prepared
             .order
@@ -1405,10 +1573,7 @@ pub fn compile_joint_vector_component_posterior_decision(
             ctx,
         )?;
     let component_bytes = antecedent_io::to_cbor(&wire)?;
-    let component_digest = CanonicalWriter::digest_bytes(
-        "antecedent.joint_vector_component_posterior.component_wire.v1",
-        &component_bytes,
-    );
+    let component_digest = wire.digest(encoding)?;
     let mut writer =
         CanonicalWriter::new("antecedent.joint_vector_component_posterior.question.v1");
     writer
@@ -1584,13 +1749,21 @@ pub fn consume_joint_vector_component_posterior_decision(
         &wire.contract_artifact,
         &wire.contract_identity,
     )?;
-    let plan = compile_joint_vector_component_posterior_decision(
-        wire.components.to_request()?,
-        wire.schedule,
-        wire.outputs,
-        contract.contract().clone(),
-        ctx,
-    )?;
+    // A handoff exported under the released identity encoding recompiles under it.
+    let compile = |encoding| {
+        compile_joint_vector_component_posterior_decision_encoded(
+            wire.components.to_request()?,
+            wire.schedule.clone(),
+            wire.outputs.clone(),
+            contract.contract().clone(),
+            encoding,
+            ctx,
+        )
+    };
+    let mut plan = compile(IdentityEncoding::Current)?;
+    if plan.lowered().identity() != expected_program {
+        plan = compile(IdentityEncoding::V1)?;
+    }
     if plan.lowered().identity() != expected_program {
         return Err(JointComponentPosteriorError::Invalid(
             "recompiled component posterior differs",
@@ -1955,13 +2128,21 @@ pub fn consume_bounded_component_posterior_decision(
             &inner_wire.contract_artifact,
             &inner_wire.contract_identity,
         )?;
-    let inner = compile_joint_vector_component_posterior_decision(
-        inner_wire.components.to_request()?,
-        inner_wire.schedule,
-        inner_wire.outputs,
-        inner_contract.contract().clone(),
-        ctx,
-    )?;
+    // An inner handoff exported under the released identity encoding recompiles under it.
+    let compile_inner = |encoding| {
+        compile_joint_vector_component_posterior_decision_encoded(
+            inner_wire.components.to_request()?,
+            inner_wire.schedule.clone(),
+            inner_wire.outputs.clone(),
+            inner_contract.contract().clone(),
+            encoding,
+            ctx,
+        )
+    };
+    let mut inner = compile_inner(IdentityEncoding::Current)?;
+    if *inner.lowered().identity().as_bytes() != wire.inner_identity {
+        inner = compile_inner(IdentityEncoding::V1)?;
+    }
     let contract = antecedent_design::decision_artifact::DecisionContractArtifact::from_bytes(
         &wire.contract_artifact,
         &wire.contract_identity,
@@ -2275,12 +2456,36 @@ mod tests {
             changed_plan.posterior.lowered().identity(),
             plan.posterior.lowered().identity()
         );
-        assert_ne!(changed_plan.lowered().identity(), plan.lowered().identity());
+        // The compiler reads the components as a set keyed by name (it sorts them before solving),
+        // so declaring them in another order is the same program: the component wire digest is
+        // taken over the canonical wire. Under the released encoding (component_wire.v1) this
+        // reordering split the identity; that split was the defect, not the meaning.
+        assert_eq!(changed_plan.lowered().identity(), plan.lowered().identity());
         let changed = antecedent_io::to_cbor(&reordered).unwrap();
-        assert!(
-            consume_joint_component_posterior_decision(&changed, plan.lowered().identity(), &ctx,)
-                .is_err()
-        );
+        consume_joint_component_posterior_decision(&changed, plan.lowered().identity(), &ctx)
+            .expect("a reordered declaration replays as the same program");
+        // A handoff exported under the released identity encoding (declared component order, no
+        // ledger presence word) still verifies: the consumer recompiles under that encoding.
+        let original: JointComponentPosteriorWire = antecedent_io::from_cbor(&bytes).unwrap();
+        let released = compile_joint_component_posterior_decision_encoded(
+            original.components.to_request().unwrap(),
+            original.schedule.clone(),
+            original.outputs.clone(),
+            plan.contract.clone(),
+            IdentityEncoding::V1,
+            &ctx,
+        )
+        .expect("compiles under the released encoding");
+        assert_ne!(released.lowered().identity(), plan.lowered().identity());
+        let released_result = released.execute(&ctx).expect("released program executes");
+        let released_bytes = released.export(&released_result, &ctx).expect("released handoff");
+        let replayed = consume_joint_component_posterior_decision(
+            &released_bytes,
+            released.lowered().identity(),
+            &ctx,
+        )
+        .expect("a released handoff still verifies");
+        assert_eq!(replayed.lowered_program_identity, released.lowered().identity());
         let mut wire: JointComponentPosteriorWire = antecedent_io::from_cbor(&bytes).unwrap();
         wire.outputs[0].quantity.variable_id = "different-port".into();
         let changed = antecedent_io::to_cbor(&wire).unwrap();
@@ -2853,5 +3058,357 @@ mod tests {
         );
         result.inner.child.posterior.samples[0][0] += 1.0;
         assert!(bounded.export(&result, &ctx).is_err());
+    }
+
+    /// The common fit schedule, the two output worlds and the action contract of the joint
+    /// posterior fixtures above, with `units` and `transform` on every output coordinate.
+    fn site_fit_inputs(
+        units: &str,
+        transform: &str,
+    ) -> (
+        ComponentJointPosteriorSchedule,
+        Vec<super::super::cyclic_action_world_decision::CyclicDecisionOutput>,
+        antecedent_design::decision_contract::DecisionContract,
+        Vec<ScientificQuantity>,
+    ) {
+        use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
+        use antecedent_design::decision_contract::{
+            ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy,
+            UtilityExpr,
+        };
+        use antecedent_estimate::cyclic_likelihood::CyclicParameter;
+        use antecedent_io::quantity_wire::ScientificQuantityWire;
+        use antecedent_model::nonlinear_equilibrium::RegimeRow;
+        let training = (0..260)
+            .map(|i| {
+                let traffic = f64::from(i % 5) * 0.4;
+                let disturbance = (f64::from(i) * 0.19).sin() * 0.2;
+                RegimeRow {
+                    values: vec![traffic, (1.0 + 0.3 * traffic + disturbance) / 0.8],
+                    clamps: vec![Clamp { variable: 0, value: traffic }],
+                }
+            })
+            .collect();
+        let schedule = ComponentJointPosteriorSchedule {
+            parameters: vec![CyclicParameter::Weight { equation: 1, parent: 0 }],
+            training,
+            prior_sd: 1.0,
+            chains: 4,
+            warmup: 500,
+            draws_per_chain: 1500,
+            proposal_scale: 0.03,
+        };
+        let raw: Vec<_> = ["ordinary", "promoted"]
+            .iter()
+            .map(|regime| {
+                let mut q = quantity();
+                q.regime_id = (*regime).into();
+                q
+            })
+            .collect();
+        let outputs = raw
+            .iter()
+            .enumerate()
+            .map(|(world, quantity)| CyclicDecisionOutput {
+                world,
+                equation: 1,
+                quantity: ScientificQuantityWire::from(quantity),
+            })
+            .collect();
+        let quantities: Vec<_> = raw
+            .iter()
+            .map(|q| {
+                let mut declared = q.clone();
+                declared.units = units.into();
+                declared.transform_id = transform.into();
+                declared
+            })
+            .collect();
+        let contract = DecisionContract {
+            actions: quantities
+                .iter()
+                .enumerate()
+                .map(|(i, q)| DecisionAction {
+                    id: ["ordinary", "promoted"][i].into(),
+                    kind: ActionKind::Intervention,
+                    inputs: vec![q.clone()],
+                    utility: UtilityExpr::Input(0),
+                })
+                .collect(),
+            utility_units: units.into(),
+            criterion: DecisionCriterion::ExpectedRegret,
+            constraints: vec![],
+            target_population: quantities[0].population_id.clone(),
+            horizon: quantities[0].horizon,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        (schedule, outputs, contract, quantities)
+    }
+
+    /// The single multi-output component of the vector fixtures above.
+    fn site_vector_request() -> VectorFeedbackRequest {
+        let original = request();
+        let mut traffic = original.components[1].clone();
+        traffic.interface.produces[0].name = "traffic".into();
+        traffic.interface.produces[0].quantity.variable_id = "game:traffic".into();
+        traffic.interface.produces[0].quantity.variable_name = "traffic".into();
+        traffic.interface.consumes[0].name = "from_wishlists".into();
+        let mut wishlists = original.components[0].clone();
+        wishlists.interface.produces[0].name = "wishlists".into();
+        wishlists.interface.consumes[0].name = "from_traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_id = "game:traffic".into();
+        wishlists.interface.consumes[0].quantity.variable_name = "traffic".into();
+        VectorFeedbackRequest {
+            components: vec![VectorFeedbackComponent {
+                interface: InterfaceContract {
+                    component: "game".into(),
+                    produces: vec![
+                        traffic.interface.produces[0].clone(),
+                        wishlists.interface.produces[0].clone(),
+                    ],
+                    consumes: vec![
+                        traffic.interface.consumes[0].clone(),
+                        wishlists.interface.consumes[0].clone(),
+                    ],
+                },
+                outputs: vec![
+                    VectorFeedbackOutput {
+                        produced_port: "traffic".into(),
+                        equation: traffic.equation,
+                        consumed_ports: vec!["from_wishlists".into()],
+                    },
+                    VectorFeedbackOutput {
+                        produced_port: "wishlists".into(),
+                        equation: wishlists.equation,
+                        consumed_ports: vec!["from_traffic".into()],
+                    },
+                ],
+            }],
+            connections: vec![
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "traffic", "game", "from_traffic"),
+                    consumer_output: "wishlists".into(),
+                    coefficient: 0.3,
+                },
+                VectorFeedbackConnection {
+                    ports: ComponentConnection::new("game", "wishlists", "game", "from_wishlists"),
+                    consumer_output: "traffic".into(),
+                    coefficient: 0.2,
+                },
+            ],
+            noise_covariance: vec![0.04, 0.0, 0.0, 0.04],
+            noise: original.noise,
+            initial: original.initial,
+            worlds: vec![
+                ComponentFeedbackWorld { clamps: vec![("game::traffic".into(), 0.0)] },
+                ComponentFeedbackWorld { clamps: vec![("game::traffic".into(), 1.0)] },
+            ],
+            policy: original.policy,
+            factual: original.factual,
+        }
+    }
+
+    #[test]
+    fn site_cyclic_component_composition_identity_is_a_set_of_components_and_connections() {
+        use crate::identity_laws::{bit_exact, set_laws};
+        let ctx = ExecutionContext::for_tests(37);
+        let identity = |draft: ComponentFeedbackRequest| {
+            prepare_component_feedback(draft, &ctx)
+                .ok()
+                .map(|prepared| prepared.composition_identity())
+        };
+        let base = request();
+        set_laws(&[0_usize, 1], |picked| {
+            let mut draft = request();
+            draft.components = picked.iter().map(|&i| base.components[i].clone()).collect();
+            identity(draft)
+        });
+        set_laws(&[0_usize, 1], |picked| {
+            let mut draft = request();
+            draft.connections = picked.iter().map(|&i| base.connections[i].clone()).collect();
+            identity(draft)
+        });
+        bit_exact(|intercept| {
+            let mut draft = request();
+            draft.components[0].equation.intercept = intercept;
+            identity(draft)
+        });
+    }
+
+    #[test]
+    fn site_cyclic_component_joint_posterior_question_binds_components_fit_and_seed() {
+        use crate::identity_laws::all_distinct;
+        let ctx = ExecutionContext::for_tests(47);
+        let (schedule, outputs, contract, _) = site_fit_inputs("count", "identity");
+        let components = || {
+            let mut draft = request();
+            draft.noise_covariance = vec![0.04, 0.0, 0.0, 0.04];
+            draft.worlds = vec![
+                ComponentFeedbackWorld { clamps: vec![("traffic".into(), 0.0)] },
+                ComponentFeedbackWorld { clamps: vec![("traffic".into(), 1.0)] },
+            ];
+            draft
+        };
+        let identity = |draft: ComponentFeedbackRequest,
+                        schedule: ComponentJointPosteriorSchedule,
+                        ctx: &ExecutionContext| {
+            compile_joint_component_posterior_decision(
+                draft,
+                schedule,
+                outputs.clone(),
+                contract.clone(),
+                ctx,
+            )
+            .expect("compiles")
+            .lowered()
+            .identity()
+        };
+        let mut coupled = components();
+        coupled.connections[0].coefficient = 0.25;
+        let mut prior = schedule.clone();
+        prior.prior_sd = 2.0;
+        all_distinct(&[
+            identity(components(), schedule.clone(), &ctx),
+            identity(coupled, schedule.clone(), &ctx),
+            identity(components(), prior, &ctx),
+            identity(components(), schedule, &ExecutionContext::for_tests(48)),
+        ]);
+    }
+
+    #[test]
+    fn site_cyclic_component_vector_and_bounded_questions_bind_their_parts() {
+        use crate::identity_laws::all_distinct;
+        let ctx = ExecutionContext::for_tests(47);
+        let (schedule, outputs, contract, _) = site_fit_inputs("count", "identity");
+        let (_, _, bounded_contract, bounded_quantities) =
+            site_fit_inputs("dimensionless", "logistic");
+        let inner = |draft: VectorFeedbackRequest, schedule: ComponentJointPosteriorSchedule| {
+            compile_joint_vector_component_posterior_decision(
+                draft,
+                schedule,
+                outputs.clone(),
+                contract.clone(),
+                &ctx,
+            )
+            .expect("compiles")
+        };
+        let mut coupled = site_vector_request();
+        coupled.connections[0].coefficient = 0.25;
+        let mut prior = schedule.clone();
+        prior.prior_sd = 2.0;
+        all_distinct(&[
+            inner(site_vector_request(), schedule.clone()).lowered().identity(),
+            inner(coupled, schedule.clone()).lowered().identity(),
+            inner(site_vector_request(), prior.clone()).lowered().identity(),
+        ]);
+        let bounded =
+            |plan: CompiledJointVectorComponentPosteriorDecision,
+             contract: antecedent_design::decision_contract::DecisionContract| {
+                compile_bounded_component_posterior_decision(
+                    plan,
+                    bounded_quantities.clone(),
+                    contract,
+                )
+                .expect("compiles")
+                .lowered()
+                .identity()
+            };
+        let mut units = bounded_contract.clone();
+        units.utility_units = "probability".into();
+        all_distinct(&[
+            bounded(inner(site_vector_request(), schedule.clone()), bounded_contract.clone()),
+            bounded(inner(site_vector_request(), prior), bounded_contract),
+            bounded(inner(site_vector_request(), schedule), units),
+        ]);
+    }
+
+    #[test]
+    fn site_cyclic_component_composition_ledger_has_a_presence_word() {
+        // A ledger digest whose bytes spell a component name: without a presence word the
+        // released stream of "ledger, then name x" is the stream of "no ledger, then that name,
+        // then x".
+        let digest = SemanticDigest::from_bytes([b'a'; 32]);
+        let name = "a".repeat(32);
+        let stream = |encoding, ledger: Option<&SemanticDigest>, names: &[&str]| {
+            let mut writer = CanonicalWriter::new(COMPOSITION_TAG);
+            write_ledger(&mut writer, encoding, ledger);
+            for component in names {
+                writer.text(component);
+            }
+            writer.finish()
+        };
+        assert_eq!(
+            stream(IdentityEncoding::V1, Some(&digest), &["x"]),
+            stream(IdentityEncoding::V1, None, &[name.as_str(), "x"]),
+            "the released encoding is the defect this test guards against"
+        );
+        assert_ne!(
+            stream(IdentityEncoding::Current, Some(&digest), &["x"]),
+            stream(IdentityEncoding::Current, None, &[name.as_str(), "x"]),
+        );
+        // The production composition identity is versioned: the released encoding is reproduced
+        // only for a recompilation that verifies a released handoff.
+        let ctx = ExecutionContext::for_tests(37);
+        let identity = |encoding| {
+            prepare_component_feedback_inner(request(), None, encoding, &ctx)
+                .expect("connected compiler")
+                .composition_identity()
+        };
+        assert_ne!(identity(IdentityEncoding::Current), identity(IdentityEncoding::V1));
+    }
+
+    #[test]
+    fn site_cyclic_component_wire_digest_is_a_set_of_components_and_connections() {
+        use crate::identity_laws::{ordered_laws, set_laws};
+        let base = ComponentFeedbackWire::from_request(&request());
+        // The compiler refuses a repeated component name or port pair, so a repeat is no input.
+        let distinct =
+            |picked: &[usize]| picked.iter().collect::<BTreeSet<_>>().len() == picked.len();
+        let components = |encoding: IdentityEncoding, picked: &[usize]| {
+            let mut wire = base.clone();
+            wire.components = picked.iter().map(|&i| base.components[i].clone()).collect();
+            distinct(picked).then(|| wire.digest(encoding).expect("encodes"))
+        };
+        let connections = |encoding: IdentityEncoding, picked: &[usize]| {
+            let mut wire = base.clone();
+            wire.connections = picked.iter().map(|&i| base.connections[i].clone()).collect();
+            distinct(picked).then(|| wire.digest(encoding).expect("encodes"))
+        };
+        set_laws(&[0_usize, 1], |picked| components(IdentityEncoding::Current, picked));
+        set_laws(&[0_usize, 1], |picked| connections(IdentityEncoding::Current, picked));
+        // The released digest kept the declared order; a recompilation of a released handoff
+        // reproduces it from the stored wire.
+        ordered_laws(&[0_usize, 1], |picked| components(IdentityEncoding::V1, picked));
+        ordered_laws(&[0_usize, 1], |picked| connections(IdentityEncoding::V1, picked));
+        assert_ne!(
+            components(IdentityEncoding::Current, &[0, 1]),
+            components(IdentityEncoding::V1, &[0, 1])
+        );
+    }
+
+    #[test]
+    fn site_cyclic_component_vector_wire_digest_is_a_set_of_outputs_ports_and_connections() {
+        use crate::identity_laws::set_laws;
+        let base = VectorComponentFeedbackWire::from_request(&site_vector_request());
+        let distinct =
+            |picked: &[usize]| picked.iter().collect::<BTreeSet<_>>().len() == picked.len();
+        set_laws(&[0_usize, 1], |picked| {
+            let mut wire = base.clone();
+            wire.components[0].outputs =
+                picked.iter().map(|&i| base.components[0].outputs[i].clone()).collect();
+            distinct(picked).then(|| wire.digest(IdentityEncoding::Current).expect("encodes"))
+        });
+        set_laws(&[0_usize, 1], |picked| {
+            let mut wire = base.clone();
+            wire.connections = picked.iter().map(|&i| base.connections[i].clone()).collect();
+            distinct(picked).then(|| wire.digest(IdentityEncoding::Current).expect("encodes"))
+        });
+        let ports = ["from_wishlists".to_owned(), "from_traffic".to_owned()];
+        set_laws(&[0_usize, 1], |picked| {
+            let mut wire = base.clone();
+            wire.components[0].outputs[0].consumed_ports =
+                picked.iter().map(|&i| ports[i].clone()).collect();
+            distinct(picked).then(|| wire.digest(IdentityEncoding::Current).expect("encodes"))
+        });
     }
 }

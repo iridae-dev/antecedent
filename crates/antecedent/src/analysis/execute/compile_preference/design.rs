@@ -171,28 +171,7 @@ impl DesignSource {
     /// independent-unit bootstrap resampled, and `None` for the whole-subject refits of a
     /// static-regime design. A law that does not match the declared inference is refused.
     fn resampling_id(&self, unit: Option<IndependentUnit>) -> Result<String, PreferenceRouteError> {
-        let mut writer = CanonicalWriter::new(RESAMPLING_TAG);
-        let kind = match (&self.inference, unit) {
-            (JointDesignInference::StaticRegimeBootstrap { replicates, seed }, None) => {
-                writer.text(STATIC_REGIME_BOOTSTRAP).word(0).word(*replicates as u64).word(*seed);
-                STATIC_REGIME_BOOTSTRAP
-            }
-            (
-                JointDesignInference::IndependentUnitBootstrap { replicates, seed, sampling: _ },
-                Some(unit),
-            ) => {
-                writer
-                    .text(INDEPENDENT_UNIT_BOOTSTRAP)
-                    .word(1)
-                    .text(unit.name())
-                    .word(*replicates as u64)
-                    .word(*seed);
-                INDEPENDENT_UNIT_BOOTSTRAP
-            }
-            // Any other pairing is a law the declared inference does not draw.
-            _ => return Err(law_refusal("the design returned another law".to_owned())),
-        };
-        Ok(format!("{kind}:{}", writer.finish_hex()))
+        resampling_recipe(&self.inference, unit)
     }
 
     /// The arm means, treated arm then control arm, as a mean source over the arm
@@ -760,5 +739,75 @@ mod standing_tests {
         assert_eq!(refit_support(&[1.0, 2.0, f64::INFINITY, 2.5], 2), vec![false, true]);
         // No refit is no evidence.
         assert_eq!(refit_support(&[], 2), vec![false, false]);
+    }
+}
+
+/// The resampling recipe a refit law of `inference` names as its `rng_id`, `unit` being the
+/// unit it resampled (`None` for whole-subject refits): see [`DesignSource::resampling_id`].
+fn resampling_recipe(
+    inference: &JointDesignInference,
+    unit: Option<IndependentUnit>,
+) -> Result<String, PreferenceRouteError> {
+    let mut writer = CanonicalWriter::new(RESAMPLING_TAG);
+    let kind = match (inference, unit) {
+        (JointDesignInference::StaticRegimeBootstrap { replicates, seed }, None) => {
+            writer.text(STATIC_REGIME_BOOTSTRAP).word(0).word(*replicates as u64).word(*seed);
+            STATIC_REGIME_BOOTSTRAP
+        }
+        (
+            JointDesignInference::IndependentUnitBootstrap { replicates, seed, sampling: _ },
+            Some(unit),
+        ) => {
+            writer
+                .text(INDEPENDENT_UNIT_BOOTSTRAP)
+                .word(1)
+                .text(unit.name())
+                .word(*replicates as u64)
+                .word(*seed);
+            INDEPENDENT_UNIT_BOOTSTRAP
+        }
+        // Any other pairing is a law the declared inference does not draw.
+        _ => return Err(law_refusal("the design returned another law".to_owned())),
+    };
+    Ok(format!("{kind}:{}", writer.finish_hex()))
+}
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::identity_laws::all_distinct;
+
+    /// `resampling_recipe`: the recipe's kind, its resampled unit, refits and seed each enter
+    /// in a fixed, framed position; the sampling premise does not change the refits, so it
+    /// enters the decision's identity, not the recipe.
+    #[test]
+    fn site_design_resampling_recipe_names_kind_unit_refits_and_seed() {
+        let regime =
+            |replicates, seed| JointDesignInference::StaticRegimeBootstrap { replicates, seed };
+        let units =
+            |replicates, seed, sampling: &str| JointDesignInference::IndependentUnitBootstrap {
+                replicates,
+                seed,
+                sampling: sampling.to_owned(),
+            };
+        let recipe = |inference: &JointDesignInference, unit| {
+            resampling_recipe(inference, unit).expect("a recipe of the declared inference")
+        };
+        all_distinct(&[
+            recipe(&regime(199, 7), None),
+            recipe(&regime(200, 7), None),
+            recipe(&regime(199, 8), None),
+            recipe(&units(199, 7, "a"), Some(IndependentUnit::Cluster)),
+            recipe(&units(199, 7, "a"), Some(IndependentUnit::Pair)),
+            recipe(&units(199, 7, "a"), Some(IndependentUnit::Sequence)),
+            recipe(&units(200, 7, "a"), Some(IndependentUnit::Pair)),
+            recipe(&units(199, 8, "a"), Some(IndependentUnit::Pair)),
+        ]);
+        assert_eq!(
+            recipe(&units(199, 7, "a"), Some(IndependentUnit::Pair)),
+            recipe(&units(199, 7, "b"), Some(IndependentUnit::Pair)),
+        );
+        assert!(resampling_recipe(&regime(199, 7), Some(IndependentUnit::Pair)).is_err());
+        assert!(resampling_recipe(&units(199, 7, "a"), None).is_err());
     }
 }

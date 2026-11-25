@@ -353,6 +353,20 @@ pub enum DependenceStatus {
     Unknown,
 }
 
+impl DependenceStatus {
+    /// The word a program identity writes for this status. It is the variant's name, the
+    /// text released identities hashed, and it is fixed: a renamed variant keeps its word, and
+    /// a new variant needs a new word here before it compiles.
+    #[must_use]
+    pub const fn identity_word(self) -> &'static str {
+        match self {
+            Self::Independent => "Independent",
+            Self::Dependent => "Dependent",
+            Self::Unknown => "Unknown",
+        }
+    }
+}
+
 /// The dependence contract supported by a set of evidence sources.
 ///
 /// Produced by [`Self::assess`] or by a successful [`Self::try_claim_independent`].

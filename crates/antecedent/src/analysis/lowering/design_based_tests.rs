@@ -420,3 +420,67 @@ fn iv_bounds_refuses_a_law_the_instrument_cannot_produce_and_names_the_next_atte
     assert!(refusal.contains("instrumental inequality"), "{refusal}");
     assert!(refusal.contains("Next attempt"), "{refusal}");
 }
+
+/// The randomized cell's outcome slot names its covariates: the ANCOVA covariates in declared
+/// order (the columns of the fitted design, in that order), a fixed CUPED coefficient's
+/// covariate, or the covariate of a declared same-sample CUPED adjustment. Each declaration is
+/// its own program; an ANCOVA reordering is another program.
+#[test]
+fn site_design_based_randomized_slot_names_its_covariates() {
+    use crate::analysis::randomized_adjustment::RandomizedAdjustment;
+    use crate::identity_laws::{all_distinct, ordered_laws};
+    let n = 12;
+    let column = |scale: f64| (0..n).map(|i| (scale * i as f64).sin()).collect::<Vec<f64>>();
+    let assigned = (0..n).map(|i| i % 2 == 0).collect::<Vec<bool>>();
+    let (x1, x2, x3) = (column(0.17), column(0.11), column(0.07));
+    let y = (0..n).map(|i| x1[i] + f64::from(u8::from(assigned[i]))).collect::<Vec<f64>>();
+    let data = TabularData::from_f64_columns([
+        ("outcome", y.as_slice()),
+        ("baseline", x1.as_slice()),
+        ("other", x2.as_slice()),
+        ("third", x3.as_slice()),
+    ])
+    .unwrap();
+    let labels = |prefix: &str| {
+        (0..n).map(|i| Arc::<str>::from(format!("{prefix}-{i}"))).collect::<Vec<_>>()
+    };
+    let base = antecedent_core::RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0),
+        assigned,
+        vec![0.5; n],
+        labels("unit"),
+        labels("row"),
+        ("control", "treated"),
+    );
+    let program = |query: antecedent_core::RandomizedEffectQuery, adjusted: Option<u32>| {
+        let mut builder = Study::tabular(data.clone()).query(query);
+        if let Some(raw) = adjusted {
+            builder = builder.randomized_adjustment(RandomizedAdjustment::EstimatedCuped {
+                covariate: VariableId::from_raw(raw),
+            });
+        }
+        compiled(&builder.build().unwrap())
+    };
+    let slot_inputs = |program: &LoweredProgram| -> Vec<VariableId> {
+        program.statistical().models()[0].inputs().to_vec()
+    };
+    let plain = program(base.clone(), None);
+    let adjusted_one = program(base.clone(), Some(1));
+    let adjusted_two = program(base.clone(), Some(2));
+    let fixed = program(base.clone().with_fixed_cuped(VariableId::from_raw(1), 1.3), None);
+    assert!(slot_inputs(&plain).is_empty());
+    assert_eq!(slot_inputs(&adjusted_one), [VariableId::from_raw(1)]);
+    assert_eq!(slot_inputs(&adjusted_two), [VariableId::from_raw(2)]);
+    assert_eq!(slot_inputs(&fixed), [VariableId::from_raw(1)]);
+    assert_eq!(program(base.clone(), Some(1)).identity(), adjusted_one.identity(), "stable");
+    all_distinct(&[
+        plain.identity(),
+        adjusted_one.identity(),
+        adjusted_two.identity(),
+        fixed.identity(),
+    ]);
+    let covariates = [1_u32, 2, 3].map(VariableId::from_raw);
+    let ancova = |items: &[VariableId]| program(base.clone().with_ancova(items.to_vec()), None);
+    assert_eq!(slot_inputs(&ancova(&covariates)), covariates, "declared order");
+    ordered_laws(&covariates, |items| Some(ancova(items).identity()));
+}

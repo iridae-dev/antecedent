@@ -20,7 +20,7 @@
 use std::sync::Arc;
 
 use antecedent_contract::ClaimKind;
-use antecedent_core::{CanonicalWriter, ExecutionContext};
+use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 
 use super::choice_inference::{ChoiceInferenceRefusal, ChoiceInferenceSession, ChoiceRequest};
 use super::compiled_measured_interval::{MeasuredIntervalProgram, MeasuredIntervalRun, bayesian};
@@ -99,9 +99,10 @@ fn question_digest(request: &ChoiceRequest, artifact_id: &str) -> Result<[u8; 32
     Ok(writer.finish())
 }
 
-fn source_digest(session: &ChoiceInferenceSession) -> [u8; 32] {
+/// The source: the identity of the validated choice contract the result is replayed from.
+fn source_digest(contract: &SemanticDigest) -> [u8; 32] {
     let mut writer = CanonicalWriter::new("antecedent.choice_result_interval.contract.v1");
-    writer.bytes(session.contract().identity().as_bytes());
+    writer.bytes(contract.as_bytes());
     writer.finish()
 }
 
@@ -117,7 +118,7 @@ fn lower(
         kind: FunctionalKind::Association,
         graph_class: "not_applicable_descriptive_choice_shares",
         question: question_digest(request, artifact_id)?,
-        source: source_digest(session),
+        source: source_digest(&session.contract().identity()),
         source_role: EvidenceRole::Observations,
         realization: bayesian(
             "multinomial_choices_of_exchangeable_respondents",
@@ -215,7 +216,40 @@ impl CompiledChoiceInterval<'_> {
 
 #[cfg(test)]
 mod identity_tests {
-    use super::{ChoiceRequest, question_digest};
+    use antecedent_core::SemanticDigest;
+
+    use super::{ChoiceRequest, question_digest, source_digest};
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
+
+    #[test]
+    fn site_compiled_choice_interval_question_orders_the_shapes_and_frames_the_request() {
+        ordered_laws(&[1.0, 2.0, 4.0], |shapes| {
+            question_digest(&hierarchical(shapes.to_vec(), 0.5), "a").ok()
+        });
+        bit_exact(|mean| question_digest(&hierarchical(vec![1.0, 2.0], mean), "a").ok());
+        bit_exact(|shape| question_digest(&hierarchical(vec![shape, 2.0], 0.5), "a").ok());
+        let stopping = ChoiceRequest::HierarchicalStopping {
+            look: 3,
+            shapes: vec![1.0, 2.0],
+            log_concentration_mean: 0.5,
+            log_concentration_sd: 1.0,
+        };
+        all_distinct(&[
+            question_digest(&ChoiceRequest::Posterior { look: 1 }, "a").expect("encoded"),
+            question_digest(&ChoiceRequest::Stopping { look: 1 }, "a").expect("encoded"),
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "a").expect("encoded"),
+            question_digest(&stopping, "a").expect("encoded"),
+            question_digest(&hierarchical(vec![1.0, 2.0], 0.5), "b").expect("encoded"),
+        ]);
+    }
+
+    #[test]
+    fn site_compiled_choice_interval_source_binds_the_contract_identity() {
+        all_distinct(&[
+            source_digest(&SemanticDigest::from_bytes([0; 32])),
+            source_digest(&SemanticDigest::from_bytes([1; 32])),
+        ]);
+    }
 
     fn hierarchical(shapes: Vec<f64>, log_concentration_mean: f64) -> ChoiceRequest {
         ChoiceRequest::Hierarchical {

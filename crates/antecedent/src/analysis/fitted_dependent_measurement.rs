@@ -588,3 +588,40 @@ impl CompiledFittedDependentMeasurement {
         Ok(live)
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use super::*;
+    use crate::analysis::observation_query::site_tests::{
+        construct_model, dependent_request, measured_pairs, query_of, table_bits,
+    };
+    use crate::identity_laws::{all_distinct, ordered_laws};
+
+    #[test]
+    fn site_fitted_dependent_measurement_question_orders_the_counts() {
+        let prepared = construct_model(0.1);
+        let identity = |counts: &[u64], prior_alpha: f64, draws: u32, seed: u64| {
+            prepared
+                .compile_fitted_dependent_measurement(FittedDependentMeasurementRequest {
+                    observation: dependent_request(&measured_pairs(), &table_bits()),
+                    counts: counts.to_vec(),
+                    prior_alpha,
+                    draws,
+                    seed,
+                })
+                .ok()
+                .map(|plan| query_of(plan.lowered()))
+        };
+        // The counts are the row-major `[construct level][joint indicator cell]` table: a count
+        // is read by its position.
+        let counts = [70_u64, 10, 10, 10, 5, 5, 5, 85];
+        ordered_laws(&counts, |counts: &[u64]| identity(counts, 1.0, 100, 3));
+        all_distinct(&[
+            identity(&counts, 1.0, 100, 3),
+            identity(&counts, 2.0, 100, 3),
+            identity(&counts, 1.0, 101, 3),
+            identity(&counts, 1.0, 100, 4),
+            identity(&[70, 10, 10, 10, 5, 5, 5, 86], 1.0, 100, 3),
+        ]);
+    }
+}

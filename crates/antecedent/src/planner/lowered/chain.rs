@@ -82,9 +82,12 @@ impl ChainProgram {
             writer.texts(&stage.sources);
             match &stage.dependence {
                 Some(dependence) => {
+                    // The status by its fixed identity word, the variant name the released
+                    // identity hashed through `Debug`: the bytes are unchanged, and a renamed
+                    // or added variant can no longer change them silently.
                     writer
                         .word(1)
-                        .text(&format!("{:?}", dependence.status))
+                        .text(dependence.status.identity_word())
                         .texts(&dependence.shared);
                 }
                 None => {

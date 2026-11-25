@@ -719,3 +719,70 @@ impl RetainedLaw {
         Ok((variables, LatentSoftInterventionRefit { baseline, action, mean_difference }))
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::ExecutionContext;
+
+    use super::LatentSoftInterventionRequest;
+    use crate::identity_laws::{bit_exact, ordered_laws, set_laws};
+
+    fn rows(shift: f64) -> Vec<Vec<f64>> {
+        (0..48_u32)
+            .map(|row| {
+                let x = f64::from(row);
+                vec![x, 0.5 * x, x + shift, 0.25 * x, shift]
+            })
+            .collect()
+    }
+
+    /// Five variables whose roots are `a` and `b`.
+    fn request() -> LatentSoftInterventionRequest {
+        LatentSoftInterventionRequest {
+            variables: ["a", "b", "c", "d", "e"].iter().map(|name| (*name).to_owned()).collect(),
+            edges: vec![(0, 2), (1, 2), (2, 3), (3, 4)],
+            context: vec![0, 1],
+            candidates: vec![2, 3, 4],
+            baseline: rows(0.0),
+            action: rows(1.0),
+            population: "units".to_owned(),
+            randomized: true,
+            version_exogenous_given_context: true,
+            seed: 7,
+            refits: 0,
+            search_operations: 100,
+        }
+    }
+
+    /// The source digest of a request preparation accepts, `None` when validation refuses it.
+    fn source(mut request: LatentSoftInterventionRequest) -> Option<[u8; 32]> {
+        let ctx = ExecutionContext::for_tests(7);
+        request.validate(&ctx).ok()?;
+        request.source_digest(&ctx).ok().map(|digest| *digest.as_bytes())
+    }
+
+    #[test]
+    fn site_latent_soft_intervention_source_sets_and_orders() {
+        // The DAG's edges and the shiftable equations are sets: validation sorts them and
+        // refuses a repeat.
+        set_laws(&[(0, 2), (1, 2), (2, 3), (3, 4)], |edges| {
+            source(LatentSoftInterventionRequest { edges: edges.to_vec(), ..request() })
+        });
+        set_laws(&[2, 3, 4], |candidates| {
+            source(LatentSoftInterventionRequest { candidates: candidates.to_vec(), ..request() })
+        });
+        // The context is the forecast's argument order; the variables are the column order.
+        ordered_laws(&[0, 1], |context| {
+            source(LatentSoftInterventionRequest { context: context.to_vec(), ..request() })
+        });
+        ordered_laws(&["a", "b", "c", "d", "e"], |names| {
+            let variables = names.iter().map(|name| (*name).to_owned()).collect();
+            source(LatentSoftInterventionRequest { variables, ..request() })
+        });
+        bit_exact(|value| {
+            let mut declared = request();
+            declared.baseline[0][4] = value;
+            source(declared)
+        });
+    }
+}

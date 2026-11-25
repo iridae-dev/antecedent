@@ -392,31 +392,34 @@ impl JointPanelResult {
 }
 
 /// Everything the joint law depends on, but not the decision utility or candidate programs.
-fn joint_dependency(
+///
+/// Components, their paired (intercept, slope) realizations, the sampling covariance and the
+/// bias bounds are ordered (component `k` is `Input(k)`, realization `s` is draw slot `s`), each
+/// count-prefixed. The joint artifact stores none of this digest: its replay recomputes it from
+/// the retained inputs and its consumer compares two recomputations, so no stored value of the
+/// released encoding is re-checked.
+pub(super) fn joint_dependency(
     source_dependency: SemanticDigest,
     contract_id: &str,
     update: &PanelJointExperimentUpdate,
     weights: &[f64],
 ) -> SemanticDigest {
-    let mut joint = antecedent_core::CanonicalWriter::new("antecedent.joint_panel.joint_update.v1");
+    let mut joint = antecedent_core::CanonicalWriter::new("antecedent.joint_panel.joint_update.v2");
     joint.word(update.components.len() as u64).word(update.sample_size);
     for (i, component) in update.components.iter().enumerate() {
         joint
             .text(&component.bridge.identity().to_hex())
             .text(&component.bridge.target.quantity.functional_id)
             .real(update.observed_means[i]);
+        let pairs = component.mapping.intercepts.len().min(component.mapping.slopes.len());
+        joint.word(pairs as u64);
         for (a, b) in component.mapping.intercepts.iter().zip(&component.mapping.slopes) {
             joint.real(*a).real(*b);
         }
     }
-    for value in &update.sampling_covariance {
-        joint.real(*value);
-    }
+    joint.reals(&update.sampling_covariance);
     if let Some(bounds) = &update.contrast_bias_bounds {
-        joint.word(1);
-        for bound in bounds {
-            joint.real(*bound);
-        }
+        joint.word(1).reals(bounds);
     } else {
         joint.word(0);
     }
@@ -460,11 +463,9 @@ impl PanelJointExperimentResult {
     /// The conditioned law of `component` that a decision or ranking reads. Its identity
     /// binds the component; a component this update did not inform reads no draws.
     fn conditioned(&self, component: usize) -> ConditionedLaw {
-        let mut law = CanonicalWriter::new("antecedent.joint_panel.joint_component_law.v1");
-        law.bytes(self.dependency.as_bytes()).word(component as u64);
         ConditionedLaw {
             program: self.program.identity(),
-            law: SemanticDigest::from_bytes(law.finish()),
+            law: component_law_digest(self.dependency, component),
             bytes: self.laws.get(component).map_or(0, law_bytes),
             experiment: self.update.evidence.experiment,
         }
@@ -961,4 +962,12 @@ impl PanelJointExperimentResult {
         }
         Ok(current)
     }
+}
+
+/// Identity of one component's conditioned law: the joint update's dependency and the
+/// component's index (component `k` is `Input(k)`).
+pub(super) fn component_law_digest(dependency: SemanticDigest, component: usize) -> SemanticDigest {
+    let mut law = CanonicalWriter::new("antecedent.joint_panel.joint_component_law.v1");
+    law.bytes(dependency.as_bytes()).word(component as u64);
+    SemanticDigest::from_bytes(law.finish())
 }

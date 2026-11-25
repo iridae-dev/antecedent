@@ -278,3 +278,83 @@ impl Study {
         Ok(CompiledEvsiProgram { plan, program, request: request.clone(), parent })
     }
 }
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{AverageEffectQuery, CausalSchemaBuilder};
+    use antecedent_data::TabularData;
+    use antecedent_design::AffineUtility;
+
+    use super::*;
+    use crate::identity_laws::all_distinct;
+    use crate::planner::lowered::CarrierDemand;
+    use crate::{BayesianConfig, Dag, InferenceMode, RefuteSuite};
+
+    fn study() -> Study {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("t")
+            .treatment()
+            .continuous("y")
+            .outcome()
+            .build()
+            .unwrap();
+        let columns: [(&str, &[f64]); 2] = [
+            ("t", &[0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0]),
+            ("y", &[1.1, 3.0, 0.9, 3.1, 1.0, 2.9, 1.0, 3.0]),
+        ];
+        let data = TabularData::try_from_schema_f64(schema.clone(), columns).unwrap();
+        let graph = Dag::from_named_edges(&schema, &[("t", "y")]).unwrap();
+        let query =
+            AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
+        Study::tabular(data)
+            .graph(graph)
+            .query(query)
+            .inference(InferenceMode::Bayesian(
+                BayesianConfig::conjugate().n_draws(256).prior_scale(1.0e6),
+            ))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+    }
+
+    /// `parent_over`: the declaration names what the parent answers and the carrier it reads,
+    /// each a framed field beside the child (the plan's program identity) in the parent's
+    /// identity; the parent compiled by `compile_decision_program` is the one rebuilt here.
+    #[test]
+    fn site_compile_decision_program_parent_over_names_the_answer_and_the_carrier() {
+        let ctx = ExecutionContext::for_tests(1);
+        let utility = AffineUtility::new(vec![0.0, -0.5], vec![0.0, 2.0]).unwrap();
+        let problem: DecisionProblem<usize, f64> =
+            DecisionProblem::new(vec![0, 1], Arc::new(utility), vec![]);
+        let request = DecisionCompileRequest::new(CarrierDemand::ParameterPosterior)
+            .with_contract_identity("launch-decision")
+            .with_utility_unit("net_margin");
+        let compiled = study().compile_decision_program(&problem, &request, &ctx).unwrap();
+        let parent = |program: DecisionProgram, answers: &'static str| {
+            parent_over(
+                &compiled.plan,
+                program,
+                (
+                    ProgramCell::ContractAttachedDecision,
+                    answers,
+                    DECISION_TAG,
+                    "compile_decision::score_decision",
+                ),
+            )
+            .unwrap()
+            .identity()
+        };
+        let base = parent(compiled.program.clone(), "attached.study_decision.v1");
+        assert_eq!(base, compiled.program_identity());
+        let mut mean = compiled.program.clone();
+        mean.carrier = CarrierDemand::Mean;
+        all_distinct(&[
+            base,
+            parent(compiled.program.clone(), "attached.study_evsi.v1"),
+            parent(mean, "attached.study_decision.v1"),
+        ]);
+    }
+}

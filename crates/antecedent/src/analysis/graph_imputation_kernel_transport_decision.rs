@@ -1532,4 +1532,129 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    #[allow(clippy::too_many_lines, reason = "one fixture and its comparisons read in order")]
+    fn site_graph_imputation_kernel_transport_decision_question_binds_target_and_resampling() {
+        let mut treatment = Vec::new();
+        let mut outcome = Vec::new();
+        let mut covariate = Vec::new();
+        for row in 0..80 {
+            let x = f64::from(row % 20) / 19.0;
+            let a = f64::from(u8::from(row % 4 == 0 || row % 4 == 3));
+            treatment.push(a);
+            outcome.push(if row % 13 == 0 {
+                f64::NAN
+            } else {
+                0.2 * x + a * (0.5 + 0.5 * x) + 0.1 * f64::from(row % 5)
+            });
+            covariate.push(x);
+        }
+        let table = TabularData::from_f64_columns([
+            ("t", treatment.as_slice()),
+            ("y", outcome.as_slice()),
+            ("x", covariate.as_slice()),
+        ])
+        .unwrap();
+        let ctx = ExecutionContext::for_tests(29);
+        let producer = CompiledGraphImputation::compile(
+            table,
+            &GraphImputationSpec {
+                treatment: VariableId::from_raw(0),
+                outcome: VariableId::from_raw(1),
+                support: GraphSupport::TreatmentRootPreTreatmentCovariates,
+                imputation: ImputationSpec::new()
+                    .with_imputations(2)
+                    .with_iterations(2)
+                    .with_seed(23),
+                domains: Arc::<[u8]>::from(vec![1, 0, 0]),
+                posterior_draws: 100,
+                prior_scale: 1.0,
+                execution_seed: 29,
+            },
+            &ctx,
+        )
+        .unwrap();
+        let source = GraphImputationSource::decode(producer.source_bytes()).unwrap();
+        let target = KernelTransportStandardization {
+            columns: vec![(2, (0..80).map(|row| 0.2 + 0.8 * f64::from(row % 20) / 19.0).collect())],
+            selection_targets: vec![2],
+            source_population: "source".into(),
+            target_population: "target".into(),
+            source_sample: producer.source_identity().to_hex(),
+            target_sample: "independent-continuous-target".into(),
+            source_unit_ids: (0..80).map(|row| format!("source-{row}")).collect(),
+            target_unit_ids: (0..80).map(|row| format!("target-{row}")).collect(),
+            bandwidths: vec![(2, 0.3)],
+            min_kernel_overlap: 0.01,
+        };
+        let quantity = ScientificQuantity {
+            variable_id: "y".into(),
+            variable_name: "target effect".into(),
+            role: QuantityRole::Outcome,
+            units: "score".into(),
+            population_id: "target".into(),
+            regime_id: "do(t=1)-do(t=0)".into(),
+            horizon: 0,
+            functional_id: "average_effect".into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+        let decision = DecisionContract {
+            actions: vec![
+                DecisionAction {
+                    id: "treat".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::Input(0),
+                },
+                DecisionAction {
+                    id: "hold".into(),
+                    kind: ActionKind::External,
+                    inputs: vec![quantity.clone()],
+                    utility: UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
+                },
+            ],
+            utility_units: "score".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: "target".into(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::RequireInvariantBestAction,
+        };
+        let question = |target: &KernelTransportStandardization,
+                        decision: &DecisionContract,
+                        bootstrap: Option<TargetFrameBootstrap>,
+                        cluster: Option<&TargetClusterBootstrap>| {
+            let lowered =
+                lower_outer(&source, target, &quantity, decision, bootstrap, false, cluster)
+                    .ok()?;
+            match lowered.scientific().target() {
+                ProblemTarget::QueryFunctional { query, .. } => Some(*query),
+                _ => None,
+            }
+        };
+        let clusters = |cluster_ids: Vec<String>| TargetClusterBootstrap {
+            replicates: 40,
+            seed: 29,
+            cluster_ids,
+        };
+        let paired: Vec<String> = (0..80).map(|row| format!("cluster-{}", row / 2)).collect();
+        let mut moved = paired.clone();
+        moved.swap(0, 2);
+        let mut bandwidth = target.clone();
+        bandwidth.bandwidths = vec![(2, 0.4)];
+        let mut units = decision.clone();
+        units.utility_units = "points".into();
+        let rows = |replicates: u32, seed: u64| Some(TargetFrameBootstrap { replicates, seed });
+        crate::identity_laws::all_distinct(&[
+            question(&target, &decision, None, None),
+            question(&bandwidth, &decision, None, None),
+            question(&target, &units, None, None),
+            question(&target, &decision, rows(40, 7), None),
+            question(&target, &decision, rows(40, 8), None),
+            question(&target, &decision, None, Some(&clusters(paired))),
+            question(&target, &decision, None, Some(&clusters(moved))),
+        ]);
+    }
 }

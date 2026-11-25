@@ -126,12 +126,18 @@ fn question_digest(request: &ExternalFeedbackFitRequest) -> Result<[u8; 32], Cau
     Ok(writer.finish())
 }
 
+/// The known-regime rows in declared order (the likelihood sums them in that order), each row's
+/// values in dense order and its clamps as a set: the solve replaces each clamped mechanism by
+/// its value, so the clamps are written sorted by variable (a repeated variable is refused by
+/// the kernel when the program runs).
 fn source_digest(rows: &[RegimeRow]) -> [u8; 32] {
-    let mut writer = CanonicalWriter::new("antecedent.external_feedback_fit.rows.v1");
+    let mut writer = CanonicalWriter::new("antecedent.external_feedback_fit.rows.v2");
     writer.word(rows.len() as u64);
     for row in rows {
         writer.reals(&row.values).word(row.clamps.len() as u64);
-        for clamp in &row.clamps {
+        let mut clamps: Vec<_> = row.clamps.iter().collect();
+        clamps.sort_by_key(|clamp| clamp.variable);
+        for clamp in clamps {
             writer.word(clamp.variable as u64).real(clamp.value);
         }
     }
@@ -241,7 +247,46 @@ mod identity_tests {
     use antecedent_estimate::external_cyclic_fit::ExternalFitPolicy;
     use antecedent_model::external_mechanism::{ExternalFeedbackSystem, ExternalFitParameter};
 
-    use super::{ExternalFeedbackFitRequest, question_digest};
+    use antecedent_model::nonlinear_equilibrium::{Clamp, RegimeRow};
+
+    use super::{ExternalFeedbackFitRequest, question_digest, source_digest};
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws, set_laws};
+
+    #[test]
+    fn site_compiled_external_feedback_question_orders_the_fitted_scalars() {
+        ordered_laws(&[0_usize, 1, 2], |equations| {
+            question_digest(&request(vec![1.0], intercepts(equations), 0.1)).ok()
+        });
+        bit_exact(|rate| question_digest(&request(vec![1.0], intercepts(&[0]), rate)).ok());
+        bit_exact(|noise| question_digest(&request(vec![noise], intercepts(&[0]), 0.1)).ok());
+    }
+
+    fn row(values: &[f64], clamps: &[(usize, f64)]) -> RegimeRow {
+        RegimeRow {
+            values: values.to_vec(),
+            clamps: clamps.iter().map(|&(variable, value)| Clamp { variable, value }).collect(),
+        }
+    }
+
+    #[test]
+    fn site_compiled_external_feedback_source_orders_rows_and_sets_clamps() {
+        let rows = [row(&[1.0, 2.0], &[]), row(&[3.0, 4.0], &[(1, 4.0)]), row(&[5.0, 6.0], &[])];
+        ordered_laws(&rows, |ordered| Some(source_digest(ordered)));
+        // The kernel refuses a row that clamps one variable twice.
+        set_laws(&[(0_usize, 1.0), (1, 2.0)], |clamps| {
+            let mut variables: Vec<usize> = clamps.iter().map(|clamp| clamp.0).collect();
+            variables.sort_unstable();
+            variables.dedup();
+            (variables.len() == clamps.len()).then(|| source_digest(&[row(&[1.0, 2.0], clamps)]))
+        });
+        bit_exact(|value| Some(source_digest(&[row(&[1.0, 2.0], &[(0, value)])])));
+        all_distinct(&[
+            source_digest(&[]),
+            source_digest(&[row(&[1.0, 2.0], &[])]),
+            source_digest(&[row(&[1.0, 2.0], &[(0, 1.0)])]),
+            source_digest(&[row(&[1.0, 2.0], &[(1, 1.0)])]),
+        ]);
+    }
 
     fn request(
         noise_covariance: Vec<f64>,

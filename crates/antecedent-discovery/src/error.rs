@@ -56,6 +56,36 @@ pub enum DiscoveryError {
 }
 
 impl DiscoveryError {
+    /// Stable name of the kind of failure (`data`, `stats`, `graph`, `state`, `probability`,
+    /// `unsupported`, `knowledge`, `orientation`, `resource`, `refused`, `cancelled`). Unlike
+    /// the message it never carries an input value, so an identity can bind it; a refusal's
+    /// registered reason code is [`Self::refusal_code`].
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Data(_) => "data",
+            Self::Stats(_) => "stats",
+            Self::Graph(_) => "graph",
+            Self::State(_) => "state",
+            Self::Prob(_) => "probability",
+            Self::Unsupported { .. } => "unsupported",
+            Self::Knowledge(_) => "knowledge",
+            Self::Orientation(_) => "orientation",
+            Self::Resource(_) => "resource",
+            Self::Refused { .. } => "refused",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    /// The registered reason code of a refusal.
+    #[must_use]
+    pub const fn refusal_code(&self) -> Option<&'static str> {
+        match self {
+            Self::Refused { code, .. } => Some(*code),
+            _ => None,
+        }
+    }
+
     /// Fixed unsupported configuration.
     #[must_use]
     pub const fn unsupported(message: &'static str) -> Self {

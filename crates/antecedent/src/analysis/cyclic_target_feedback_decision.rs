@@ -847,4 +847,47 @@ pub(crate) mod tests {
         assert_eq!(replay.decision.chain.identity(), result.decision.chain.identity());
         assert_eq!(replay.decision.decision, result.decision.decision);
     }
+
+    fn query_of(lowered: &LoweredProgram) -> [u8; 32] {
+        match lowered.scientific().target() {
+            ProblemTarget::QueryFunctional { query, .. } => *query,
+            _ => panic!("the program target is a query functional"),
+        }
+    }
+
+    #[test]
+    fn site_cyclic_target_feedback_question_orders_target_units_and_binds_parts() {
+        let compile = |request: CyclicTargetFeedbackRequest, contract: DecisionContract, seed| {
+            let ctx = ExecutionContext::for_tests(seed);
+            compile_cyclic_target_feedback_decision(request, contract, &ctx)
+                .ok()
+                .map(|plan| query_of(plan.lowered()))
+        };
+        // The seeded standardization draws a target row by its index, so the target units are
+        // read in row order.
+        let units = vec![("t0".to_owned(), 0.2), ("t1".to_owned(), 1.4), ("t2".to_owned(), 0.8)];
+        crate::identity_laws::ordered_laws(&units, |units: &[(String, f64)]| {
+            let (mut request, contract) = fixture();
+            request.target.unit_ids = units.iter().map(|(id, _)| id.clone()).collect();
+            request.target.rows = units.iter().map(|(_, value)| vec![*value]).collect();
+            compile(request, contract, 47)
+        });
+        let (request, contract) = fixture();
+        let mut units_changed = contract.clone();
+        units_changed.utility_units = "wishlist_value".into();
+        let mut target_row = request.clone();
+        target_row.target.rows[0][0] = 0.4;
+        let mut sample = request.clone();
+        sample.target.target_sample = "another-frame".into();
+        let mut source_row = request.clone();
+        source_row.source.training[0].values[0] += 0.5;
+        crate::identity_laws::all_distinct(&[
+            compile(request.clone(), contract.clone(), 47),
+            compile(request.clone(), contract.clone(), 48),
+            compile(request, units_changed, 47),
+            compile(target_row, contract.clone(), 47),
+            compile(sample, contract.clone(), 47),
+            compile(source_row, contract, 47),
+        ]);
+    }
 }

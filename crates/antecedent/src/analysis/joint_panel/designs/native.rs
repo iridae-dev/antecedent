@@ -263,9 +263,7 @@ impl PreparedNativeJointDesign {
             .execute_native(&JointDesignInference::Frequentist, ctx)
             .map_err(|error| super::execution_failure(ctx, error))?;
         let identification = summary(&recipe);
-        let mut writer = CanonicalWriter::new("antecedent.compiled_native_joint_design.v1");
-        writer.bytes(&antecedent_io::convert::to_cbor(&recipe).map_err(failure)?);
-        let dependency = SemanticDigest::from_bytes(writer.finish());
+        let dependency = native_dependency(&recipe)?;
         let program = Arc::new(design_lowering::lower(
             DesignInput::Native { identification: &identification, recipe: &recipe },
             dependency,
@@ -1022,6 +1020,16 @@ impl crate::analysis::program_handle::CompiledProgramHandle for PreparedNativeJo
     fn program(&self) -> &std::sync::Arc<crate::planner::lowered::LoweredProgram> {
         &self.program
     }
+}
+
+/// Dependency of a compiled native joint design: the recipe's CBOR wire. Every list in the
+/// recipe is ordered (units, episodes, schedules and rows are read positionally by the native
+/// estimators and their seeded resampling; worlds and targets are reported in declared order),
+/// the recipe holds no hash-ordered map, and CBOR keeps each real's exact bits.
+fn native_dependency(recipe: &JointDesignRecipe) -> Result<SemanticDigest, JointPanelError> {
+    let mut writer = CanonicalWriter::new("antecedent.compiled_native_joint_design.v1");
+    writer.bytes(&antecedent_io::convert::to_cbor(recipe).map_err(failure)?);
+    Ok(SemanticDigest::from_bytes(writer.finish()))
 }
 
 #[cfg(test)]

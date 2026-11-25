@@ -230,3 +230,60 @@ fn site_a_member_is_identified_only_under_the_shared_point_rule() {
         MemberStatus::NotIdentified
     );
 }
+
+fn cyclic_graph(edges: &[(u32, u32)]) -> Option<CyclicMixedGraph> {
+    let mut graph = CyclicMixedGraph::with_variables(3);
+    for &(from, to) in edges {
+        graph.insert_directed(node(from), node(to)).ok()?;
+    }
+    Some(graph)
+}
+
+/// `DeclaredStructure::identity`: candidate graphs and their weights are ordered (members are
+/// enumerated and weighted in candidate order); a cyclic graph's edges are a set
+/// (`CyclicIdentity` writes them sorted); weights enter by their bits.
+#[test]
+fn site_structure_members_declared_identity_orders_candidates_and_sets_cyclic_edges() {
+    let names = ["release", "activity", "w"];
+    let graphs = [dag(&names, &[(0, 1)]), dag(&names, &[(1, 0)]), dag(&names, &[(0, 1), (2, 1)])];
+    let candidates = |order: &[usize], weights: Vec<f64>| {
+        let chosen = order.iter().map(|&i| graphs[i].clone()).collect();
+        DeclaredStructure::candidates(chosen, Some(weights)).identity().ok()
+    };
+    crate::identity_laws::ordered_laws(&[0_usize, 1, 2], |order| {
+        candidates(order, vec![5.0, 3.0, 2.0])
+    });
+    crate::identity_laws::ordered_laws(&[5.0, 3.0, 2.0], |weights| {
+        candidates(&[0, 1, 2], weights.to_vec())
+    });
+    crate::identity_laws::bit_exact(|x| candidates(&[0, 1, 2], vec![x, 3.0, 2.0]));
+
+    let cyclic_names: Vec<String> = names.iter().map(|name| (*name).to_owned()).collect();
+    crate::identity_laws::set_laws(&[(0_u32, 1_u32), (1, 0), (1, 2)], |edges| {
+        DeclaredStructure::cyclic(cyclic_graph(edges)?, cyclic_names.clone(), premises())
+            .identity()
+            .ok()
+    });
+}
+
+/// `member_key`: a member's edges are a set (the graph's canonical identity sorts them, and
+/// a cyclic member's `CyclicIdentity` writes them sorted); each member kind is its own tag.
+#[test]
+fn site_structure_members_member_key_sets_edges_and_tags_kinds() {
+    crate::identity_laws::set_laws(&[(0_u32, 1_u32), (0, 2), (1, 2)], |edges| {
+        let mut graph = Dag::with_variables(3);
+        for &(from, to) in edges {
+            graph.insert_directed(node(from), node(to)).ok()?;
+        }
+        super::member_key(&super::MemberGraph::Dag(graph)).ok()
+    });
+    crate::identity_laws::set_laws(&[(0_u32, 1_u32), (1, 0), (1, 2)], |edges| {
+        super::member_key(&super::MemberGraph::Cyclic(cyclic_graph(edges)?)).ok()
+    });
+    crate::identity_laws::all_distinct(&[
+        super::member_key(&super::MemberGraph::Dag(Dag::with_variables(2))).expect("a key"),
+        super::member_key(&super::MemberGraph::Admg(Admg::with_variables(2))).expect("a key"),
+        super::member_key(&super::MemberGraph::Cyclic(CyclicMixedGraph::with_variables(2)))
+            .expect("a key"),
+    ]);
+}

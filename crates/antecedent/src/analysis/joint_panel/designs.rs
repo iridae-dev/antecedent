@@ -131,6 +131,9 @@ pub struct PreparedJointDesign {
     proof: Arc<JointDesignProof>,
     identification: Arc<CompiledIdentificationProduct>,
     dependency: SemanticDigest,
+    /// The dependency under the released encoding, which a declaration or artifact made
+    /// against a released design names.
+    released_dependency: SemanticDigest,
     point: Arc<JointDesignLaw>,
     /// The program every execution of this design enters.
     program: Arc<LoweredProgram>,
@@ -143,6 +146,8 @@ pub struct JointDesignResult {
     inference: Arc<JointDesignInference>,
     law: Arc<JointDesignLaw>,
     dependency: SemanticDigest,
+    /// [`Self::dependency`] over the released design dependency.
+    released_dependency: SemanticDigest,
     admission: Arc<antecedent_core::execution::AdmissionLease>,
 }
 fn failure(error: impl std::fmt::Display) -> JointPanelError {
@@ -155,12 +160,62 @@ fn check_cancel(ctx: &ExecutionContext) -> Result<(), JointPanelError> {
         Ok(())
     }
 }
+/// Which encoding a design's dependency identity is written in. Every new compile writes
+/// [`DesignEncoding::Current`]; [`DesignEncoding::Released`] reproduces the released bytes
+/// (arms in declared order) so a historical artifact sealed under it still replays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DesignEncoding {
+    /// Longitudinal arms as a set keyed by arm code (sorted by code).
+    Current,
+    /// The released encoding: the proof's CBOR as declared.
+    Released,
+}
+/// The proof as its dependency identity reads it: the same CBOR field layout as
+/// [`JointDesignProof`], with the arm dictionary in the order the encoding chooses.
+#[derive(Serialize)]
+struct ProofIdentityView<'a> {
+    version: u16,
+    recipe: &'a JointDesignRecipe,
+    source_binding: &'a JointDesignSourceBinding,
+    worlds: &'a [JointDesignWorldBinding],
+    longitudinal_arms: Vec<&'a JointDesignArm>,
+}
+/// The dependency identity of a design: its target and its proof. The longitudinal arm
+/// dictionary is a set keyed by arm code (validation refuses a repeated code and every schedule
+/// looks its arm up by code), so the current encoding writes it sorted by code.
 fn identity(
     target: &ScientificTarget,
     proof: &JointDesignProof,
 ) -> Result<SemanticDigest, JointPanelError> {
-    let encoded = antecedent_io::convert::to_cbor(proof).map_err(failure)?;
-    let mut writer = CanonicalWriter::new("antecedent.compiled_joint_design.v1");
+    identity_as(target, proof, DesignEncoding::Current)
+}
+fn identity_as(
+    target: &ScientificTarget,
+    proof: &JointDesignProof,
+    encoding: DesignEncoding,
+) -> Result<SemanticDigest, JointPanelError> {
+    let (tag, encoded) = match encoding {
+        DesignEncoding::Current => {
+            let mut arms: Vec<&JointDesignArm> = proof.longitudinal_arms.iter().collect();
+            arms.sort_by_key(|arm| arm.arm);
+            let view = ProofIdentityView {
+                version: proof.version,
+                recipe: &proof.recipe,
+                source_binding: &proof.source_binding,
+                worlds: &proof.worlds,
+                longitudinal_arms: arms,
+            };
+            (
+                "antecedent.compiled_joint_design.v2",
+                antecedent_io::convert::to_cbor(&view).map_err(failure)?,
+            )
+        }
+        DesignEncoding::Released => (
+            "antecedent.compiled_joint_design.v1",
+            antecedent_io::convert::to_cbor(proof).map_err(failure)?,
+        ),
+    };
+    let mut writer = CanonicalWriter::new(tag);
     writer.bytes(target.identity().as_bytes()).bytes(&encoded);
     Ok(SemanticDigest::from_bytes(writer.finish()))
 }
@@ -727,6 +782,16 @@ impl PreparedJointDesign {
         proof: JointDesignProof,
         ctx: &ExecutionContext,
     ) -> Result<Self, JointPanelError> {
+        Self::compile_as(target, proof, ctx, DesignEncoding::Current)
+    }
+    /// [`Self::compile`] with its dependency identity written in `encoding`: a replay of an
+    /// artifact sealed under the released encoding recompiles under it.
+    pub(crate) fn compile_as(
+        target: ScientificTarget,
+        proof: JointDesignProof,
+        ctx: &ExecutionContext,
+        encoding: DesignEncoding,
+    ) -> Result<Self, JointPanelError> {
         Entry::Public.admit(ctx)?;
         let worlds = validate_design_source(&target, &proof, ctx)?;
         let quote = antecedent_io::convert::to_cbor(&proof).map_err(failure)?.len();
@@ -745,7 +810,8 @@ impl PreparedJointDesign {
         }
         check_cancel(ctx)?;
         let identification = identify_joint_design(&target, &proof, worlds)?;
-        let dependency = identity(&target, &proof)?;
+        let dependency = identity_as(&target, &proof, encoding)?;
+        let released_dependency = identity_as(&target, &proof, DesignEncoding::Released)?;
         let program = Arc::new(design_lowering::lower(
             DesignInput::Worlds {
                 target: &target,
@@ -760,6 +826,7 @@ impl PreparedJointDesign {
             proof: Arc::new(proof),
             identification: Arc::new(identification),
             dependency,
+            released_dependency,
             point: Arc::new(point),
             program,
             _lease: lease,
@@ -851,12 +918,15 @@ impl PreparedJointDesign {
             Arc::new(execute_world_recipe(&self.proof.recipe, &inference, ctx)?)
         };
         let dependency = retained_law_identity(self.dependency, &inference, law.as_ref())?;
+        let released_dependency =
+            retained_law_identity(self.released_dependency, &inference, law.as_ref())?;
         check_cancel(ctx)?;
         Ok(JointDesignResult {
             prepared: self.clone(),
             inference: Arc::new(inference),
             law,
             dependency,
+            released_dependency,
             admission: lease,
         })
     }
@@ -871,6 +941,12 @@ impl JointDesignResult {
     #[must_use]
     pub const fn dependency_identity(&self) -> SemanticDigest {
         self.dependency
+    }
+    /// [`Self::dependency_identity`] under the released design encoding: what an artifact or
+    /// declaration made against the released design names. Equal to it when the design was
+    /// compiled under the released encoding.
+    pub(crate) const fn released_dependency_identity(&self) -> SemanticDigest {
+        self.released_dependency
     }
     /// Typed original scientific and numerical owner.
     #[must_use]
@@ -1117,9 +1193,21 @@ pub(crate) fn replay_joint_design_execution(
     ctx: &ExecutionContext,
     limits: DesignArtifactLimits,
 ) -> Result<JointDesignResult, JointPanelError> {
+    replay_joint_design_execution_as(bytes, ctx, limits, DesignEncoding::Current)
+}
+/// [`replay_joint_design_execution`] with the design's dependency written in `encoding`. The
+/// design artifact stores no dependency, so the law it reproduces does not depend on the
+/// encoding; a reader that compares a dependency it stored elsewhere replays under the encoding
+/// that dependency was sealed in.
+pub(crate) fn replay_joint_design_execution_as(
+    bytes: &[u8],
+    ctx: &ExecutionContext,
+    limits: DesignArtifactLimits,
+    encoding: DesignEncoding,
+) -> Result<JointDesignResult, JointPanelError> {
     let (wire, _lease) = decode_replay(bytes, ctx, limits)?;
     let target = wire.target.to_domain().map_err(failure)?;
-    let prepared = PreparedJointDesign::compile(target, wire.proof, ctx)?;
+    let prepared = PreparedJointDesign::compile_as(target, wire.proof, ctx, encoding)?;
     let result = prepared.execute(wire.inference, ctx)?;
     if result.law.as_ref() != &wire.law {
         return Err(failure(
@@ -1151,7 +1239,12 @@ impl PreparedJointDesign {
     ) -> Result<JointDesignResult, JointPanelError> {
         let (wire, _lease) = decode_replay(bytes, ctx, limits)?;
         let target = wire.target.to_domain().map_err(failure)?;
-        if identity(&target, &wire.proof)? != self.dependency {
+        // A design compiled under the current encoding matches an artifact whose arms are listed
+        // in any order; one recompiled under the released encoding matches its released bytes.
+        if identity(&target, &wire.proof)? != self.dependency
+            && identity_as(&target, &wire.proof, DesignEncoding::Released)?
+                != self.released_dependency
+        {
             return Err(failure(
                 "joint-design artifact does not match caller-current data, target or design premises",
             ));

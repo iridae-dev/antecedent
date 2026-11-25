@@ -429,3 +429,104 @@ fn cyclic_target_feedback_fit_chain_and_decision_replay() {
         &ctx,
     );
 }
+
+/// `bundle` with each node and edge endpoint named `from` renamed to `to`; node bytes and
+/// declared identities are kept.
+fn site_renamed(bundle: &CompositionBundle, renames: &[(&str, &str)]) -> CompositionBundle {
+    let rename = |id: &str| {
+        renames
+            .iter()
+            .find(|(from, _)| *from == id)
+            .map_or_else(|| id.to_owned(), |(_, to)| (*to).to_owned())
+    };
+    let nodes = bundle
+        .nodes()
+        .iter()
+        .map(|node| {
+            let mut node = node.clone();
+            node.id = rename(node.id.as_str());
+            node
+        })
+        .collect();
+    let edges: Vec<(String, String)> = bundle
+        .edges()
+        .iter()
+        .map(|edge| (rename(edge.from.as_str()), rename(edge.to.as_str())))
+        .collect();
+    CompositionBundle::new(nodes, &edges, &BundleLimits::default()).expect("renamed bundle")
+}
+
+#[test]
+fn site_composition_predictive_fit_decision_question_binds_node_names_and_graph() {
+    use crate::identity_laws::all_distinct;
+    let (diagram, query, worlds, decision) = fixture();
+    let rows = TrialIpwRows {
+        unit_ids: (0..80).map(|i| format!("unit-{i}")).collect(),
+        outcomes: (0..80).map(|i| if i < 40 { f64::from(i % 4) } else { 0.0 }).collect(),
+        treatment: (0..80).map(|i| i % 2 == 0).collect(),
+        trial: (0..80).map(|i| i < 40).collect(),
+        selection_probability: vec![0.5; 80],
+        treatment_probability: vec![0.5; 80],
+        draws: 100,
+        seed: 31,
+    };
+    let ctx = ExecutionContext::for_tests(31);
+    let request = TrialIpwPredictiveDecisionRequest {
+        diagram,
+        query,
+        rows,
+        worlds,
+        decision: decision.clone(),
+        independent_potential_outcomes_given_mass: true,
+    };
+    let plan = compile_trial_ipw_predictive_decision(request).unwrap();
+    let result = plan.execute(&ctx).unwrap();
+    let artifact = plan.export(&result, "trial", &ctx).unwrap();
+    let terminal =
+        compile_action_world_chain_decision(result.decision.chain.record().clone(), decision, &ctx)
+            .unwrap();
+    let mut builder = BundleBuilder::new();
+    builder
+        .add_trial_ipw_predictive_fit("fit", &artifact, plan.lowered().identity(), &ctx)
+        .unwrap();
+    builder
+        .add_artifact(
+            Some("chain"),
+            NodeKind::PropagationChain,
+            &result.decision.chain.export().unwrap(),
+        )
+        .unwrap();
+    builder
+        .add_predictive_chain_decision(
+            "decision",
+            &terminal.export(&result.decision, "decision").unwrap(),
+            &ctx,
+        )
+        .unwrap();
+    builder.connect("fit", "chain").unwrap();
+    builder.connect("chain", "decision").unwrap();
+    let bundle = builder.build().unwrap();
+    let identity = |bundle: CompositionBundle, names: [&str; 3]| {
+        let [fit_id, chain_id, decision_id] = names;
+        compile_predictive_fit_decision_bundle(
+            bundle,
+            fit_id,
+            chain_id,
+            decision_id,
+            &ctx,
+            PredictiveFitKind::Trial,
+        )
+        .unwrap()
+        .lowered()
+        .identity()
+    };
+    all_distinct(&[
+        identity(bundle.clone(), ["fit", "chain", "decision"]),
+        identity(site_renamed(&bundle, &[("fit", "fit-b")]), ["fit-b", "chain", "decision"]),
+        identity(site_renamed(&bundle, &[("chain", "chain-b")]), ["fit", "chain-b", "decision"]),
+        identity(
+            site_renamed(&bundle, &[("decision", "decision-b")]),
+            ["fit", "chain", "decision-b"],
+        ),
+    ]);
+}

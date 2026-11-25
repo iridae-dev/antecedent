@@ -20,9 +20,9 @@
 use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
-use antecedent_core::ExecutionContext;
+use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::counterfactual_transport_sampled::{
-    SampledCounterfactualTransportEstimate, SampledTransportRequest,
+    SampledCounterfactualTransportEstimate, SampledRegimeCounts, SampledTransportRequest,
 };
 use antecedent_identify::CounterfactualTransportDerivation;
 use antecedent_io::IoError;
@@ -105,6 +105,38 @@ struct IntervalInput {
     limits: SampledCounterfactualTransportConsumeLimits,
 }
 
+/// The count tables in the kernel's own order: sorted by table key (population, regime and
+/// intervention levels by their bits), then by content identity. The kernel sorts them the same
+/// way before it estimates and refuses two tables of one key, so they are a set.
+fn canonical_tables(tables: &[SampledRegimeCounts]) -> Vec<SampledCountTableWire> {
+    let mut sorted: Vec<&SampledRegimeCounts> = tables.iter().collect();
+    sorted.sort_by_cached_key(|table| (table.key(), table.content_identity()));
+    sorted.into_iter().map(SampledCountTableWire::from_table).collect()
+}
+
+/// Canonical bytes of a compiled interval: the sealed artifact bytes, each expected digest the
+/// replay checks (a presence word, then the text) and every consumer bound the replay enforces.
+/// The replay refuses on a different expectation or a tighter bound, so both are part of the
+/// question, as they are for the measured sampled-recovery replay.
+fn interval_bytes(input: &IntervalInput) -> [u8; 32] {
+    let mut writer =
+        CanonicalWriter::new("antecedent.kernel_program.sampled_counterfactual_transport_interval");
+    writer.bytes(&input.artifact);
+    writer
+        .opt_text(input.expected.premises_digest.as_deref())
+        .opt_text(input.expected.data_digest.as_deref());
+    let limits = &input.limits;
+    writer
+        .word(limits.search.operations as u64)
+        .word(limits.search.depth as u64)
+        .word(limits.search_memory_bytes)
+        .word(limits.evaluation.operations as u64)
+        .word(limits.evaluation.depth as u64)
+        .word(limits.max_tables as u64)
+        .word(limits.max_table_cells as u64);
+    writer.finish()
+}
+
 /// A compiled sampled counterfactual transport estimate: the derivation, the request and the
 /// program that binds them.
 #[derive(Clone, Debug)]
@@ -113,7 +145,7 @@ pub struct CompiledSampledCounterfactualTransport {
 }
 
 /// A compiled interval of a sealed sampled counterfactual transport artifact: the bytes, the
-/// consumer's expected identity and bounds, and the program that binds the bytes.
+/// consumer's expected identity and bounds, and the program that binds them.
 #[derive(Clone, Debug)]
 pub struct CompiledSampledCounterfactualTransportInterval {
     program: KernelProgram<IntervalInput>,
@@ -145,7 +177,7 @@ impl Study {
             },
             catalog: EvidenceCatalogWire::from_catalog(&derivation.catalog),
             derivation: CounterfactualTransportDerivationWire::from_derivation(&derivation),
-            tables: request.tables.iter().map(SampledCountTableWire::from_table).collect(),
+            tables: canonical_tables(&request.tables),
             overlap: SampledOverlapWire::from_declaration(&request.overlap),
             unseen_rule: SampledUnseenRuleWire::from_rule(request.unseen_rule),
             limits: SampledLimitsWire::from_limits(&request.limits),
@@ -172,12 +204,9 @@ impl Study {
         limits: SampledCounterfactualTransportConsumeLimits,
         ctx: &ExecutionContext,
     ) -> Result<CompiledSampledCounterfactualTransportInterval, CausalError> {
-        let program = KernelProgram::compile(
-            &INTERVAL,
-            IntervalInput { artifact: Arc::from(artifact), expected, limits },
-            artifact,
-            ctx,
-        )?;
+        let input = IntervalInput { artifact: Arc::from(artifact), expected, limits };
+        let canonical = interval_bytes(&input);
+        let program = KernelProgram::compile(&INTERVAL, input, &canonical, ctx)?;
         Ok(CompiledSampledCounterfactualTransportInterval { program })
     }
 }
@@ -256,5 +285,90 @@ impl CompiledSampledCounterfactualTransportInterval {
             input.limits,
             ctx,
         )
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use antecedent_core::{RegimeId, SemanticDigest, VariableId};
+    use antecedent_estimate::counterfactual_transport_sampled::{
+        SampledAxis, SampledRegimeCountsParts, SamplingDesign,
+    };
+
+    use super::*;
+    use crate::identity_laws::{all_distinct, set_laws};
+
+    fn table(regime: u32, first: u64) -> SampledRegimeCounts {
+        SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+            population: Arc::from("p"),
+            regime: RegimeId::from_raw(regime),
+            interventions: vec![],
+            axes: vec![SampledAxis { variable: VariableId::from_raw(0), levels: vec![0.0, 1.0] }],
+            counts: vec![first, 4],
+            snapshot_identity: Arc::from("snapshot"),
+            design: SamplingDesign::IndependentUnits,
+            structural_zeros: vec![],
+        })
+        .unwrap()
+    }
+
+    /// The tables of `regimes`, or `None` for a repeated regime, which the kernel refuses (two
+    /// tables of one key).
+    fn tables(regimes: &[u32]) -> Option<Vec<u8>> {
+        let mut seen = regimes.to_vec();
+        seen.sort_unstable();
+        seen.dedup();
+        if seen.len() != regimes.len() {
+            return None;
+        }
+        let tables: Vec<SampledRegimeCounts> = regimes.iter().map(|&r| table(r, 3)).collect();
+        Some(canonical_cbor(&canonical_tables(&tables)).unwrap())
+    }
+
+    /// `compile_sampled_counterfactual_transport` (its `canonical_tables`): the count tables are
+    /// a set, in the kernel's own (key, content identity) order; a changed count is another table.
+    #[test]
+    fn site_sampled_counterfactual_transport_tables_are_a_set() {
+        set_laws(&[0_u32, 1, 2], tables);
+        all_distinct(&[
+            canonical_cbor(&canonical_tables(&[table(0, 3)])).unwrap(),
+            canonical_cbor(&canonical_tables(&[table(0, 5)])).unwrap(),
+        ]);
+    }
+
+    fn interval(
+        artifact: &[u8],
+        premises: Option<&str>,
+        data: Option<&str>,
+        max_tables: usize,
+    ) -> SemanticDigest {
+        let ctx = ExecutionContext::for_tests(0);
+        let expected = SampledCounterfactualTransportExpectedIdentity {
+            premises_digest: premises.map(str::to_owned),
+            data_digest: data.map(str::to_owned),
+        };
+        let limits = SampledCounterfactualTransportConsumeLimits {
+            max_tables,
+            ..SampledCounterfactualTransportConsumeLimits::default()
+        };
+        Study::compile_sampled_counterfactual_transport_interval(artifact, expected, limits, &ctx)
+            .unwrap()
+            .lowered()
+            .identity()
+    }
+
+    /// `compile_sampled_counterfactual_transport_interval` (its `interval_bytes`): the sealed
+    /// bytes are framed, each expected digest the replay checks carries a presence word in its
+    /// own position, and the consumer bounds are read.
+    #[test]
+    fn site_sampled_counterfactual_transport_interval_binds_the_expectation() {
+        all_distinct(&[
+            interval(b"artifact", None, None, 8),
+            interval(b"artifact", Some("d"), None, 8),
+            interval(b"artifact", None, Some("d"), 8),
+            interval(b"artifact", Some(""), None, 8),
+            interval(b"artifact", None, None, 9),
+            interval(b"artifac", None, None, 8),
+        ]);
     }
 }

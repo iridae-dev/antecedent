@@ -33,7 +33,7 @@ use antecedent_identify::{TransportIdentification, TransportIdentifier};
 use super::compiled_point_program::PointProgram;
 use super::declared_learners::{LearnerFactories, calibration_label};
 use super::program_handle::{CompiledProgramHandle, gate_program};
-use super::supplied_identity::{Declaration, SetOf, Wire};
+use super::supplied_identity::{Declaration, SetOf, Wire, encoded};
 use crate::analysis::execute::Study;
 use crate::error::CausalError;
 use crate::planner::lowered::{EvidenceRole, FunctionalKind, LoweredProgram, ProgramCell};
@@ -111,14 +111,17 @@ fn source_digest(input: &TrialAipwInput) -> [u8; 32] {
 /// Digest of the question: the diagram, the query, the options and the declared learners.
 fn question_digest(request: &TrialAipwLearnersRequest) -> Result<[u8; 32], CausalError> {
     let query = antecedent_io::query_wire::transport_query_to_wire(&request.query)?;
-    let mut declaration = Declaration::new("antecedent.trial_aipw_caller_learners.question.v1");
-    declaration
-        .field("causal_graph", request.diagram.causal_graph())
-        .field("selection_targets", &SetOf(request.diagram.selection_targets()))
-        .field("query", &Wire(&query))
-        .field("options", &Wire(&request.options))
-        .callback("caller_learner_pair", Some(request.learners.identity()));
-    Ok(declaration.finish())
+    // A graph without a canonical identity refuses the compile (`encoded`).
+    encoded(PLAN_ID, || {
+        let mut declaration = Declaration::new("antecedent.trial_aipw_caller_learners.question.v1");
+        declaration
+            .field("causal_graph", request.diagram.causal_graph())
+            .field("selection_targets", &SetOf(request.diagram.selection_targets()))
+            .field("query", &Wire(&query))
+            .field("options", &Wire(&request.options))
+            .callback("caller_learner_pair", Some(request.learners.identity()));
+        declaration.finish()
+    })
 }
 
 fn lower(request: &TrialAipwLearnersRequest) -> Result<Arc<LoweredProgram>, CausalError> {
@@ -250,5 +253,106 @@ impl CompiledTrialAipwLearners {
             calibration: "not_measured",
             calibration_label: calibration_label(Some(&request.learners)).unwrap_or_default(),
         })
+    }
+}
+
+#[cfg(test)]
+mod site_tests {
+    use std::sync::Arc;
+
+    use antecedent_core::{
+        ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery, TransportQuery, VariableId,
+    };
+    use antecedent_estimate::{
+        LearnerSpec, LinearSpec, LogisticSpec, TrialAipwInput, TrialAipwOptions, TrialSampling,
+    };
+    use antecedent_graph::{Admg, DenseNodeId, SelectionDiagram};
+    use antecedent_learn::{LearnerFactory, PredictionTask, resolve_for};
+
+    use super::{LearnerFactories, TrialAipwLearnersRequest, question_digest, source_digest};
+    use crate::identity_laws::{all_distinct, bit_exact, ordered_laws, set_laws};
+
+    fn learners(identity: &str) -> LearnerFactories {
+        let outcome: Arc<dyn LearnerFactory> = Arc::from(
+            resolve_for(LearnerSpec::Linear(LinearSpec::default()), PredictionTask::Regression)
+                .expect("a regression learner"),
+        );
+        let membership: Arc<dyn LearnerFactory> = Arc::from(
+            resolve_for(
+                LearnerSpec::Logistic(LogisticSpec::default()),
+                PredictionTask::BinaryProbability,
+            )
+            .expect("a probability learner"),
+        );
+        LearnerFactories::new(outcome, membership, identity).expect("declared learners")
+    }
+
+    fn diagram(selections: &[u32]) -> Option<SelectionDiagram> {
+        let mut graph = Admg::with_variables(3);
+        for (a, b) in [(0, 1), (0, 2), (1, 2)] {
+            graph.insert_directed(DenseNodeId::from_raw(a), DenseNodeId::from_raw(b)).ok()?;
+        }
+        let selections: Vec<VariableId> =
+            selections.iter().copied().map(VariableId::from_raw).collect();
+        SelectionDiagram::try_new(graph, selections).ok()
+    }
+
+    fn query() -> TransportQuery {
+        TransportQuery::new(
+            ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Values(Arc::from([0.0, 1.0])),
+                ),
+            }),
+            "trial",
+            "target",
+            [VariableId::from_raw(0)],
+        )
+    }
+
+    fn input(outcome: &[f64]) -> TrialAipwInput {
+        TrialAipwInput {
+            features: vec![],
+            covariates: vec![],
+            outcome: outcome.to_vec(),
+            treatment: outcome.iter().map(|value| *value > 1.0).collect(),
+            source: vec![true; outcome.len()],
+            randomization: vec![0.5; outcome.len()],
+            sampling: TrialSampling::NestedCohort,
+        }
+    }
+
+    fn question(selections: &[u32], identity: &str, folds: usize) -> Option<[u8; 32]> {
+        let options = TrialAipwOptions { folds, ..TrialAipwOptions::default() };
+        let request = TrialAipwLearnersRequest::new(
+            diagram(selections)?,
+            query(),
+            input(&[1.0, 2.0]),
+            options,
+            learners(identity),
+        );
+        question_digest(&request).ok()
+    }
+
+    #[test]
+    fn site_compiled_trial_aipw_learners_question_sets_the_selections() {
+        set_laws(&[0_u32, 2], |selections| question(selections, "pair", 3));
+        all_distinct(&[
+            question(&[0, 2], "pair", 3).expect("encoded"),
+            question(&[0, 2], "other pair", 3).expect("encoded"),
+            question(&[0, 2], "pair", 4).expect("encoded"),
+            question(&[0], "pair", 3).expect("encoded"),
+        ]);
+    }
+
+    #[test]
+    fn site_compiled_trial_aipw_learners_source_orders_the_rows() {
+        ordered_laws(&[1.0, 2.0, 3.0], |outcome| Some(source_digest(&input(outcome))));
+        bit_exact(|value| Some(source_digest(&input(&[value, 2.0]))));
+        let independent =
+            TrialAipwInput { sampling: TrialSampling::IndependentSamples, ..input(&[1.0, 2.0]) };
+        all_distinct(&[source_digest(&input(&[1.0, 2.0])), source_digest(&independent)]);
     }
 }
