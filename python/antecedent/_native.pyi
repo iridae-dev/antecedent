@@ -6556,6 +6556,7 @@ def prepare_counterfactual_id_native(
     *,
     operations: int = 20_000,
     depth: int = 48,
+    memory_bytes: int | None = None,
     interval_requested: bool = False,
     seed: int = 0,
     cancel: CancellationToken | None = None,
@@ -6564,6 +6565,7 @@ def consume_counterfactual_id_artifact_native(
     artifact: bytes,
     *,
     seed: int = 0,
+    memory_bytes: int | None = None,
     expected_data_digest: str | None = None,
 ) -> tuple[str, bytes]: ...
 
@@ -6677,6 +6679,23 @@ def plan_studies_stage(
     memory_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> StudyPlanStage: ...
+def write_compiled_study(
+    invariant: bytes,
+    roles: Sequence[str],
+    bodies: Sequence[bytes],
+    external_uris: Sequence[str],
+    required: Sequence[bool],
+    summary_only: Sequence[bool],
+    names: Sequence[Sequence[str]],
+    claim: bytes | None = None,
+) -> tuple[bytes, str]: ...
+def open_compiled_study(
+    data: bytes,
+    expected_identity: str,
+    resolved_uris: Sequence[str] | None = None,
+    resolved_bodies: Sequence[bytes] | None = None,
+    caller_supplied: bool = False,
+) -> tuple[str, bytes, list[str], list[bytes]]: ...
 def replay_study_plan(
     artifact: bytes,
     *,
@@ -8078,6 +8097,15 @@ class _CompiledPreferenceDecision:
         memory_bytes: int | None = None,
         cancel: CancellationToken | None = None,
     ) -> tuple[str | None, str | None, JointDistributionArtifact | None]: ...
+    def execute_supplied(
+        self,
+        results: Sequence[object],
+        measure_json: str | None,
+        options_json: str,
+        seed: int | None = None,
+        memory_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> tuple[str | None, str | None, JointDistributionArtifact | None]: ...
 
 def preference_compile_for_study(
     study: PreparedAnalysis,
@@ -8921,6 +8949,7 @@ class CompositionBundleBuilder:
         facts_json: str | None = None,
         inspected_json: str | None = None,
     ) -> str | None: ...
+    def add_producer_reference(self, node_id: str, role: str, data: bytes) -> str | None: ...
     def connect(self, upstream: str, dependent: str) -> str | None: ...
     def relate(self, left: str, right: str, relationship: str) -> tuple[str | None, str | None]: ...
     def build(self) -> tuple[CompositionBundle | None, str | None]: ...
@@ -8947,6 +8976,7 @@ class CompositionBundleBuilder:
         memory_bytes: int | None = None,
     ) -> str | None: ...
 
+def producer_artifact_identity(role: str, data: bytes) -> str: ...
 def consume_composition_bundle(
     data: bytes,
     expected_identity: str,
@@ -8956,6 +8986,8 @@ def consume_composition_bundle(
     max_nodes: int | None = None,
     max_edges: int | None = None,
     max_embedded_bytes: int | None = None,
+    producer_roles: Sequence[str] | None = None,
+    producer_payloads: Sequence[bytes] | None = None,
 ) -> tuple[str | None, str | None]: ...
 def composition_describe_artifact(kind: str, data: bytes) -> tuple[str | None, str | None]: ...
 def composition_mean_decision(

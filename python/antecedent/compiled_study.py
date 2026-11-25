@@ -93,10 +93,16 @@ def open_study(
     """Open ``data`` under ``expected_identity``.
 
     ``resolved`` maps an external URI to the bytes the caller supplies for it.
-    ``caller_supplied`` is the live callback object; the study does not store one.
+    Pass ``saved.expected_identity`` from the original write. A portable study
+    with all required bodies re-executes its estimator. Read ``resumable``
+    and ``unresolved`` before using ``estimate``.
+    ``caller_supplied`` declares whether the caller has provided a live callback.
     """
-    uris = None if resolved is None else list(resolved)
-    payloads = None if resolved is None else [bytes(resolved[uri]) for uri in uris]
+    uris = []
+    payloads = []
+    for uri, payload in (resolved or {}).items():
+        uris.append(uri)
+        payloads.append(bytes(payload))
     status, invariant, roles, bodies = open_compiled_study(
         bytes(data),
         expected_identity,
