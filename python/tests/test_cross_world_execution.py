@@ -14,6 +14,8 @@ import json
 import subprocess
 import sys
 import textwrap
+from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from antecedent import _reason_details as reason_details
@@ -117,6 +119,21 @@ def test_probability_of_necessity_and_coupled_joint_event_match_enumerated_truth
         worlds=(_do("x0", 0), _do("x1", 1)),
         quantity=cw.probability("x0", "y", 0),
     )
+    interval = cw.seal(replace(necessity, reading="interval"))
+    assert interval.refusal.code == "uncertainty_representation_insufficient"
+    assert interval.refusal.detail == "joint_law_propagation.no_interval_construction"
+
+    sealed = require_success(cw.seal(necessity))
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "crates/antecedent-io-core/tests/fixtures/cross_world_execution_v1.bin"
+    )
+    recorded = require_success(
+        cw.consume_cross_world_execution_artifact(fixture.read_bytes(), expected_identity=sealed.identity)
+    )
+    assert sealed.result.label == recorded.inference_claim == "point_only"
+    assert sealed.result.value == recorded.result.value
+    assert sealed.result.receipt == recorded.result.receipt
     out = require_success(executor.execute(necessity))
     brute = _brute_force(
         _response_scm(),

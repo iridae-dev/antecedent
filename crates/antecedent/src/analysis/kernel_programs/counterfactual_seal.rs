@@ -74,6 +74,9 @@ pub struct CompiledGeneralTemporalCounterfactual {
 impl Study {
     /// Compile the finite cross-world execution `request` declares under the
     /// `CrossWorldFiniteExecution` route. Compiling executes nothing.
+    /// Pass `(&request).into()` for a domain-level
+    /// [`FiniteExecutionRequest`](crate::analysis::cross_world_execution::FiniteExecutionRequest).
+    /// Call [`CompiledCrossWorldExecution::seal`] to execute the plan.
     ///
     /// # Errors
     ///

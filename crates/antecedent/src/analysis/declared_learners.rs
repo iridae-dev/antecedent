@@ -198,7 +198,7 @@ pub(crate) fn admit(study: &crate::Study) -> Result<(), CausalError> {
             "learner factories are fitted once on the analysed rows under frequentist inference; \
              refuters, custom validators, a tier background, a discovery split, a weighted \
              target or a shared batch design would refit the built-in learners instead, so \
-             declare none of them with the factories"
+             use .refute(RefuteSuite::None) and omit those declarations"
         ));
     }
     Ok(())

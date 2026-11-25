@@ -407,6 +407,12 @@ fn quantity_of(q: &QuantityWire) -> Result<FiniteQuantity, CrossWorldExecutionAr
     }
 }
 
+impl From<&FiniteExecutionRequest> for CrossWorldRequestWire {
+    fn from(request: &FiniteExecutionRequest) -> Self {
+        request_wire(request)
+    }
+}
+
 /// The declarations of a request as their wire form.
 #[must_use]
 pub fn request_wire(request: &FiniteExecutionRequest) -> CrossWorldRequestWire {

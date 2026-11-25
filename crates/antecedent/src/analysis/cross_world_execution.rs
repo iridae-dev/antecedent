@@ -118,7 +118,7 @@ impl CrossWorldExecution {
     /// refuted evidence), cancellation or a format bound.
     #[deprecated(
         since = "3.1.0",
-        note = "use Study::compile_cross_world_execution and seal the compiled program (the CrossWorldFiniteExecution route), which calls this kernel function with the same request"
+        note = "use Study::compile_cross_world_execution(request.into(), ctx)?.seal(ctx) for the CrossWorldFiniteExecution route"
     )]
     pub fn seal(
         request: &FiniteExecutionRequest,

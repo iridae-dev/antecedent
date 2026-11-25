@@ -11,14 +11,13 @@
 
 use antecedent::Study;
 use antecedent::analysis::cross_world_execution::{
-    CrossWorldExecution, ExogenousInference, ExogenousVariable, FactualUnit,
-    FiniteExecutionRequest, FiniteQuantity, FiniteScm, FiniteVariable, FiniteWorld, NoiseCoupling,
-    WorldRoute,
+    CrossWorldExecution, CrossWorldExecutionArtifactError, ExogenousInference, ExogenousVariable,
+    FactualUnit, FiniteExecutionRequest, FiniteQuantity, FiniteScm, FiniteVariable, FiniteWorld,
+    NoiseCoupling, WorldRoute,
 };
 use antecedent::planner::PlanRoute;
-use antecedent_contract::RequestedReading;
-use antecedent_core::ExecutionContext;
-use antecedent_io_core::cross_world_execution_artifact::request_wire;
+use antecedent::prelude::ExecutionContext;
+use antecedent::scientific::RequestedReading;
 
 fn ctx() -> ExecutionContext {
     ExecutionContext::for_tests(21)
@@ -84,8 +83,18 @@ fn request() -> FiniteExecutionRequest {
 
 #[test]
 fn the_compiled_seal_reproduces_the_direct_seal() {
-    let direct = CrossWorldExecution::seal(&request(), &ctx()).unwrap();
-    let compiled = Study::compile_cross_world_execution(request_wire(&request()), &ctx()).unwrap();
+    let mut request = request();
+    request.reading = RequestedReading::Interval;
+    let compiled = Study::compile_cross_world_execution((&request).into(), &ctx()).unwrap();
+    let Err(CrossWorldExecutionArtifactError::Refused(refusal)) = compiled.seal(&ctx()) else {
+        panic!("an interval without an interval construction must be refused");
+    };
+    assert_eq!(refusal.code, "uncertainty_representation_insufficient");
+    assert_eq!(refusal.detail, "joint_law_propagation.no_interval_construction");
+
+    request.reading = RequestedReading::Point;
+    let direct = CrossWorldExecution::seal(&request, &ctx()).unwrap();
+    let compiled = Study::compile_cross_world_execution((&request).into(), &ctx()).unwrap();
     assert_eq!(compiled.plan_view().route(), PlanRoute::CrossWorldFiniteExecution);
     let sealed = compiled.seal(&ctx()).unwrap();
     assert_eq!(sealed.result().value.to_bits(), direct.result().value.to_bits());

@@ -19,7 +19,6 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(deprecated, reason = "the direct facade path is the oracle this file checks")]
-
 #![allow(
     clippy::float_cmp,
     clippy::too_many_lines,
@@ -725,16 +724,33 @@ fn contribution(
 fn a_transported_synthesis_takes_its_populations_from_the_ledger_identities() {
     let (mut ledger, cohort, carried) = ledger_with_claim();
     let method = TransportedSynthesisMethod::Pool { sampling_covariance: None };
+    let contributions = [contribution(cohort, 1.0, None), contribution(carried, 2.0, Some(0.5))];
+    let mut migrated_ledger = ledger.clone();
+    let migrated = Study::compile_transported_synthesis(
+        &migrated_ledger,
+        "pooled effect",
+        &contributions,
+        &method,
+        Some("registry"),
+        quantity("pooled", "registry"),
+        PROVIDER,
+        &ctx(),
+    )
+    .unwrap()
+    .execute(&mut migrated_ledger, &ctx())
+    .unwrap();
     let built = transported_synthesis_response(
         &mut ledger,
         "pooled effect",
-        &[contribution(cohort, 1.0, None), contribution(carried, 2.0, Some(0.5))],
+        &contributions,
         &method,
         Some("registry"),
         quantity("pooled", "registry"),
         PROVIDER,
     )
     .unwrap();
+    assert_eq!(migrated.response.receipt(), built.response.receipt());
+    assert_eq!(migrated_ledger.state_digest(), ledger.state_digest());
     assert!((point_of(&built.response)[0] - 1.4).abs() < 1e-12);
     assert!((built.evaluation.variance - 0.6).abs() < 1e-12);
 
@@ -903,7 +919,13 @@ fn bridge(claim_population: &str, selection_targets: &[&str]) -> TransportedSurr
 #[test]
 fn a_bridged_terminal_value_is_a_transported_point_in_the_claims_population() {
     let bridge = bridge("children", &["biomarker"]);
-    let built = surrogate_bridge_response(&bridge, &claim(0.8), PROVIDER).unwrap();
+    let claim = claim(0.8);
+    let built = surrogate_bridge_response(&bridge, &claim, PROVIDER).unwrap();
+    let migrated = Study::compile_surrogate_bridge(&bridge, &claim, PROVIDER, &ctx())
+        .unwrap()
+        .execute(&ctx())
+        .unwrap();
+    assert_eq!(migrated.response.receipt(), built.response.receipt());
     assert!((point_of(&built.response)[0] - 0.796).abs() < 1e-12);
     assert!((built.evaluation.value - 0.796).abs() < 1e-12);
 
@@ -920,7 +942,7 @@ fn a_bridged_terminal_value_is_a_transported_point_in_the_claims_population() {
 
     // A different selection diagram at unchanged shape is another transport identity.
     let other =
-        surrogate_bridge_response(&self::bridge("children", &["unrelated"]), &claim(0.8), PROVIDER)
+        surrogate_bridge_response(&self::bridge("children", &["unrelated"]), &claim, PROVIDER)
             .unwrap();
     assert_ne!(other.response.receipt().transport_identities, receipt.transport_identities);
     assert_ne!(other.response.receipt().canonical_identity(), receipt.canonical_identity());

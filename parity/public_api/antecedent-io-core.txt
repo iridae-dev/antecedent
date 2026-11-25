@@ -2319,6 +2319,7 @@ impl core::convert::From<&antecedent_contract::provider_verification::ProviderVe
 impl core::convert::From<&antecedent_contract::quantity::ScientificQuantity> for antecedent_io_core::quantity_wire::ScientificQuantityWire
 impl core::convert::From<&antecedent_core::calibration_basis::CalibrationBasis> for antecedent_io_core::calibration::CalibrationBasisWire
 impl core::convert::From<&antecedent_core::query::policy_value::MultiActionPolicyInputs> for antecedent_io_core::query_wire::MultiActionPolicyInputsWire
+impl core::convert::From<&antecedent_counterfactual::selective::finite_executor::FiniteExecutionRequest> for antecedent_io_core::cross_world_execution_artifact::CrossWorldRequestWire
 impl core::convert::From<&antecedent_io_core::DagWire> for antecedent_io_core::DagJson
 impl core::convert::From<&antecedent_io_core::sensitivity_artifact::JointSensitivityView> for antecedent_io_core::sensitivity_artifact::JointSensitivityView
 impl core::convert::From<&antecedent_model::observation_uncertainty::RedrawPrior> for antecedent_io_core::RedrawPriorWire

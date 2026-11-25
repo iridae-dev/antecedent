@@ -1388,7 +1388,10 @@ impl StudyBuilder {
     /// `DmlAte`, `AipwAte`, `DrLearner` or `CausalForest` with these factories in place of its
     /// built-in nuisance learners, through the estimator's `fit_with_factories` (see
     /// [`crate::analysis::declared_learners`]). [`Self::build`] refuses the declaration on any
-    /// other route, estimator or validation plan.
+    /// other route, estimator or validation plan. Select the estimator with
+    /// [`Self::estimator`] and disable refutation with `refute(RefuteSuite::None)`.
+    /// For the Python learner selector `"dml"`, pass
+    /// `DmlAte::new().with_score(DmlScore::PartiallyLinear)`.
     #[must_use]
     pub fn learner_factories(
         mut self,
