@@ -516,9 +516,23 @@ def _fit_static_ate(
 
 
 _ANALYZE = (
-    "antecedent.analyze(data, graph=edges, query=AverageEffect(treatment, outcome), "
-    "learners=Learners(outcome, treatment), estimator={estimator!r})"
+    "antecedent.analyze(data, graph=edges, query=antecedent.AverageEffect(treatment_name, outcome_name), "
+    "learners=antecedent.external_learners.Learners(outcome, treatment), estimator={estimator!r})"
 )
+
+
+def _study_replacement(
+    estimator: str, score: str = "aipw", *, folds: int = 5, weights: Any = None
+) -> str:
+    selector = "aipw" if estimator == "dml" and score == "aipw" else estimator
+    study = _ANALYZE.format(estimator=selector)
+    if folds != 5 or weights is not None or (estimator == "dml" and score == "aipw"):
+        return (
+            "antecedent.external_learners.analyze_ate with learners=Learners(outcome, treatment) "
+            f"and estimator={estimator!r}, score={score!r}, folds={folds!r}, preserving weights and execution, "
+            f"or {study} for a five-fold unweighted {selector} study"
+        )
+    return study
 
 
 def dml_ate(
@@ -546,7 +560,8 @@ def dml_ate(
     same numbers. This entry keeps the estimator and score arguments.
     """
     _deprecation.compiled_wrapper_deprecated(
-        "antecedent.external_learners.dml_ate", _ANALYZE.format(estimator=estimator)
+        "antecedent.external_learners.dml_ate",
+        _study_replacement(estimator, score, folds=folds, weights=weights),
     )
     return _direct_ate(
         data,
@@ -604,7 +619,7 @@ def aipw_ate(
     Deprecated: :func:`antecedent.analyze` with ``estimator="aipw"`` returns the same numbers.
     """
     _deprecation.compiled_wrapper_deprecated(
-        "antecedent.external_learners.aipw_ate", _ANALYZE.format(estimator="aipw")
+        "antecedent.external_learners.aipw_ate", _study_replacement("aipw", folds=kwargs.get("folds", 5), weights=kwargs.get("weights"))
     )
     return _direct_ate(data, edges, treatment_name, outcome_name, estimator="aipw", **kwargs)
 
@@ -618,7 +633,7 @@ def dr_learner_ate(
     """
     _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.dr_learner_ate",
-        _ANALYZE.format(estimator="dr_learner"),
+        _study_replacement("dr_learner", folds=kwargs.get("folds", 5), weights=kwargs.get("weights")),
     )
     return _direct_ate(data, edges, treatment_name, outcome_name, estimator="dr_learner", **kwargs)
 
@@ -633,7 +648,7 @@ def causal_forest_ate(
     """
     _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.causal_forest_ate",
-        _ANALYZE.format(estimator="causal_forest"),
+        _study_replacement("causal_forest", folds=kwargs.get("folds", 5), weights=kwargs.get("weights")),
     )
     return _direct_ate(
         data, edges, treatment_name, outcome_name, estimator="causal_forest", **kwargs
@@ -661,7 +676,8 @@ def cross_fit_aipw(
     Deprecated: :func:`antecedent.analyze` runs this cross-fit inside the compiled study.
     """
     _deprecation.direct_path_deprecated(
-        "antecedent.external_learners.cross_fit_aipw", _ANALYZE.format(estimator="dml")
+        "antecedent.external_learners.cross_fit_aipw",
+        _ANALYZE.format(estimator="aipw") + " for a causal estimate with study-assigned folds",
     )
     from . import _native
 

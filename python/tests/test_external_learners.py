@@ -669,7 +669,7 @@ def test_direct_entries_name_analyze_and_keep_the_legacy_score():
     ]
     assert messages
     assert all("antecedent.analyze" in message for message in messages)
-    assert all("analyze_ate" not in message for message in messages)
+    assert all("folds=2" in message and "estimator='dml'" in message for message in messages)
 
 
 def test_portable_learners_are_admitted_only_on_artifact_routes():
