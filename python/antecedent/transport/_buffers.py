@@ -57,13 +57,13 @@ def smoothed_buffers(data: Any, names: Any) -> dict[str, Any]:
     if data.sampling_weights is not None:
         declared["sampling_weights"] = _column(data.sampling_weights)
     if data.cluster is not None:
-        declared["cluster"] = cluster_ids(data.cluster)
+        declared["cluster"] = np.asarray(cluster_ids(data.cluster), dtype=np.uint32)
     if data.serial_lag is not None:
         declared["serial_lag"] = int(data.serial_lag)
     return dict(
         _base(data, names),
         dose=_column(data.dose),
         dose_density=_column(data.dose_density),
-        source=_column([bool(value) for value in data.source], boolean=True),
+        source=_column(np.asarray(data.source, dtype=bool), boolean=True),
         **declared,
     )

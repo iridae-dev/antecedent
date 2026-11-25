@@ -18,6 +18,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
+from numpy.typing import NDArray
+
 from . import _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
@@ -961,15 +964,45 @@ def _source(
     outcome: str,
     confounder: str,
     season: str,
-) -> tuple[list[str], list[dict[str, Any]]]:
-    """The declared source column names and each group's columns, in that order."""
+    categorical: Sequence[PanelCategoricalChannel],
+) -> tuple[list[str], list[dict[str, Any]], list[list[NDArray[np.float64] | None]]]:
+    """Split labelled source metadata from numeric buffers, preserving column order."""
     names = list(dict.fromkeys([*channels, outcome, confounder, season]))
+    labels = {declaration["channel"] for declaration in _categorical_declarations(categorical)}
     source = []
+    source_buffers: list[list[NDArray[np.float64] | None]] = []
     for group, columns in groups.items():
         if set(columns) != set(names):
             raise CausalValueError("each group must supply exactly the declared source columns")
-        source.append({"id": group, "columns": [list(columns[name]) for name in names]})
-    return names, source
+        metadata = []
+        buffers: list[NDArray[np.float64] | None] = []
+        for name in names:
+            values = np.asarray(columns[name])
+            if values.ndim != 1:
+                raise CausalValueError(f"panel column {name!r} must be one-dimensional")
+            if name in labels:
+                metadata.append(values.tolist())
+                buffers.append(None)
+                continue
+            if values.dtype.kind not in "biuf" and (
+                values.dtype.kind != "O"
+                or any(
+                    value is not None
+                    and not isinstance(value, (int, float, np.integer, np.floating))
+                    for value in values
+                )
+            ):
+                # Native validates the whole categorical declaration before it reads an
+                # undeclared label column as a candidate numeric column.
+                metadata.append(values.tolist())
+                buffers.append(None)
+                continue
+            numeric = np.asarray(values, dtype=np.float64)
+            metadata.append([])
+            buffers.append(numeric)
+        source.append({"id": group, "columns": metadata})
+        source_buffers.append(buffers)
+    return names, source, source_buffers
 
 
 def dummy_code_panel(
@@ -997,7 +1030,7 @@ def dummy_code_panel(
     fewer than two levels, a channel declared twice, a channel with no label at all, and
     numbers where labels are expected or labels in an undeclared channel.
     """
-    names, source = _source(groups, channels, outcome, confounder, season)
+    names, source, buffers = _source(groups, channels, outcome, confounder, season, categorical)
     declaration = {
         "names": names,
         "channels": list(channels),
@@ -1008,7 +1041,9 @@ def dummy_code_panel(
         "groups": source,
         "categorical": _categorical_declarations(categorical),
     }
-    raw = json.loads(run_panel(execution, _native.dummy_code_joint_panel, _json(declaration)))
+    raw = json.loads(
+        run_panel(execution, _native.dummy_code_joint_panel, _json(declaration), buffers=buffers)
+    )
     return DummyCodedPanel(
         groups={
             unit["id"]: {
@@ -1045,9 +1080,9 @@ def _declaration(
     family: Mapping[str, Any] | None,
     categorical: Sequence[PanelCategoricalChannel],
     gaussian_restriction: bool,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], list[list[NDArray[np.float64] | None]]]:
     """The one native declaration of a panel, shared by plain and imputed preparation."""
-    names, source = _source(groups, channels, outcome, confounder, season)
+    names, source, buffers = _source(groups, channels, outcome, confounder, season, categorical)
     features = []
     for name, expression in interactions.items():
         if not isinstance(expression, Expr):
@@ -1076,7 +1111,7 @@ def _declaration(
     selected = _family_declaration(groups, family)
     if selected is not None:
         declaration["family"] = selected
-    return declaration
+    return declaration, buffers
 
 
 def prepare(
@@ -1145,7 +1180,7 @@ def prepare(
     ``execution`` owns the seed, threads, memory limit and cancellation.
     Neither ``exogenous_context`` nor a finite fit establishes a causal support.
     """
-    declaration = _declaration(
+    declaration, buffers = _declaration(
         groups,
         channels=channels,
         outcome=outcome,
@@ -1165,7 +1200,9 @@ def prepare(
         categorical=categorical,
         gaussian_restriction=gaussian_restriction,
     )
-    return PreparedPanel(run_panel(execution, _native.prepare_joint_panel, _json(declaration)))
+    return PreparedPanel(
+        run_panel(execution, _native.prepare_joint_panel, _json(declaration), buffers=buffers)
+    )
 
 
 def prepare_imputed(
@@ -1212,7 +1249,7 @@ def prepare_imputed(
             "imputation must be an antecedent.missing.ImputationSpec",
             reason_code="invalid_argument",
         )
-    panel = _declaration(
+    panel, buffers = _declaration(
         groups,
         channels=channels,
         outcome=outcome,
@@ -1245,7 +1282,7 @@ def prepare_imputed(
         },
     }
     return PreparedPanelImputation(
-        run_panel(execution, _native.prepare_joint_panel_imputed, _json(request))
+        run_panel(execution, _native.prepare_joint_panel_imputed, _json(request), buffers=buffers)
     )
 
 

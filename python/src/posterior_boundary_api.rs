@@ -15,7 +15,10 @@ use antecedent::analysis::posterior_boundaries::{
     trajectory_hazard_credible_interval, trajectory_survival_bootstrap,
     trajectory_survival_contrast,
 };
+use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
+
+use crate::ingest::snapshot_array;
 
 use crate::{detach_catch, py_err, value_err};
 
@@ -46,6 +49,19 @@ impl Trajectories {
     }
 }
 
+#[allow(clippy::float_cmp, reason = "NumPy boolean coercion treats exactly zero as false")]
+fn trajectory_indicator(column: &Bound<'_, PyAny>) -> PyResult<Vec<bool>> {
+    if let Ok(column) = column.extract::<PyReadonlyArray1<'_, f64>>() {
+        let values: Vec<_> = column.as_array().iter().map(|&value| value != 0.0).collect();
+        crate::ingest::record_input_copy::<bool>(values.len());
+        return Ok(values);
+    }
+    if let Ok(column) = column.extract::<PyReadonlyArray1<'_, bool>>() {
+        return Ok(snapshot_array(&column));
+    }
+    column.extract()
+}
+
 /// Refuse the ordinary-likelihood reading of a temporal response-curve posterior unless the
 /// caller attests independent innovations (`"unmodeled"` or `"independent_innovations"`).
 #[pyfunction]
@@ -72,11 +88,11 @@ fn trajectory_contrast_native(
     py: Python<'_>,
     subjects: usize,
     periods: usize,
-    treatment: Vec<bool>,
-    event: Vec<bool>,
-    at_risk: Vec<bool>,
-    treatment_probability: Vec<f64>,
-    censoring_weight: Vec<f64>,
+    treatment: &Bound<'_, PyAny>,
+    event: &Bound<'_, PyAny>,
+    at_risk: &Bound<'_, PyAny>,
+    treatment_probability: PyReadonlyArray1<'_, f64>,
+    censoring_weight: PyReadonlyArray1<'_, f64>,
     minimum_probability: f64,
     active: Vec<bool>,
     control: Vec<bool>,
@@ -84,11 +100,11 @@ fn trajectory_contrast_native(
     let data = Trajectories {
         subjects,
         periods,
-        treatment,
-        event,
-        at_risk,
-        treatment_probability,
-        censoring_weight,
+        treatment: trajectory_indicator(treatment)?,
+        event: trajectory_indicator(event)?,
+        at_risk: trajectory_indicator(at_risk)?,
+        treatment_probability: snapshot_array(&treatment_probability),
+        censoring_weight: snapshot_array(&censoring_weight),
         minimum_probability,
     };
     detach_catch(py, move || {
@@ -108,11 +124,11 @@ fn trajectory_bootstrap_native(
     py: Python<'_>,
     subjects: usize,
     periods: usize,
-    treatment: Vec<bool>,
-    event: Vec<bool>,
-    at_risk: Vec<bool>,
-    treatment_probability: Vec<f64>,
-    censoring_weight: Vec<f64>,
+    treatment: &Bound<'_, PyAny>,
+    event: &Bound<'_, PyAny>,
+    at_risk: &Bound<'_, PyAny>,
+    treatment_probability: PyReadonlyArray1<'_, f64>,
+    censoring_weight: PyReadonlyArray1<'_, f64>,
     minimum_probability: f64,
     active: Vec<bool>,
     control: Vec<bool>,
@@ -123,11 +139,11 @@ fn trajectory_bootstrap_native(
     let data = Trajectories {
         subjects,
         periods,
-        treatment,
-        event,
-        at_risk,
-        treatment_probability,
-        censoring_weight,
+        treatment: trajectory_indicator(treatment)?,
+        event: trajectory_indicator(event)?,
+        at_risk: trajectory_indicator(at_risk)?,
+        treatment_probability: snapshot_array(&treatment_probability),
+        censoring_weight: snapshot_array(&censoring_weight),
         minimum_probability,
     };
     detach_catch(py, move || {
@@ -157,11 +173,11 @@ fn trajectory_credible_interval_native(
     py: Python<'_>,
     subjects: usize,
     periods: usize,
-    treatment: Vec<bool>,
-    event: Vec<bool>,
-    at_risk: Vec<bool>,
-    treatment_probability: Vec<f64>,
-    censoring_weight: Vec<f64>,
+    treatment: &Bound<'_, PyAny>,
+    event: &Bound<'_, PyAny>,
+    at_risk: &Bound<'_, PyAny>,
+    treatment_probability: PyReadonlyArray1<'_, f64>,
+    censoring_weight: PyReadonlyArray1<'_, f64>,
     minimum_probability: f64,
     active: Vec<bool>,
     control: Vec<bool>,
@@ -169,11 +185,11 @@ fn trajectory_credible_interval_native(
     let data = Trajectories {
         subjects,
         periods,
-        treatment,
-        event,
-        at_risk,
-        treatment_probability,
-        censoring_weight,
+        treatment: trajectory_indicator(treatment)?,
+        event: trajectory_indicator(event)?,
+        at_risk: trajectory_indicator(at_risk)?,
+        treatment_probability: snapshot_array(&treatment_probability),
+        censoring_weight: snapshot_array(&censoring_weight),
         minimum_probability,
     };
     detach_catch(py, move || {

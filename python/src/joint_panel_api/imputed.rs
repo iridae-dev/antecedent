@@ -4,7 +4,10 @@
 //! adds the imputation specification. Rust imputes, fits every completed panel and pools the
 //! response vectors; this module only translates the declaration and the pooled result.
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use super::{Declaration, admit_declaration, compile, context, facade, panel_error};
+use super::{
+    Declaration, SourceBuffers, admit_declaration, bind_source_buffers, compile, context, facade,
+    panel_error,
+};
 use antecedent::data::{ImputationDomain, ImputationModel, ImputationSpec, MissingnessAssumption};
 use antecedent::estimate::multiple_imputation::PooledVectorEstimate;
 use pyo3::prelude::*;
@@ -183,10 +186,11 @@ fn result_json(result: &facade::JointPanelImputedResult) -> serde_json::Value {
 
 /// Prepare a multiple-imputation analysis of a panel with missing outcomes or confounders.
 #[pyfunction]
-#[pyo3(signature=(request_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+#[pyo3(signature=(request_json,*,buffers=None,seed=0,threads=1,max_bytes=None,cancel=None))]
 fn prepare_joint_panel_imputed(
     py: Python<'_>,
     request_json: &str,
+    buffers: Option<SourceBuffers<'_>>,
     seed: u64,
     threads: u32,
     max_bytes: Option<u64>,
@@ -194,8 +198,9 @@ fn prepare_joint_panel_imputed(
 ) -> PyResult<PyPreparedJointPanelImputation> {
     let ctx = context(seed, threads, max_bytes, cancel)?;
     let _input = admit_declaration(&ctx, request_json)?;
-    let request: Request =
+    let mut request: Request =
         serde_json::from_str(request_json).map_err(|error| crate::value_err(error.to_string()))?;
+    let _buffers = bind_source_buffers(&mut request.panel.groups, buffers, &ctx)?;
     crate::detach_catch(py, || {
         let (spec, domains) = request.imputation.native()?;
         let compiled = compile(request.panel)?;

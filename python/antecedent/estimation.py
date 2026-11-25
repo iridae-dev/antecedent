@@ -2414,7 +2414,10 @@ class _PreparedEngine(Generic[ResultT]):
 
         if isinstance(query, TEMPORAL_DESIGN_QUERIES):
             names, columns, design = temporal_design_payload(data, query)
-            if design != self._design_columns:
+            if self._design_columns is None or any(
+                design[key] != self._design_columns[key]
+                for key in ("units", "period_identity", "spec", "buffer_identity")
+            ):
                 raise CausalUnsupportedError(
                     "a temporal-design refresh requires the prepared units, periods and "
                     "recorded assignment law",

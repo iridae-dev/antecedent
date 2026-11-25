@@ -186,6 +186,28 @@ pub fn observe<T, E>(
     antecedent_core::execution_attempt::observe_with_context(ctx, execute)
 }
 
+/// Record a numeric input snapshot copied by a language binding.
+#[doc(hidden)]
+pub fn record_input_copy(bytes: u64) {
+    use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
+    record_physical(PhysicalEvent::Copy, 1);
+    record_physical(PhysicalEvent::CopiedBytes, bytes);
+}
+
+/// Total observed bytes copied at instrumented execution boundaries.
+#[doc(hidden)]
+#[must_use]
+pub fn copied_bytes(report: &antecedent_core::execution_attempt::AttemptReport) -> Option<u64> {
+    report.physical(antecedent_core::execution_attempt::PhysicalEvent::CopiedBytes)
+}
+
+/// Total observed copies at instrumented execution boundaries.
+#[doc(hidden)]
+#[must_use]
+pub fn copies(report: &antecedent_core::execution_attempt::AttemptReport) -> Option<u64> {
+    report.physical(antecedent_core::execution_attempt::PhysicalEvent::Copy)
+}
+
 /// Observation scope captured on one thread so work dispatched to another thread is counted.
 #[derive(Clone)]
 pub struct ObservationToken(antecedent_core::execution_attempt::ObservationToken);

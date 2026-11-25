@@ -535,6 +535,18 @@ fn panel_followup(
     Ok(PanelFollowup { availability, levels, outcome, confounder, excluded })
 }
 
+fn panel_values(
+    series: &antecedent_data::TimeSeriesData,
+    id: antecedent_core::VariableId,
+) -> Result<std::borrow::Cow<'_, [f64]>, JointPanelError> {
+    // A native float column already stores NaN under its invalid rows. The
+    // follow-up adapter handles those sentinels together with the analysis mask.
+    match series.float64_slice(id) {
+        Ok(values) => Ok(std::borrow::Cow::Borrowed(values)),
+        Err(_) => series.float64_cow(id).map_err(JointPanelError::compile),
+    }
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one unit's masks, missing cells, weights and rows are read and accounted together"
@@ -572,14 +584,11 @@ fn adapt_group(
         ));
     }
     writer.word(u64::from(unit.unit_id)).word(interval).bytes(&series.storage().content_digest());
-    let channel_values = c
-        .channels
-        .iter()
-        .map(|&id| series.float64_cow(id).map_err(JointPanelError::compile))
-        .collect::<Result<Vec<_>, _>>()?;
-    let y = series.float64_cow(c.outcome).map_err(JointPanelError::compile)?;
-    let z = series.float64_cow(c.confounder).map_err(JointPanelError::compile)?;
-    let season = series.float64_cow(c.season).map_err(JointPanelError::compile)?;
+    let channel_values =
+        c.channels.iter().map(|&id| panel_values(series, id)).collect::<Result<Vec<_>, _>>()?;
+    let y = panel_values(series, c.outcome)?;
+    let z = panel_values(series, c.confounder)?;
+    let season = panel_values(series, c.season)?;
 
     let (masked_rows, missing_cells) =
         missing_panel_rows(series, &channel_values, (&y, &z, &season), prefix);

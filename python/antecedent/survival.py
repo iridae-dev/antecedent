@@ -26,6 +26,7 @@ from numbers import Integral, Real
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from . import _deprecation, _direct_status
 from ._columns import coerce_fields
@@ -36,16 +37,15 @@ from .errors import CausalValueError
 from .observation import IndependentGiven
 
 
-def _binary(values: Sequence[Any], name: str) -> list[bool]:
-    result: list[bool] = []
-    for value in values:
-        if isinstance(value, (bool, np.bool_)) or (
-            isinstance(value, (int, float, np.integer, np.floating)) and value in (0, 1)
-        ):
-            result.append(bool(value))
-        else:
-            raise CausalValueError(f"{name} values must be bool or encoded as 0/1")
-    return result
+def _binary(values: Any, name: str) -> NDArray[np.float64]:
+    array = np.asarray(values)
+    if array.ndim != 1:
+        raise CausalValueError(f"{name} values must be a one-dimensional column")
+    if array.dtype.kind not in "biuf" and not all(
+        isinstance(value, (bool, np.bool_, int, float, np.integer, np.floating)) for value in array
+    ):
+        raise CausalValueError(f"{name} values must be bool or encoded as 0/1")
+    return np.asarray(array, dtype=np.float64)
 
 
 def _validate_entry_contract(
@@ -608,10 +608,12 @@ def _estimate_survival_ipcw_direct(
         if name not in names:
             raise CausalValueError(f"required survival column {name!r} is missing")
     duration = np.asarray(columns[names.index(query.duration)], dtype=np.float64)
-    events = _binary(list(columns[names.index(query.event_observed)]), "event_observed")
-    treatment = _binary(list(columns[names.index(query.treatment)]), "treatment")
+    events = _binary(columns[names.index(query.event_observed)], "event_observed")
+    treatment = _binary(columns[names.index(query.treatment)], "treatment")
     grid = np.asarray(times, dtype=np.float64)
     g = np.asarray(censoring_survival, dtype=np.float64)
+    if grid.ndim != 1:
+        raise CausalValueError("times must be a one-dimensional grid")
     if g.ndim != 2 or g.shape[0] != len(duration):
         raise CausalValueError("censoring_survival must be a subjects-by-times matrix")
     if not np.isfinite(minimum_probability) or not 0 < minimum_probability <= 1:
@@ -630,7 +632,7 @@ def _estimate_survival_ipcw_direct(
             duration,
             events,
             treatment,
-            grid if grid.ndim == 1 else grid.tolist(),
+            grid,
             g,
             float(query.tau),
             float(minimum_probability),
@@ -649,6 +651,37 @@ def _estimate_survival_ipcw_direct(
         minrisk_control,
         minrisk_treated,
     )
+
+
+def _cause_array(values: Any) -> NDArray[np.float64] | NDArray[np.int64]:
+    array = np.asarray(values)
+    invalid_code = "event_cause values must be non-negative integer codes; zero denotes censoring"
+    invalid_range = "event_cause values must fit in non-negative 64-bit integer codes"
+    if array.ndim != 1:
+        raise CausalValueError(invalid_code)
+    if array.dtype.kind == "f":
+        return np.asarray(array, dtype=np.float64)
+    if array.dtype.kind in "iu":
+        if array.dtype.kind == "u" and (array > np.iinfo(np.int64).max).any():
+            raise CausalValueError(invalid_range)
+        return np.asarray(array, dtype=np.int64)
+
+    def code(value: Any) -> int:
+        if isinstance(value, (bool, np.bool_)) or not (
+            isinstance(value, (int, np.integer))
+            or (
+                isinstance(value, (float, np.floating))
+                and np.isfinite(value)
+                and value.is_integer()
+            )
+        ):
+            raise CausalValueError(invalid_code)
+        result = int(value)
+        if result < 0 or result > np.iinfo(np.int64).max:
+            raise CausalValueError(invalid_range)
+        return result
+
+    return np.fromiter((code(value) for value in array), dtype=np.int64, count=len(array))
 
 
 def estimate_cumulative_incidence_ipcw(
@@ -718,38 +751,21 @@ def _estimate_cumulative_incidence_ipcw_direct(
         )
     if query.delayed_entry is not None:
         raise CausalValueError("IPCW cumulative incidence currently refuses delayed-entry queries")
-    names, columns = as_columns(data)
+    names, columns = as_columns(data, native_dtypes=True)
     for name in (query.duration, query.event_cause, query.treatment):
         if name not in names:
             raise CausalValueError(f"required competing-risks column {name!r} is missing")
     duration = np.asarray(columns[names.index(query.duration)], dtype=np.float64)
-    raw_causes = list(columns[names.index(query.event_cause)])
-    treatment = _binary(list(columns[names.index(query.treatment)]), "treatment")
-    if len(raw_causes) != len(duration):
+    causes = _cause_array(columns[names.index(query.event_cause)])
+    treatment = _binary(columns[names.index(query.treatment)], "treatment")
+    if len(causes) != len(duration):
         raise CausalValueError(
             "duration, event_cause, and treatment columns must have equal lengths"
         )
-    causes: list[int] = []
-    for value in raw_causes:
-        if isinstance(value, (bool, np.bool_)):
-            raise CausalValueError(
-                "event_cause values must be non-negative integer codes; zero denotes censoring"
-            )
-        if isinstance(value, (int, np.integer)) or (
-            isinstance(value, (float, np.floating)) and np.isfinite(value) and value.is_integer()
-        ):
-            code = int(value)
-        else:
-            raise CausalValueError(
-                "event_cause values must be non-negative integer codes; zero denotes censoring"
-            )
-        if code < 0 or code > np.iinfo(np.int64).max:
-            raise CausalValueError(
-                "event_cause values must fit in non-negative 64-bit integer codes"
-            )
-        causes.append(code)
     g = np.asarray(censoring_survival, dtype=np.float64)
     grid = np.asarray(times, dtype=np.float64)
+    if grid.ndim != 1:
+        raise CausalValueError("times must be a one-dimensional grid")
     if g.ndim != 2 or g.shape[0] != len(duration):
         raise CausalValueError("censoring_survival must be a subjects-by-times matrix")
     if not np.isfinite(minimum_probability) or not 0 < minimum_probability <= 1:
@@ -760,7 +776,7 @@ def _estimate_cumulative_incidence_ipcw_direct(
                 duration,
                 causes,
                 treatment,
-                grid if grid.ndim == 1 else grid.tolist(),
+                grid,
                 g,
                 float(query.tau),
                 int(query.target_cause),

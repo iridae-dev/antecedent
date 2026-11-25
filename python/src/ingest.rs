@@ -8,6 +8,34 @@
 )]
 use crate::*;
 
+/// Detach one numeric column from Python ownership, preserving logical row order.
+pub(crate) fn snapshot_array<T: numpy::Element + Copy>(array: &PyReadonlyArray1<'_, T>) -> Vec<T> {
+    let values = match array.as_slice() {
+        Ok(slice) => slice.to_vec(),
+        Err(_) => array.as_array().iter().copied().collect(),
+    };
+    record_input_copy::<T>(values.len());
+    values
+}
+
+/// Detach directly into the shared slice retained by native callers.
+pub(crate) fn snapshot_shared<T: numpy::Element + Copy>(
+    array: &PyReadonlyArray1<'_, T>,
+) -> Arc<[T]> {
+    let values = match array.as_slice() {
+        Ok(slice) => Arc::from(slice),
+        Err(_) => array.as_array().iter().copied().collect(),
+    };
+    record_input_copy::<T>(values.len());
+    values
+}
+
+pub(crate) fn record_input_copy<T>(elements: usize) {
+    let bytes = u64::try_from(elements.saturating_mul(size_of::<T>())).unwrap_or(u64::MAX);
+    crate::execution_attempt_api::record_input_copy(bytes);
+    antecedent::execution::record_input_copy(bytes);
+}
+
 /// Result of the conversion probe (same Arrow→tabular path as analyze/discover).
 #[pyclass]
 pub(crate) struct ArrowLoadInfo {

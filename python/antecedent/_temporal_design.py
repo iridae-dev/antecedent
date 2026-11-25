@@ -10,11 +10,15 @@ The public names are re-exported by :mod:`antecedent.temporal_designs`.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass
 from typing import Any
+
+import numpy as np
+from numpy.typing import NDArray
 
 from ._data import ingest_columns, read_columns
 from .errors import CausalValueError
@@ -577,18 +581,23 @@ def describe_temporal_design(estimate: TemporalDesignEstimate) -> str:
 # -- design binding ------------------------------------------------------------------------
 
 
-def _binary(values: Any, what: str) -> list[bool]:
-    out = []
-    for value in values:
-        number = float(value)
-        if number not in (0.0, 1.0):
-            raise CausalValueError(f"{what} must be 0/1; got {value!r}")
-        out.append(number == 1.0)
-    return out
+def _binary(values: Any, what: str) -> NDArray[np.bool_] | NDArray[np.float64]:
+    raw = np.asarray(values)
+    if raw.dtype == np.dtype(bool):
+        return raw
+    numbers = np.asarray(raw, dtype=np.float64)
+    invalid = ~((numbers == 0.0) | (numbers == 1.0))
+    if invalid.any():
+        value = raw[np.flatnonzero(invalid)[0]]
+        raise CausalValueError(f"{what} must be 0/1; got {value!r}")
+    return numbers
 
 
-def _numbers(values: Any) -> list[float]:
-    return [float(value) for value in values]
+def _numbers(values: Any) -> NDArray[np.float64]:
+    numbers = np.asarray(values, dtype=np.float64)
+    if not np.isfinite(numbers).all():
+        raise CausalValueError("temporal assignment columns must be finite")
+    return numbers
 
 
 def _label(value: Any) -> str:
@@ -598,14 +607,37 @@ def _label(value: Any) -> str:
     return str(int(number)) if number.is_integer() else str(number)
 
 
-def _periods(values: Any) -> list[int]:
-    out = []
-    for value in values:
-        number = float(value)
-        if not number.is_integer():
-            raise CausalValueError(f"period must be an integer; got {value!r}")
-        out.append(int(number))
-    return out
+def temporal_period_buffer(values: Any) -> NDArray[np.float64] | NDArray[np.int64]:
+    periods = np.asarray(values)
+    if periods.ndim != 1:
+        raise CausalValueError("periods must be a one-dimensional column")
+    if periods.dtype.kind in "biu":
+        if periods.dtype.kind == "u" and (periods > np.iinfo(np.int64).max).any():
+            raise CausalValueError("periods must fit in signed 64-bit integers")
+        return np.asarray(periods, dtype=np.int64)
+    return np.asarray(periods, dtype=np.float64)
+
+
+def _buffer_identity(column: NDArray[Any], dtype: Any = None) -> tuple[tuple[int, ...], str, bytes]:
+    canonical = column.dtype if dtype is None else np.dtype(dtype)
+    if column.dtype == canonical and column.flags.c_contiguous:
+        return column.shape, canonical.str, hashlib.blake2b(column.data).digest()
+    # Hash the recorded values on their native query scale, without rebuilding
+    # a complete numeric column just to compare the law at refresh.
+    digest = hashlib.blake2b()
+    with (
+        np.errstate(invalid="ignore", over="ignore"),
+        np.nditer(
+            column,
+            flags=["external_loop", "buffered", "zerosize_ok"],
+            op_dtypes=[canonical],
+            casting="unsafe",
+            buffersize=4096,
+        ) as chunks,
+    ):
+        for chunk in chunks:
+            digest.update(np.ascontiguousarray(chunk).data)
+    return column.shape, canonical.str, digest.digest()
 
 
 def _spec(query: Any, raw: Mapping[str, Any]) -> dict[str, Any]:
@@ -627,8 +659,8 @@ def _spec(query: Any, raw: Mapping[str, Any]) -> dict[str, Any]:
         columns = [_numbers(raw[name]) for name in query.probabilities]
         return {
             "design": "multi_arm",
-            "assignment": assignment,
-            "probabilities": [list(row) for row in zip(*columns, strict=True)],
+            "assignment": np.asarray(assignment, dtype=np.uintp),
+            "probabilities": tuple(columns),
             "arms": arms,
             "categorical": bool(query.categorical),
             "ordered": bool(query.ordered),
@@ -705,6 +737,56 @@ def _numeric_columns(query: Any) -> tuple[str, ...]:
     return (query.outcome,)
 
 
+def _wire_spec(spec: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    metadata = dict(spec)
+    buffers = {}
+    for key, value in spec.items():
+        if isinstance(value, np.ndarray) or (key == "probabilities" and isinstance(value, tuple)):
+            buffers[key] = value
+        else:
+            continue
+        metadata[key] = []
+    return metadata, buffers
+
+
+def temporal_design_spec_payload(
+    spec: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read the direct route's explicit probability and assignment arrays."""
+    design = spec.get("design")
+    if not isinstance(design, str):
+        return dict(spec), {}
+    numeric_fields = {
+        "two_arm": ("probability",),
+        "factorial": ("first_probability", "second_probability"),
+        "interference": ("probability",),
+        "dose": ("dose", "density"),
+    }
+    binary_fields = {
+        "two_arm": ("assignment",),
+        "factorial": ("first", "second"),
+        "interference": ("assignment",),
+    }
+    bound = dict(spec)
+    for key in numeric_fields.get(design, ()):
+        if key in bound:
+            bound[key] = _numbers(bound[key])
+    for key in binary_fields.get(design, ()):
+        if key in bound:
+            bound[key] = _binary(np.asarray(bound[key]), key)
+    if design == "multi_arm" and "assignment" in bound and "probabilities" in bound:
+        assignment = np.asarray(bound["assignment"])
+        if assignment.dtype.kind not in "iu" or np.any(assignment < 0):
+            raise CausalValueError("multi-arm assignments must be nonnegative integer indices")
+        probabilities = _numbers(bound["probabilities"])
+        if probabilities.ndim != 2:
+            raise CausalValueError("multi-arm probabilities must be a rectangular row table")
+        bound["assignment"] = assignment.astype(np.uintp, copy=False)
+        # Native packs these columns into its row-major probability buffer.
+        bound["probabilities"] = tuple(probabilities.T)
+    return _wire_spec(bound)
+
+
 def temporal_design_payload(data: Any, query: Any) -> tuple[list[str], list[Any], dict[str, Any]]:
     """Numeric outcome (and survival) columns; units, periods and the design as metadata."""
     numeric = tuple(dict.fromkeys(_numeric_columns(query)))
@@ -713,10 +795,23 @@ def temporal_design_payload(data: Any, query: Any) -> tuple[list[str], list[Any]
     units = tuple(_label(value) for value in raw[query.unit])
     if any(not unit.strip() for unit in units):
         raise CausalValueError("unit labels must be non-empty")
+    spec, buffers = _wire_spec(_spec(query, raw))
+    identities = []
+    binary_fields = {"assignment", "first", "second"} if spec["design"] != "multi_arm" else set()
+    for key, value in buffers.items():
+        columns_in_buffer = value if isinstance(value, tuple) else (value,)
+        dtype = np.bool_ if key in binary_fields else None
+        identities.append(
+            (key, tuple(_buffer_identity(column, dtype) for column in columns_in_buffer))
+        )
+    periods = temporal_period_buffer(raw[query.period])
     design = {
         "units": units,
-        "periods": tuple(_periods(raw[query.period])),
-        "spec": json.dumps(_spec(query, raw), allow_nan=False),
+        "periods": periods,
+        "period_identity": _buffer_identity(periods, np.int64),
+        "spec": json.dumps(spec, allow_nan=False),
+        "buffers": buffers,
+        "buffer_identity": tuple(identities),
     }
     names, columns = ingest_columns({name: raw[name] for name in numeric}, native_dtypes=True)
     return names, columns, design

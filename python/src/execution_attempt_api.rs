@@ -2,6 +2,51 @@
 use antecedent::analysis::recalc_attempt::{Operation, execute_with_attempt};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
+use std::cell::Cell;
+
+#[derive(Clone, Copy, Default)]
+struct InputCopies {
+    count: u64,
+    bytes: u64,
+}
+
+thread_local! {
+    static INPUT_COPIES: Cell<Option<InputCopies>> = const { Cell::new(None) };
+}
+
+// NumPy snapshots run synchronously while attached to Python, before their
+// owning buffers can be handed to a native worker.
+pub(crate) fn record_input_copy(bytes: u64) {
+    INPUT_COPIES.with(|cell| {
+        if let Some(totals) = cell.get() {
+            cell.set(Some(InputCopies { count: totals.count + 1, bytes: totals.bytes + bytes }));
+        }
+    });
+}
+
+struct InputCopyScope(Option<InputCopies>);
+
+impl InputCopyScope {
+    fn enter() -> Self {
+        Self(INPUT_COPIES.with(|cell| cell.replace(Some(InputCopies::default()))))
+    }
+
+    fn totals(&self) -> InputCopies {
+        INPUT_COPIES.with(|cell| cell.get().expect("input copy scope is active"))
+    }
+}
+
+impl Drop for InputCopyScope {
+    fn drop(&mut self) {
+        let totals = self.totals();
+        INPUT_COPIES.with(|cell| {
+            cell.set(self.0.map(|outer| InputCopies {
+                count: outer.count + totals.count,
+                bytes: outer.bytes + totals.bytes,
+            }));
+        });
+    }
+}
 
 fn label(operation: Operation) -> &'static str {
     match operation {
@@ -43,7 +88,10 @@ fn observe_native_attempts(
             ));
         }
         // Execute once. Original callbacks, cancellation and transaction policies remain in force.
+        let scope = InputCopyScope::enter();
         let execution = execute_with_attempt(|| operation.call0().map(Bound::unbind));
+        let input = scope.totals();
+        drop(scope);
         let rows = execution
             .report
             .operations()
@@ -60,6 +108,10 @@ fn observe_native_attempts(
         let report = serde_json::json!({
             "scope":"synchronous_original_native_components",
             "operations":rows,
+            "copies":antecedent::execution::copies(&execution.report),
+            "copied_bytes":antecedent::execution::copied_bytes(&execution.report),
+            "input_copies":input.count,
+            "input_copied_bytes":input.bytes,
             "is_empty":execution.report.is_empty(),
             "is_complete":execution.report.is_complete(),
         })

@@ -201,13 +201,17 @@ def estimate_temporal_design(
     }
     if bootstrap is not None:
         options["bootstrap"] = int(bootstrap)
+    from ._temporal_design import temporal_design_spec_payload, temporal_period_buffer
+
+    spec, buffers = temporal_design_spec_payload(spec)
     prepared = _native.PreparedAnalysis.prepare_temporal_design(
         names,
         columns,
         outcome,
         [str(unit) for unit in units],
-        [int(period) for period in periods],
+        temporal_period_buffer(periods),
         json.dumps(spec),
+        buffers=buffers or None,
         lag=int(lag),
         quantile_level=None if quantile_level is None else float(quantile_level),
         min_probability=float(min_probability),

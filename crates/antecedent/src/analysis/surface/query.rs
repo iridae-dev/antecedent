@@ -26,8 +26,8 @@ pub use antecedent_core::{
     SearchSchedule, SimulateQuery, SimulationTarget,
 };
 pub use antecedent_core::{
-    OutcomeMisclassification, TemporalAssignment, TemporalDesignFunctional, TemporalDesignQuery,
-    TemporalDoseTarget, TemporalRegimeMethod,
+    OutcomeMisclassification, ProbabilityRows, TemporalAssignment, TemporalDesignFunctional,
+    TemporalDesignQuery, TemporalDoseTarget, TemporalRegimeMethod,
 };
 
 // --- Further items the language bindings use, re-exported from their defining crates ---

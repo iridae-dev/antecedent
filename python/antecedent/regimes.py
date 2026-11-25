@@ -15,7 +15,7 @@ from math import isfinite
 from typing import Literal, TypeAlias
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
 
 from . import _deprecation, _direct_status, _native
 from ._columns import coerce_fields, hold_unresolved, resolved
@@ -1173,20 +1173,39 @@ def evaluate_sequential_doubly_robust(
     )
 
 
+_IndicatorArray: TypeAlias = NDArray[np.bool_] | NDArray[np.float64]
+
+
+def _trajectory_indicator(values: ArrayLike) -> _IndicatorArray:
+    column = np.asarray(values)
+    if column.dtype == np.dtype(np.float64):
+        return column
+    return np.asarray(column, dtype=bool)
+
+
 @dataclass(frozen=True, slots=True)
 class _Trajectories:
     subjects: int
     periods: int
-    treatment: list[bool]
-    event: list[bool]
-    at_risk: list[bool]
-    treatment_probability: list[float]
-    censoring_weight: list[float]
+    treatment: _IndicatorArray
+    event: _IndicatorArray
+    at_risk: _IndicatorArray
+    treatment_probability: NDArray[np.float64]
+    censoring_weight: NDArray[np.float64]
     minimum_probability: float
 
     def args(
         self,
-    ) -> tuple[int, int, list[bool], list[bool], list[bool], list[float], list[float], float]:
+    ) -> tuple[
+        int,
+        int,
+        _IndicatorArray,
+        _IndicatorArray,
+        _IndicatorArray,
+        NDArray[np.float64],
+        NDArray[np.float64],
+        float,
+    ]:
         return (
             self.subjects,
             self.periods,
@@ -1207,7 +1226,7 @@ def _trajectories(
     censoring_weight: ArrayLike,
     minimum_probability: float,
 ) -> _Trajectories:
-    flags = [np.asarray(value, dtype=bool) for value in (treatment, event, at_risk)]
+    flags = [_trajectory_indicator(value) for value in (treatment, event, at_risk)]
     numbers = [
         np.asarray(value, dtype=float) for value in (treatment_probability, censoring_weight)
     ]
@@ -1221,11 +1240,11 @@ def _trajectories(
     return _Trajectories(
         subjects,
         periods,
-        flags[0].ravel().tolist(),
-        flags[1].ravel().tolist(),
-        flags[2].ravel().tolist(),
-        numbers[0].ravel().tolist(),
-        numbers[1].ravel().tolist(),
+        flags[0].ravel(),
+        flags[1].ravel(),
+        flags[2].ravel(),
+        numbers[0].ravel(),
+        numbers[1].ravel(),
         float(minimum_probability),
     )
 
