@@ -1545,8 +1545,8 @@ caught_by = ["identity_sites.graph_identity_binds_labels", "identity_sites.graph
 [[mutations]]
 id = "graph_identity_keeps_dense_order"
 file = "crates/antecedent-io-core/src/identity/graph.rs"
-old = "        order.sort_by(|&a, &b| labels[a].cmp(&labels[b]).then(a.cmp(&b)));"
-new = "        let _ = &labels;"
+old = "        sort_by_order(&mut order, before);"
+new = "        let _ = &before;"
 caught_by = ["identity_sites.graph_dense_order_keeps_identity", "identity_sites.graph_exhaustive_three_nodes_dag", "identity_sites.dag_dense_order_bound"]
 
 [[mutations]]
