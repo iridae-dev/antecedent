@@ -24,8 +24,39 @@ pub const INTERACTIVE_BOOTSTRAP: u32 = 0;
 pub const STANDARD_BOOTSTRAP: u32 = 199;
 /// Report-tier bootstrap replicates.
 pub const REPORT_BOOTSTRAP: u32 = 200;
-/// Interactive max identified graphs in a graph×effect envelope subsample.
+/// Identified atoms that fill the default execution memory cap.
+///
+/// Not a live cap. A posterior of this many identified atoms or fewer keeps the
+/// set it fits today. A larger posterior admits as many atoms as the execution
+/// budget pays for, at [`INTERACTIVE_ENVELOPE_ATOM_BYTES`] each.
 pub const INTERACTIVE_MAX_ENVELOPE_GRAPHS: usize = 16;
+/// Bytes quoted for one identified atom before the interactive envelope allocates
+/// the subsample that keeps it. [`INTERACTIVE_MAX_ENVELOPE_GRAPHS`] of these fill
+/// [`antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES`], the cap when the execution
+/// pool sets no limit of its own.
+pub const INTERACTIVE_ENVELOPE_ATOM_BYTES: u64 =
+    antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES / (INTERACTIVE_MAX_ENVELOPE_GRAPHS as u64);
+
+/// Identified atoms `memory_limit_bytes` pays for, at
+/// [`INTERACTIVE_ENVELOPE_ATOM_BYTES`] each.
+///
+/// `None` is the default search memory cap. The result is never larger than
+/// `n_identified`. Zero means one atom's quote does not fit that cap. A posterior
+/// that already fits in [`INTERACTIVE_MAX_ENVELOPE_GRAPHS`] atoms does not consult
+/// this: that set stays the one it fits today.
+#[must_use]
+pub const fn interactive_admitted_envelope_atoms(
+    n_identified: usize,
+    memory_limit_bytes: Option<u64>,
+) -> usize {
+    let cap = match memory_limit_bytes {
+        Some(bytes) => bytes,
+        None => antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES,
+    };
+    let paid = cap / INTERACTIVE_ENVELOPE_ATOM_BYTES;
+    if paid >= n_identified as u64 { n_identified } else { paid as usize }
+}
+
 /// Interactive prior / posterior predictive-check replicates.
 pub const INTERACTIVE_PREDICTIVE_SIMS: u32 = 50;
 /// Standard predictive-check replicates (the pre-tier default).
@@ -242,6 +273,25 @@ mod tests {
                 &InferenceMode::Bayesian(BayesianConfig::hmc()),
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn default_budget_pays_for_the_atoms_that_already_fit() {
+        let cap = antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES;
+        assert_eq!(INTERACTIVE_ENVELOPE_ATOM_BYTES * INTERACTIVE_MAX_ENVELOPE_GRAPHS as u64, cap);
+        assert_eq!(interactive_admitted_envelope_atoms(10, None), 10);
+        assert_eq!(interactive_admitted_envelope_atoms(INTERACTIVE_MAX_ENVELOPE_GRAPHS, None), 16);
+        assert_eq!(
+            interactive_admitted_envelope_atoms(INTERACTIVE_MAX_ENVELOPE_GRAPHS + 1, None),
+            INTERACTIVE_MAX_ENVELOPE_GRAPHS
+        );
+        let wider = cap + INTERACTIVE_ENVELOPE_ATOM_BYTES;
+        assert_eq!(interactive_admitted_envelope_atoms(40, Some(wider)), 17);
+        assert_eq!(interactive_admitted_envelope_atoms(40, Some(1)), 0);
+        assert_eq!(
+            interactive_admitted_envelope_atoms(40, Some(INTERACTIVE_ENVELOPE_ATOM_BYTES - 1)),
+            0
         );
     }
 }

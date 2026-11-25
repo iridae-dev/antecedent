@@ -1377,8 +1377,9 @@ fn prepared_graph_posterior_response_answers_multi_coordinate_intervention_atom_
     assert!((mixture.identified_mass - 1.0).abs() < 1e-12, "{}", mixture.identified_mass);
 }
 
-/// Graph posterior with twice the Interactive cap of distinct backdoor-identified
-/// atoms plus one reverse-causal (unidentified) atom, all equally weighted.
+/// Graph posterior with twice as many distinct backdoor-identified atoms as the
+/// default execution budget pays for, plus one reverse-causal (unidentified)
+/// atom, all equally weighted.
 fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPosterior, usize) {
     use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
     use antecedent_discovery::adjacency_mask::set_edge;
@@ -1408,7 +1409,7 @@ fn interactive_budget_fixture() -> (TabularData, antecedent_discovery::GraphPost
     .unwrap();
     // T -> Y, an optional confounder Z -> {T, Y}, and any subset of four
     // outcome-only parents: 32 distinct backdoor-identified atoms (no
-    // instrument or front-door candidates), twice the interactive cap.
+    // instrument or front-door candidates), past the default budget's count.
     let n_vars = 7;
     let mut masks: Vec<antecedent_discovery::AdjacencyMask> = (0u32..32)
         .map(|subset| {
@@ -1454,7 +1455,7 @@ const SUBSAMPLE_DIAGNOSTIC: &str = "estimate.envelope.interactive_subsample";
 /// unevaluable, never renormalized away.
 #[test]
 fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
-    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    use antecedent::analysis::interactive_admitted_envelope_atoms;
 
     let (data, gp, n_identified) = interactive_budget_fixture();
     let n_atoms = n_identified + 1;
@@ -1489,13 +1490,15 @@ fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
         .iter()
         .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
         .expect("subsample diagnostic");
-    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    let admitted = interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes());
+    let dropped = n_identified - admitted;
     assert!(note.message.contains(&format!("subsampled_out_atoms={dropped}")), "{}", note.message);
+    assert!(note.message.contains(&format!("admitted_identified={admitted}")), "{}", note.message);
     assert!(note.message.contains("Interactive latency tier"), "{}", note.message);
     assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
     let mix = interactive.structural_response.as_ref().unwrap();
     let evaluated = mix.atoms.iter().filter(|atom| atom.value.is_some()).count();
-    assert_eq!(evaluated, INTERACTIVE_MAX_ENVELOPE_GRAPHS);
+    assert_eq!(evaluated, admitted);
     // Dropped atoms are identified but carry no value; the reverse-causal atom
     // is the only NotIdentified one, exactly as in the Standard run.
     let not_identified = mix
@@ -1546,7 +1549,7 @@ fn interactive_graph_posterior_response_subsamples_like_the_ate_path() {
 /// and stays graph-dependent.
 #[test]
 fn interactive_graph_posterior_ate_reports_subsampled_out_mass_separately() {
-    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    use antecedent::analysis::interactive_admitted_envelope_atoms;
 
     let (data, gp, n_identified) = interactive_budget_fixture();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
@@ -1587,7 +1590,8 @@ fn interactive_graph_posterior_ate_reports_subsampled_out_mass_separately() {
     let interactive = run(antecedent::LatencyMode::Interactive);
     assert!(interactive.diagnostics.iter().any(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC));
     let (interactive_unidentified, dropped_mass) = envelope_masses(&interactive);
-    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    let admitted = interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes());
+    let dropped = n_identified - admitted;
     assert!(
         (interactive_unidentified - unidentified).abs() < 1e-12,
         "dropped atoms must not be reported as unidentified: {interactive_unidentified}"
@@ -1604,7 +1608,7 @@ fn interactive_graph_posterior_ate_reports_subsampled_out_mass_separately() {
 /// full ensemble's share, and stays graph-dependent.
 #[test]
 fn interactive_bayesian_graph_posterior_ate_reports_subsampled_out_mass_separately() {
-    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    use antecedent::analysis::interactive_admitted_envelope_atoms;
 
     let (data, gp, n_identified) = interactive_budget_fixture();
     let n_atoms = n_identified + 1;
@@ -1638,9 +1642,18 @@ fn interactive_bayesian_graph_posterior_ate_reports_subsampled_out_mass_separate
         .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
         .expect("subsample diagnostic");
     assert!(note.message.contains("reported as subsampled_out_mass"), "{}", note.message);
+    assert!(
+        note.message.contains(&format!(
+            "admitted_identified={}",
+            interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes())
+        )),
+        "{}",
+        note.message
+    );
     assert!(!note.message.contains("folds"), "{}", note.message);
     let post = interactive.posterior.as_ref().unwrap();
-    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    let admitted = interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes());
+    let dropped = n_identified - admitted;
     assert!(
         (post.unidentified_mass - unidentified).abs() < 1e-12,
         "dropped atoms must not be reported as unidentified: {}",
@@ -1651,7 +1664,7 @@ fn interactive_bayesian_graph_posterior_ate_reports_subsampled_out_mass_separate
         "{}",
         post.subsampled_out_mass
     );
-    let mixed = INTERACTIVE_MAX_ENVELOPE_GRAPHS as f64 / n_atoms as f64;
+    let mixed = admitted as f64 / n_atoms as f64;
     assert!((mixed + post.unidentified_mass + post.subsampled_out_mass - 1.0).abs() < 1e-12);
     assert_eq!(post.identification, antecedent_core::IdentificationStatus::GraphDependent);
     let envelope = interactive
@@ -1680,8 +1693,8 @@ fn interactive_bayesian_graph_posterior_ate_reports_subsampled_out_mass_separate
     }
 }
 
-/// CPDAG whose Markov equivalence class has more completions than the
-/// Interactive graph budget: an undirected star centred on the treatment, with
+/// CPDAG whose Markov equivalence class has more completions than the default
+/// execution budget pays for: an undirected star centred on the treatment, with
 /// the outcome and seventeen covariates as leaves (one completion per root).
 fn interactive_star_cpdag_fixture() -> (TabularData, antecedent_graph::Cpdag) {
     let n = 200_usize;
@@ -1715,7 +1728,7 @@ fn interactive_star_cpdag_fixture() -> (TabularData, antecedent_graph::Cpdag) {
 /// unidentified mass at the full class's share, and stays graph-dependent.
 #[test]
 fn interactive_bayesian_cpdag_envelope_reports_subsampled_out_mass_separately() {
-    use antecedent::analysis::INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    use antecedent::analysis::interactive_admitted_envelope_atoms;
 
     let (data, cpdag) = interactive_star_cpdag_fixture();
     let query = AverageEffectQuery::binary_ate(VariableId::from_raw(0), VariableId::from_raw(1));
@@ -1769,12 +1782,11 @@ fn interactive_bayesian_cpdag_envelope_reports_subsampled_out_mass_separately() 
     let n_identified = (0..=cases)
         .find(|k| (*k as f64 / cases as f64 - identified_weight / total).abs() < 1e-9)
         .expect("equal completion weights");
-    assert!(
-        n_identified > INTERACTIVE_MAX_ENVELOPE_GRAPHS,
-        "{n_identified} identified completions"
-    );
-    let dropped = n_identified - INTERACTIVE_MAX_ENVELOPE_GRAPHS;
+    let admitted = interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes());
+    assert!(n_identified > admitted, "{n_identified} identified completions, {admitted} admitted");
+    let dropped = n_identified - admitted;
     assert!(note.message.contains(&format!("subsampled_out_atoms={dropped}")), "{}", note.message);
+    assert!(note.message.contains(&format!("admitted_identified={admitted}")), "{}", note.message);
     assert!(
         (post.unidentified_mass - unidentified).abs() < 1e-12,
         "skipped completions must not be reported as unidentified: {}",
@@ -1785,7 +1797,7 @@ fn interactive_bayesian_cpdag_envelope_reports_subsampled_out_mass_separately() 
         "{}",
         post.subsampled_out_mass
     );
-    let mixed = INTERACTIVE_MAX_ENVELOPE_GRAPHS as f64 / cases as f64;
+    let mixed = admitted as f64 / cases as f64;
     assert!((mixed + post.unidentified_mass + post.subsampled_out_mass - 1.0).abs() < 1e-12);
     assert_eq!(post.identification, antecedent_core::IdentificationStatus::GraphDependent);
     let envelope = interactive
@@ -1802,4 +1814,63 @@ fn interactive_bayesian_cpdag_envelope_reports_subsampled_out_mass_separately() 
         interactive.identification.status,
         antecedent_core::IdentificationStatus::GraphDependent
     );
+}
+
+/// A posterior past the default budget admits more atoms when the pool pays for
+/// them, and names that count. A pool that cannot pay for one atom stops with a
+/// memory receipt and does not fit a smaller substitute.
+#[test]
+fn interactive_graph_posterior_reports_the_count_the_budget_admitted() {
+    use antecedent::analysis::{
+        INTERACTIVE_ENVELOPE_ATOM_BYTES, INTERACTIVE_MAX_ENVELOPE_GRAPHS,
+        interactive_admitted_envelope_atoms,
+    };
+
+    let (data, gp, n_identified) = interactive_budget_fixture();
+    let extra = INTERACTIVE_MAX_ENVELOPE_GRAPHS + 4;
+    assert!(n_identified > extra);
+    let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
+        outcome: VariableId::from_raw(1),
+        interventions: Arc::from([Intervention::set(VariableId::from_raw(0), Value::f64(0.25))]),
+    });
+    let run = |ctx: &ExecutionContext| {
+        Study::tabular(data.clone())
+            .graph_posterior(gp.clone())
+            .query(CausalQuery::Response(query.clone()))
+            .inference(InferenceMode::Frequentist)
+            .latency_mode(antecedent::LatencyMode::Interactive)
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+            .run(ctx)
+    };
+    let paid = u64::try_from(extra).expect("atom count") * INTERACTIVE_ENVELOPE_ATOM_BYTES;
+    let ctx = ExecutionContext::for_tests(9).with_memory_limit(Some(paid));
+    let admitted = interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes());
+    assert_eq!(admitted, extra);
+    let interactive = run(&ctx).unwrap();
+    let note = interactive
+        .diagnostics
+        .iter()
+        .find(|d| d.code.as_ref() == SUBSAMPLE_DIAGNOSTIC)
+        .expect("subsample diagnostic");
+    let dropped = n_identified - admitted;
+    assert!(note.message.contains(&format!("admitted_identified={admitted}")), "{}", note.message);
+    assert!(note.message.contains(&format!("subsampled_out_atoms={dropped}")), "{}", note.message);
+    let mix = interactive.structural_response.as_ref().unwrap();
+    let evaluated = mix.atoms.iter().filter(|atom| atom.value.is_some()).count();
+    assert_eq!(evaluated, admitted);
+    assert!(
+        (mix.subsampled_out_mass - dropped as f64 / (n_identified + 1) as f64).abs() < 1e-12,
+        "{}",
+        mix.subsampled_out_mass
+    );
+
+    let tight =
+        ExecutionContext::for_tests(9).with_memory_limit(Some(INTERACTIVE_ENVELOPE_ATOM_BYTES - 1));
+    let message = run(&tight).unwrap_err().to_string();
+    assert!(message.contains("search.memory"), "{message}");
+    assert!(message.contains("not entered"), "{message}");
+    assert!(message.contains("interactive envelope atoms were not entered"), "{message}");
 }

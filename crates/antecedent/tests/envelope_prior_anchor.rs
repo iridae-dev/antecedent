@@ -23,7 +23,7 @@ use antecedent_prob::{
 };
 use antecedent_validate::ConflictPolicy;
 
-const N_ID: usize = 17; // > INTERACTIVE_MAX_ENVELOPE_GRAPHS (16)
+const N_ID: usize = 17; // past the count the default execution budget pays for
 const SUBSAMPLE_STREAM: u64 = 0xE11E;
 
 fn toy_table(n: usize) -> TabularData {
@@ -133,7 +133,12 @@ fn first_identified_dropped(seed: u64, keys: &[u64]) -> bool {
     // the search below would not actually guarantee the first atom is
     // dropped by the code path under test.
     let mut rng = ctx.rng.stream_for(StreamDomain::Execute, SUBSAMPLE_STREAM);
-    let sub = graphs.stratified_interactive_subsample(16, &mut rng).unwrap();
+    let admitted = antecedent::analysis::interactive_admitted_envelope_atoms(
+        keys.len(),
+        ctx.memory_limit_bytes(),
+    );
+    assert!(admitted < keys.len(), "the budget must leave an atom that the subsample can drop");
+    let sub = graphs.stratified_interactive_subsample(admitted, &mut rng).unwrap();
     assert!(sub.approximate);
     !sub.graphs
         .identified

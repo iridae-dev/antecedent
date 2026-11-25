@@ -153,6 +153,13 @@ const SUBSAMPLE_DIAGNOSTIC_KEY_LIMIT: usize = 16;
 /// [`report_subsampled_out_mass`]). Outside the Interactive tier (or when the
 /// identified atoms fit the budget) nothing is dropped.
 ///
+/// A posterior that already fits in [`INTERACTIVE_MAX_ENVELOPE_GRAPHS`] identified
+/// atoms is unchanged. A larger posterior keeps as many as the execution budget
+/// pays for, highest posterior weight first, by the same stratified subsample.
+/// The bytes of those atoms are quoted and compared with the execution memory
+/// limit before that subsample allocates. A quote that does not fit stops with
+/// a search receipt and does not allocate.
+///
 /// Call this **after** resolving the shared envelope prior from the first
 /// identified atom in original order ([`resolve_envelope_prior_anchor`]), and
 /// **before** per-graph estimation so dropped atoms never pay a fit. Subsample
@@ -166,8 +173,17 @@ pub(super) fn interactive_subsample_graphs_accounted(
     if latency_mode != Some(LatencyMode::Interactive) {
         return Ok((graphs, InteractiveSubsampleDrop::default()));
     }
+    let n_identified =
+        graphs.identified.iter().filter(|flag| **flag == GraphIdentFlag::Identified).count();
+    // A posterior this small already fit. Passing the historical count takes the
+    // subsample's early return, which allocates nothing and keeps every atom.
+    let admitted = if n_identified <= INTERACTIVE_MAX_ENVELOPE_GRAPHS {
+        INTERACTIVE_MAX_ENVELOPE_GRAPHS
+    } else {
+        quote_interactive_atoms(&graphs, n_identified, ctx)?
+    };
     let mut rng = ctx.rng.stream_for(StreamDomain::Execute, 0xE11E_u64);
-    let sub = graphs.stratified_interactive_subsample(INTERACTIVE_MAX_ENVELOPE_GRAPHS, &mut rng)?;
+    let sub = graphs.stratified_interactive_subsample(admitted, &mut rng)?;
     let keys: Vec<u64> = graphs
         .identified
         .iter()
@@ -180,16 +196,67 @@ pub(super) fn interactive_subsample_graphs_accounted(
         .collect();
     let drop = InteractiveSubsampleDrop { keys, mass: sub.leftover_identified_mass };
     if sub.approximate {
-        diagnostics.push(interactive_subsample_diagnostic(&drop, graphs.total_weight()));
+        diagnostics.push(interactive_subsample_diagnostic(&drop, graphs.total_weight(), admitted));
     }
     Ok((sub.graphs, drop))
 }
 
+/// Quote the identified atoms a larger posterior will fit, and stop when the
+/// quote does not fit the execution memory limit.
+///
+/// One atom costs [`INTERACTIVE_ENVELOPE_ATOM_BYTES`]. The cap is the context's
+/// memory limit, or the default search memory cap when the pool sets none. The
+/// admitted count is how many atoms that cap pays for, and the subsample keeps
+/// the highest posterior weights. The comparison goes through a search budget
+/// before the subsample allocates.
+fn quote_interactive_atoms(
+    graphs: &WeightedGraphSamples,
+    n_identified: usize,
+    ctx: &ExecutionContext,
+) -> Result<usize, CausalError> {
+    use antecedent_core::{SearchBudget, SearchLimits, SearchStop};
+
+    let cap = ctx.memory_limit_bytes().unwrap_or(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES);
+    let limits = SearchLimits { operations: n_identified, depth: 1 };
+    let budget = SearchBudget::with_memory(limits, cap, ctx).map_err(interactive_budget_stop)?;
+    let admitted = interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes());
+    let unevaluated =
+        format!("identified atoms count={n_identified} mass={}", graphs.identified_mass());
+    let refused = |budget: &SearchBudget<'_>, stop: SearchStop| {
+        interactive_budget_stop(budget.receipt(stop, Vec::new(), vec![unevaluated.clone()]))
+    };
+    let count = match u64::try_from(admitted) {
+        Ok(count) if count > 0 => count,
+        _ => return Err(refused(&budget, SearchStop::Memory)),
+    };
+    let Some(quote) = count.checked_mul(INTERACTIVE_ENVELOPE_ATOM_BYTES) else {
+        return Err(refused(&budget, SearchStop::Memory));
+    };
+    if let Err(stop) = budget.admits(1, quote, count) {
+        return Err(refused(&budget, stop));
+    }
+    Ok(admitted)
+}
+
+/// A budget stop before the subsample is entered. Cancellation stays a
+/// cancellation; every other stop carries the receipt.
+fn interactive_budget_stop(receipt: antecedent_core::SearchReceipt) -> CausalError {
+    if receipt.stop == antecedent_core::SearchStop::Cancelled {
+        return CausalError::Cancelled { stage: "interactive envelope" };
+    }
+    CausalError::Resource {
+        message: format!("interactive envelope atoms were not entered ({})", receipt.summary()),
+    }
+}
+
 /// `estimate.envelope.interactive_subsample`: which identified atoms the
 /// Interactive tier skipped, why, and where their mass is reported.
+///
+/// `admitted` is the count the execution budget paid for.
 fn interactive_subsample_diagnostic(
     drop: &InteractiveSubsampleDrop,
     total_weight: f64,
+    admitted: usize,
 ) -> Diagnostic {
     let listed = drop
         .keys
@@ -207,23 +274,19 @@ fn interactive_subsample_diagnostic(
         DiagnosticSeverity::Info,
         format!(
             "approximate=true leftover_identified_mass={} subsampled_out_mass={fraction} \
-             subsampled_out_atoms={} max_identified={}; the Interactive latency tier mixes at \
-             most {} identified graph atoms, so these identified atoms were left out of the \
-             mixture: [{listed}]; their mass is reported as subsampled_out_mass, not as \
-             unidentified or unevaluable mass; rerun at the Standard or Report tier to include \
-             every identified atom",
+             subsampled_out_atoms={} admitted_identified={admitted}; the Interactive latency \
+             tier admitted {admitted} identified graph atoms under the execution budget, so \
+             these identified atoms were left out of the mixture: [{listed}]; their mass is \
+             reported as subsampled_out_mass, not as unidentified or unevaluable mass; rerun \
+             at the Standard or Report tier to include every identified atom",
             drop.mass,
             drop.keys.len(),
-            INTERACTIVE_MAX_ENVELOPE_GRAPHS,
-            INTERACTIVE_MAX_ENVELOPE_GRAPHS,
         ),
     )
     .with_fields([
         ("subsampled_out_atoms", drop.keys.len().to_string()),
-        (
-            "subsampled_out_keys",
-            drop.keys.iter().map(u64::to_string).collect::<Vec<_>>().join(","),
-        ),
+        ("admitted_identified", admitted.to_string()),
+        ("subsampled_out_keys", drop.keys.iter().map(u64::to_string).collect::<Vec<_>>().join(",")),
     ])
 }
 
@@ -317,9 +380,10 @@ pub(super) fn envelope_mass_diagnostic(
     let mut fields = mass_fields(None, posterior.unidentified_mass);
     if posterior.unevaluable_mass > 0.0
         && let Ok(mass) = antecedent_core::diagnostic::RouteMass::new(posterior.unevaluable_mass)
-            && let Some(bits) = mass.bits() {
-                fields.push((Arc::from("unevaluable_mass_bits"), Arc::from(bits.to_string())));
-            }
+        && let Some(bits) = mass.bits()
+    {
+        fields.push((Arc::from("unevaluable_mass_bits"), Arc::from(bits.to_string())));
+    }
     Diagnostic::new(code, DiagnosticKind::Scientific, DiagnosticSeverity::Info, message)
         .with_fields(fields)
 }
@@ -636,7 +700,10 @@ fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyResult {
         &finish.common.custom_validator_names,
     );
     if finish.mirror_refuted_evalue {
-        crate::analysis::helpers::mirror_refuted_evalue(&mut result.estimate, &result.view.refutations);
+        crate::analysis::helpers::mirror_refuted_evalue(
+            &mut result.estimate,
+            &result.view.refutations,
+        );
     }
     if finish.rebind_bayesian_interval {
         result.rebind_interval(finish.common.inference.is_bayesian());

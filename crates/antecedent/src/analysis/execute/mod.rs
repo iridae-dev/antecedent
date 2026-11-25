@@ -5,7 +5,10 @@
 pub(super) use std::sync::Arc;
 pub(super) use std::time::Instant;
 
-pub(super) use super::latency::{INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode};
+pub(super) use super::latency::{
+    INTERACTIVE_ENVELOPE_ATOM_BYTES, INTERACTIVE_MAX_ENVELOPE_GRAPHS, LatencyMode,
+    interactive_admitted_envelope_atoms,
+};
 pub(super) use super::stage::elapsed_ns;
 pub(super) use antecedent_contract::{DataClassification, ProvenanceGraph};
 pub(super) use antecedent_core::{
