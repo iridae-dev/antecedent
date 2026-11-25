@@ -38,6 +38,7 @@
 #![deny(missing_docs)]
 #![warn(clippy::missing_errors_doc, clippy::missing_panics_doc)]
 
+pub mod adjacency_mask;
 pub mod assumption;
 pub mod calibration_basis;
 pub mod callback;

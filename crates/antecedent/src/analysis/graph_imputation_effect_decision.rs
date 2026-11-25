@@ -1320,6 +1320,9 @@ impl CompiledGraphImputationWorldDecision {
         // row count; target cluster counts and sizes are not construction.
         let mut study =
             CanonicalWriter::new("antecedent.graph_imputation.predictive_construction.v1");
+        if let Some(candidates) = parts.declared_candidate_identity() {
+            study.bytes(candidates.as_bytes());
+        }
         study
             .text(parts.support.as_str())
             .word(parts.atoms.len() as u64)
@@ -1473,6 +1476,9 @@ impl CompiledGraphImputationWorldDecision {
         let parts = source.parts();
         let mut writer =
             CanonicalWriter::new("antecedent.graph_imputation_paired_world.action_choice_study.v1");
+        if let Some(candidates) = parts.declared_candidate_identity() {
+            writer.bytes(candidates.as_bytes());
+        }
         writer
             .text(parts.support.as_str())
             .word(parts.atoms.len() as u64)
@@ -1553,6 +1559,9 @@ impl CompiledGraphImputationWorldDecision {
         let mut construction = CanonicalWriter::new(
             "antecedent.graph_imputation_paired_world.calibration_construction.v1",
         );
+        if let Some(candidates) = parts.declared_candidate_identity() {
+            construction.bytes(candidates.as_bytes());
+        }
         construction
             .text(parts.support.as_str())
             .word(parts.atoms.len() as u64)

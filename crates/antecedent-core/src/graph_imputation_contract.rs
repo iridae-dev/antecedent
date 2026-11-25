@@ -14,14 +14,13 @@
 //! number excluded is part of the contract, so a consumer cannot be given a different set.
 use std::collections::BTreeSet;
 
+use crate::adjacency_mask::{AdjacencyMask, edge_bits_fit, n_directed_edges};
 use crate::identification::IdentificationStatus;
-use crate::identity::CanonicalWriter;
+use crate::identity::{CanonicalWriter, SemanticDigest};
 
 /// Rule that restricts the structural support to graphs naming a single operation.
 pub const SUPPORT_RULE: &str = "unique_minimal_backdoor_adjustment_set";
-/// Most variables whose graphs one adjacency word can name: it holds `n * (n - 1)` edge bits,
-/// so `n` is at most eight. Whether a larger count fits the resource limits is decided by
-/// [`admission_bytes`], not by a constant.
+/// Width of the legacy one-word listing and source format.
 pub const MAX_VARIABLES: usize = 8;
 /// Fewest rows: a sample variance needs two.
 pub const MIN_ROWS: usize = 2;
@@ -33,43 +32,71 @@ pub const MIN_ITERATIONS: u32 = 1;
 pub const MIN_POSTERIOR_DRAWS: u32 = 40;
 /// Longest variable name, in bytes: the wire length is two bytes.
 pub const MAX_NAME_BYTES: usize = u16::MAX as usize;
-/// Bytes of one encoded atom with no adjustment variables.
-const ATOM_FIXED_BYTES: usize = 8 + 1 + 1;
 
 /// Number of labeled DAGs on `n` nodes (Robinson's recurrence), saturating. This is the most
 /// atoms an exhaustive enumeration over `n` variables can retain.
 #[must_use]
 pub fn labeled_dag_count(n: usize) -> u64 {
-    let mut counts = vec![1_u64];
+    let mut counts = vec![1_u128];
     for m in 1..=n {
-        let mut total = 0_u64;
-        let mut choose = 1_u64;
+        let mut total = 0_u128;
+        let mut choose = 1_u128;
         for k in 1..=m {
-            choose = choose.saturating_mul((m - k + 1) as u64) / k as u64;
-            let term = choose.saturating_mul(counts[m - k]).saturating_mul(
-                1_u64
-                    .checked_shl(u32::try_from(k * (m - k)).unwrap_or(u32::MAX))
-                    .unwrap_or(u64::MAX),
-            );
-            total =
-                if k % 2 == 1 { total.saturating_add(term) } else { total.saturating_sub(term) };
+            choose = choose * (m - k + 1) as u128 / k as u128;
+            let term = choose * counts[m - k] * (1_u128 << (k * (m - k)));
+            total = if k % 2 == 1 { total + term } else { total - term };
+        }
+        if total > u128::from(u64::MAX) {
+            return u64::MAX;
         }
         counts.push(total);
     }
-    counts[n]
+    u64::try_from(counts[n]).unwrap_or(u64::MAX)
 }
 
-/// Bytes admitted for one execution: the table, the imputed copies of it and one retained
-/// operation per atom the enumeration can produce. The graph count grows super-exponentially,
-/// so this quote, against the execution's limit, is what bounds the variable count.
+/// Bytes admitted for exhaustive enumeration and execution.
 #[must_use]
 pub fn admission_bytes(rows: usize, variables: usize) -> u64 {
+    admission_bytes_for_atoms(rows, variables, labeled_dag_count(variables))
+}
+
+/// Bytes admitted for a declared number of candidates, including their masks and operations.
+#[must_use]
+pub fn admission_bytes_for_atoms(rows: usize, variables: usize, atoms: u64) -> u64 {
     let table = (rows as u64).saturating_mul(variables as u64).saturating_mul(64);
-    let atoms = labeled_dag_count(variables).saturating_mul(64 + variables as u64 * 4);
-    26_214_400_u64.saturating_add(table).saturating_add(atoms)
+    let (workspace, wide_atom) = if variables > MAX_VARIABLES {
+        let possible_edges = n_directed_edges(variables) as u64;
+        (possible_edges.saturating_mul(32), possible_edges.saturating_mul(16))
+    } else {
+        (0, 0)
+    };
+    let atoms = atoms.saturating_mul(
+        64_u64.saturating_add(4_u64.saturating_mul(variables as u64)).saturating_add(wide_atom),
+    );
+    26_214_400_u64.saturating_add(table).saturating_add(workspace).saturating_add(atoms)
+}
+
+/// Whether the dense edge index can represent the table schema.
+#[must_use]
+pub fn valid_variable_count(variables: usize) -> bool {
+    variables >= 2 && edge_bits_fit(variables)
+}
+
+fn mask_words(variables: usize) -> usize {
+    n_directed_edges(variables).div_ceil(64)
+}
+
+/// Commit the entire mask, preserving the old identity for valid one-word source shapes.
+pub fn write_mask(writer: &mut CanonicalWriter, mask: &AdjacencyMask, variables: usize) {
+    if let Some(word) = mask.to_word().filter(|_| variables <= MAX_VARIABLES) {
+        writer.word(word);
+    } else {
+        writer.bytes(&mask.to_le_bytes());
+    }
 }
 
 const MAGIC: &[u8] = b"ANTECEDENT-GRAPH-CANDIDATE\x01";
+const DECLARED_MAGIC: &[u8] = b"ANTECEDENT-GRAPH-CANDIDATE\x02";
 
 /// Structural support declared before any observation is scored.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -145,7 +172,7 @@ impl GraphSupport {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AtomOperation {
     /// Exact adjacency mask of the graph.
-    pub mask: u64,
+    pub mask: AdjacencyMask,
     /// Identification status of the graph's effect proof.
     pub status: IdentificationStatus,
     /// Dense raw ids of the adjusted variables.
@@ -183,6 +210,8 @@ pub struct GraphImputationParts {
     pub outcome: u32,
     /// Declared graph support.
     pub support: GraphSupport,
+    /// Explicit predeclared candidate masks, in increasing order. Absence means exhaustive support.
+    pub candidates: Option<Vec<AdjacencyMask>>,
     /// Completed tables.
     pub imputations: u32,
     /// Chained-equation sweeps.
@@ -217,10 +246,11 @@ impl GraphImputationParts {
     pub fn validate(&self) -> Result<(), &'static str> {
         let n = self.names.len();
         let rows = self.rows();
-        if !(2..=MAX_VARIABLES).contains(&n)
+        if !valid_variable_count(n)
             || self.domains.len() != n
             || self.columns.len() != n
             || rows < MIN_ROWS
+            || u32::try_from(rows).is_err()
             || self.columns.iter().any(|column| column.len() != rows)
             || self.columns.iter().flatten().any(|value| value.is_infinite())
             || self.domains.iter().any(|&domain| domain > 1)
@@ -242,19 +272,30 @@ impl GraphImputationParts {
         {
             return Err("graph imputation declaration lies outside the bounded cell");
         }
-        let edge_bits = n * (n - 1);
+        let total = (self.atoms.len() as u64).saturating_add(u64::from(self.excluded));
+        if total > labeled_dag_count(n) || u32::try_from(total).is_err() || self.atoms.is_empty() {
+            return Err("graph imputation graph count lies outside the source format");
+        }
+        if let Some(candidates) = &self.candidates {
+            if candidates.len() as u64 != total
+                || !candidates.windows(2).all(|pair| pair[0] < pair[1])
+                || !candidates.iter().all(|mask| mask.fits_graph(n))
+                || self.atoms.iter().any(|atom| candidates.binary_search(&atom.mask).is_err())
+            {
+                return Err(
+                    "graph imputation candidate set does not cover the retained operations",
+                );
+            }
+        } else if n > MAX_VARIABLES {
+            return Err(
+                "graph imputation variable count lies outside the exhaustive source format",
+            );
+        }
         let mut previous = None;
-        let most_atoms = labeled_dag_count(n);
-        if self.atoms.is_empty() || self.atoms.len() as u64 > most_atoms {
-            return Err("graph imputation atom count lies outside the bounded cell");
-        }
-        if u64::from(self.excluded) > most_atoms {
-            return Err("graph imputation excluded graph count lies outside the bounded cell");
-        }
         for atom in &self.atoms {
             let mut seen = BTreeSet::new();
-            if previous.is_some_and(|last| last >= atom.mask)
-                || atom.mask >= 1u64 << edge_bits
+            if previous.is_some_and(|last| last >= &atom.mask)
+                || !atom.mask.fits_graph(n)
                 || status_tag(atom.status).is_none()
                 || atom.adjustment.len() > n
                 || atom.adjustment.iter().any(|&v| {
@@ -263,7 +304,7 @@ impl GraphImputationParts {
             {
                 return Err("graph imputation atom operation is invalid");
             }
-            previous = Some(atom.mask);
+            previous = Some(&atom.mask);
         }
         Ok(())
     }
@@ -304,15 +345,44 @@ impl GraphImputationParts {
             .word(self.execution_seed)
             .word(self.atoms.len() as u64);
         for atom in &self.atoms {
+            write_mask(&mut writer, &atom.mask, self.names.len());
             writer
-                .word(atom.mask)
                 .word(u64::from(status_tag(atom.status).unwrap_or(u8::MAX)))
                 .word(atom.adjustment.len() as u64);
             for &variable in &atom.adjustment {
                 writer.word(u64::from(variable));
             }
         }
+        if let Some(candidates) = &self.candidates {
+            writer.text("declared_candidates").word(candidates.len() as u64);
+            for mask in candidates {
+                write_mask(&mut writer, mask, self.names.len());
+            }
+        }
         writer.finish()
+    }
+
+    /// Candidate-set identity for calibration and reliability scopes. Exhaustive support
+    /// keeps its existing scope and has no explicit candidate-list identity.
+    #[must_use]
+    pub fn declared_candidate_identity(&self) -> Option<SemanticDigest> {
+        let candidates = self.candidates.as_ref()?;
+        let mut writer = CanonicalWriter::new("antecedent.graph_imputation.candidate_set.v1");
+        writer.word(self.names.len() as u64).word(candidates.len() as u64);
+        for mask in candidates {
+            write_mask(&mut writer, mask, self.names.len());
+        }
+        Some(SemanticDigest::from_bytes(writer.finish()))
+    }
+
+    /// Bytes of the graph search and retained state the execution must admit.
+    #[must_use]
+    pub fn admission_bytes(&self) -> u64 {
+        let n = self.names.len();
+        match &self.candidates {
+            Some(candidates) => admission_bytes_for_atoms(self.rows(), n, candidates.len() as u64),
+            None => admission_bytes(self.rows(), n),
+        }
     }
 }
 
@@ -348,8 +418,18 @@ impl GraphImputationSource {
     pub fn encode(&self) -> Vec<u8> {
         let parts = &self.parts;
         let mut bytes = Vec::new();
-        bytes.extend_from_slice(MAGIC);
-        bytes.push(u8::try_from(parts.names.len()).unwrap_or(u8::MAX));
+        let n = parts.names.len();
+        let declared = parts.candidates.is_some();
+        let words = if declared { mask_words(n) } else { 1 };
+        if declared {
+            bytes.extend_from_slice(DECLARED_MAGIC);
+            bytes.extend_from_slice(
+                &u32::try_from(n).expect("validated variable count").to_le_bytes(),
+            );
+        } else {
+            bytes.extend_from_slice(MAGIC);
+            bytes.push(u8::try_from(n).expect("validated legacy width"));
+        }
         bytes.extend_from_slice(&u32::try_from(parts.rows()).unwrap_or(u32::MAX).to_le_bytes());
         bytes.extend_from_slice(&parts.treatment.to_le_bytes());
         bytes.extend_from_slice(&parts.outcome.to_le_bytes());
@@ -365,10 +445,24 @@ impl GraphImputationSource {
         bytes.extend_from_slice(&parts.excluded.to_le_bytes());
         bytes
             .extend_from_slice(&u32::try_from(parts.atoms.len()).unwrap_or(u32::MAX).to_le_bytes());
+        if let Some(candidates) = &parts.candidates {
+            bytes.extend_from_slice(
+                &u32::try_from(candidates.len()).expect("validated candidate count").to_le_bytes(),
+            );
+            for mask in candidates {
+                append_mask(&mut bytes, mask, words);
+            }
+        }
         for atom in &parts.atoms {
-            bytes.extend_from_slice(&atom.mask.to_le_bytes());
+            append_mask(&mut bytes, &atom.mask, words);
             bytes.push(status_tag(atom.status).unwrap_or(u8::MAX));
-            bytes.push(u8::try_from(atom.adjustment.len()).unwrap_or(u8::MAX));
+            if declared {
+                bytes.extend_from_slice(
+                    &u32::try_from(atom.adjustment.len()).expect("validated length").to_le_bytes(),
+                );
+            } else {
+                bytes.push(u8::try_from(atom.adjustment.len()).expect("validated legacy length"));
+            }
             for variable in &atom.adjustment {
                 bytes.extend_from_slice(&variable.to_le_bytes());
             }
@@ -391,13 +485,17 @@ impl GraphImputationSource {
     /// # Errors
     /// Invalid, oversized, truncated, noncanonical or out-of-scope source.
     pub fn decode(bytes: &[u8]) -> Result<Self, &'static str> {
-        if !bytes.starts_with(MAGIC) {
+        let declared = if bytes.starts_with(DECLARED_MAGIC) {
+            true
+        } else if bytes.starts_with(MAGIC) {
+            false
+        } else {
             return Err("invalid graph imputation source header");
-        }
+        };
         let mut reader = Reader { bytes, offset: MAGIC.len() };
-        let n = usize::from(reader.byte()?);
+        let n = if declared { reader.u32()? as usize } else { usize::from(reader.byte()?) };
         let rows = reader.u32()? as usize;
-        if !(2..=MAX_VARIABLES).contains(&n) || rows < MIN_ROWS {
+        if !valid_variable_count(n) || (!declared && n > MAX_VARIABLES) || rows < MIN_ROWS {
             return Err("graph imputation source shape is not a supported declaration");
         }
         // Every column holds eight bytes per row, so a declared count the input cannot hold
@@ -423,26 +521,14 @@ impl GraphImputationSource {
         let program = reader.digest()?;
         let excluded = reader.u32()?;
         let atom_count = reader.u32()? as usize;
-        if atom_count == 0
-            || atom_count as u64 > labeled_dag_count(n)
-            || atom_count.checked_mul(ATOM_FIXED_BYTES).is_none_or(|needed| needed > bytes.len())
-        {
-            return Err("graph imputation atom count is not a supported declaration");
+        let total = (atom_count as u64).saturating_add(u64::from(excluded));
+        if atom_count == 0 || total > labeled_dag_count(n) || u32::try_from(total).is_err() {
+            return Err("graph imputation graph count lies outside the source format");
         }
-        let mut atoms = Vec::with_capacity(atom_count);
-        for _ in 0..atom_count {
-            let mask = reader.u64()?;
-            let status = status_from_tag(reader.byte()?).ok_or("unknown identification status")?;
-            let length = usize::from(reader.byte()?);
-            if length > n {
-                return Err("graph imputation adjustment set is too long");
-            }
-            let mut adjustment = Vec::with_capacity(length);
-            for _ in 0..length {
-                adjustment.push(reader.u32()?);
-            }
-            atoms.push(AtomOperation { mask, status, adjustment });
-        }
+        let mask_bytes = if declared { mask_words(n) * 8 } else { 8 };
+        let candidates =
+            if declared { Some(reader.candidate_masks(total, mask_bytes)?) } else { None };
+        let atoms = reader.atoms(n, declared, mask_bytes, atom_count)?;
         let (names, domains, columns) = reader.table(n, rows)?;
         if reader.offset != bytes.len() {
             return Err("trailing graph imputation source bytes");
@@ -455,6 +541,7 @@ impl GraphImputationSource {
                 treatment,
                 outcome,
                 support,
+                candidates,
                 imputations,
                 iterations,
                 imputation_seed,
@@ -471,6 +558,12 @@ impl GraphImputationSource {
             return Err("noncanonical graph imputation source");
         }
         Ok(source)
+    }
+}
+
+fn append_mask(bytes: &mut Vec<u8>, mask: &AdjacencyMask, words: usize) {
+    for index in 0..words {
+        bytes.extend_from_slice(&mask.words().get(index).copied().unwrap_or(0).to_le_bytes());
     }
 }
 
@@ -491,6 +584,57 @@ impl<'a> Reader<'a> {
     fn byte(&mut self) -> Result<u8, &'static str> {
         Ok(self.take(1)?[0])
     }
+    fn candidate_masks(
+        &mut self,
+        total: u64,
+        mask_bytes: usize,
+    ) -> Result<Vec<AdjacencyMask>, &'static str> {
+        let count = self.u32()? as usize;
+        if count as u64 != total
+            || count
+                .checked_mul(mask_bytes)
+                .is_none_or(|needed| needed > self.bytes.len() - self.offset)
+        {
+            return Err("graph imputation candidate count exceeds the encoded length");
+        }
+        let mut candidates = Vec::with_capacity(count);
+        for _ in 0..count {
+            candidates.push(AdjacencyMask::from_le_bytes(self.take(mask_bytes)?));
+        }
+        Ok(candidates)
+    }
+
+    fn atoms(
+        &mut self,
+        n: usize,
+        declared: bool,
+        mask_bytes: usize,
+        atom_count: usize,
+    ) -> Result<Vec<AtomOperation>, &'static str> {
+        let atom_bytes = mask_bytes + if declared { 5 } else { 2 };
+        if atom_count
+            .checked_mul(atom_bytes)
+            .is_none_or(|needed| needed > self.bytes.len() - self.offset)
+        {
+            return Err("graph imputation atom count is not a supported declaration");
+        }
+        let mut atoms = Vec::with_capacity(atom_count);
+        for _ in 0..atom_count {
+            let mask = AdjacencyMask::from_le_bytes(self.take(mask_bytes)?);
+            let status = status_from_tag(self.byte()?).ok_or("unknown identification status")?;
+            let length = if declared { self.u32()? as usize } else { usize::from(self.byte()?) };
+            if length > n {
+                return Err("graph imputation adjustment set is too long");
+            }
+            let mut adjustment = Vec::with_capacity(length);
+            for _ in 0..length {
+                adjustment.push(self.u32()?);
+            }
+            atoms.push(AtomOperation { mask, status, adjustment });
+        }
+        Ok(atoms)
+    }
+
     /// Variable names, domains and columns of a declared shape.
     fn table(&mut self, n: usize, rows: usize) -> Result<TableParts, &'static str> {
         let reader = self;
@@ -583,6 +727,7 @@ mod tests {
             treatment: 0,
             outcome: 1,
             support: GraphSupport::TreatmentDirectEffect,
+            candidates: None,
             imputations: 2,
             iterations: 2,
             imputation_seed: 7,
@@ -592,18 +737,61 @@ mod tests {
             data_digest: [3; 32],
             atoms: vec![
                 AtomOperation {
-                    mask: 1,
+                    mask: 1.into(),
                     status: IdentificationStatus::NonparametricallyIdentified,
                     adjustment: vec![],
                 },
                 AtomOperation {
-                    mask: 5,
+                    mask: 5.into(),
                     status: IdentificationStatus::NonparametricallyIdentified,
                     adjustment: vec![2],
                 },
             ],
             excluded: 3,
         }
+    }
+
+    #[test]
+    fn declared_support_must_fit_the_labeled_dag_count_before_encoding() {
+        let mut source = parts();
+        source.names.truncate(2);
+        source.columns.truncate(2);
+        source.domains.truncate(2);
+        source.atoms = (0..4)
+            .map(|word| AtomOperation {
+                mask: AdjacencyMask::from_word(word),
+                status: IdentificationStatus::NonparametricallyIdentified,
+                adjustment: Vec::new(),
+            })
+            .collect();
+        source.excluded = 0;
+        source.candidates = Some(source.atoms.iter().map(|atom| atom.mask.clone()).collect());
+        assert!(GraphImputationSource::new(source.clone(), [1; 32]).is_err());
+
+        source.atoms.pop();
+        source.candidates.as_mut().unwrap().pop();
+        let mut bytes = GraphImputationSource::new(source, [1; 32]).unwrap().encode();
+        // Seven four-byte counts and ids, three eight-byte fields, one tag and two digests.
+        let excluded = DECLARED_MAGIC.len() + 4 * 7 + 8 * 3 + 1 + 32 * 2;
+        bytes[excluded..excluded + 4].copy_from_slice(&1_u32.to_le_bytes());
+        assert_eq!(
+            GraphImputationSource::decode(&bytes).unwrap_err(),
+            "graph imputation graph count lies outside the source format",
+        );
+    }
+
+    #[test]
+    fn invalid_legacy_width_masks_can_be_digested_and_are_refused_at_admission() {
+        let original = parts();
+        let mut changed = original.clone();
+        let wide = AdjacencyMask::from_word(5).with_bit(70, true);
+        changed.atoms[1].mask = wide.clone();
+        assert_ne!(changed.contract_digest(), original.contract_digest());
+
+        changed.excluded = 0;
+        changed.candidates = Some(vec![AdjacencyMask::from_word(1), wide]);
+        assert!(changed.declared_candidate_identity().is_some());
+        assert!(GraphImputationSource::new(changed, [1; 32]).is_err());
     }
 
     #[test]
@@ -643,7 +831,7 @@ mod tests {
         bad.domains[0] = 0;
         assert!(bad.validate().is_err());
         let mut bad = parts();
-        bad.atoms[1].mask = 1;
+        bad.atoms[1].mask = 1.into();
         assert!(bad.validate().is_err());
         let mut bad = parts();
         bad.atoms[0].adjustment = vec![0];

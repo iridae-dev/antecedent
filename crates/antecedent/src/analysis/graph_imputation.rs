@@ -20,8 +20,9 @@ use std::sync::Arc;
 
 use antecedent_contract::{QuantityRole, ScientificQuantity};
 use antecedent_core::graph_imputation_contract::{
-    AtomOperation, GraphImputationParts, GraphImputationSource, MAX_VARIABLES, MIN_IMPUTATIONS,
-    MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS, admission_bytes, labeled_dag_count,
+    AtomOperation, GraphImputationParts, GraphImputationSource, MIN_IMPUTATIONS, MIN_ITERATIONS,
+    MIN_POSTERIOR_DRAWS, MIN_ROWS, admission_bytes_for_atoms, labeled_dag_count,
+    valid_variable_count,
 };
 use antecedent_core::{
     AverageEffectQuery, CanonicalWriter, ExecutionContext, SemanticDigest, VariableId,
@@ -35,7 +36,7 @@ use antecedent_io::distribution_artifact::{
 };
 use antecedent_io::measured_inference::MeasuredInference;
 use antecedent_io::measured_inference::graph_candidate::{
-    GraphPointReading, replay_point, retained_support,
+    GraphPointReading, replay_point, retained_support_from_candidates,
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
 
@@ -198,7 +199,7 @@ pub enum GraphImputationError {
     #[error("graph_imputation.supported_graph_unidentified: graph mask {mask}")]
     SupportedGraphNotIdentified {
         /// Exact graph mask for the refused proof.
-        mask: u64,
+        mask: AdjacencyMask,
     },
     /// The shared bounded search stopped with its resource receipt.
     #[error("{}", search_stopped_message(.0))]
@@ -473,7 +474,7 @@ impl CompiledGraphImputation {
         }
         let n = source.schema().variables().len();
         let rows = source.row_count();
-        if !(2..=MAX_VARIABLES).contains(&n)
+        if !valid_variable_count(n)
             || rows < MIN_ROWS
             || spec.domains.len() != n
             || spec.domains.iter().any(|&domain| domain > 1)
@@ -512,7 +513,7 @@ impl CompiledGraphImputation {
         let mut atoms = Vec::new();
         let total = retained.len();
         for (done, operation) in retained.iter().enumerate() {
-            let mask = operation.mask;
+            let mask = &operation.mask;
             if let Err(stop) = budget.charge(1, 25 * 1024 * 1024) {
                 return Err(GraphImputationError::SearchStopped(budget.receipt(
                     stop,
@@ -520,10 +521,7 @@ impl CompiledGraphImputation {
                     vec![format!("remaining:{done}..{total}")],
                 )));
             }
-            let adjacency = AdjacencyMask::from_word(mask);
-            let Ok(graph) = dag_from_adjacency_mask(adjacency, n) else {
-                continue;
-            };
+            let graph = dag_from_adjacency_mask(mask, n).map_err(invalid)?;
             let study = Study::tabular(source.clone())
                 .graph(graph)
                 .query(query.clone())
@@ -534,11 +532,13 @@ impl CompiledGraphImputation {
             let prepared = match study.prepare_deferred(ctx) {
                 Ok(prepared) => prepared,
                 Err(CausalError::NotIdentified { .. }) => {
-                    return Err(GraphImputationError::SupportedGraphNotIdentified { mask });
+                    return Err(GraphImputationError::SupportedGraphNotIdentified {
+                        mask: mask.clone(),
+                    });
                 }
                 Err(error) => return Err(error.into()),
             };
-            atoms.push(RetainedAtomBinding { mask, prepared });
+            atoms.push(RetainedAtomBinding { mask: mask.clone(), prepared });
         }
         // The consumer re-derives these from each graph; they are the retained operations, not a
         // restatement of the graph.
@@ -550,7 +550,7 @@ impl CompiledGraphImputation {
                 return Err(invalid("atom has no retained Bayesian g-computation operation").into());
             };
             operations.push(AtomOperation {
-                mask: atom.mask,
+                mask: atom.mask.clone(),
                 status: operation.identification().status,
                 adjustment: operation.estimand().adjustment_set.iter().map(|v| v.raw()).collect(),
             });
@@ -573,14 +573,57 @@ impl CompiledGraphImputation {
         spec: &GraphImputationSpec,
         ctx: &ExecutionContext,
     ) -> Result<Self, GraphImputationError> {
+        Self::compile_with_candidates(source, spec, None, ctx)
+    }
+
+    /// Compile the graph-imputation program over an explicit, predeclared set of DAGs.
+    ///
+    /// Every mask must satisfy the structural support of `spec`. The same support rule and
+    /// Gaussian BIC weighting as [`Self::compile`] apply within this candidate set. The
+    /// declaration is sealed for replay, independent of the observed scores.
+    ///
+    /// # Errors
+    /// As [`Self::compile`], or if the set is empty, contains duplicate masks, or includes
+    /// a mask that is outside the structural support or does not encode a DAG.
+    pub fn compile_from_masks(
+        source: TabularData,
+        spec: &GraphImputationSpec,
+        candidates: &[AdjacencyMask],
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphImputationError> {
+        Self::compile_with_candidates(source, spec, Some(candidates), ctx)
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "admission, proof preparation and sealing form one compile"
+    )]
+    pub(super) fn compile_with_candidates(
+        source: TabularData,
+        spec: &GraphImputationSpec,
+        candidates: Option<&[AdjacencyMask]>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, GraphImputationError> {
         let (n, rows) = Self::validate_compile_input(&source, spec, ctx)?;
-        let quote = admission_bytes(rows, n);
+        let exhaustive_count = labeled_dag_count(n);
+        let most_atoms = candidates.map_or(exhaustive_count, |masks| masks.len() as u64);
+        if most_atoms == 0 || most_atoms > exhaustive_count {
+            return Err(invalid("declared candidate count is outside the labeled DAG count").into());
+        }
+        let quote = admission_bytes_for_atoms(rows, n, most_atoms);
         let lease = ctx.acquire_admission(0, quote).map_err(|error| match error {
             antecedent_core::execution::AdmissionError::Cancelled => {
                 CausalError::Cancelled { stage: "graph imputation compile" }
             }
             other => CausalError::Resource { message: other.to_string() },
         })?;
+        let Ok(atom_count) = u32::try_from(most_atoms) else {
+            return Err(CausalError::Resource {
+                message: "graph imputation search exceeds the representable source atom count"
+                    .into(),
+            }
+            .into());
+        };
         let columns = wire::canonical_source(&source, ctx)?;
         let mut schema = CanonicalWriter::new("antecedent.graph_imputation.schema.v1");
         schema.word(n as u64);
@@ -601,16 +644,30 @@ impl CompiledGraphImputation {
                 }
                 other => CausalError::Resource { message: other.to_string() },
             })?;
-        let most_atoms = usize::try_from(labeled_dag_count(n)).unwrap_or(usize::MAX);
         let mut budget = SearchBudget::with_memory(
-            SearchLimits { operations: most_atoms.saturating_add(64), depth: 1 },
+            SearchLimits {
+                operations: (atom_count as usize).saturating_mul(2).saturating_add(64),
+                depth: 1,
+            },
             25 * 1024 * 1024,
             ctx,
         )
         .map_err(GraphImputationError::SearchStopped)?;
+        let candidates = candidates.map(|masks| {
+            let mut ordered = masks.to_vec();
+            ordered.sort_unstable();
+            ordered
+        });
         // The same derivation the consumer applies decides which supported graphs are retained.
-        let retained = retained_support(n, spec.treatment.raw(), spec.outcome.raw(), spec.support)
-            .map_err(CausalError::from)?;
+        let retained = retained_support_from_candidates(
+            n,
+            spec.treatment.raw(),
+            spec.outcome.raw(),
+            spec.support,
+            candidates.as_deref(),
+            Some(ctx),
+        )
+        .map_err(replay_error)?;
         let (atoms, operations) =
             Self::prepare_supported_atoms(&source, spec, &retained.operations, &mut budget, ctx)?;
         let parts = GraphImputationParts {
@@ -620,6 +677,7 @@ impl CompiledGraphImputation {
             treatment: spec.treatment.raw(),
             outcome: spec.outcome.raw(),
             support: spec.support,
+            candidates,
             imputations: spec.imputation.imputations,
             iterations: spec.imputation.iterations,
             imputation_seed: spec.imputation.seed,
@@ -640,6 +698,7 @@ impl CompiledGraphImputation {
                 treatment: spec.treatment,
                 outcome: spec.outcome,
                 support: spec.support,
+                candidates: parts.candidates.as_deref(),
                 contract: parts.contract_digest(),
                 excluded: u64::from(parts.excluded),
                 imputation: spec.imputation,
@@ -795,7 +854,7 @@ mod compiled_tests {
                 .wrapping_add(1_442_695_040_888_963_407);
             (state >> 11) as f64 / (1u64 << 53) as f64
         };
-        let mut columns: Vec<Vec<f64>> = vec![Vec::new(); 4];
+        let mut columns: Vec<Vec<f64>> = vec![Vec::new(); variables.max(4)];
         for row in 0..rows {
             let covariate = uniform() * 2.0 - 1.0;
             let treated = if confounded {
@@ -809,11 +868,14 @@ mod compiled_tests {
             columns[0].push(treated);
             columns[1].push(if row % 7 == 3 { f64::NAN } else { outcome });
             columns[2].push(covariate);
-            columns[3].push(uniform());
+            for column in columns.iter_mut().skip(3) {
+                column.push(uniform());
+            }
         }
-        let names = ["t", "y", "x", "z"];
+        let mut names = vec!["t".to_owned(), "y".to_owned(), "x".to_owned(), "z".to_owned()];
+        names.extend((4..variables).map(|index| format!("x{index}")));
         TabularData::from_f64_columns(
-            (0..variables).map(|index| (names[index], columns[index].as_slice())),
+            (0..variables).map(|index| (names[index].as_str(), columns[index].as_slice())),
         )
         .unwrap()
     }
@@ -824,7 +886,9 @@ mod compiled_tests {
             outcome: VariableId::from_raw(1),
             support,
             imputation: ImputationSpec::new().with_imputations(2).with_iterations(2).with_seed(17),
-            domains: Arc::from(&[1u8, 0, 0, 0][..variables]),
+            domains: Arc::from(
+                (0..variables).map(|index| u8::from(index == 0)).collect::<Vec<_>>(),
+            ),
             posterior_draws: 100,
             prior_scale: 1.0,
             execution_seed: 19,
@@ -911,7 +975,8 @@ mod compiled_tests {
         use super::super::prepared::IdentificationCache;
         let plan = compiled(GraphImputationSupport::TreatmentRootDirectEffect, 3, 12, false);
         assert_eq!(plan.atoms.len(), 6);
-        let masks: std::collections::BTreeSet<u64> = plan.atoms.iter().map(|a| a.mask).collect();
+        let masks: std::collections::BTreeSet<u64> =
+            plan.atoms.iter().map(|a| a.mask.to_word().unwrap()).collect();
         assert_eq!(masks.len(), 6, "atoms are six distinct graphs");
         let mut functionals = Vec::new();
         for atom in &plan.atoms {
@@ -993,14 +1058,16 @@ mod compiled_tests {
         let plan = compiled(direct, 4, 40, true);
         let structural = graph_imputation_supported_masks(4, 0, 1, direct);
         let source = GraphImputationSource::decode(&plan.source_bytes).unwrap();
-        let compiled_masks: Vec<u64> = plan.atoms.iter().map(|atom| atom.mask).collect();
+        let compiled_masks: Vec<u64> =
+            plan.atoms.iter().map(|atom| atom.mask.to_word().unwrap()).collect();
         assert!(structural.contains(&897) && !compiled_masks.contains(&897));
         let excluded = source.parts().excluded as usize;
         assert!(excluded > 0);
         assert_eq!(compiled_masks.len() + excluded, structural.len());
         // The consumer derives the identical retained list and count from the graphs.
         let derived = derive_support(source.parts()).unwrap();
-        let consumer_masks: Vec<u64> = derived.operations.iter().map(|op| op.mask).collect();
+        let consumer_masks: Vec<u64> =
+            derived.operations.iter().map(|op| op.mask.to_word().unwrap()).collect();
         assert_eq!(consumer_masks, compiled_masks);
         assert_eq!(derived.excluded, source.parts().excluded);
         // The sealed contract and program commit to the retained list and the count.
@@ -1041,6 +1108,7 @@ mod compiled_tests {
                 treatment: VariableId::from_raw(0),
                 outcome: VariableId::from_raw(1),
                 support,
+                candidates: None,
                 contract: [3; 32],
                 excluded: supported.saturating_sub(atoms.len() as u64),
                 imputation: ImputationSpec::new()
@@ -1085,6 +1153,59 @@ mod compiled_tests {
         let point = plan.execute(&ctx).unwrap();
         assert!(point.mean.is_finite());
         assert_eq!(point.unidentified_by_table.len(), 2);
+    }
+
+    #[test]
+    fn nine_variable_candidate_preserves_the_edge_beyond_the_first_word() {
+        let ctx = ExecutionContext::for_tests(19)
+            .with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 128 * 1024 * 1024));
+        let variables = 9;
+        let rows = table(100, variables, false);
+        let spec = spec(GraphImputationSupport::TreatmentRootDirectEffect, variables);
+        assert!(matches!(
+            CompiledGraphImputation::compile(rows.clone(), &spec, &ctx),
+            Err(GraphImputationError::Engine(CausalError::Resource { .. })),
+        ));
+
+        let mut narrow = AdjacencyMask::EMPTY;
+        narrow.set_edge(variables, 0, 1, true);
+        let mut wide = narrow.clone();
+        wide.set_edge(variables, 8, 1, true);
+        assert!(wide.to_word().is_none());
+        let tight =
+            ctx.clone().with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 1024));
+        assert!(matches!(
+            CompiledGraphImputation::compile_from_masks(
+                rows.clone(),
+                &spec,
+                std::slice::from_ref(&wide),
+                &tight,
+            ),
+            Err(GraphImputationError::Engine(CausalError::Resource { .. })),
+        ));
+        let plan = CompiledGraphImputation::compile_from_masks(
+            rows.clone(),
+            &spec,
+            &[wide.clone(), narrow.clone()],
+            &ctx,
+        )
+        .unwrap();
+        let source = GraphImputationSource::decode(plan.source_bytes()).unwrap();
+        assert_eq!(source.parts().candidates.as_deref(), Some(&[narrow.clone(), wide.clone()][..]));
+        assert_eq!(plan.atoms[1].mask, wide);
+        let child = plan.atoms[1].prepared.study().graph.as_dag().unwrap();
+        assert!(child.directed_edge_pairs_sorted().contains(&(8, 1)));
+        assert_eq!(source.parts().atoms[1].mask, wide);
+
+        let without =
+            CompiledGraphImputation::compile_from_masks(rows, &spec, &[narrow], &ctx).unwrap();
+        assert_ne!(plan.lowered().identity(), without.lowered().identity());
+        let point = plan.execute(&ctx).unwrap();
+        assert!(point.mean.is_finite());
+        let exported = plan.export(&point, &ctx).unwrap();
+        let replay = consume(exported.bytes(), exported.expectation(), &ctx).unwrap();
+        assert_eq!(replay.receipt, point.receipt);
+        assert_eq!(replay.mean.to_bits(), point.mean.to_bits());
     }
 
     #[test]

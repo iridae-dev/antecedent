@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use antecedent_contract::{ClaimKind, DataClassification};
 use antecedent_core::graph_imputation_contract::{
-    GraphSupport, MAX_VARIABLES, MIN_IMPUTATIONS, MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS,
+    GraphSupport, MIN_IMPUTATIONS, MIN_ITERATIONS, MIN_POSTERIOR_DRAWS, MIN_ROWS,
+    valid_variable_count, write_mask,
 };
 use antecedent_core::{
     ByteEstimates, CanonicalWriter, PhysicalEffect, PhysicalOperator, VariableId,
@@ -33,13 +34,13 @@ const DESIGN: &str = "row imputation and native graph-weighted effects";
 /// One exact graph and its native atom prepared before composite dispatch.
 #[derive(Clone, Debug)]
 pub(crate) struct RetainedAtomBinding {
-    pub(crate) mask: u64,
+    pub(crate) mask: AdjacencyMask,
     pub(crate) prepared: PreparedStudy,
 }
 
 /// Inputs must be constructed by the native compiler from the actual schema, rows and atom
 /// preparation, not from an arbitrary application or decoded report.
-pub(crate) struct LoweringInput {
+pub(crate) struct LoweringInput<'a> {
     pub(crate) source_digest: [u8; 32],
     pub(crate) schema_digest: [u8; 32],
     pub(crate) rows: u64,
@@ -47,6 +48,7 @@ pub(crate) struct LoweringInput {
     pub(crate) treatment: VariableId,
     pub(crate) outcome: VariableId,
     pub(crate) support: GraphSupport,
+    pub(crate) candidates: Option<&'a [AdjacencyMask]>,
     /// Identity of the declaration and of every retained child operation, as a consumer
     /// re-derives it. The program commits to it.
     pub(crate) contract: [u8; 32],
@@ -91,11 +93,11 @@ fn operator(effect: PhysicalEffect, bytes: Option<u64>) -> Result<PhysicalOperat
     reason = "lowering seals the complete bounded declaration and owns its inputs"
 )]
 pub(crate) fn lower(
-    input: LoweringInput,
+    input: LoweringInput<'_>,
     budget: &mut antecedent_core::search::SearchBudget<'_>,
 ) -> Result<LoweredProgram, super::super::graph_imputation::GraphImputationError> {
     let n = input.variables.len();
-    if !(2..=MAX_VARIABLES).contains(&n)
+    if !valid_variable_count(n)
         || input.rows < MIN_ROWS as u64
         || input.treatment == input.outcome
         || !input.variables.contains(&input.treatment)
@@ -119,12 +121,21 @@ pub(crate) fn lower(
             return Err(refuse("variables must use dense table order").into());
         }
     }
-    let expected = graph_imputation_supported_masks(
-        n,
-        input.treatment.raw() as usize,
-        input.outcome.raw() as usize,
-        input.support,
-    );
+    let exhaustive;
+    let expected = if let Some(candidates) = input.candidates {
+        candidates
+    } else {
+        exhaustive = graph_imputation_supported_masks(
+            n,
+            input.treatment.raw() as usize,
+            input.outcome.raw() as usize,
+            input.support,
+        )
+        .into_iter()
+        .map(AdjacencyMask::from_word)
+        .collect::<Vec<_>>();
+        &exhaustive
+    };
     for done in 0..expected.len() {
         if let Err(stop) = budget.charge(1, 25 * 1024 * 1024) {
             return Err(super::super::graph_imputation::GraphImputationError::SearchStopped(
@@ -159,8 +170,7 @@ pub(crate) fn lower(
         if atom.prepared.is_materialized() {
             return Err(refuse("atom bindings must be declaration-only").into());
         }
-        let dag =
-            dag_from_adjacency_mask(AdjacencyMask::from_word(atom.mask), n).map_err(refuse)?;
+        let dag = dag_from_adjacency_mask(&atom.mask, n).map_err(refuse)?;
         if atom.prepared.study().graph.as_dag() != Some(&dag) {
             return Err(refuse("atom mask does not match its retained graph").into());
         }
@@ -193,7 +203,7 @@ pub(crate) fn lower(
             .ok_or_else(|| refuse("atom has no lowered program"))?
             .identity();
         caches.push(cache.clone());
-        seals.push((atom.mask, proof, program));
+        seals.push((&atom.mask, proof, program));
     }
 
     let mut declaration = CanonicalWriter::new(TAG);
@@ -226,7 +236,8 @@ pub(crate) fn lower(
     }
     declaration.word(input.atoms.len() as u64);
     for (mask, proof, program) in &seals {
-        declaration.word(*mask).bytes(proof).bytes(program.as_bytes());
+        write_mask(&mut declaration, mask, n);
+        declaration.bytes(proof).bytes(program.as_bytes());
     }
     let query = declaration.finish();
     let scientific = ScientificProblem {

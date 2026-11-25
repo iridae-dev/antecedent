@@ -14,7 +14,8 @@ use std::sync::Arc;
 use antecedent_core::assumption::AssumptionSource;
 use antecedent_core::execution::{AdmissionError, AdmissionLease, RngFactory, mix64};
 use antecedent_core::graph_imputation_contract::{
-    AtomOperation, GraphImputationParts, GraphImputationSource, GraphSupport, SUPPORT_RULE,
+    AtomOperation, GraphImputationParts, GraphImputationSource, GraphSupport, MAX_VARIABLES,
+    SUPPORT_RULE, write_mask,
 };
 use antecedent_core::search::{SearchBudget, SearchLimits};
 use antecedent_core::{
@@ -27,7 +28,8 @@ use antecedent_data::{
 };
 use antecedent_discovery::adjacency_mask::{AdjacencyMask, dag_from_adjacency_mask};
 use antecedent_discovery::graph_imputation_enumeration::{
-    BoundedExactDagError, graph_imputation_exact_dags, graph_imputation_supported_masks,
+    BoundedExactDagError, graph_imputation_exact_dags, graph_imputation_exact_from_masks,
+    graph_imputation_supported_mask, graph_imputation_supported_masks,
 };
 use antecedent_estimate::multiple_imputation::{ImputationColumn, ImputationUnits, Imputer};
 use antecedent_estimate::{
@@ -356,7 +358,7 @@ fn validate_confounded_adjustment(
     let n = parts.names.len();
     for atom in &parts.atoms {
         let dag =
-            dag_from_adjacency_mask(AdjacencyMask::from_word(atom.mask), n).map_err(invalid)?;
+            dag_from_adjacency_mask(&atom.mask, n).map_err(invalid)?;
         let treatment = antecedent_graph::DenseNodeId::from_raw(parts.treatment);
         let outcome = antecedent_graph::DenseNodeId::from_raw(parts.outcome);
         let mut adjustment = atom.adjustment.clone();
@@ -392,7 +394,7 @@ fn validate_target_selection_admissibility(
     let n = parts.names.len();
     for atom in &parts.atoms {
         let dag =
-            dag_from_adjacency_mask(AdjacencyMask::from_word(atom.mask), n).map_err(invalid)?;
+            dag_from_adjacency_mask(&atom.mask, n).map_err(invalid)?;
         let mut adjustment = atom.adjustment.clone();
         for &id in selected {
             if !adjustment.contains(&id) {
@@ -684,14 +686,31 @@ fn derive_atoms(
     n: usize,
     treatment: u32,
     outcome: u32,
-    support: GraphSupport,
+    (support, candidates): (GraphSupport, Option<&[AdjacencyMask]>),
     query: &AverageEffectQuery,
+    ctx: Option<&ExecutionContext>,
 ) -> Result<DerivedSupport, IoError> {
-    let masks = graph_imputation_supported_masks(n, treatment as usize, outcome as usize, support);
+    let masks = if let Some(candidates) = candidates {
+        if candidates.is_empty() || !candidates.windows(2).all(|pair| pair[0] < pair[1]) {
+            return Err(invalid("candidate masks must be nonempty, unique and ordered"));
+        }
+        candidates.to_vec()
+    } else {
+        graph_imputation_supported_masks(n, treatment as usize, outcome as usize, support)
+            .into_iter()
+            .map(AdjacencyMask::from_word)
+            .collect()
+    };
     let mut derived = Vec::with_capacity(masks.len());
     let mut excluded = 0u32;
     for mask in masks {
-        let dag = dag_from_adjacency_mask(AdjacencyMask::from_word(mask), n)
+        if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
+            return Err(cancelled());
+        }
+        if !graph_imputation_supported_mask(&mask, n, treatment as usize, outcome as usize, support) {
+            return Err(invalid(format!("graph mask {mask} lies outside declared support")));
+        }
+        let dag = dag_from_adjacency_mask(&mask, n)
             .map_err(|error| invalid(format!("graph mask {mask}: {error}")))?;
         let identifier = BackdoorIdentifier::new();
         let prepared = identifier
@@ -752,11 +771,26 @@ pub fn retained_support(
     outcome: u32,
     support: GraphSupport,
 ) -> Result<RetainedSupport, IoError> {
+    retained_support_from_candidates(n, treatment, outcome, support, None, None)
+}
+
+/// Derive retained graph operations from the declared candidate set or exhaustive support.
+///
+/// # Errors
+/// The candidates must be ordered, distinct DAGs in the declared support with identifiable effects.
+pub fn retained_support_from_candidates(
+    n: usize,
+    treatment: u32,
+    outcome: u32,
+    support: GraphSupport,
+    candidates: Option<&[AdjacencyMask]>,
+    ctx: Option<&ExecutionContext>,
+) -> Result<RetainedSupport, IoError> {
     let query = AverageEffectQuery::binary_ate(
         VariableId::from_raw(treatment),
         VariableId::from_raw(outcome),
     );
-    let derived = derive_atoms(n, treatment, outcome, support, &query)?;
+    let derived = derive_atoms(n, treatment, outcome, (support, candidates), &query, ctx)?;
     Ok(RetainedSupport {
         operations: derived.atoms.into_iter().map(|atom| atom.operation).collect(),
         excluded: derived.excluded,
@@ -768,7 +802,14 @@ pub fn retained_support(
 /// # Errors
 /// A supported graph cannot be identified.
 pub fn derive_support(parts: &GraphImputationParts) -> Result<RetainedSupport, IoError> {
-    retained_support(parts.names.len(), parts.treatment, parts.outcome, parts.support)
+    retained_support_from_candidates(
+        parts.names.len(),
+        parts.treatment,
+        parts.outcome,
+        parts.support,
+        parts.candidates.as_deref(),
+        None,
+    )
 }
 
 struct Reconstructed {
@@ -792,7 +833,7 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
     let graph_lease = ctx
         .acquire_admission(
             0,
-            antecedent_core::graph_imputation_contract::admission_bytes(parts.rows(), n),
+            parts.admission_bytes(),
         )
         .map_err(admission)?;
     let table = TabularData::from_f64_columns(
@@ -842,7 +883,14 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
     );
     // The compiler's retained child operations must equal those derived here, atom for atom.
     let DerivedSupport { atoms, excluded } =
-        derive_atoms(n, parts.treatment, parts.outcome, parts.support, &query)?;
+        derive_atoms(
+            n,
+            parts.treatment,
+            parts.outcome,
+            (parts.support, parts.candidates.as_deref()),
+            &query,
+            Some(ctx),
+        )?;
     if atoms.len() != parts.atoms.len()
         || atoms.iter().zip(&parts.atoms).any(|(derived, carried)| derived.operation != *carried)
     {
@@ -1536,7 +1584,10 @@ fn execute(
     let mut budget =
         SearchBudget::with_memory(SearchLimits { operations, depth: 1 }, MEMORY_LIMIT, &scoped)
             .map_err(|receipt| execution_refused(receipt.summary()))?;
-    let retained: Vec<u64> = rec.atoms.iter().map(|atom| atom.operation.mask).collect();
+    let retained: Vec<_> = rec.atoms.iter().map(|atom| atom.operation.mask.clone()).collect();
+    let retained_words = (parts.names.len() <= MAX_VARIABLES).then(|| {
+        retained.iter().map(|mask| mask.to_word().expect("validated legacy mask")).collect::<Vec<_>>()
+    });
     let mut pooled = Vec::new();
     let mut pooled_worlds = Vec::new();
     let mut pooled_probabilities = Vec::new();
@@ -1591,23 +1642,30 @@ fn execute(
     let imputer = transported_imputer.as_ref().unwrap_or(&rec.imputer);
     for index in 0..parts.imputations {
         let (data, completed_digest) = complete_table(rec, imputer, index, &scoped)?;
-        let graphs = graph_imputation_exact_dags(
-            &data,
-            &rec.variables,
-            treatment,
-            outcome,
-            parts.support,
-            &retained,
-            &mut budget,
-        )
+        let graphs = if let Some(words) = &retained_words {
+            graph_imputation_exact_dags(
+                &data, &rec.variables, treatment, outcome, parts.support, words, &mut budget,
+            )
+        } else {
+            for done in 0..retained.len() {
+                if let Err(stop) = budget.charge(1, MEMORY_LIMIT) {
+                    return Err(execution_refused(budget.receipt(
+                        stop,
+                        vec![format!("retained:0..{done}")],
+                        vec![format!("retained:{done}..{}", retained.len())],
+                    ).summary()));
+                }
+            }
+            graph_imputation_exact_from_masks(
+                &data, &rec.variables, treatment, outcome, parts.support, &retained, &budget,
+            )
+        }
         .map_err(|error| match error {
             BoundedExactDagError::Search(receipt) => execution_refused(receipt.summary()),
             other => execution_refused(other),
         })?;
-        let mut weights = BTreeMap::<u64, f64>::new();
+        let mut weights = BTreeMap::<&AdjacencyMask, f64>::new();
         for (mask, &weight) in graphs.atoms().iter().zip(graphs.weights().iter()) {
-            let mask =
-                mask.to_word().ok_or_else(|| execution_refused("graph exceeds bounded mask"))?;
             *weights.entry(mask).or_default() += weight;
         }
         receipt.bytes(&completed_digest);
@@ -1626,14 +1684,15 @@ fn execute(
             let atom = rec
                 .atoms
                 .iter()
-                .find(|atom| atom.operation.mask == mask)
+                .find(|atom| &atom.operation.mask == mask)
                 .ok_or_else(|| execution_refused("discovery returned an unsupported graph"))?;
             if scoped.cancellation.is_cancelled() {
                 return Err(cancelled());
             }
             let mut child_ctx = scoped.clone();
+            let key = mask.key();
             child_ctx.rng =
-                RngFactory::from_seed(mix64(parts.execution_seed ^ (u64::from(index) << 8) ^ mask));
+                RngFactory::from_seed(mix64(parts.execution_seed ^ (u64::from(index) << 8) ^ key));
             let fitter = BayesianGComputationAte {
                 backend: if logit_predictive {
                     BayesianBackendKind::Laplace
@@ -1750,7 +1809,7 @@ fn execute(
                     None => parts.execution_seed,
                 };
                 let mut predictive_rng = antecedent_core::CausalRng::from_seed(mix64(
-                    stream ^ (u64::from(index) << 32) ^ mask ^ 0x4245_524e_5052_4544,
+                    stream ^ (u64::from(index) << 32) ^ key ^ 0x4245_524e_5052_4544,
                 ));
                 // A 0/1 world is one realization of a success probability, and a
                 // 95% interval of that realization is its support. What a
@@ -1980,7 +2039,7 @@ fn execute(
                     }
                     world_values.push([control, active]);
                 }
-                world_atoms.push((mask, weight, world_values, success_values));
+                world_atoms.push((key, weight, world_values, success_values));
             }
             if !matches!(
                 fit.identification,
@@ -2001,13 +2060,13 @@ fn execute(
             if values.len() < 2 || values.iter().any(|value| !value.is_finite()) {
                 return Err(execution_refused("missing or nonfinite effect draws"));
             }
-            let digest = child_receipt(mask, &completed_digest, values, &fit.assumptions);
+            let digest = child_receipt(mask, parts.names.len(), &completed_digest, values, &fit.assumptions);
             kept.push((mask, weight, digest));
             total += weight;
             value_count += values.len() as u64;
             flags.push(GraphIdentFlag::Identified);
-            keys.push(mask);
-            push_effect(&mut effects, mask, values);
+            keys.push(key);
+            push_effect(&mut effects, key, values);
             assumptions.extend_unique(fit.assumptions.entries.iter());
         }
         if (total - 1.0).abs() > 1e-12 {
@@ -2074,7 +2133,8 @@ fn execute(
         }
         receipt.word(kept.len() as u64);
         for (mask, weight, digest) in &kept {
-            receipt.word(*mask).word(weight.to_bits()).bytes(digest);
+            write_mask(&mut receipt, mask, parts.names.len());
+            receipt.word(weight.to_bits()).bytes(digest);
         }
     }
     if pooled.len() < 2 || pooled.iter().any(|value| !value.is_finite()) {
@@ -2162,13 +2222,15 @@ fn complete_table(
 }
 
 fn child_receipt(
-    mask: u64,
+    mask: &AdjacencyMask,
+    variables: usize,
     completed_digest: &[u8; 32],
     values: &[f64],
     assumptions: &AssumptionSet,
 ) -> [u8; 32] {
     let mut child = CanonicalWriter::new("antecedent.graph_candidate.child_execution.v1");
-    child.word(mask).bytes(completed_digest).word(values.len() as u64);
+    write_mask(&mut child, mask, variables);
+    child.bytes(completed_digest).word(values.len() as u64);
     for value in values {
         child.word(value.to_bits());
     }
@@ -2211,7 +2273,7 @@ pub enum CandidateBasis {
 /// The facts of the execution that make up the functional coordinate. Seeds are not part of it:
 /// they do not change the procedure a record measured. The variable count and graph count are.
 fn core_functional(parts: &GraphImputationParts) -> String {
-    format!(
+    let legacy = format!(
         "support={}:rule={}:variables={}:graphs={}:domains={}:m={}:sweeps={}:draws={}:prior_bits={:016x}",
         parts.support.as_str(),
         SUPPORT_RULE,
@@ -2222,7 +2284,11 @@ fn core_functional(parts: &GraphImputationParts) -> String {
         parts.iterations,
         parts.posterior_draws,
         parts.prior_scale.to_bits(),
-    )
+    );
+    match parts.declared_candidate_identity() {
+        Some(identity) => format!("{legacy}:candidates={}", identity.to_hex()),
+        None => legacy,
+    }
 }
 
 /// The functional coordinate the measured route reports for these parts.
@@ -3248,6 +3314,7 @@ mod tests {
         let data_digest =
             table.storage().content_digest_with_context(&ExecutionContext::for_tests(3)).unwrap();
         let mut parts = GraphImputationParts {
+            candidates: None,
             names,
             domains,
             columns,
@@ -3446,6 +3513,26 @@ mod tests {
         assert_eq!(first.receipt, second.receipt);
         assert!(first.mean.is_finite() && first.diagnostic_sd > 0.0);
         assert!(first.unidentified_by_table.iter().all(|mass| *mass == 0.0));
+    }
+
+    #[test]
+    fn an_exhaustive_record_does_not_calibrate_an_explicit_candidate_set() {
+        let ctx = ExecutionContext::for_tests(7);
+        let mut source = parts(GraphSupport::TreatmentDirectEffect, 3, 60);
+        let exhaustive = route_functional(&source);
+        source.candidates = Some(
+            graph_imputation_supported_masks(3, 0, 1, source.support)
+                .into_iter()
+                .map(AdjacencyMask::from_word)
+                .collect(),
+        );
+        assert_ne!(route_functional(&source), exhaustive);
+        let bytes = encoded(source);
+        let measured = super::super::with_test_records(vec![record(exhaustive, 30, 4096)], || {
+            measure_source(&bytes, &ctx)
+        })
+        .unwrap();
+        assert_ne!(measured.report().scalars[0].calibration.status, "calibrated");
     }
 
     #[test]

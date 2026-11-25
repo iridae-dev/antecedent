@@ -45,9 +45,9 @@ pub fn graph_imputation_supported_mask(
     outcome: usize,
     support: GraphSupport,
 ) -> bool {
-    // Eight is the word width of the `u64` listing. A wider mask is scored by
-    // [`graph_imputation_exact_from_masks`], which admits the mask's own bytes.
-    (2..=MAX_VARIABLES).contains(&n) && imputation_mask_supported(mask, n, treatment, outcome, support)
+    crate::adjacency_mask::edge_bits_fit(n)
+        && mask.fits_graph(n)
+        && imputation_mask_supported(mask, n, treatment, outcome, support)
 }
 
 fn imputation_mask_supported(
@@ -335,8 +335,7 @@ pub fn graph_imputation_exact_from_masks(
         )
         .into());
     }
-    let bytes =
-        retained.iter().map(AdjacencyMask::admission_bytes).max().unwrap_or(0).max(1);
+    let bytes = retained.iter().map(AdjacencyMask::admission_bytes).max().unwrap_or(0).max(1);
     if let Err(stop) = budget.admits(1, bytes, 0) {
         return Err(BoundedExactDagError::Search(budget.receipt(
             stop,
@@ -346,9 +345,8 @@ pub fn graph_imputation_exact_from_masks(
     }
     let score_data = tabular_score_data(data, variables)?;
     let prior = GraphPrior::uniform();
-    let scorer = (n <= EXACT_ENUM_MAX_NODES).then(|| {
-        DagScorer::new(n, &score_data, GraphScoreFamily::GaussianBic, &prior, variables)
-    });
+    let scorer = (n <= EXACT_ENUM_MAX_NODES)
+        .then(|| DagScorer::new(n, &score_data, GraphScoreFamily::GaussianBic, &prior, variables));
     let mut cache = (n > EXACT_ENUM_MAX_NODES).then(|| {
         antecedent_state::LocalScoreCache::new(crate::graph_score::graph_score_cache_key(
             GraphScoreFamily::GaussianBic,
@@ -359,8 +357,15 @@ pub fn graph_imputation_exact_from_masks(
     let mut masks = Vec::new();
     let mut log_weights = Vec::new();
     let mut rejected = 0u64;
-    for mask in retained {
-        if !imputation_mask_supported(
+    for (done, mask) in retained.iter().enumerate() {
+        if let Err(stop) = budget.admits(0, bytes, 0) {
+            return Err(BoundedExactDagError::Search(budget.receipt(
+                stop,
+                vec![format!("retained:0..{done}")],
+                vec![format!("retained:{done}..{}", retained.len())],
+            )));
+        }
+        if !graph_imputation_supported_mask(
             mask,
             n,
             treatment.raw() as usize,
@@ -377,9 +382,9 @@ pub fn graph_imputation_exact_from_masks(
                 mask,
                 n,
                 &score_data,
-                cache.as_mut().expect(
-                    "a graph past the default width scores through the local cache",
-                ),
+                cache
+                    .as_mut()
+                    .expect("a graph past the default width scores through the local cache"),
                 &prior,
                 variables,
             )
@@ -625,9 +630,8 @@ mod graph_imputation_budget_tests {
         let n = 9usize;
         let rows = 24usize;
         let mut rng = antecedent_core::CausalRng::from_seed(9);
-        let columns: Vec<Vec<f64>> = (0..n)
-            .map(|_| (0..rows).map(|_| rng.next_f64() * 2.0 - 1.0).collect())
-            .collect();
+        let columns: Vec<Vec<f64>> =
+            (0..n).map(|_| (0..rows).map(|_| rng.next_f64() * 2.0 - 1.0).collect()).collect();
         let data = TabularData::from_f64_columns([
             ("v0", columns[0].as_slice()),
             ("v1", columns[1].as_slice()),
@@ -673,8 +677,7 @@ mod graph_imputation_budget_tests {
 
         ctx.set_memory_limit(Some(16));
         let tight =
-            SearchBudget::with_memory(SearchLimits { operations: 64, depth: 4 }, 32, &ctx)
-                .unwrap();
+            SearchBudget::with_memory(SearchLimits { operations: 64, depth: 4 }, 32, &ctx).unwrap();
         let error = graph_imputation_exact_from_masks(
             &data,
             &variables,

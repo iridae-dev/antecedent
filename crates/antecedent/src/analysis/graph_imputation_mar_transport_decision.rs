@@ -462,7 +462,9 @@ pub fn consume_graph_imputation_mar_transport_decision(
         prior_scale: parts.prior_scale,
         execution_seed: parts.execution_seed,
     };
-    let producer = CompiledGraphImputation::compile(table, &spec, ctx)?;
+    let producer = CompiledGraphImputation::compile_with_candidates(
+        table, &spec, parts.candidates.as_deref(), ctx,
+    )?;
     if producer.source_bytes() != wire.source.as_slice()
         || original.program() != *producer.lowered().identity().as_bytes()
     {
@@ -771,7 +773,7 @@ impl CompiledMarTransportDecision {
             .join(",");
         // Source and target row counts reach the record through the scope's
         // row count; the target cluster count is not part of the construction.
-        let functional = format!(
+        let mut functional = format!(
             "target_average_effect:graph_support={}:graphs={}:domains={}:selected={:?}:imputations={}:iterations={}:posterior_draws={}:prior_bits={:016x}:mode={}:confounded={}:mar_conditioning={:?}:probability_policy=declared_complete_vector:observation_mechanism={:?}:sampling_design={:?}:weights=sampling_over_observation:bandwidths={}:overlap_bits={:016x}:target_sampling={}:replicates={}",
             parts.support.as_str(),
             parts.atoms.len(),
@@ -791,6 +793,9 @@ impl CompiledMarTransportDecision {
             if self.bootstrap.is_some() { "independent_cluster_bootstrap" } else { "fixed_frame" },
             self.bootstrap.map_or(0, |policy| policy.replicates)
         );
+        if let Some(candidates) = parts.declared_candidate_identity() {
+            functional.push_str(&format!(":candidates={}", candidates.to_hex()));
+        }
         let n_draws = self
             .bootstrap
             .map_or(parts.posterior_draws.saturating_mul(parts.imputations), |p| p.replicates);

@@ -825,6 +825,9 @@ impl CompiledGraphImputationKernelTransportDecision {
             parts.posterior_draws,
             parts.prior_scale.to_bits(),
         );
+        if let Some(candidates) = parts.declared_candidate_identity() {
+            functional.push_str(&format!(":candidates={}", candidates.to_hex()));
+        }
         // Source and target row counts reach the record through the scope's
         // row count; cluster sizes and seeds are not part of the construction.
         let (feature, model, draws) = if let Some(bootstrap) = &self.cluster_bootstrap {
@@ -1025,7 +1028,9 @@ pub fn consume_graph_imputation_kernel_transport_decision(
         prior_scale: parts.prior_scale,
         execution_seed: parts.execution_seed,
     };
-    let producer = CompiledGraphImputation::compile(table, &spec, ctx)?;
+    let producer = CompiledGraphImputation::compile_with_candidates(
+        table, &spec, parts.candidates.as_deref(), ctx,
+    )?;
     if producer.source_bytes() != wire.original_source.as_slice()
         || original.program() != *producer.lowered().identity().as_bytes()
     {
