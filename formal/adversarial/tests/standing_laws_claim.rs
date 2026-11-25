@@ -202,6 +202,19 @@ proptest! {
         }
         let identifies = status_name_identifies_a_point(&slot.status);
         prop_assert_eq!(identifies, status.is_some_and(status_identifies_a_point));
+        // The rule itself, stated apart from its implementation: only a nonparametric or a
+        // parametric identification identifies a point; a prior restriction, a partial or a
+        // graph-dependent status, an unidentified one and an unknown spelling do not.
+        prop_assert_eq!(
+            identifies,
+            matches!(
+                status,
+                Some(
+                    IdentificationStatus::NonparametricallyIdentified
+                        | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                )
+            )
+        );
         let domains = claim_domain_statuses(None, Some(&slot));
         prop_assert_eq!(
             domains.identification == DomainStatus::Identified,
