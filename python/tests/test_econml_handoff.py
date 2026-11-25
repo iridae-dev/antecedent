@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+import json
+
 import antecedent
 import numpy as np
 import pytest
+from antecedent.extensibility import FoldPolicy, ProviderResult, ProviderTrust
+from antecedent.external import BoundExternalClaim
+from antecedent.external_learners import ExternalAteEstimate
 from antecedent.outcomes import require_success
 from antecedent.query import Exceedance, ExceedanceGrid
 
@@ -677,6 +682,159 @@ def test_handoff_exceedance_preserves_missing_aligned_outcomes(layout, key, func
     cols = spec.columns(data, layout=layout)
     np.testing.assert_array_equal(cols["origins"], [0, 1, 2, 3])
     np.testing.assert_equal(cols[key], expected)
+
+
+def _call_receipt(name: str, version: str) -> ProviderResult:
+    return ProviderResult(
+        np.zeros(0),
+        None,
+        (),
+        "supported",
+        {"registry_name": name, "version": version, "package": "test"},
+        ProviderTrust.EXTERNALLY_ATTESTED,
+        "point_only",
+    )
+
+
+def test_learner_result_and_attached_handoff_are_one_adjustment_claim() -> None:
+    identified = antecedent.identify(
+        graph=_backdoor_graph(), query=antecedent.AverageEffect("t", "y")
+    )
+    spec = antecedent.handoff.adjustment(identified)
+    data = _backdoor_data()
+    assert set(spec.columns(data)) >= {"Y", "T", "W"}
+    assert antecedent.handoff.econml is antecedent.handoff.adjustment
+    attached = spec.attach(
+        learner="econml.dml.LinearDML",
+        learner_config={"cv": 3},
+        effect=2.0,
+        data=data,
+        label="ate",
+        learner_version="0.15.1",
+        support=["supported"],
+    )
+    handoff_claim = antecedent.handoff.adjustment_claim(attached)
+    assert type(handoff_claim) is antecedent.handoff.AdjustmentClaim
+    assert handoff_claim is attached.adjustment_claim
+    assert handoff_claim.fold_policy is FoldPolicy.HANDOFF_UNKNOWN
+    assert attached.fold_policy is FoldPolicy.HANDOFF_UNKNOWN
+    assert not handoff_claim.fold_policy.assignment_recorded()
+    assert handoff_claim.learner_id == "econml.dml.LinearDML"
+    assert handoff_claim.learner_version == "0.15.1"
+    assert isinstance(attached.claim, BoundExternalClaim)
+    assert list(attached.claim.values) == [2.0]
+    loaded = require_success(antecedent.load(bytes(attached.export())))
+    assert (
+        handoff_claim.effect_digest
+        == loaded.decoded_artifact.contract["claim"]["attested"][0]["payload_digest"]
+    )
+    document = json.loads(antecedent.handoff.encode_adjustment_claim(handoff_claim))
+    assert document["contract"] == "adjustment"
+    assert document["fold_policy"] == "handoff_unknown"
+    opened = antecedent.handoff.AdjustmentClaim.open(handoff_claim.export())
+    assert opened == handoff_claim
+    assert opened.identity == handoff_claim.identity
+    assert opened.fold_policy is FoldPolicy.HANDOFF_UNKNOWN
+    again = spec.attach(
+        learner="econml.dml.LinearDML",
+        learner_config={"cv": 3},
+        effect=2.0,
+        data=data,
+        label="ate",
+        learner_version="0.15.1",
+        support=["supported"],
+    )
+    assert again.adjustment_claim == handoff_claim
+    other = spec.attach(
+        learner="econml.dml.LinearDML",
+        learner_config={"cv": 3},
+        effect=2.1,
+        data=data,
+        label="ate",
+        learner_version="0.15.1",
+        support=["supported"],
+    )
+    assert other.adjustment_claim.adjustment_identity == handoff_claim.adjustment_identity
+    assert other.adjustment_claim.effect_digest != handoff_claim.effect_digest
+    assert other.adjustment_claim.identity != handoff_claim.identity
+    opaque = spec.attach(learner="x", effect=np.ones(3), data=data)
+    assert opaque.claim is None
+    assert opaque.adjustment_claim.fold_policy is FoldPolicy.HANDOFF_UNKNOWN
+    assert opaque.adjustment_claim.learner_version == "unspecified"
+
+    legacy = dict(document)
+    legacy["fold_policy"] = "external_learner_owned_not_recorded_by_handoff"
+    decoded_legacy = antecedent.handoff.decode_adjustment_claim(
+        json.dumps(legacy, sort_keys=True, separators=(",", ":")).encode()
+    )
+    assert decoded_legacy.fold_policy is FoldPolicy.HANDOFF_UNKNOWN
+    assert antecedent.handoff.encode_adjustment_claim(decoded_legacy) == handoff_claim.export()
+    recorded = dict(document)
+    recorded["fold_policy"] = "host_owned"
+    changed = antecedent.handoff.decode_adjustment_claim(
+        json.dumps(recorded, sort_keys=True, separators=(",", ":")).encode()
+    )
+    assert changed.fold_policy is FoldPolicy.HOST_OWNED
+    assert changed.fold_policy.assignment_recorded()
+    assert changed.identity != handoff_claim.identity
+    recorded["fold_policy"] = "shuffled"
+    with pytest.raises(ValueError, match="fold policy"):
+        antecedent.handoff.decode_adjustment_claim(
+            json.dumps(recorded, sort_keys=True, separators=(",", ":")).encode()
+        )
+
+    fit = _call_receipt("outcome", "1")
+    propensity = _call_receipt("treatment", "2")
+    learner = ExternalAteEstimate(
+        estimator="dml",
+        score="aipw",
+        estimate=1.25,
+        standard_error=0.2,
+        row_ids=(0, 1, 2),
+        fold_ids=(0, 1, 0),
+        adjustment_set=("z",),
+        provenance=(
+            ("external_provider", "python_receipt:0", "1"),
+            ("external_provider", "python_receipt:1", "1"),
+        ),
+        assumptions=({"assumption": "positivity", "status": "required"},),
+        cate=None,
+        cate_standard_errors=None,
+        receipts=((0, fit, fit), (1, propensity, propensity)),
+        fold_policy=FoldPolicy.HOST_OWNED,
+    )
+    learned = antecedent.handoff.adjustment_claim(learner)
+    assert type(learned) is type(handoff_claim)
+    assert learned.fold_policy is FoldPolicy.HOST_OWNED
+    assert learned.fold_policy.assignment_recorded()
+    assert learned.learner_id == '["outcome","treatment"]'
+    assert learned.learner_version == '["1","2"]'
+    assert learner.fold_ids == (0, 1, 0) and len(learner.receipts) == 2
+    reopened = antecedent.handoff.decode_adjustment_claim(
+        antecedent.handoff.encode_adjustment_claim(learned)
+    )
+    assert reopened == learned
+    assert reopened.fold_policy.assignment_recorded()
+    assert reopened.identity == learned.identity
+    single = ExternalAteEstimate(
+        estimator="dml",
+        score="aipw",
+        estimate=1.25,
+        standard_error=0.2,
+        row_ids=(0,),
+        fold_ids=(0,),
+        adjustment_set=("z",),
+        provenance=(("external_provider", "python_receipt:0", "1"),),
+        assumptions=(),
+        cate=None,
+        cate_standard_errors=None,
+        receipts=((0, fit, fit),),
+        fold_policy=FoldPolicy.CALLER_OWNED,
+    )
+    one = antecedent.handoff.adjustment_claim(single)
+    assert one.fold_policy is FoldPolicy.CALLER_OWNED
+    assert one.fold_policy.assignment_recorded()
+    assert one.learner_id == "outcome" and one.learner_version == "1"
 
 
 def test_handoff_mean_keeps_missing_outcomes():

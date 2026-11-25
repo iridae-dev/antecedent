@@ -5,6 +5,11 @@ actually are adjustment estimands. ``attach`` records a caller-fitted payload
 as attested, not re-verifiable, evidence. It does not wrap a learner or absorb
 ML CATE. EconML is one consumer of ``columns(layout="econml")``; the EconML
 names on this module are aliases of the adjustment handoff.
+
+An attached handoff and an in-process learner result decode as one
+:class:`AdjustmentClaim`. The contract name is ``adjustment``. Fold policy is
+how a consumer tells folds that were recorded from folds this handoff did not
+record.
 """
 
 from __future__ import annotations
@@ -26,7 +31,7 @@ from ._artifact_protocol import (
 from ._digest import canonical_digest
 from .errors import CausalError, CausalTypeError
 from .estimation import IdentifyResult
-from .extensibility import ProviderRefusal, ProviderValueRefusal
+from .extensibility import FoldPolicy, ProviderRefusal, ProviderValueRefusal
 from .extensibility import _refuse as _provider_refuse
 from .identify import Identification
 from .ids import Identifier
@@ -346,6 +351,14 @@ class AdjustmentHandoff:
           row. ``support`` is one label for every row or one per row.
         - unlabelled: an opaque attested payload with no bound claim.
 
+        Either way, :attr:`ExternalEstimate.adjustment_claim` is the adjustment
+        claim: adjustment identity, column digest, learner id and version, fold
+        policy, and the payload digest as the effect digest. This handoff does
+        not record folds, so that policy is
+        :attr:`~antecedent.extensibility.FoldPolicy.HANDOFF_UNKNOWN`. An
+        in-process learner result decodes as the same claim type; its policy is
+        one that records the assignment.
+
         ``value_types`` (name -> ``continuous`` / ``binary`` / ``count``) and ``contrast``
         (``(control, active)`` treatment levels) are recorded in the receipt's target as
         declared; anything not declared is recorded as unspecified / a named 0 -> 1
@@ -449,7 +462,15 @@ class AdjustmentHandoff:
                 code="external_binding_mismatch",
                 remedy="re-attach the estimate; the receipt encoder returned no contract",
             )
-        return ExternalEstimate(encoded, decoded.contract, claim)
+        adjustment = AdjustmentClaim(
+            adjustment_identity=_adjustment_identity_handoff(self),
+            column_digest=_column_digest_handoff(self, data, snapshot),
+            learner_id=str(learner),
+            learner_version=_declared_learner_version(learner_version),
+            fold_policy=FoldPolicy.HANDOFF_UNKNOWN,
+            effect_digest=_recorded_payload_digest(decoded.contract),
+        )
+        return ExternalEstimate(encoded, decoded.contract, claim, adjustment)
 
 
 @dataclass(frozen=True, slots=True)
@@ -525,17 +546,148 @@ class AdjustmentProviderAdapter:
         )
 
 
+_ADJUSTMENT_CONTRACT = "adjustment"
+_ADJUSTMENT_CLAIM_DOMAIN = "antecedent.adjustment.claim.v1"
+_ADJUSTMENT_CLAIM_KEYS = frozenset(
+    {
+        "contract",
+        "adjustment_identity",
+        "column_digest",
+        "learner_id",
+        "learner_version",
+        "fold_policy",
+        "effect_digest",
+    }
+)
+
+
+def _adjustment_body(claim: AdjustmentClaim) -> dict[str, str]:
+    return {
+        "contract": _ADJUSTMENT_CONTRACT,
+        "adjustment_identity": claim.adjustment_identity,
+        "column_digest": claim.column_digest,
+        "learner_id": claim.learner_id,
+        "learner_version": claim.learner_version,
+        "fold_policy": claim.fold_policy.value,
+        "effect_digest": claim.effect_digest,
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class AdjustmentClaim:
+    """One adjustment claim from an in-process learner or an attached handoff.
+
+    The contract name is ``adjustment``. The fields are the adjustment identity,
+    the column digest, the learner id and version, the fold policy, and the
+    effect digest. :attr:`identity` is the one digest of those fields.
+    :meth:`export` and :meth:`open` are the one codec.
+
+    Fold policy is the distinction between the two producers.
+    :meth:`~antecedent.extensibility.FoldPolicy.assignment_recorded` is how a
+    consumer tells whether the fold assignment is in the receipt. It is true
+    for a host-owned, caller-owned, origin-scoped, or provider-owned policy.
+    :attr:`~antecedent.extensibility.FoldPolicy.HANDOFF_UNKNOWN` is the handoff,
+    which records a payload digest and does not record folds.
+    """
+
+    adjustment_identity: str
+    column_digest: str
+    learner_id: str
+    learner_version: str
+    fold_policy: FoldPolicy
+    effect_digest: str
+
+    def __post_init__(self) -> None:
+        from ._columns import coerce_fields
+
+        try:
+            policy = FoldPolicy.decode(self.fold_policy)
+        except (TypeError, ValueError) as error:
+            raise ValueError(str(error)) from error
+        for name in (
+            "adjustment_identity",
+            "column_digest",
+            "learner_id",
+            "learner_version",
+            "effect_digest",
+        ):
+            value = getattr(self, name)
+            if not isinstance(value, str) or not value:
+                raise ValueError(f"adjustment claim {name} must be a non-empty string")
+        if policy is not self.fold_policy:
+            coerce_fields(self, fold_policy=policy)
+
+    @property
+    def identity(self) -> str:
+        """Digest of this claim. Opening the codec bytes reproduces it."""
+        return canonical_digest(_ADJUSTMENT_CLAIM_DOMAIN, _adjustment_body(self))
+
+    def export(self) -> bytes:
+        """Codec bytes. A declaration or receipt body can store them unchanged."""
+        return encode_adjustment_claim(self)
+
+    @classmethod
+    def open(cls, data: bytes) -> AdjustmentClaim:
+        """The claim those codec bytes name."""
+        return decode_adjustment_claim(data)
+
+
+def encode_adjustment_claim(claim: AdjustmentClaim) -> bytes:
+    """Canonical bytes of one adjustment claim.
+
+    Provider declaration and receipt bodies store these bytes and open them
+    with :func:`decode_adjustment_claim`. The fold policy is in the document,
+    so opening it still says whether the fold assignment was recorded.
+    """
+    if not isinstance(claim, AdjustmentClaim):
+        raise TypeError("encode_adjustment_claim expects an AdjustmentClaim")
+    return json.dumps(
+        _adjustment_body(claim), sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode("utf-8")
+
+
+def decode_adjustment_claim(data: bytes) -> AdjustmentClaim:
+    """Open one adjustment claim. The fold policy comes back as the enum."""
+    if not isinstance(data, (bytes, bytearray)):
+        raise TypeError("adjustment claim codec bytes are required")
+    try:
+        body = json.loads(bytes(data))
+    except json.JSONDecodeError as error:
+        raise ValueError("adjustment claim is not the adjustment codec document") from error
+    if (
+        not isinstance(body, dict)
+        or set(body) != _ADJUSTMENT_CLAIM_KEYS
+        or body.get("contract") != _ADJUSTMENT_CONTRACT
+    ):
+        raise ValueError("adjustment claim is not the adjustment codec document")
+    try:
+        policy = FoldPolicy.decode(body["fold_policy"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(str(error)) from error
+    return AdjustmentClaim(
+        adjustment_identity=body["adjustment_identity"],
+        column_digest=body["column_digest"],
+        learner_id=body["learner_id"],
+        learner_version=body["learner_version"],
+        fold_policy=policy,
+        effect_digest=body["effect_digest"],
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ExternalEstimate:
     """Caller-attested external-estimate receipt. Not a native calibrated claim.
 
     :attr:`trust` is ``externally_attested``. :meth:`decision_input` is the bridge
     into a decision; the receipt has no exact-request verification.
+    :attr:`adjustment_claim` is the adjustment claim, the same type an in-process
+    learner result decodes as.
     """
 
     _bytes: bytes = field(repr=False)
     _contract: Mapping[str, Any] = field(repr=False)
-    _claim: Any | None = field(default=None, repr=False, compare=False)
+    _claim: Any | None = field(repr=False, compare=False)
+    _adjustment: AdjustmentClaim = field(repr=False)
 
     @property
     def claim(self) -> BoundExternalClaim | None:
@@ -549,6 +701,16 @@ class ExternalEstimate:
         An unlabelled payload asserts nothing, so it has no claim.
         """
         return cast("BoundExternalClaim | None", self._claim)
+
+    @property
+    def adjustment_claim(self) -> AdjustmentClaim:
+        """The adjustment claim. Fold policy is :attr:`FoldPolicy.HANDOFF_UNKNOWN`.
+
+        The same type :func:`adjustment_claim` returns for an in-process learner
+        result. This handoff's policy does not record a fold assignment; the
+        effect digest is the payload digest on the receipt.
+        """
+        return self._adjustment
 
     @property
     def support(self) -> tuple[str, ...]:
@@ -597,11 +759,10 @@ class ExternalEstimate:
     def fold_policy(self):
         """Unknown folds, recorded on this receipt the same way a host-owned policy is.
 
-        The assignment itself is not in the receipt. The policy value is.
+        The assignment itself is not in the receipt. The policy value is the
+        claim's :attr:`~antecedent.extensibility.FoldPolicy.HANDOFF_UNKNOWN`.
         """
-        from .extensibility import FoldPolicy
-
-        return FoldPolicy.HANDOFF_UNKNOWN
+        return self._adjustment.fold_policy
 
     @property
     def value(self) -> float | None:
@@ -1242,6 +1403,192 @@ def _unpack(
     )
 
 
+def adjustment_claim(source: object) -> AdjustmentClaim:
+    """Decode an in-process learner result or an attached handoff as one claim.
+
+    The two producers differ in :attr:`AdjustmentClaim.fold_policy`. A handoff's
+    policy is :attr:`~antecedent.extensibility.FoldPolicy.HANDOFF_UNKNOWN`. A
+    learner result keeps the policy it recorded, and
+    :meth:`~antecedent.extensibility.FoldPolicy.assignment_recorded` says whether
+    that assignment is in its receipts.
+    """
+    if isinstance(source, AdjustmentClaim):
+        return source
+    if isinstance(source, ExternalEstimate):
+        return source.adjustment_claim
+    from .external_learners import ExternalAteEstimate
+
+    if isinstance(source, ExternalAteEstimate):
+        return _claim_from_learner(source)
+    raise TypeError(
+        "an adjustment claim decodes an in-process learner result or an attached handoff"
+    )
+
+
+def _claim_from_learner(result: object) -> AdjustmentClaim:
+    learner_id, learner_version = _learner_id_version(getattr(result, "receipts", ()))
+    return AdjustmentClaim(
+        adjustment_identity=_adjustment_identity_learner(result),
+        column_digest=_column_digest_learner(result),
+        learner_id=learner_id,
+        learner_version=learner_version,
+        fold_policy=FoldPolicy.decode(result.fold_policy),
+        effect_digest=_effect_digest_learner(result),
+    )
+
+
+def _learner_id_version(receipts: object) -> tuple[str, str]:
+    if isinstance(receipts, (str, bytes)) or not isinstance(receipts, Sequence):
+        raise CausalTypeError("in-process learner result receipts are not a sequence of calls")
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in receipts:
+        if not isinstance(item, tuple) or len(item) < 2:
+            continue
+        provenance = getattr(item[1], "provenance", None)
+        if not isinstance(provenance, Mapping):
+            continue
+        name = provenance.get("registry_name")
+        version = provenance.get("version")
+        if not isinstance(name, str) or not name.strip():
+            continue
+        if not isinstance(version, str) or not version.strip():
+            version = _declared_learner_version(None)
+        key = (name, version)
+        if key not in seen:
+            seen.add(key)
+            pairs.append(key)
+    if not pairs:
+        raise CausalTypeError(
+            "in-process learner result has no learner id on its per-call receipts"
+        )
+    pairs.sort()
+    if len(pairs) == 1:
+        return pairs[0]
+    return (
+        json.dumps([name for name, _version in pairs], separators=(",", ":")),
+        json.dumps([version for _name, version in pairs], separators=(",", ":")),
+    )
+
+
+def _adjustment_identity_handoff(spec: AdjustmentHandoff) -> str:
+    return canonical_digest(
+        "antecedent.adjustment.identity.v1",
+        {
+            "contract": _ADJUSTMENT_CONTRACT,
+            "identifier": spec.identifier,
+            "treatments": list(spec.treatments),
+            "outcome": spec.outcome,
+            "adjustment_set": list(spec.confounders),
+            "modifiers": list(spec.modifiers),
+            "treatment_offsets": list(spec.treatment_offsets),
+            "outcome_offset": spec.outcome_offset,
+            "confounder_offsets": list(spec.confounder_offsets),
+            "status": spec.status,
+        },
+    )
+
+
+def _adjustment_identity_learner(result: object) -> str:
+    assumptions = getattr(result, "assumptions", ())
+    return canonical_digest(
+        "antecedent.adjustment.identity.v1",
+        {
+            "contract": _ADJUSTMENT_CONTRACT,
+            "adjustment_set": list(getattr(result, "adjustment_set", ())),
+            "assumptions": [dict(item) for item in assumptions],
+        },
+    )
+
+
+def _column_digest_handoff(
+    spec: AdjustmentHandoff, data: Mapping[str, Any] | None, snapshot: str | None
+) -> str:
+    if data is not None:
+        from . import _native
+
+        return canonical_digest(
+            "antecedent.adjustment.columns.v1",
+            {
+                "layout": "econml",
+                "blake3": _native.blake3_digest_hex(_column_bytes(spec, data)),
+            },
+        )
+    if isinstance(snapshot, str) and snapshot:
+        return snapshot
+    raise _refuse(
+        "handoff.snapshot_missing",
+        "external estimate attach needs a parent data snapshot or data= for spec.columns",
+        offending="data",
+        remedy="pass data= (the columns the learner was fitted on), or attach through a "
+        "handoff derived from an analysis result",
+    )
+
+
+def _column_digest_learner(result: object) -> str:
+    return canonical_digest(
+        "antecedent.adjustment.columns.v1",
+        {
+            "adjustment_set": list(getattr(result, "adjustment_set", ())),
+            "row_ids": list(getattr(result, "row_ids", ())),
+        },
+    )
+
+
+def _column_bytes(spec: AdjustmentHandoff, data: Mapping[str, Any]) -> bytes:
+    """Little-endian EconML columns, including non-finite outcomes."""
+    cols = spec.columns(data)
+    chunks: list[bytes] = []
+    for key in ("Y", "T", "W", "X", "sample_weight", "origins"):
+        value = cols.get(key)
+        if value is None:
+            continue
+        if key == "origins":
+            array = np.ascontiguousarray(np.asarray(value, dtype=np.int64))
+        else:
+            array = np.ascontiguousarray(np.asarray(value, dtype=np.float64))
+        chunks.append(
+            key.encode() + np.asarray(array.shape, dtype=np.int64).tobytes() + array.tobytes()
+        )
+    return b"".join(chunks)
+
+
+def _effect_digest_learner(result: object) -> str:
+    effect: dict[str, Any] = {
+        "estimate": result.estimate,
+        "standard_error": result.standard_error,
+    }
+    cate = getattr(result, "cate", None)
+    cate_se = getattr(result, "cate_standard_errors", None)
+    if cate is not None:
+        effect["cate"] = list(cate)
+    if cate_se is not None:
+        effect["cate_standard_errors"] = list(cate_se)
+    return canonical_digest("antecedent.adjustment.effect.v1", effect)
+
+
+def _recorded_payload_digest(contract: Mapping[str, Any]) -> str:
+    claim = contract.get("claim")
+    attested = claim.get("attested") if isinstance(claim, Mapping) else None
+    digest = None
+    if isinstance(attested, list) and attested and isinstance(attested[0], Mapping):
+        digest = attested[0].get("payload_digest")
+    if not isinstance(digest, str) or not digest:
+        raise _refuse(
+            "handoff.payload_digest_missing",
+            "external estimate receipt is missing the payload digest",
+            code="external_binding_mismatch",
+            remedy="re-attach the estimate; the receipt encoder returned no payload digest",
+        )
+    return digest
+
+
+def _declared_learner_version(learner_version: str | None) -> str:
+    from .external import UNSPECIFIED_UNITS
+
+    return (learner_version or "").strip() or UNSPECIFIED_UNITS
+
+
 def _graph_posterior_result(result: object) -> bool:
     plan = getattr(result, "plan", None)
     source = getattr(plan, "structure_source", None) if plan is not None else None
@@ -1259,11 +1606,15 @@ EconMLProviderAdapter = AdjustmentProviderAdapter
 econml = adjustment
 
 __all__ = [
+    "AdjustmentClaim",
     "AdjustmentHandoff",
     "AdjustmentProviderAdapter",
     "EconMLProviderAdapter",
     "EconMLSpec",
     "ExternalEstimate",
     "adjustment",
+    "adjustment_claim",
+    "decode_adjustment_claim",
     "econml",
+    "encode_adjustment_claim",
 ]
