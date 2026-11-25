@@ -6488,6 +6488,7 @@ pub variant antecedent_identify::ProductRefusal::AssembledObligationNamesWorld {
 pub variant antecedent_identify::ProductRefusal::DuplicateWorldObligation { world: antecedent_core::scientific_target::model::ScientificWorldId }
 pub variant antecedent_identify::ProductRefusal::EstimandBesideNonIdentification { outcome: antecedent_identify::IdentificationOutcome }
 pub variant antecedent_identify::ProductRefusal::IdentifiedClaimClassBesideFailure { outcome: antecedent_identify::IdentificationOutcome }
+pub variant antecedent_identify::ProductRefusal::IdentifiedClaimUnderRestrictions { status: antecedent_core::identification::IdentificationStatus }
 pub variant antecedent_identify::ProductRefusal::IdentifiedFromUnidentifiedResult { status: antecedent_core::identification::IdentificationStatus }
 pub variant antecedent_identify::ProductRefusal::IdentifiedWithContradictedAssumption { index: usize }
 pub variant antecedent_identify::ProductRefusal::IdentifiedWithUnresolvedObligation { index: usize }

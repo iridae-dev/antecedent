@@ -5345,6 +5345,7 @@ pub const antecedent_contract::OBSERVATIONAL_REGIME: &str
 pub const antecedent_contract::OBSERVATION_QUERY_STAGE: &str
 pub const antecedent_contract::POINT_ONLY_LABEL: &str
 pub const antecedent_contract::UNCALIBRATED_SPREAD_LABEL: &str
+pub const antecedent_contract::UNREPRESENTABLE_ASSUMPTION_FAMILY: &str
 pub const antecedent_contract::VERSION: &str
 pub const antecedent_contract::adaptive_design::ADAPTIVE_DESIGN_VERSION: u64
 pub const antecedent_contract::adaptive_design::CHOICE_DESIGN_VERSION: u64
@@ -5366,6 +5367,7 @@ pub const antecedent_contract::bridge::MAX_VALIDATION_TRIALS: usize
 pub const antecedent_contract::bridge::MIN_VALIDATION_TRIALS: u32
 pub const antecedent_contract::bridge::POINT_PROPAGATION_CALIBRATION: &str
 pub const antecedent_contract::bridge::POINT_PROPAGATION_LABEL: &str
+pub const antecedent_contract::bridge::SOURCE_ASSUMPTIONS_UNAVAILABLE: &str
 pub const antecedent_contract::callback_protocol::CALLBACK_OUTPUT_PORT: &str
 pub const antecedent_contract::callback_protocol::CALLBACK_PROTOCOL_VERSION: u64
 pub const antecedent_contract::callback_protocol::MAX_CALLBACK_DEPENDENCIES: usize
@@ -6699,6 +6701,7 @@ pub fn <antecedent_contract::DependenceSource>::const fn id(&self) -> &anteceden
 pub fn <antecedent_contract::DependenceSource>::fn try_declared(id: impl core::convert::AsRef<str>, factors: antecedent_contract::SharedFactorSets) -> core::result::Result<Self, antecedent_contract::DependenceError>
 pub fn <antecedent_contract::DependenceSource>::fn try_with_unknown_overlap(id: impl core::convert::AsRef<str>, known: antecedent_contract::SharedFactorSets) -> core::result::Result<Self, antecedent_contract::DependenceError>
 pub fn <antecedent_contract::DependenceSourceId>::fn as_str(&self) -> &str
+pub fn <antecedent_contract::DependenceStatus>::const fn identity_word(self) -> &'static str
 pub fn <antecedent_contract::DistributionMeaning>::const fn answers_interventional_outcome_threshold(self) -> bool
 pub fn <antecedent_contract::DomainStatus>::const fn as_str(self) -> &'static str
 pub fn <antecedent_contract::DomainStatus>::fn from_name(name: &str) -> core::option::Option<Self>
@@ -7156,6 +7159,7 @@ pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn classification
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn combine(&mut self, request: antecedent_contract::evidence_ledger::CombinationRequest) -> core::result::Result<antecedent_contract::evidence_ledger::ResultId, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn declaration_from_result(&self, result: antecedent_contract::evidence_ledger::ResultId, label: impl core::convert::Into<alloc::string::String>, kind: antecedent_contract::evidence_ledger::SourceKind) -> core::result::Result<antecedent_contract::evidence_ledger::SourceDeclaration, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn dependence(&self, a: antecedent_contract::evidence_ledger::SourceId, b: antecedent_contract::evidence_ledger::SourceId) -> core::result::Result<antecedent_contract::EvidenceDependence, antecedent_contract::evidence_ledger::LedgerError>
+pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn effective_status(&self, id: antecedent_contract::evidence_ledger::ResultId) -> core::option::Option<antecedent_contract::evidence_ledger::ResultStatus>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn holds(&self, id: antecedent_contract::evidence_ledger::ObservationId) -> bool
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn mass_account(&self, sources: &[antecedent_contract::evidence_ledger::SourceId]) -> core::result::Result<antecedent_contract::evidence_ledger::MassAccount, antecedent_contract::evidence_ledger::LedgerError>
 pub fn <antecedent_contract::evidence_ledger::EvidenceLedger>::fn new() -> Self
@@ -7558,6 +7562,7 @@ pub fn antecedent_contract::composition_verification::shared_data_relations(grap
 pub fn antecedent_contract::dose_label(value: f64) -> alloc::string::String
 pub fn antecedent_contract::evidence_ledger::parse_digest_hex(text: &str) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn antecedent_contract::evidence_obligation::try_unresolved_assumption_obligations(records: &[antecedent_contract::ObligationRecord]) -> core::result::Result<alloc::vec::Vec<antecedent_contract::EvidenceObligation>, antecedent_contract::EvidenceObligationError>
+pub fn antecedent_contract::evidence_obligation::unrepresentable_assumption_obligation(record: &antecedent_contract::ObligationRecord) -> antecedent_contract::EvidenceObligation
 pub fn antecedent_contract::evidence_obligation::unresolved_assumption_obligations(records: &[antecedent_contract::ObligationRecord]) -> alloc::vec::Vec<antecedent_contract::EvidenceObligation>
 pub fn antecedent_contract::external_binding::external_values_digest(values: &[f64]) -> alloc::string::String
 pub fn antecedent_contract::external_refusal::probe_from_name(name: &str) -> core::option::Option<antecedent_contract::VerificationProbeKind>
@@ -8022,6 +8027,7 @@ pub use antecedent_contract::evidence_obligation::EvidenceOffer = antecedent_con
 pub use antecedent_contract::evidence_obligation::MAX_OBLIGATION_COORDINATES = antecedent_contract::MAX_OBLIGATION_COORDINATES
 pub use antecedent_contract::evidence_obligation::ObligationProvenance = antecedent_contract::ObligationProvenance
 pub use antecedent_contract::evidence_obligation::ObligationRegime = antecedent_contract::ObligationRegime
+pub use antecedent_contract::evidence_obligation::UNREPRESENTABLE_ASSUMPTION_FAMILY = antecedent_contract::UNREPRESENTABLE_ASSUMPTION_FAMILY
 pub use antecedent_contract::evidence_ports::DecisionRequest = antecedent_contract::DecisionRequest
 pub use antecedent_contract::evidence_ports::EvidencePort = antecedent_contract::EvidencePort
 pub use antecedent_contract::evidence_ports::EvidencePortError = antecedent_contract::EvidencePortError
@@ -8208,6 +8214,7 @@ pub use antecedent_contract::transform::TransformationReport = antecedent_contra
 pub use antecedent_contract::transform::intent_effects = antecedent_contract::intent_effects
 pub use antecedent_contract::transport_result::TransportGridFailure = antecedent_contract::TransportGridFailure
 pub use antecedent_contract::try_unresolved_assumption_obligations = antecedent_contract::evidence_obligation::try_unresolved_assumption_obligations
+pub use antecedent_contract::unrepresentable_assumption_obligation = antecedent_contract::evidence_obligation::unrepresentable_assumption_obligation
 pub use antecedent_contract::unresolved_assumption_obligations = antecedent_contract::evidence_obligation::unresolved_assumption_obligations
 pub use antecedent_contract::verify_external_object = antecedent_contract::provider_verification::verify_external_object
 pub use antecedent_contract::verify_provider_requests = antecedent_contract::provider_verification::verify_provider_requests

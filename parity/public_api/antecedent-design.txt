@@ -10271,6 +10271,7 @@ pub const antecedent_design::inverse_forward_source::DETAIL_PER_ACTION: &str
 pub const antecedent_design::inverse_forward_source::DETAIL_POINT_ONLY_LAW: &str
 pub const antecedent_design::inverse_forward_source::DETAIL_TRANSPORTED_NOT_ACCEPTED: &str
 pub const antecedent_design::inverse_forward_source::FORWARD_ORIGIN_VERSION: u16
+pub const antecedent_design::inverse_forward_source::FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION: u16
 pub const antecedent_design::inverse_observational_scenarios::DETAIL_CONDITIONS_ON_OUTCOME: &str
 pub const antecedent_design::inverse_observational_scenarios::DETAIL_COORDINATE_MISSING: &str
 pub const antecedent_design::inverse_observational_scenarios::DETAIL_COORDINATE_UNSUPPORTED: &str
@@ -13716,6 +13717,7 @@ pub fn <antecedent_design::composition_boundary::DecisionInput>::const fn proven
 pub fn <antecedent_design::composition_boundary::DecisionInput>::const fn source(&self) -> &antecedent_design::composition_boundary::InputSource
 pub fn <antecedent_design::composition_boundary::DecisionInput>::const fn support(&self) -> &antecedent_design::composition_boundary::SupportMap
 pub fn <antecedent_design::composition_boundary::DecisionInput>::fn from_distribution_artifact(id: &str, artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact, evidence: &antecedent_design::composition_boundary::TrustEvidence, requirement: antecedent_design::composition_boundary::TrustRequirement) -> core::result::Result<Self, antecedent_design::composition_boundary::BoundaryError>
+pub fn <antecedent_design::composition_boundary::DecisionInput>::fn from_distribution_artifact_with_unstated_support(id: &str, artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact, evidence: &antecedent_design::composition_boundary::TrustEvidence, requirement: antecedent_design::composition_boundary::TrustRequirement, unstated: antecedent_core::response::SupportStatus) -> core::result::Result<Self, antecedent_design::composition_boundary::BoundaryError>
 pub fn <antecedent_design::composition_boundary::DecisionInput>::fn from_mean_source(id: &str, source: antecedent_design::decision_eval::MeanSource, statuses: &[antecedent_core::response::SupportStatus], evidence: &antecedent_design::composition_boundary::TrustEvidence, requirement: antecedent_design::composition_boundary::TrustRequirement) -> core::result::Result<Self, antecedent_design::composition_boundary::BoundaryError>
 pub fn <antecedent_design::composition_boundary::DecisionInput>::fn from_scalar_claim(id: &str, claim: antecedent_design::composition_boundary::ScalarClaim, status: antecedent_core::response::SupportStatus, evidence: &antecedent_design::composition_boundary::TrustEvidence, requirement: antecedent_design::composition_boundary::TrustRequirement) -> core::result::Result<Self, antecedent_design::composition_boundary::BoundaryError>
 pub fn <antecedent_design::composition_boundary::DecisionInput>::fn id(&self) -> &str

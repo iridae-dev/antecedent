@@ -98,15 +98,6 @@ pub enum ProductRefusal {
         /// Status of the retained result.
         status: IdentificationStatus,
     },
-    /// The product states the identified-claim class (observational identification under
-    /// the recorded assumptions) for a result identified only under parametric or prior
-    /// restrictions: such a result is evaluated inside its model, so its class is
-    /// [`IdentificationClaimClass::ModelConditional`].
-    #[error("a result identified under restrictions ({status:?}) is not an identified claim")]
-    IdentifiedClaimUnderRestrictions {
-        /// Status of the retained result.
-        status: IdentificationStatus,
-    },
     /// A target world has no retained identification/support obligation.
     #[error("target world {world:?} has no retained obligation")]
     MissingWorldObligation {
@@ -166,6 +157,15 @@ pub enum ProductRefusal {
     IdentifiedClaimClassBesideFailure {
         /// The outcome that cannot state that class.
         outcome: IdentificationOutcome,
+    },
+    /// The product states the identified-claim class (observational identification under
+    /// the recorded assumptions) for a result identified only under parametric or prior
+    /// restrictions: such a result is evaluated inside its model, so its class is
+    /// [`IdentificationClaimClass::ModelConditional`].
+    #[error("a result identified under restrictions ({status:?}) is not an identified claim")]
+    IdentifiedClaimUnderRestrictions {
+        /// Status of the retained result.
+        status: IdentificationStatus,
     },
 }
 

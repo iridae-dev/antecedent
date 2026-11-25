@@ -11278,6 +11278,7 @@ pub const antecedent_io_core::recalc_receipt_artifact::MAX_RECALC_RECEIPT_ARTIFA
 pub const antecedent_io_core::recalc_receipt_artifact::MAX_RECALC_RECEIPT_STAGES: usize
 pub const antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_ARTIFACT_VERSION: u16
+pub const antecedent_io_core::recalc_receipt_artifact::RECALC_RECEIPT_REMOVAL_FIRST_VERSION: u16
 pub const antecedent_io_core::retained_artifact::ARTIFACT_IDENTITY_DOMAIN: &str
 pub const antecedent_io_core::retained_artifact::RETAINED_ARTIFACT_REFUSAL: &str
 pub const antecedent_io_core::scientific_target_wire::SCIENTIFIC_TARGET_WIRE_VERSION: u16
@@ -11341,7 +11342,9 @@ pub const fn antecedent_io_core::artifact_codec::search_bounds(stored_operations
 pub const fn antecedent_io_core::artifact_codec::stored_law_bounds(stored_support_rows: usize, max_support_rows: usize, law_count: usize, max_laws: usize) -> core::option::Option<&'static str>
 pub const fn antecedent_io_core::container::stream_decoder_workspace_bytes() -> u64
 pub const fn antecedent_io_core::container::stream_encoder_workspace_bytes() -> u64
+pub const fn antecedent_io_core::contract_section::status_identifies_a_point(status: antecedent_core::identification::IdentificationStatus) -> bool
 pub const fn antecedent_io_core::contract_section::weight_basis_name(basis: antecedent_io_core::StructuralWeightBasisWire) -> &'static str
+pub const fn antecedent_io_core::recalc_receipt_artifact::planner_rule_of_version(version: u16) -> core::option::Option<antecedent_core::recalc::PlannerRule>
 pub enum antecedent_io_core::ArtifactKind
 pub enum antecedent_io_core::AssignmentDesignWire
 pub enum antecedent_io_core::AssociationFunctionalWire
@@ -16409,6 +16412,8 @@ pub fn antecedent_io_core::contract_section::replay_analysis_result_with_source_
 pub fn antecedent_io_core::contract_section::replay_analysis_result_within(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::replay_analysis_result_within_expecting(bytes: &[u8], limits: &antecedent_io_core::distribution_replay::ReplayLimits, retained: &antecedent_io_core::RetainedArtifactIdentity) -> core::result::Result<antecedent_io_core::AnalysisResultConsumption, antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::result_digest(body: &antecedent_io_core::AnalysisResultWire) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
+pub fn antecedent_io_core::contract_section::slot_claim_kind(status: core::option::Option<antecedent_core::identification::IdentificationStatus>, identified_mass: f64, weighted: bool) -> antecedent_contract::claim::ClaimKind
+pub fn antecedent_io_core::contract_section::status_name_identifies_a_point(status: &str) -> bool
 pub fn antecedent_io_core::contract_section::support_empirical(refutations: &[antecedent_io_core::RefutationReportWire], diagnostics: &[antecedent_io_core::DiagnosticWire]) -> core::option::Option<alloc::string::String>
 pub fn antecedent_io_core::contract_section::validate_contract_section(contract: &antecedent_io_core::AnalysisResultContractWire) -> core::result::Result<(), antecedent_io_core::IoError>
 pub fn antecedent_io_core::contract_section::validate_mixture_masses(identified: f64, unidentified: f64, unevaluable: f64, incomplete_search: f64) -> core::result::Result<(), antecedent_io_core::IoError>

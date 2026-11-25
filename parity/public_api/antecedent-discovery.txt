@@ -1862,6 +1862,8 @@ pub fn <antecedent_discovery::DiscoveryConstraints>::fn static_required(&self, a
 pub fn <antecedent_discovery::DiscoveryConstraints>::fn tier_forbids(&self, src: antecedent_core::ids::VariableId, target: antecedent_core::ids::VariableId) -> bool
 pub fn <antecedent_discovery::DiscoveryConstraints>::fn tier_of(&self, v: antecedent_core::ids::VariableId) -> core::option::Option<usize>
 pub fn <antecedent_discovery::DiscoveryConstraints>::fn validate(&self) -> core::result::Result<(), antecedent_discovery::DiscoveryError>
+pub fn <antecedent_discovery::DiscoveryError>::const fn kind(&self) -> &'static str
+pub fn <antecedent_discovery::DiscoveryError>::const fn refusal_code(&self) -> core::option::Option<&'static str>
 pub fn <antecedent_discovery::DiscoveryError>::const fn unsupported(message: &'static str) -> Self
 pub fn <antecedent_discovery::DiscoveryError>::fn data_msg(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_discovery::DiscoveryError>::fn stats_msg(message: impl core::convert::Into<alloc::string::String>) -> Self

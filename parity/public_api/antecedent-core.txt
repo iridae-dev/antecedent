@@ -131,6 +131,7 @@
 #[non_exhaustive] pub enum antecedent_core::query::TransportQueryScope
 #[non_exhaustive] pub enum antecedent_core::recalc::CalibrationInput
 #[non_exhaustive] pub enum antecedent_core::recalc::CouplingInput
+#[non_exhaustive] pub enum antecedent_core::recalc::PlannerRule
 #[non_exhaustive] pub enum antecedent_core::recalc::ProviderStandingInput
 #[non_exhaustive] pub enum antecedent_core::search_budget::SearchBudgetError
 #[non_exhaustive] pub enum antecedent_core::value::InterventionValueError
@@ -861,6 +862,7 @@ impl core::clone::Clone for antecedent_core::recalc::ChangeKind
 impl core::clone::Clone for antecedent_core::recalc::ChangedDependency
 impl core::clone::Clone for antecedent_core::recalc::CouplingInput
 impl core::clone::Clone for antecedent_core::recalc::MissingDependency
+impl core::clone::Clone for antecedent_core::recalc::PlannerRule
 impl core::clone::Clone for antecedent_core::recalc::ProviderStandingInput
 impl core::clone::Clone for antecedent_core::recalc::RecalcCapabilities
 impl core::clone::Clone for antecedent_core::recalc::RecalcPlan
@@ -1329,6 +1331,7 @@ impl core::cmp::Eq for antecedent_core::recalc::ChangeKind
 impl core::cmp::Eq for antecedent_core::recalc::ChangedDependency
 impl core::cmp::Eq for antecedent_core::recalc::CouplingInput
 impl core::cmp::Eq for antecedent_core::recalc::MissingDependency
+impl core::cmp::Eq for antecedent_core::recalc::PlannerRule
 impl core::cmp::Eq for antecedent_core::recalc::ProviderStandingInput
 impl core::cmp::Eq for antecedent_core::recalc::RecalcCapabilities
 impl core::cmp::Eq for antecedent_core::recalc::RecalcPlan
@@ -1391,6 +1394,7 @@ impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementKind
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::Ord for antecedent_core::physical_choice::DeclaredCost
 impl core::cmp::Ord for antecedent_core::recalc::Branch
+impl core::cmp::Ord for antecedent_core::recalc::PlannerRule
 impl core::cmp::Ord for antecedent_core::recalc::Revalidation
 impl core::cmp::Ord for antecedent_core::recalc::Stage
 impl core::cmp::Ord for antecedent_core::recalc::StageIdentity
@@ -1919,6 +1923,7 @@ impl core::cmp::PartialEq for antecedent_core::recalc::ChangeKind
 impl core::cmp::PartialEq for antecedent_core::recalc::ChangedDependency
 impl core::cmp::PartialEq for antecedent_core::recalc::CouplingInput
 impl core::cmp::PartialEq for antecedent_core::recalc::MissingDependency
+impl core::cmp::PartialEq for antecedent_core::recalc::PlannerRule
 impl core::cmp::PartialEq for antecedent_core::recalc::ProviderStandingInput
 impl core::cmp::PartialEq for antecedent_core::recalc::RecalcCapabilities
 impl core::cmp::PartialEq for antecedent_core::recalc::RecalcPlan
@@ -1981,6 +1986,7 @@ impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementKi
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementRoute
 impl core::cmp::PartialOrd for antecedent_core::physical_choice::DeclaredCost
 impl core::cmp::PartialOrd for antecedent_core::recalc::Branch
+impl core::cmp::PartialOrd for antecedent_core::recalc::PlannerRule
 impl core::cmp::PartialOrd for antecedent_core::recalc::Revalidation
 impl core::cmp::PartialOrd for antecedent_core::recalc::Stage
 impl core::cmp::PartialOrd for antecedent_core::recalc::StageIdentity
@@ -2078,6 +2084,7 @@ impl core::default::Default for antecedent_core::measurement_record::HostProbe
 impl core::default::Default for antecedent_core::measurement_record::MeasurementRecord
 impl core::default::Default for antecedent_core::measurement_record::PeakRss
 impl core::default::Default for antecedent_core::numerical_admission::NumericalAdmissionToken
+impl core::default::Default for antecedent_core::recalc::PlannerRule
 impl core::default::Default for antecedent_core::recalc::ResumeContext
 impl core::default::Default for antecedent_core::recalc::StageIdentities
 impl core::default::Default for antecedent_core::scientific_target::CompositionTargetQuote
@@ -2697,6 +2704,7 @@ impl core::fmt::Debug for antecedent_core::recalc::ChangeKind
 impl core::fmt::Debug for antecedent_core::recalc::ChangedDependency
 impl core::fmt::Debug for antecedent_core::recalc::CouplingInput
 impl core::fmt::Debug for antecedent_core::recalc::MissingDependency
+impl core::fmt::Debug for antecedent_core::recalc::PlannerRule
 impl core::fmt::Debug for antecedent_core::recalc::ProviderStandingInput
 impl core::fmt::Debug for antecedent_core::recalc::RecalcCapabilities
 impl core::fmt::Debug for antecedent_core::recalc::RecalcPlan
@@ -3176,6 +3184,7 @@ impl core::hash::Hash for antecedent_core::query::OutcomeGuarantee
 impl core::hash::Hash for antecedent_core::query::TransportDistributionFamily
 impl core::hash::Hash for antecedent_core::query::TransportQueryScope
 impl core::hash::Hash for antecedent_core::recalc::Branch
+impl core::hash::Hash for antecedent_core::recalc::PlannerRule
 impl core::hash::Hash for antecedent_core::recalc::Revalidation
 impl core::hash::Hash for antecedent_core::recalc::Stage
 impl core::hash::Hash for antecedent_core::recalc::StageIdentity
@@ -3465,6 +3474,7 @@ impl core::marker::Copy for antecedent_core::recalc::ChangeKind
 impl core::marker::Copy for antecedent_core::recalc::ChangedDependency
 impl core::marker::Copy for antecedent_core::recalc::CouplingInput
 impl core::marker::Copy for antecedent_core::recalc::MissingDependency
+impl core::marker::Copy for antecedent_core::recalc::PlannerRule
 impl core::marker::Copy for antecedent_core::recalc::ResumeContext
 impl core::marker::Copy for antecedent_core::recalc::RetargetSupport
 impl core::marker::Copy for antecedent_core::recalc::Revalidation
@@ -4030,6 +4040,7 @@ impl core::marker::Freeze for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Freeze for antecedent_core::recalc::ChangedDependency [auto]
 impl core::marker::Freeze for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Freeze for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Freeze for antecedent_core::recalc::PlannerRule [auto]
 impl core::marker::Freeze for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Freeze for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Freeze for antecedent_core::recalc::RecalcPlan [auto]
@@ -4611,6 +4622,7 @@ impl core::marker::Send for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Send for antecedent_core::recalc::ChangedDependency [auto]
 impl core::marker::Send for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Send for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Send for antecedent_core::recalc::PlannerRule [auto]
 impl core::marker::Send for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Send for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Send for antecedent_core::recalc::RecalcPlan [auto]
@@ -5161,6 +5173,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::recalc::ChangeKind
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::ChangedDependency
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::CouplingInput
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::MissingDependency
+impl core::marker::StructuralPartialEq for antecedent_core::recalc::PlannerRule
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::ProviderStandingInput
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::RecalcCapabilities
 impl core::marker::StructuralPartialEq for antecedent_core::recalc::RecalcPlan
@@ -5740,6 +5753,7 @@ impl core::marker::Sync for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Sync for antecedent_core::recalc::ChangedDependency [auto]
 impl core::marker::Sync for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Sync for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Sync for antecedent_core::recalc::PlannerRule [auto]
 impl core::marker::Sync for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Sync for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Sync for antecedent_core::recalc::RecalcPlan [auto]
@@ -6321,6 +6335,7 @@ impl core::marker::Unpin for antecedent_core::recalc::ChangeKind [auto]
 impl core::marker::Unpin for antecedent_core::recalc::ChangedDependency [auto]
 impl core::marker::Unpin for antecedent_core::recalc::CouplingInput [auto]
 impl core::marker::Unpin for antecedent_core::recalc::MissingDependency [auto]
+impl core::marker::Unpin for antecedent_core::recalc::PlannerRule [auto]
 impl core::marker::Unpin for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::marker::Unpin for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::marker::Unpin for antecedent_core::recalc::RecalcPlan [auto]
@@ -6907,6 +6922,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::Change
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::ChangedDependency [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::CouplingInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::MissingDependency [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::PlannerRule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::recalc::RecalcPlan [auto]
@@ -7487,6 +7503,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::ChangeKin
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::ChangedDependency [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::CouplingInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::MissingDependency [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::PlannerRule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::ProviderStandingInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RecalcCapabilities [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::recalc::RecalcPlan [auto]
@@ -11876,17 +11893,22 @@ pub fn <antecedent_core::CancellationToken>::fn new() -> Self
 pub fn <antecedent_core::CanonicalWriter>::fn bytes(&mut self, bytes: &[u8]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn digest_bytes(tag: &str, bytes: &[u8]) -> [u8; 32]
 pub fn <antecedent_core::CanonicalWriter>::fn digest_bytes_hex(tag: &str, bytes: &[u8]) -> alloc::string::String
+pub fn <antecedent_core::CanonicalWriter>::fn digest_multiset(&mut self, digests: alloc::vec::Vec<[u8; 32]>) -> &mut Self
+pub fn <antecedent_core::CanonicalWriter>::fn digest_set(&mut self, digests: alloc::vec::Vec<[u8; 32]>) -> &mut Self
+pub fn <antecedent_core::CanonicalWriter>::fn digests(&mut self, digests: &[[u8; 32]]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn finish(&self) -> [u8; 32]
 pub fn <antecedent_core::CanonicalWriter>::fn finish_hex(&self) -> alloc::string::String
 pub fn <antecedent_core::CanonicalWriter>::fn new(tag: &str) -> Self
 pub fn <antecedent_core::CanonicalWriter>::fn opt_real(&mut self, value: core::option::Option<f64>) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn opt_text(&mut self, value: core::option::Option<&str>) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn opt_word(&mut self, value: core::option::Option<u64>) -> &mut Self
+pub fn <antecedent_core::CanonicalWriter>::fn presence(&mut self, present: bool) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn real(&mut self, value: f64) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn reals(&mut self, values: &[f64]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn text(&mut self, text: &str) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn texts<S: core::convert::AsRef<str>>(&mut self, values: &[S]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn try_bytes<E>(&mut self, bytes: &[u8], check: impl core::ops::function::FnMut() -> core::result::Result<(), E>) -> core::result::Result<&mut Self, E>
+pub fn <antecedent_core::CanonicalWriter>::fn u32_multiset(&mut self, values: alloc::vec::Vec<u32>) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn u32s(&mut self, values: &[u32]) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn word(&mut self, word: u64) -> &mut Self
 pub fn <antecedent_core::CanonicalWriter>::fn words(&mut self, values: &[u64]) -> &mut Self
@@ -13261,6 +13283,8 @@ pub fn <antecedent_core::recalc::Branch>::const fn new(index: u8) -> core::optio
 pub fn <antecedent_core::recalc::CalibrationInput>::fn identity(&self) -> antecedent_core::recalc::StageIdentity
 pub fn <antecedent_core::recalc::ChangeKind>::const fn revalidation(self) -> antecedent_core::recalc::Revalidation
 pub fn <antecedent_core::recalc::CouplingInput>::fn identity(&self) -> antecedent_core::recalc::StageIdentity
+pub fn <antecedent_core::recalc::PlannerRule>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::recalc::PlannerRule>::fn from_wire(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::recalc::ProviderStandingInput>::fn identity(&self, branch: antecedent_core::recalc::Branch) -> antecedent_core::recalc::StageIdentity
 pub fn <antecedent_core::recalc::RecalcCapabilities>::const fn fresh_process(retarget: antecedent_core::recalc::RetargetSupport, resume: antecedent_core::recalc::ResumeContext) -> Self
 pub fn <antecedent_core::recalc::RecalcCapabilities>::const fn in_process(retarget: antecedent_core::recalc::RetargetSupport) -> Self
@@ -13270,6 +13294,7 @@ pub fn <antecedent_core::recalc::RecalcPlan>::fn first_refusal(&self) -> core::o
 pub fn <antecedent_core::recalc::RecalcPlan>::fn identity(&self, stage: antecedent_core::recalc::Stage) -> core::option::Option<antecedent_core::recalc::StageIdentity>
 pub fn <antecedent_core::recalc::RecalcPlan>::fn is_executable(&self) -> bool
 pub fn <antecedent_core::recalc::RecalcPlan>::fn plan(previous: &antecedent_core::recalc::StageIdentities, requested: &antecedent_core::recalc::StageIdentities, capabilities: &antecedent_core::recalc::RecalcCapabilities) -> Self
+pub fn <antecedent_core::recalc::RecalcPlan>::fn plan_with_rule(previous: &antecedent_core::recalc::StageIdentities, requested: &antecedent_core::recalc::StageIdentities, capabilities: &antecedent_core::recalc::RecalcCapabilities, rule: antecedent_core::recalc::PlannerRule) -> Self
 pub fn <antecedent_core::recalc::RecalcPlan>::fn recomputed(&self) -> alloc::vec::Vec<antecedent_core::recalc::Stage>
 pub fn <antecedent_core::recalc::RecalcPlan>::fn recomputed_computations(&self) -> alloc::vec::Vec<antecedent_core::recalc::Stage>
 pub fn <antecedent_core::recalc::RecalcPlan>::fn refused(&self) -> alloc::vec::Vec<antecedent_core::recalc::Stage>
@@ -16093,6 +16118,8 @@ pub variant antecedent_core::recalc::CouplingInput::Unknown
 pub variant antecedent_core::recalc::MissingDependency::Data
 pub variant antecedent_core::recalc::MissingDependency::Fit
 pub variant antecedent_core::recalc::MissingDependency::Provider
+pub variant antecedent_core::recalc::PlannerRule::FirstChange
+pub variant antecedent_core::recalc::PlannerRule::RemovalFirst
 pub variant antecedent_core::recalc::ProviderStandingInput::Revoked
 pub variant antecedent_core::recalc::ProviderStandingInput::Unverified
 pub variant antecedent_core::recalc::ProviderStandingInput::Verified { level: alloc::string::String, receipt: antecedent_core::recalc::StageIdentity }
