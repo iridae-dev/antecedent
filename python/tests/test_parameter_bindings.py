@@ -17,7 +17,7 @@ import sys
 import tomllib
 import warnings
 from dataclasses import replace
-from typing import Any
+from typing import Any, get_type_hints
 
 import antecedent as ant
 import numpy as np
@@ -119,13 +119,32 @@ def test_parameter_rows_exist():
 def test_every_signature_parameter_has_a_row():
     for key in inspect.signature(ant.prepare).parameters:
         assert key in ROWS, key
-    # ``analyze`` is preparation followed by estimation: it forwards the same declarations.
-    forwarded = [
-        parameter
-        for parameter in inspect.signature(ant.analyze).parameters.values()
-        if parameter.kind is inspect.Parameter.VAR_KEYWORD
-    ]
-    assert len(forwarded) == 1
+    assert inspect.signature(ant.analyze).parameters == inspect.signature(ant.prepare).parameters
+    from antecedent.external_learners import Learners, OriginScopedLearners
+
+    for entry in (ant.prepare, ant.analyze):
+        assert get_type_hints(entry)["learners"] == Learners | OriginScopedLearners | None
+
+
+def test_declared_learners_reach_the_fold_receipts():
+    from test_external_learners import _binary_study
+
+    data, graph, learners = _binary_study()
+    declarations = dict(graph=graph, query=ant.AverageEffect("t", "y"), learners=learners)
+    staged = require_success(ant.estimate(ant.prepare(data, **declarations)))
+    one_shot = require_success(ant.analyze(data, **declarations))
+    assert one_shot.estimate.method == staged.estimate.method == "partially_linear"
+    assert one_shot.effect == staged.effect
+    receipts = one_shot.provenance["fold_receipts"]
+    assert receipts
+    for one, other in zip(receipts, staged.provenance["fold_receipts"], strict=True):
+        fold, fit, prediction = one
+        staged_fold, staged_fit, staged_prediction = other
+        assert fold == staged_fold
+        assert fit.host_artifact and fit.host_artifact == staged_fit.host_artifact
+        assert prediction.provenance == staged_prediction.provenance
+        np.testing.assert_array_equal(prediction.estimate, staged_prediction.estimate)
+
 
 
 def test_every_row_names_a_test_here_that_reads_its_binding():

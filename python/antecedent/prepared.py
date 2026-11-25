@@ -42,6 +42,7 @@ from ._prepared_inspection import InspectionPage
 from ._study_lifecycle import guard_design, replay_declaration, retain
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution
+from .external_learners import Learners, OriginScopedLearners
 from .outcomes import Outcome, Refusal, as_outcome, capture_outcome
 
 T = TypeVar("T")
@@ -621,7 +622,7 @@ def prepare(
     execution: Execution | None = None,
     identifier: Any = None,
     estimator: Any = None,
-    learners: Any = None,
+    learners: Learners | OriginScopedLearners | None = None,
     estimator_config: Mapping[str, Any] | None = None,
     refute: Any = None,
     class_prior: Any = None,
@@ -703,7 +704,8 @@ def prepare(
     * ``learners`` -- nuisance learners for the study (:class:`~antecedent.external_learners.Learners`,
       or an origin-scoped series declaration). ``estimator`` is then the only knob: ``aipw``,
       ``dml`` (the partially linear score), ``dr_learner`` or ``causal_forest``. There is no
-      ``score`` argument. Default ``None`` fits the engine's own nuisances.
+      ``score`` argument. With learners, omitting ``estimator`` selects ``dml``.
+      Omitting ``learners`` fits the engine's own nuisances.
     * ``estimator_config`` -- a mapping of estimator options; an unknown key is refused.
     * ``refute`` -- a :class:`~antecedent.Refute` suite or its name (``"full"``, ``"placebo"``,
       ``"cheap"``, ``"none"``), or ``False`` for none. ``True`` is rejected because it names no
@@ -1922,11 +1924,47 @@ def reconfigure(study: Any, **declarations: Any) -> Any:
     )
 
 
-def analyze(data: Any, **declarations: Any) -> Outcome[Any]:
+def analyze(
+    data: Any,
+    *,
+    query: Any,
+    graph: Any = None,
+    discovery: Any = None,
+    inference: Any = None,
+    execution: Execution | None = None,
+    identifier: Any = None,
+    estimator: Any = None,
+    learners: Learners | OriginScopedLearners | None = None,
+    estimator_config: Mapping[str, Any] | None = None,
+    refute: Any = None,
+    class_prior: Any = None,
+    max_completions: int | None = None,
+    participant: str | None = None,
+    missing: Any = None,
+    population_registry: Any = None,
+    validators: Sequence[Any] | Mapping[str, Any] | None = None,
+    regimes: Sequence[int] | None = None,
+    provider: Any = None,
+    sampling_design: str | None = None,
+    unit_key: Any = None,
+    accept_discovered: bool = False,
+    data_diagnostics: Any = _AUTO_DATA_DIAGNOSTICS,
+    retain_joint_horizons: bool = False,
+    on_refusal: Literal["refuse", "describe"] = "refuse",
+    evidence_candidates: Sequence[Any] | None = None,
+    outcome_units: str | None = None,
+    quantity_population: str = "target",
+    quantity_transform: str = "identity",
+    dose_units: str | None = None,
+    measurement: Any = None,
+    measurement_draws: int = 30,
+    imputations: Sequence[Any] | None = None,
+) -> Outcome[Any]:
     """Prepare and estimate a causal question in one call.
 
-    Equivalent to ``estimate(prepare(data, **declarations))``; ``declarations`` are the keyword
-    arguments of :func:`prepare` (``query=`` is required, and usually ``graph=``).
+    Pass the same declarations as :func:`prepare`, including the required ``query``.
+    With declared ``learners``, ``estimator="dml"`` selects the partially linear score
+    (the default) and ``estimator="aipw"`` selects the augmented inverse-probability score.
 
     Returns an :class:`~antecedent.outcomes.Outcome`. Check ``outcome.refusal`` first. When it is
     ``None``, read ``outcome.answer`` (the estimate), ``outcome.uncertainty``, ``outcome.support``
@@ -1953,7 +1991,45 @@ def analyze(data: Any, **declarations: Any) -> Outcome[Any]:
         else:
             print(outcome.refusal.code, outcome.refusal.remedy)
     """
-    return capture_outcome(lambda: estimate(prepare(data, **declarations)))
+    def run() -> Outcome[Any]:
+        study = prepare(
+            data,
+            query=query,
+            graph=graph,
+            discovery=discovery,
+            inference=inference,
+            execution=execution,
+            identifier=identifier,
+            estimator=estimator,
+            learners=learners,
+            estimator_config=estimator_config,
+            refute=refute,
+            class_prior=class_prior,
+            max_completions=max_completions,
+            participant=participant,
+            missing=missing,
+            population_registry=population_registry,
+            validators=validators,
+            regimes=regimes,
+            provider=provider,
+            sampling_design=sampling_design,
+            unit_key=unit_key,
+            accept_discovered=accept_discovered,
+            data_diagnostics=data_diagnostics,
+            retain_joint_horizons=retain_joint_horizons,
+            on_refusal=on_refusal,
+            evidence_candidates=evidence_candidates,
+            outcome_units=outcome_units,
+            quantity_population=quantity_population,
+            quantity_transform=quantity_transform,
+            dose_units=dose_units,
+            measurement=measurement,
+            measurement_draws=measurement_draws,
+            imputations=imputations,
+        )
+        return estimate(study)
+
+    return capture_outcome(run)
 
 
 def _is_cyclic_preparation(study: Any) -> bool:

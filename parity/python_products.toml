@@ -1409,3 +1409,10 @@ entry_points = ["analyze", "prepare"]
 binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_imputations_reaches_plan"
+
+[[parameter]]
+name = "learners"
+entry_points = ["analyze", "prepare"]
+binding = "execution_control"
+reason = ""
+test = "python/tests/test_parameter_bindings.py::test_declared_learners_reach_the_fold_receipts"

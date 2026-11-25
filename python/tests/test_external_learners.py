@@ -633,7 +633,7 @@ def test_analyze_fits_declared_learners_as_a_study_setting():
     assert aipw.answer.value == pytest.approx(2.0)
     assert aipw.value.estimate.method == "aipw"
     assert aipw.value.identification.adjustment_set == ("z",)
-    with pytest.raises(TypeError):
+    with pytest.raises(TypeError, match="unexpected keyword argument 'score'"):
         ant.analyze(data, graph=graph, query=query, learners=learners, score="aipw")
     with pytest.raises(ValueError, match="aipw, dml"):
         ant.analyze(data, graph=graph, query=query, learners=learners, estimator="linear.adjustment.ate")

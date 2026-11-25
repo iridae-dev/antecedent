@@ -99,6 +99,17 @@ def test_dml_ate_warns_and_matches_the_declared_learner_study(estimator, score, 
     _assert_same(direct, compiled)
 
 
+def test_default_dml_warning_preserves_the_legacy_aipw_score():
+    outcome, treatment = _learners()
+    data = _data()
+    with pytest.warns(FutureWarning, match="analyze_ate.*estimator='dml', score='aipw'") as caught:
+        legacy = dml_ate(data, GRAPH, "t", "y", outcome=outcome, treatment=treatment)
+    assert caught[0].filename == __file__
+    assert "estimator='aipw'" in str(caught[0].message)
+    replacement = analyze_ate(data, GRAPH, "t", "y", learners=Learners(outcome, treatment))
+    _assert_same(legacy, replacement)
+
+
 def test_aipw_ate_warns_and_matches_the_declared_learner_study():
     outcome, treatment = _learners()
     data = _data()
