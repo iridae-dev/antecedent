@@ -529,7 +529,7 @@ justification = [
     { record = "revalidation.raised_only_by_recomputation", kind = "verified_implementation", tool = "lean+aeneas", binds = "none", names = ["AntecedentRust.Revalidation.of_provider_spec", "AntecedentRust.Revalidation.trust_move_is_numerical_spec", "AntecedentRust.Revalidation.trust_withdraws_spec", "AntecedentRust.Revalidation.revalidation_class_spec", "AntecedentRust.Revalidation.loss_class_spec", "AntecedentRust.Revalidation.status_step_spec"] },
     { record = "revalidation.raised_only_by_recomputation", kind = "bounded_model_check", tool = "kani", binds = "code", names = ["worst_is_a_join", "a_change_never_keeps_a_dependent_valid"] },
 ]
-implementation = { visibility = "crate", bound_by = ["revalidation.raised_only_by_recomputation"] }
+implementation = { public_path = "antecedent_core::recalc::RecalcPlan::plan_with_rule", bound_by = ["revalidation.raised_only_by_recomputation"] }
 obligations = [
     { obligation = "a refused stage, with its reason, cannot be served until its inputs are supplied", carried_in = "StageEntry" },
 ]
