@@ -703,6 +703,70 @@ fn to_bytes(
     bytes
 }
 
+#[test]
+fn compiled_study_checks_the_sealed_claim_against_the_retained_invariant() {
+    use crate::catalog_role::FROZEN_SCORES;
+    use crate::compiled_study::{StudyBody, StudyInvariant, StudyParts, open, write};
+    use crate::identity::data_snapshot_digest;
+
+    let (body, target, names) = fixture_body();
+    let contract = contract_for(target, &body);
+    let invariant = StudyInvariant {
+        program: contract.identities.program,
+        data_snapshot: contract.identities.data_snapshot,
+        continuation: Vec::new(),
+    }
+    .encode()
+    .unwrap();
+    let accepted = to_bytes(&body, names.clone(), Some(&contract));
+    let mut other_program = contract.clone();
+    let program = other_program.program.as_mut().unwrap();
+    program.completion_budget = Some(10);
+    other_program.identities.program = *program_digest(program).unwrap().as_bytes();
+    seal_claim(&mut other_program, &body);
+    let other_program = to_bytes(&body, names.clone(), Some(&other_program));
+    let mut other_snapshot = contract;
+    let snapshot = other_snapshot.data_snapshot.as_mut().unwrap();
+    snapshot.row_count += 1;
+    other_snapshot.identities.data_snapshot = *data_snapshot_digest(snapshot).unwrap().as_bytes();
+    seal_claim(&mut other_snapshot, &body);
+    let other_snapshot = to_bytes(&body, names, Some(&other_snapshot));
+
+    let role = StudyBody {
+        role: FROZEN_SCORES.into(),
+        bytes: b"scores".to_vec(),
+        external_uri: Some("memory://scores".into()),
+        required: true,
+        summary_only: false,
+        names: Vec::new(),
+    };
+    let write_with_claim = |claim| {
+        write(StudyParts {
+            invariant: &invariant,
+            bodies: std::slice::from_ref(&role),
+            claim: Some(claim),
+        })
+        .unwrap()
+    };
+    for supplied in [None, Some(role.bytes.clone())] {
+        let resolve = |_: &str| supplied.clone();
+        let written = write_with_claim(&accepted);
+        let opened = open(&written.bytes, &written.expected_identity, &resolve, false).unwrap();
+        assert!(opened.claim.unwrap().is_intact());
+        assert_eq!(opened.unresolved.len(), usize::from(supplied.is_none()));
+
+        for (foreign, expected_mismatch) in
+            [(&other_program, "sealed claim program"), (&other_snapshot, "sealed claim snapshot")]
+        {
+            assert!(crate::load_analysis_result(foreign).unwrap().is_intact());
+            let substituted = write_with_claim(foreign);
+            let error =
+                open(&substituted.bytes, &written.expected_identity, &resolve, false).unwrap_err();
+            assert!(error.to_string().contains(expected_mismatch), "{error}");
+        }
+    }
+}
+
 fn replace_contract_section(
     body: &AnalysisResultWire,
     names: Vec<String>,

@@ -54,6 +54,39 @@ pub const CATALOG_SECTION: &str = "program.catalog";
 pub const CLAIM_SECTION: &str = "program.claim";
 
 const ARTIFACT_ID: &str = "compiled-study";
+const INVARIANT_MAGIC: &[u8] = b"ANTSTUDY1\0";
+
+/// The separately retained invariant of a compiled study with a claim or continuation.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StudyInvariant {
+    /// Program identity advertised by the analysis-result contract.
+    pub program: [u8; 32],
+    /// Data-snapshot identity advertised by the analysis-result contract.
+    pub data_snapshot: [u8; 32],
+    /// Versioned continuation recipe from the executable study writer.
+    pub continuation: Vec<u8>,
+}
+
+impl StudyInvariant {
+    /// Encode the invariant as the exact bytes to retain and pass to [`write`].
+    ///
+    /// # Errors
+    /// CBOR encoding failure.
+    pub fn encode(&self) -> Result<Vec<u8>, IoError> {
+        let mut bytes = INVARIANT_MAGIC.to_vec();
+        bytes.extend(to_cbor(self)?);
+        Ok(bytes)
+    }
+
+    /// Decode a typed invariant, returning `None` for opaque catalog-only invariants.
+    ///
+    /// # Errors
+    /// Malformed CBOR after the typed invariant prefix.
+    pub fn decode(bytes: &[u8]) -> Result<Option<Self>, IoError> {
+        bytes.strip_prefix(INVARIANT_MAGIC).map(from_cbor).transpose()
+    }
+}
 
 /// Section id of an inline body.
 #[must_use]
@@ -400,6 +433,26 @@ fn accept_bytes(entry: &EntryWire, bytes: &[u8]) -> Result<(), IoError> {
     Ok(())
 }
 
+fn load_bound_claim(bytes: &[u8], invariant: &[u8]) -> Result<crate::AnalysisResultLoad, IoError> {
+    let study = StudyInvariant::decode(invariant)?.ok_or_else(|| {
+        refused("a sealed claim requires a study invariant with claim identities")
+    })?;
+    let claim = crate::load_analysis_result(bytes)?;
+    let identities = claim
+        .contract
+        .as_ref()
+        .filter(|contract| contract.claim.is_some() && claim.is_intact())
+        .map(|contract| &contract.identities)
+        .ok_or_else(|| refused("compiled study claim does not have an intact seal"))?;
+    if identities.program != study.program {
+        return Err(refused("sealed claim program does not match the study invariant"));
+    }
+    if identities.data_snapshot != study.data_snapshot {
+        return Err(refused("sealed claim snapshot does not match the study invariant"));
+    }
+    Ok(claim)
+}
+
 /// Admit `bytes` only when `retained` is the invariant's artifact identity.
 ///
 /// The container's own digest is a different value. This binds the invariant
@@ -481,7 +534,7 @@ pub fn open(
     }
     let claim = match section_data(&artifact, CLAIM_SECTION) {
         None => None,
-        Some(claim) => Some(crate::load_analysis_result(claim)?),
+        Some(claim) => Some(load_bound_claim(claim, &invariant)?),
     };
     let mut unresolved = Vec::new();
     let mut bodies = BTreeMap::new();
@@ -595,28 +648,6 @@ mod tests {
         (to_cbor(&wire).unwrap(), names.iter().map(|name| (*name).to_owned()).collect())
     }
 
-    fn claim() -> Vec<u8> {
-        let query = serde_json::json!({"response": {
-            "functional": {"average_derivative": {"outcome": 1, "treatment": 0, "weighting": "observed"}},
-            "target_population": "all_observed", "observation": "complete", "observation_assumptions": []
-        }});
-        let result: crate::AnalysisResultWire = serde_json::from_value(serde_json::json!({
-            "query": query,
-            "identification": {"status": "nonparametrically_identified", "query": query,
-                "estimands": [], "arena": {"var_sets": [], "interventions": [], "lists": [], "nodes": []},
-                "derivation": [], "required_assumptions": [], "diagnostics": [], "candidates_examined": 0, "sets_returned": 0},
-            "estimate": 1.0, "standard_error": 0.2, "assumptions": [], "diagnostics": [], "refutations": [],
-            "response": null, "posterior_artifact": null, "mediation_grid": null, "structural_response": null
-        }))
-        .unwrap();
-        let artifact =
-            crate::encode_analysis_result_artifact(&result, vec!["t".into(), "y".into()], "claim")
-                .unwrap();
-        let mut bytes = Vec::new();
-        artifact.write_to(&mut bytes).unwrap();
-        bytes
-    }
-
     fn source_body() -> StudyBody {
         let (bytes, names) = witness(&[&[1.0, 3.0], &[0.0, 2.0]], &["y", "t"]);
         StudyBody {
@@ -633,13 +664,9 @@ mod tests {
     fn matching_bodies_requote_layer_five_and_reproduce_the_estimate() {
         let body = source_body();
         let invariant = b"writer-output-\xff".to_vec();
-        let sealed = claim();
-        let written = write(StudyParts {
-            invariant: &invariant,
-            bodies: &[body.clone()],
-            claim: Some(&sealed),
-        })
-        .unwrap();
+        let written =
+            write(StudyParts { invariant: &invariant, bodies: &[body.clone()], claim: None })
+                .unwrap();
         assert!(written.bytes.starts_with(b"CAUSAL\0\0"));
         let opened = open(&written.bytes, &written.expected_identity, &none, false).unwrap();
         assert!(opened.resumable);
@@ -648,25 +675,21 @@ mod tests {
         assert_eq!(opened.estimate, Some(2.0));
         assert_eq!(opened.layer5_bytes, Some(layer5_quote(2, 2).unwrap()));
         assert_eq!(opened.bodies.get(SOURCE_ROWS), Some(&body.bytes));
-        assert_eq!(opened.claim.as_ref().and_then(|claim| claim.body.estimate), Some(1.0));
     }
 
     #[test]
-    fn an_unresolved_required_body_keeps_the_claim_and_is_not_resumable() {
+    fn an_unresolved_required_body_is_not_resumable() {
         let mut body = source_body();
         body.external_uri = Some("memory://source".into());
         let invariant = b"invariant".to_vec();
-        let sealed = claim();
         let written =
-            write(StudyParts { invariant: &invariant, bodies: &[body], claim: Some(&sealed) })
-                .unwrap();
+            write(StudyParts { invariant: &invariant, bodies: &[body], claim: None }).unwrap();
         let opened = open(&written.bytes, &written.expected_identity, &none, false).unwrap();
         assert!(!opened.resumable);
         assert_eq!(opened.unresolved.len(), 1);
         assert_eq!(opened.unresolved[0].uri.as_deref(), Some("memory://source"));
         assert!(opened.estimate.is_none());
         assert!(opened.layer5_bytes.is_none());
-        assert_eq!(opened.claim.as_ref().and_then(|claim| claim.body.estimate), Some(1.0));
         let resolve = |uri: &str| (uri == "memory://source").then(|| source_body().bytes);
         let resumed = open(&written.bytes, &written.expected_identity, &resolve, false).unwrap();
         assert!(resumed.resumable);
