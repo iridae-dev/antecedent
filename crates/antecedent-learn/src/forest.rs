@@ -22,8 +22,6 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::cmp::Ordering;
-
 use antecedent_core::execution::{AdmissionError, MapExecutionError};
 use antecedent_core::{CausalRng, ExecutionContext, StreamDomain, derive_stream};
 use smartcore::ensemble::extra_trees_regressor::{
@@ -275,6 +273,10 @@ fn grow_tree(data: &Grow<'_>, rng: &mut CausalRng) -> Vec<PredictionNode> {
             continue;
         };
         let (left_rows, right_rows) = partition_rows(data, &work.rows, &split);
+        if left_rows.is_empty() || right_rows.is_empty() {
+            nodes[work.index] = leaf_node(mean_of(&work.rows, data.y));
+            continue;
+        }
         let left = nodes.len();
         nodes.push(leaf_node(0.0));
         let right = nodes.len();
@@ -350,6 +352,10 @@ fn candidate_cut(
     }
 }
 
+#[allow(
+    clippy::float_cmp,
+    reason = "finite split values use the same numerical equality as the partition"
+)]
 fn best_cut(data: &Grow<'_>, rows: &[usize], feature: usize) -> Option<(f64, f64)> {
     let column = data.column(feature);
     let mut finite: Vec<usize> =
@@ -365,7 +371,7 @@ fn best_cut(data: &Grow<'_>, rows: &[usize], feature: usize) -> Option<(f64, f64
     while i < finite.len() {
         let value = column[finite[i]];
         let mut j = i;
-        while j < finite.len() && column[finite[j]].total_cmp(&value) == Ordering::Equal {
+        while j < finite.len() && column[finite[j]] == value {
             left_sum += data.y[finite[j]];
             left_n += 1;
             j += 1;
@@ -791,6 +797,21 @@ mod tests {
                 "extra_trees={extra}"
             );
         }
+    }
+
+    #[test]
+    fn signed_zeros_with_different_outcomes_stay_in_one_leaf() {
+        let x = [-0.0, 0.0, -0.0, 0.0];
+        let y = [0.0, 1.0, 0.0, 1.0];
+        let ctx = ExecutionContext::for_tests(2);
+        let view = DesignView::from_column_major(&x, x.len(), 1).unwrap();
+        let fitted = ForestLearner::new(spec(4, 1, false), PredictionTask::Regression)
+            .fit(view, TargetView::new(&y), None, &ctx)
+            .unwrap();
+        let mut predictions = [0.0; 4];
+        fitted.predict(view, &mut predictions, &ctx).unwrap();
+        assert!(predictions.iter().all(|value| value.is_finite()));
+        assert_eq!(predictions.map(f64::to_bits), [predictions[0].to_bits(); 4]);
     }
 
     #[test]
