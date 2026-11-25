@@ -135,7 +135,7 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
     ),
     (
         "analysis/cyclic_action_world_decision.rs",
-        "compile_cyclic_action_world_decision",
+        "compile_cyclic_action_world_decision_encoded",
         "ClaimDemand",
         "decision",
     ),

@@ -2831,9 +2831,21 @@ mod tests {
         );
     }
 
-    #[test]
-    #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through replay")]
-    fn bounded_component_worlds_replay_after_joint_fit() {
+    /// The joint vector fit, its bounded decision and the inputs they were compiled from, for the
+    /// scenarios that execute the bounded decision and replay its artifact.
+    struct BoundedFixture {
+        ctx: ExecutionContext,
+        vector: VectorFeedbackRequest,
+        schedule: ComponentJointPosteriorSchedule,
+        outputs: Vec<super::super::cyclic_action_world_decision::CyclicDecisionOutput>,
+        contract: antecedent_design::decision_contract::DecisionContract,
+        bounded_quantities: Vec<ScientificQuantity>,
+        bounded_contract: antecedent_design::decision_contract::DecisionContract,
+        bounded: CompiledBoundedComponentPosteriorDecision,
+    }
+
+    #[allow(clippy::too_many_lines, reason = "one scenario walked from fit to the bounded program")]
+    fn bounded_fixture() -> BoundedFixture {
         use super::super::cyclic_action_world_decision::CyclicDecisionOutput;
         use antecedent_design::decision_contract::{
             ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy,
@@ -3001,6 +3013,31 @@ mod tests {
             bounded_contract.clone(),
         )
         .unwrap();
+        BoundedFixture {
+            ctx,
+            vector,
+            schedule,
+            outputs,
+            contract,
+            bounded_quantities,
+            bounded_contract,
+            bounded,
+        }
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines, reason = "one scenario walked from fit through execution")]
+    fn bounded_component_worlds_replay_after_joint_fit() {
+        let BoundedFixture {
+            ctx,
+            vector,
+            schedule,
+            outputs,
+            contract,
+            bounded_quantities,
+            bounded_contract,
+            bounded,
+        } = bounded_fixture();
         assert_eq!(bounded.plan_view().route().as_str(), "BoundedComponentPosteriorDecision");
         let scope = bounded.reliability_scope().unwrap();
         let mut alternate_schedule = schedule;
@@ -3022,7 +3059,7 @@ mod tests {
         .unwrap();
         assert_eq!(scope, alternate.reliability_scope().unwrap());
         assert_ne!(bounded.lowered().identity(), alternate.lowered().identity());
-        let mut result = bounded.execute(&ctx).unwrap();
+        let result = bounded.execute(&ctx).unwrap();
         let (columns, _) = result.decision.chain.joint_output_law().unwrap();
         assert!(columns.iter().flatten().all(|bits| (0.0..=1.0).contains(&f64::from_bits(*bits))));
         // Each bounded draw is the logistic of the real-valued fitted draw in the same row.
@@ -3037,6 +3074,13 @@ mod tests {
         }
         assert_planted_component_effect(&result.inner);
         assert_eq!(result.calibration, "not_measured");
+    }
+
+    #[test]
+    fn the_bounded_component_artifact_replays_and_refuses_what_changed() {
+        let fixture = bounded_fixture();
+        let (ctx, bounded) = (fixture.ctx, fixture.bounded);
+        let mut result = bounded.execute(&ctx).unwrap();
         let artifact = bounded.export(&result, &ctx).unwrap();
         let replay = consume_bounded_component_posterior_decision(
             &artifact,

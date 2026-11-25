@@ -157,9 +157,22 @@ def _compiled_grid() -> transport.CompiledAugmentedResponseGrid:
 def test_the_compiled_grid_equals_the_hand_worked_means() -> None:
     # Selection odds 1 and 3 on the trial rows, residuals 0.5 and 1:
     # (1 + 2 + 1 * 1 * 0.5 + 3 * 0.5 * 1) / 2 = 2.5 and (3 + 5 + 0.25 * 0.5 + 3 * 2 * 1) / 2.
-    compiled = _compiled_grid()
+    graph_builder = ant.Admg.from_edges(GRID_NAMES, [("a", "y")])
+    query_builder = _grid_query()
+    compiled = transport.compile_augmented_response_grid(
+        GRID_DATA,
+        graph=graph_builder,
+        query=query_builder,
+        observed_regression="m",
+        grid_regressions=["m0", "m1"],
+        response_weights=["w0", "w1"],
+    )
+    program = compiled.program_identity
+    # The compiled program retains everything it executes: the builders are gone before it runs.
+    del graph_builder, query_builder
     assert compiled.route == "TransportResponseGrid"
     result = compiled.execute()
+    assert compiled.program_identity == program
     assert result.grid == (0.0, 1.0)
     assert result.mean == (2.5, 7.0625)
     assert result.claim == "point_only"

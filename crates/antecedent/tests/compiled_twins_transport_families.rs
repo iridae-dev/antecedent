@@ -186,6 +186,22 @@ fn compiled_scenarios_report_what_the_prepared_set_evaluates() {
     let prepared = prepared_scenarios(&ctx);
     let compiled = Study::compile_transport_scenarios(prepared.clone()).unwrap();
     assert_eq!(compiled.plan_view().route().as_str(), "TransportScenarioSet");
+    // The program binds the set the prepared study decided, and a changed source is a new program.
+    let moved = [0.1, 0.3, 0.3, 0.3];
+    let refreshed = compiled.refresh(laws(moved), &ctx).unwrap();
+    assert_ne!(refreshed.lowered().identity(), compiled.lowered().identity(), "new source");
+    assert_eq!(
+        compiled.lowered().identity(),
+        Study::compile_transport_scenarios(prepared).unwrap().lowered().identity(),
+        "the same decided set is the same program"
+    );
+}
+
+#[test]
+fn the_compiled_scenario_program_executes_what_the_prepared_set_evaluates() {
+    let ctx = ExecutionContext::for_tests(1);
+    let prepared = prepared_scenarios(&ctx);
+    let compiled = Study::compile_transport_scenarios(prepared.clone()).unwrap();
     let run = compiled.execute(&ctx).unwrap();
     let direct = prepared.prepared().evaluate(&ctx).unwrap();
     assert_eq!(format!("{:?}", run.report), format!("{direct:?}"));
@@ -318,7 +334,23 @@ fn compiled_measurement_transport_carries_the_kernel_receipt_and_correction() {
     )
     .unwrap();
     assert_eq!(compiled.transported(), &kernel, "the receipt and re-bound model");
+}
 
+#[test]
+fn compiled_measurement_transport_executes_to_the_kernel_estimate_bit_for_bit() {
+    let ctx = ExecutionContext::for_tests(3);
+    let models = vec![model("clinic_a", 0.9, 0.8)];
+    let input = MeasurementInput::BinaryPrevalence { events: 520, total: 1000 };
+    let compiled = Study::compile_measurement_transport(
+        MeasurementTransportRequest::new(
+            models.clone(),
+            Some(premise()),
+            binding("clinic_b"),
+            input.clone(),
+        ),
+        &ctx,
+    )
+    .unwrap();
     let run = compiled.execute(&ctx).unwrap();
     let direct = transport_measurement_estimate(
         &models,

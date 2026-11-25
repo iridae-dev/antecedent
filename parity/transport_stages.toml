@@ -1720,7 +1720,7 @@ guarantee = "checked_prepared_point_route"
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
 limits = "Evaluates the frozen formula: exact laws stay point only; counted tables attach the nominal percentile bootstrap, reported as not measured."
 evidence_test = "crates/antecedent/tests/z_transport_known_truth.rs"
-evidence_assertion = "the_prepared_route_recovers_the_enumerated_target_law_from_the_source_experiment"
+evidence_assertion = "an_empirical_table_at_the_law_returns_the_enumerated_point_with_a_nominal_interval"
 
 [[routes]]
 route = "antecedent.PreparedZTransport.estimate_bayesian"
@@ -8162,7 +8162,7 @@ evidence = "combined_model_and_decision_artifact"
 functional = "cyclic.action_world_decisions"
 guarantee = "independent_model_and_decision_replay_under_a_held_program_identity"
 evidence_test = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
-evidence_assertion = "paired_equilibrium_worlds_are_derived_and_replayed"
+evidence_assertion = "the_paired_worlds_artifact_replays_under_the_held_program_identity"
 notes = "Replays the model solve and the derived decision from the artifact."
 
 [[routes]]
@@ -8192,7 +8192,7 @@ evidence = "combined_component_fit_and_decision_artifact"
 functional = "cyclic.component_posterior_decisions"
 guarantee = "independent_component_fit_and_decision_replay_under_a_held_program_identity"
 evidence_test = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
-evidence_assertion = "bounded_component_worlds_replay_after_joint_fit"
+evidence_assertion = "the_bounded_component_artifact_replays_and_refuses_what_changed"
 notes = "A changed transform, posterior, component order or port is refused."
 
 [[routes]]
@@ -11634,7 +11634,7 @@ evidence = "declared_design_and_planning_assumptions"
 functional = "sample_size_power_assurance_or_minimum_detectable_effect"
 guarantee = "analytic_and_simulated_operating_characteristics_of_declared_design_under_declared_assumptions"
 evidence_test = "crates/antecedent/tests/experiment_planning.rs"
-evidence_assertion = "compiled_plan_carries_every_assumption_in_its_identity"
+evidence_assertion = "a_randomized_study_compiles_for_planning_its_next_trial"
 notes = "Compiles a standalone plan; no data is bound. Statements about the declared assumptions only; calibration not_measured."
 
 [[routes]]
@@ -11836,7 +11836,7 @@ functional = "per_scenario_target_interventional_distribution"
 observation = "exact_or_empirical_plugin_laws"
 guarantee = "each_scenario_decided_once_by_the_supported_classical_catalog_route_and_compiled_once"
 evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
-evidence_assertion = "compiled_scenarios_report_what_the_prepared_set_evaluates"
+evidence_assertion = "the_compiled_scenario_program_executes_what_the_prepared_set_evaluates"
 notes = "Runs PreparedScenarioSet::evaluate on the retained plans; refresh keeps the decisions and lowers again."
 
 [[routes]]
@@ -11867,7 +11867,7 @@ evidence = "source_measurement_model_invariance_declaration_and_target_bound_ind
 functional = "error_corrected_prevalence_or_mean_in_the_target_population"
 guarantee = "declared_invariance_point_only_uncalibrated_delta_method_standard_error"
 evidence_test = "crates/antecedent/tests/compiled_twins_transport_families.rs"
-evidence_assertion = "compiled_measurement_transport_carries_the_kernel_receipt_and_correction"
+evidence_assertion = "compiled_measurement_transport_executes_to_the_kernel_estimate_bit_for_bit"
 notes = "Forms the corrected functional on the re-bound model through every prepare check of the measurement route."
 
 [[routes]]

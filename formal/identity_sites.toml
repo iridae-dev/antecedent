@@ -7342,20 +7342,26 @@ concern = ""
 [[sites]]
 id = "antecedent.cyclic_action_world_decision.compile_cyclic_action_world_decision"
 file = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
-item = "fn:compile_cyclic_action_world_decision#0"
+item = "fn:compile_cyclic_action_world_decision_encoded#0"
 feeds = "CyclicActionWorldDecision query digest and source_digest (inline question writer)"
 released = true
 status = "checked"
-checks = ["unit:crates/antecedent/src/analysis/cyclic_action_world_decision.rs::site_cyclic_action_world_decision_question_orders_outputs_and_binds_parts", "adversarial:identity_sites.facade.transport.cyclic_action_outputs"]
+checks = ["unit:crates/antecedent/src/analysis/cyclic_action_world_decision.rs::site_cyclic_action_world_decision_question_orders_outputs_and_binds_parts", "unit:crates/antecedent/src/analysis/cyclic_action_world_decision.rs::a_handoff_exported_under_the_released_question_encoding_still_verifies", "adversarial:identity_sites.facade.transport.cyclic_action_outputs"]
+note = "Current tag antecedent.cyclic_action_world_decision.question.v2: the source program identity, the contract identity, the outputs CBOR, then the count of disturbance rows and each row's reals by bit pattern. The released v1 encoding (no disturbance rows) is reproduced only by QuestionEncoding::V1, which the consumer recompiles under when the current identity differs from the held one."
 [[sites.collections]]
 name = "outputs (world, equation, quantity)"
 class = "ordered"
 canonical = "declared order in the outputs CBOR: output i becomes chain stage cyclic.outcome.i and the first is the chain's reported quantity; worlds and regimes are refused when repeated"
 concern = ""
 [[sites.collections]]
-name = "parts (prepared cyclic program identity, contract identity, outputs CBOR)"
+name = "parts (prepared cyclic program identity, contract identity, outputs CBOR, disturbance rows)"
 class = "ordered"
 canonical = "fixed field order, length-prefixed, under the family's versioned tag"
+concern = ""
+[[sites.collections]]
+name = "disturbance rows"
+class = "ordered"
+canonical = "row count, then each row as a count-prefixed sequence of bit-pattern words, in declared order: row i is draw i of every world, so the order pairs the draws"
 concern = ""
 
 [[sites]]

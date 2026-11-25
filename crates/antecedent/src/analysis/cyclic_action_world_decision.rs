@@ -46,6 +46,11 @@ use crate::planner::{PlanStage, PlanView};
 
 const FEATURE: &str = "cyclic_derived_action_world_decision_v1";
 const MAX_ARTIFACT_BYTES: usize = 80 * 1024 * 1024;
+/// Question identity: the source program, the contract, the outputs and the disturbance rows.
+const QUESTION_TAG: &str = "antecedent.cyclic_action_world_decision.question.v2";
+/// The released question identity, without the disturbance rows. Reproduced only to verify a
+/// handoff exported under it.
+const QUESTION_TAG_V1: &str = "antecedent.cyclic_action_world_decision.question.v1";
 
 /// One intervention world and one endogenous model coordinate, published as a
 /// separate scientific quantity in the joint decision law.
@@ -148,11 +153,39 @@ struct CyclicActionDecisionWire {
 /// # Errors
 /// An unpaired world, repeated regime, mismatched coordinate, unsupported
 /// action or cyclic compiler refusal.
-#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
 pub fn compile_cyclic_action_world_decision(
     request: CyclicExecutionRequest,
     outputs: Vec<CyclicDecisionOutput>,
     contract: DecisionContract,
+    ctx: &ExecutionContext,
+) -> Result<CompiledCyclicActionDecision, CyclicActionDecisionError> {
+    compile_cyclic_action_world_decision_encoded(
+        request,
+        outputs,
+        contract,
+        QuestionEncoding::Current,
+        ctx,
+    )
+}
+
+/// Which encoding of the question identity a compile writes. Compiles write
+/// [`Self::Current`]; a consumer whose recompilation differs from the stored program identity
+/// recompiles under [`Self::V1`], the released encoding, so a handoff exported before the
+/// disturbance rows were bound still verifies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum QuestionEncoding {
+    /// The shared disturbance rows are part of the question.
+    Current,
+    /// The released encoding: the disturbance rows are not bound.
+    V1,
+}
+
+#[allow(clippy::too_many_lines, reason = "the steps read in order in one place")]
+fn compile_cyclic_action_world_decision_encoded(
+    request: CyclicExecutionRequest,
+    outputs: Vec<CyclicDecisionOutput>,
+    contract: DecisionContract,
+    encoding: QuestionEncoding,
     ctx: &ExecutionContext,
 ) -> Result<CompiledCyclicActionDecision, CyclicActionDecisionError> {
     contract.validate()?;
@@ -218,14 +251,26 @@ pub fn compile_cyclic_action_world_decision(
             "the decision actions do not cover every distinct model world",
         ));
     }
+    let noise = request.noise.clone();
     let source = Study::prepare_cyclic(request, ctx)?;
     let contract_identity = contract.identity()?;
     let outputs_bytes = antecedent_io::to_cbor(&outputs)?;
-    let mut writer = CanonicalWriter::new("antecedent.cyclic_action_world_decision.question.v1");
+    let mut writer = CanonicalWriter::new(match encoding {
+        QuestionEncoding::Current => QUESTION_TAG,
+        QuestionEncoding::V1 => QUESTION_TAG_V1,
+    });
     writer
         .bytes(source.lowered().identity().as_bytes())
         .text(&contract_identity)
         .bytes(&outputs_bytes);
+    if encoding == QuestionEncoding::Current {
+        // The decision is taken over these disturbance rows draw by draw, so a different row
+        // set is a different question even where the model and worlds are the same.
+        writer.word(noise.len() as u64);
+        for row in &noise {
+            writer.reals(row);
+        }
+    }
     let digest = writer.finish();
     let mut scientific = source.lowered().scientific().clone();
     scientific.target = ProblemTarget::QueryFunctional {
@@ -457,12 +502,20 @@ pub fn consume_cyclic_action_world_decision(
         consume_cyclic_artifact_with_request(&wire.cyclic_artifact, &wire.source_identity, ctx)?;
     let contract =
         DecisionContractArtifact::from_bytes(&wire.contract_artifact, &wire.contract_identity)?;
-    let plan = compile_cyclic_action_world_decision(
-        request,
-        wire.outputs,
-        contract.contract().clone(),
-        ctx,
-    )?;
+    // A handoff exported under the released question encoding recompiles under it.
+    let compile = |encoding| {
+        compile_cyclic_action_world_decision_encoded(
+            request.clone(),
+            wire.outputs.clone(),
+            contract.contract().clone(),
+            encoding,
+            ctx,
+        )
+    };
+    let mut plan = compile(QuestionEncoding::Current)?;
+    if plan.lowered.identity() != expected_program {
+        plan = compile(QuestionEncoding::V1)?;
+    }
     if plan.lowered.identity() != expected_program {
         return Err(CyclicActionDecisionError::Invalid("recompiled model and decision differ"));
     }
@@ -622,15 +675,58 @@ mod tests {
             antecedent_design::decision_eval::Verdict::UniquelyOptimal(action)
                 if action == "promoted"
         ));
-        let bytes = plan.export(&result, "cyclic-paired-worlds", &ctx).expect("combined artifact");
-        let replay = consume_cyclic_action_world_decision(&bytes, plan.lowered().identity(), &ctx)
-            .expect("independent model and decision replay");
-        assert_eq!(replay.decision.decision, result.decision.decision);
         let mut repeated = request();
         repeated.worlds[1] = repeated.worlds[0].clone();
         assert!(
             compile_cyclic_action_world_decision(repeated, outputs(), contract(), &ctx,).is_err()
         );
+    }
+
+    #[test]
+    fn the_paired_worlds_artifact_replays_under_the_held_program_identity() {
+        let ctx = ExecutionContext::for_tests(47);
+        let plan = compile_cyclic_action_world_decision(request(), outputs(), contract(), &ctx)
+            .expect("model and decision compiler");
+        let result = plan.execute(&ctx).expect("paired model-derived worlds");
+        let bytes = plan.export(&result, "cyclic-paired-worlds", &ctx).expect("combined artifact");
+        let replay = consume_cyclic_action_world_decision(&bytes, plan.lowered().identity(), &ctx)
+            .expect("independent model and decision replay");
+        assert_eq!(replay.decision.decision, result.decision.decision);
+        assert_eq!(replay.cyclic, result.cyclic);
+        // The identity is held outside the artifact: another program's identity is refused.
+        let mut other = request();
+        other.noise[0][0] = -0.3;
+        let other_plan = compile_cyclic_action_world_decision(other, outputs(), contract(), &ctx)
+            .expect("another disturbance row set");
+        assert!(
+            consume_cyclic_action_world_decision(&bytes, other_plan.lowered().identity(), &ctx)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn a_handoff_exported_under_the_released_question_encoding_still_verifies() {
+        let ctx = ExecutionContext::for_tests(47);
+        let released = compile_cyclic_action_world_decision_encoded(
+            request(),
+            outputs(),
+            contract(),
+            QuestionEncoding::V1,
+            &ctx,
+        )
+        .expect("the released encoding compiles");
+        let current = compile_cyclic_action_world_decision(request(), outputs(), contract(), &ctx)
+            .expect("the current encoding compiles");
+        // The two encodings name the same program differently, so the released identity is
+        // reproduced only to verify a handoff exported under it.
+        assert_ne!(released.lowered().identity(), current.lowered().identity());
+        let result = released.execute(&ctx).expect("paired model-derived worlds");
+        let bytes = released.export(&result, "cyclic-released", &ctx).expect("combined artifact");
+        let replay =
+            consume_cyclic_action_world_decision(&bytes, released.lowered().identity(), &ctx)
+                .expect("a released handoff verifies");
+        assert_eq!(replay.decision.decision, result.decision.decision);
+        assert_eq!(replay.cyclic, result.cyclic);
     }
 
     /// Once the decision gate is live, a release build refuses an unsupported unit with
@@ -709,10 +805,18 @@ mod tests {
         units.utility_units = "wishlist_value".into();
         let mut shifted = request();
         shifted.model.noise_covariance[0] = 2.0;
+        // The decision is taken over the disturbance rows, so a different row set is a
+        // different question over the same model, worlds and outputs.
+        let mut disturbed = request();
+        disturbed.noise[0][0] = -0.3;
+        let mut fewer = request();
+        fewer.noise.pop();
         crate::identity_laws::all_distinct(&[
             compile(request(), &outputs(), contract()),
             compile(request(), &outputs(), units),
             compile(shifted, &outputs(), contract()),
+            compile(disturbed, &outputs(), contract()),
+            compile(fewer, &outputs(), contract()),
         ]);
     }
 }

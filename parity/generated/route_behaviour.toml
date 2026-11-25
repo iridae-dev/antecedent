@@ -86,6 +86,7 @@ routes = [
   { route = "transport.scenarios.equivalence_class_native", stage = "identify", status = "closed", reason_code = "route_not_supported", claim = "structural_envelope" },
   { route = "antecedent.analysis.compiled_transport_scenarios.Study.compile_transport_scenarios", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent.analysis.compiled_transport_scenarios.CompiledTransportScenarios.execute", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.analysis.compiled_transport_scenarios.CompiledTransportScenarios.estimate", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
 
 [[record]]

@@ -2951,7 +2951,7 @@ checks = ["unit:crates/antecedent/tests/standing_demand.rs::every_claim_demand_s
 [[sites]]
 id = "facade.demand.analysis.cyclic_action_world_decision.compile_cyclic_action_world_decision"
 file = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
-item = "fn:compile_cyclic_action_world_decision#0"
+item = "fn:compile_cyclic_action_world_decision_encoded#0"
 facets = ["kind"]
 action = "set"
 released = true
