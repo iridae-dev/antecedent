@@ -17,7 +17,9 @@ use antecedent::analysis::transport_sensitivity::{
     TransportRoute, TransportSensitivityEntryRefusal, TransportSensitivityRequest, ViolationFamily,
     transport_sensitivity_spec,
 };
-use antecedent::analysis::{BoundDecisionContract, SupportPolicy, TransportedDemand};
+use antecedent::analysis::{
+    BoundDecisionContract, SupportPolicy, TransportedDemand, TransportedRefusal,
+};
 use antecedent::design::composition_boundary::UnsupportedActionPolicy;
 use antecedent::design::decision_robust_artifact::admissible_contract_from_json_refusal;
 use antecedent::design::transported_decision_artifact::export_transported_decision;
@@ -510,8 +512,31 @@ fn transport_sensitivity_build(
     })
 }
 
+/// Project the prepared analysis's retained transport result onto a transported response.
+///
+/// A result that is not a transport, or a transport whose receipt fields are not
+/// already on it, comes back as a refusal. The handle's identity is the receipt's.
+#[pyfunction]
+fn project_transported_response(
+    prepared: PyRef<'_, PyPreparedAnalysis>,
+) -> PyResult<Refused<TransportedResponseHandle>> {
+    crate::catch_ffi(|| {
+        let Some(result) = prepared.retained_result() else {
+            return Ok((
+                None,
+                Some(transported_refusal_json(&TransportedRefusal::NotTransported)),
+            ));
+        };
+        Ok(match antecedent::analysis::project_transported_response(result) {
+            Ok(inner) => (Some(TransportedResponseHandle { inner }), None),
+            Err(refusal) => (None, Some(transported_refusal_json(&refusal))),
+        })
+    })
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<TransportedResponseHandle>()?;
+    module.add_function(wrap_pyfunction!(project_transported_response, module)?)?;
     module.add_function(wrap_pyfunction!(transported_response_declared_point, module)?)?;
     module.add_function(wrap_pyfunction!(transported_response_declared_law, module)?)?;
     module.add_function(wrap_pyfunction!(transported_response_from_shifted_cohort, module)?)?;

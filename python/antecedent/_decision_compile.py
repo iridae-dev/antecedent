@@ -504,6 +504,42 @@ class CompiledDecision(ScientificResult):
         source = self if law is None else JointDistributionArtifact._from_native(law)
         return TradeoffDecision(self._contract, source, json.loads(body), measure_wire, options)
 
+    def execute_supplied(self, results: Sequence[object], execution: Execution | None = None) -> Any:
+        """Decide from supplied response results of the compiled children.
+
+        A result is consumed when its program, snapshot and execution identities match the
+        compiled child. A mismatch raises ``preference_compile.executed_program_mismatch``
+        and the number is not adopted.
+        """
+        from .transport._controls import call_native
+
+        native_results = [getattr(result, "_raw", result) for result in results]
+        if self._form == "ordinary":
+            body, refusal, law = call_native(
+                execution,
+                self._native.execute_supplied,
+                native_results,
+                None,
+                json.dumps({}),
+                seed="seed",
+            )
+            raise_refusal(refusal, DecisionRefusal)
+            assert body is not None
+            return self._ordinary_result(json.loads(body), law)
+        measure_wire = tradeoff_measure(self._contract, None)
+        body, refusal, law = call_native(
+            execution,
+            self._native.execute_supplied,
+            native_results,
+            None if measure_wire is None else json.dumps(measure_wire),
+            json.dumps({}),
+            seed="seed",
+        )
+        _raise(refusal)
+        assert body is not None
+        source = self if law is None else JointDistributionArtifact._from_native(law)
+        return TradeoffDecision(self._contract, source, json.loads(body), measure_wire, {})
+
     def _ordinary_result(self, body: Mapping[str, Any], law: Any) -> Any:
         ordinary = self._contract._ordinary()
         source = self if law is None else JointDistributionArtifact._from_native(law)

@@ -67,6 +67,7 @@ use std::sync::Arc;
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::reason_details::{native_claims, preference_compile};
 use antecedent_core::{CanonicalWriter, ExecutionContext, ResponseIdentification, SemanticDigest};
+use antecedent_io::{execution_digest, execution_identity_from_context};
 use antecedent_design::decision_contract::{
     DecisionContract, HardConstraint, SourceRepresentation, SourceRequirement, StructuralPolicy,
 };
@@ -98,6 +99,7 @@ pub use structures::{CompiledStructure, StructureIdentification};
 
 use super::Study;
 use crate::analysis::attached_decision::{ParentDecisionProgram, ParentSpec, lower_parent};
+use crate::analysis::decision_result::supplied_child_identity;
 use crate::analysis::contract::CausalContract;
 use crate::analysis::joint_panel::JointPanelError;
 use crate::analysis::lowering::CompileGoal;
@@ -280,17 +282,77 @@ pub(super) fn checked_executed(
         let hex = |digest: Option<SemanticDigest>| {
             digest.map_or_else(|| "none".to_owned(), |digest| digest.to_hex())
         };
-        return Err(ExternalRefusal::new(
-            antecedent_core::reason_code!("route_not_lowered"),
-            STAGE_EVALUATE,
-            antecedent_core::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH,
-        )
-        .with_expected(format!("the compiled decision program {}", hex(compiled)))
-        .with_supplied(format!("a result of the lowered program {}", hex(executed)))
-        .with_remedy("compile the decision again from the study, and execute what it compiled")
-        .into());
+        return Err(executed_program_mismatch(
+            format!("the compiled decision program {}", hex(compiled)),
+            format!("a result of the lowered program {}", hex(executed)),
+        ));
     }
     Ok(executed)
+}
+
+fn executed_program_mismatch(expected: String, supplied: String) -> PreferenceRouteError {
+    ExternalRefusal::new(
+        antecedent_core::reason_code!("route_not_lowered"),
+        STAGE_EVALUATE,
+        antecedent_core::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH,
+    )
+    .with_expected(expected)
+    .with_supplied(supplied)
+    .with_remedy("compile the decision again from the study, and execute what it compiled")
+    .into()
+}
+
+pub(super) fn child_count_mismatch(expected: usize, supplied: usize) -> PreferenceRouteError {
+    executed_program_mismatch(
+        format!("{expected} compiled children"),
+        format!("{supplied} supplied results"),
+    )
+}
+
+/// The compiled child's program, snapshot and execution, or the refusal
+/// `preference_compile.executed_program_mismatch`. A mismatch does not adopt `result`.
+pub(super) fn admit_supplied_child(
+    plan: Option<&PlanView>,
+    snapshot: &str,
+    result: &crate::StudyResult,
+    produced: &ExecutionContext,
+    admission: &ExecutionContext,
+) -> Result<Option<SemanticDigest>, PreferenceRouteError> {
+    let compiled_program = plan.and_then(PlanView::semantic_identity);
+    let result_program = result.lowered_program_identity();
+    let result_snapshot = result
+        .executed_contract()
+        .map(|contract| contract.identities.data_snapshot.to_hex())
+        .unwrap_or_else(|| "none".to_owned());
+    let compiled_execution = execution_hex(admission)?;
+    let result_execution = execution_hex(produced)?;
+    let compiled = supplied_child_identity(&digest_hex(compiled_program), snapshot, &compiled_execution);
+    let supplied_identity =
+        supplied_child_identity(&digest_hex(result_program), &result_snapshot, &result_execution);
+    if compiled != supplied_identity {
+        return Err(executed_program_mismatch(
+            format!(
+                "the compiled child program {}, snapshot {snapshot}, execution {compiled_execution}",
+                digest_hex(compiled_program)
+            ),
+            format!(
+                "a result of program {}, snapshot {result_snapshot}, execution {result_execution}",
+                digest_hex(result_program)
+            ),
+        ));
+    }
+    Ok(result_program)
+}
+
+fn digest_hex(digest: Option<SemanticDigest>) -> String {
+    digest.map_or_else(|| "none".to_owned(), |digest| digest.to_hex())
+}
+
+fn execution_hex(ctx: &ExecutionContext) -> Result<String, PreferenceRouteError> {
+    let digest = execution_digest(&execution_identity_from_context(ctx)).map_err(|error| {
+        PreferenceRouteError::Compiler(Box::new(crate::CausalError::rejected(error)))
+    })?;
+    Ok(digest.to_hex())
 }
 
 /// Identity of the measure over the preference set an execution read.
@@ -1353,6 +1415,7 @@ impl CompiledPreferenceDecision {
                     measure,
                     options,
                     ctx,
+                    None,
                 ),
             Sources::Studies { studies, structures, posterior: false, .. } => {
                 self.execute_studies(studies, structures, measure, options, ctx)
@@ -1369,6 +1432,67 @@ impl CompiledPreferenceDecision {
                     mixture: None,
                     receipt: self.receipt((programs, executed), measure, &options),
                     would_refuse: Vec::new(),
+                })
+            }
+        }?;
+        execution.would_refuse = ctx.would_refuse();
+        Ok(execution)
+    }
+
+    /// Decide from `supplied` results instead of estimating the compiled children.
+    ///
+    /// One result per child that would have been estimated, in that order. A result is
+    /// consumed when its lowered program, data snapshot and execution identity match the
+    /// compiled child under `produced` and `ctx`. A mismatch is
+    /// `preference_compile.executed_program_mismatch` and the number is not adopted.
+    ///
+    /// # Errors
+    /// The same refusals as [`Self::execute`], except a child is not estimated: a mismatch
+    /// of program, snapshot or execution identity, or a count of results other than the
+    /// number of compiled children, refuses before any child is fitted.
+    pub fn execute_supplied(
+        &self,
+        supplied: &[crate::StudyResult],
+        produced: &ExecutionContext,
+        measure: Option<&PreferenceMeasure>,
+        options: PreferenceEvaluationOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
+        }
+        if measure.is_some() && self.contract.ordinary().is_some() {
+            return Err(measure_not_read());
+        }
+        self.parent.gate(ctx).map_err(CausalError::from)?;
+        let mut execution = match &self.sources {
+            Sources::Studies { studies, structures, posterior: true, basis } => self
+                .execute_structures(
+                    studies,
+                    (structures.as_slice(), *basis),
+                    measure,
+                    options,
+                    ctx,
+                    Some((supplied, produced)),
+                ),
+            Sources::Studies { studies, structures, posterior: false, .. } => {
+                self.execute_studies_supplied(studies, structures, supplied, produced, measure, options, ctx)
+            }
+            Sources::Design(design) => {
+                if supplied.len() != 1 {
+                    return Err(child_count_mismatch(1, supplied.len()));
+                }
+                // The design child is not fitted. A study result of another program is the
+                // mismatch; a program that happens to match still has no design snapshot to
+                // adopt under, so the number is not taken.
+                let compiled = design.plan_view().semantic_identity();
+                let executed = supplied[0].lowered_program_identity();
+                Err(match checked_executed(compiled, executed) {
+                    Err(refusal) => refusal,
+                    Ok(_) => executed_program_mismatch(
+                        "the compiled design program and its data snapshot".to_owned(),
+                        "a study result with no design snapshot".to_owned(),
+                    ),
                 })
             }
         }?;
@@ -1400,6 +1524,68 @@ impl CompiledPreferenceDecision {
                 executed.push(ran);
             }
             let response = retained_response(&result).ok_or_else(no_response)?;
+            let claim =
+                NativeResponseClaim::from_response(&response, &study.schema, &study.context(ctx))?;
+            inputs.push(claim.decision_source(&requirement)?);
+        }
+        let source = if let [input] = inputs.as_slice() {
+            input.source.clone()
+        } else {
+            let (source, chain) =
+                outcomes::join_studies(&inputs, studies, self.joint.as_ref(), ctx)?;
+            if let Some(chain) = chain {
+                programs.extend(self.joint.as_ref().map(|joint| joint.fact().program()));
+                executed.push(Some(chain));
+            }
+            source
+        };
+        let evaluation = self.decide_source(&source, measure, options, ctx)?;
+        Ok(PreferenceDecisionExecution {
+            evaluation,
+            source: Some(source),
+            inputs,
+            mixture: None,
+            receipt: self.receipt((programs, executed), measure, &options),
+            would_refuse: Vec::new(),
+        })
+    }
+
+    fn execute_studies_supplied(
+        &self,
+        studies: &[BoundStudy],
+        structures: &[CompiledStructure],
+        supplied: &[crate::StudyResult],
+        produced: &ExecutionContext,
+        measure: Option<&PreferenceMeasure>,
+        options: PreferenceEvaluationOptions,
+        ctx: &ExecutionContext,
+    ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
+        if supplied.len() != structures.len() {
+            return Err(child_count_mismatch(structures.len(), supplied.len()));
+        }
+        let requirement = means_requirement(self.demand.representation);
+        let mut inputs = Vec::with_capacity(structures.len());
+        let mut programs = Vec::with_capacity(structures.len() + 1);
+        let mut executed = Vec::with_capacity(structures.len() + 1);
+        for (structure, result) in structures.iter().zip(supplied) {
+            let Some(study) = studies.get(structure.source) else {
+                return Err(executed_program_mismatch(
+                    "a prepared compiled child".to_owned(),
+                    "no prepared structure".to_owned(),
+                ));
+            };
+            let ran = admit_supplied_child(
+                structure.plan.as_ref(),
+                &study.snapshot,
+                result,
+                produced,
+                ctx,
+            )?;
+            if let Some(plan) = &structure.plan {
+                programs.push(plan.identity());
+                executed.push(ran);
+            }
+            let response = retained_response(result).ok_or_else(no_response)?;
             let claim =
                 NativeResponseClaim::from_response(&response, &study.schema, &study.context(ctx))?;
             inputs.push(claim.decision_source(&requirement)?);

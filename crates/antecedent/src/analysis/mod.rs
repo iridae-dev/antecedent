@@ -170,12 +170,14 @@ pub mod decision_claims;
 mod decision_contract_facade;
 pub mod decision_reliability;
 pub mod decision_reliability_programs;
+pub mod decision_result;
 pub mod declared_learners;
 mod derived_treatment;
 pub mod descriptive_programs;
 mod design_exports;
 pub mod design_planning_programs;
 pub mod design_ranking;
+pub mod winning_design;
 mod design_section_rows;
 pub mod discovered_transport;
 pub mod discovered_transport_estimate;
@@ -188,6 +190,7 @@ pub mod effect_constancy;
 pub mod effect_constancy_consumers;
 pub mod evidence_ledger;
 pub mod evidence_plan;
+mod estimator_swap;
 mod exact;
 mod execute;
 pub mod fallback;
@@ -255,6 +258,7 @@ pub mod measurement_model;
 pub mod mechanism_composition;
 pub mod mechanism_discrepancy;
 pub(crate) mod mechanism_exports;
+pub mod mechanism_reuse;
 mod mediator_read;
 mod missing_data;
 mod missing_imputation;
@@ -328,6 +332,8 @@ mod tier_diagnostics;
 pub mod transport_assumption_program;
 mod transport_grid;
 pub mod transport_handoff;
+pub mod transport_receipt_projection;
+pub use transport_receipt_projection::project_transported_response;
 pub mod transport_revalidation;
 mod transport_scenarios;
 pub mod transport_sensitivity;
@@ -632,9 +638,10 @@ pub use execute::{
 };
 pub use execute::{CompiledDecisionProgram, CompiledEvsiProgram};
 pub use latency::{
-    ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS,
-    LatencyMode, REPORT_BOOTSTRAP, REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP,
-    STANDARD_N_DRAWS, refuse_non_report_hmc,
+    ComputeBudget, INTERACTIVE_BOOTSTRAP, INTERACTIVE_ENVELOPE_ATOM_BYTES,
+    INTERACTIVE_MAX_ENVELOPE_GRAPHS, INTERACTIVE_N_DRAWS, LatencyMode, REPORT_BOOTSTRAP,
+    REPORT_N_DRAWS, ResolvedLatencyBudget, STANDARD_BOOTSTRAP, STANDARD_N_DRAWS,
+    interactive_admitted_envelope_atoms, refuse_non_report_hmc,
 };
 pub use prepared::{
     CachedTemporalIdentification, CheckedAdmgGraphPosteriorResponseInfo, CheckedAttributionInfo,
@@ -683,6 +690,8 @@ pub mod sensitivity_source;
 /// Independently retained original source diagnostics and contributor mappings.
 pub mod source_evidence;
 pub mod source_projection;
+/// Conversion of a legacy posterior artifact into an aligned joint distribution.
+pub mod legacy_posterior;
 mod temporal_admg_contrast;
 mod temporal_iv_identification;
 mod white_innovation_window;

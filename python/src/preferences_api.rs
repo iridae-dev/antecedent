@@ -1867,6 +1867,101 @@ impl PyCompiledPreferenceDecision {
             Err(error) => route_error(error, "execute").map(|refused| (None, Some(refused), None)),
         })
     }
+
+    /// Decide from supplied response results. A result is consumed when its program, snapshot
+    /// and execution identities match the compiled child; a mismatch is
+    /// `preference_compile.executed_program_mismatch` and the number is not adopted.
+    #[pyo3(signature = (results, measure_json, options_json, seed=None, memory_bytes=None, cancel=None))]
+    fn execute_supplied(
+        &self,
+        py: Python<'_>,
+        results: Vec<Bound<'_, PyAny>>,
+        measure_json: Option<&str>,
+        options_json: &str,
+        seed: Option<u64>,
+        memory_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<ExecutedReply> {
+        let measure = measure_opt(measure_json)?;
+        let options = options_from(options_json)?;
+        let mut held = Vec::with_capacity(results.len());
+        let mut produced = None;
+        for result in &results {
+            let Some((child, context)) = supplied_response(result)? else {
+                return route_error(supplied_child_missing(), "execute")
+                    .map(|refused| (None, Some(refused), None));
+            };
+            produced.get_or_insert_with(|| context);
+            held.push(child);
+        }
+        let produced = produced.unwrap_or_else(|| {
+            antecedent::prelude::ExecutionContext::production_default(0)
+        });
+        let admission = match seed {
+            Some(seed) => crate::transport_common::execution_context(seed, memory_bytes, cancel),
+            None => produced.clone(),
+        };
+        let compiled = std::sync::Arc::clone(&self.inner);
+        crate::detach_catch(py, move || {
+            match compiled.execute_supplied(&held, &produced, measure.as_ref(), options, &admission)
+            {
+                Ok(executed) => {
+                    let law = match &executed.source {
+                        Some(NativeDecisionSource::JointLaw(law)) => {
+                            Some(PyJointDistributionArtifact {
+                                artifact: law.as_ref().clone(),
+                                source_claim: None,
+                            })
+                        }
+                        _ => None,
+                    };
+                    Ok((Some(executed_json(&compiled, &executed)?.to_string()), None, law))
+                }
+                Err(error) => {
+                    route_error(error, "execute").map(|refused| (None, Some(refused), None))
+                }
+            }
+        })
+    }
+}
+
+fn supplied_response(
+    value: &Bound<'_, PyAny>,
+) -> PyResult<Option<(antecedent::StudyResult, antecedent::prelude::ExecutionContext)>> {
+    let direct = value.cast::<crate::response_api::ResponseAnalysisResult>();
+    let borrowed = match direct {
+        Ok(result) => return Ok(child_of(&result.borrow())),
+        Err(_) => value.getattr("_raw").map_err(|_| {
+            pyo3::exceptions::PyTypeError::new_err(
+                "execute_supplied needs the response results of the compiled children",
+            )
+        })?,
+    };
+    let result = borrowed.cast::<crate::response_api::ResponseAnalysisResult>().map_err(|_| {
+        pyo3::exceptions::PyTypeError::new_err(
+            "execute_supplied needs the response results of the compiled children",
+        )
+    })?;
+    Ok(child_of(&result.borrow()))
+}
+
+fn child_of(
+    result: &crate::response_api::ResponseAnalysisResult,
+) -> Option<(antecedent::StudyResult, antecedent::prelude::ExecutionContext)> {
+    let authority = result.authority.as_ref()?;
+    Some(((*authority.result).clone(), authority.context.clone()))
+}
+
+fn supplied_child_missing() -> PreferenceRouteError {
+    antecedent::contract::ExternalRefusal::new(
+        antecedent::reason::reason_code!("route_not_lowered"),
+        "evaluate",
+        antecedent::reason::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH,
+    )
+    .with_expected("a compiled child result")
+    .with_supplied("a result with no execution identity")
+    .with_remedy("compile the decision again from the study, and execute what it compiled")
+    .into()
 }
 
 #[derive(Deserialize)]

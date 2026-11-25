@@ -1,0 +1,121 @@
+"""Save and open a compiled study in the CAUSAL container.
+
+The container is format 0.6, kind ``compiled_study_v1``. ``program.invariant`` is
+the writer output, byte for byte. ``program.catalog`` records each role's digest,
+length, and placement. Inline bytes are ``program.body.<role>``. An external
+placement keeps the caller's URI and takes its bytes from the resolver.
+
+The expected identity is the digest :func:`write` returns. It is not read from
+the container. A matching set of required bodies re-quotes layer 5 from the
+source shape and recomputes the mean of the first source column. A required body
+the resolver does not supply returns the sealed analysis-result claim and
+``resumable`` false. A different identity, or a body whose length or digest
+fails, is refused.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+
+from ._native import open_compiled_study, write_compiled_study
+
+
+@dataclass(frozen=True)
+class StudyBody:
+    """One catalog role stored beside the invariant."""
+
+    role: str
+    data: bytes
+    uri: str | None = None
+    required: bool = True
+    summary_only: bool = False
+    names: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class WrittenStudy:
+    """Container bytes and the program identity retained apart from them."""
+
+    data: bytes
+    expected_identity: str
+
+
+@dataclass(frozen=True)
+class UnresolvedBody:
+    """A required role the resolver did not supply."""
+
+    role: str
+    uri: str | None
+
+
+@dataclass(frozen=True)
+class OpenedStudy:
+    """A compiled study after acceptance."""
+
+    resumable: bool
+    unresolved: tuple[UnresolvedBody, ...]
+    layer5_bytes: int | None
+    estimate: float | None
+    claim_intact: bool | None
+    claim_estimate: float | None
+    refit_refused: str | None
+    callback_requires_caller: bool
+    callback_live: bool
+    invariant: bytes
+    bodies: Mapping[str, bytes]
+
+
+def write(invariant: bytes, bodies: Sequence[StudyBody], claim: bytes | None = None) -> WrittenStudy:
+    """Store ``invariant`` and ``bodies`` as a compiled study."""
+    data, identity = write_compiled_study(
+        bytes(invariant),
+        [body.role for body in bodies],
+        [bytes(body.data) for body in bodies],
+        ["" if body.uri is None else body.uri for body in bodies],
+        [body.required for body in bodies],
+        [body.summary_only for body in bodies],
+        [list(body.names) for body in bodies],
+        None if claim is None else bytes(claim),
+    )
+    return WrittenStudy(data, identity)
+
+
+def open_study(
+    data: bytes,
+    expected_identity: str,
+    *,
+    resolved: Mapping[str, bytes] | None = None,
+    caller_supplied: bool = False,
+) -> OpenedStudy:
+    """Open ``data`` under ``expected_identity``.
+
+    ``resolved`` maps an external URI to the bytes the caller supplies for it.
+    ``caller_supplied`` is the live callback object; the study does not store one.
+    """
+    uris = None if resolved is None else list(resolved)
+    payloads = None if resolved is None else [bytes(resolved[uri]) for uri in uris]
+    status, invariant, roles, bodies = open_compiled_study(
+        bytes(data),
+        expected_identity,
+        uris,
+        payloads,
+        caller_supplied,
+    )
+    loaded = json.loads(status)
+    return OpenedStudy(
+        resumable=loaded["resumable"],
+        unresolved=tuple(
+            UnresolvedBody(item["role"], item["uri"]) for item in loaded["unresolved"]
+        ),
+        layer5_bytes=loaded["layer5_bytes"],
+        estimate=loaded["estimate"],
+        claim_intact=loaded["claim_intact"],
+        claim_estimate=loaded["claim_estimate"],
+        refit_refused=loaded["refit_refused"],
+        callback_requires_caller=loaded["callback_requires_caller"],
+        callback_live=loaded["callback_live"],
+        invariant=bytes(invariant),
+        bodies={role: bytes(body) for role, body in zip(roles, bodies, strict=True)},
+    )

@@ -60,7 +60,7 @@ use super::{
     transport_mixed_api, transport_mz_api, transport_revalidation_api, transport_scenario_api,
     transport_statistical_api, transport_z_api, transported_constructors_api,
     transported_counterfactual_api, transported_response_api, typed_mechanism_transport_api,
-    value_err, vector_treatment_api,
+    value_err, vector_treatment_api, winning_design_api,
 };
 
 pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -200,6 +200,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     super::external_learner_api::register(m)?;
     composition_api::register(m)?;
     composition_bundle_api::register(m)?;
+    super::compiled_study_api::register(m)?;
     measurement_model_api::register(m)?;
     measurement_exposure_api::register(m)?;
     measured_exposure_api::register(m)?;
@@ -396,6 +397,7 @@ fn register_native_functions(m: &Bound<'_, PyModule>) -> PyResult<()> {
     graph_io::register(m)?;
     design_api::register(m)?;
     design_ranking_api::register(m)?;
+    winning_design_api::register(m)?;
     policy_api::register(m)?;
     experiment_api::register(m)?;
     interference_saturation_api::register(m)?;

@@ -21,8 +21,9 @@ use antecedent_design::preference_evaluation::PreferenceEvaluationOptions;
 
 use super::{
     BoundStudy, CompiledPreferenceDecision, CompiledPreferenceEvaluation,
-    PreferenceDecisionExecution, PreferenceRouteError, executed_identity, no_response,
-    ordinary_structures_not_compiled, retained_response, unsupported_query,
+    PreferenceDecisionExecution, PreferenceRouteError, admit_supplied_child, child_count_mismatch,
+    executed_identity, no_response, ordinary_structures_not_compiled, retained_response,
+    unsupported_query,
 };
 use crate::analysis::lowering::CompileGoal;
 use crate::analysis::preference_decision::{
@@ -258,8 +259,18 @@ impl CompiledPreferenceDecision {
         measure: Option<&PreferenceMeasure>,
         options: PreferenceEvaluationOptions,
         ctx: &ExecutionContext,
+        supplied: Option<(&[crate::StudyResult], &ExecutionContext)>,
     ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
         let study = studies.first().ok_or_else(no_response)?;
+        let supplied_results = supplied.map(|(results, _)| results);
+        let produced = supplied.map(|(_, produced)| produced);
+        if let Some(results) = supplied_results {
+            let runners = structures.iter().filter(|structure| structure.runner.is_some()).count();
+            if results.len() != runners {
+                return Err(child_count_mismatch(runners, results.len()));
+            }
+        }
+        let mut cursor = 0usize;
         let Some(contract) = self.contract.tradeoff() else {
             return Err(ordinary_structures_not_compiled());
         };
@@ -275,23 +286,47 @@ impl CompiledPreferenceDecision {
                 atoms.push(structural_atom(graph_key, weight, None));
                 continue;
             };
-            let ran = match runner.estimate_retained(ctx) {
-                Ok(result) => {
-                    let ran = executed_identity(structure.plan.as_ref(), &result)?;
-                    if let Some(response) = retained_response(&result) {
-                        identified += weight;
-                        atoms.push(structural_atom(graph_key, weight, Some(response)));
-                    } else {
-                        unevaluable += weight;
-                        atoms.push(unevaluated_atom(graph_key, weight));
-                    }
-                    ran
-                }
-                Err(error) if fatal(&error) => return Err(error.into()),
-                Err(_) => {
+            let ran = if let (Some(results), Some(produced)) = (supplied_results, produced) {
+                let result = &results[cursor];
+                cursor += 1;
+                let snapshot = studies
+                    .get(structure.source)
+                    .map(|bound| bound.snapshot.as_str())
+                    .unwrap_or("");
+                let ran = admit_supplied_child(
+                    structure.plan.as_ref(),
+                    snapshot,
+                    result,
+                    produced,
+                    ctx,
+                )?;
+                if let Some(response) = retained_response(result) {
+                    identified += weight;
+                    atoms.push(structural_atom(graph_key, weight, Some(response)));
+                } else {
                     unevaluable += weight;
                     atoms.push(unevaluated_atom(graph_key, weight));
-                    None
+                }
+                ran
+            } else {
+                match runner.estimate_retained(ctx) {
+                    Ok(result) => {
+                        let ran = executed_identity(structure.plan.as_ref(), &result)?;
+                        if let Some(response) = retained_response(&result) {
+                            identified += weight;
+                            atoms.push(structural_atom(graph_key, weight, Some(response)));
+                        } else {
+                            unevaluable += weight;
+                            atoms.push(unevaluated_atom(graph_key, weight));
+                        }
+                        ran
+                    }
+                    Err(error) if fatal(&error) => return Err(error.into()),
+                    Err(_) => {
+                        unevaluable += weight;
+                        atoms.push(unevaluated_atom(graph_key, weight));
+                        None
+                    }
                 }
             };
             record_run(

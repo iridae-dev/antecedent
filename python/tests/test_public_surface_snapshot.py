@@ -442,6 +442,7 @@ SNAPSHOT: dict[str, set[str]] = {
         "inverse_query",
         "latent_class",
         "latent_soft_intervention",
+        "legacy_posterior",
         "measurement_models",
         "measurement_exposure",
         "exposure_measurement",

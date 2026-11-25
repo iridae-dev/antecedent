@@ -3902,6 +3902,41 @@ canonical = "variable-space AdmgWire: directed sorted, bidirected oriented, sort
 concern = "In variable space a variable the selection graph does not name and an isolated variable it names coincide; the identification graph in the same premises tells them apart."
 
 [[sites]]
+id = "io_core.identity.identification_product_wire"
+file = "crates/antecedent-io-core/src/identity.rs"
+item = "fn:identification_product_wire#0"
+feeds = "IdentificationProductWire -> identification_product_digest (IdentityDomain::IdentificationProduct); a program stores that digest and an estimator swap copies it"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/identity.rs::product_hashes_derivation_rules_not_detail_prose"]
+note = "The codec writes the result's order and omits derivation detail prose. An estimator swap consumes the digest already on the program and does not call this function."
+[[sites.collections]]
+name = "estimands"
+class = "ordered"
+canonical = "IdentificationResult.estimands order, each method and functional id as stored"
+concern = ""
+[[sites.collections]]
+name = "estimand adjustment sets, instruments and mediators"
+class = "ordered"
+canonical = "vars_to_raw of each slice, in the slice's order; this function does not sort or deduplicate"
+concern = "Each slice is a set of variables. A different identifier order is a different product digest."
+[[sites.collections]]
+name = "derivation_rules"
+class = "ordered"
+canonical = "derivation step order, rule id only; detail prose is not written"
+concern = ""
+[[sites.collections]]
+name = "required_assumptions"
+class = "ordered"
+canonical = "AssumptionSet.entries order via assumptions_to_wire; first-seen order, not sorted"
+concern = "The field is a set of assumptions. A different insertion order is a different product digest."
+[[sites.collections]]
+name = "arena tables (derivations, var sets, interventions, lists, nodes)"
+class = "ordered"
+canonical = "expr_arena_to_wire writes each table in id order; members of a var set or list stay in arena order"
+concern = ""
+
+[[sites]]
 id = "io_core.interface_contract_artifact.contract_to_wire"
 file = "crates/antecedent-io-core/src/interface_contract_artifact.rs"
 item = "fn:contract_to_wire#0"
@@ -10130,4 +10165,37 @@ concern = ""
 name = "trial mechanism rows"
 class = "multiset"
 canonical = "the diagram identity sorts the rows and keeps a duplicate"
+concern = ""
+
+[[sites]]
+id = "io_core.identity.reuse.score_reuse_digest"
+file = "crates/antecedent-io-core/src/identity/reuse.rs"
+item = "fn:score_reuse_digest#0"
+feeds = "ScoreReuseIdentityWire digest (IdentityDomain::ScoreReuse); PreparedStudy::score_reuse_identity and the contract score-reuse slot"
+released = true
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/identity.rs::score_reuse_keys_are_stricter_than_identification"]
+[[sites.collections]]
+name = "adjustment_set"
+class = "ordered"
+canonical = "writer order via vars_to_raw; score_reuse_digest does not sort or dedup"
+concern = ""
+[[sites.collections]]
+name = "intervened"
+class = "ordered"
+canonical = "writer order via vars_to_raw; score_reuse_digest does not sort or dedup"
+concern = ""
+
+[[sites]]
+id = "antecedent.analysis.decision_result.supplied_child_identity"
+file = "crates/antecedent/src/analysis/decision_result.rs"
+item = "fn:supplied_child_identity#0"
+feeds = "admission of a supplied child to a compiled decision (ordered program, snapshot, execution)"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/src/analysis/decision_result.rs::supplied_child_identity_orders_program_snapshot_and_execution"]
+[[sites.collections]]
+name = "program, snapshot, execution"
+class = "ordered"
+canonical = "program text, then snapshot text, then execution text, each length-prefixed under antecedent.decision.supplied_child.v1"
 concern = ""

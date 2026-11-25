@@ -100,6 +100,7 @@ pub mod proposal_receipt;
 mod rank_rows;
 pub mod ranker;
 pub mod ranking;
+pub mod winning_design;
 pub mod repair;
 pub mod repair_artifact;
 pub mod result;

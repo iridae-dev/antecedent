@@ -529,9 +529,21 @@ disposition = "deprecated"
 replacement = "route:AdaptiveTrialTransport"
 
 [[row]]
+path = "antecedent::analysis::transported_constructors::surrogate_bridge_response"
+disposition = "deprecated"
+replacement = "route:SurrogateBridge"
+
+[[row]]
 path = "antecedent::analysis::transported_constructors::transported_policy_response"
 disposition = "deprecated"
 replacement = "route:TransportedPolicyEvaluation"
+
+# The method selects the cell: pooling, borrowing, or a transported prior. The replacement
+# names the pooling route; borrowing and a transported prior compile to their own cells.
+[[row]]
+path = "antecedent::analysis::transported_constructors::transported_synthesis_response"
+disposition = "deprecated"
+replacement = "route:SynthesisPooling"
 
 [[row]]
 path = "antecedent::analysis::transported_mechanism::transport_linear_gaussian"
@@ -1329,6 +1341,15 @@ reason = "construction, serialization, identity or gating helper; computes no es
 path = "antecedent_design::decision_artifact::source_digest"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent::analysis::decision_result::apply_decision"
+disposition = "not_scientific"
+reason = "admits an already computed study result under the same authority check as the Python effect projection and native claim, then calls the existing contract evaluators, and computes no estimate"
+
+[[row]]
+path = "antecedent::analysis::preference_decision::CompiledPreferenceDecision::execute_supplied"
+disposition = "consume"
 
 [[row]]
 path = "antecedent::design::decision_eval::evaluate_contract"
@@ -5452,7 +5473,7 @@ replacement = "route:GeneralTemporalCounterfactual"
 [[row]]
 path = "antecedent_counterfactual::selective::FiniteScmExecutor::execute"
 disposition = "kernel"
-reason = "kernel API; the compiled CrossWorldFiniteExecution program (Study::compile_cross_world_execution) executes the request through this executor when it seals, and CrossWorldExecution::seal, the direct facade entry, is deprecated toward it"
+reason = "kernel API; the compiled CrossWorldFiniteExecution program (Study::compile_cross_world_execution) executes the request through this executor when it seals and when CompiledCrossWorldExecution::execute_retained runs it on a caller-held executor, and CrossWorldExecution::seal, the direct facade entry, is deprecated toward it"
 
 [[row]]
 path = "antecedent_counterfactual::selective::FiniteScmExecutor::execute_envelope"

@@ -78,6 +78,11 @@ pub struct PyPreparedAnalysis {
 }
 
 impl PyPreparedAnalysis {
+    /// The study result retained by the last successful estimate.
+    pub(crate) fn retained_result(&self) -> Option<&antecedent::StudyResult> {
+        self.last.as_deref()
+    }
+
     /// Immutable producer state for a domain operation; no execution or header mutation.
     pub(crate) fn target_refutation_source(
         &self,

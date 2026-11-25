@@ -2,7 +2,9 @@
 
 use crate::bridge::{check_declared_len, check_declared_size};
 use antecedent::analysis::inverse_query::DistributionArtifact;
+use antecedent::analysis::legacy_posterior::{self, LegacyPosteriorBinding};
 use antecedent::contract::ProviderTrust;
+use antecedent::io::EncodedArtifact;
 use antecedent::io::distribution_artifact::{
     DistributionIdentity, DistributionMetadata, MAX_DISTRIBUTION_ARTIFACT_BYTES,
     MAX_DISTRIBUTION_COORDINATES, MAX_DISTRIBUTION_DRAWS,
@@ -178,6 +180,39 @@ impl PyJointDistributionArtifact {
     }
 }
 
+/// Convert a legacy posterior by the facade, which calls the io-core conversion.
+///
+/// The returned artifact is that conversion. Draws are not rebuilt here.
+#[pyfunction]
+fn convert_legacy_posterior(
+    legacy: &[u8],
+    expected_identity_json: &str,
+    bindings_json: &str,
+) -> PyResult<PyJointDistributionArtifact> {
+    crate::catch_ffi(|| {
+        check_declared_len(legacy.len(), MAX_DISTRIBUTION_ARTIFACT_BYTES, "legacy posterior")?;
+        check_declared_size(
+            expected_identity_json,
+            MAX_DISTRIBUTION_ARTIFACT_BYTES,
+            "distribution identity",
+        )?;
+        check_declared_size(
+            bindings_json,
+            MAX_DISTRIBUTION_ARTIFACT_BYTES,
+            "legacy posterior bindings",
+        )?;
+        let expected: DistributionIdentity =
+            serde_json::from_str(expected_identity_json).map_err(artifact_error)?;
+        let bindings: Vec<LegacyPosteriorBinding> =
+            serde_json::from_str(bindings_json).map_err(artifact_error)?;
+        let encoded = EncodedArtifact::read_from(legacy).map_err(crate::py_err)?;
+        let artifact = legacy_posterior::convert_legacy_posterior(&encoded, expected, &bindings)
+            .map_err(crate::py_err)?;
+        Ok(PyJointDistributionArtifact { artifact, source_claim: None })
+    })
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<PyJointDistributionArtifact>()
+    m.add_class::<PyJointDistributionArtifact>()?;
+    m.add_function(wrap_pyfunction!(convert_legacy_posterior, m)?)
 }

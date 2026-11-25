@@ -83,6 +83,7 @@ __all__ = [
     "TransportedResponseRefusal",
     "consume_transported_decision",
     "evaluate_transported",
+    "project_transported_response",
 ]
 
 TransportedRoute = Literal[
@@ -466,6 +467,31 @@ def _prepared_native(analysis: Any) -> Any:
             "analysis must be a prepared analysis or an analysis result that retains one"
         )
     return native
+
+
+# not_scientific: reads a receipt the result already carries and wraps it.
+# Computes no estimate and writes no identity. The wrapper identity is the
+# receipt's. Not an alias of an executing unit.
+def project_transported_response(analysis: Any) -> TransportedResponse:
+    """Project a transport study result onto a :class:`TransportedResponse`.
+
+    The result becomes a transported response only when the receipt fields are
+    already on it. A bare analysis result, and a transport result missing those
+    fields, refuse. The wrapper's identity is the receipt's identity.
+    ``evaluate_transported`` accepts that wrapper and rejects a bare analysis result.
+
+    Raises:
+        TransportedResponseRefusal: the result is not a transport
+            (``transported_decision.not_transported``), a receipt field is missing
+            (``transported_decision.transport_identity_incomplete``), or the receipt
+            is not one :meth:`TransportedResponse.declared_point` accepts.
+        CausalTypeError: ``analysis`` is not a prepared analysis or a result that retains one.
+    """
+    handle = _unwrap(
+        _native.project_transported_response(_prepared_native(analysis)),
+        TransportedResponseRefusal,
+    )
+    return TransportedResponse._of(handle)
 
 
 @outcome_operation

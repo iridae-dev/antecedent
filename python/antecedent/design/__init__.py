@@ -127,6 +127,7 @@ from .structural import (
     StructuralRanking,
     rank_structural,
 )
+from .winning_design import WinningDesign, project_winning_design
 
 __all__ = [
     "ARTIFACT_KIND",
@@ -202,6 +203,7 @@ __all__ = [
     "StudyValue",
     "UnverifiedRoute",
     "UnverifiedStudy",
+    "WinningDesign",
     "confounder_decision",
     "consume",
     "consume_plan",
@@ -212,6 +214,7 @@ __all__ = [
     "evsi",
     "plan_experiment",
     "preview_ranking",
+    "project_winning_design",
     "rank_designs",
     "rank_structural",
     "rank_studies",

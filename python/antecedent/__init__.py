@@ -475,6 +475,7 @@ _LAZY_MODULES: tuple[str, ...] = (
     "joint_law_propagation",
     "latent_class",
     "latent_soft_intervention",
+    "legacy_posterior",
     "measurement_exposure",
     "measurement_models",
     "mechanism_composition",
@@ -578,6 +579,7 @@ if _TYPE_CHECKING:
     from . import joint_panel as joint_panel
     from . import latent_class as latent_class
     from . import latent_soft_intervention as latent_soft_intervention
+    from . import legacy_posterior as legacy_posterior
     from . import measurement_exposure as measurement_exposure
     from . import measurement_models as measurement_models
     from . import mechanism_composition as mechanism_composition
