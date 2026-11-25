@@ -451,8 +451,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "0000000000000000000000000000000000000000000000000000000000000000"
-checked_commit = "0000000000000000000000000000000000000000"
+inputs_digest = "ca7defda61dafd75e8f7d206b554f56ed3436a7c95cae0b11007ff1f3b7e118f"
+checked_commit = "a03b936395b01f8d8287d5c006303cbe799287a7"
 
 [[records]]
 id = "claim_standing.derivations_never_raised"
