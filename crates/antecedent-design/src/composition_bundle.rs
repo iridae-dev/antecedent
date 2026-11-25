@@ -1012,11 +1012,20 @@ impl SuppliedSources {
         self
     }
 
-    fn producer(&self, role: &str) -> Option<&[u8]> {
-        self.producers
-            .iter()
-            .find(|producer| producer.role == role)
-            .map(|producer| producer.bytes.as_slice())
+    fn check_producer(&self, role: &str, expected: &str) -> ProducerCheck {
+        let mut outcome = ProducerCheck::Missing;
+        for producer in self.producers.iter().filter(|producer| producer.role == role) {
+            let check = check_producer(role, expected, Some(&producer.bytes));
+            match check {
+                ProducerCheck::Match => return check,
+                ProducerCheck::Refused { stage: BundleStage::TamperedQuantity, .. } => {
+                    outcome = check;
+                }
+                _ if outcome == ProducerCheck::Missing => outcome = check,
+                _ => {}
+            }
+        }
+        outcome
     }
 }
 
@@ -1471,7 +1480,7 @@ impl BundleConsumer {
                     }
                     NodeSource::Reference { requires, .. } => {
                         if let Some(role) = node.facts.get(CATALOG_ROLE_FACT) {
-                            match check_producer(role, &node.identity, supplied.producer(role)) {
+                            match supplied.check_producer(role, &node.identity) {
                                 ProducerCheck::Match => NodeState {
                                     status: NodeStatus::Verified,
                                     facts: node.facts.clone(),

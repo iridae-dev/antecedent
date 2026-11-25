@@ -224,7 +224,7 @@ mod tests {
     use antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact;
     use serde::Serialize;
 
-    fn contrast_bytes() -> (Vec<u8>, String) {
+    fn contrast_bytes(first_mean: f64) -> (Vec<u8>, String) {
         let wire = JointLawPropagationArtifactWire::seal(
             &PropagationRequest {
                 operation: PropagationOperation::Contrast,
@@ -247,7 +247,7 @@ mod tests {
             },
             PropagationRequestWire::LinearCombination {
                 coefficients: float_bits(&[1.0, -1.0]),
-                means: float_bits(&[5.0, 2.0]),
+                means: float_bits(&[first_mean, 2.0]),
                 covariance: float_bits(&[4.0, 3.0, 3.0, 9.0]),
             },
             &ExecutionContext::for_tests(11),
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn a_propagation_reference_accepts_its_identity_and_refuses_a_tampered_digest() {
-        let (bytes, identity) = contrast_bytes();
+        let (bytes, identity) = contrast_bytes(5.0);
         let node = producer_reference("prop", PROPAGATION, &bytes).unwrap();
         assert_eq!(node.identity, identity);
         assert_eq!(node.kind, NodeKind::PropagationChain);
@@ -315,6 +315,30 @@ mod tests {
             .consume(&exported, &limits, bundle.identity(), &SuppliedSources::default())
             .unwrap();
         assert!(matches!(consumed.nodes()[0].status, NodeStatus::ReferenceUnresolved { .. }));
+    }
+
+    #[test]
+    fn two_references_resolve_their_own_producer_in_either_order() {
+        let (first, first_identity) = contrast_bytes(5.0);
+        let (second, second_identity) = contrast_bytes(7.0);
+        assert_ne!(first_identity, second_identity);
+        let nodes = vec![
+            producer_reference("first", PROPAGATION, &first).unwrap(),
+            producer_reference("second", PROPAGATION, &second).unwrap(),
+        ];
+        let limits = BundleLimits::default();
+        let bundle = CompositionBundle::new(nodes, &[], &limits).unwrap();
+        let bytes = bundle.to_bytes("producer-references", &limits).unwrap();
+        for ordered in [[&first, &second], [&second, &first]] {
+            let supplied = SuppliedSources::default()
+                .with_producer(PROPAGATION, ordered[0].clone())
+                .with_producer(PROPAGATION, ordered[1].clone());
+            let consumed = BundleConsumer::new()
+                .consume(&bytes, &limits, bundle.identity(), &supplied)
+                .unwrap();
+            assert_eq!(consumed.nodes().len(), 2);
+            assert!(consumed.nodes().iter().all(|node| node.status == NodeStatus::Verified));
+        }
     }
 
     #[test]
@@ -401,7 +425,7 @@ mod tests {
             );
         }
 
-        let (propagation, _) = contrast_bytes();
+        let (propagation, _) = contrast_bytes(5.0);
         assert!(matches!(
             check_producer(LEDGER, &ledger_meta.identity, Some(&propagation)),
             ProducerCheck::Refused { stage: BundleStage::SwappedEvidence, .. }
