@@ -566,7 +566,7 @@ mod tests {
         )
         .unwrap();
         let fitted = factory.fit(view, TargetView::new(&y), None, &ctx).unwrap();
-        assert_eq!(fitted.provenance().implementation, "smartcore");
+        assert_eq!(fitted.provenance().implementation, forest::PER_TREE_FOREST);
         let mut out = vec![0.0; n];
         fitted.predict(view, &mut out, &ctx).unwrap();
         assert!(out.iter().any(|v| v.is_finite()));
