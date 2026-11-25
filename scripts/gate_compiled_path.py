@@ -165,6 +165,42 @@ class Snapshots:
                 if line.startswith("# ") or not line:
                     continue
                 self._line(crate, line)
+        self._absolutize()
+
+    def _absolutize(self) -> None:
+        """Rewrite each relative `pub use a::b::X = super::X` target to the path it names.
+
+        The snapshot prints a relative re-export target as written in the source. `super::X`
+        in module `m` names `X` in the parent of `m`, which re-exports it in turn (and the
+        crate root, which has no parent, names the facade's analysis namespace); the chain is
+        then followed by [`Self::resolve`]. A target that no item or re-export answers to is
+        kept as written and names nothing.
+        """
+        known = {name for table in self.alias.values() for name in table}
+        known |= set(self.kinds) | {fn.key for fn in self.fns}
+        for table in self.alias.values():
+            for alias, target in list(table.items()):
+                if not target.startswith("super::"):
+                    continue
+                parts = alias.split("::")[:-1]
+                rest = target
+                while rest.startswith("super::"):
+                    rest = rest[len("super::") :]
+                    parts = parts[:-1]
+                candidates = ["::".join([*parts, rest])] if parts else []
+                # A module that renames a kernel crate (`use antecedent_design as
+                # design_crate;`) names its items through the rename.
+                segments = rest.split("::")
+                for index, segment in enumerate(segments):
+                    if segment.endswith("_crate"):
+                        crate = f"antecedent_{segment[: -len('_crate')]}"
+                        candidates.append("::".join([crate, *segments[index + 1 :]]))
+                if len(parts) <= 1:
+                    candidates.append(f"{FACADE}::analysis::{rest}")
+                for candidate in candidates:
+                    if candidate != alias and candidate in known:
+                        table[alias] = candidate
+                        break
 
     def _line(self, crate: str, line: str) -> None:
         use = _USE.match(line)

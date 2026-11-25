@@ -215,6 +215,43 @@ def case_method_through_reexported_module(root: Path) -> str:
     return "antecedent_io_core::planted_relay::PlantedFit::refit: unclassified"
 
 
+def plant_super_relay(root: Path) -> None:
+    """A kernel module the facade names through a relative `super::` path and a crate rename."""
+    append(
+        root,
+        "parity/public_api/antecedent-design.txt",
+        "pub mod antecedent_design::planted_super\n"
+        "pub struct antecedent_design::planted_super::PlantedRun\n"
+        f"pub fn antecedent_design::planted_super::run_super(ctx: {CTX}) -> {RESULT}\n"
+        f"pub fn <antecedent_design::planted_super::PlantedRun>::fn refit(&self, ctx: {CTX}) -> "
+        f"{RESULT}\n",
+    )
+
+
+def case_relative_super_item(root: Path) -> str:
+    plant_super_relay(root)
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        "pub use antecedent::analysis::planted_super::run_super = "
+        "super::design_exports::design_crate::planted_super::run_super\n",
+    )
+    return "antecedent_design::planted_super::run_super: unclassified"
+
+
+def case_relative_super_module_method(root: Path) -> str:
+    plant_super_relay(root)
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        "pub use antecedent::analysis::planted_super = "
+        "super::design_exports::design_crate::planted_super\n"
+        "pub use antecedent::analysis::planted_super::PlantedRun = "
+        "super::design_exports::design_crate::planted_super::PlantedRun\n",
+    )
+    return "antecedent_design::planted_super::PlantedRun::refit: unclassified"
+
+
 def case_deprecated_without_replacement(root: Path) -> str:
     plant_deprecated_entry(root, replacement=None, warn=True)
     return "disposition deprecated requires a non-empty 'replacement'"
@@ -434,6 +471,8 @@ CASES: list[tuple[str, Callable[[Path], str]]] = [
     ("a module-namespace re-export", case_module_namespace_reexport),
     ("an item re-exported through a re-exported module", case_item_through_reexported_module),
     ("a method of a type re-exported through a re-exported module", case_method_through_reexported_module),
+    ("an item named through a relative super:: re-export", case_relative_super_item),
+    ("a method of a type named through a relative super:: module re-export", case_relative_super_module_method),
     ("a deprecated row without a replacement", case_deprecated_without_replacement),
     ("a deprecated row whose replacement is not compiled", case_deprecated_replacement_not_compiled),
     ("a kernel row without a reason", case_kernel_without_reason),
