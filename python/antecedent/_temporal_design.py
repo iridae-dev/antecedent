@@ -718,7 +718,7 @@ def temporal_design_payload(data: Any, query: Any) -> tuple[list[str], list[Any]
         "periods": tuple(_periods(raw[query.period])),
         "spec": json.dumps(_spec(query, raw), allow_nan=False),
     }
-    names, columns = ingest_columns({name: raw[name] for name in numeric})
+    names, columns = ingest_columns({name: raw[name] for name in numeric}, native_dtypes=True)
     return names, columns, design
 
 

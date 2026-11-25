@@ -210,9 +210,11 @@ def _raw_array(table: Any, position: int, name: str) -> NDArray[Any]:
 
 def ingest_columns(
     data: Mapping[str, Any] | Any,
+    *,
+    native_dtypes: bool = False,
 ) -> tuple[list[str], list[Any]]:
     """Normalize to ``(names, columns)`` preferring Arrow CDI exporters."""
-    names, columns, _ = ingest_columns_with_receipt(data)
+    names, columns, _ = ingest_columns_with_receipt(data, native_dtypes=native_dtypes)
     return names, columns
 
 
@@ -842,6 +844,7 @@ def to_f64(
     if (
         native_dtypes
         and isinstance(arr, np.ndarray)
+        and raw.dtype.isnative
         and raw.dtype != np.float64
         and (kind in "iub" or raw.dtype == np.float32)
     ):
@@ -1062,22 +1065,24 @@ def _materialize_f64(
 
 def as_multi_env_columns(
     data: Sequence[Mapping[str, Any] | Any],
-) -> tuple[list[str], list[list[NDArray[np.float64]]]]:
+    *,
+    native_dtypes: bool = False,
+) -> tuple[list[str], list[list[Any]]]:
     if not data:
         raise CausalValueError(
             "expected a non-empty sequence of environment frames",
             reason_code="invalid_argument",
         )
-    names, first = ingest_columns(data[0])
-    env_columns = [[_materialize_f64(col) for col in first]]
+    names, first = ingest_columns(data[0], native_dtypes=native_dtypes)
+    env_columns = [first if native_dtypes else [_materialize_f64(col) for col in first]]
     for i, env in enumerate(data[1:], start=1):
-        n, cols = ingest_columns(env)
+        n, cols = ingest_columns(env, native_dtypes=native_dtypes)
         if n != names:
             raise CausalValueError(
                 f"environment {i} column names {n!r} do not match environment 0 {names!r}",
                 reason_code="invalid_argument",
             )
-        env_columns.append([_materialize_f64(col) for col in cols])
+        env_columns.append(cols if native_dtypes else [_materialize_f64(col) for col in cols])
     return names, env_columns
 
 

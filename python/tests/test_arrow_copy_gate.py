@@ -78,6 +78,38 @@ def test_numpy_integer_column_is_widened_while_it_is_copied_once():
     assert receipt.total_bytes_copied == COLUMN_BYTES
 
 
+def test_estimate_click_widens_treatment_in_the_measured_native_copy(monkeypatch):
+    import antecedent._data as normalization
+
+    rng = np.random.default_rng(23)
+    treatment = np.arange(ROWS, dtype=np.int64) % 2
+    data = {"t": treatment, "y": 2.0 * treatment + rng.normal(size=ROWS)}
+    study = antecedent.prepare(
+        data,
+        query=antecedent.AverageEffect("t", "y"),
+        graph=[("t", "y")],
+        inference=antecedent.Frequentist(bootstrap=0),
+        refute="none",
+    )
+    normalize = normalization.ingest_columns_with_receipt
+    seen = []
+
+    def record(data, **kwargs):
+        payload = normalize(data, **kwargs)
+        seen.append(payload)
+        return payload
+
+    monkeypatch.setattr(normalization, "ingest_columns_with_receipt", record)
+    result = study._engine.estimate(data)
+    assert result.effect == pytest.approx(2.0, abs=0.15)
+    receipt = antecedent.data.ingestion_receipt(data)
+    for names, columns, copies in seen:
+        assert columns[names.index("t")] is treatment
+        assert copies == receipt.python_copies == ()
+    assert len(seen) >= 2
+    assert receipt.ownership_bytes_copied == 2 * COLUMN_BYTES
+
+
 def test_boolean_unsigned_and_float32_columns_are_widened_in_the_same_single_pass():
     columns = {
         "flag": np.arange(ROWS) % 2 == 0,

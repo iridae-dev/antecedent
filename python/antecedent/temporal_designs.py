@@ -187,7 +187,9 @@ def estimate_temporal_design(
         columns_needed.append(str(spec["treatment"]))
         columns_needed.extend(str(name) for name in spec.get("confounders", ()))
     raw = read_columns(data, tuple(columns_needed), what="temporal design")
-    names, columns = ingest_columns({name: raw[name] for name in columns_needed})
+    names, columns = ingest_columns(
+        {name: raw[name] for name in columns_needed}, native_dtypes=True
+    )
     options: dict[str, Any] = {
         "inference": {
             # The design's posterior is its own; the conjugate declaration carries the draw
