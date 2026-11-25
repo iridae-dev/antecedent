@@ -80,9 +80,10 @@ use antecedent_identify::{TransportFormula, TransportIdentification};
 use std::collections::BTreeSet;
 use std::fmt;
 
-/// Most posterior draws one fit may request.
+/// Most posterior draws one fit may request. The live path refuses a larger declaration.
 pub const JOINT_TRANSPORT_MAX_DRAWS: usize = 100_000;
 /// Most model parameters (invariant plus every varying block) one fit may declare.
+/// The live path refuses a larger declaration.
 pub const JOINT_TRANSPORT_MAX_PARAMETERS: usize = 256;
 /// Sampler recorded on exact conjugate fits.
 pub const JOINT_TRANSPORT_SAMPLER: &str = "exact_conjugate_iid";
