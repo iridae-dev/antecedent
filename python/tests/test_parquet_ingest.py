@@ -150,6 +150,16 @@ def test_content_identity_follows_values_not_layout(tmp_path):
     assert ant.data.from_parquet(three).content_identity() != identity
 
 
+def test_row_evidence_identity_streams_the_readable_file_columns(tmp_path):
+    from antecedent._row_evidence import table_identity
+
+    path = _write(tmp_path / "wide.parquet", _with_extras(_sample()), row_group_size=50)
+    handle = ant.data.from_parquet(path, chunk_rows=7)
+    assert table_identity(handle, tuple(handle.names)) == handle.content_identity()
+    assert table_identity(handle, ("y", "nested", "t")) == handle.content_identity(["y", "t"])
+    assert handle._cache == {}
+
+
 def test_a_small_pool_refuses_a_resident_read_and_streams_the_summary(tmp_path):
     data = _sample(n=3_000)
     weights = 0.5 + (np.arange(3_000) % 4) / 4.0
