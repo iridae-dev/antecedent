@@ -198,6 +198,7 @@ impl Study {
         request: SmoothedDoseLearnersRequest,
         ctx: &ExecutionContext,
     ) -> Result<CompiledSmoothedDoseLearners, CausalError> {
+        request.learners.admit_portable()?;
         request.query.validate()?;
         let identification = TransportIdentifier::new().identify_with_context(
             &request.diagram,

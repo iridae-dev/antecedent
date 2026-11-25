@@ -240,6 +240,13 @@ impl PrepareRequest {
         // A selection the caller declared in the options is part of the study on every route;
         // applying it again where `finish_with` already did is a no-op.
         let builder = self.opts.apply_selection(builder);
+        let builder = if let Some(record) = &self.opts.admitted_discovery {
+            builder
+                .admit_finished_discovery(&record.execution, self.opts.admitted_accept, &record.ctx)
+                .map_err(crate::py_err)?
+        } else {
+            builder
+        };
         let analysis = builder.build().map_err(crate::py_err)?;
         let prepared = match analysis.prepare_deferred(ctx) {
             Ok(prepared) => prepared,

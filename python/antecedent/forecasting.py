@@ -3,6 +3,10 @@
 Each call supplies only one origin's history. The provider may still retain information
 from prior calls or training, so that lineage is unknown unless declared explicitly.
 Provider execution and exact-request trust are owned by the existing registry.
+
+:class:`OriginScopedFit` is the nuisance fit a temporal average-effect route consumes:
+history ends at the origin, predictions are only after it, and each origin has its own
+receipt. :class:`~antecedent.external_learners.ForecastNuisanceAdapter` stays the IID opt-in.
 """
 
 from __future__ import annotations
@@ -341,3 +345,105 @@ def forecast(
         trust=execution.trust.value,
     )
     return ForecastResult(execution, source, target, origin.origin, law, fit, spec.fold_policy)
+
+
+@dataclass(frozen=True, slots=True)
+class OriginScopedFit:
+    """One origin's nuisance fit.
+
+    ``history_rows`` are the training rows, every one at or before ``origin``.
+    ``predicted_rows`` are strictly after ``origin``. ``receipt`` is this origin's
+    fit receipt and is not reused for another origin.
+    """
+
+    origin: int
+    history_rows: tuple[int, ...]
+    predicted_rows: tuple[int, ...]
+    predictions: tuple[float, ...]
+    receipt: ProviderResult
+
+
+def fit_origin(
+    learner: Any,
+    x: Any,
+    y: Any,
+    *,
+    origin: int,
+    times: Sequence[int],
+    history: Sequence[int],
+    predict: Sequence[int],
+) -> OriginScopedFit:
+    """Fit ``learner`` on ``history`` and predict ``predict``.
+
+    History must end at ``origin``. Predictions are only after it. The returned
+    fit carries one receipt.
+    """
+    history_rows = tuple(int(index) for index in history)
+    predicted_rows = tuple(int(index) for index in predict)
+    clock = [int(time) for time in times]
+    if not history_rows or not predicted_rows:
+        raise CausalValueError("an origin needs history and a row after it")
+    if any(clock[index] > origin for index in history_rows):
+        raise CausalValueError("history must end at the origin")
+    if any(clock[index] <= origin for index in predicted_rows):
+        raise CausalValueError("predictions are only after the origin")
+    rows = [list(map(float, row)) for row in x]
+    target = [float(value) for value in y]
+    fitted = learner.fit(
+        [rows[index] for index in history_rows],
+        [target[index] for index in history_rows],
+    )
+    predicted = fitted.predict([rows[index] for index in predicted_rows])
+    values = tuple(float(value) for value in predicted.estimate)
+    if len(values) != len(predicted_rows):
+        raise CausalValueError(
+            "origin-scoped predict must return one value per row after the origin"
+        )
+    return OriginScopedFit(int(origin), history_rows, predicted_rows, values, fitted.fit_receipt)
+
+
+def fit_at_origins(
+    learner: Any,
+    x: Any,
+    y: Any,
+    times: Sequence[int],
+    origins: Sequence[int],
+) -> tuple[OriginScopedFit, ...]:
+    """Fit one origin at a time. Each origin predicts every row strictly after it."""
+    clock = [int(time) for time in times]
+    cuts = [int(origin) for origin in origins]
+    if any(left >= right for left, right in zip(cuts, cuts[1:])):
+        raise CausalValueError("origins must be strictly increasing")
+    fits = []
+    for origin in cuts:
+        history = [index for index, time in enumerate(clock) if time <= origin]
+        predict = [index for index, time in enumerate(clock) if time > origin]
+        fits.append(
+            fit_origin(
+                learner,
+                x,
+                y,
+                origin=origin,
+                times=clock,
+                history=history,
+                predict=predict,
+            )
+        )
+    return tuple(fits)
+
+
+def refuse_shuffled_folds(times: Sequence[int], fold_ids: Sequence[int]) -> None:
+    """Refuse a fold plan that trains on a time after one of its test rows.
+
+    A symmetric K-fold on a series is refused. A forward plan, whose every test
+    row is after every training row of that fold, is not this refusal.
+    """
+    clock = [int(time) for time in times]
+    folds = [int(fold) for fold in fold_ids]
+    if len(clock) != len(folds):
+        raise CausalValueError("fold ids must name every row")
+    for test_fold in set(folds):
+        train = [clock[index] for index, fold in enumerate(folds) if fold != test_fold]
+        test = [clock[index] for index, fold in enumerate(folds) if fold == test_fold]
+        if train and test and max(train) > min(test):
+            raise CausalValueError("shuffled folds are refused for an origin-scoped fit")

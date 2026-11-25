@@ -831,6 +831,31 @@ impl StudyBuilder {
         self
     }
 
+    /// Admit a finished compiled discovery as this study's graph.
+    ///
+    /// Calls [`crate::accept_discovered`] and checks the recorded snapshot
+    /// against this builder's table. The table is not copied onto the graph.
+    /// A live [`Self::discovery`] search is a different call.
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`crate::accept_discovered`], and a snapshot that is not
+    /// this builder's table.
+    pub fn admit_finished_discovery(
+        self,
+        execution: &super::structure_route::CompiledExecution,
+        accept_marks: bool,
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, CausalError> {
+        let accepted = super::structure_route::admit_finished_discovery(
+            execution,
+            &self.data,
+            accept_marks,
+            ctx,
+        )?;
+        Ok(self.graph(accepted))
+    }
+
     /// Declare a tier order over existing ADMG / PAG semantics.
     ///
     /// `CoDetermined` certifies the tier-closure set in `O(p)` as

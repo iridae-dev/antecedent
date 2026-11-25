@@ -71,6 +71,7 @@ PropensityPenaltyKind = Literal["ridge_logistic", "lasso"]
 NuisanceFallbackName = Literal["none", "ml", "ridge_logistic", "lasso"]
 IndependenceUnitName = Literal["cluster", "dyad"]
 OtherLevelsName = Literal["refuse", "exclude_undeclared"]
+TreatmentClassificationName = Literal["levels", "dose"]
 GlmFamilyName = Literal[
     "binomial_logit",
     "binomial_probit",
@@ -561,6 +562,20 @@ def _wire_other_levels(other_levels: OtherLevelsName) -> dict[str, Any]:
     return {} if other_levels == "refuse" else {"other_levels": other_levels}
 
 
+def _wire_treatment_classification(
+    classification: TreatmentClassificationName | None,
+) -> dict[str, Any]:
+    """A declared reading of the treatment. ``None`` keeps the default distinct-value cutoff."""
+    if classification is None:
+        return {}
+    if classification not in ("levels", "dose"):
+        raise CausalValueError(
+            "treatment_classification must be 'levels' or 'dose' or None, "
+            f"got {classification!r}"
+        )
+    return {"treatment_classification": classification}
+
+
 def _validate_weights(weights: str | Sequence[float] | None) -> None:
     """``weights`` names a data column of sampling weights or holds one weight per row."""
     if weights is None:
@@ -661,6 +676,9 @@ class LinearAdjustment:
 
     A discrete treatment with levels beyond the contrasted pair (for example ``0/1/2``) is
     refused as ``treatment_level_undeclared`` by default: the regression would read it as a dose.
+    A column of more than ten distinct values is that dose unless
+    ``treatment_classification="levels"`` declares a level contrast. ``"dose"`` declares a dose
+    even under the cutoff. The result names the classification that was used.
     ``other_levels="exclude_undeclared"`` declares that rows at the other levels are excluded and
     the target population is restricted to the rows at the two contrasted levels; the result
     reports how many rows were excluded.
@@ -678,10 +696,12 @@ class LinearAdjustment:
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
     other_levels: OtherLevelsName = "refuse"
+    treatment_classification: TreatmentClassificationName | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
         _wire_other_levels(self.other_levels)
+        _wire_treatment_classification(self.treatment_classification)
         _validate_se(
             se=self.se,
             se_lag=self.se_lag,
@@ -725,6 +745,7 @@ class LinearAdjustment:
         if self.fit_c is not None:
             out["fit_c"] = self.fit_c
         out.update(_wire_other_levels(self.other_levels))
+        out.update(_wire_treatment_classification(self.treatment_classification))
         out.update(_wire_weights(self.weights))
         if (
             self.weights is not None
@@ -1134,7 +1155,10 @@ class GlmAdjustment:
     ``cluster="site"`` names the data column of cluster labels, as for
     :class:`LinearAdjustment`. A discrete treatment with levels beyond the contrasted pair (for
     example ``0/1/2``) is refused as ``treatment_level_undeclared``: the regression would read it
-    as a dose. ``other_levels="exclude_undeclared"`` declares the rows at the other levels
+    as a dose. A column of more than ten distinct values is that dose unless
+    ``treatment_classification="levels"`` declares a level contrast. ``"dose"`` declares a dose
+    even under the cutoff. The result names the classification that was used.
+    ``other_levels="exclude_undeclared"`` declares the rows at the other levels
     excluded and restricts the target population to the two contrasted levels.
     """
 
@@ -1149,10 +1173,12 @@ class GlmAdjustment:
     cluster: str | None = None
     weights: str | Sequence[float] | None = None
     other_levels: OtherLevelsName = "refuse"
+    treatment_classification: TreatmentClassificationName | None = None
 
     def __post_init__(self) -> None:
         _validate_bootstrap(self.bootstrap)
         _wire_other_levels(self.other_levels)
+        _wire_treatment_classification(self.treatment_classification)
         _validate_se(
             se=self.se,
             se_lag=self.se_lag,
@@ -1187,6 +1213,7 @@ class GlmAdjustment:
         if self.family is not None:
             out["family"] = self.family
         out.update(_wire_other_levels(self.other_levels))
+        out.update(_wire_treatment_classification(self.treatment_classification))
         out.update(_wire_weights(self.weights))
         if (
             self.weights is not None
@@ -1536,6 +1563,30 @@ class CausalForest:
         return _omit_empty(out)
 
 
+def learner_estimator(estimator: str) -> tuple[str, str]:
+    """The ``analyze`` / ``prepare`` learner knob, as ``(method, score)``.
+
+    ``dml`` is the partially linear score. There is no separate score argument.
+    ``aipw``, ``dr_learner`` and ``causal_forest`` keep the AIPW score. The
+    dotted estimator ids ``dr.learner`` and ``causal.forest`` are the same two
+    selectors.
+    """
+    selected = {
+        "aipw": ("aipw", "aipw"),
+        "dml": ("dml", "partially_linear"),
+        "dr_learner": ("dr_learner", "aipw"),
+        "dr.learner": ("dr_learner", "aipw"),
+        "causal_forest": ("causal_forest", "aipw"),
+        "causal.forest": ("causal_forest", "aipw"),
+    }.get(estimator)
+    if selected is None:
+        raise ValueError(
+            "learner estimator must be aipw, dml, dr_learner or causal_forest, "
+            f"got {estimator!r}"
+        )
+    return selected
+
+
 __all__ = [
     "Aipw",
     "CausalForest",
@@ -1549,6 +1600,7 @@ __all__ = [
     "GlmFamilyName",
     "GlmOptions",
     "Iv2Sls",
+    "learner_estimator",
     "IvWald",
     "LinearAdjustment",
     "Overlap",

@@ -1,6 +1,8 @@
 from dataclasses import replace
 
 import pytest
+
+import antecedent as ant
 from antecedent import forecasting as fc
 from antecedent import predictive_assessment as pa
 from antecedent.extensibility import (
@@ -259,3 +261,100 @@ def test_rolling_forecasts_compare_each_outcome_only_with_its_own_fit_and_replay
             scores=["energy_score"],
             require_held_out=True,
         )
+
+
+class _SeriesMean:
+    """Constant-mean nuisance whose fold policy is origin-scoped."""
+
+    spec = CausalProviderSpec(
+        query_family="nuisance_learner",
+        identification_requirements=("caller_identifies",),
+        observed_distributions=("X,Y",),
+        nuisance_functions=("mean",),
+        support_conditions=("finite",),
+        data_dependence=("training_rows",),
+        inference_claims=("point_only",),
+        influence_function=None,
+        fold_policy="origin_scoped",
+        output_shape="one per prediction row",
+        uncertainty_semantics="point_only",
+        artifact_codec="ascii",
+        deterministic=True,
+        provenance={"package": "test", "version": "1"},
+        capabilities=(ProviderCapability.MEAN,),
+    )
+
+    def execute(self, request):
+        if request["operation"] == "fit":
+            total = sum(float(value) for value in request["y"])
+            mean = total / len(request["y"])
+            return ProviderExecution(
+                [], None, (), "supported", {"version": "1"}, str(mean).encode()
+            )
+        import base64
+
+        value = float(base64.b64decode(request["model_base64"]))
+        return ProviderExecution(
+            [value] * len(request["x"]), None, (), "supported", {"version": "1"}
+        )
+
+
+def test_origin_scoped_fit_stops_at_the_origin_and_refuses_shuffled_folds():
+    from antecedent.external_learners import OriginScopedLearner
+
+    registry = ProviderRegistry()
+    registry.register("series", _SeriesMean())
+    learner = OriginScopedLearner(registry, "series", "regression")
+    times = [0, 1, 2, 3, 4, 5]
+    fits = learner.fit_at_origins([[1.0]] * 6, [1, 3, 1, 3, 1, 3], times, [1, 3])
+    assert [fit.origin for fit in fits] == [1, 3]
+    assert len({id(fit.receipt) for fit in fits}) == len(fits)
+    for fit in fits:
+        assert max(times[index] for index in fit.history_rows) <= fit.origin
+        assert min(times[index] for index in fit.predicted_rows) > fit.origin
+    fc.refuse_shuffled_folds(times, [0, 0, 0, 0, 0, 0])
+    with pytest.raises(ValueError, match="shuffled folds"):
+        fc.refuse_shuffled_folds(list(range(8)), [0, 1, 0, 1, 0, 1, 0, 1])
+
+
+def test_origin_scoped_learners_supply_a_forward_temporal_average_effect():
+    from antecedent.errors import CausalUnsupportedError
+    from antecedent.external_learners import OriginScopedLearner, OriginScopedLearners
+    from antecedent.query import AverageEffect
+
+    registry = ProviderRegistry()
+    registry.register("outcome", _SeriesMean())
+    registry.register("treatment", _SeriesMean())
+    learners = OriginScopedLearners(
+        OriginScopedLearner(registry, "outcome", "regression"),
+        OriginScopedLearner(registry, "treatment", "binary_probability"),
+    )
+    arms = [float(i % 2) for i in range(40)]
+    data = {
+        "z": [float(i) for i in range(40)],
+        "t": arms,
+        "y": [1 + 2 * arm for arm in arms],
+        "time": list(range(40)),
+    }
+    graph = [("z", "t"), ("z", "y"), ("t", "y")]
+    query = AverageEffect("t", "y")
+    outcome = ant.analyze(data, graph=graph, query=query, learners=learners, estimator="aipw")
+    assert outcome.refusal is None
+    assert outcome.answer.value == pytest.approx(2.0)
+    assert outcome.value.identification.adjustment_set == ("z",)
+    receipts = outcome.value.provenance["fold_receipts"]
+    assert receipts
+    assert len({item.origin for item in receipts}) == len(receipts)
+    for item in receipts:
+        assert item.fits
+        for fit in item.fits:
+            assert fit.origin == item.origin
+            assert max(data["time"][index] for index in fit.history_rows) <= item.origin
+            assert min(data["time"][index] for index in fit.predicted_rows) > item.origin
+    dml = ant.analyze(data, graph=graph, query=query, learners=learners, estimator="dml")
+    assert dml.answer.value == pytest.approx(2.0)
+    assert dml.value.estimate.estimator_id == "dml"
+    assert dml.value.estimate.method == "partially_linear"
+    with pytest.raises(CausalUnsupportedError, match="temporal AIPW or DML") as caught:
+        ant.analyze(data, graph=graph, query=query, learners=learners, estimator="dr_learner")
+    assert caught.value.reason_code == "option_not_applicable"

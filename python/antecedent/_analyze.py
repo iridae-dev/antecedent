@@ -163,6 +163,7 @@ def analyze(
     inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
+    learners: Any = None,
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
@@ -272,6 +273,7 @@ def analyze(
     inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
+    learners: Any = None,
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
@@ -381,6 +383,7 @@ def analyze(
     inference: Frequentist | Bayesian | TransportInference | None = None,
     identifier: str | Identifier | None = None,
     estimator: str | Estimator | EstimatorConfigLike | None = None,
+    learners: Any = None,
     refute: bool | Refute | Literal["full", "placebo", "none", "cheap"] | None = None,
     validators: Sequence[Any] | None = None,
     accept_discovered: bool = True,
@@ -608,6 +611,69 @@ def analyze(
         from .errors import CausalValueError
 
         raise CausalValueError("on_refusal must be 'raise' or 'describe'")
+    if learners is not None:
+        from .errors import CausalUnsupportedError
+        from .execution import Execution
+        from .outcomes import require_success
+        from .prepared import analyze as study_analyze
+
+        declined = []
+        if bootstrap is not None:
+            declined.append("bootstrap")
+        if latency is not None:
+            declined.append("latency")
+        if controls is not None:
+            declined.append("controls")
+        if return_posterior_artifact:
+            declined.append("return_posterior_artifact")
+        if on_refusal != "raise":
+            declined.append("on_refusal")
+        if evidence_candidates is not None:
+            declined.append("evidence_candidates")
+        if declined:
+            raise CausalUnsupportedError(
+                "a learner study takes learners and estimator; "
+                + ", ".join(declined)
+                + " does not apply",
+                reason_code="option_not_applicable",
+            )
+        # The legacy default ``accept_discovered=True`` names no pending review.
+        # A discovery declaration is refused by the learner study.
+        outcome = study_analyze(
+            data,
+            query=query,
+            graph=graph,
+            discovery=discovery,
+            inference=inference,
+            identifier=identifier,
+            estimator=estimator,
+            learners=learners,
+            refute=refute,
+            validators=validators,
+            accept_discovered=False if discovery is None else accept_discovered,
+            regimes=regimes,
+            population_registry=population_registry,
+            estimator_config=estimator_config,
+            provider=provider,
+            class_prior=class_prior,
+            max_completions=max_completions,
+            participant=participant,
+            missing=missing,
+            outcome_units=outcome_units,
+            dose_units=dose_units,
+            quantity_population=quantity_population,
+            quantity_transform=quantity_transform,
+            sampling_design=sampling_design,
+            execution=Execution(
+                seed=seed,
+                threads=threads,
+                cancel=cancel,
+                on_progress=on_progress,
+                on_stage=on_stage,
+            ),
+            imputations=imputations,
+        )
+        return require_success(outcome)
     if evidence_candidates is not None and on_refusal != "describe":
         from .errors import CausalUnsupportedError
 

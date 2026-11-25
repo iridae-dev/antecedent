@@ -176,6 +176,7 @@ impl Study {
         request: TrialAipwLearnersRequest,
         ctx: &ExecutionContext,
     ) -> Result<CompiledTrialAipwLearners, CausalError> {
+        request.learners.admit_portable()?;
         antecedent_estimate::validate_trial_query(&request.query)?;
         if request.options.bootstrap != 0 {
             return Err(crate::unsupported_reason!(

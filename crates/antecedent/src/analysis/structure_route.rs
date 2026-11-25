@@ -1264,8 +1264,10 @@ fn panel_tables(
 
 /// The search bounds of `query` as a stable label.
 mod acceptance;
+mod discovery_admission;
 
 pub(crate) use acceptance::attach_specifications;
+pub(crate) use discovery_admission::admit_finished_discovery;
 pub use acceptance::{AcceptedPosterior, accept_discovered, accept_discovered_posterior};
 
 // ---------------------------------------------------------------------------

@@ -269,6 +269,7 @@ impl Study {
     pub fn compile_joint_cells_learners(
         request: JointCellsLearnersRequest,
     ) -> Result<CompiledJointCellsLearners, CausalError> {
+        request.learners.admit_portable()?;
         if request.config.learner.is_some() {
             return Err(crate::unsupported_reason!(
                 "option_not_applicable",

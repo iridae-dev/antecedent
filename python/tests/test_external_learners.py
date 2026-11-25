@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import replace
 
 import numpy as np
@@ -17,9 +18,12 @@ from antecedent.joint_distribution import ScientificQuantity
 from antecedent.external_learners import (
     ExternalLearner,
     ForecastNuisanceAdapter,
+    Learners,
     aipw_ate,
+    analyze_ate,
     causal_forest_ate,
     cross_fit_aipw,
+    declare_portable_route,
     dml_ate,
     dr_learner_ate,
 )
@@ -525,3 +529,114 @@ def test_causal_forest_uses_external_factories_for_its_marginal_ate():
     assert result.estimate == pytest.approx(2.0)
     assert len(result.cate) == 240
     assert len(result.receipts) == 15
+
+
+def _binary_study():
+    registry = ProviderRegistry()
+    registry.register("outcome", MeanProvider())
+    registry.register("treatment", MeanProvider())
+    learners = Learners(
+        ExternalLearner(registry, "outcome", "regression", supports_weights=True),
+        ExternalLearner(registry, "treatment", "binary_probability", supports_weights=True),
+    )
+    arms = [float(i % 2) for i in range(40)]
+    data = {"z": [float(i) for i in range(40)], "t": arms, "y": [1 + 2 * arm for arm in arms]}
+    graph = [("z", "t"), ("z", "y"), ("t", "y")]
+    return data, graph, learners
+
+
+def test_analyze_fits_declared_learners_as_a_study_setting():
+    import antecedent as ant
+    from antecedent.estimators import learner_estimator
+    from antecedent.query import AverageEffect
+
+    assert learner_estimator("dml") == ("dml", "partially_linear")
+    assert learner_estimator("dr.learner") == ("dr_learner", "aipw")
+    assert learner_estimator("causal.forest") == ("causal_forest", "aipw")
+    data, graph, learners = _binary_study()
+    query = AverageEffect("t", "y")
+    outcome = ant.analyze(data, graph=graph, query=query, learners=learners, estimator="dml")
+    assert outcome.refusal is None
+    assert outcome.answer.value == pytest.approx(2.0)
+    assert outcome.value.estimate.estimator_id == "dml"
+    assert outcome.value.estimate.method == "partially_linear"
+    assert outcome.value.identification.adjustment_set == ("z",)
+    assert outcome.value.provenance["fold_receipts"]
+    assert outcome.value.provenance["fold_ids"]
+    study = ant.prepare(data, graph=graph, query=query, learners=learners, estimator="aipw")
+    aipw = ant.estimate(study)
+    assert aipw.answer.value == pytest.approx(2.0)
+    assert aipw.value.estimate.method == "aipw"
+    assert aipw.value.identification.adjustment_set == ("z",)
+    with pytest.raises(TypeError):
+        ant.analyze(data, graph=graph, query=query, learners=learners, score="aipw")
+    with pytest.raises(ValueError, match="aipw, dml"):
+        ant.analyze(data, graph=graph, query=query, learners=learners, estimator="linear.adjustment.ate")
+    kept = analyze_ate(
+        data, graph, "t", "y", learners=learners, estimator="dml", score="partially_linear", folds=2
+    )
+    assert kept.estimate == pytest.approx(2.0)
+    with pytest.raises(ValueError, match="score"):
+        analyze_ate(data, graph, "t", "y", learners=learners, estimator="aipw", score="partially_linear")
+
+
+def test_direct_entries_name_analyze_and_keep_the_legacy_score():
+    from antecedent._deprecation import AntecedentDeprecationWarning
+    from antecedent.external_learners import dml_ate
+
+    data, graph, learners = _binary_study()
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", AntecedentDeprecationWarning)
+        dml_ate(
+            data,
+            graph,
+            "t",
+            "y",
+            outcome=learners.outcome,
+            treatment=learners.treatment,
+            folds=2,
+            score="partially_linear",
+        )
+    messages = [
+        str(item.message)
+        for item in caught
+        if issubclass(item.category, AntecedentDeprecationWarning)
+    ]
+    assert messages
+    assert all("antecedent.analyze" in message for message in messages)
+    assert all("analyze_ate" not in message for message in messages)
+
+
+def test_portable_learners_are_admitted_only_on_artifact_routes():
+    import antecedent as ant
+    from antecedent.errors import CausalUnsupportedError
+    from antecedent.query import AverageEffect
+
+    class PortableMean(MeanProvider):
+        spec = replace(MeanProvider.spec, artifact_codec="portable_prediction_map_v1")
+
+    portable_registry = ProviderRegistry()
+    portable_registry.register("outcome", PortableMean())
+    portable_registry.register("treatment", PortableMean())
+    portable = Learners(
+        ExternalLearner(portable_registry, "outcome", "regression"),
+        ExternalLearner(portable_registry, "treatment", "binary_probability"),
+    )
+    assert portable.outcome.portable and portable.treatment.portable
+    for route in ("smoothed_dose", "trial_aipw", "joint_cells"):
+        assert declare_portable_route(route, portable) is portable
+
+    data, graph, learners = _binary_study()
+    assert learners.outcome.portable is False
+    for route in ("smoothed_dose", "trial_aipw", "joint_cells"):
+        with pytest.raises(CausalUnsupportedError, match="dose_response.learner_not_portable") as caught:
+            declare_portable_route(route, learners)
+        assert caught.value.reason_code == "route_not_supported"
+    outcome = ant.analyze(
+        data,
+        graph=graph,
+        query=AverageEffect("t", "y"),
+        learners=learners,
+        estimator="aipw",
+    )
+    assert outcome.answer.value == pytest.approx(2.0)

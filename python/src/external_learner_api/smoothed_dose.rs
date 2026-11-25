@@ -135,6 +135,10 @@ pub(super) fn smoothed_dose_learner_transport(
     };
     let outcome_weights = task_and_weights(&outcome, "regression")?;
     let membership_weights = task_and_weights(&membership, "binary_probability")?;
+    let portable =
+        |obj: &Py<PyAny>| -> PyResult<bool> { obj.bind(py).getattr("portable")?.extract() };
+    let outcome_portable = portable(&outcome)?;
+    let membership_portable = portable(&membership)?;
     let (diagram, query) = crate::smoothed_dose_api::build(graph, &selections, query)?;
     let input = crate::smoothed_dose_api::parse_input(data, &graph.names)?;
     let options: SmoothedDoseOptions =
@@ -162,7 +166,8 @@ pub(super) fn smoothed_dose_learner_transport(
             }),
             identity,
         )
-        .map_err(crate::py_err)?;
+        .map_err(crate::py_err)?
+        .declared_portability(outcome_portable && membership_portable);
         let compiled = Study::compile_smoothed_dose_learners(
             SmoothedDoseLearnersRequest::new(diagram, query, input, options, learners),
             &ctx,

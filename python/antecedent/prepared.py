@@ -429,6 +429,12 @@ class PreparedAnalysis(Generic[T]):
                 "a policy-program question has no identified estimand to navigate",
                 reason_code="option_not_applicable",
             )
+        if getattr(self._engine, "_kind", None) == "declared_learners":
+            return PreparedIdentification.unavailable(
+                "declared_learners",
+                kind="declared_learners",
+                execution=self.execution,
+            )
         native = getattr(self._engine, "_native", None)
         if native is None or not hasattr(native, "identification_view"):
             from .errors import CausalStateError
@@ -466,6 +472,8 @@ class PreparedAnalysis(Generic[T]):
         if getattr(self._engine, "_kind", None) == "learned_trial":
             # This native family exposes its own bounded four-slot metadata.
             return self._engine.inspect().model_copy(update={"stage": "prepared"})
+        if getattr(self._engine, "_kind", None) == "declared_learners":
+            return self._engine.inspect()
         completed = getattr(self._engine, "_last_result", None)
         if completed is not None:
             return completed.inspect().model_copy(update={"stage": "executed"})
@@ -600,6 +608,7 @@ def prepare(
     execution: Execution | None = None,
     identifier: Any = None,
     estimator: Any = None,
+    learners: Any = None,
     estimator_config: Mapping[str, Any] | None = None,
     refute: Any = None,
     class_prior: Any = None,
@@ -654,12 +663,14 @@ def prepare(
       :class:`~antecedent.Admg` or :class:`~antecedent.TemporalDag`, a list of ``(cause, effect)``
       edges, or an :class:`~antecedent.AcceptedGraph`. Default ``None``.
     * ``discovery`` -- a graph posterior (the result of a posterior search, or a constructed
-      ``GraphPosterior``) to average over. A discovery configuration that has not been run is
-      rejected with :class:`~antecedent.errors.CausalTypeError`: run and accept it first with
-      :mod:`antecedent.discovery` and pass the accepted graph as ``graph``. Default ``None``.
-    * ``accept_discovered`` -- retained with the declarations (default ``False``). Because
-      preparation takes only executed discovery results, there is no pending review for it to
-      waive.
+      ``GraphPosterior``) to average over, or a finished discovery: a
+      :class:`~antecedent.discovery.DiscoveryResult` or the compiled route of a discovery
+      study. A finished result is admitted through ``accepted_graph`` / ``accept_discovered``
+      and is not searched again. A discovery configuration that has not been run is rejected
+      with :class:`~antecedent.errors.CausalTypeError`: run it first. Default ``None``.
+    * ``accept_discovered`` -- retained with the declarations (default ``False``). For a
+      finished discovery it is the review gate: pending marks are refused until it is true.
+      A study with no discovery has nothing to review, so the flag is not a second decision.
     * ``regimes`` -- regime labels for regime-aware discovery (``RPCMCI``); refused for any other
       declaration. Default ``None``.
     * ``class_prior`` -- a :class:`~antecedent.ClassPrior` over the completions of an incomplete
@@ -676,6 +687,10 @@ def prepare(
     * ``estimator`` -- an :class:`~antecedent.Estimator`, its string id, or a typed configuration
       from :mod:`antecedent.estimators` such as ``Aipw(...)``. Default ``None`` selects the
       engine's default estimator for the identified estimand.
+    * ``learners`` -- nuisance learners for the study (:class:`~antecedent.external_learners.Learners`,
+      or an origin-scoped series declaration). ``estimator`` is then the only knob: ``aipw``,
+      ``dml`` (the partially linear score), ``dr_learner`` or ``causal_forest``. There is no
+      ``score`` argument. Default ``None`` fits the engine's own nuisances.
     * ``estimator_config`` -- a mapping of estimator options; an unknown key is refused.
     * ``refute`` -- a :class:`~antecedent.Refute` suite or its name (``"full"``, ``"placebo"``,
       ``"cheap"``, ``"none"``), or ``False`` for none. ``True`` is rejected because it names no
@@ -789,6 +804,54 @@ def prepare(
     policy = Execution() if execution is None else execution
     if not isinstance(policy, Execution):
         raise CausalTypeError("execution must be an Execution declaration")
+    if learners is not None:
+        from .errors import CausalUnsupportedError
+
+        if measurement is not None or imputations is not None:
+            raise CausalUnsupportedError(
+                "a learner study does not take measurement or imputations",
+                reason_code="option_not_applicable",
+            )
+        if policy.on_stage is not None:
+            raise CausalUnsupportedError(
+                "a learner study does not stream estimate stages",
+                reason_code="stage_stream_unavailable",
+            )
+        declarations = _preparation_declarations(
+            **{
+                "query": query,
+                "graph": graph,
+                "discovery": discovery,
+                "inference": inference,
+                "identifier": identifier,
+                "estimator": estimator,
+                "learners": learners,
+                "estimator_config": estimator_config,
+                "refute": refute,
+                "class_prior": class_prior,
+                "max_completions": max_completions,
+                "participant": participant,
+                "missing": missing,
+                "population_registry": population_registry,
+                "validators": validators,
+                "regimes": regimes,
+                "provider": provider,
+                "sampling_design": sampling_design,
+                "unit_key": unit_key,
+                "accept_discovered": accept_discovered,
+                "data_diagnostics": data_diagnostics,
+                "retain_joint_horizons": retain_joint_horizons,
+                "on_refusal": on_refusal,
+                "evidence_candidates": evidence_candidates,
+                "outcome_units": outcome_units,
+                "quantity_population": quantity_population,
+                "quantity_transform": quantity_transform,
+                "dose_units": dose_units,
+            }
+        )
+        from .external_learners import prepare_learner_study
+
+        return prepare_learner_study(data, execution=policy, declarations=declarations)
     if measurement is not None:
         from .exposure_measurement import prepare_measured
 
@@ -1032,8 +1095,13 @@ def prepare(
         options.pop(name)
     # This backend flag controls implicit discovery execution, which this
     # lifecycle prohibits. Explicit graphs and retained posterior declarations
-    # have no live discovery review step to waive.
-    if discovery is None or not callable(getattr(discovery, "run", None)):
+    # have no live discovery review step to waive. A finished discovery result
+    # still has that gate, so the caller's flag is the one ``accept_discovered`` reads.
+    from .estimation import _is_finished_discovery
+
+    if not _is_finished_discovery(discovery) and (
+        discovery is None or not callable(getattr(discovery, "run", None))
+    ):
         options["accept_discovered"] = True
     # Resolved estimator defaults stay native. Explicit statistical budgets belong
     # to inference and are passed through the one existing native lowering path.

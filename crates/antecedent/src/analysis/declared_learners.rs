@@ -48,6 +48,11 @@ pub struct LearnerFactories {
     outcome: Arc<dyn LearnerFactory>,
     treatment: Arc<dyn LearnerFactory>,
     identity: Arc<str>,
+    /// `Some(true)` when both factories' `predict` is a pure function of the
+    /// artifact bytes and the rows. `Some(false)` when a factory needs live
+    /// process state. `None` when the caller did not declare it (native
+    /// factories, which export a portable predictor themselves).
+    portability: Option<bool>,
 }
 
 impl std::fmt::Debug for LearnerFactories {
@@ -92,7 +97,37 @@ impl LearnerFactories {
                 "the treatment learner factory must predict a binary probability"
             ));
         }
-        Ok(Self { outcome, treatment, identity: Arc::from(identity) })
+        Ok(Self { outcome, treatment, identity: Arc::from(identity), portability: None })
+    }
+
+    /// Record whether `predict` is a pure function of the artifact and the rows.
+    #[must_use]
+    pub fn declared_portability(mut self, portable: bool) -> Self {
+        self.portability = Some(portable);
+        self
+    }
+
+    /// Refuse a non-portable declaration on a route that evaluates from the artifact.
+    ///
+    /// An undeclared portability (`None`) stays admitted: those factories are the
+    /// native ones, which export a portable predictor. A provider that needs live
+    /// process state is refused with `dose_response.learner_not_portable`.
+    ///
+    /// # Errors
+    ///
+    /// `route_not_supported` (`dose_response.learner_not_portable`) when portability
+    /// was declared false.
+    pub fn admit_portable(&self) -> Result<(), CausalError> {
+        if self.portability == Some(false) {
+            return Err(crate::unsupported_reason!(
+                "route_not_supported",
+                detail = antecedent_core::reason_details::dose_response::LEARNER_NOT_PORTABLE,
+                "a learner whose predict needs live process state is refused on a route that \
+                 evaluates from the artifact bytes and the rows. Next attempt: declare a learner \
+                 whose predict is a pure function of the artifact and the rows"
+            ));
+        }
+        Ok(())
     }
 
     /// The outcome-regression factory.

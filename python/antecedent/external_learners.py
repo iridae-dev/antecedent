@@ -4,11 +4,13 @@ Each operation executes through :class:`ProviderRegistry`, so verification is ev
 for that exact request. This module does not by itself provide cross-fitting or establish
 that a pretrained model excludes evaluation rows.
 
-:func:`analyze_ate` declares two registered learners on a compiled study (:class:`Learners`):
-the study's static average-effect route fits the DML, AIPW, DR-learner or causal-forest
-estimator with them. The direct entries :func:`dml_ate`, :func:`aipw_ate`,
-:func:`dr_learner_ate`, :func:`causal_forest_ate` and :func:`cross_fit_aipw` run the same fit
-without the compiler and are deprecated in its favour.
+:func:`antecedent.analyze` and :func:`antecedent.prepare` take the learners as a study
+setting. ``estimator`` is the only knob on that call: ``aipw``, ``dml`` (the partially
+linear score), ``dr_learner`` or ``causal_forest``. :func:`analyze_ate` keeps the older
+reading, ``estimator`` and ``score`` together, as the compatibility wrapper. The direct
+entries :func:`dml_ate`, :func:`aipw_ate`, :func:`dr_learner_ate`, :func:`causal_forest_ate`
+and :func:`cross_fit_aipw` run the same fit without the compiler and are deprecated in
+favour of :func:`antecedent.analyze`.
 """
 
 from __future__ import annotations
@@ -16,7 +18,7 @@ from __future__ import annotations
 import base64
 import copy
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
@@ -24,7 +26,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import _deprecation
-from .errors import CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution, native_controls
 from .extensibility import (
     FoldPolicy,
@@ -57,8 +59,12 @@ class ExternalLearner:
     training: Literal["fold_fit", "frozen", "fine_tuned"] = "fold_fit"
     configuration: Mapping[str, Any] | None = None
     _pinned_spec_digest: str | None = field(default=None, repr=False, compare=False)
+    #: ``predict`` is a pure function of the artifact bytes and the rows. A provider
+    #: that needs live process state is not portable. Recorded from the artifact codec.
+    portable: bool = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "portable", _artifact_is_portable(self))
         _require_honoured(self)
 
     def fit(self, x: Any, y: Any, weights: Any | None = None) -> FittedExternalLearner:
@@ -269,6 +275,10 @@ class Learners:
             self.treatment, ExternalLearner
         ):
             raise CausalValueError("outcome and treatment must be ExternalLearner instances")
+        _refuse_shuffled_series(self.outcome)
+        _refuse_shuffled_series(self.treatment)
+        _refuse_unhonoured_policy(self.outcome)
+        _refuse_unhonoured_policy(self.treatment)
         _require_honoured(self.outcome)
         _require_honoured(self.treatment)
 
@@ -281,6 +291,7 @@ def _learner_identity(learner: ExternalLearner) -> dict[str, Any]:
         "supports_weights": learner.supports_weights,
         "spec": learner._pinned_spec_digest,
         "configuration": _request_digest(dict(learner.configuration or {})),
+        "portable": learner.portable,
     }
 
 
@@ -299,6 +310,44 @@ def _columns(data: Mapping[str, Any]) -> tuple[list[str], list[NDArray[np.float6
     ):
         raise CausalValueError("data columns must be nonempty, finite and equally sized")
     return names, raw_columns, n
+
+
+#: Artifact codec whose bytes are a prediction map: ``predict`` reads only those
+#: bytes and the rows. Any other codec needs live process state.
+PORTABLE_PREDICTION_MAP = "portable_prediction_map_v1"
+
+#: One refusal for a non-portable learner declared on smoothed dose, trial AIPW
+#: or joint-cell scores. The runtime reason is ``route_not_supported``.
+LEARNER_NOT_PORTABLE = "dose_response.learner_not_portable"
+
+PORTABLE_ROUTES = ("smoothed_dose", "trial_aipw", "joint_cells")
+
+
+def _artifact_is_portable(learner: ExternalLearner) -> bool:
+    spec = learner.registry._entry(learner.name)[0].spec
+    return spec.artifact_codec == PORTABLE_PREDICTION_MAP
+
+
+def declare_portable_route(route: str, learners: Learners) -> Learners:
+    """Admit ``learners`` on a route that evaluates ``predict`` from the artifact.
+
+    ``route`` is ``smoothed_dose``, ``trial_aipw`` or ``joint_cells``. A learner
+    whose predict needs live process state is refused with
+    :data:`LEARNER_NOT_PORTABLE`. The same learner stays admissible on a route
+    that refits in process.
+    """
+    if route not in PORTABLE_ROUTES:
+        raise CausalValueError(f"unknown portable learner route {route!r}")
+    if not isinstance(learners, Learners):
+        raise CausalValueError("learners must be a Learners declaration")
+    for role, learner in (("outcome", learners.outcome), ("treatment", learners.treatment)):
+        if not learner.portable:
+            raise CausalUnsupportedError(
+                f"{LEARNER_NOT_PORTABLE}: the {role} learner's predict needs live process "
+                f"state; {route} evaluates predict from the artifact bytes and the rows",
+                reason_code="route_not_supported",
+            )
+    return learners
 
 
 def _require_honoured(learner: ExternalLearner) -> None:
@@ -351,19 +400,21 @@ def analyze_ate(
     score: Literal["aipw", "partially_linear"] = "aipw",
     execution: Execution | None = None,
 ) -> ExternalAteEstimate:
-    """Analyze a static DAG average effect with the study's declared learners.
+    """Compatibility wrapper for a static DAG average effect with declared learners.
 
-    The study is compiled and run: the declared graph is identified, and the static
-    average-effect route prepares the configured estimator on the identified adjustment and
-    fits it with ``learners`` in place of its built-in nuisance learners. Only IID
-    cross-fitting is implemented; temporal training and validation are refused. Provider
-    receipts are returned for every fold and treatment arm, and ``propensity`` carries the
-    out-of-fold propensities of an AIPW score fit.
+    Today's reading stays: the default is ``estimator="dml"`` with ``score="aipw"``, and
+    any score other than ``"aipw"`` is accepted only with ``estimator="dml"``. The study
+    setting that replaces this call is :func:`antecedent.analyze` / :func:`antecedent.prepare`,
+    where ``estimator`` is the only knob and ``dml`` means the partially linear score.
     """
     from . import _native
 
     if not isinstance(learners, Learners):
         raise CausalValueError("learners must be a Learners declaration")
+    _refuse_shuffled_series(learners.outcome)
+    _refuse_shuffled_series(learners.treatment)
+    _refuse_unhonoured_policy(learners.outcome)
+    _refuse_unhonoured_policy(learners.treatment)
     policy = _fold_policy(fold_policy, iid=FoldPolicy.HOST_OWNED)
     _check_estimator(estimator, score, policy)
     outcome = _snapshot_learner(learners.outcome)
@@ -425,8 +476,8 @@ def analyze_ate(
     )
 
 
-_ANALYZE_ATE = (
-    "antecedent.external_learners.analyze_ate(data, edges, treatment_name, outcome_name, "
+_ANALYZE = (
+    "antecedent.analyze(data, graph=edges, query=AverageEffect(treatment, outcome), "
     "learners=Learners(outcome, treatment), estimator={estimator!r})"
 )
 
@@ -452,11 +503,11 @@ def dml_ate(
     is implemented; temporal training and validation are explicitly refused.
     Provider receipts are returned for every fold and treatment arm.
 
-    Deprecated: :func:`analyze_ate` declares the learners on a compiled study and returns the
-    same numbers.
+    Deprecated: :func:`antecedent.analyze` declares the learners on the study and returns the
+    same numbers. This entry keeps the estimator and score arguments.
     """
     _deprecation.direct_path_deprecated(
-        "antecedent.external_learners.dml_ate", _ANALYZE_ATE.format(estimator=estimator)
+        "antecedent.external_learners.dml_ate", _ANALYZE.format(estimator=estimator)
     )
     return _direct_ate(
         data,
@@ -493,6 +544,10 @@ def _direct_ate(
 
     if not isinstance(outcome, ExternalLearner) or not isinstance(treatment, ExternalLearner):
         raise CausalValueError("outcome and treatment must be ExternalLearner instances")
+    _refuse_shuffled_series(outcome)
+    _refuse_shuffled_series(treatment)
+    _refuse_unhonoured_policy(outcome)
+    _refuse_unhonoured_policy(treatment)
     policy = _fold_policy(fold_policy, iid=FoldPolicy.HOST_OWNED)
     _check_estimator(estimator, score, policy)
     outcome, treatment = _snapshot_learner(outcome), _snapshot_learner(treatment)
@@ -541,10 +596,10 @@ def aipw_ate(
 ) -> ExternalAteEstimate:
     """Identify a static DAG and fit the supported five-fold external AIPW route.
 
-    Deprecated: :func:`analyze_ate` with ``estimator="aipw"`` returns the same numbers.
+    Deprecated: :func:`antecedent.analyze` with ``estimator="aipw"`` returns the same numbers.
     """
     _deprecation.direct_path_deprecated(
-        "antecedent.external_learners.aipw_ate", _ANALYZE_ATE.format(estimator="aipw")
+        "antecedent.external_learners.aipw_ate", _ANALYZE.format(estimator="aipw")
     )
     return _direct_ate(data, edges, treatment_name, outcome_name, estimator="aipw", **kwargs)
 
@@ -554,11 +609,11 @@ def dr_learner_ate(
 ) -> ExternalAteEstimate:
     """Fit external nuisances with the built-in linear DR-learner final stage.
 
-    Deprecated: :func:`analyze_ate` with ``estimator="dr_learner"`` returns the same numbers.
+    Deprecated: :func:`antecedent.analyze` with ``estimator="dr_learner"`` returns the same numbers.
     """
     _deprecation.direct_path_deprecated(
         "antecedent.external_learners.dr_learner_ate",
-        _ANALYZE_ATE.format(estimator="dr_learner"),
+        _ANALYZE.format(estimator="dr_learner"),
     )
     return _direct_ate(data, edges, treatment_name, outcome_name, estimator="dr_learner", **kwargs)
 
@@ -568,12 +623,12 @@ def causal_forest_ate(
 ) -> ExternalAteEstimate:
     """Fit native forest CATE trees and external nuisances for the marginal ATE.
 
-    Deprecated: :func:`analyze_ate` with ``estimator="causal_forest"`` returns the same
+    Deprecated: :func:`antecedent.analyze` with ``estimator="causal_forest"`` returns the same
     numbers.
     """
     _deprecation.direct_path_deprecated(
         "antecedent.external_learners.causal_forest_ate",
-        _ANALYZE_ATE.format(estimator="causal_forest"),
+        _ANALYZE.format(estimator="causal_forest"),
     )
     return _direct_ate(
         data, edges, treatment_name, outcome_name, estimator="causal_forest", **kwargs
@@ -598,16 +653,19 @@ def cross_fit_aipw(
     the rows belonging to its fit or prediction call. The caller must choose a fold
     plan suitable for the data; no temporal validation is inferred here.
 
-    Deprecated: :func:`analyze_ate` runs this cross-fit inside the compiled study and returns
-    its out-of-fold propensities (``propensity``) on its fold plan (``fold_ids``).
+    Deprecated: :func:`antecedent.analyze` runs this cross-fit inside the compiled study.
     """
     _deprecation.direct_path_deprecated(
-        "antecedent.external_learners.cross_fit_aipw", _ANALYZE_ATE.format(estimator="dml")
+        "antecedent.external_learners.cross_fit_aipw", _ANALYZE.format(estimator="dml")
     )
     from . import _native
 
     if not isinstance(outcome, ExternalLearner) or not isinstance(treatment, ExternalLearner):
         raise CausalValueError("outcome and treatment must be ExternalLearner instances")
+    _refuse_shuffled_series(outcome)
+    _refuse_shuffled_series(treatment)
+    _refuse_unhonoured_policy(outcome)
+    _refuse_unhonoured_policy(treatment)
     policy = _fold_policy(fold_policy, iid=FoldPolicy.CALLER_OWNED)
     outcome, treatment = _snapshot_learner(outcome), _snapshot_learner(treatment)
     matrix = _matrix(x)
@@ -667,3 +725,554 @@ def _vector(value: Any, length: int, name: str) -> NDArray[np.float64]:
         raise CausalValueError(f"nuisance {name} must have one finite value per row")
     vector.flags.writeable = False
     return vector
+
+
+def _refuse_shuffled_series(learner: ExternalLearner) -> None:
+    """Keep an origin-scoped series model off an IID cross-fit."""
+    if isinstance(learner, OriginScopedLearner):
+        raise CausalValueError("shuffled folds are refused for an origin-scoped series model")
+
+
+def _refuse_unhonoured_policy(learner: ExternalLearner) -> None:
+    """Refuse a fold policy the nuisance estimators cannot honour.
+
+    An :class:`OriginScopedLearner` is the temporal declaration and is checked
+    by :class:`OriginScopedLearners` instead.
+    """
+    if isinstance(learner, OriginScopedLearner):
+        return
+    policy = learner.registry._entry(learner.name)[0].spec.fold_policy
+    if not policy.estimator_honours():
+        raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
+
+
+@dataclass(frozen=True, slots=True)
+class OriginScopedLearner(ExternalLearner):
+    """A registered series model fitted forward from each origin.
+
+    History ends at the origin and predictions are only after it. The provider's
+    fold policy is ``origin_scoped``. Shuffled folds are refused. This is not
+    :class:`ForecastNuisanceAdapter`: that adapter stays the IID opt-in.
+    """
+
+    def fit_at_origins(
+        self,
+        x: Any,
+        y: Any,
+        times: Sequence[int],
+        origins: Sequence[int],
+    ) -> tuple[Any, ...]:
+        """Fit one receipt per origin. Predictions are the rows strictly after it."""
+        from .forecasting import fit_at_origins
+
+        return fit_at_origins(self, x, y, times, origins)
+
+
+@dataclass(frozen=True, slots=True)
+class OriginScopedLearners:
+    """Outcome and treatment series models for one temporal average-effect route."""
+
+    outcome: OriginScopedLearner
+    treatment: OriginScopedLearner
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, OriginScopedLearner) or not isinstance(
+            self.treatment, OriginScopedLearner
+        ):
+            raise CausalValueError("outcome and treatment must be OriginScopedLearner instances")
+        for learner in (self.outcome, self.treatment):
+            policy = learner.registry._entry(learner.name)[0].spec.fold_policy
+            if policy is not FoldPolicy.ORIGIN_SCOPED:
+                raise CausalValueError(
+                    "shuffled folds are refused for an origin-scoped fit; the series model "
+                    "must declare an origin_scoped fold policy"
+                )
+
+
+@dataclass(frozen=True, slots=True)
+class OriginNuisance:
+    """The nuisance fits of one origin, each with its own receipt."""
+
+    origin: int
+    fits: tuple[Any, ...]
+
+
+def _selected_estimator(estimator: Any) -> tuple[str, str, str]:
+    from .estimators import learner_estimator
+
+    if estimator is None:
+        estimator = "dml"
+    if not isinstance(estimator, str):
+        raise CausalValueError(
+            "the learner study's only knob is estimator: aipw, dml, dr_learner or causal_forest"
+        )
+    try:
+        method, score = learner_estimator(estimator)
+    except ValueError as error:
+        raise CausalValueError(str(error)) from error
+    return estimator, method, score
+
+
+def _edge_list(graph: Any) -> list[tuple[str, str]]:
+    if graph is None:
+        raise CausalValueError("a learner study needs a graph")
+    if isinstance(graph, Sequence) and not isinstance(graph, (str, bytes)):
+        edges = list(graph)
+    else:
+        listed = getattr(graph, "edges", None)
+        if not callable(listed):
+            raise CausalTypeError("graph must be an edge list or a graph")
+        edges = list(listed())
+    if any(not isinstance(edge, tuple) or len(edge) != 2 for edge in edges):
+        raise CausalValueError("a learner study takes a static graph of (cause, effect) edges")
+    return [(str(cause), str(effect)) for cause, effect in edges]
+
+
+def _decline_learner_options(declarations: Mapping[str, Any], *, temporal: bool) -> None:
+    from .prepared import _AUTO_DATA_DIAGNOSTICS
+
+    blocked: list[str] = []
+    if declarations.get("discovery") is not None:
+        blocked.append("discovery")
+    if declarations.get("accept_discovered"):
+        blocked.append("accept_discovered")
+    if declarations.get("inference") is not None:
+        blocked.append("inference")
+    for name in (
+        "identifier",
+        "estimator_config",
+        "class_prior",
+        "max_completions",
+        "participant",
+        "missing",
+        "population_registry",
+        "validators",
+        "regimes",
+        "provider",
+        "unit_key",
+        "evidence_candidates",
+        "outcome_units",
+        "dose_units",
+    ):
+        if declarations.get(name) is not None:
+            blocked.append(name)
+    if declarations.get("refute") not in (None, False, "none"):
+        blocked.append("refute")
+    if declarations.get("retain_joint_horizons"):
+        blocked.append("retain_joint_horizons")
+    if declarations.get("on_refusal") not in (None, "refuse"):
+        blocked.append("on_refusal")
+    if declarations.get("quantity_population") not in (None, "target"):
+        blocked.append("quantity_population")
+    if declarations.get("quantity_transform") not in (None, "identity"):
+        blocked.append("quantity_transform")
+    if declarations.get("data_diagnostics") not in (None, _AUTO_DATA_DIAGNOSTICS):
+        blocked.append("data_diagnostics")
+    sampling = declarations.get("sampling_design")
+    if temporal:
+        if sampling not in (None, "dependent_time_series"):
+            blocked.append("sampling_design")
+    elif sampling is not None:
+        blocked.append("sampling_design")
+    if blocked:
+        raise CausalUnsupportedError(
+            "a learner study fits the declared nuisances once; "
+            + ", ".join(blocked)
+            + " does not apply",
+            reason_code="option_not_applicable",
+        )
+
+
+def _require_binary_effect(query: Any) -> None:
+    from .query import AverageEffect
+
+    if not isinstance(query, AverageEffect):
+        raise CausalUnsupportedError(
+            "declared learners apply to a binary average effect",
+            reason_code="option_not_applicable",
+        )
+    if query.control_level != 0 or query.active_level != 1:
+        raise CausalUnsupportedError(
+            "declared learners apply to the binary contrast of 0 and 1",
+            reason_code="option_not_applicable",
+        )
+    if query.target_population is not None or query.outcome_functional is not None:
+        raise CausalUnsupportedError(
+            "declared learners apply to the mean effect on the observed rows",
+            reason_code="option_not_applicable",
+        )
+
+
+def _analysis_result(
+    *,
+    point: float,
+    se: float,
+    estimator: str,
+    method: str,
+    adjustment: Sequence[str],
+    assumptions: Sequence[Any],
+    provenance: Mapping[str, Any],
+    query: Any,
+    cate: tuple[float, ...] | None = None,
+    cate_se: tuple[float, ...] | None = None,
+) -> Any:
+    from .results._views import (
+        AnalysisResult,
+        EstimateView,
+        IdentificationView,
+        PerformanceView,
+        ValidationView,
+    )
+
+    return AnalysisResult(
+        identification=IdentificationView(
+            status="NonparametricallyIdentified",
+            method="adjustment",
+            adjustment_set=tuple(adjustment),
+            assumption_count=len(assumptions),
+            derivation_step_count=1,
+        ),
+        estimate=EstimateView(
+            ate=float(point),
+            se_analytic=float(se),
+            se_bootstrap=None,
+            estimator_id=estimator,
+            method=method,
+            cate=cate,
+            cate_se=cate_se,
+        ),
+        posterior=None,
+        validation=ValidationView(passed=None, ran=False, count=0),
+        performance=PerformanceView(),
+        diagnostics=(),
+        provenance=dict(provenance),
+        query=query,
+    )
+
+
+def _mean_se(values: Sequence[float]) -> tuple[float, float]:
+    array = np.asarray(values, dtype=np.float64)
+    point = float(array.mean())
+    if array.size < 2:
+        return point, 0.0
+    return point, float(array.std(ddof=1) / np.sqrt(array.size))
+
+
+def _static_result(spec: Mapping[str, Any]) -> Any:
+    from . import _native
+
+    learners = spec["learners"]
+    query = spec["query"]
+    _require_binary_effect(query)
+    edges = _edge_list(spec["graph"])
+    _selected, method, score = _selected_estimator(spec["estimator"])
+    outcome = _snapshot_learner(learners.outcome)
+    treatment = _snapshot_learner(learners.treatment)
+    identity = json.dumps(
+        {"outcome": _learner_identity(outcome), "treatment": _learner_identity(treatment)},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    names, raw_columns, _n = _columns(spec["data"])
+    (
+        point,
+        se,
+        _rows,
+        fold_ids,
+        adjustment,
+        learner_provenance,
+        assumptions,
+        cate,
+        cate_se,
+        receipts,
+        propensity,
+    ) = _native.declared_learner_ate(
+        names,
+        [column.tolist() for column in raw_columns],
+        edges,
+        query.treatment,
+        query.outcome,
+        outcome,
+        treatment,
+        identity=identity,
+        folds=5,
+        weights=None,
+        method=method,
+        score=score,
+        **native_controls(
+            spec["execution"],
+            seed="seed",
+            cancel="cancel",
+            memory="memory_limit_bytes",
+        ),
+    )
+    parsed = json.loads(assumptions)
+    assumption_items = tuple(parsed) if isinstance(parsed, list) else (parsed,)
+    return _analysis_result(
+        point=point,
+        se=se,
+        estimator=method,
+        method=score,
+        adjustment=tuple(names[index] for index in adjustment),
+        assumptions=assumption_items,
+        provenance={
+            "fold_receipts": tuple(receipts),
+            "fold_ids": tuple(int(fold) for fold in fold_ids),
+            "assumptions": assumption_items,
+            "learner_provenance": tuple(tuple(item) for item in learner_provenance),
+            "propensity": None if propensity is None else tuple(float(value) for value in propensity),
+            "estimator": method,
+            "score": score,
+        },
+        query=query,
+        cate=None if cate is None else tuple(float(value) for value in cate),
+        cate_se=None if cate_se is None else tuple(float(value) for value in cate_se),
+    )
+
+
+def _series_frame(data: Mapping[str, Any], query: Any) -> tuple[Any, list[int], NDArray[np.float64], tuple[str, ...]]:
+    names, columns, n = _columns(data)
+    if query.treatment not in names or query.outcome not in names:
+        raise CausalValueError("treatment and outcome must be columns of the learner study")
+    time_name = "time" if "time" in names else None
+    if time_name is None:
+        times = list(range(n))
+    else:
+        times = []
+        for value in columns[names.index(time_name)]:
+            whole = int(value)
+            if value != whole:
+                raise CausalValueError("time must be whole numbers")
+            times.append(whole)
+    skip = {query.treatment, query.outcome}
+    if time_name is not None:
+        skip.add(time_name)
+    kept = tuple(name for name in names if name not in skip)
+    if kept:
+        matrix = np.column_stack([columns[names.index(name)] for name in kept])
+    else:
+        matrix = np.ones((n, 1), dtype=np.float64)
+    return columns, times, matrix, kept
+
+
+def _forward_origins(times: Sequence[int]) -> list[tuple[int, list[int], list[int]]]:
+    ordered = sorted(set(times))
+    windows = []
+    for origin, nxt in zip(ordered, ordered[1:]):
+        history = [index for index, time in enumerate(times) if time <= origin]
+        predict = [index for index, time in enumerate(times) if time == nxt]
+        if history and predict:
+            windows.append((origin, history, predict))
+    return windows
+
+
+def _temporal_result(spec: Mapping[str, Any]) -> Any:
+    from .forecasting import fit_origin
+
+    learners = spec["learners"]
+    query = spec["query"]
+    _require_binary_effect(query)
+    _edge_list(spec["graph"])
+    _selected, method, score = _selected_estimator(spec["estimator"])
+    if method not in ("aipw", "dml"):
+        raise CausalUnsupportedError(
+            "an origin-scoped series model supplies a temporal AIPW or DML route",
+            reason_code="option_not_applicable",
+        )
+    columns, times, matrix, adjustment = _series_frame(spec["data"], query)
+    names = list(spec["data"])
+    treatment = columns[names.index(query.treatment)]
+    outcome = columns[names.index(query.outcome)]
+    windows = _forward_origins(times)
+    groups: list[OriginNuisance] = []
+    if method == "aipw":
+        scores: list[float] = []
+        for origin, history, predict in windows:
+            hist0 = [index for index in history if treatment[index] == 0]
+            hist1 = [index for index in history if treatment[index] == 1]
+            if not hist0 or not hist1:
+                continue
+            m0 = fit_origin(
+                learners.outcome, matrix, outcome, origin=origin, times=times, history=hist0, predict=predict
+            )
+            m1 = fit_origin(
+                learners.outcome, matrix, outcome, origin=origin, times=times, history=hist1, predict=predict
+            )
+            propensity = fit_origin(
+                learners.treatment,
+                matrix,
+                treatment,
+                origin=origin,
+                times=times,
+                history=history,
+                predict=predict,
+            )
+            for offset, row in enumerate(predict):
+                e = min(max(propensity.predictions[offset], 1e-6), 1.0 - 1e-6)
+                treated = float(treatment[row])
+                y = float(outcome[row])
+                scores.append(
+                    (m1.predictions[offset] - m0.predictions[offset])
+                    + (treated / e) * (y - m1.predictions[offset])
+                    - ((1.0 - treated) / (1.0 - e)) * (y - m0.predictions[offset])
+                )
+            groups.append(OriginNuisance(origin, (m0, m1, propensity)))
+        if not scores:
+            raise CausalValueError("the forward plan scored no row")
+        point, se = _mean_se(scores)
+    else:
+        residuals: list[tuple[float, float]] = []
+        for origin, history, predict in windows:
+            y_hat = fit_origin(
+                learners.outcome, matrix, outcome, origin=origin, times=times, history=history, predict=predict
+            )
+            t_hat = fit_origin(
+                learners.treatment,
+                matrix,
+                treatment,
+                origin=origin,
+                times=times,
+                history=history,
+                predict=predict,
+            )
+            for offset, row in enumerate(predict):
+                residuals.append(
+                    (float(treatment[row]) - t_hat.predictions[offset], float(outcome[row]) - y_hat.predictions[offset])
+                )
+            groups.append(OriginNuisance(origin, (y_hat, t_hat)))
+        if not residuals:
+            raise CausalValueError("the forward plan scored no row")
+        numerator = sum(treated * y for treated, y in residuals)
+        denominator = sum(treated * treated for treated, _y in residuals)
+        if denominator == 0:
+            raise CausalValueError("temporal DML treatment residual has no variation")
+        point = numerator / denominator
+        mean_square = denominator / len(residuals)
+        influence = [
+            (treated * y - point * treated * treated) / mean_square for treated, y in residuals
+        ]
+        se = _mean_se(influence)[1]
+    assumptions = (
+        "origin_scoped_fit",
+        "forward_only",
+        f"estimator:{method}",
+        f"score:{score}",
+    )
+    return _analysis_result(
+        point=point,
+        se=se,
+        estimator=method,
+        method=score,
+        adjustment=adjustment,
+        assumptions=assumptions,
+        provenance={
+            "fold_receipts": tuple(groups),
+            "assumptions": assumptions,
+            "estimator": method,
+            "score": score,
+            "forward_only": True,
+        },
+        query=query,
+    )
+
+
+class _DeclaredLearnerEngine:
+    """Study engine that fits the declared learners when the study is estimated."""
+
+    _kind = "declared_learners"
+    _native = None
+    _transport = None
+    _last_result = None
+    participants = None
+    validator_names = ()
+
+    def __init__(self, spec: Mapping[str, Any]) -> None:
+        self._spec = dict(spec)
+
+    def estimate(self) -> Any:
+        learners = self._spec["learners"]
+        if isinstance(learners, OriginScopedLearners):
+            return _temporal_result(self._spec)
+        if isinstance(learners, Learners):
+            return _static_result(self._spec)
+        raise CausalValueError("learners must be a Learners or OriginScopedLearners declaration")
+
+    def _bind(self, data: Any, execution: Execution) -> _DeclaredLearnerEngine:
+        spec = dict(self._spec)
+        spec["data"] = data
+        spec["execution"] = execution
+        return _DeclaredLearnerEngine(spec)
+
+    def _branch(self, execution: Execution) -> _DeclaredLearnerEngine:
+        spec = dict(self._spec)
+        spec["execution"] = execution
+        return _DeclaredLearnerEngine(spec)
+
+    def plan_view(self) -> Any:
+        raise CausalUnsupportedError(
+            "a learner study compiles when it is estimated",
+            reason_code="plan_view_unavailable",
+        )
+
+    def preflight(self) -> Any:
+        return self.inspect()
+
+    def inspect(self) -> Any:
+        from .results._report import InspectionReport, SlotModel
+
+        slot = SlotModel(
+            available=False,
+            reason="declared_learners",
+            summary="the declared learners are fitted when the study is estimated",
+        )
+        return InspectionReport(
+            identification=slot,
+            support=slot,
+            uncertainty=slot,
+            assumptions=slot,
+            stage="prepared",
+            operations=("inspect", "estimate", "rebind", "reconfigure"),
+        )
+
+
+def prepare_learner_study(
+    data: Any,
+    *,
+    execution: Execution,
+    declarations: Mapping[str, Any],
+) -> Any:
+    """Prepare a study whose nuisance fits are the declared learners.
+
+    Nothing is fitted. :func:`antecedent.estimate` runs the static average-effect
+    route, or the origin-scoped temporal route when ``learners`` is an
+    :class:`OriginScopedLearners`.
+    """
+    from .prepared import PreparedAnalysis
+
+    learners = declarations["learners"]
+    temporal = isinstance(learners, OriginScopedLearners)
+    if not temporal and not isinstance(learners, Learners):
+        raise CausalValueError("learners must be a Learners or OriginScopedLearners declaration")
+    _decline_learner_options(declarations, temporal=temporal)
+    _require_binary_effect(declarations["query"])
+    _edge_list(declarations["graph"])
+    _selected_estimator(declarations["estimator"])
+    if not isinstance(data, Mapping):
+        raise CausalValueError("learner data must map column names to numeric columns")
+    _columns(data)
+    engine = _DeclaredLearnerEngine(
+        {
+            "data": data,
+            "execution": execution,
+            "learners": learners,
+            "query": declarations["query"],
+            "graph": declarations["graph"],
+            "estimator": declarations["estimator"],
+        }
+    )
+    return PreparedAnalysis(
+        _engine=engine,
+        execution=execution,
+        _declarations=declarations,
+        _data=data,
+    )

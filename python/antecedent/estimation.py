@@ -1071,6 +1071,42 @@ def _accept_live_discovery(
     return accepted if isinstance(accepted, AcceptedGraph) else AcceptedGraph(accepted)
 
 
+def _is_finished_discovery(discovery: Any) -> bool:
+    """A discovery that has already run: a ``DiscoveryResult`` or its compiled route.
+
+    A live configuration (``PC()``, ``FCI()``, and the other search configs) is not
+    finished: it still has ``run`` and is searched by the live path. A graph
+    posterior stays on the posterior path.
+    """
+    if discovery is None or isinstance(discovery, _GRAPH_POSTERIOR_TYPES):
+        return False
+    from .discovery import DiscoveryResult
+
+    if isinstance(discovery, DiscoveryResult):
+        return True
+    accept = getattr(discovery, "accepted_graph", None)
+    if not callable(accept) or callable(getattr(discovery, "run", None)):
+        return False
+    contract = getattr(discovery, "contract", None)
+    return isinstance(contract, dict) and contract.get("query_kind") == "Discover"
+
+
+def _routing_graph(discovery: Any, *, accept_discovered: bool) -> tuple[Any, Any]:
+    """Holdable graph and compiled route of a finished discovery.
+
+    ``route.accepted_graph`` is the review gate, which calls ``accept_discovered``.
+    """
+    from .discovery import DiscoveryResult
+
+    route = discovery.route if isinstance(discovery, DiscoveryResult) else discovery
+    if route is None:
+        raise CausalTypeError(
+            "this discovery result was not produced by a compiled route; it has no contract"
+        )
+    graph, _provenance = route.accepted_graph(accept_discovered=accept_discovered)
+    return graph, route
+
+
 _GRAPH_POSTERIOR_TYPES = (ExactDagPosterior, DbnPosterior, GraphPosterior)
 
 # Loaded after `_static_edges`, `_RESPONSE_FAMILY`, and `_not_applicable` exist.
@@ -1379,7 +1415,10 @@ class _PreparedEngine(Generic[ResultT]):
         ``LiNGAM`` / ``NOTEARS`` / ``FCI`` / ``RFCI`` / ``PCMCI`` /
         ``PCMCIPlus`` / ``LPCMCI`` / ``JPCMCIPlus`` / ``RPCMCI``), which runs
         once and is accepted through its review gate (``accept_discovered=False``
-        raises ``ReviewRequired`` while anything is pending).
+        raises ``ReviewRequired`` while anything is pending). A finished
+        ``DiscoveryResult`` or the compiled route of a discovery study is
+        admitted instead: ``accepted_graph`` / ``accept_discovered`` supply the
+        graph, and the search is not run again.
 
         ``data`` may be a table, a series, or an ``antecedent.data`` panel /
         multi-environment / event frame; frames compile on the matching Rust
@@ -1748,7 +1787,6 @@ class _PreparedEngine(Generic[ResultT]):
         from .accepted_graph import AcceptedGraph
         from .discovery import RPCMCI
 
-        live_discovery = discovery is not None and not isinstance(discovery, _GRAPH_POSTERIOR_TYPES)
         if isinstance(graph, AcceptedGraph) and discovery is not None:
             raise CausalUnsupportedError(
                 "graph=AcceptedGraph(...) rejects discovery=; the structure artifact is "
@@ -1758,7 +1796,12 @@ class _PreparedEngine(Generic[ResultT]):
             raise CausalValueError("prepare rejects both graph= and discovery=")
         if regimes is not None and not isinstance(discovery, RPCMCI):
             raise _not_applicable("regimes", "a discovery other than RPCMCI")
-        if not accept_discovered and not live_discovery:
+        admitted_route = None
+        if _is_finished_discovery(discovery):
+            graph, admitted_route = _routing_graph(discovery, accept_discovered=accept_discovered)
+            discovery = None
+        live_discovery = discovery is not None and not isinstance(discovery, _GRAPH_POSTERIOR_TYPES)
+        if not accept_discovered and not live_discovery and admitted_route is None:
             raise _not_applicable(
                 "accept_discovered=False", "a study without live discovery (nothing to review)"
             )
@@ -1873,8 +1916,14 @@ class _PreparedEngine(Generic[ResultT]):
             names, columns = _association_payload(data, query)
             frame = None
         else:
+            # A finished discovery is checked against the caller's table, so the
+            # study reads that table. Projecting to the graph's node order would
+            # be a different snapshot.
             names, columns, frame = _frame_payload(
-                data, analysis_columns(query, graph, estimator_config, missing=missing_policy)
+                data,
+                None
+                if admitted_route is not None
+                else analysis_columns(query, graph, estimator_config, missing=missing_policy),
             )
             table_names = tuple(names) if frame is None else None
         weighted_target = None
@@ -1903,6 +1952,9 @@ class _PreparedEngine(Generic[ResultT]):
             "inference": _inference_wire(inference),
             "discovery_algorithm": discovery_algorithm,
         }
+        if admitted_route is not None:
+            options["admitted_discovery"] = admitted_route
+            options["admitted_accept"] = bool(accept_discovered)
         from .data_diagnostics import _setting_json
 
         options["data_diagnostics"] = _setting_json(data_diagnostics)

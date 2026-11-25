@@ -814,6 +814,10 @@ path = "tests/structure_compiler_routes.rs"
 required-features = ["calibration-internal"]
 
 [[test]]
+name = "discovery_admission"
+path = "tests/discovery_admission.rs"
+
+[[test]]
 name = "structure_prior_routes"
 path = "tests/structure_prior_routes.rs"
 

@@ -31,6 +31,8 @@ const KEYS: &[&str] = &[
     "on_progress",
     "inference",
     "discovery_algorithm",
+    "admitted_discovery",
+    "admitted_accept",
     "participants",
     "missing",
     "sampling_weights",
@@ -210,6 +212,10 @@ pub(crate) struct PrepareOptions {
     pub inference: InferenceSpec,
     /// Discovery algorithm of an accepted structure (provenance only).
     pub discovery_algorithm: Option<String>,
+    /// Compiled discovery whose finished result is admitted as this study's graph.
+    pub admitted_discovery: Option<crate::compiled_route_api::RouteRecord>,
+    /// `accept_discovered` for [`Self::admitted_discovery`].
+    pub admitted_accept: bool,
     /// Participant labels bound to the data rows (digests only).
     pub participants: Option<antecedent::io::ParticipantBindingWire>,
     /// Declared handling of missing values.
@@ -331,6 +337,16 @@ impl PrepareOptions {
         };
         let discovery_algorithm =
             item("discovery_algorithm")?.map(|value| value.extract()).transpose()?;
+        let admitted_discovery = item("admitted_discovery")?
+            .map(|value| -> PyResult<_> {
+                let route = value.cast::<crate::compiled_route_api::PyCompiledRoute>()?;
+                Ok(route.borrow().record.clone())
+            })
+            .transpose()?;
+        let admitted_accept = item("admitted_accept")?
+            .map(|value| value.extract::<bool>())
+            .transpose()?
+            .unwrap_or(false);
         let participants = item("participants")?
             .map(|value| -> PyResult<_> {
                 let dict = value.cast::<PyDict>()?;
@@ -412,6 +428,8 @@ impl PrepareOptions {
             progress,
             inference,
             discovery_algorithm,
+            admitted_discovery,
+            admitted_accept,
             participants,
             missing,
             sampling_weights,
@@ -612,6 +630,8 @@ impl PrepareOptions {
             progress: None,
             inference: InferenceSpec::default(),
             discovery_algorithm: None,
+            admitted_discovery: self.admitted_discovery.clone(),
+            admitted_accept: self.admitted_accept,
             participants: self.participants.clone(),
             missing: self.missing.clone(),
             sampling_weights: self.sampling_weights.clone(),
