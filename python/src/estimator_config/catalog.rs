@@ -21,6 +21,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "fit_lambda",
             "fit_c",
             "other_levels",
+            "treatment_classification",
         ],
     ),
     (
@@ -121,6 +122,7 @@ const ESTIMATOR_KEYS: &[(&str, &[&str])] = &[
             "glm_options",
             "family",
             "other_levels",
+            "treatment_classification",
             "source_sampling_weights",
         ],
     ),

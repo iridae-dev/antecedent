@@ -57,6 +57,7 @@ fn contrast_and_delta_method_standard_error_match_the_exact_reference() {
             target_population: TargetPopulation::AllObserved,
             treatment: Arc::from(t.clone()),
             treatment_levels: None,
+            treatment_classification: None,
             sampling: None,
             preparation: PreparationReceipt::composed_finite(t.len()).unwrap(),
         };

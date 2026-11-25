@@ -53,6 +53,7 @@ fn problem_for(reference: &Value, outcome: &str) -> PreparedEstimationProblem {
         active: 2.0,
         control: 0.0,
         treatment_levels: None,
+        treatment_classification: None,
         sampling_weights: None,
         preparation: PreparationReceipt::composed_finite(t.len()).unwrap(),
     }

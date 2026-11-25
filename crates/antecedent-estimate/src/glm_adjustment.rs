@@ -84,6 +84,9 @@ pub struct PreparedGlmProblem {
     /// The two contrasted levels and the rows excluded, when the treatment is a discrete column
     /// with further levels and the restriction to the two levels was declared.
     pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
+    /// Whether the treatment was read as discrete levels or as a dose. `None` when the column
+    /// was not classified.
+    pub treatment_classification: Option<crate::propensity::TreatmentClassification>,
     /// Sampling weights of the retained rows (mean one) and what they did to this problem.
     /// The design stays unscaled; the weighted fit, g-computation average and sandwich read
     /// these per-row weights directly.
@@ -133,6 +136,10 @@ pub struct GlmAdjustmentAte {
     /// the linear predictor as one numeric column, so a column such as `0/1/2` would be read as
     /// a dose and the contrast of 1 against 0 would be extrapolated from that slope.
     pub other_levels: crate::propensity::OtherLevels,
+    /// How the treatment column is classified. The default uses the distinct-value cutoff.
+    /// A levels declaration is a level contrast past that cutoff; a dose declaration is the
+    /// fitted slope. The applied classification is recorded on the result.
+    pub treatment_declaration: crate::propensity::TreatmentDeclaration,
 }
 
 impl Default for GlmAdjustmentAte {
@@ -154,7 +161,18 @@ impl GlmAdjustmentAte {
             population_registry: None,
             sampling_weights: None,
             other_levels: crate::propensity::OtherLevels::default(),
+            treatment_declaration: crate::propensity::TreatmentDeclaration::Undeclared,
         }
+    }
+
+    /// Declare the treatment as levels or as a dose. The default classifies it.
+    #[must_use]
+    pub const fn with_treatment_declaration(
+        mut self,
+        declaration: crate::propensity::TreatmentDeclaration,
+    ) -> Self {
+        self.treatment_declaration = declaration;
+        self
     }
 
     /// Declare what to do with rows at neither contrasted level when the treatment is a
@@ -291,12 +309,13 @@ impl GlmAdjustmentAte {
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
-        let treatment_levels = crate::prepare::restrict_to_contrast_levels(
+        let classified = crate::prepare::restrict_to_contrast_levels(
             data,
             treatment,
             &mut row_mask,
             (active, control),
             self.other_levels,
+            self.treatment_declaration,
         )?;
         if self.sampling_weights.is_some()
             && matches!(self.inference.se_kind, AnalyticSeKind::Homoskedastic)
@@ -353,7 +372,8 @@ impl GlmAdjustmentAte {
             family: self.family,
             target_population: query.target_population.clone(),
             treatment: t,
-            treatment_levels,
+            treatment_levels: classified.levels,
+            treatment_classification: classified.classification,
             sampling,
             preparation,
         })
@@ -512,6 +532,9 @@ impl GlmAdjustmentAte {
             .with_sampling_weights(problem.sampling.as_ref().map(|s| s.record));
         if let Some(levels) = problem.treatment_levels {
             estimate = estimate.with_treatment_levels(levels);
+        }
+        if let Some(classification) = problem.treatment_classification {
+            estimate = estimate.with_treatment_classification(classification);
         }
         if workspace.retain_point {
             workspace.retained_point = retained::retain_point(

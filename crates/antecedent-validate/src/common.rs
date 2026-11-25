@@ -584,6 +584,7 @@ fn panel_prepare_with_extras(
         active,
         control,
         treatment_levels: None,
+        treatment_classification: None,
         sampling_weights: None,
         preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(rows)?,
     })

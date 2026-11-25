@@ -55,6 +55,9 @@ pub struct StreamedAdjustmentEstimate {
     pub batches: u64,
     /// The executed backend choice, with the alternatives rejected.
     pub choice: PhysicalChoice,
+    /// Whether the treatment was read as discrete levels or as a dose. `None` when the column
+    /// was not classified.
+    pub classification: Option<crate::propensity::TreatmentClassification>,
 }
 
 /// Source columns read through the complete-case mask, one batch at a time.
@@ -211,15 +214,14 @@ impl LinearAdjustmentAte {
                 )),
             }
         };
-        if !self.dose_reading {
-            crate::prepare::validate_streamed_adjustment_levels(
-                column(query.treatment)?,
-                &row_mask,
-                active,
-                control,
-                self.other_levels,
-            )?;
-        }
+        let classification = crate::prepare::validate_streamed_adjustment_levels(
+            column(query.treatment)?,
+            &row_mask,
+            active,
+            control,
+            self.other_levels,
+            self.treatment_declaration,
+        )?;
         let mut covariates = Vec::with_capacity(estimand.adjustment_set.len());
         for &id in estimand.adjustment_set.iter() {
             covariates.push(column(id)?);
@@ -255,6 +257,7 @@ impl LinearAdjustmentAte {
             source_passes: result.source_passes,
             batches: result.batches,
             choice: *result.physical_choice(),
+            classification,
         })
     }
 }
@@ -346,6 +349,31 @@ mod tests {
         );
         let err = exclude.estimate_streamed(&data, &estimand, &absent, 16, 1 << 20).unwrap_err();
         assert_eq!(err.reason_code(), Some("arm_not_populated"));
+    }
+
+    #[test]
+    fn an_undeclared_eleven_value_stream_stays_a_dose_and_names_it() {
+        let treatment: Vec<f64> = (0..55).map(|i| f64::from(i % 11)).collect();
+        let outcome: Vec<f64> = treatment.iter().enumerate().map(|(i, t)| t + noise(i)).collect();
+        let data =
+            TabularData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())])
+                .unwrap();
+        let estimand =
+            IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), ExprId::from_raw(0));
+        let query = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            1.0,
+        );
+        let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
+        let dose = estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap();
+        assert_eq!(dose.classification.map(|classification| classification.as_str()), Some("dose"));
+        let err = estimator
+            .with_treatment_declaration(crate::propensity::TreatmentDeclaration::Levels)
+            .estimate_streamed(&data, &estimand, &query, 16, 1 << 20)
+            .unwrap_err();
+        assert_eq!(err.reason_code(), Some("treatment_level_undeclared"));
     }
 
     #[test]

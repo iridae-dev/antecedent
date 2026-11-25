@@ -69,6 +69,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 ),
                 multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
                 panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
+                treatment_classification: treatment_declaration_key(cfg.treatment_declaration),
                 ..grouped!(
                     cfg,
                     base(cfg.inference.bootstrap_replicates, cfg.overlap);
@@ -200,6 +201,7 @@ pub(crate) fn estimator_spec_identity(spec: &EstimatorSpec) -> EstimatorSpecWire
                 ),
                 multiway_ids: cfg.inference.multiway_ids.as_deref().map(multiway_ids),
                 panel_times: cfg.inference.panel_times.as_deref().map(panel_times),
+                treatment_classification: treatment_declaration_key(cfg.treatment_declaration),
                 ..grouped!(
                     cfg,
                     base(cfg.inference.bootstrap_replicates, cfg.overlap);
@@ -344,7 +346,15 @@ fn base(bootstrap_replicates: u32, overlap: OverlapPolicy) -> EstimatorConfigWir
         honesty: None,
         other_levels: None,
         bootstrap_interval: None,
+        treatment_classification: None,
     }
+}
+
+/// Identity key of a declared treatment classification. The default cutoff is omitted.
+fn treatment_declaration_key(
+    declaration: antecedent_estimate::TreatmentDeclaration,
+) -> Option<String> {
+    declaration.declared().map(|classification| classification.as_str().to_owned())
 }
 
 /// Identity key of a requested bootstrap interval; no request is omitted.
@@ -732,6 +742,33 @@ mod tests {
             .with_cluster_ids(first.to_vec())
             .with_second_cluster_ids(second.to_vec());
         estimator_spec_identity(&EstimatorSpec::Aipw(Box::new(cfg)))
+    }
+
+    #[test]
+    fn an_undeclared_treatment_omits_the_classification_and_a_declaration_records_it() {
+        use antecedent_estimate::{LinearAdjustmentAte, TreatmentDeclaration};
+
+        let plain = estimator_spec_identity(&EstimatorSpec::LinearAdjustmentAte(Box::new(
+            LinearAdjustmentAte::new(),
+        )));
+        let EstimatorSpecWire::LinearAdjustmentAte(wire) = &plain else {
+            panic!("linear adjustment");
+        };
+        assert!(wire.treatment_classification.is_none());
+        let levels = estimator_spec_identity(&EstimatorSpec::LinearAdjustmentAte(Box::new(
+            LinearAdjustmentAte::new().with_treatment_declaration(TreatmentDeclaration::Levels),
+        )));
+        let EstimatorSpecWire::LinearAdjustmentAte(wire) = &levels else {
+            panic!("linear adjustment");
+        };
+        assert_eq!(wire.treatment_classification.as_deref(), Some("levels"));
+        let dose = estimator_spec_identity(&EstimatorSpec::LinearAdjustmentAte(Box::new(
+            LinearAdjustmentAte::new().with_dose_reading(true),
+        )));
+        let EstimatorSpecWire::LinearAdjustmentAte(wire) = &dose else {
+            panic!("linear adjustment");
+        };
+        assert_eq!(wire.treatment_classification.as_deref(), Some("dose"));
     }
 
     #[test]

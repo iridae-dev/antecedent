@@ -219,6 +219,8 @@ struct ClassAteAtoms {
     /// The contrasted levels and the rows excluded, shared by every completion (the contrast is
     /// of the treatment, not of the completion).
     treatment_levels: Option<antecedent_estimate::DeclaredTreatmentLevels>,
+    /// The treatment classification that chose the estimand, shared by every completion.
+    treatment_classification: Option<antecedent_estimate::TreatmentClassification>,
 }
 
 impl ClassAteAtoms {
@@ -278,6 +280,9 @@ impl ClassAteAtoms {
         }
         if let Some(levels) = self.treatment_levels {
             estimate = estimate.with_treatment_levels(levels);
+        }
+        if let Some(classification) = self.treatment_classification {
+            estimate = estimate.with_treatment_classification(classification);
         }
         Ok((estimate, estimand, n_contributing))
     }
@@ -1051,6 +1056,7 @@ impl super::Study {
             outcomes: vec![ClassAtomOutcome::NotEvaluated; envelope.cases.len()],
             inference: None,
             treatment_levels: None,
+            treatment_classification: None,
         };
         for (i, case) in envelope.cases.iter().enumerate() {
             if !identification_status_ok_for_case(case.result.status)
@@ -1088,6 +1094,9 @@ impl super::Study {
             )?;
             if atoms.treatment_levels.is_none() {
                 atoms.treatment_levels = estimate.diagnostics.treatment_levels;
+            }
+            if atoms.treatment_classification.is_none() {
+                atoms.treatment_classification = estimate.diagnostics.treatment_classification;
             }
             let w = case.weight.0;
             atoms.outcomes[i] = ClassAtomOutcome::Evaluated(estimate.ate);

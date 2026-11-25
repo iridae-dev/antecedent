@@ -16,6 +16,7 @@ use antecedent_identify::{EstimandClaim, IdentificationResult};
 
 use crate::adjustment::intervention_f64;
 use crate::error::EstimationError;
+use crate::propensity::levels::{TreatmentClassification, TreatmentDeclaration};
 
 /// Require the estimand method to be one of `allowed`.
 ///
@@ -197,9 +198,24 @@ pub(crate) fn assert_records_preparation(estimate: &crate::EffectEstimate, rows:
     assert_eq!(summary.delivery.as_deref(), Some("finite"));
 }
 
-/// Most distinct treatment values a column may take and still be read as discrete levels
-/// rather than as a continuous dose.
+/// Default distinct-value cutoff that classifies a treatment when the caller does not
+/// declare one.
+///
+/// A column at or under this cutoff that holds both contrasted levels and some other value
+/// is a level contrast. More values are a dose. [`TreatmentDeclaration`] chooses the
+/// estimand instead of this cutoff.
 pub(crate) const MAX_DISCRETE_LEVELS: usize = 10;
+
+/// What [`restrict_to_contrast_levels`] decided, and the exclusion it applied.
+#[derive(Debug)]
+pub(crate) struct ClassifiedContrast {
+    /// The two contrasted levels and the rows excluded, when the column was read as discrete
+    /// levels with further values and the restriction was declared.
+    pub levels: Option<crate::propensity::levels::DeclaredTreatmentLevels>,
+    /// The classification that chose the estimand. `None` when the column was not classified:
+    /// a two-valued contrast the regression already is, and the caller did not declare a reading.
+    pub classification: Option<TreatmentClassification>,
+}
 
 /// Restrict the rows of a regression-based contrast to the two contrasted levels when the
 /// treatment is a discrete column with further levels.
@@ -210,8 +226,11 @@ pub(crate) const MAX_DISCRETE_LEVELS: usize = 10;
 /// [`MAX_DISCRETE_LEVELS`] distinct values, holds both contrasted levels, and holds some other
 /// value. Such rows are refused with `treatment_level_undeclared`, naming the observed levels,
 /// unless `other_levels` declares the restriction to the rows at the two levels, in which case
-/// the mask is narrowed and the exclusion is returned for the result to report. Any other
-/// column (two-valued, or continuous) is left alone and returns `None`.
+/// the mask is narrowed and the exclusion is returned for the result to report. A caller who
+/// declares [`TreatmentDeclaration::Levels`] is classified the same way with no cutoff, and a
+/// caller who declares [`TreatmentDeclaration::Dose`] is left as a dose. Any other undeclared
+/// column (two-valued, or past the cutoff) is left alone. The returned classification is what
+/// the result records.
 ///
 /// # Errors
 ///
@@ -226,11 +245,25 @@ pub(crate) fn restrict_to_contrast_levels(
     row_mask: &mut [bool],
     (active, control): (f64, f64),
     other_levels: crate::propensity::levels::OtherLevels,
-) -> Result<Option<crate::propensity::levels::DeclaredTreatmentLevels>, EstimationError> {
+    declaration: TreatmentDeclaration,
+) -> Result<ClassifiedContrast, EstimationError> {
+    if matches!(declaration, TreatmentDeclaration::Dose) {
+        return Ok(ClassifiedContrast {
+            levels: None,
+            classification: Some(TreatmentClassification::Dose),
+        });
+    }
     let values = data.float64_selected(treatment, row_mask).map_err(EstimationError::from)?;
-    require_contrast_arms_populated(&values, active, control)?;
-    if !is_discrete_with_other_levels(&values, active, control) {
-        return Ok(None);
+    require_contrast_arms_populated(&values, active, control, declaration)?;
+    if !is_discrete_with_other_levels(&values, active, control, declaration) {
+        let classification = if matches!(declaration, TreatmentDeclaration::Levels) {
+            Some(TreatmentClassification::Levels)
+        } else if past_discrete_cutoff(&values) {
+            Some(TreatmentClassification::Dose)
+        } else {
+            None
+        };
+        return Ok(ClassifiedContrast { levels: None, classification });
     }
     let (keep, levels) = crate::propensity::levels::classify_treatment_levels(
         &values,
@@ -242,7 +275,10 @@ pub(crate) fn restrict_to_contrast_levels(
     for slot in row_mask.iter_mut().filter(|slot| **slot) {
         *slot = decisions.next().unwrap_or(false);
     }
-    Ok(Some(levels))
+    Ok(ClassifiedContrast {
+        levels: Some(levels),
+        classification: Some(TreatmentClassification::Levels),
+    })
 }
 
 /// Refuse a contrast to a level that no complete-case row of a discrete treatment carries.
@@ -264,12 +300,18 @@ pub(crate) fn require_contrast_arms_populated(
     values: &[f64],
     active: f64,
     control: f64,
+    declaration: TreatmentDeclaration,
 ) -> Result<(), EstimationError> {
+    if matches!(declaration, TreatmentDeclaration::Dose) {
+        return Ok(());
+    }
     let mut distinct: Vec<f64> = Vec::new();
     for &value in values {
         if !distinct.contains(&value) {
             distinct.push(value);
-            if distinct.len() > MAX_DISCRETE_LEVELS {
+            if matches!(declaration, TreatmentDeclaration::Undeclared)
+                && distinct.len() > MAX_DISCRETE_LEVELS
+            {
                 return Ok(());
             }
         }
@@ -304,12 +346,22 @@ pub(crate) fn require_contrast_arms_populated(
     clippy::float_cmp,
     reason = "declared treatment levels are exact category labels, not computed values"
 )]
-pub(crate) fn is_discrete_with_other_levels(values: &[f64], active: f64, control: f64) -> bool {
+pub(crate) fn is_discrete_with_other_levels(
+    values: &[f64],
+    active: f64,
+    control: f64,
+    declaration: TreatmentDeclaration,
+) -> bool {
+    if matches!(declaration, TreatmentDeclaration::Dose) {
+        return false;
+    }
     let mut distinct: Vec<f64> = Vec::new();
     for &value in values {
         if !distinct.contains(&value) {
             distinct.push(value);
-            if distinct.len() > MAX_DISCRETE_LEVELS {
+            if matches!(declaration, TreatmentDeclaration::Undeclared)
+                && distinct.len() > MAX_DISCRETE_LEVELS
+            {
                 return false;
             }
         }
@@ -318,13 +370,41 @@ pub(crate) fn is_discrete_with_other_levels(values: &[f64], active: f64, control
     distinct.len() >= 3 && has(active) && has(control)
 }
 
-/// Classification of a complete-case streamed treatment with at most ten levels.
-/// None means the resident path treats the column as a continuous dose.
+/// Whether an undeclared column has more distinct values than [`MAX_DISCRETE_LEVELS`].
+#[allow(
+    clippy::float_cmp,
+    reason = "declared treatment levels are exact category labels, not computed values"
+)]
+fn past_discrete_cutoff(values: &[f64]) -> bool {
+    let mut seen: Vec<f64> = Vec::new();
+    for &value in values {
+        if !seen.contains(&value) {
+            seen.push(value);
+            if seen.len() > MAX_DISCRETE_LEVELS {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Counts of a complete-case streamed treatment.
+///
+/// `None` means a dose: the caller declared one, or an undeclared column passed the cutoff.
+/// A levels declaration is counted with no cutoff.
 #[allow(
     clippy::float_cmp,
     reason = "exact equality preserves discrete support or boundary semantics"
 )]
-fn streamed_level_counts(values: &[f64], mask: &[bool]) -> Option<(Vec<(f64, usize)>, usize)> {
+fn streamed_level_counts(
+    values: &[f64],
+    mask: &[bool],
+    declaration: TreatmentDeclaration,
+) -> Option<(Vec<(f64, usize)>, usize)> {
+    // A declared dose, and an undeclared column past the cutoff, are doses: `None`.
+    if matches!(declaration, TreatmentDeclaration::Dose) {
+        return None;
+    }
     let mut levels: Vec<(f64, usize)> = Vec::new();
     let mut rows = 0usize;
     for (&value, &keep) in values.iter().zip(mask) {
@@ -336,7 +416,9 @@ fn streamed_level_counts(values: &[f64], mask: &[bool]) -> Option<(Vec<(f64, usi
             *count += 1;
         } else {
             levels.push((value, 1));
-            if levels.len() > MAX_DISCRETE_LEVELS {
+            if matches!(declaration, TreatmentDeclaration::Undeclared)
+                && levels.len() > MAX_DISCRETE_LEVELS
+            {
                 return None;
             }
         }
@@ -363,18 +445,19 @@ pub(crate) fn validate_streamed_adjustment_levels(
     active: f64,
     control: f64,
     other_levels: crate::propensity::levels::OtherLevels,
-) -> Result<(), EstimationError> {
-    let Some((levels, rows)) = streamed_level_counts(values, mask) else {
-        return Ok(());
+    declaration: TreatmentDeclaration,
+) -> Result<Option<TreatmentClassification>, EstimationError> {
+    let Some((levels, rows)) = streamed_level_counts(values, mask, declaration) else {
+        return Ok(Some(TreatmentClassification::Dose));
     };
     let mut representative: Vec<f64> = levels.iter().map(|(level, _)| *level).collect();
     if rows > levels.len() && !representative.is_empty() {
         representative.push(representative[0]);
     }
-    require_contrast_arms_populated(&representative, active, control)?;
+    require_contrast_arms_populated(&representative, active, control, declaration)?;
     let has = |level| levels.iter().any(|(value, _)| *value == level);
     if levels.len() < 3 || !has(active) || !has(control) {
-        return Ok(());
+        return Ok(declaration.declared());
     }
     if matches!(other_levels, crate::propensity::levels::OtherLevels::ExcludeUndeclared) {
         return Err(EstimationError::unsupported_coded(
@@ -414,7 +497,8 @@ pub(crate) fn validate_streamed_iv_levels(
     active: f64,
     control: f64,
 ) -> Result<(), EstimationError> {
-    let Some((levels, _)) = streamed_level_counts(values, mask) else {
+    let Some((levels, _)) = streamed_level_counts(values, mask, TreatmentDeclaration::Undeclared)
+    else {
         return Ok(());
     };
     let has = |level| levels.iter().any(|(value, _)| *value == level);
@@ -829,7 +913,7 @@ mod contrast_arm_tests {
     fn restrict(
         treatment: &[f64],
         levels: (f64, f64),
-    ) -> Result<Option<crate::propensity::levels::DeclaredTreatmentLevels>, EstimationError> {
+    ) -> Result<ClassifiedContrast, EstimationError> {
         let data = TabularData::from_f64_columns([("t", treatment)]).unwrap();
         let mut mask = vec![true; treatment.len()];
         restrict_to_contrast_levels(
@@ -838,6 +922,7 @@ mod contrast_arm_tests {
             &mut mask,
             levels,
             OtherLevels::Refuse,
+            TreatmentDeclaration::Undeclared,
         )
     }
 
@@ -859,13 +944,19 @@ mod contrast_arm_tests {
     #[test]
     fn populated_arms_and_continuous_doses_are_untouched() {
         let t: Vec<f64> = (0..20).map(|i| f64::from(i % 2)).collect();
-        assert!(restrict(&t, (1.0, 0.0)).unwrap().is_none());
+        let binary = restrict(&t, (1.0, 0.0)).unwrap();
+        assert!(binary.levels.is_none());
+        assert!(binary.classification.is_none());
         // A real-valued dose (more than the discrete cap of distinct values) is not arms.
         let dose: Vec<f64> = (0..40).map(|i| f64::from(i) * 0.37).collect();
-        assert!(restrict(&dose, (5.0, 0.0)).unwrap().is_none());
+        let dose = restrict(&dose, (5.0, 0.0)).unwrap();
+        assert!(dose.levels.is_none());
+        assert_eq!(dose.classification.map(TreatmentClassification::as_str), Some("dose"));
         // Every value distinct on a small table is a dose, not repeated arms.
         let tiny: Vec<f64> = vec![0.1, 0.4, 0.9, 1.3];
-        assert!(restrict(&tiny, (2.0, 0.0)).unwrap().is_none());
+        let tiny = restrict(&tiny, (2.0, 0.0)).unwrap();
+        assert!(tiny.levels.is_none());
+        assert!(tiny.classification.is_none());
     }
 }
 
@@ -881,28 +972,43 @@ mod streamed_level_tests {
     fn only_selected_rows_contribute_and_continuous_values_remain_doses() {
         let values = [0.0, 1.0, 2.0, 0.0, 1.0];
         let mask = [true, true, false, true, true];
-        assert!(
+        assert_eq!(
             validate_streamed_adjustment_levels(
                 &values,
                 &mask,
                 1.0,
                 0.0,
-                crate::propensity::OtherLevels::Refuse
+                crate::propensity::OtherLevels::Refuse,
+                TreatmentDeclaration::Undeclared,
             )
-            .is_ok()
+            .unwrap(),
+            None
         );
         assert!(validate_streamed_iv_levels(&values, &mask, 1.0, 0.0).is_ok());
         let continuous: Vec<f64> = (0..11).map(|v| f64::from(v)).collect();
-        assert!(
+        assert_eq!(
             validate_streamed_adjustment_levels(
                 &continuous,
                 &[true; 11],
                 1.0,
                 0.0,
-                crate::propensity::OtherLevels::Refuse
+                crate::propensity::OtherLevels::Refuse,
+                TreatmentDeclaration::Undeclared,
             )
-            .is_ok()
+            .unwrap()
+            .map(TreatmentClassification::as_str),
+            Some("dose")
         );
+        let declared = validate_streamed_adjustment_levels(
+            &continuous,
+            &[true; 11],
+            1.0,
+            0.0,
+            crate::propensity::OtherLevels::Refuse,
+            TreatmentDeclaration::Levels,
+        )
+        .unwrap_err();
+        assert_eq!(declared.reason_code(), Some("treatment_level_undeclared"));
         assert!(validate_streamed_iv_levels(&continuous, &[true; 11], 1.0, 0.0).is_ok());
     }
 }

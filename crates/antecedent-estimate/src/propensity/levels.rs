@@ -23,6 +23,57 @@ pub enum OtherLevels {
     ExcludeUndeclared,
 }
 
+/// How the caller says a numeric treatment should be read.
+///
+/// Absent a declaration, the column is classified by the default distinct-value cutoff: at
+/// most ten values, both contrasted levels, and another value is a level contrast, and more
+/// values are a dose. A declaration chooses that estimand itself.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum TreatmentDeclaration {
+    /// Classify with the default cutoff.
+    #[default]
+    Undeclared,
+    /// A level contrast, including a column past the default cutoff.
+    Levels,
+    /// A numeric dose, including a column at or under the default cutoff.
+    Dose,
+}
+
+impl TreatmentDeclaration {
+    /// The classification this declaration names.
+    ///
+    /// The default has none until the column is read.
+    #[must_use]
+    pub const fn declared(self) -> Option<TreatmentClassification> {
+        match self {
+            Self::Undeclared => None,
+            Self::Levels => Some(TreatmentClassification::Levels),
+            Self::Dose => Some(TreatmentClassification::Dose),
+        }
+    }
+}
+
+/// The classification a fit applied. It chooses the estimand: a level contrast, or the
+/// fitted slope times the gap between the two levels.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TreatmentClassification {
+    /// Discrete levels.
+    Levels,
+    /// Numeric dose.
+    Dose,
+}
+
+impl TreatmentClassification {
+    /// Name recorded on the result and in a declared estimator's identity.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Levels => "levels",
+            Self::Dose => "dose",
+        }
+    }
+}
+
 /// The treatment levels a propensity problem was prepared for, and what that excluded.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DeclaredTreatmentLevels {

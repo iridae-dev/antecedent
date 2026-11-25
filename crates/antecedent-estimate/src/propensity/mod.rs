@@ -49,7 +49,9 @@ pub use generalized::{
     MultiLevelPopulation, MultiLevelTarget,
 };
 pub use knn::{KNN_DISTANCE_MATCHING_CONSTRUCTION, KnnDistanceMatching};
-pub use levels::{DeclaredTreatmentLevels, OtherLevels};
+pub use levels::{
+    DeclaredTreatmentLevels, OtherLevels, TreatmentClassification, TreatmentDeclaration,
+};
 pub use matching::{CaliperScale, PropensityMatching};
 pub use penalized::{
     DEFAULT_RIDGE_GRID, NuisanceFallback, PropensityNuisance, PropensityPenalty, RidgeTuning,

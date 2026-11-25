@@ -1268,6 +1268,7 @@ fn fitted_horizon(
         active: 1.0,
         control: 0.0,
         treatment_levels: None,
+        treatment_classification: None,
         sampling_weights: None,
     };
     FittedHorizon::fit(prepared, &mut LeastSquaresWorkspace::default()).expect("OLS fit")

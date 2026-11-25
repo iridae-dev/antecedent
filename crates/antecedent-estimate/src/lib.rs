@@ -403,6 +403,7 @@ pub use propensity::{
     DistanceMatching, FailedFit, FallbackRecord, FoldSupport, GENERALIZED_PROPENSITY_PROVENANCE,
     KNN_DISTANCE_MATCHING_CONSTRUCTION, KnnDistanceMatching, LevelMean, LevelRows, MultiLevelAipw,
     MultiLevelEstimate, MultiLevelPopulation, MultiLevelTarget, NuisanceFallback, OtherLevels,
+    TreatmentClassification, TreatmentDeclaration,
     PROPENSITY_FIT_STAGE, PenalizedReport, PenalizedVarianceReport, PopulationLinearVariance,
     PreparedPropensityProblem, PropensityEstimationWorkspace, PropensityMatching,
     PropensityNuisance, PropensityPenalty, PropensityStratification, PropensityWeighting,

@@ -559,6 +559,7 @@ impl TemporalLinearAdjustment {
                 active,
                 control,
                 treatment_levels: None,
+                treatment_classification: None,
                 sampling_weights,
                 preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
                     selected.len(),
@@ -701,6 +702,7 @@ impl TemporalLinearAdjustment {
                 active: first.active,
                 control: first.control,
                 treatment_levels: None,
+                treatment_classification: None,
                 sampling_weights,
                 preparation: antecedent_data::materialize::PreparationReceipt::composed_finite(
                     rows,

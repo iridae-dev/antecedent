@@ -250,6 +250,9 @@ pub struct EstimateDiagnostics {
     /// that were excluded, and the target population that restriction implies. `None` for
     /// every estimator that does not recode a treatment column to declared levels.
     pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
+    /// Whether a numeric treatment was read as discrete levels or as a dose. This is the
+    /// classification that chose the estimand. `None` when the column was not classified.
+    pub treatment_classification: Option<crate::propensity::TreatmentClassification>,
     /// What declared sampling weights did to the analysis: the rows used, the zero-weight rows
     /// excluded, the Kish effective sample size and the unnormalized weight sum. `None` when
     /// no weights were declared, so unweighted results are unchanged.
@@ -544,6 +547,16 @@ impl EffectEstimate {
         levels: crate::propensity::DeclaredTreatmentLevels,
     ) -> Self {
         self.diagnostics.treatment_levels = Some(levels);
+        self
+    }
+
+    /// Record the treatment classification that chose this estimand.
+    #[must_use]
+    pub fn with_treatment_classification(
+        mut self,
+        classification: crate::propensity::TreatmentClassification,
+    ) -> Self {
+        self.diagnostics.treatment_classification = Some(classification);
         self
     }
 

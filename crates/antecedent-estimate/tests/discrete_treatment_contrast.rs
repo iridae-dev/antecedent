@@ -9,7 +9,9 @@
 //! `treatment_level_undeclared`, naming the observed levels and the next attempt, unless the
 //! restriction to the rows at the two levels is declared; the declared restriction recovers the
 //! contrast exactly and reports the rows it excluded. A two-valued column is untouched, and a
-//! column with many distinct values stays a continuous dose.
+//! column with many distinct values stays a continuous dose. An undeclared column of eleven
+//! values is that dose. Declaring the treatment as levels makes the same column a level
+//! contrast, and the result names which classification was used.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -30,7 +32,7 @@ use antecedent_data::{
 };
 use antecedent_estimate::{
     EffectEstimate, EstimationError, EstimationWorkspace, GlmAdjustmentAte, GlmAdjustmentWorkspace,
-    LinearAdjustmentAte, OtherLevels,
+    LinearAdjustmentAte, OtherLevels, TreatmentDeclaration,
 };
 use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_stats::GlmFamily;
@@ -199,6 +201,7 @@ fn the_declared_restriction_recovers_the_contrast_of_the_two_levels_and_counts_w
                 Some("rows at the two declared levels"),
                 "{name}"
             );
+            assert_eq!(classification_name(&effect), Some("levels"), "{name}");
             if name == "linear" {
                 assert_eq!(effect.provenance.n_obs, Some(80), "{name}");
             }
@@ -220,6 +223,7 @@ fn a_two_valued_column_and_a_continuous_dose_are_not_restricted() {
     ] {
         assert!((effect.ate - 1.0).abs() < 1e-9, "{}", effect.ate);
         assert!(effect.diagnostics.treatment_levels.is_none());
+        assert!(classification_name(&effect).is_none());
     }
     // A continuous dose with more than ten distinct values keeps its linear-dose reading: the
     // contrast is the slope times the gap between the levels.
@@ -232,4 +236,93 @@ fn a_two_valued_column_and_a_continuous_dose_are_not_restricted() {
     let effect = linear(&linear_estimator(), &data, &estimand, &query).unwrap();
     assert!((effect.ate - 3.0).abs() < 1e-9, "{}", effect.ate);
     assert!(effect.diagnostics.treatment_levels.is_none());
+    assert_eq!(classification_name(&effect), Some("dose"));
+}
+
+fn classification_name(effect: &EffectEstimate) -> Option<&'static str> {
+    effect.diagnostics.treatment_classification.map(|classification| classification.as_str())
+}
+
+/// Eleven values, 22 rows each. Level 1 is 1 above level 0; every other level is 0, and `z`
+/// is balanced within every level. The level contrast of 1 against 0 is 1. The dose slope is not.
+fn eleven_values() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+    let n = 22 * 11;
+    let t: Vec<f64> = (0..n).map(|i| (i % 11) as f64).collect();
+    let z: Vec<f64> = (0..n).map(|i| ((i / 11) % 2) as f64).collect();
+    let y: Vec<f64> = t
+        .iter()
+        .zip(&z)
+        .map(|(&level, &zi)| {
+            let effect = if level == 1.0 { 1.0 } else { 0.0 };
+            effect + 0.5 * zi
+        })
+        .collect();
+    (t, y, z)
+}
+
+#[test]
+fn an_undeclared_treatment_of_eleven_values_stays_a_dose() {
+    let (t, y, z) = eleven_values();
+    let (data, estimand) = dataset(&t, &y, &z);
+    let query = AverageEffectQuery::with_levels(T, Y, 0.0, 1.0);
+    for (name, effect) in [
+        ("linear", linear(&linear_estimator(), &data, &estimand, &query).unwrap()),
+        ("gaussian glm", glm(&gaussian_glm(), &data, &estimand, &query).unwrap()),
+    ] {
+        assert!(
+            (effect.ate - 1.0).abs() > 0.1,
+            "{name} must not report the level contrast, got {}",
+            effect.ate
+        );
+        assert!(effect.diagnostics.treatment_levels.is_none(), "{name}");
+        assert_eq!(classification_name(&effect), Some("dose"), "{name}");
+    }
+}
+
+#[test]
+fn a_declared_level_treatment_of_eleven_values_is_a_level_contrast() {
+    let (t, y, z) = eleven_values();
+    let (data, estimand) = dataset(&t, &y, &z);
+    let query = AverageEffectQuery::with_levels(T, Y, 0.0, 1.0);
+    let linear_est = linear_estimator()
+        .with_treatment_declaration(TreatmentDeclaration::Levels)
+        .with_other_levels(OtherLevels::ExcludeUndeclared);
+    let glm_est = gaussian_glm()
+        .with_treatment_declaration(TreatmentDeclaration::Levels)
+        .with_other_levels(OtherLevels::ExcludeUndeclared);
+    for (name, effect) in [
+        ("linear", linear(&linear_est, &data, &estimand, &query).unwrap()),
+        ("gaussian glm", glm(&glm_est, &data, &estimand, &query).unwrap()),
+    ] {
+        assert!((effect.ate - 1.0).abs() < 1e-9, "{name}: {}", effect.ate);
+        let levels = effect.diagnostics.treatment_levels.expect("the exclusion is reported");
+        assert_eq!((levels.rows_at_active, levels.rows_at_control), (22, 22), "{name}");
+        assert_eq!(levels.excluded_rows, 198, "{name}");
+        assert_eq!(classification_name(&effect), Some("levels"), "{name}");
+    }
+    for (name, error) in [
+        (
+            "linear",
+            linear(
+                &linear_estimator().with_treatment_declaration(TreatmentDeclaration::Levels),
+                &data,
+                &estimand,
+                &query,
+            )
+            .unwrap_err(),
+        ),
+        (
+            "gaussian glm",
+            glm(
+                &gaussian_glm().with_treatment_declaration(TreatmentDeclaration::Levels),
+                &data,
+                &estimand,
+                &query,
+            )
+            .unwrap_err(),
+        ),
+    ] {
+        let (code, _) = coded(error, name);
+        assert_eq!(code, "treatment_level_undeclared", "{name}");
+    }
 }

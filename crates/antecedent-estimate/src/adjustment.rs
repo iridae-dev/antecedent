@@ -90,6 +90,9 @@ pub struct PreparedEstimationProblem {
     /// The two contrasted levels and the rows excluded, when the treatment is a discrete column
     /// with further levels and the restriction to the two levels was declared.
     pub treatment_levels: Option<crate::propensity::DeclaredTreatmentLevels>,
+    /// Whether the treatment was read as discrete levels or as a dose. `None` when the column
+    /// was not classified.
+    pub treatment_classification: Option<crate::propensity::TreatmentClassification>,
     /// What declared sampling weights did to this problem. When present the design matrix and
     /// outcome are the weighted-least-squares transform (every row multiplied by the square
     /// root of its mean-one weight), so each normal-equation and sandwich formula downstream
@@ -171,11 +174,12 @@ pub struct LinearAdjustmentAte {
     /// the regression as one numeric column, so a column such as `0/1/2` would be read as a
     /// dose and "1 against 0" would be its slope, not the contrast of the two levels.
     pub other_levels: crate::propensity::OtherLevels,
-    /// Read the treatment as a numeric dose: the contrast is the fitted slope times
-    /// `active - control`, and a discrete column with further levels is not a refusal. The
-    /// default is `false`, which keeps the two-level contrast rule above. Set by the
-    /// diagnostics of a dose-response design, whose original estimate is a dose slope.
-    pub dose_reading: bool,
+    /// How the treatment column is classified. The default uses the distinct-value cutoff.
+    /// [`crate::TreatmentDeclaration::Dose`] reads it as a numeric dose: the contrast is the
+    /// fitted slope times `active - control`. [`crate::TreatmentDeclaration::Levels`] reads it
+    /// as a level contrast, including past the cutoff. The applied classification is recorded
+    /// on the result.
+    pub treatment_declaration: crate::propensity::TreatmentDeclaration,
 }
 
 impl Default for LinearAdjustmentAte {
@@ -198,14 +202,31 @@ impl LinearAdjustmentAte {
             preparation_budget: None,
             contrasts: Vec::new(),
             other_levels: crate::propensity::OtherLevels::default(),
-            dose_reading: false,
+            treatment_declaration: crate::propensity::TreatmentDeclaration::Undeclared,
         }
     }
 
-    /// Read the treatment as a numeric dose (see [`Self::dose_reading`]).
+    /// Declare the treatment as levels or as a dose. The default classifies it.
+    #[must_use]
+    pub const fn with_treatment_declaration(
+        mut self,
+        declaration: crate::propensity::TreatmentDeclaration,
+    ) -> Self {
+        self.treatment_declaration = declaration;
+        self
+    }
+
+    /// Read the treatment as a numeric dose (`true`) or leave it undeclared (`false`).
+    ///
+    /// A dose is the fitted slope times `active - control`, including a column at or under
+    /// the discrete-level cutoff. `false` restores the default classification.
     #[must_use]
     pub const fn with_dose_reading(mut self, dose_reading: bool) -> Self {
-        self.dose_reading = dose_reading;
+        self.treatment_declaration = if dose_reading {
+            crate::propensity::TreatmentDeclaration::Dose
+        } else {
+            crate::propensity::TreatmentDeclaration::Undeclared
+        };
         self
     }
 
@@ -397,17 +418,14 @@ impl LinearAdjustmentAte {
             data.row_count(),
             self.population_registry.as_ref(),
         )?;
-        let treatment_levels = if self.dose_reading {
-            None
-        } else {
-            crate::prepare::restrict_to_contrast_levels(
-                data,
-                treatment,
-                &mut row_mask,
-                (active, control),
-                self.other_levels,
-            )?
-        };
+        let classified = crate::prepare::restrict_to_contrast_levels(
+            data,
+            treatment,
+            &mut row_mask,
+            (active, control),
+            self.other_levels,
+            self.treatment_declaration,
+        )?;
         self.refuse_unweighted_routes()?;
         let retained = self
             .sampling_weights
@@ -444,7 +462,8 @@ impl LinearAdjustmentAte {
             treatment: t,
             active,
             control,
-            treatment_levels,
+            treatment_levels: classified.levels,
+            treatment_classification: classified.classification,
             sampling_weights: retained.map(|retained| retained.record),
             preparation,
         })
@@ -756,6 +775,9 @@ impl LinearAdjustmentAte {
             .with_influence(influence.map(Arc::from));
         if let Some(levels) = problem.treatment_levels {
             point = point.with_treatment_levels(levels);
+        }
+        if let Some(classification) = problem.treatment_classification {
+            point = point.with_treatment_classification(classification);
         }
         let residuals =
             matches!(fit.variance, FitVariance::Ols).then(|| std::mem::take(&mut fit.residuals));

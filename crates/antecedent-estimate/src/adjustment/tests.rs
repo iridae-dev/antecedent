@@ -537,6 +537,10 @@ fn scales_ate_by_level_delta() {
     let effect = est.fit(&prep, &mut ws, &ctx, AssumptionSet::new()).unwrap();
     // β_T ≈ 2, delta = 2 → ATE ≈ 4
     assert!((effect.ate - 4.0).abs() < 1e-8);
+    assert_eq!(
+        effect.diagnostics.treatment_classification.map(|classification| classification.as_str()),
+        Some("dose")
+    );
 }
 
 #[test]

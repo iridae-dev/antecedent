@@ -445,7 +445,12 @@ fn prepare_iv_problem(
         crate::prepare::admit_estimator_columns(data, &ids, crate::prepare::FINITE_TABLE_ONLY)?;
     // Each selected column is gathered once, straight into the allocation the problem keeps.
     let t = data.float64_selected_arc(treatment, &row_mask).map_err(EstimationError::from)?;
-    if crate::prepare::is_discrete_with_other_levels(&t, active, control) {
+    if crate::prepare::is_discrete_with_other_levels(
+        &t,
+        active,
+        control,
+        crate::propensity::levels::TreatmentDeclaration::Undeclared,
+    ) {
         return Err(crate::util::refuse(
             antecedent_core::reason_code!("treatment_level_undeclared"),
             "iv.undeclared_level",

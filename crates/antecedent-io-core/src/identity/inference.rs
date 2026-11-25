@@ -365,6 +365,10 @@ pub struct EstimatorConfigWire {
     /// unchanged.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bootstrap_interval: Option<String>,
+    /// Declared treatment classification (`levels` or `dose`). Absent when the caller does
+    /// not declare one, so the default cutoff keeps existing digests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub treatment_classification: Option<String>,
 }
 
 /// Portable estimator-spec identity (mirrors `antecedent::EstimatorSpec` variants).

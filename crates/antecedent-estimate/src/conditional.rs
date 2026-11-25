@@ -819,6 +819,7 @@ fn refuse_undeclared_levels(
         &mut mask,
         (active, control),
         crate::propensity::levels::OtherLevels::Refuse,
+        crate::propensity::levels::TreatmentDeclaration::Undeclared,
     )?;
     Ok(())
 }

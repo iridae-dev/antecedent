@@ -858,6 +858,29 @@ fn build_overlap(
 /// Declared handling of treatment rows at neither declared level: `"refuse"` (the default) or
 /// `"exclude_undeclared"`, which restricts the target population to the rows at the two
 /// declared levels.
+/// Declared treatment classification: `"levels"` or `"dose"`. Absent means the default
+/// distinct-value cutoff.
+fn build_treatment_declaration(
+    dict: &Bound<'_, PyDict>,
+) -> PyResult<Option<antecedent::estimate::TreatmentDeclaration>> {
+    let Some(value) = dict.get_item("treatment_classification")? else {
+        return Ok(None);
+    };
+    let name: String = value.extract().map_err(|_| {
+        invalid(format!(
+            "estimator_config treatment_classification must be \"levels\" or \"dose\", got {}",
+            type_name(&value)
+        ))
+    })?;
+    match name.as_str() {
+        "levels" => Ok(Some(antecedent::estimate::TreatmentDeclaration::Levels)),
+        "dose" => Ok(Some(antecedent::estimate::TreatmentDeclaration::Dose)),
+        other => Err(invalid(format!(
+            "estimator_config treatment_classification must be \"levels\" or \"dose\", got {other:?}"
+        ))),
+    }
+}
+
 fn build_other_levels(
     dict: &Bound<'_, PyDict>,
 ) -> PyResult<Option<antecedent::estimate::OtherLevels>> {
@@ -966,6 +989,7 @@ fn build_configured_spec(
     let glm_options = build_glm_options(dict)?;
     let overlap = build_overlap(dict)?;
     let other_levels = build_other_levels(dict)?;
+    let treatment_declaration = build_treatment_declaration(dict)?;
     let sampling_weights = build_sampling_weights(dict)?;
 
     // These estimators expose the same optional inference settings in the same order.
@@ -1009,6 +1033,9 @@ fn build_configured_spec(
             }
             if let Some(policy) = other_levels {
                 est = est.with_other_levels(policy);
+            }
+            if let Some(declaration) = treatment_declaration {
+                est = est.with_treatment_declaration(declaration);
             }
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
@@ -1202,6 +1229,9 @@ fn build_configured_spec(
             }
             if let Some(policy) = other_levels {
                 est = est.with_other_levels(policy);
+            }
+            if let Some(declaration) = treatment_declaration {
+                est = est.with_treatment_declaration(declaration);
             }
             if let Some(weights) = sampling_weights {
                 est = est.with_sampling_weights(weights);
