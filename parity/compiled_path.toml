@@ -1080,6 +1080,11 @@ disposition = "not_scientific"
 reason = "data container or file access; computes no estimate"
 
 [[row]]
+path = "antecedent_data::arrow_adapter::load_numeric_columns"
+disposition = "not_scientific"
+reason = "imports Arrow column buffers into a numeric table"
+
+[[row]]
 path = "antecedent_data::file_source::TableFile::materialize"
 disposition = "not_scientific"
 reason = "data container or file access; computes no estimate"
@@ -1093,6 +1098,11 @@ reason = "data container or file access; computes no estimate"
 path = "antecedent_data::file_source::TableFile::scan_identity"
 disposition = "not_scientific"
 reason = "data container or file access; computes no estimate"
+
+[[row]]
+path = "antecedent_data::file_source::TableFile::scan_observations"
+disposition = "not_scientific"
+reason = "reads the projected observation masks from a table file"
 
 [[row]]
 path = "antecedent_data::file_source::TableStream::reader"
