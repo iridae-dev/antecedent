@@ -43,7 +43,7 @@ EXEMPT = {
     "recognizes": "kind sniffing; admits nothing",
     "recognised_artifact_kind": "kind sniffing; admits nothing",
     "retain_disk_backed": "takes a spill directory, not an artifact",
-    "open": "opens a row spill file the process wrote itself, not an artifact",
+    # compiled_study::open is a loader. open_expecting binds the invariant.
     "from_cbor": "generic CBOR codec under every loader",
     "decode_with_version": "version gate of the shared codec under every loader",
     "path_specific_from_wire": "wire conversion, not bytes",
@@ -73,6 +73,9 @@ EXEMPT = {
     "read_streaming": "chunked container reader that never holds the artifact whole",
     "zstd_decompress_chunked": "stream decompressor",
     "read_to": "chunked stream reader that never holds the stream whole",
+    "source_content_digest": "rebuilds a source-witness content digest; admits nothing",
+    "accept_source_body": "checks a catalog content digest the study opener already required",
+    "decode_identification_product": "checks canonical identification-product bytes; the digest is identification_product_digest_wire, not an artifact admission",
 }
 # Calibration replays of a measured source, called on bytes the measured consumer admitted.
 EXEMPT_PREFIX = {
@@ -81,6 +84,10 @@ EXEMPT_PREFIX = {
     # expectation; it builds an artifact, it does not admit one.
     ("rollout_artifact.rs", "new"),
     ("rollout_artifact.rs", "with_source_evidence"),
+    # Opens a row spill file the process wrote itself, not an artifact.
+    ("weighted_gaussian_capacity/rows.rs", "open"),
+    # Validates a caller-owned stream under StreamBounds. Retained-identity loaders sit above it.
+    ("stream_artifact.rs", "open"),
 }
 NOT_LOADER_NAME = re.compile(
     r"^(to_|write|encode|digest|hash|canonical|check_|validate_|is_|peek|container_kind|f64s|"

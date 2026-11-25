@@ -13,7 +13,9 @@
 //! An external row keeps the caller’s URI and has no body section. Opening
 //! accepts bytes the caller’s resolver supplies for that URI. The expected
 //! program identity is the retained digest of the invariant and is never read
-//! out of the container. Each resolved body must have the catalog’s length and
+//! out of the container. [`open_expecting`] binds that digest before [`open`]
+//! reads the study; a digest of the container bytes does not bind. Each resolved
+//! body must have the catalog’s length and
 //! BLAKE3 digest. Source rows must also rebuild to the content digest the
 //! catalog declares.
 //!
@@ -306,10 +308,8 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
     let catalog = to_cbor(&CatalogWire { version: CATALOG_VERSION, entries, estimate_bits })?;
     let mut descriptors = Vec::new();
     let mut sections = Vec::new();
-    for (id, bytes) in [
-        (INVARIANT_SECTION, parts.invariant),
-        (CATALOG_SECTION, catalog.as_slice()),
-    ] {
+    for (id, bytes) in [(INVARIANT_SECTION, parts.invariant), (CATALOG_SECTION, catalog.as_slice())]
+    {
         let (descriptor, stored) = section(id, bytes);
         descriptors.push(descriptor);
         sections.push(stored);
@@ -338,18 +338,11 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
     };
     let mut bytes = Vec::new();
     artifact.write_to(&mut bytes)?;
-    Ok(WrittenStudy {
-        bytes,
-        expected_identity: artifact_identity(parts.invariant).to_hex(),
-    })
+    Ok(WrittenStudy { bytes, expected_identity: artifact_identity(parts.invariant).to_hex() })
 }
 
 fn section_data<'a>(artifact: &'a EncodedArtifact, id: &str) -> Option<&'a [u8]> {
-    artifact
-        .sections
-        .iter()
-        .find(|section| section.id == id)
-        .map(|section| section.data.as_ref())
+    artifact.sections.iter().find(|section| section.id == id).map(|section| section.data.as_ref())
 }
 
 fn entry_bytes(
@@ -407,11 +400,35 @@ fn accept_bytes(entry: &EntryWire, bytes: &[u8]) -> Result<(), IoError> {
     Ok(())
 }
 
+/// Admit `bytes` only when `retained` is the invariant's artifact identity.
+///
+/// The container's own digest is a different value. This binds the invariant
+/// before [`open`] reads the study. Binding the container digest refuses.
+///
+/// # Errors
+///
+/// As [`open`]. A retained identity that is not the invariant is
+/// `expected identity does not match the program invariant`.
+pub fn open_expecting(
+    bytes: &[u8],
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    resolve: &dyn Fn(&str) -> Option<Vec<u8>>,
+    caller_supplied: bool,
+) -> Result<OpenedStudy, IoError> {
+    let artifact = EncodedArtifact::read_from(bytes)?;
+    let invariant = section_data(&artifact, INVARIANT_SECTION)
+        .ok_or_else(|| refused("compiled study has no invariant"))?;
+    crate::retained_artifact::bind_retained_artifact(invariant, retained)
+        .map_err(|_| refused("expected identity does not match the program invariant"))?;
+    open(bytes, &retained.to_hex(), resolve, caller_supplied)
+}
+
 /// Open a compiled study.
 ///
-/// `expected_identity` is the digest [`write`] returned. `resolve` supplies
-/// bytes for an external URI and returns `None` when it cannot. `caller_supplied`
-/// is the live callback object; the study does not store one.
+/// `expected_identity` is the digest [`write`] returned: the invariant's
+/// artifact identity, not the container's. `resolve` supplies bytes for an
+/// external URI and returns `None` when it cannot. `caller_supplied` is the
+/// live callback object; the study does not store one.
 ///
 /// # Errors
 ///
@@ -442,10 +459,11 @@ pub fn open(
     let invariant = section_data(&artifact, INVARIANT_SECTION)
         .ok_or_else(|| refused("compiled study has no invariant"))?
         .to_vec();
-    let identity = artifact_identity(&invariant).to_hex();
-    if identity != expected_identity {
-        return Err(refused("expected identity does not match the program invariant"));
-    }
+    // The expected identity is the invariant's artifact digest, not the container's.
+    let retained = crate::retained_artifact::RetainedArtifactIdentity::from_hex(expected_identity)
+        .map_err(|_| refused("expected identity does not match the program invariant"))?;
+    crate::retained_artifact::bind_retained_artifact(&invariant, &retained)
+        .map_err(|_| refused("expected identity does not match the program invariant"))?;
     let catalog_bytes = section_data(&artifact, CATALOG_SECTION)
         .ok_or_else(|| refused("compiled study has no catalog"))?;
     let catalog: CatalogWire = from_cbor(catalog_bytes)?;
@@ -585,12 +603,9 @@ mod tests {
             "response": null, "posterior_artifact": null, "mediation_grid": null, "structural_response": null
         }))
         .unwrap();
-        let artifact = crate::encode_analysis_result_artifact(
-            &result,
-            vec!["t".into(), "y".into()],
-            "claim",
-        )
-        .unwrap();
+        let artifact =
+            crate::encode_analysis_result_artifact(&result, vec!["t".into(), "y".into()], "claim")
+                .unwrap();
         let mut bytes = Vec::new();
         artifact.write_to(&mut bytes).unwrap();
         bytes
@@ -636,12 +651,9 @@ mod tests {
         body.external_uri = Some("memory://source".into());
         let invariant = b"invariant".to_vec();
         let sealed = claim();
-        let written = write(StudyParts {
-            invariant: &invariant,
-            bodies: &[body],
-            claim: Some(&sealed),
-        })
-        .unwrap();
+        let written =
+            write(StudyParts { invariant: &invariant, bodies: &[body], claim: Some(&sealed) })
+                .unwrap();
         let opened = open(&written.bytes, &written.expected_identity, &none, false).unwrap();
         assert!(!opened.resumable);
         assert_eq!(opened.unresolved.len(), 1);
@@ -658,22 +670,31 @@ mod tests {
     #[test]
     fn a_mismatched_expectation_or_a_corrupt_body_is_refused() {
         let body = source_body();
-        let written = write(StudyParts {
-            invariant: b"invariant",
-            bodies: &[body.clone()],
-            claim: None,
-        })
-        .unwrap();
-        let wrong = open(&written.bytes, "00", &none, false).unwrap_err();
+        let written =
+            write(StudyParts { invariant: b"invariant", bodies: &[body.clone()], claim: None })
+                .unwrap();
+        let wrong = open(&written.bytes, &"00".repeat(32), &none, false).unwrap_err();
         assert!(wrong.to_string().contains("expected identity"), "{wrong}");
+        let container = artifact_identity(&written.bytes).to_hex();
+        assert_ne!(container, written.expected_identity);
+        let as_container = open(&written.bytes, &container, &none, false).unwrap_err();
+        assert!(as_container.to_string().contains("expected identity"), "{as_container}");
+        let retained = crate::retained_artifact::RetainedArtifactIdentity::from_hex(
+            &written.expected_identity,
+        )
+        .unwrap();
+        let bound = open_expecting(&written.bytes, &retained, &none, false).unwrap();
+        assert_eq!(bound.invariant, b"invariant");
+        let container_id =
+            crate::retained_artifact::RetainedArtifactIdentity::of_bytes(&written.bytes);
+        let bound_container =
+            open_expecting(&written.bytes, &container_id, &none, false).unwrap_err();
+        assert!(bound_container.to_string().contains("expected identity"), "{bound_container}");
         let mut external = body;
         external.external_uri = Some("memory://source".into());
-        let written = write(StudyParts {
-            invariant: b"invariant",
-            bodies: &[external],
-            claim: None,
-        })
-        .unwrap();
+        let written =
+            write(StudyParts { invariant: b"invariant", bodies: &[external], claim: None })
+                .unwrap();
         let mut corrupt = source_body().bytes;
         let last = corrupt.len() - 1;
         corrupt[last] ^= 0x01;
@@ -737,6 +758,35 @@ mod tests {
     }
 
     #[test]
+    fn catalog_entries_decode_in_role_order() {
+        let bodies = [
+            StudyBody {
+                role: SPILL.into(),
+                bytes: b"spill-rows".to_vec(),
+                external_uri: None,
+                required: true,
+                summary_only: false,
+                names: Vec::new(),
+            },
+            StudyBody {
+                role: FROZEN_SCORES.into(),
+                bytes: b"frozen".to_vec(),
+                external_uri: None,
+                required: true,
+                summary_only: false,
+                names: Vec::new(),
+            },
+        ];
+        let written =
+            write(StudyParts { invariant: b"invariant", bodies: &bodies, claim: None }).unwrap();
+        let artifact = EncodedArtifact::read_from(written.bytes.as_slice()).unwrap();
+        let catalog: CatalogWire =
+            from_cbor(section_data(&artifact, CATALOG_SECTION).unwrap()).unwrap();
+        let roles: Vec<&str> = catalog.entries.iter().map(|entry| entry.role.as_str()).collect();
+        assert_eq!(roles, vec![FROZEN_SCORES, SPILL]);
+    }
+
+    #[test]
     fn moved_continuation_roles_round_trip() {
         let roles = [
             FROZEN_SCORES,
@@ -782,11 +832,18 @@ mod tests {
         assert!(KIND_INVENTORY.iter().any(|row| {
             row.kind == "analysis_result" && row.continuation.is_none() && row.producer.is_none()
         }));
-        assert!(KIND_INVENTORY.iter().any(|row| row.kind == "ANTSPILL" && row.continuation == Some(SPILL)));
-        assert!(KIND_INVENTORY.iter().any(|row| {
-            row.kind == "learned_trial" && row.continuation.is_none()
-        }));
-        let moved: Vec<_> = KIND_INVENTORY.iter().filter(|row| row.continuation.is_some()).collect();
+        assert!(
+            KIND_INVENTORY
+                .iter()
+                .any(|row| row.kind == "ANTSPILL" && row.continuation == Some(SPILL))
+        );
+        assert!(
+            KIND_INVENTORY
+                .iter()
+                .any(|row| { row.kind == "learned_trial" && row.continuation.is_none() })
+        );
+        let moved: Vec<_> =
+            KIND_INVENTORY.iter().filter(|row| row.continuation.is_some()).collect();
         assert!(moved.len() >= 9, "{}", moved.len());
     }
 }
