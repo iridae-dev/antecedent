@@ -484,3 +484,157 @@ fn site_lowered_decision_free_identity_names_the_cell_payload() {
     let other = named[3].with_decision(decision).expect("no decision yet");
     assert!(!other.decides_over(estimate));
 }
+
+/// The tag `antecedent.lowered_program`, with no further suffix, is passed to
+/// `CanonicalWriter` only from `encode_invariant`. Suffixed tags
+/// (`antecedent.lowered_program.statistical.v3` and the rest) stay with their writers.
+#[test]
+fn lowered_program_tag_reaches_canonical_writer_only_from_encode_invariant() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let lowered = std::fs::read_to_string(root.join("planner/lowered.rs")).expect("lowered.rs");
+    assert!(
+        lowered.contains("const LOWERED_PROGRAM_TAG: &str = \"antecedent.lowered_program\";"),
+        "LOWERED_PROGRAM_TAG is the bare program tag"
+    );
+    let mut files = Vec::new();
+    collect_rust_sources(&root, &mut files);
+    let mut callers = Vec::new();
+    for path in &files {
+        let source = std::fs::read_to_string(path).expect("rust source");
+        for function in bare_lowered_program_tag_calls(&source) {
+            callers.push((path.display().to_string(), function));
+        }
+    }
+    assert_eq!(
+        callers.len(),
+        1,
+        "bare tag reaches CanonicalWriter only from encode_invariant; found {callers:?}"
+    );
+    assert!(callers[0].0.ends_with("planner/lowered.rs"), "{}", callers[0].0);
+    assert_eq!(callers[0].1, "encode_invariant");
+}
+
+fn collect_rust_sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+    let entries = std::fs::read_dir(dir)
+        .unwrap_or_else(|error| panic!("read {}: {error}", dir.display()));
+    for entry in entries {
+        let path = entry.expect("directory entry").path();
+        if path.is_dir() {
+            collect_rust_sources(&path, out);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            out.push(path);
+        }
+    }
+}
+
+/// Functions that pass the bare tag, or the constant that holds it, to `CanonicalWriter::new`.
+fn bare_lowered_program_tag_calls(source: &str) -> Vec<String> {
+    let needle = "CanonicalWriter::new";
+    let mut from = 0;
+    let mut found = Vec::new();
+    while let Some(relative) = source[from..].find(needle) {
+        let at = from + relative;
+        from = at + needle.len();
+        if line_comment_covers(source, at) {
+            continue;
+        }
+        let rest = source[at + needle.len()..].trim_start();
+        if !rest.starts_with('(') {
+            continue;
+        }
+        let Some(argument) = first_call_argument(rest) else { continue };
+        if is_bare_lowered_program_tag(argument) {
+            found.push(enclosing_function(source, at).to_string());
+        }
+    }
+    found
+}
+
+fn is_bare_lowered_program_tag(argument: &str) -> bool {
+    let argument = argument.trim();
+    if argument == "LOWERED_PROGRAM_TAG" || argument == "&LOWERED_PROGRAM_TAG" {
+        return true;
+    }
+    let Some(text) = argument.strip_prefix('"').and_then(|rest| rest.strip_suffix('"')) else {
+        return false;
+    };
+    !text.contains('\\') && text == "antecedent.lowered_program"
+}
+
+fn first_call_argument(call: &str) -> Option<&str> {
+    let inside = call.strip_prefix('(')?;
+    let mut depth = 0_i32;
+    let mut in_string = false;
+    let mut escape = false;
+    for (index, ch) in inside.char_indices() {
+        if in_string {
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '(' => depth += 1,
+            ')' if depth == 0 => return Some(inside[..index].trim()),
+            ')' => depth -= 1,
+            ',' if depth == 0 => return Some(inside[..index].trim()),
+            _ => {}
+        }
+    }
+    None
+}
+
+fn enclosing_function(source: &str, index: usize) -> &str {
+    let mut name = "<outside a function>";
+    let mut rest = &source[..index];
+    while let Some(at) = rest.find("fn ") {
+        let absolute = source[..index].len() - rest.len() + at;
+        let boundary = absolute == 0
+            || {
+                let previous = source.as_bytes()[absolute - 1];
+                !previous.is_ascii_alphanumeric() && previous != b'_'
+            };
+        if boundary && !line_comment_covers(source, absolute) {
+            let after = &source[absolute + 3..];
+            let end = after
+                .find(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_')
+                .unwrap_or(after.len());
+            if end > 0 {
+                name = &after[..end];
+            }
+        }
+        rest = &rest[at + 3..];
+    }
+    name
+}
+
+fn line_comment_covers(source: &str, index: usize) -> bool {
+    let line_start = source[..index].rfind('\n').map_or(0, |newline| newline + 1);
+    let line = &source[line_start..index];
+    let bytes = line.as_bytes();
+    let mut in_string = false;
+    let mut escape = false;
+    let mut cursor = 0;
+    while cursor + 1 < bytes.len() {
+        if in_string {
+            if escape {
+                escape = false;
+            } else if bytes[cursor] == b'\\' {
+                escape = true;
+            } else if bytes[cursor] == b'"' {
+                in_string = false;
+            }
+        } else if bytes[cursor] == b'"' {
+            in_string = true;
+        } else if bytes[cursor] == b'/' && bytes[cursor + 1] == b'/' {
+            return true;
+        }
+        cursor += 1;
+    }
+    false
+}

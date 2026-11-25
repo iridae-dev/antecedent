@@ -9,6 +9,7 @@
 //!
 //! The identity covers layers one to four and six. Layer five is execution
 //! accounting: a data refresh may re-plan it without changing what was compiled.
+//! Every finish writes that fingerprint through `encode_invariant`.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -569,32 +570,7 @@ impl RetainedIdentification {
 
 impl IdentificationLayer {
     fn write(&self, writer: &mut CanonicalWriter) {
-        match self {
-            Self::Deferred { reason, .. } => {
-                writer.text("deferred").text(reason);
-            }
-            Self::Retained(retained) => {
-                writer.text("retained");
-                match &retained.product {
-                    Some(product) => writer.word(1).bytes(product.identity().as_bytes()),
-                    None => writer.word(0),
-                };
-                writer.word(retained.caches.len() as u64);
-                for cache in &*retained.caches {
-                    writer.text(cache.kind());
-                }
-            }
-            Self::PerExecution { reason } => {
-                writer.text("per_execution").text(reason);
-            }
-            Self::NonGraphical(identification) => {
-                writer.text("non_graphical");
-                identification.write(writer);
-            }
-            Self::NotClaimed { refusal } => {
-                writer.text("not_claimed").opt_text(refusal.as_deref());
-            }
-        }
+        encode_identification(writer, self);
     }
 }
 
@@ -768,6 +744,143 @@ impl ClaimDemand {
     }
 }
 
+/// Cell prefix the sixteen finishes write ahead of the shared layer tail.
+///
+/// A new prefix does not compile until [`encode_invariant`] has an arm. Program-family
+/// cells share one arm: finishes pass the stable name, so a new [`ProgramCell`] family
+/// does not need an arm of its own. Route, cyclic, planning and chain prefixes are the
+/// other layouts those finishes write.
+#[derive(Clone, Copy)]
+enum EncodedCell {
+    /// Route-cell name, the depth name, and the deferred operations when the depth defers them.
+    Route { cell: RouteCell, depth: LoweringDepth },
+    /// `CyclicFamily`, the family name, then a complete depth.
+    CyclicFamily(&'static str),
+    /// `ExperimentPlanning`, the design name, then a complete depth.
+    Planning(&'static str),
+    /// `PropagationChain`, the reading, then a complete depth.
+    PropagationChain(&'static str),
+    /// A program-family cell's stable name, then a complete depth. No payload.
+    ///
+    /// The name is [`ProgramCell::as_str`], which drops a route, family, design or reading
+    /// payload. The finishes that carry a payload use the variants above.
+    ProgramFamily(&'static str),
+}
+
+/// How a finish writes the scientific problem into the fingerprint.
+#[derive(Clone, Copy)]
+enum ScientificEncoding<'a> {
+    /// The problem as the finish stored it.
+    Stored(&'a ScientificProblem),
+    /// The same problem with `supported` cleared, so promoting the capability annotates
+    /// the same program.
+    Unsupported(&'a ScientificProblem),
+}
+
+/// Fingerprint of one lowered program under [`LOWERED_PROGRAM_TAG`].
+///
+/// [`CanonicalWriter`] is the byte sink. It frames every field with the production framing
+/// kernels and hashes that stream. This function is the only place in this crate that opens
+/// the tag `antecedent.lowered_program` with no further suffix.
+///
+/// The stream is the cell prefix, the scientific problem, the identification layer, the
+/// statistical layer's lowered digest (`lowered_layer_digest`, not the v3 program identity),
+/// the evidence layer's identity, and the claim's uncertainty reading. The decision is inside
+/// the evidence identity. Layer five, live callbacks, arena handles, execution budgets and
+/// the claim kind are not written.
+#[must_use]
+fn encode_invariant(
+    cell: EncodedCell,
+    scientific: ScientificEncoding<'_>,
+    identification: &IdentificationLayer,
+    statistical: &StatisticalProgram,
+    evidence: &EvidenceDecisionProgram,
+    uncertainty: UncertaintyReading,
+) -> SemanticDigest {
+    let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
+    match cell {
+        EncodedCell::Route { cell, depth } => {
+            writer.text(cell.as_str());
+            match depth {
+                LoweringDepth::Complete => {
+                    writer.text(LoweringDepth::Complete.as_str());
+                }
+                LoweringDepth::AtomOperationsDeferred { operations } => {
+                    writer.text(LoweringDepth::AtomOperationsDeferred { operations }.as_str());
+                    writer.text(operations);
+                }
+            }
+        }
+        EncodedCell::CyclicFamily(family) => {
+            writer
+                .text(ProgramCell::CyclicFamily(family).as_str())
+                .text(family)
+                .text(LoweringDepth::Complete.as_str());
+        }
+        EncodedCell::Planning(design) => {
+            writer
+                .text(ProgramCell::Planning(design).as_str())
+                .text(design)
+                .text(LoweringDepth::Complete.as_str());
+        }
+        EncodedCell::PropagationChain(reading) => {
+            writer
+                .text(ProgramCell::PropagationChain(reading).as_str())
+                .text(reading)
+                .text(LoweringDepth::Complete.as_str());
+        }
+        EncodedCell::ProgramFamily(name) => {
+            writer.text(name).text(LoweringDepth::Complete.as_str());
+        }
+    }
+    match scientific {
+        ScientificEncoding::Stored(problem) => problem.write(&mut writer),
+        ScientificEncoding::Unsupported(problem) => {
+            ScientificProblem { supported: false, ..problem.clone() }.write(&mut writer);
+        }
+    }
+    encode_identification(&mut writer, identification);
+    writer.bytes(statistical.lowered_layer_digest().as_bytes());
+    writer.bytes(evidence.identity().as_bytes());
+    writer.text(uncertainty.as_str());
+    SemanticDigest::from_bytes(writer.finish())
+}
+
+/// Identification bytes of [`encode_invariant`]. A new [`IdentificationLayer`] variant does
+/// not compile until it has an arm here. A deferred failure, a retained key, its seals and
+/// its execution proof are not part of the fingerprint.
+fn encode_identification(writer: &mut CanonicalWriter, identification: &IdentificationLayer) {
+    match identification {
+        IdentificationLayer::Deferred { reason, failure: _ } => {
+            writer.text("deferred").text(reason);
+        }
+        IdentificationLayer::Retained(retained) => {
+            let RetainedIdentification { product, caches, key: _, seals: _, execution: _ } =
+                retained.as_ref();
+            writer.text("retained");
+            match product {
+                Some(product) => writer.word(1).bytes(product.identity().as_bytes()),
+                None => writer.word(0),
+            };
+            writer.word(caches.len() as u64);
+            for cache in caches.iter() {
+                writer.text(cache.kind());
+            }
+        }
+        IdentificationLayer::PerExecution { reason } => {
+            writer.text("per_execution").text(reason);
+        }
+        IdentificationLayer::NonGraphical(non_graphical) => {
+            writer.text("non_graphical");
+            // `NonGraphicalIdentification::write` matches every variant.
+            non_graphical.write(writer);
+        }
+        IdentificationLayer::NotClaimed { refusal } => {
+            writer.text("not_claimed").opt_text(refusal.as_deref());
+        }
+    }
+}
+
 /// The layers a route lowering assembles. [`Self::finish`] computes the identity.
 pub(crate) struct LoweredParts {
     pub(crate) cell: RouteCell,
@@ -783,18 +896,14 @@ pub(crate) struct LoweredParts {
 impl LoweredParts {
     /// Seal the parts into a lowered program.
     pub(crate) fn finish(self) -> LoweredProgram {
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(self.cell.as_str()).text(self.depth.as_str());
-        // A complete program writes nothing more, so its identity is unchanged.
-        if let Some(operations) = self.depth.deferred_operations() {
-            writer.text(operations);
-        }
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::Route { cell: self.cell, depth: self.depth },
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell: ProgramCell::Route(self.cell),
             depth: self.depth,
@@ -828,14 +937,14 @@ impl CyclicLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::CyclicFamily(self.family);
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(self.family).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::CyclicFamily(self.family),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -869,14 +978,14 @@ impl PlanningLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::Planning(self.design);
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(self.design).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::Planning(self.design),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -911,14 +1020,14 @@ impl ChainLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::PropagationChain(self.reading);
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(self.reading).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::PropagationChain(self.reading),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -950,14 +1059,14 @@ impl StandaloneCompositionLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = self.cell;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -988,14 +1097,14 @@ impl GraphImputationLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::GraphImputation;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1026,14 +1135,14 @@ impl CategoricalPosteriorLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::CategoricalPosteriorCandidate;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1064,14 +1173,14 @@ impl GraphFalsificationLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::GraphFalsification;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1102,14 +1211,14 @@ impl TransportedPathSpecificLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::TransportedPathSpecific;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1146,14 +1255,14 @@ impl ModelOperationLoweredParts {
             ProgramCell::FittedModelSimulation
         };
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1184,14 +1293,14 @@ impl LocalCyclicCallbackLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::LocalCyclicCallback;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1222,14 +1331,14 @@ impl MnarFixedShiftLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::MnarFixedShift;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1260,14 +1369,14 @@ impl DiscoveryValidationLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::DiscoveryValidation;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
-        self.scientific.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Stored(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1298,15 +1407,15 @@ impl LatentSoftInterventionLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = ProgramCell::LatentSoftIntervention;
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
         // Promotion of this capability annotates the same scientific program.
-        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Unsupported(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1368,15 +1477,15 @@ impl EventProcessLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = self.route.cell();
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
         // Promotion of this capability annotates the same scientific program.
-        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Unsupported(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
@@ -1457,15 +1566,15 @@ impl JointPanelLoweredParts {
     pub(crate) fn finish(self) -> LoweredProgram {
         let cell = self.route.cell();
         let depth = LoweringDepth::Complete;
-        let mut writer = CanonicalWriter::new(LOWERED_PROGRAM_TAG);
-        writer.text(cell.as_str()).text(depth.as_str());
         // Promotion of this capability annotates the same scientific program.
-        ScientificProblem { supported: false, ..self.scientific.clone() }.write(&mut writer);
-        self.identification.write(&mut writer);
-        writer.bytes(self.statistical.lowered_layer_digest().as_bytes());
-        writer.bytes(self.evidence.identity().as_bytes());
-        writer.text(self.claim.uncertainty.as_str());
-        let identity = SemanticDigest::from_bytes(writer.finish());
+        let identity = encode_invariant(
+            EncodedCell::ProgramFamily(cell.as_str()),
+            ScientificEncoding::Unsupported(&self.scientific),
+            &self.identification,
+            &self.statistical,
+            &self.evidence,
+            self.claim.uncertainty,
+        );
         LoweredProgram {
             cell,
             depth,
