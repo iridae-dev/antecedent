@@ -262,14 +262,14 @@ pub(crate) fn root_weight_design(
 ) -> antecedent_stats::CompiledDesign {
     let n = design.nrows;
     let root: Vec<f64> = weights.iter().map(|w| w.sqrt()).collect();
-    let mut matrix = design.matrix.to_vec();
-    for column in matrix.chunks_exact_mut(n) {
+    for column in std::sync::Arc::make_mut(&mut design.matrix).chunks_exact_mut(n) {
         for (value, scale) in column.iter_mut().zip(&root) {
             *value *= scale;
         }
     }
-    design.outcome = design.outcome.iter().zip(&root).map(|(y, scale)| y * scale).collect();
-    design.matrix = matrix.into();
+    for (value, scale) in std::sync::Arc::make_mut(&mut design.outcome).iter_mut().zip(&root) {
+        *value *= scale;
+    }
     design
 }
 

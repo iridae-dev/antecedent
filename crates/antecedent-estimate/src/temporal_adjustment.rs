@@ -26,7 +26,7 @@ use antecedent_model::history_operators::{
     ActionTiming, CensoringAssignmentWeight, HistoryConstruction, HistoryOperatorError,
     HistoryScan, Horizon, SequentialRegression,
 };
-use antecedent_stats::CompiledDesign;
+use antecedent_stats::{CompiledDesign, DesignColumnMap, DesignColumnRole, StandardizationRecord};
 
 use crate::adjustment::{
     EffectEstimate, EstimationWorkspace, LinearAdjustmentAte, PreparedEstimationProblem,
@@ -375,7 +375,7 @@ impl TemporalLinearAdjustment {
         (PreparedEstimationProblem, crate::temporal_block::AlignedRows, Option<GapSelection>),
         EstimationError,
     > {
-        let TemporalDesignInputs { data, estimand, query, indexer, split, policy } = *inputs;
+        let TemporalDesignInputs { data, estimand, query, indexer, split, .. } = *inputs;
         if self.inner.overlap != OverlapPolicy::ExplicitOverride {
             return Err(EstimationError::Overlap {
                 message: "temporal linear adjustment requires ExplicitOverride overlap policy",
@@ -450,14 +450,9 @@ impl TemporalLinearAdjustment {
         }
 
         let max_lag = cols.iter().map(|c| c.lag.raw()).max().unwrap_or(0);
-        let mut scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))
-            .map_err(EstimationError::from)?;
-        let (prep, complete) = if allow_gaps {
-            let gapped = scan.with_gaps(data, policy).map_err(EstimationError::from)?;
-            (gapped.sample, Some(gapped.complete))
-        } else {
-            (scan.complete(data, policy).map_err(EstimationError::from)?, None)
-        };
+        let scan = HistoryScan::plan(data, max_lag, Arc::<[LaggedColumn]>::from(cols))?;
+        let sample = scan.borrow_columns(data, allow_gaps)?;
+        let complete = sample.complete;
 
         let split = match split {
             Some(split) => {
@@ -474,7 +469,7 @@ impl TemporalLinearAdjustment {
             None => None,
         };
         let split = split.as_ref();
-        let n = prep.n;
+        let n = scan.lag_plan().n_effective();
         let (row_start, row_end) = if let Some(s) = split {
             // Prepared row `r` is the lag window `[r, r + max_lag]`. A row belongs to the
             // estimation half only when its whole window does: `r >= estimation.start` (so
@@ -492,13 +487,6 @@ impl TemporalLinearAdjustment {
             (0, n)
         };
         let nrows = row_end - row_start;
-        let t = &prep.column(0)[row_start..row_end];
-        let y = &prep.column(1)[row_start..row_end];
-        let cov_refs: Vec<(VariableId, &[f64])> = adj_keys
-            .iter()
-            .enumerate()
-            .map(|(i, &vid)| (vid, &prep.column(2 + i)[row_start..row_end]))
-            .collect();
         // Intact windows only, in time order; every window when the series has no gaps.
         let selected: Vec<usize> = match &complete {
             Some(intact) => (0..nrows).filter(|&r| intact[row_start + r]).collect(),
@@ -509,20 +497,13 @@ impl TemporalLinearAdjustment {
                 "fewer than three complete lag windows remain after dropping windows that read a missing value",
             ));
         }
-        // The design holds only the selected windows; `selected` labels each design row with
-        // its source window.
-        let gather = |values: &[f64]| -> Vec<f64> { selected.iter().map(|&r| values[r]).collect() };
-        let (t_sel, y_sel) = (gather(t), gather(y));
-        let cov_sel: Vec<(VariableId, Vec<f64>)> =
-            cov_refs.iter().map(|(id, values)| (*id, gather(values))).collect();
-        let cov_sel_refs: Vec<(VariableId, &[f64])> =
-            cov_sel.iter().map(|(id, values)| (*id, values.as_slice())).collect();
-        let design = if modifiers.is_empty() {
-            CompiledDesign::linear_adjustment(&t_sel, &cov_sel_refs, &y_sel, &selected)
-        } else {
-            conditional_design(&t_sel, &cov_sel, modifiers.len(), &y_sel, &selected)
-        }
-        .map_err(EstimationError::from)?;
+        let design = selected_window_design(
+            &sample.columns,
+            &adj_keys,
+            modifiers.len(),
+            &selected,
+            row_start,
+        )?;
         let (design, sampling_weights) =
             weight_windows(design, data, query, max_lag as usize + row_start, nrows, allow_gaps)?;
         let selection = complete.as_ref().map(|intact| GapSelection {
@@ -555,7 +536,7 @@ impl TemporalLinearAdjustment {
                 overlap: self.inner.overlap,
                 treatment_delta,
                 target_population: TargetPopulation::AllObserved,
-                treatment: selected.iter().map(|&r| t[r]).collect(),
+                treatment: selected.iter().map(|&r| sample.columns[0][row_start + r]).collect(),
                 active,
                 control,
                 treatment_levels: None,
@@ -1063,36 +1044,68 @@ fn checked_effect_modifiers<'q>(
     Ok(modifiers)
 }
 
-/// `[1 | T | W_c | T x W_c | Z]` with the modifiers centred at their mean over the retained
-/// windows.
-///
-/// `covariates` holds the `q` modifiers first, then the adjustment columns. The coefficient of
-/// `T` in this regression is `beta_T + sum_j beta_{T x W_j} mean(W_j)` of the uncentred
-/// regression, the marginal conditional effect per unit of treatment.
-fn conditional_design(
-    treatment: &[f64],
-    covariates: &[(VariableId, Vec<f64>)],
-    q: usize,
-    outcome: &[f64],
+/// Fit rows end at the selected source windows. The interaction design uses
+/// `[1 | T | W_c | T x W_c | Z]` and centers modifiers over those same rows.
+fn selected_window_design(
+    columns: &[&[f64]],
+    covariates: &[VariableId],
+    modifiers: usize,
     selected: &[usize],
-) -> Result<CompiledDesign, antecedent_stats::StatsError> {
-    let rows = treatment.len();
-    let mut columns: Vec<(VariableId, Vec<f64>)> = Vec::with_capacity(covariates.len() + q);
-    let centred: Vec<(VariableId, Vec<f64>)> = covariates[..q]
-        .iter()
-        .map(|(id, values)| {
-            let mean = values.iter().sum::<f64>() / rows.max(1) as f64;
-            (*id, values.iter().map(|v| v - mean).collect())
-        })
-        .collect();
-    columns.extend(centred.iter().cloned());
-    for (id, values) in &centred {
-        columns.push((*id, treatment.iter().zip(values).map(|(t, w)| t * w).collect()));
+    row_start: usize,
+) -> Result<CompiledDesign, EstimationError> {
+    use antecedent_core::execution_attempt::{PhysicalEvent, record_physical};
+
+    let nrows = selected.len();
+    if nrows == 0 {
+        return Err(antecedent_stats::StatsError::Shape { message: "empty design" }.into());
     }
-    columns.extend(covariates[q..].iter().cloned());
-    let refs: Vec<(VariableId, &[f64])> =
-        columns.iter().map(|(id, values)| (*id, values.as_slice())).collect();
-    CompiledDesign::linear_adjustment(treatment, &refs, outcome, selected)
+    let ncols = 2 + covariates.len() + modifiers;
+    let cells = nrows
+        .checked_mul(ncols)
+        .ok_or_else(|| EstimationError::data_msg("design size overflow"))?;
+    let mut matrix: Arc<[f64]> = (0..cells).map(|_| 0.0).collect();
+    record_physical(PhysicalEvent::Allocation, 1);
+    record_physical(PhysicalEvent::AllocatedBytes, size_of_val(matrix.as_ref()) as u64);
+    let values = Arc::get_mut(&mut matrix).expect("new design has exactly one owner");
+    let copy = |destination: &mut [f64], source: &[f64]| {
+        for (value, &row) in destination.iter_mut().zip(selected) {
+            *value = source[row_start + row];
+        }
+    };
+    values[..nrows].fill(1.0);
+    copy(&mut values[nrows..2 * nrows], columns[0]);
+    for (index, source) in columns[2..].iter().enumerate() {
+        let column = 2 + index + if index < modifiers { 0 } else { modifiers };
+        copy(&mut values[column * nrows..(column + 1) * nrows], source);
+    }
+    for index in 0..modifiers {
+        let centered = (index + 2) * nrows;
+        let interaction = centered + modifiers * nrows;
+        let mean = values[centered..centered + nrows].iter().sum::<f64>() / nrows as f64;
+        for row in 0..nrows {
+            values[centered + row] -= mean;
+            values[interaction + row] = values[nrows + row] * values[centered + row];
+        }
+    }
+    let outcome: Arc<[f64]> = selected.iter().map(|&row| columns[1][row_start + row]).collect();
+    record_physical(PhysicalEvent::Allocation, 1);
+    record_physical(PhysicalEvent::AllocatedBytes, size_of_val(outcome.as_ref()) as u64);
+    record_physical(PhysicalEvent::Copy, (2 + covariates.len()) as u64);
+    record_physical(PhysicalEvent::CopiedBytes, (nrows * (2 + covariates.len()) * 8) as u64);
+    let roles = [DesignColumnRole::Intercept, DesignColumnRole::Treatment].into_iter().chain(
+        covariates[..modifiers].iter().chain(covariates).copied().map(DesignColumnRole::Covariate),
+    );
+    Ok(CompiledDesign {
+        nrows,
+        ncols,
+        matrix,
+        outcome,
+        columns: DesignColumnMap::from_roles(roles),
+        row_selection: Arc::from(selected),
+        contrasts: Vec::new(),
+        smooths: Vec::new(),
+        standardization: StandardizationRecord::default(),
+    })
 }
 
 /// Coefficient-scale variance of the marginal conditional effect of a conditional design.
@@ -1730,9 +1743,15 @@ mod tests {
             .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&leaked), policy)
             .expect_err("a zero gap leaks across the lag embargo");
         assert!(error.to_string().contains("embargo"), "{error}");
-        let (prep, aligned) = est
-            .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&split), policy)
-            .unwrap();
+        use antecedent_core::execution_attempt::{PhysicalEvent, observe_execution};
+        let preparation = observe_execution(|| {
+            est.prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&split), policy)
+        });
+        let (prep, aligned) = preparation.result.unwrap();
+        // One matrix and one outcome, both built directly from the series.
+        assert_eq!(preparation.report.physical(PhysicalEvent::Allocation), Some(2));
+        let numeric_bytes = (prep.design.nrows * (prep.design.ncols + 1) * 8) as u64;
+        assert_eq!(preparation.report.physical(PhysicalEvent::AllocatedBytes), Some(numeric_bytes),);
         // First row's window is [100, 101] (lagged regressor at time 100, no discovery
         // time), so it ends at 101; the last row's window ends at the series end (239).
         assert_eq!(aligned.first_time, 101);

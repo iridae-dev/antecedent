@@ -389,7 +389,7 @@ impl TupleReplicateFit<'_> {
                                 )
                                 .ok()?
                         } else {
-                            Vec::new()
+                            std::sync::Arc::from([])
                         };
                         let replacement = antecedent_estimate::SequenceColumnReplacement {
                             variable: *outcome,

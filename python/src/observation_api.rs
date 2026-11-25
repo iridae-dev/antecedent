@@ -12,18 +12,25 @@ use antecedent::query::{
     CausalQuery, ContinuousDomain, GridSpec, ObservationAssumption, ObservationSpec,
     ResponseFunctional, ResponseQuery,
 };
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyList};
 
 use crate::{dag_from_named_edges, detach_catch, numeric_columns_to_batch, py_err};
 
 #[pyclass(skip_from_py_object)]
 pub(crate) struct ObservationAdjustedOutcomeResult {
-    #[pyo3(get)]
-    values: Vec<f64>,
+    values: Arc<[f64]>,
     #[pyo3(get)]
     weights: Vec<f64>,
     #[pyo3(get)]
     method: String,
+}
+
+#[pymethods]
+impl ObservationAdjustedOutcomeResult {
+    #[getter]
+    fn values<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+        PyList::new(py, self.values.iter().copied())
+    }
 }
 
 #[pyclass(skip_from_py_object)]

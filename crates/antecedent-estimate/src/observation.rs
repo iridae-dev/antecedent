@@ -329,7 +329,7 @@ pub struct ObservationAdjustedOutcome {
     ///
     /// Values already incorporate inverse-probability weighting and must not be weighted a
     /// second time by [`Self::weights`].
-    pub values: Vec<f64>,
+    pub values: Arc<[f64]>,
     /// Observation/IPCW weights exposed for diagnostics only.
     /// Unobserved/censored rows have zero weight.
     pub weights: Vec<f64>,
@@ -595,9 +595,8 @@ impl ObservationMechanismEstimator {
         }
         let adjusted = self.adjusted_outcome(data, query, delayed_entry)?;
         let censoring_diagnostics = adjusted.censoring_diagnostics();
-        let adjusted_data = data
-            .with_replaced_float(outcome, Arc::from(adjusted.values))
-            .map_err(EstimationError::from)?;
+        let adjusted_data =
+            data.with_replaced_float(outcome, adjusted.values).map_err(EstimationError::from)?;
         let mut complete_query = query.clone();
         complete_query.observation = ObservationSpec::Complete;
         complete_query.observation_assumptions = Arc::from([]);
@@ -719,30 +718,23 @@ impl ObservationMechanismEstimator {
         // Contiguous time-block folds over the lag-aligned rows `start..n`.
         let positions: Vec<usize> = (0..table.row_count()).collect();
         let layout = FoldLayout::TimeBlocks { positions: &positions, span: positions.len().max(1) };
-        let subset =
+        let mut adjusted =
             self.adjusted_outcome_with_extras(&table, query, None, extras.as_ref(), layout)?;
-        let mut values = data.float64_values(outcome)?;
-        let mut weights = vec![0.0; values.len()];
-        if start == 0 {
-            values = subset.values;
-            weights = subset.weights;
-        } else if subset.values.len() + start != values.len() {
-            return Err(EstimationError::unsupported(
-                "temporal observation subset does not cover the lag-aligned series",
-            ));
-        } else {
-            values[start..].copy_from_slice(&subset.values);
-            weights[start..].copy_from_slice(&subset.weights);
+        if start != 0 {
+            let source = data.float64_cow(outcome)?;
+            if adjusted.values.len() + start != source.len() {
+                return Err(EstimationError::unsupported(
+                    "temporal observation subset does not cover the lag-aligned series",
+                ));
+            }
+            adjusted.values = (0..source.len())
+                .map(|row| if row < start { source[row] } else { adjusted.values[row - start] })
+                .collect();
+            let mut weights = vec![0.0; start];
+            weights.append(&mut adjusted.weights);
+            adjusted.weights = weights;
         }
-        let adjusted = ObservationAdjustedOutcome {
-            values: values.clone(),
-            weights,
-            method: subset.method,
-            tail_restriction: subset.tail_restriction,
-            tail_mass: subset.tail_mass,
-            censoring: subset.censoring,
-        };
-        let series = data.with_replaced_float(outcome, Arc::from(values))?;
+        let series = data.with_replaced_float(outcome, Arc::clone(&adjusted.values))?;
         Ok((series, adjusted))
     }
 
@@ -771,7 +763,7 @@ impl ObservationMechanismEstimator {
         adjustment: &[VariableId],
         outcome_regressors: &[TemporalNodeKey],
         anchors: &[usize],
-    ) -> Result<Vec<f64>, EstimationError> {
+    ) -> Result<Arc<[f64]>, EstimationError> {
         query.validate()?;
         query.require_supported_temporal_observation()?;
         if query.observation == ObservationSpec::Complete {
@@ -1063,7 +1055,7 @@ impl ObservationMechanismEstimator {
                 return Err(EstimationError::unsupported("selected outcomes must be finite"));
             }
             return Ok(ObservationAdjustedOutcome {
-                values: observed.to_vec(),
+                values: Arc::from(observed),
                 weights: vec![1.0; observed.len()],
                 method: Arc::from("observation.selected.complete_collapse.v1"),
                 tail_restriction: None,
@@ -1107,7 +1099,7 @@ impl ObservationMechanismEstimator {
             .map(|(&r, &p)| if r == 1.0 { 1.0 / p } else { 0.0 })
             .collect();
         Ok(ObservationAdjustedOutcome {
-            values,
+            values: values.into(),
             weights,
             method: Arc::from(match self.options.selected_correction {
                 SelectedOutcomeCorrection::Ipw => "observation.selected.logistic_ipw.v1",
@@ -1477,19 +1469,26 @@ fn lag_aligned_observation_table(
     let start = lag;
     let rows = n - start;
     let schema = data.schema().clone();
-    let mut owned = Vec::with_capacity(schema.len());
-    for var in schema.variables() {
-        let full = data.float64_values(var.id)?;
-        let slice = if conditioning.contains(&var.id) {
-            full[..rows].to_vec()
-        } else {
-            full[start..].to_vec()
-        };
-        owned.push((var.name.clone(), slice));
-    }
-    let pairs: Vec<(&str, &[f64])> =
-        owned.iter().map(|(name, values)| (name.as_ref(), values.as_slice())).collect();
-    let table = TabularData::try_from_schema_f64(schema, pairs)?;
+    let columns = schema
+        .variables()
+        .iter()
+        .map(|var| {
+            let values = match data.float64_slice(var.id) {
+                Ok(values) => std::borrow::Cow::Borrowed(values),
+                Err(_) => data.float64_cow(var.id)?,
+            };
+            let start = if conditioning.contains(&var.id) { 0 } else { start };
+            let column = antecedent_data::Float64Column::new(
+                var.id,
+                Arc::<[f64]>::from(&values[start..start + rows]),
+                antecedent_data::ValidityBitmap::all_valid(rows),
+            )?;
+            Ok(antecedent_data::OwnedColumn::Float64(column))
+        })
+        .collect::<Result<Vec<_>, antecedent_data::DataError>>()?;
+    let table = TabularData::new(antecedent_data::OwnedColumnarStorage::try_new(
+        schema, columns, None, None,
+    )?);
     Ok((table, start))
 }
 
@@ -2261,8 +2260,8 @@ mod tests {
         let estimator = ObservationMechanismEstimator::default();
         let selected_adjusted = estimator.adjusted_outcome(&data, &selected_query, None).unwrap();
         let right_adjusted = estimator.adjusted_outcome(&data, &right_query, None).unwrap();
-        assert_eq!(selected_adjusted.values, values);
-        assert_eq!(right_adjusted.values, values);
+        assert_eq!(selected_adjusted.values.as_ref(), values);
+        assert_eq!(right_adjusted.values.as_ref(), values);
         assert_eq!(selected_adjusted.weights, vec![1.0; 4]);
         assert_eq!(right_adjusted.weights, vec![1.0; 4]);
         assert_eq!(selected_adjusted.method.as_ref(), "observation.selected.complete_collapse.v1");
@@ -2380,8 +2379,13 @@ mod tests {
         // An unselected row's pseudo-outcome is the outcome-model prediction. With T@-2 in
         // the outcome model it is the noiseless latent outcome; with the declared T@-1 alone
         // it cannot track T@-2.
-        let (_, with_design) =
+        let (adjusted_series, with_design) =
             estimator.adjust_temporal_series(&data, &query, &[], &[key(-1), key(-2)]).unwrap();
+        let (_, outcome) = query.functional.primary_pair().unwrap();
+        assert_eq!(
+            adjusted_series.float64_slice(outcome).unwrap().as_ptr(),
+            with_design.values.as_ptr(),
+        );
         let (_, declared_only) =
             estimator.adjust_temporal_series(&data, &query, &[], &[key(-1)]).unwrap();
         let mut worst_design = 0.0_f64;
