@@ -375,18 +375,37 @@ impl TableChunkReader {
         let Some(batch) = provider.next_batch()? else {
             return Ok(false);
         };
+        let retained_batch_bytes = provider.retained_batch_bytes(&batch);
+        if let Some(retained) = retained_batch_bytes {
+            self.peak_chunk_bytes = self.peak_chunk_bytes.max(reserve);
+            if retained <= reserve {
+                let lease = decode.acquire_child(0, retained).map_err(|error| match error {
+                    antecedent_core::execution::AdmissionError::Cancelled => {
+                        FileSourceError::Cancelled
+                    }
+                    _ => FileSourceError::CountOverflow { context: "IPC projected batch lease" },
+                })?;
+                self.pending =
+                    Some(Pending { batch, offset: 0, held_bytes: retained, _leases: vec![lease] });
+                // Dropping the parent returns the transient decode reservation. The child
+                // remains charged while its projected arrays are pending.
+                return Ok(true);
+            }
+        }
         // Arrow reports a decoded column's whole backing allocation, so columns sliced from one
         // message body would each be charged for all of it. The sliced span is what they own.
-        let actual = batch
-            .columns()
-            .iter()
-            .map(|column| {
-                column
-                    .to_data()
-                    .get_slice_memory_size()
-                    .unwrap_or_else(|_| column.get_array_memory_size())
-            })
-            .sum::<usize>() as u64;
+        let actual = retained_batch_bytes.unwrap_or_else(|| {
+            batch
+                .columns()
+                .iter()
+                .map(|column| {
+                    column
+                        .to_data()
+                        .get_slice_memory_size()
+                        .unwrap_or_else(|_| column.get_array_memory_size())
+                })
+                .sum::<usize>() as u64
+        });
         let mut held = reserve;
         let mut leases = vec![decode];
         if actual > reserve {

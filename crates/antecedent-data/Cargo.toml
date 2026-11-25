@@ -25,6 +25,7 @@ arrow = [
     "dep:arrow-array",
     "dep:arrow-schema",
     "dep:arrow-buffer",
+    "dep:arrow-data",
     "arrow-array/ffi",
     "arrow-schema/ffi",
 ]
@@ -41,6 +42,7 @@ antecedent-kernels = { workspace = true }
 arrow-array = { workspace = true, optional = true }
 arrow-schema = { workspace = true, optional = true }
 arrow-buffer = { workspace = true, optional = true }
+arrow-data = { workspace = true, optional = true }
 arrow-ipc = { workspace = true, optional = true }
 # Snappy and zstd cover the codecs pyarrow, pandas, Polars and Spark write by default.
 parquet = { workspace = true, optional = true, features = ["arrow", "snap", "zstd"] }

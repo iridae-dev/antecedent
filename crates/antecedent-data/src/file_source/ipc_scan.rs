@@ -15,7 +15,11 @@ use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
+use arrow_array::{RecordBatch, RecordBatchOptions, make_array};
+use arrow_buffer::{BooleanBuffer, Buffer, NullBuffer, alloc::ALIGNMENT};
+use arrow_data::ArrayData;
 use arrow_ipc::{MessageHeader, root_as_footer, root_as_message};
+use arrow_schema::{ArrowError, DataType};
 
 use super::error::FileSourceError;
 use super::provider::{format_error, open_file};
@@ -28,6 +32,8 @@ pub(crate) const NODE_OVERHEAD_BYTES: u64 = 256;
 const MAX_METADATA_BYTES: u64 = 256 << 20;
 const CONTINUATION: u32 = 0xFFFF_FFFF;
 const MAGIC: &[u8; 6] = b"ARROW1";
+// Arrow's mutable buffer rounds allocation capacity to at least a 64-byte multiple.
+const BUFFER_CAPACITY_MULTIPLE: usize = if ALIGNMENT > 64 { ALIGNMENT } else { 64 };
 
 /// Decode cost of every record batch of a file, in order, and of its dictionaries.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -38,14 +44,39 @@ pub(crate) struct IpcCosts {
     pub dictionaries: u64,
 }
 
-pub(crate) fn scan_file(path: &Path) -> Result<IpcCosts, FileSourceError> {
+pub(crate) fn scan_file(path: &Path, compact: bool) -> Result<IpcCosts, FileSourceError> {
     let mut file = open_file(path)?;
     let length = file.metadata().map_err(|error| io(path, &error))?.len();
+    let footer_bytes = read_footer_bytes(&mut file, length, path)?;
+    let footer = root_as_footer(&footer_bytes).map_err(|error| format_error(path, &error))?;
+    let mut costs = IpcCosts::default();
+    if let Some(dictionaries) = footer.dictionaries() {
+        for block in dictionaries {
+            let cost =
+                block_cost(&mut file, block.offset(), block.bodyLength(), length, path, false)?;
+            costs.dictionaries = checked_sum(costs.dictionaries, cost, path)?;
+        }
+    }
+    if let Some(blocks) = footer.recordBatches() {
+        for block in blocks {
+            let cost =
+                block_cost(&mut file, block.offset(), block.bodyLength(), length, path, compact)?;
+            costs.batches.push(cost);
+        }
+    }
+    Ok(costs)
+}
+
+pub(super) fn read_footer_bytes(
+    file: &mut File,
+    length: u64,
+    path: &Path,
+) -> Result<Vec<u8>, FileSourceError> {
     if length < 12 + 6 {
         return Err(format_error(path, &"the file is shorter than an Arrow IPC file trailer"));
     }
     let mut trailer = [0_u8; 10];
-    read_at(&mut file, length - 10, &mut trailer, path)?;
+    read_at(file, length - 10, &mut trailer, path)?;
     if &trailer[4..] != MAGIC {
         return Err(format_error(path, &"the file does not end with the Arrow IPC magic"));
     }
@@ -55,25 +86,11 @@ pub(crate) fn scan_file(path: &Path) -> Result<IpcCosts, FileSourceError> {
         return Err(format_error(path, &"the footer length is outside the file"));
     }
     let mut footer_bytes = vec![0_u8; usize_of(footer_len, path)?];
-    read_at(&mut file, length - 10 - footer_len, &mut footer_bytes, path)?;
-    let footer = root_as_footer(&footer_bytes).map_err(|error| format_error(path, &error))?;
-    let mut costs = IpcCosts::default();
-    if let Some(dictionaries) = footer.dictionaries() {
-        for block in dictionaries {
-            let cost = block_cost(&mut file, block.offset(), block.bodyLength(), length, path)?;
-            costs.dictionaries = checked_sum(costs.dictionaries, cost, path)?;
-        }
-    }
-    if let Some(blocks) = footer.recordBatches() {
-        for block in blocks {
-            let cost = block_cost(&mut file, block.offset(), block.bodyLength(), length, path)?;
-            costs.batches.push(cost);
-        }
-    }
-    Ok(costs)
+    read_at(file, length - 10 - footer_len, &mut footer_bytes, path)?;
+    Ok(footer_bytes)
 }
 
-pub(crate) fn scan_stream(path: &Path) -> Result<IpcCosts, FileSourceError> {
+pub(crate) fn scan_stream(path: &Path, compact: bool) -> Result<IpcCosts, FileSourceError> {
     let mut file = open_file(path)?;
     let length = file.metadata().map_err(|error| io(path, &error))?.len();
     let mut costs = IpcCosts::default();
@@ -83,7 +100,8 @@ pub(crate) fn scan_stream(path: &Path) -> Result<IpcCosts, FileSourceError> {
         if meta_len == 0 {
             break;
         }
-        let (kind, cost, body) = message_cost(&mut file, message_start, meta_len, length, path)?;
+        let (kind, cost, body) =
+            message_cost(&mut file, message_start, meta_len, length, path, compact)?;
         let next = message_start
             .checked_add(meta_len)
             .and_then(|end| end.checked_add(body))
@@ -109,7 +127,7 @@ enum Kind {
 }
 
 /// Start of the metadata and its byte length, from the framing at `position`.
-fn read_prefix(
+pub(super) fn read_prefix(
     file: &mut File,
     position: u64,
     length: u64,
@@ -130,7 +148,7 @@ fn read_prefix(
     Ok((start, u64::from(len)))
 }
 
-fn read_metadata(
+pub(super) fn read_metadata(
     file: &mut File,
     meta_start: u64,
     meta_len: u64,
@@ -154,6 +172,7 @@ fn block_cost(
     declared_body: i64,
     length: u64,
     path: &Path,
+    compact: bool,
 ) -> Result<u64, FileSourceError> {
     let offset = u64::try_from(offset)
         .map_err(|_| format_error(path, &"a footer block has a negative offset"))?;
@@ -163,7 +182,7 @@ fn block_cost(
         return Err(format_error(path, &"a footer block lies outside the file"));
     }
     let (meta_start, meta_len) = read_prefix(file, offset, length, path)?;
-    let (_, cost, actual) = message_cost(file, meta_start, meta_len, length, path)?;
+    let (_, cost, actual) = message_cost(file, meta_start, meta_len, length, path, compact)?;
     // The footer's declared body must agree with the message, or a hostile
     // footer could understate what the reader will allocate.
     if actual != declared_body {
@@ -178,6 +197,7 @@ fn message_cost(
     meta_len: u64,
     length: u64,
     path: &Path,
+    compact: bool,
 ) -> Result<(Kind, u64, u64), FileSourceError> {
     let bytes = read_metadata(file, meta_start, meta_len, length, path)?;
     let message = root_as_message(&bytes).map_err(|error| format_error(path, &error))?;
@@ -223,14 +243,71 @@ fn message_cost(
     let structure = nodes
         .checked_mul(NODE_OVERHEAD_BYTES)
         .ok_or_else(|| format_error(path, &"an array node count overflows"))?;
-    let cost = [meta_len, body, inflated, structure]
+    // Each retained view can be copied before dropping the body. Charge the sum of
+    // buffer extents, even when several metadata entries overlap the same body bytes.
+    let detach = if compact && matches!(kind, Kind::Batch) {
+        batch.buffers().into_iter().flatten().try_fold(
+            checked_sum(structure, inflated, path)?,
+            |total, buffer| {
+                let (Ok(offset), Ok(len)) =
+                    (u64::try_from(buffer.offset()), u64::try_from(buffer.length()))
+                else {
+                    return Err(format_error(path, &"a buffer has a negative extent"));
+                };
+                if offset.checked_add(len).is_none_or(|end| end > body) {
+                    return Err(format_error(path, &"a buffer lies outside the message body"));
+                }
+                let padded = checked_sum(len, (BUFFER_CAPACITY_MULTIPLE - 1) as u64, path)?;
+                checked_sum(total, padded, path)
+            },
+        )?
+    } else {
+        0
+    };
+    let cost = [meta_len, body, inflated, structure, detach]
         .into_iter()
         .try_fold(0_u64, u64::checked_add)
         .ok_or_else(|| format_error(path, &"a batch decode cost overflows"))?;
     Ok((kind, cost, body))
 }
 
-fn read_at(
+/// Separate the selected columns from the upstream decoder's shared message body.
+pub(super) fn compact_projection(batch: &RecordBatch) -> Result<RecordBatch, ArrowError> {
+    let columns = batch
+        .columns()
+        .iter()
+        .map(|column| compact_array(&column.to_data()).map(make_array))
+        .collect::<Result<_, _>>()?;
+    let options = RecordBatchOptions::new().with_row_count(Some(batch.num_rows()));
+    RecordBatch::try_new_with_options(batch.schema(), columns, &options)
+}
+
+fn compact_array(data: &ArrayData) -> Result<ArrayData, ArrowError> {
+    let buffers = data.buffers().iter().map(compact_buffer).collect();
+    let nulls = data.nulls().map(|nulls| {
+        let bits = compact_buffer(nulls.buffer());
+        NullBuffer::new(BooleanBuffer::new(bits, nulls.offset(), nulls.len()))
+    });
+    let children = if matches!(data.data_type(), DataType::Dictionary(_, _)) {
+        // Dictionary values are decoded from separate messages and shared across batches.
+        data.child_data().to_vec()
+    } else {
+        data.child_data().iter().map(compact_array).collect::<Result<_, _>>()?
+    };
+    data.clone().into_builder().buffers(buffers).nulls(nulls).child_data(children).build()
+}
+
+fn compact_buffer(buffer: &Buffer) -> Buffer {
+    let aligned_capacity =
+        buffer.len().saturating_add(BUFFER_CAPACITY_MULTIPLE - 1) & !(BUFFER_CAPACITY_MULTIPLE - 1);
+    if buffer.ptr_offset() != 0 || buffer.capacity() > aligned_capacity {
+        Buffer::from_slice_ref(buffer.as_slice())
+    } else {
+        buffer.clone()
+    }
+}
+
+pub(super) fn read_at(
     file: &mut File,
     position: u64,
     buffer: &mut [u8],
