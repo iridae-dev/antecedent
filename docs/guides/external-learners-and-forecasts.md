@@ -24,7 +24,8 @@ Verification of one fold, prediction, or forecast origin does not verify a diffe
 A provider's declared prior training data is not independently authenticated. For pretrained
 models, leave prior training lineage unknown unless you can supply its complete observation
 identities. Ordinary shuffled cross-fitting is not appropriate for time-dependent rows: the
-external nuisance entry points raise `CausalValueError` for `fold_policy="temporal"`, because
+external nuisance entry points raise `CausalValueError` for
+`FoldPolicy.ORIGIN_SCOPED` (the legacy word `temporal` decodes to it), because
 they have no forward-only fitting contract.
 
 ## Resources and cancellation

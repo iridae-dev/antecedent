@@ -247,7 +247,9 @@
           "joint_draws",
           "covariance",
           "interval",
-          "posterior"
+          "posterior",
+          "fit",
+          "predict"
         ]
       },
       "minItems": 1,

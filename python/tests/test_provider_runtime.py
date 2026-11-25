@@ -167,6 +167,7 @@ def test_installed_entry_point_load_is_explicit_and_preserves_artifact(monkeypat
     monkeypatch.setattr(extension.metadata, "entry_points", lambda: EntryPoints())
     registry = ProviderRegistry()
     assert calls == []  # No plugin import or execution during registry construction.
+    assert "external" not in registry._providers
     registry.load_entry_point("external")
     assert calls == ["load"]
     result = require_success(registry.execute("external", {"query": "effect"}))

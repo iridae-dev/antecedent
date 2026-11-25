@@ -208,3 +208,19 @@ fn external_ode_matches_the_closed_form_for_a_linear_drift() {
     assert_eq!(out.trust, MechanismTrust::VerifiedExternal);
     assert!((out.drift_lipschitz.unwrap() - 1.5).abs() < 1e-12);
 }
+
+#[test]
+fn verified_external_word_loads_as_the_shared_status() {
+    let status = MechanismTrust::VerifiedExternal;
+    assert_eq!(status.name(), "verified_extension");
+    assert_ne!(status.name(), "native");
+    assert_ne!(status.name(), "native_supported");
+    let fresh: MechanismTrust = serde_json::from_str("\"verified_extension\"").unwrap();
+    let legacy: MechanismTrust = serde_json::from_str("\"verified_external\"").unwrap();
+    assert_eq!(fresh, legacy);
+    assert_eq!(fresh, status);
+    assert_eq!(serde_json::to_string(&status).unwrap(), "\"verified_extension\"");
+    let native: MechanismTrust = serde_json::from_str("\"native\"").unwrap();
+    assert_eq!(native.name(), "native");
+    assert_ne!(native, status);
+}

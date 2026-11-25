@@ -16,7 +16,8 @@ version, content digest, dependencies and declarations) before it runs anything.
 no resolver, with no implementation, or with a changed one is refused with a registered
 reason code (``mechanism_resolver_missing``, ``mechanism_implementation_unavailable``,
 ``mechanism_implementation_changed``). A system with an external mechanism is
-``verified_external``; it is never upgraded to ``native``.
+``verified_extension``; it is never upgraded to ``native`` or ``native_supported``.
+Artifacts that still say ``verified_external`` load as that same status.
 
 The supplied callable runs with the host's authority. This library does not sandbox it; the
 digest binds replay to the exact content the caller registered, it does not make the code safe.
@@ -340,7 +341,7 @@ class ExternalArtifact:
 
     @property
     def trust(self) -> str:
-        """``verified_external`` for a system with an external mechanism, never ``native``."""
+        """``verified_extension`` for a system with an external mechanism, never ``native``."""
         return str(self.report["trust"])
 
 

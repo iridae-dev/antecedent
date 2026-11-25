@@ -300,7 +300,7 @@ pub(super) fn declaration_of(text: &str) -> PyResult<CallbackDeclaration> {
         "externally_attested" => CallbackTrust::ExternallyAttested {
             attestor: json.trust.attestor.clone().unwrap_or_default(),
         },
-        "verified_extension" => CallbackTrust::ExactRequestVerified {
+        "verified_extension" | "verified_external" => CallbackTrust::ExactRequestVerified {
             receipt_digest: json.trust.receipt_digest.clone().unwrap_or_default(),
         },
         // Metadata never confers native support; there is no such level to build.

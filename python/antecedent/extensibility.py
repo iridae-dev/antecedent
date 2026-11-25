@@ -205,11 +205,15 @@ class ProviderTrust(StrEnum):
     """Evidence status attached to a custom causal provider.
 
     The members are exactly the Rust ``ProviderTrust`` levels and ``value`` is
-    their canonical wire (``as_wire``). Read-compat aliases parse to the same
+    their canonical wire (``as_wire``).     Read-compat aliases parse to the same
     member: ``external_attested`` for :attr:`EXTERNALLY_ATTESTED`;
-    ``exact_request_verified`` and ``external_exact_request_verified`` for
-    :attr:`VERIFIED_EXTENSION`. :attr:`UNVERIFIED` is what a value carries when
-    nobody has claimed anything for it; a provider is never registered with it.
+    ``verified_external``, ``exact_request_verified`` and
+    ``external_exact_request_verified`` for :attr:`VERIFIED_EXTENSION`.
+    :attr:`VERIFIED_EXTENSION` is the one status for a declaration that matched
+    a fixture and is still not native. :attr:`UNVERIFIED` is what a value
+    carries when nobody has claimed anything for it; a provider is never
+    registered with it. Nothing in registration or verification can raise
+    :attr:`NATIVE_SUPPORTED`.
     """
 
     NATIVE_SUPPORTED = "native_supported"
@@ -223,10 +227,86 @@ class ProviderTrust(StrEnum):
             return None
         aliases = {
             "external_attested": cls.EXTERNALLY_ATTESTED,
+            "verified_external": cls.VERIFIED_EXTENSION,
             "exact_request_verified": cls.VERIFIED_EXTENSION,
             "external_exact_request_verified": cls.VERIFIED_EXTENSION,
         }
         return aliases.get(value)
+
+
+class FoldPolicy(StrEnum):
+    """Who assigns the folds, whether that assignment is in the receipt, and the
+    dependence the score assumes.
+
+    The same variants as Rust ``FoldPolicy``. A legacy word decodes onto one of
+    them; it is not a second parameter. ``external_learner_owned_not_recorded_by_handoff``
+    is :attr:`HANDOFF_UNKNOWN`. ``iid`` is :attr:`HOST_OWNED`. ``temporal`` is
+    :attr:`ORIGIN_SCOPED`.
+    """
+
+    HOST_OWNED = "host_owned"
+    CALLER_OWNED = "caller_owned"
+    ORIGIN_SCOPED = "origin_scoped"
+    PROVIDER_OWNED = "provider_owned"
+    NONE = "none"
+    HANDOFF_UNKNOWN = "handoff_unknown"
+
+    @classmethod
+    def _missing_(cls, value: object) -> FoldPolicy | None:
+        if not isinstance(value, str):
+            return None
+        aliases = {
+            "external_learner_owned_not_recorded_by_handoff": cls.HANDOFF_UNKNOWN,
+            "iid": cls.HOST_OWNED,
+            "temporal": cls.ORIGIN_SCOPED,
+        }
+        return aliases.get(value)
+
+    @classmethod
+    def decode(cls, value: object) -> FoldPolicy:
+        """The policy ``value`` names. An unknown word is a ``ValueError``."""
+        if isinstance(value, cls):
+            return value
+        if isinstance(value, str):
+            try:
+                return cls(value)
+            except ValueError:
+                raise ValueError(f"unknown fold policy {value!r}") from None
+        raise TypeError("fold policy must be a FoldPolicy")
+
+    def assigner(self) -> str:
+        """Who assigns the folds."""
+        return {
+            FoldPolicy.HOST_OWNED: "host",
+            FoldPolicy.CALLER_OWNED: "caller",
+            FoldPolicy.ORIGIN_SCOPED: "origin",
+            FoldPolicy.PROVIDER_OWNED: "provider",
+            FoldPolicy.NONE: "none",
+            FoldPolicy.HANDOFF_UNKNOWN: "unknown",
+        }[self]
+
+    def assignment_recorded(self) -> bool:
+        """Whether the fold assignment itself is in the receipt.
+
+        :attr:`HANDOFF_UNKNOWN` is recorded on the receipt the same way a
+        host-owned policy is. The assignment is not, so this is false.
+        """
+        return self not in (FoldPolicy.NONE, FoldPolicy.HANDOFF_UNKNOWN)
+
+    def dependence(self) -> str:
+        """``iid``, ``temporal``, or ``undeclared``."""
+        if self is FoldPolicy.ORIGIN_SCOPED:
+            return "temporal"
+        if self in (FoldPolicy.NONE, FoldPolicy.HANDOFF_UNKNOWN):
+            return "undeclared"
+        return "iid"
+
+    def estimator_honours(self) -> bool:
+        """Whether a nuisance estimator can honour this policy.
+
+        Only an independent-row score whose assignment is in the receipt.
+        """
+        return self.dependence() == "iid" and self.assignment_recorded()
 
 
 class ProviderCapability(StrEnum):
@@ -284,7 +364,7 @@ class CausalProviderSpec:
     data_dependence: tuple[str, ...]
     inference_claims: tuple[str, ...]
     influence_function: str | None
-    fold_policy: str
+    fold_policy: FoldPolicy | str
     output_shape: tuple[int, ...] | str
     uncertainty_semantics: str
     artifact_codec: str
@@ -301,6 +381,7 @@ class CausalProviderSpec:
         return str(self.uncertainty_semantics)
 
     def __post_init__(self) -> None:
+        coerce_fields(self, fold_policy=FoldPolicy.decode(self.fold_policy))
         coerce_fields(self, capabilities=_capabilities(self.capabilities))
         if self.meaning is not None:
             from .joint_distribution import DistributionMeaning
@@ -329,7 +410,6 @@ class CausalProviderSpec:
             coerce_fields(self, **{field_name: values})
         required_text = {
             "query_family": self.query_family,
-            "fold_policy": self.fold_policy,
             "uncertainty_semantics": self.uncertainty_semantics,
             "artifact_codec": self.artifact_codec,
         }
@@ -1293,6 +1373,184 @@ def _same_provider_result(a: ProviderResult, b: ProviderResult) -> bool:
     )
 
 
+_PORT = "value"
+_UNCERTAIN = frozenset({"law", "draws", "joint_draws", "covariance", "interval", "posterior"})
+_CAPABILITY_OPERATIONS = {
+    "sample": ("draws", "joint_draws"),
+    "cdf": ("law",),
+    "quantile": ("law",),
+    "log_probability": ("law",),
+    "mean": ("mean",),
+    "covariance": ("covariance",),
+    "update": ("posterior",),
+}
+
+
+def _port_quantity(variable: str, population: str, functional: str):
+    from .joint_distribution import ScientificQuantity
+
+    return ScientificQuantity.of(
+        "outcome",
+        variable,
+        units="1",
+        population=population,
+        regime="observational",
+        functional=functional,
+    )
+
+
+def nuisance_quantity():
+    """The quantity a nuisance-learner slot consumes."""
+    return _port_quantity("nuisance", "cross_fit_rows", "conditional_mean")
+
+
+def forecast_quantity():
+    """The quantity a forecast port consumes."""
+    return _port_quantity("forecast", "forecast_origin", "forecast")
+
+
+def _capability_operations(spec: CausalProviderSpec, *, learner: bool) -> tuple[str, ...]:
+    found: list[str] = []
+    for capability in spec.capabilities:
+        found.extend(_CAPABILITY_OPERATIONS.get(str(capability), ()))
+    if learner:
+        found.extend(("fit", "predict"))
+    if not found:
+        found.append("point")
+    return tuple(dict.fromkeys(found))
+
+
+def _meaning(operations: tuple[str, ...]) -> str | None:
+    if "posterior" in operations:
+        return "parameter_posterior"
+    if _UNCERTAIN.intersection(operations):
+        return "empirical_outcome"
+    return None
+
+
+def _produced(component: str, quantity: Any, operations: tuple[str, ...], semantic: str):
+    from .interface_contract import Calibration, InterfaceContract, ProducedPort, SupportDomain
+
+    meaning = _meaning(operations)
+    calibration = Calibration.not_measured() if meaning else Calibration.point_only()
+    return InterfaceContract(
+        component,
+        produces=[
+            ProducedPort(
+                _PORT,
+                quantity,
+                semantic,
+                SupportDomain.real(),
+                operations,  # type: ignore[arg-type]
+                meaning,  # type: ignore[arg-type]
+                calibration,
+                provenance=("external_provider",),
+            )
+        ],
+    )
+
+
+def _consumed(component: str, quantity: Any, operations: tuple[str, ...], semantic: str):
+    from .interface_contract import InterfaceContract, ConsumedPort, SupportDomain
+
+    return InterfaceContract(
+        component,
+        consumes=[
+            ConsumedPort(
+                _PORT,
+                quantity,
+                semantic,
+                SupportDomain.real(),
+                operations,  # type: ignore[arg-type]
+                _meaning(operations),  # type: ignore[arg-type]
+                provenance=("external_provider",),
+            )
+        ],
+    )
+
+
+def _offer(producer, consumer):
+    from .interface_contract import check_connection
+
+    return check_connection(producer, _PORT, consumer, _PORT)
+
+
+def connect_learner(spec: CausalProviderSpec, *, as_learner: bool):
+    """Connect ``spec`` to the nuisance-learner slot through ``check_connection``.
+
+    A learner port is that contract plus ``fit`` and ``predict``. A forecast
+    that has not opted into the slot keeps its own quantity and does not offer
+    those operations, so the same check that refuses a mean where a law is
+    required refuses it.
+    """
+    quantity = nuisance_quantity()
+    semantic = "estimand:nuisance"
+    consumer = _consumed("learner", quantity, ("fit", "predict", "mean"), semantic)
+    if as_learner or spec.query_family == "nuisance_learner":
+        produced_quantity, produced_semantic = quantity, semantic
+        learner = True
+    else:
+        produced_quantity = _port_quantity(spec.query_family, spec.query_family, spec.query_family)
+        produced_semantic = f"estimand:{spec.query_family}"
+        learner = False
+    producer = _produced(
+        spec.query_family,
+        produced_quantity,
+        _capability_operations(spec, learner=learner),
+        produced_semantic,
+    )
+    return _offer(producer, consumer)
+
+
+def connect_forecast(spec: CausalProviderSpec, kind: str):
+    """Connect ``spec`` to the forecast port for ``kind`` through ``check_connection``.
+
+    The port is the forecast quantity plus the operations ``kind`` requires.
+    ``fit`` and ``predict`` belong to the learner slot, not to this port: a
+    forecast provider keeps the operations its capabilities already declare.
+    """
+    required = {
+        "point": ("mean",),
+        "gaussian": ("mean", "covariance"),
+        "samples": ("draws",),
+        "joint_samples": ("joint_draws",),
+    }[kind]
+    quantity = forecast_quantity()
+    semantic = "estimand:forecast"
+    consumer = _consumed("forecast", quantity, required, semantic)
+    if spec.query_family == "forecast":
+        produced_quantity, produced_semantic = quantity, semantic
+    else:
+        produced_quantity = _port_quantity(spec.query_family, spec.query_family, spec.query_family)
+        produced_semantic = f"estimand:{spec.query_family}"
+    producer = _produced(
+        spec.query_family,
+        produced_quantity,
+        _capability_operations(spec, learner=False),
+        produced_semantic,
+    )
+    return _offer(producer, consumer)
+
+
+def connect_to_decision(spec: CausalProviderSpec, quantity: Any, operations: tuple[str, ...]):
+    """Connect ``spec`` to a decision port through ``check_connection``.
+
+    The decision's quantity is the port. The provider offers only the operations
+    its capabilities declare, so a mean offered where a law is required is the
+    interface-contract refusal, and a forecast offered as that port fails the
+    same check when it does not offer the required operation.
+    """
+    semantic = "estimand:decision"
+    consumer = _consumed("decision", quantity, tuple(operations), semantic)
+    producer = _produced(
+        spec.query_family,
+        quantity,
+        _capability_operations(spec, learner=False),
+        semantic,
+    )
+    return _offer(producer, consumer)
+
+
 providers = ProviderRegistry()
 
 
@@ -1302,6 +1560,7 @@ __all__ = [
     "CausalProviderSpec",
     "EffectValidator",
     "ExecutableProvider",
+    "FoldPolicy",
     "MechanismWrapper",
     "ProviderCapability",
     "ProviderTrust",
@@ -1317,6 +1576,11 @@ __all__ = [
     "UncertaintySemantics",
     "UnknownProviderError",
     "UtilityFn",
+    "connect_forecast",
+    "connect_learner",
+    "connect_to_decision",
+    "forecast_quantity",
+    "nuisance_quantity",
     "VerifiedRequest",
     "providers",
 ]

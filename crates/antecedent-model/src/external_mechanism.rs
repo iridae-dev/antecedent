@@ -10,7 +10,8 @@
 //! resolver maps a recorded specification to an implementation; the implementation is run
 //! only after its identifier, version, content digest, dependencies and declarations equal
 //! the recorded ones. No resolver, no implementation, or any difference refuses with a typed
-//! reason code. A system that contains such a mechanism is `verified_external`, never native.
+//! reason code. A system that contains such a mechanism is `verified_extension`, never native
+//! and never `native_supported`. Artifacts that still say `verified_external` load as that status.
 
 use crate::local_cyclic::{LocalCyclicMechanism, LocalCyclicModel};
 use crate::nonlinear_equilibrium::invalid_equilibrium_input as invalid;
@@ -187,7 +188,7 @@ pub struct ExternalMechanismEvidence {
     pub content_digest: String,
     /// Identity over all declarations.
     pub identity: String,
-    /// Always `verified_external`.
+    /// Always `verified_extension`. Never `native` or `native_supported`.
     pub trust: MechanismTrust,
     /// `analytic`, `finite_difference_forward` or `finite_difference_central`.
     pub derivative_basis: String,
@@ -439,7 +440,7 @@ impl ExternalFeedbackSystem {
         cholesky(&self.noise_covariance, n)?;
         Ok(())
     }
-    /// `verified_external` when any mechanism is external; native only when none is.
+    /// `verified_extension` when any mechanism is external; native only when none is.
     #[must_use]
     pub fn trust(&self) -> MechanismTrust {
         trust_of(&self.equations)
@@ -603,7 +604,7 @@ impl ResolvedFeedbackSystem {
     pub fn system(&self) -> &ExternalFeedbackSystem {
         &self.system
     }
-    /// `verified_external` when any mechanism is external; there is no route to native.
+    /// `verified_extension` when any mechanism is external; there is no route to native.
     #[must_use]
     pub fn trust(&self) -> MechanismTrust {
         self.system.trust()

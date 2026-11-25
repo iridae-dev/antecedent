@@ -34,7 +34,7 @@ pub struct ExternalOdeTrajectory {
     /// Global Lipschitz upper bound of the drift (infinity-norm) from declared bounds; absent
     /// when any bound is undeclared. A declaration, not a measurement.
     pub drift_lipschitz: Option<f64>,
-    /// `verified_external` when any mechanism is external.
+    /// `verified_extension` when any mechanism is external. Never `native` or `native_supported`.
     pub trust: MechanismTrust,
     /// Verified evidence of each external mechanism.
     pub mechanisms: Vec<ExternalMechanismEvidence>,

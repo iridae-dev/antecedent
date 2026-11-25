@@ -67,6 +67,11 @@ pub enum ContractOperation {
     Interval,
     /// A posterior distribution.
     Posterior,
+    /// Fit a model on the rows the consumer supplies. Implies no other operation.
+    Fit,
+    /// Predict from a fitted artifact on the rows the consumer supplies.
+    /// Implies no other operation.
+    Predict,
 }
 
 named_variants! {
@@ -79,6 +84,8 @@ named_variants! {
         Covariance => "covariance",
         Interval => "interval",
         Posterior => "posterior",
+        Fit => "fit",
+        Predict => "predict",
     }
 }
 
@@ -95,13 +102,15 @@ impl ContractOperation {
             Self::Covariance => 6,
             Self::Interval => 7,
             Self::Posterior => 8,
+            Self::Fit => 9,
+            Self::Predict => 10,
         }
     }
 
     /// Whether the operation carries uncertainty whose meaning must be stated.
     #[must_use]
     pub const fn carries_uncertainty(self) -> bool {
-        !matches!(self, Self::Point | Self::Mean)
+        !matches!(self, Self::Point | Self::Mean | Self::Fit | Self::Predict)
     }
 
     /// The contract operation a provider capability discloses, when it

@@ -100,6 +100,8 @@ _PROVIDER_TRUST = ("native_supported", "externally_attested", "verified_extensio
 
 
 def _provider_trust(level: str | None) -> str | None:
+    if level == "verified_external":
+        level = "verified_extension"
     return None if level is None else choice(level, "provider_trust", _PROVIDER_TRUST)
 
 

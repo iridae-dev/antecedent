@@ -220,7 +220,9 @@ fn parse_source(value: &Json) -> PyResult<LawSource> {
             let trust = match text(map, "trust")?.as_str() {
                 "unverified" => ProviderTrustLabel::Unverified,
                 "externally_attested" => ProviderTrustLabel::ExternallyAttested,
-                "verified_extension" => ProviderTrustLabel::ExactRequestVerified,
+                "verified_extension" | "verified_external" => {
+                    ProviderTrustLabel::ExactRequestVerified
+                }
                 other => {
                     return Err(crate::value_err(format!("unknown provider trust `{other}`")));
                 }

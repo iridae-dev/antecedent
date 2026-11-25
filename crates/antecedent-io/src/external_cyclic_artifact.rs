@@ -9,7 +9,8 @@
 //! implementation against the record, then refits and recomputes every answer. With no
 //! resolver, a missing implementation or any difference the replay is refused with a typed
 //! reason code and nothing is run. A system with an external mechanism stays
-//! `verified_external`; replay never upgrades it to native.
+//! `verified_extension`; replay never upgrades it to native or `native_supported`.
+//! The claim string stays `verified_external_model_conditional`.
 
 use antecedent_core::{CanonicalWriter, ExecutionContext};
 use antecedent_estimate::external_cyclic_fit::{
@@ -75,7 +76,7 @@ pub struct ExternalCyclicReport {
     pub fit: Option<ExternalFeedbackFit>,
     /// Verified evidence for each external mechanism.
     pub mechanisms: Vec<ExternalMechanismEvidence>,
-    /// `verified_external` when any mechanism is external; never `native` then.
+    /// `verified_extension` when any mechanism is external; never `native` then.
     pub trust: MechanismTrust,
     /// Results indexed by world, then disturbance row.
     pub worlds: Vec<Vec<EquilibriumResult>>,

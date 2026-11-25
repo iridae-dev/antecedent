@@ -495,7 +495,7 @@ fn receipt_from_wire(wire: ReceiptWire) -> Result<ExternalCallbackReceipt, IoErr
         ("externally_attested", Some(attestor)) => {
             ExternalTrustLimit::ExternallyAttested { attestor }
         }
-        ("verified_extension", None) => ExternalTrustLimit::VerifiedExtension,
+        ("verified_extension" | "verified_external", None) => ExternalTrustLimit::VerifiedExtension,
         _ => {
             return Err(refused(
                 "receipt_trust",

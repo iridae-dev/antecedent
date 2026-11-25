@@ -429,7 +429,9 @@ fn receipts_from(json: &str) -> Result<Vec<ExternalCallbackReceipt>, String> {
                 ("externally_attested", Some(attestor)) => {
                     ExternalTrustLimit::ExternallyAttested { attestor }
                 }
-                ("verified_extension", None) => ExternalTrustLimit::VerifiedExtension,
+                ("verified_extension" | "verified_external", None) => {
+                    ExternalTrustLimit::VerifiedExtension
+                }
                 (other, _) => {
                     return Err(invalid_json(
                         "decision_robust.external_trust_never_native",

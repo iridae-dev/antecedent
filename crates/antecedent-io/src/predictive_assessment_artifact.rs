@@ -723,7 +723,9 @@ fn source_of(wire: &SourceWire) -> Result<LawSource, Error> {
             let trust = match trust.as_str() {
                 "unverified" => ProviderTrustLabel::Unverified,
                 "externally_attested" => ProviderTrustLabel::ExternallyAttested,
-                "verified_extension" => ProviderTrustLabel::ExactRequestVerified,
+                "verified_extension" | "verified_external" => {
+                    ProviderTrustLabel::ExactRequestVerified
+                }
                 _ => return Err(Error::UnsupportedSemantics("provider trust")),
             };
             Ok(LawSource::Provider {

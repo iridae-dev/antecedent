@@ -42,16 +42,18 @@ impl ProviderTrust {
 
     /// Parse a wire spelling, including read-compat aliases.
     ///
-    /// Aliases: `external_attested` (attested); `exact_request_verified` and
-    /// `external_exact_request_verified` (exact-request verified).
+    /// Aliases: `external_attested` (attested); `verified_external`,
+    /// `exact_request_verified` and `external_exact_request_verified`
+    /// (exact-request verified, still not native).
     #[must_use]
     pub fn from_wire(value: &str) -> Option<Self> {
         match value {
             "native_supported" => Some(Self::NativeSupported),
             "externally_attested" | "external_attested" => Some(Self::ExternallyAttested),
-            "verified_extension" | "exact_request_verified" | "external_exact_request_verified" => {
-                Some(Self::ExactRequestVerified)
-            }
+            "verified_extension"
+            | "verified_external"
+            | "exact_request_verified"
+            | "external_exact_request_verified" => Some(Self::ExactRequestVerified),
             "unverified" => Some(Self::Unverified),
             _ => None,
         }
@@ -94,8 +96,12 @@ mod tests {
     #[test]
     fn as_wire_is_unique_and_aliases_parse_back_to_it() {
         let attested = ["externally_attested", "external_attested"];
-        let verified =
-            ["verified_extension", "exact_request_verified", "external_exact_request_verified"];
+        let verified = [
+            "verified_extension",
+            "verified_external",
+            "exact_request_verified",
+            "external_exact_request_verified",
+        ];
         for spelling in attested {
             let trust = ProviderTrust::from_wire(spelling).unwrap();
             assert_eq!(trust, ProviderTrust::ExternallyAttested);

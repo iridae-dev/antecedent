@@ -41,7 +41,7 @@ pub enum ExternalClaimTrust {
     ExternallyAttested,
     /// The exact provider contract passed object-level verification. Written as
     /// `verified_extension`, the shared Rust/Python provider-trust vocabulary.
-    #[serde(rename = "verified_extension")]
+    #[serde(rename = "verified_extension", alias = "verified_external")]
     ExactRequestVerified,
 }
 

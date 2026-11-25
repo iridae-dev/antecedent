@@ -575,7 +575,7 @@ fn trust_from_wire(wire: &TrustWire) -> Result<CallbackTrust, Failure> {
         ("externally_attested", Some(attestor), None) => {
             Ok(CallbackTrust::ExternallyAttested { attestor: attestor.clone() })
         }
-        ("verified_extension", None, Some(receipt_digest)) => {
+        ("verified_extension" | "verified_external", None, Some(receipt_digest)) => {
             Ok(CallbackTrust::ExactRequestVerified { receipt_digest: receipt_digest.clone() })
         }
         // Metadata never confers native support.

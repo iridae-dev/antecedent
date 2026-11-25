@@ -410,10 +410,21 @@ class LawSource:
 
         ``trust`` is ``unverified``, ``externally_attested`` or ``verified_extension``.
         """
-        if trust not in ("unverified", "externally_attested", "verified_extension"):
+        from .extensibility import ProviderTrust
+
+        try:
+            parsed = ProviderTrust(trust)
+        except ValueError:
+            parsed = None
+        if parsed not in (
+            ProviderTrust.UNVERIFIED,
+            ProviderTrust.EXTERNALLY_ATTESTED,
+            ProviderTrust.VERIFIED_EXTENSION,
+        ):
             raise CausalValueError(
                 "trust must be unverified, externally_attested or verified_extension"
             )
+        trust = parsed.value
         return cls(
             {
                 "class": "provider",

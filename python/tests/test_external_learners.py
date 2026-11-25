@@ -4,12 +4,16 @@ import numpy as np
 import pytest
 from antecedent.extensibility import (
     CausalProviderSpec,
+    FoldPolicy,
     ProviderCapability,
     ProviderExecution,
     ProviderRegistry,
     ProviderTrust,
     ProviderVerificationFixture,
+    connect_to_decision,
 )
+from antecedent.interface_contract import InterfaceContractRefusal
+from antecedent.joint_distribution import ScientificQuantity
 from antecedent.external_learners import (
     ExternalLearner,
     ForecastNuisanceAdapter,
@@ -132,8 +136,26 @@ def test_verification_applies_only_to_the_exact_prediction_request():
     registry.verify("mean", [fixture], evidence_origin="independent test")
     fitted = ExternalLearner(registry, "mean", "binary_probability").fit([[1], [2]], [0, 1])
     assert fitted.fit_receipt.trust is ProviderTrust.EXTERNALLY_ATTESTED
-    assert fitted.predict([[3]]).trust is ProviderTrust.VERIFIED_EXTENSION
+    verified = fitted.predict([[3]])
+    assert verified.trust is ProviderTrust.VERIFIED_EXTENSION
+    assert verified.trust is not ProviderTrust.NATIVE_SUPPORTED
     assert fitted.predict([[4]]).trust is ProviderTrust.EXTERNALLY_ATTESTED
+
+
+def test_unhonoured_fold_policy_is_refused_when_the_learner_is_declared():
+    class Temporal(MeanProvider):
+        spec = replace(MeanProvider.spec, fold_policy="origin_scoped")
+
+    registry = ProviderRegistry()
+    registry.register("temporal", Temporal())
+    assert Temporal.spec.fold_policy is FoldPolicy.ORIGIN_SCOPED
+    assert not Temporal.spec.fold_policy.estimator_honours()
+    with pytest.raises(ValueError, match="temporal cross-fitting"):
+        ExternalLearner(registry, "temporal", "regression")
+    decoded = replace(
+        MeanProvider.spec, fold_policy="external_learner_owned_not_recorded_by_handoff"
+    )
+    assert decoded.fold_policy is FoldPolicy.HANDOFF_UNKNOWN
 
 
 def test_forecast_mean_adapter_requires_an_explicit_iid_information_contract():
@@ -146,14 +168,23 @@ def test_forecast_mean_adapter_requires_an_explicit_iid_information_contract():
 
     registry = ProviderRegistry()
     registry.register("forecast", ForecastMean())
-    with pytest.raises(ValueError, match="nuisance_learner"):
+    with pytest.raises(InterfaceContractRefusal) as nuisance:
         ExternalLearner(registry, "forecast", "regression").fit([[1]], [2])
+    decision = ScientificQuantity.of(
+        "outcome", "effect", units="1", population="trial", regime="do(a=1)"
+    )
+    with pytest.raises(InterfaceContractRefusal) as law:
+        connect_to_decision(ForecastMean.spec, decision, ("law",))
+    assert nuisance.value.reason_code.startswith("interface_contract")
+    assert law.value.reason_code == "interface_contract_operation_unavailable"
     adapter = ForecastNuisanceAdapter(registry, "forecast", "regression")
-    assert adapter.fit([[1]], [2]).predict([[3]]).estimate.tolist() == [2]
+    fitted = adapter.fit([[1]], [2])
+    assert fitted.fold_policy is FoldPolicy.CALLER_OWNED
+    assert fitted.predict([[3]]).estimate.tolist() == [2]
     incompatible = ForecastNuisanceAdapter(
         registry, "forecast", "regression", information_contract="temporal"
     )
-    with pytest.raises(ValueError, match="nuisance_learner"):
+    with pytest.raises(InterfaceContractRefusal):
         incompatible.fit([[1]], [2])
 
 
@@ -173,6 +204,7 @@ def test_native_crossfit_isolates_folds_and_treatment_arms():
         assert result.control[row] == np.mean([y[i] for i in train if t[i] == 0])
         assert result.treated[row] == np.mean([y[i] for i in train if t[i] == 1])
         assert result.propensity[row] == 0.5
+    assert result.fold_policy is FoldPolicy.CALLER_OWNED
     assert len(result.receipts) == 6
     assert len(result.provenance) == 6
     assert {int(p[1].split(":")[1]) for p in result.provenance} == {r[0] for r in result.receipts}

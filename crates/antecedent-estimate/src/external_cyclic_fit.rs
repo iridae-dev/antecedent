@@ -9,7 +9,8 @@
 //! derivatives and supplies the mixed derivatives of its input gradient; otherwise it is a
 //! central difference in the fitted parameters with the policy's relative step. Fitting needs a
 //! verified implementation, so it takes the same trusted resolver as replay. The result is
-//! `verified_external` and model-conditional; local convergence is not a global optimum.
+//! `verified_extension` and model-conditional; local convergence is not a global optimum.
+//! The claim string stays `verified_external_model_conditional`.
 
 use crate::cyclic_likelihood::invalid_equilibrium_input as invalid;
 use antecedent_core::ExecutionContext;
@@ -65,7 +66,7 @@ pub struct ExternalFeedbackFit {
     pub line_search_exhausted: bool,
     /// How the score was obtained.
     pub score_basis: String,
-    /// Always `verified_external` for a system with an external mechanism.
+    /// Always `verified_extension` for a system with an external mechanism.
     pub trust: MechanismTrust,
 }
 

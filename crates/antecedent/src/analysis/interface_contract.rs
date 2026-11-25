@@ -9,7 +9,7 @@
 //!    port, the scientific quantity (units, population, regime, functional,
 //!    conditioning, transform), the semantic identity, the support domain, the
 //!    operations offered or required (point, mean, law, draws, joint draws,
-//!    covariance, interval, posterior: none implies another), what any
+//!    covariance, interval, posterior, fit, predict: none implies another), what any
 //!    uncertainty means and its paradigm, the calibration label held or
 //!    required, the measurement-model identities, the evidence sources or the
 //!    dependence required, and the provenance stages.

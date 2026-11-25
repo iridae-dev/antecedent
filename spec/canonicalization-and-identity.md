@@ -195,7 +195,7 @@ where
   for a categorical support, texts of the levels.
 * **operations** is: word count, then per operation its tag word in ascending
   order (point 1, mean 2, law 3, draws 4, joint_draws 5, covariance 6,
-  interval 7, posterior 8).
+  interval 7, posterior 8, fit 9, predict 10).
 * **uncertainty** is: word `0` for none, or word `1`, text meaning, text
   paradigm.
 * **calibration label** is: word tag (none 1, point_only 2, not_measured 3,

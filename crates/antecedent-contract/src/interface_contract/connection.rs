@@ -102,6 +102,12 @@ fn operation_remedy(operation: ContractOperation) -> &'static str {
         ContractOperation::Posterior => {
             "a posterior needs a producer in the posterior paradigm; an interval or draws of another paradigm are not a posterior"
         }
+        ContractOperation::Fit => {
+            "supply a producer that fits on the rows of this port; a forecast or a mean is not a fit"
+        }
+        ContractOperation::Predict => {
+            "supply a producer that predicts from a fitted artifact on the rows of this port"
+        }
     }
 }
 

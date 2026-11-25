@@ -27,12 +27,13 @@ from . import _deprecation
 from .errors import CausalValueError
 from .execution import Execution, native_controls
 from .extensibility import (
-    ProviderCapability,
+    FoldPolicy,
     ProviderRegistry,
     ProviderResult,
     _digest,
     _request_digest,
     _spec_evidence,
+    connect_learner,
 )
 
 
@@ -40,9 +41,11 @@ from .extensibility import (
 class ExternalLearner:
     """A registered provider's declared nuisance task and fit behavior.
 
-    Providers use ``query_family='nuisance_learner'`` and declare ``mean``. Fit returns
-    a model in ``ProviderExecution.artifact``; prediction receives it as base64 in its
-    request. A variable ``output_shape`` declaration is needed because folds vary in size.
+    Providers use ``query_family='nuisance_learner'`` and declare ``mean``. Connecting
+    one to this slot goes through the interface contract (``fit``, ``predict`` and
+    ``mean``). Fit returns a model in ``ProviderExecution.artifact``; prediction
+    receives it as base64 in its request. A variable ``output_shape`` declaration is
+    needed because folds vary in size. The fold policy is :class:`~antecedent.extensibility.FoldPolicy`.
     Weighted fitting additionally requires ``sample_weights`` in the provider's declared
     ``data_dependence``.
     """
@@ -54,6 +57,9 @@ class ExternalLearner:
     training: Literal["fold_fit", "frozen", "fine_tuned"] = "fold_fit"
     configuration: Mapping[str, Any] | None = None
     _pinned_spec_digest: str | None = field(default=None, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        _require_honoured(self)
 
     def fit(self, x: Any, y: Any, weights: Any | None = None) -> FittedExternalLearner:
         """Fit or bind the model to these training rows and retain the execution receipt."""
@@ -71,11 +77,7 @@ class ExternalLearner:
             self.information_contract == "iid_row_conditional_mean"
             and "iid_row_conditional_mean" in spec.data_dependence
         )
-        if (
-            spec.query_family != "nuisance_learner"
-            and not (spec.query_family == "forecast" and forecast_adapter)
-        ) or ProviderCapability.MEAN not in spec.capabilities:
-            raise CausalValueError("provider must declare nuisance_learner and the mean capability")
+        connect_learner(spec, as_learner=forecast_adapter)
         if type(self.supports_weights) is not bool:
             raise CausalValueError("supports_weights must be a bool")
         if self.supports_weights and "sample_weights" not in spec.data_dependence:
@@ -123,6 +125,7 @@ class ExternalLearner:
             bytes(result.artifact),
             matrix.shape[1],
             result,
+            spec.fold_policy,
         )
 
 
@@ -162,6 +165,7 @@ class FittedExternalLearner:
     model: bytes
     n_features: int
     fit_receipt: ProviderResult
+    fold_policy: FoldPolicy
 
     def predict(self, x: Any) -> ProviderResult:
         """Predict on the supplied rows and return the registry's validated result."""
@@ -216,6 +220,7 @@ class CrossFittedAipwNuisances:
     fold_ids: tuple[int, ...]
     provenance: tuple[tuple[str, ...], ...]
     receipts: tuple[tuple[int, ProviderResult, ProviderResult], ...]
+    fold_policy: FoldPolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,6 +245,7 @@ class ExternalAteEstimate:
     cate: tuple[float, ...] | None
     cate_standard_errors: tuple[float, ...] | None
     receipts: tuple[tuple[int, ProviderResult, ProviderResult], ...]
+    fold_policy: FoldPolicy
     #: Out-of-fold treatment propensity of each analysed row, when the fit keeps an AIPW
     #: score table (set by :func:`analyze_ate`; the direct entries leave it ``None``).
     propensity: tuple[float, ...] | None = None
@@ -263,6 +269,8 @@ class Learners:
             self.treatment, ExternalLearner
         ):
             raise CausalValueError("outcome and treatment must be ExternalLearner instances")
+        _require_honoured(self.outcome)
+        _require_honoured(self.treatment)
 
 
 def _learner_identity(learner: ExternalLearner) -> dict[str, Any]:
@@ -293,8 +301,35 @@ def _columns(data: Mapping[str, Any]) -> tuple[list[str], list[NDArray[np.float6
     return names, raw_columns, n
 
 
-def _check_estimator(estimator: str, score: str, fold_policy: str) -> None:
-    if fold_policy != "iid":
+def _require_honoured(learner: ExternalLearner) -> None:
+    """Refuse a fold policy the nuisance estimators cannot honour.
+
+    A :class:`ForecastNuisanceAdapter` opts into an IID information contract at
+    fit; its forecast policy is not this check.
+    """
+    if type(learner) is not ExternalLearner:
+        return
+    spec = learner.registry._entry(learner.name)[0].spec
+    if not spec.fold_policy.estimator_honours():
+        raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
+
+
+def _fold_policy(value: FoldPolicy | str, *, iid: FoldPolicy) -> FoldPolicy:
+    """Decode a legacy word onto the fold policy. ``iid`` is this route's policy."""
+    if value == "iid":
+        policy = iid
+    else:
+        try:
+            policy = FoldPolicy.decode(value)
+        except (TypeError, ValueError) as error:
+            raise CausalValueError(str(error)) from error
+    if not policy.estimator_honours():
+        raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
+    return policy
+
+
+def _check_estimator(estimator: str, score: str, fold_policy: FoldPolicy) -> None:
+    if not fold_policy.estimator_honours():
         raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
     if estimator not in ("dml", "aipw", "dr_learner", "causal_forest"):
         raise CausalValueError("unknown external learner estimator")
@@ -311,7 +346,7 @@ def analyze_ate(
     learners: Learners,
     folds: int = 5,
     weights: Any | None = None,
-    fold_policy: Literal["iid", "temporal"] = "iid",
+    fold_policy: FoldPolicy | str = FoldPolicy.HOST_OWNED,
     estimator: Literal["dml", "aipw", "dr_learner", "causal_forest"] = "dml",
     score: Literal["aipw", "partially_linear"] = "aipw",
     execution: Execution | None = None,
@@ -329,7 +364,8 @@ def analyze_ate(
 
     if not isinstance(learners, Learners):
         raise CausalValueError("learners must be a Learners declaration")
-    _check_estimator(estimator, score, fold_policy)
+    policy = _fold_policy(fold_policy, iid=FoldPolicy.HOST_OWNED)
+    _check_estimator(estimator, score, policy)
     outcome = _snapshot_learner(learners.outcome)
     treatment = _snapshot_learner(learners.treatment)
     identity = json.dumps(
@@ -384,6 +420,7 @@ def analyze_ate(
         None if cate is None else tuple(cate),
         None if cate_se is None else tuple(cate_se),
         tuple(receipts),
+        policy,
         None if propensity is None else tuple(propensity),
     )
 
@@ -404,7 +441,7 @@ def dml_ate(
     treatment: ExternalLearner,
     folds: int = 5,
     weights: Any | None = None,
-    fold_policy: Literal["iid", "temporal"] = "iid",
+    fold_policy: FoldPolicy | str = FoldPolicy.HOST_OWNED,
     estimator: Literal["dml", "aipw", "dr_learner", "causal_forest"] = "dml",
     score: Literal["aipw", "partially_linear"] = "aipw",
     execution: Execution | None = None,
@@ -447,7 +484,7 @@ def _direct_ate(
     treatment: ExternalLearner,
     folds: int = 5,
     weights: Any | None = None,
-    fold_policy: Literal["iid", "temporal"] = "iid",
+    fold_policy: FoldPolicy | str = FoldPolicy.HOST_OWNED,
     estimator: Literal["dml", "aipw", "dr_learner", "causal_forest"] = "dml",
     score: Literal["aipw", "partially_linear"] = "aipw",
     execution: Execution | None = None,
@@ -456,7 +493,8 @@ def _direct_ate(
 
     if not isinstance(outcome, ExternalLearner) or not isinstance(treatment, ExternalLearner):
         raise CausalValueError("outcome and treatment must be ExternalLearner instances")
-    _check_estimator(estimator, score, fold_policy)
+    policy = _fold_policy(fold_policy, iid=FoldPolicy.HOST_OWNED)
+    _check_estimator(estimator, score, policy)
     outcome, treatment = _snapshot_learner(outcome), _snapshot_learner(treatment)
     names, raw_columns, n = _columns(data)
     selected_weights = None if weights is None else _vector(weights, n, "weights")
@@ -494,6 +532,7 @@ def _direct_ate(
         None if cate is None else tuple(cate),
         None if cate_se is None else tuple(cate_se),
         tuple(receipts),
+        policy,
     )
 
 
@@ -550,7 +589,7 @@ def cross_fit_aipw(
     fold_ids: Any,
     *,
     weights: Any | None = None,
-    fold_policy: Literal["iid", "temporal"] = "iid",
+    fold_policy: FoldPolicy | str = FoldPolicy.CALLER_OWNED,
     execution: Execution | None = None,
 ) -> CrossFittedAipwNuisances:
     """Run native AIPW nuisance cross-fitting on an explicit fold assignment.
@@ -569,8 +608,7 @@ def cross_fit_aipw(
 
     if not isinstance(outcome, ExternalLearner) or not isinstance(treatment, ExternalLearner):
         raise CausalValueError("outcome and treatment must be ExternalLearner instances")
-    if fold_policy != "iid":
-        raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
+    policy = _fold_policy(fold_policy, iid=FoldPolicy.CALLER_OWNED)
     outcome, treatment = _snapshot_learner(outcome), _snapshot_learner(treatment)
     matrix = _matrix(x)
     target = _vector(y, matrix.shape[0], "target")
@@ -606,6 +644,7 @@ def cross_fit_aipw(
         tuple(int(v) for v in folds),
         tuple(tuple(item) for item in provenance),
         tuple(receipts),
+        policy,
     )
 
 

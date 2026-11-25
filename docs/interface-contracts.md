@@ -30,7 +30,7 @@ One `InterfaceContract` declares a component identity and two lists of ports.
 | quantity | the full `ScientificQuantity`: variable, role, units, population, regime, horizon, functional, conditioning, transform |
 | semantic identity | the estimand or semantic identity the value answers |
 | support | the values the quantity takes (produced) or the component accepts (consumed): real, non-negative, binary, a closed interval (bounds as bit patterns), or a finite set of levels |
-| operations | what a producer offers or a consumer requires: `point`, `mean`, `law`, `draws`, `joint_draws`, `covariance`, `interval`, `posterior`; none implies another |
+| operations | what a producer offers or a consumer requires: `point`, `mean`, `law`, `draws`, `joint_draws`, `covariance`, `interval`, `posterior`, `fit`, `predict`; none implies another |
 | uncertainty meaning | what a covariance, law, draws, interval or posterior means (parameter posterior, causal functional posterior, posterior predictive, interventional predictive, estimator sampling, bootstrap, empirical outcome) and therefore its paradigm (posterior, sampling, resampling, empirical) |
 | calibration | produced: a label `none`, `point_only`, `not_measured`, `measured` (with a record identity) or `inherited` (from a consumed port); consumed: `not_required` or `measured` |
 | measurement models | the identities of the measurement models the quantity is established under; the set must match exactly |

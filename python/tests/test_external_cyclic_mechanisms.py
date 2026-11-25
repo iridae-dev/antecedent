@@ -119,10 +119,10 @@ def test_fit_with_a_registered_mechanism_recovers_the_closed_form_and_solves_the
         artifact.report["worlds"][0][0]["evidence"]["contraction_bound_provenance"]
         == "declared_external_lipschitz"
     )
-    assert artifact.trust == "verified_external"
+    assert artifact.trust == "verified_extension"
     assert artifact.report["claim"] == "verified_external_model_conditional"
     [mechanism] = artifact.report["mechanisms"]
-    assert mechanism["trust"] == "verified_external"
+    assert mechanism["trust"] == "verified_extension"
     assert mechanism["derivative_basis"] == "analytic"
 
 
@@ -175,7 +175,7 @@ def test_independent_reload_in_a_fresh_process_with_a_fresh_registry_reproduces_
     assert json.loads(out.stdout) == artifact.report
     replay = em.consume_artifact(artifact.data, artifact.identity, resolver=make_registry())
     assert replay == artifact.report
-    assert replay["trust"] == "verified_external"
+    assert replay["trust"] == "verified_extension"
 
 
 def refusal(artifact: em.ExternalArtifact, resolver) -> CausalValueError:
@@ -234,7 +234,7 @@ def test_artifact_bytes_contain_no_executable_code_and_inspection_needs_no_resol
     )
     assert marker.encode() not in artifact.data
     inspected = em.inspect_artifact(artifact.data)
-    assert inspected["trust"] == "verified_external"
+    assert inspected["trust"] == "verified_extension"
     [recorded] = inspected["mechanisms"]
     spec = recorded["spec"]
     assert spec["content_digest"] == registry.resolve(spec).spec["content_digest"]
@@ -320,7 +320,7 @@ def test_external_ode_matches_the_closed_form_and_stays_verified_external():
     out = ode.trajectory([3.0, 2.0], [0.0, 1.0, 2.0], resolver=registry)
     for state, t in zip(out["trajectory"]["states"], [0.0, 1.0, 2.0], strict=True):
         assert state[0] == pytest.approx(1.0 + 2.0 * math.exp(-t), abs=1e-6)
-    assert out["trust"] == "verified_external"
+    assert out["trust"] == "verified_extension"
     assert out["drift_lipschitz"] == pytest.approx(1.5)
     with pytest.raises(CausalValueError) as caught:
         ode.trajectory([3.0, 2.0], [0.0, 1.0], resolver=None)

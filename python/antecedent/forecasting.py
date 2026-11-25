@@ -16,12 +16,13 @@ from . import predictive_assessment as pa
 from ._digest import canonical_digest
 from .errors import CausalValueError
 from .extensibility import (
-    ProviderCapability,
+    FoldPolicy,
     ProviderRegistry,
     ProviderResult,
     _digest,
     _request_digest,
     _spec_evidence,
+    connect_forecast,
 )
 
 
@@ -79,6 +80,7 @@ class ForecastResult:
     origin: int
     law: pa.Law | None
     fit: pa.FitDeclaration
+    fold_policy: FoldPolicy
 
     def predictor(self, name: str) -> pa.Predictor:
         """Build a single-case predictor; point-only output has no predictive law."""
@@ -261,17 +263,7 @@ def forecast(
     if kind not in ("point", "gaussian", "samples", "joint_samples"):
         raise CausalValueError("unknown forecast output kind")
     spec = registry._entry(provider)[0].spec
-    if spec.query_family != "forecast":
-        raise CausalValueError("provider must declare query_family='forecast'")
-    required = (
-        {ProviderCapability.SAMPLE}
-        if kind in ("samples", "joint_samples")
-        else {ProviderCapability.MEAN}
-    )
-    if kind == "gaussian":
-        required.add(ProviderCapability.COVARIANCE)
-    if not required.issubset(spec.capabilities):
-        raise CausalValueError("provider does not declare the forecast capabilities required")
+    connect_forecast(spec, kind)
     if kind != "point" and spec.uncertainty_semantics == "point_only":
         raise CausalValueError("probabilistic forecasts require declared uncertainty semantics")
     case = origin._wire(horizon)
@@ -348,4 +340,4 @@ def forecast(
         request_id=request_digest,
         trust=execution.trust.value,
     )
-    return ForecastResult(execution, source, target, origin.origin, law, fit)
+    return ForecastResult(execution, source, target, origin.origin, law, fit, spec.fold_policy)

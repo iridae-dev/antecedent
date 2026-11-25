@@ -45,6 +45,8 @@ class MeanSource(ScientificResult):
         if len(self.coordinates) != len(self.means) or not self.coordinates:
             raise CausalValueError("a mean source needs one mean per scientific coordinate")
         ScientificResult.__post_init__(self)
+        if self.trust == "verified_external":
+            coerce_fields(self, trust="verified_extension")
         if self.trust in ("native_supported", "verified_extension"):
             from .. import _native
 
@@ -67,10 +69,13 @@ class MeanSource(ScientificResult):
             verified_authority = False
             external_native = getattr(self._original_external, "_native", None)
             if isinstance(external_native, _native.ExternalClaimArtifact):
-                verified_authority = (
-                    json.loads(external_native.metadata_json)["identity"]["trust"]
-                    == "verified_extension"
-                )
+                stored = json.loads(external_native.metadata_json)["identity"]["trust"]
+                from ..extensibility import ProviderTrust
+
+                try:
+                    verified_authority = ProviderTrust(stored) is ProviderTrust.VERIFIED_EXTENSION
+                except ValueError:
+                    verified_authority = False
             if not (native_authority if self.trust == "native_supported" else verified_authority):
                 raise CausalValueError(
                     "a mean declaration cannot issue native_supported or verified_extension trust; use the checked native or verified-source adapter that retains its authority"

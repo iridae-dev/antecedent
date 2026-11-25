@@ -53,6 +53,8 @@ pub enum ExternalProviderTrust {
     /// The provider or caller attests the result; the host has not verified it.
     ExternallyAttested,
     /// The host verified this exact request against independent fixtures.
+    /// `verified_external` is the legacy spelling of the same status.
+    #[serde(alias = "verified_external")]
     VerifiedExtension,
 }
 

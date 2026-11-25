@@ -19,18 +19,25 @@ const MAX_TEXT: usize = 256;
 #[serde(rename_all = "snake_case")]
 pub enum MechanismTrust {
     /// Every mechanism is a built-in, serializable library mechanism.
+    ///
+    /// This is the mechanism's own built-in standing. It is not
+    /// `native_supported`, and verifying an external mechanism cannot raise it.
     Native,
-    /// At least one mechanism is an external implementation verified against its recorded
-    /// identity. This is never upgraded to [`Self::Native`].
+    /// The declaration matched its recorded fixture. The same status a provider
+    /// earns by matching a fixture (`verified_extension`). Never [`Self::Native`]
+    /// and never `native_supported`.
+    ///
+    /// Artifacts that still say `verified_external` decode onto this variant.
+    #[serde(rename = "verified_extension", alias = "verified_external")]
     VerifiedExternal,
 }
 impl MechanismTrust {
-    /// Stable wire name.
+    /// Stable wire name. `verified_external` is accepted by serde and is not emitted.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::Native => "native",
-            Self::VerifiedExternal => "verified_external",
+            Self::VerifiedExternal => "verified_extension",
         }
     }
 }

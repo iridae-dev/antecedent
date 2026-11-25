@@ -88,7 +88,7 @@ def test_the_compiled_fit_recovers_the_least_squares_gain():
     compiled = model(registry).compiled_fit(TARGETS, regime_rows(), resolver=registry)
     fit = compiled["fit"]
     assert fit["converged"]
-    assert fit["trust"] == "verified_external"
+    assert fit["trust"] == "verified_extension"
     assert fit["system"]["equations"][0]["parameters"][0] == pytest.approx(
         least_squares_gain(), abs=1e-6
     )

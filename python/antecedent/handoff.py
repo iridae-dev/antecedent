@@ -127,7 +127,7 @@ class AdjustmentHandoff:
     @property
     def spec(self):
         """Reusable declaration of this handoff's boundaries, not a learner runner."""
-        from .extensibility import CausalProviderSpec, ProviderCapability
+        from .extensibility import CausalProviderSpec, FoldPolicy, ProviderCapability
 
         if not isinstance(self.tool, str) or not self.tool.strip():
             raise _refuse(
@@ -152,7 +152,7 @@ class AdjustmentHandoff:
                 "interval_calibration_is_not_reverified",
             ),
             influence_function=None,
-            fold_policy="external_learner_owned_not_recorded_by_handoff",
+            fold_policy=FoldPolicy.HANDOFF_UNKNOWN,
             output_shape="provider_defined",
             uncertainty_semantics="externally_attested_not_reverifiable",
             artifact_codec="antecedent_external_estimate_artifact",
@@ -592,6 +592,16 @@ class ExternalEstimate:
         from .extensibility import ProviderTrust
 
         return ProviderTrust.EXTERNALLY_ATTESTED
+
+    @property
+    def fold_policy(self):
+        """Unknown folds, recorded on this receipt the same way a host-owned policy is.
+
+        The assignment itself is not in the receipt. The policy value is.
+        """
+        from .extensibility import FoldPolicy
+
+        return FoldPolicy.HANDOFF_UNKNOWN
 
     @property
     def value(self) -> float | None:

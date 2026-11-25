@@ -87,6 +87,8 @@ pub enum DistributionTrust {
     #[serde(alias = "externally_attested")]
     ExternalAttested,
     /// One external object verified for an exact request fingerprint.
+    /// `verified_external` is the legacy spelling of the same status.
+    #[serde(alias = "verified_external")]
     VerifiedExtension,
     /// No provider verification claim.
     Unverified,

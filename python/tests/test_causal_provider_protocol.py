@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import antecedent
-from antecedent.extensibility import CausalProvider, ProviderTrust
+from antecedent.extensibility import CausalProvider, FoldPolicy, ProviderTrust
 
 
 def _data() -> dict[str, list[float]]:
@@ -17,7 +17,9 @@ def test_econml_handoff_implements_declarative_provider_contract_only():
     assert not hasattr(provider, "estimate")
     spec = provider.spec
     assert spec.query_family == "point_identified_adjustment_estimand"
-    assert spec.fold_policy == "external_learner_owned_not_recorded_by_handoff"
+    assert spec.fold_policy is FoldPolicy.HANDOFF_UNKNOWN
+    assert spec.fold_policy == "handoff_unknown"
+    assert not spec.fold_policy.assignment_recorded()
     assert spec.uncertainty_semantics == "externally_attested_not_reverifiable"
     assert "handoff_does_not_own_or_record_training_rows" in spec.data_dependence
     assert "interval_calibration_is_not_reverified" in spec.inference_claims
