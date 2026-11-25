@@ -283,10 +283,10 @@ pub(crate) fn restrict_to_contrast_levels(
 
 /// Refuse a contrast to a level that no complete-case row of a discrete treatment carries.
 ///
-/// A treatment that takes at most [`MAX_DISCRETE_LEVELS`] distinct values, with some value
-/// repeated, is read as arms, so a contrasted level outside those values has no rows to
-/// estimate from: a regression would extrapolate the fitted slope to it. Continuous columns
-/// (more distinct values, or every value distinct) are numeric doses and are left alone.
+/// Declared levels and undeclared treatments with at most [`MAX_DISCRETE_LEVELS`] distinct
+/// values and some repeated value are read as arms. A contrasted level outside those values
+/// has no rows to estimate from. An undeclared column with more distinct values or with every
+/// value distinct is left as a numeric dose.
 ///
 /// # Errors
 ///
@@ -316,7 +316,10 @@ pub(crate) fn require_contrast_arms_populated(
             }
         }
     }
-    if distinct.is_empty() || distinct.len() == values.len() {
+    if distinct.is_empty()
+        || (matches!(declaration, TreatmentDeclaration::Undeclared)
+            && distinct.len() == values.len())
+    {
         return Ok(());
     }
     let empty: Vec<f64> = [active, control]

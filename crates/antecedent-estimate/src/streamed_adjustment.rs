@@ -352,6 +352,32 @@ mod tests {
     }
 
     #[test]
+    fn declared_unique_treatment_levels_refuse_an_absent_arm_before_fitting() {
+        let data = TabularData::from_f64_columns([
+            ("t", &[0.0, 1.0, 2.0, 3.0][..]),
+            ("y", &[0.0, 3.0, 1.0, 4.0][..]),
+        ])
+        .unwrap();
+        let estimand =
+            IdentifiedEstimand::backdoor("backdoor.adjustment", Arc::from([]), ExprId::from_raw(0));
+        let query = AverageEffectQuery::with_levels(
+            VariableId::from_raw(0),
+            VariableId::from_raw(1),
+            0.0,
+            4.0,
+        );
+        let estimator = LinearAdjustmentAte::new()
+            .with_bootstrap_replicates(0)
+            .with_treatment_declaration(crate::propensity::TreatmentDeclaration::Levels);
+        let resident = estimator.prepare(&data, &estimand, &query).unwrap_err();
+        let streamed = estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();
+        for error in [resident, streamed] {
+            assert_eq!(error.reason_code(), Some("arm_not_populated"));
+            assert!(error.to_string().contains("level 4 has no"));
+        }
+    }
+
+    #[test]
     fn an_undeclared_eleven_value_stream_stays_a_dose_and_names_it() {
         let treatment: Vec<f64> = (0..55).map(|i| f64::from(i % 11)).collect();
         let outcome: Vec<f64> = treatment.iter().enumerate().map(|(i, t)| t + noise(i)).collect();
