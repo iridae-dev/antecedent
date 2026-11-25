@@ -362,6 +362,28 @@ impl PyPreparedAnalysis {
         Ok(pyo3::types::PyBytes::new(py, &bytes))
     }
 
+    /// Save the last execution as a compiled study with its source rows.
+    fn save_compiled_study<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<(Bound<'py, pyo3::types::PyBytes>, String)> {
+        let study = self.last_study.as_ref().unwrap_or(&self.inner);
+        let result = self
+            .last
+            .as_ref()
+            .ok_or_else(|| crate::value_err("estimate before saving a compiled study"))?;
+        let ctx = py_execution_context_ext(
+            self.last_seed,
+            self.last_threads,
+            None,
+            None,
+            Some(crate::PY_DEFAULT_CACHE_MAX_BYTES),
+        );
+        let saved =
+            detach_catch(py, || study.save_compiled_study(result, &ctx, None).map_err(py_err))?;
+        Ok((pyo3::types::PyBytes::new(py, &saved.bytes), saved.expected_identity))
+    }
+
     /// Export the last estimate as an `analysis_result` with a contract section.
     #[pyo3(signature = (*, artifact_id="prepared-contract", quantities_json=None))]
     fn export_contracted_artifact<'py>(

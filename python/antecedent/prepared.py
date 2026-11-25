@@ -58,6 +58,7 @@ _AUTO_DATA_DIAGNOSTICS = _AutomaticDataDiagnostics()
 if TYPE_CHECKING:
     from ._batch import BatchResult, PreparedBatch
     from ._prepared_identification import PreparedIdentification
+    from .compiled_study import WrittenStudy
     from .cyclic import CyclicResult, PreparedCyclicFamily, PreparedCyclicSystem
     from .exposure_measurement import MeasuredAnalysis, PreparedMeasuredAnalysis
     from .validation import TargetRefutation, TargetRefutationSpec
@@ -75,8 +76,9 @@ def _preparation_declarations(**values: Any) -> Mapping[str, Any]:
         {
             name: value
             for name, value in bound.arguments.items()
-            # A measurement declaration is dispatched before preparation (prepare_measured).
+            # Measurement and learner declarations have their own preparation routes.
             if name not in {"data", "execution", "measurement", "measurement_draws", "imputations"}
+            and not (name == "learners" and value is None)
         }
     )
 
@@ -145,6 +147,17 @@ class PreparedAnalysis(Generic[T]):
     def estimate(self) -> Outcome[T]:
         """Execute this study and return its outcome; see :func:`antecedent.estimate`."""
         return estimate(self)
+
+    def save_compiled_study(self) -> WrittenStudy:
+        """Save an executed average-effect branch with its full source table.
+
+        Call this on ``outcome.study`` after a successful estimate. Retain the
+        expected identity separately for ``antecedent.compiled_study.open_study``.
+        """
+        save = getattr(self._engine, "save_compiled_study", None)
+        if self._refused is not None or not callable(save):
+            raise CausalValueError("a completed portable average-effect study is required")
+        return cast("WrittenStudy", self.execution._call(save))
 
     def rebind(self, *, data: Any) -> PreparedAnalysis[T]:
         """Return a new study on other observations; see :func:`rebind`."""

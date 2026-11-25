@@ -51,12 +51,8 @@ fn write_compiled_study(
             names,
         })
         .collect();
-    let written = compiled_study::write(StudyParts {
-        invariant,
-        bodies: &stored,
-        claim,
-    })
-    .map_err(|error| crate::value_err_display(error))?;
+    let written = compiled_study::write(StudyParts { invariant, bodies: &stored, claim })
+        .map_err(|error| crate::value_err_display(error))?;
     Ok((PyBytes::new(py, &written.bytes).unbind(), written.expected_identity))
 }
 
@@ -86,18 +82,20 @@ fn open_compiled_study(
             ));
         }
     };
-    let opened = compiled_study::open(
-        data,
-        expected_identity,
-        &|uri| {
-            resolved
-                .iter()
-                .find(|(candidate, _)| candidate == uri)
-                .map(|(_, body)| body.clone())
-        },
-        caller_supplied,
-    )
-    .map_err(|error| crate::value_err_display(error))?;
+    let opened = crate::detach_catch(py, || {
+        compiled_study::open(
+            data,
+            expected_identity,
+            &|uri| {
+                resolved
+                    .iter()
+                    .find(|(candidate, _)| candidate == uri)
+                    .map(|(_, body)| body.clone())
+            },
+            caller_supplied,
+        )
+        .map_err(crate::value_err_display)
+    })?;
     let status = json!({
         "resumable": opened.resumable,
         "unresolved": opened.unresolved.iter().map(|item| json!({

@@ -5,12 +5,11 @@ the writer output, byte for byte. ``program.catalog`` records each role's digest
 length, and placement. Inline bytes are ``program.body.<role>``. An external
 placement keeps the caller's URI and takes its bytes from the resolver.
 
-The expected identity is the digest :func:`write` returns. It is not read from
-the container. A matching set of required bodies re-quotes layer 5 from the
-source shape and recomputes the mean of the first source column. A required body
-the resolver does not supply returns the sealed analysis-result claim and
-``resumable`` false. A different identity, or a body whose length or digest
-fails, is refused.
+Retain the expected identity the writer returns separately from the container.
+For a portable prepared study, opening with its required bodies re-quotes layer
+5 and runs the saved estimator. A missing required body leaves the sealed claim
+available with ``resumable`` false. A different invariant, a corrupt body, or a
+claim from another program or data snapshot is refused.
 """
 
 from __future__ import annotations
@@ -67,7 +66,9 @@ class OpenedStudy:
     bodies: Mapping[str, bytes]
 
 
-def write(invariant: bytes, bodies: Sequence[StudyBody], claim: bytes | None = None) -> WrittenStudy:
+def write(
+    invariant: bytes, bodies: Sequence[StudyBody], claim: bytes | None = None
+) -> WrittenStudy:
     """Store ``invariant`` and ``bodies`` as a compiled study."""
     data, identity = write_compiled_study(
         bytes(invariant),

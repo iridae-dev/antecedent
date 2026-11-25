@@ -147,6 +147,7 @@ pub mod compiled_measured_interval;
 pub mod compiled_measurement_transport;
 pub mod compiled_per_population_discovery;
 mod compiled_point_program;
+pub(crate) mod compiled_study;
 pub mod compiled_smoothed_dose_learners;
 pub mod compiled_temporal_interval;
 pub mod compiled_transport_scenarios;

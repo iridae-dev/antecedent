@@ -236,6 +236,7 @@ _static_edges = _estimate_helpers._static_edges
 
 if TYPE_CHECKING:
     from ._prepared_policy import PreparedPolicyAnalysis
+    from .compiled_study import WrittenStudy
     from .preflight import (
         CostEstimate,
         NuisanceFitDiagnostics,
@@ -2091,6 +2092,19 @@ class _PreparedEngine(Generic[ResultT]):
                 reason_code="cancelled_no_claim",
             )
         return self._native.export_contracted_artifact(artifact_id=artifact_id)
+
+    def save_compiled_study(self) -> WrittenStudy:
+        """Save the last portable average-effect execution and its source rows.
+
+        The saved bundle embeds the full source table. Retain its expected identity
+        separately and pass it to ``antecedent.compiled_study.open_study``.
+        """
+        from .compiled_study import WrittenStudy
+
+        if self._transport is not None or getattr(self, "_cancelled", False):
+            raise ValueError("a completed portable average-effect study is required")
+        data, identity = self._native.save_compiled_study()
+        return WrittenStudy(data, identity)
 
     @property
     def structure_source(self) -> str:

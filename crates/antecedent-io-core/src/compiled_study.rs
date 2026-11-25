@@ -19,11 +19,10 @@
 //! BLAKE3 digest. Source rows must also rebuild to the content digest the
 //! catalog declares.
 //!
-//! When every required body matches, opening re-quotes layer 5 from the source
-//! shape and recomputes the source-column mean. A required body the resolver
-//! does not supply returns the sealed claim, loaded through
-//! [`crate::load_analysis_result`], with resumability false. A mismatched
-//! expectation or a body that fails its digest is refused.
+//! This layer validates and opens the container. Estimator replay belongs to the
+//! executable study reader. A required body the resolver does not supply leaves
+//! the bound sealed claim available. A mismatched expectation or a body that
+//! fails its digest is refused.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -85,6 +84,17 @@ impl StudyInvariant {
     /// Malformed CBOR after the typed invariant prefix.
     pub fn decode(bytes: &[u8]) -> Result<Option<Self>, IoError> {
         bytes.strip_prefix(INVARIANT_MAGIC).map(from_cbor).transpose()
+    }
+
+    /// Decode an invariant under its separately retained identity.
+    ///
+    /// # Errors
+    /// As [`Self::decode`], or a retained identity mismatch.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    ) -> Result<Option<Self>, IoError> {
+        crate::retained_artifact::load_expecting(bytes, retained, Self::decode)
     }
 }
 
@@ -154,13 +164,13 @@ pub struct UnresolvedBody {
 /// A compiled study after acceptance.
 #[derive(Clone, Debug)]
 pub struct OpenedStudy {
-    /// Every required body matched and the study is not summary-only.
+    /// The executable study reader successfully reproduced the saved estimator.
     pub resumable: bool,
     /// Required roles with no bytes.
     pub unresolved: Vec<UnresolvedBody>,
     /// Layer 5 quote of the source shape, when every required body matched.
     pub layer5_bytes: Option<u64>,
-    /// Mean of the first source column, recomputed from the resolved rows.
+    /// Point estimate from the executable study reader, when it replayed the estimator.
     pub estimate: Option<f64>,
     /// Sealed claim, when `program.claim` is present.
     pub claim: Option<crate::AnalysisResultLoad>,
@@ -172,6 +182,8 @@ pub struct OpenedStudy {
     pub callback_live: bool,
     /// `program.invariant`, unchanged.
     pub invariant: Vec<u8>,
+    /// Variable names in the verified source catalog entry, in source column order.
+    pub source_names: Option<Vec<String>>,
     /// Resolved role bytes.
     pub bodies: BTreeMap<String, Vec<u8>>,
 }
@@ -256,18 +268,13 @@ pub fn accept_source_body(
     Ok(got)
 }
 
-fn source_mean(bytes: &[u8]) -> Result<(f64, u64, u64), IoError> {
+fn source_shape(bytes: &[u8]) -> Result<(u64, u64), IoError> {
     let witness: SourceWitnessWire = from_cbor(bytes)?;
-    let Some(column) = witness.columns.first() else {
-        return Err(refused("source rows have no column"));
-    };
-    if column.values.is_empty() {
-        return Err(refused("source rows have no values"));
-    }
-    let sum: f64 = column.values.iter().copied().sum();
-    let mean = sum / column.values.len() as f64;
     let columns = u64::try_from(witness.columns.len()).map_err(|_| IoError::TooLarge)?;
-    Ok((mean, witness.row_count, columns))
+    if columns == 0 || witness.row_count == 0 {
+        return Err(refused("source rows need a nonempty table"));
+    }
+    Ok((witness.row_count, columns))
 }
 
 fn section(id: &str, bytes: &[u8]) -> (crate::wire::SectionDescriptor, SectionBytes) {
@@ -289,7 +296,6 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
     let mut entries = Vec::with_capacity(parts.bodies.len());
     let mut inline: Vec<(String, Vec<u8>)> = Vec::new();
     let mut seen = BTreeMap::<String, ()>::new();
-    let mut estimate_bits = None;
     for body in parts.bodies {
         if !catalog_role::is_role(&body.role) {
             return Err(refused(format!("unknown catalog role `{}`", body.role)));
@@ -312,8 +318,7 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
                 return Err(refused("source rows need their variable names"));
             }
             let digest = source_content_digest(&body.bytes, &body.names)?;
-            let (mean, row_count, column_count) = source_mean(&body.bytes)?;
-            estimate_bits = Some(mean.to_bits());
+            let (row_count, column_count) = source_shape(&body.bytes)?;
             (Some(antecedent_core::to_hex(&digest)), Some(row_count), Some(column_count))
         } else if !body.names.is_empty() {
             return Err(refused("variable names belong to source rows"));
@@ -338,7 +343,7 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
     }
     entries.sort_by(|left, right| left.role.cmp(&right.role));
     inline.sort_by(|left, right| left.0.cmp(&right.0));
-    let catalog = to_cbor(&CatalogWire { version: CATALOG_VERSION, entries, estimate_bits })?;
+    let catalog = to_cbor(&CatalogWire { version: CATALOG_VERSION, entries, estimate_bits: None })?;
     let mut descriptors = Vec::new();
     let mut sections = Vec::new();
     for (id, bytes) in [(INVARIANT_SECTION, parts.invariant), (CATALOG_SECTION, catalog.as_slice())]
@@ -423,7 +428,7 @@ fn accept_bytes(entry: &EntryWire, bytes: &[u8]) -> Result<(), IoError> {
             return Err(refused("source content digest is not 32 bytes"));
         };
         accept_source_body(bytes, &entry.names, &digest)?;
-        let (_, rows, columns) = source_mean(bytes)?;
+        let (rows, columns) = source_shape(bytes)?;
         if entry.rows != Some(rows) || entry.columns != Some(columns) {
             return Err(refused("source shape does not match the catalog"));
         }
@@ -524,9 +529,13 @@ pub fn open(
         return Err(IoError::UnsupportedVersion { version: u32::from(catalog.version) });
     }
     let mut roles = BTreeSet::new();
+    let mut source_names = None;
     for entry in &catalog.entries {
         if !catalog_role::is_role(&entry.role) {
             return Err(refused(format!("unknown catalog role `{}`", entry.role)));
+        }
+        if entry.role == SOURCE_ROWS {
+            source_names = Some(entry.names.clone());
         }
         if !roles.insert(entry.role.as_str()) {
             return Err(refused(format!("catalog role `{}` is repeated", entry.role)));
@@ -560,42 +569,28 @@ pub fn open(
     }
     let refit_refused = summary_only.then(|| "summary-only".to_owned());
     let callback_live = callback && caller_supplied;
-    if !unresolved.is_empty() {
-        return Ok(OpenedStudy {
-            resumable: false,
-            unresolved,
-            layer5_bytes: None,
-            estimate: None,
-            claim,
-            refit_refused,
-            callback_requires_caller: callback,
-            callback_live,
-            invariant,
-            bodies,
-        });
-    }
-    let (layer5_bytes, estimate) = match bodies.get(SOURCE_ROWS) {
-        None => (None, None),
-        Some(source) => {
-            let (mean, rows, columns) = source_mean(source)?;
-            let quote = layer5_quote(rows, columns)?;
-            match catalog.estimate_bits {
-                Some(bits) if bits == mean.to_bits() => {}
-                _ => return Err(refused("the estimate does not reproduce from the source rows")),
-            }
-            (Some(quote), Some(mean))
-        }
+    let layer5_bytes = if unresolved.is_empty() {
+        bodies
+            .get(SOURCE_ROWS)
+            .map(|source| {
+                let (rows, columns) = source_shape(source)?;
+                layer5_quote(rows, columns)
+            })
+            .transpose()?
+    } else {
+        None
     };
     Ok(OpenedStudy {
-        resumable: !summary_only,
+        resumable: false,
         unresolved,
         layer5_bytes,
-        estimate,
+        estimate: None,
         claim,
         refit_refused,
         callback_requires_caller: callback,
         callback_live,
         invariant,
+        source_names,
         bodies,
     })
 }
@@ -661,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn matching_bodies_requote_layer_five_and_reproduce_the_estimate() {
+    fn matching_bodies_requote_layer_five_without_an_estimator() {
         let body = source_body();
         let invariant = b"writer-output-\xff".to_vec();
         let written =
@@ -669,10 +664,10 @@ mod tests {
                 .unwrap();
         assert!(written.bytes.starts_with(b"CAUSAL\0\0"));
         let opened = open(&written.bytes, &written.expected_identity, &none, false).unwrap();
-        assert!(opened.resumable);
+        assert!(!opened.resumable);
         assert!(opened.unresolved.is_empty());
         assert_eq!(opened.invariant, invariant);
-        assert_eq!(opened.estimate, Some(2.0));
+        assert_eq!(opened.estimate, None);
         assert_eq!(opened.layer5_bytes, Some(layer5_quote(2, 2).unwrap()));
         assert_eq!(opened.bodies.get(SOURCE_ROWS), Some(&body.bytes));
     }
@@ -692,8 +687,8 @@ mod tests {
         assert!(opened.layer5_bytes.is_none());
         let resolve = |uri: &str| (uri == "memory://source").then(|| source_body().bytes);
         let resumed = open(&written.bytes, &written.expected_identity, &resolve, false).unwrap();
-        assert!(resumed.resumable);
-        assert_eq!(resumed.estimate, Some(2.0));
+        assert!(!resumed.resumable);
+        assert_eq!(resumed.estimate, None);
     }
 
     #[test]
@@ -780,7 +775,7 @@ mod tests {
         assert_eq!(opened.refit_refused.as_deref(), Some("summary-only"));
         assert!(opened.callback_requires_caller);
         assert!(!opened.callback_live);
-        assert_eq!(opened.estimate, Some(2.0));
+        assert_eq!(opened.estimate, None);
         let live = open(&written.bytes, &written.expected_identity, &none, true).unwrap();
         assert!(live.callback_live);
         assert!(!live.resumable);
@@ -866,7 +861,7 @@ mod tests {
         let written =
             write(StudyParts { invariant: b"invariant", bodies: &bodies, claim: None }).unwrap();
         let opened = open(&written.bytes, &written.expected_identity, &none, true).unwrap();
-        assert!(opened.resumable);
+        assert!(!opened.resumable);
         for body in &bodies {
             assert_eq!(opened.bodies.get(&body.role), Some(&body.bytes));
         }
