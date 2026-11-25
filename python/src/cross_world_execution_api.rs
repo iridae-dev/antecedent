@@ -94,20 +94,15 @@ fn artifact_refusal(error: &CrossWorldExecutionArtifactError) -> String {
     }
 }
 
-fn parse_request(
-    request_json: &str,
-) -> Result<
-    (CrossWorldRequestWire, antecedent::analysis::cross_world_execution::FiniteExecutionRequest),
-    String,
-> {
+fn parse_request(request_json: &str) -> Result<CrossWorldRequestWire, String> {
     let wire: CrossWorldRequestWire = serde_json::from_str(request_json).map_err(|e| {
         invalid_json(
             antecedent::reason::reason_details::cross_world_execution::INVALID_REQUEST,
             e.to_string(),
         )
     })?;
-    let request = request_of(&wire).map_err(|e| artifact_refusal(&e))?;
-    Ok((wire, request))
+    request_of(&wire).map_err(|e| artifact_refusal(&e))?;
+    Ok(wire)
 }
 
 fn result_json(result: &FiniteExecutionResult) -> Json {
@@ -333,7 +328,7 @@ impl PyCrossWorldExecutor {
     ) -> PyResult<Refused<String>> {
         // A malformed request refuses here, as it does for seal, before any compile.
         let wire = match parse_request(request_json) {
-            Ok((wire, _)) => wire,
+            Ok(wire) => wire,
             Err(e) => return Ok((None, Some(e))),
         };
         let ctx = execution_context(0, None, cancel);
@@ -446,7 +441,7 @@ fn cross_world_seal(
 ) -> PyResult<Refused<(Py<PyBytes>, String)>> {
     // The request is checked before it compiles, so a malformed one refuses as it always has.
     let wire = match parse_request(request_json) {
-        Ok((wire, _)) => wire,
+        Ok(wire) => wire,
         Err(e) => return Ok((None, Some(e))),
     };
     let ctx = execution_context(0, None, cancel);
