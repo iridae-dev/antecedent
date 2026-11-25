@@ -668,6 +668,12 @@ fn declaration_error(error: antecedent_core::DeclarationError) -> CausalError {
 }
 
 #[cfg(test)]
+use crate::{Dag, RefuteSuite, Study};
+#[cfg(test)]
+#[path = "../../tests/common/acyclic_identity.rs"]
+mod acyclic_identity_fixture;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};
@@ -850,6 +856,14 @@ mod tests {
         program.realization.write(&mut writer);
         writer.word(0).word(0).word(0).word(0).opt_word(None).text("not_design_based").word(0);
         assert_eq!(program.lowered_layer_digest(), SemanticDigest::from_bytes(writer.finish()));
+
+        let (study, _) = acyclic_identity_fixture::linear_ate();
+        let prepared = study.prepare(&antecedent_core::ExecutionContext::for_tests(3)).unwrap();
+        let lowered = prepared.plan().lowered().expect("compile attaches a lowered program");
+        assert_eq!(
+            lowered.statistical().lowered_layer_digest().to_hex(),
+            acyclic_identity_fixture::released_statistical_golden()
+        );
     }
 
     #[test]

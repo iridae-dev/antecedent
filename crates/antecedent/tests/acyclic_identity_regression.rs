@@ -9,12 +9,14 @@
 //! targets of the static, temporal and mixed-graph vocabularies.
 //!
 //! The golden lives at `tests/fixtures/acyclic_identity_goldens.txt`, one
-//! `name=hex` line per digest. A missing golden fails with the command that
-//! writes it. A changed digest is a compatibility decision. The claim digest binds
-//! the execution identity, which records the library version.
+//! `name=hex` line per digest. A changed digest is a compatibility decision.
+//! The claim digest binds the execution identity, which records the library version.
+//! The released v2 statistical layer is checked by
+//! `site_statistical_lowered_layer_digest_keeps_the_released_layout` in the library tests.
 //!
-//! Generate or refresh with
-//! `cargo test -p antecedent --test acyclic_identity_regression -- --ignored write_`
+//! Refresh the other pins with
+//! `cargo test -p antecedent --test acyclic_identity_regression -- --ignored write_`.
+//! The writer carries the released v2 pin forward from the checked-in fixture.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -24,13 +26,17 @@ use std::path::PathBuf;
 
 use antecedent::{Dag, RefuteSuite, Study};
 use antecedent_core::{
-    AssumptionSet, AverageEffectQuery, CausalSchemaBuilder, Conditioning, ExecutionContext,
-    GraphFamily, HistoryWindow, InferenceSelection, InitialLaw, Intervention, InterventionContrast,
-    InterventionWorld, ModelAssumptions, ObservationUnit, OutcomeQuantity, QuantityUnits,
-    ScientificTarget, ScientificWorldId, TargetForm, TargetPopulation, TemporalPolicy, TimeFrame,
-    Value, VariableId, WorldAction, WorldBinding, WorldCollection,
+    AssumptionSet, Conditioning, ExecutionContext, GraphFamily, HistoryWindow, InferenceSelection,
+    InitialLaw, Intervention, InterventionContrast, InterventionWorld, ModelAssumptions,
+    ObservationUnit, OutcomeQuantity, QuantityUnits, ScientificTarget, ScientificWorldId,
+    TargetForm, TargetPopulation, TemporalPolicy, TimeFrame, Value, VariableId, WorldAction,
+    WorldBinding, WorldCollection,
 };
-use antecedent_data::TabularData;
+
+#[path = "common/acyclic_identity.rs"]
+mod fixture;
+
+use fixture::{RELEASED_STATISTICAL_KEY, linear_ate, released_statistical_golden};
 
 const GOLDEN: &str = "acyclic_identity_goldens.txt";
 const GENERATOR: &str =
@@ -115,31 +121,6 @@ fn vocabulary_targets() -> Vec<(String, String)> {
     ]
 }
 
-fn linear_ate() -> (Study, TabularData) {
-    let schema = CausalSchemaBuilder::new()
-        .continuous("t")
-        .treatment()
-        .continuous("y")
-        .outcome()
-        .build()
-        .unwrap();
-    let treatment = [0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
-    let outcome = [1.0, 3.1, 0.9, 2.9, 1.0, 3.0, 1.1, 3.2];
-    let columns: [(&str, &[f64]); 2] = [("t", &treatment), ("y", &outcome)];
-    let data = TabularData::try_from_schema_f64(schema.clone(), columns).unwrap();
-    let graph = Dag::from_named_edges(&schema, &[("t", "y")]).unwrap();
-    let query =
-        AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
-    let study = Study::tabular(data.clone())
-        .graph(graph)
-        .query(query)
-        .refute(RefuteSuite::None)
-        .bootstrap_replicates(0)
-        .build()
-        .unwrap();
-    (study, data)
-}
-
 /// The static linear Gaussian average effect: lowered target and program, layered
 /// contract identities, and the claim of one execution.
 fn linear_ate_identities() -> Vec<(String, String)> {
@@ -155,7 +136,7 @@ fn linear_ate_identities() -> Vec<(String, String)> {
         out.push(("static_linear_ate.lowered_target".into(), target.identity().to_hex()));
     }
     out.push((
-        "static_linear_ate.lowered_statistical".into(),
+        "static_linear_ate.lowered_statistical_v3".into(),
         lowered.statistical().identity().to_hex(),
     ));
     let contract = prepared.contract().unwrap();
@@ -193,7 +174,9 @@ fn render(digests: &BTreeMap<String, String>) -> String {
 fn write_acyclic_identity_goldens() {
     let dir = fixture_dir();
     std::fs::create_dir_all(&dir).expect("create the fixture directory");
-    std::fs::write(dir.join(GOLDEN), render(&current())).expect("write the golden");
+    let mut digests = current();
+    digests.insert(RELEASED_STATISTICAL_KEY.into(), released_statistical_golden().into());
+    std::fs::write(dir.join(GOLDEN), render(&digests)).expect("write the golden");
 }
 
 #[test]
@@ -204,11 +187,12 @@ fn acyclic_identities_are_byte_identical_to_their_goldens() {
         &format!("generate it with `{GENERATOR}`"),
     );
     let text = String::from_utf8(bytes).expect("the golden is text");
-    let golden: BTreeMap<String, String> = text
+    let mut golden: BTreeMap<String, String> = text
         .lines()
         .filter_map(|line| line.split_once('='))
         .map(|(name, hex)| (name.to_owned(), hex.to_owned()))
         .collect();
+    assert!(golden.remove(RELEASED_STATISTICAL_KEY).is_some(), "missing released v2 pin");
     let now = current();
     let changed: Vec<_> = golden
         .iter()
