@@ -13,6 +13,7 @@ use antecedent_core::{CanonicalWriter, SemanticDigest, VariableId};
 
 use super::planning::canon::CanonPut;
 
+#[cfg(test)]
 #[path = "child_codec.rs"]
 pub(crate) mod child_codec;
 

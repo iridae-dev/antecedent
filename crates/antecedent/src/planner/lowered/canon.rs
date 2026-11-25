@@ -50,11 +50,13 @@ impl CanonPut for CanonicalWriter {
 }
 
 /// The framed bytes [`CanonicalWriter`] would have hashed, including its tag.
+#[cfg(test)]
 #[derive(Clone, Debug)]
 pub(crate) struct CanonBuf {
     body: Vec<u8>,
 }
 
+#[cfg(test)]
 impl CanonBuf {
     /// Start with `tag` framed as text, the same first frame as `CanonicalWriter::new`.
     pub(crate) fn new(tag: &str) -> Self {
@@ -73,6 +75,7 @@ impl CanonBuf {
     }
 }
 
+#[cfg(test)]
 impl CanonPut for CanonBuf {
     fn word(&mut self, word: u64) -> &mut Self {
         self.put_word(word);
@@ -110,6 +113,7 @@ impl CanonPut for CanonBuf {
 }
 
 /// BLAKE3 of framed bytes. This is [`CanonicalWriter::finish`] when the frames match.
+#[cfg(test)]
 pub(crate) fn framed_digest(bytes: &[u8]) -> [u8; 32] {
     *blake3::hash(bytes).as_bytes()
 }
