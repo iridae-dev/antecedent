@@ -12,10 +12,9 @@
 )]
 
 use antecedent_stats::{
-    MAX_MULTIWAY_WORK, SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar,
-    coefficient_covariance, combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples,
-    multiway_subset_masks, multiway_work, newey_west_meat_scalar, panel_hac_meat_scalar,
-    score_coefficient_covariance,
+    SandwichKind, StatsError, bartlett_weight, cluster_meat_scalar, coefficient_covariance,
+    combine_inclusion_exclusion, effective_nw_lag, intern_cluster_tuples, multiway_subset_masks,
+    newey_west_meat_scalar, panel_hac_meat_scalar, score_coefficient_covariance,
 };
 
 use crate::error::EstimationError;
@@ -221,11 +220,12 @@ pub(crate) fn require_multiway(
             "AnalyticSeKind::Multiway requires at least one clustering dimension",
         ));
     }
-    if multiway_work(ids.len(), n).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
-        return Err(EstimationError::unsupported(
-            "AnalyticSeKind::Multiway inclusion-exclusion work (2^d - 1) * n exceeds the multiway work budget",
-        ));
-    }
+    let _lease = antecedent_stats::cluster::admit_multiway(
+        ids.len(),
+        n,
+        &antecedent_stats::execution_quote::open_execution(),
+    )
+    .map_err(map_multiway_quote)?;
     for (i, dim) in ids.iter().enumerate() {
         if dim.len() != n {
             return Err(EstimationError::data_msg(format!(
@@ -430,6 +430,20 @@ pub(crate) fn add_nuisance_correction(
 
 /// The `cluster-robust variance requires at least 2 clusters` refusal, carrying the count.
 /// Rendered as the plain backend message it replaces.
+pub(crate) fn map_multiway_quote(error: StatsError) -> EstimationError {
+    match error {
+        StatsError::Search { stop, summary, .. } => {
+            let code = if stop == antecedent_core::SearchStop::Cancelled.code() {
+                antecedent_core::reason_code!("cancelled_no_claim")
+            } else {
+                antecedent_core::reason_code!("execution_resource_limit")
+            };
+            EstimationError::refused_detail(code, stop, summary)
+        }
+        other => EstimationError::Stats(other),
+    }
+}
+
 pub(crate) fn few_clusters(clusters: usize) -> EstimationError {
     EstimationError::Stats(StatsError::FewClusters {
         clusters: u64::try_from(clusters).unwrap_or(u64::MAX),
@@ -494,6 +508,18 @@ pub(crate) fn multiway_influence_se(
     psi: &[f64],
     dimensions: &[Vec<u32>],
 ) -> Result<f64, EstimationError> {
+    multiway_influence_se_in(
+        psi,
+        dimensions,
+        &antecedent_stats::execution_quote::open_execution(),
+    )
+}
+
+pub(crate) fn multiway_influence_se_in(
+    psi: &[f64],
+    dimensions: &[Vec<u32>],
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<f64, EstimationError> {
     if dimensions.is_empty() {
         return Err(EstimationError::data_msg(
             "multiway influence SE requires at least one clustering dimension",
@@ -504,11 +530,7 @@ pub(crate) fn multiway_influence_se(
     }
     let d = dimensions.len();
     let n = psi.len();
-    if multiway_work(d, n).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
-        return Err(EstimationError::unsupported(
-            "multiway influence SE inclusion-exclusion work (2^d - 1) * n exceeds the multiway work budget",
-        ));
-    }
+    let _lease = antecedent_stats::cluster::admit_multiway(d, n, ctx).map_err(map_multiway_quote)?;
     for dim in dimensions {
         if dim.len() != n {
             return Err(EstimationError::data_msg(format!(

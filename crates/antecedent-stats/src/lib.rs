@@ -17,6 +17,7 @@ pub mod describe;
 pub mod design;
 pub mod divergence;
 pub mod error;
+pub mod execution_quote;
 pub mod faer_backend;
 pub mod faer_scope;
 pub mod fdr;
@@ -72,7 +73,8 @@ pub use cluster::{
     multiway_subset_masks, multiway_work, newey_west_meat_scalar, panel_hac_meat_scalar,
 };
 pub use covariance::{
-    Hc2Coefficient, SandwichKind, coefficient_covariance, hc2_coefficient_bell_mccaffrey,
+    Hc2Coefficient, SandwichKind, coefficient_covariance, coefficient_covariance_in,
+    hc2_coefficient_bell_mccaffrey,
     score_coefficient_covariance, symmetric_eigen,
 };
 pub use dcor::distance_correlation;

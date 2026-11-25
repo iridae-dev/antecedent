@@ -1,7 +1,7 @@
 //! Propagation of structural enclosures through chain stages.
 
 use super::{
-    CANCEL_STRIDE, ChainError, Coefficient, Combine, ExprTerm, MAX_CHAIN_CELLS, StageOp, StageSpec,
+    CANCEL_STRIDE, ChainError, Coefficient, Combine, ExprTerm, StageOp, StageSpec,
     UnaryFn, check_cancel, validate_spec,
 };
 use antecedent_core::CancellationToken;
@@ -131,13 +131,24 @@ pub fn evaluate_mixed_enclosures(
     }) else {
         return Err(ChainError::Shape("a mixed enclosure needs draw rows"));
     };
-    if rows == 0
-        || rows
-            .checked_mul(sources.len() + stages.len())
-            .is_none_or(|cells| cells > MAX_CHAIN_CELLS)
-    {
-        return Err(ChainError::Budget("mixed enclosure cells"));
+    if rows == 0 {
+        return Err(ChainError::Shape("a mixed enclosure needs draw rows"));
     }
+    let Some(cells) = rows.checked_mul(sources.len() + stages.len()) else {
+        return Err(super::chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain table cells",
+        )));
+    };
+    let Ok(quoted) = u64::try_from(cells) else {
+        return Err(super::chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain table cells",
+        )));
+    };
+    let _lease = super::admit_chain_cells(
+        quoted,
+        &crate::execution_quote::open_execution(),
+        "chain table cells",
+    )?;
     for source in sources {
         if let MixedSource::Draws(values) = source
             && (values.len() != rows || values.iter().any(|value| !value.is_finite()))

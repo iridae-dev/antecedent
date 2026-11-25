@@ -88,7 +88,7 @@ pub use capacity::{
 pub use choice_procedure::{
     ChoiceKernel, ChoiceLaw, ChoiceProcedureSpec, ChoiceStoppingRule, ChoiceTerminalAtom,
     MAX_CHOICE_PROCEDURE_LOOKS, MAX_CHOICE_PROCEDURE_OPTIONS, MAX_CHOICE_PROCEDURE_UNITS,
-    enumerate_choice_law,
+    enumerate_choice_law, enumerate_choice_law_in,
 };
 pub use confidence_sequence::{
     ArmSequence, MAX_SEQUENCE_OBSERVATIONS, PLUG_IN_LAMBDA_CAP, SequenceKind, SequenceState,
@@ -132,7 +132,7 @@ pub use procedure_contract::{
 };
 pub use procedure_law::{
     MAX_LAW_STATES, MAX_LAW_WORK, OutcomeKernel, ProcedureLaw, TerminalAtom,
-    apply_exploration_floor, enumerate_law,
+    apply_exploration_floor, enumerate_law, enumerate_law_in,
 };
 pub use procedure_repeated_measures::{
     AnalysisEstimator, CellLabel, FinalAnalysis, GaussianMixtureLaw, MAX_MEASUREMENTS_PER_UNIT,
@@ -151,8 +151,9 @@ pub use procedure_uncertainty::{
     AnytimeCellBound, AnytimeReport, BayesianReport, DERIVED_NOT_MEASURED, DecisionReport,
     EstimandStatement, EstimatorLaw, Functional, InversionGrid, InversionInterval,
     MAX_INVERSION_LAWS, ObservedTerminal, OrderingPValues, PosteriorMeanGap, UncertaintyParadigm,
-    admit, anytime_exclusion_probability, anytime_valid_report, bayesian_report, decision_report,
-    inversion_interval, ordering_p_values, posterior_mean_gaps,
+    admit, anytime_exclusion_probability, anytime_exclusion_probability_in, anytime_valid_report,
+    bayesian_report, decision_report, decision_report_in, inversion_interval, inversion_interval_in,
+    ordering_p_values, posterior_mean_gaps, posterior_mean_gaps_in,
 };
 pub use repeated_measures_posterior::{
     ArmMeanPosterior, ContrastPosterior, MAX_POSTERIOR_UNITS, NormalMeanPrior,
@@ -212,6 +213,19 @@ pub enum AdaptiveInferenceError {
     /// The caller cancelled the computation.
     #[error("adaptive inference was cancelled")]
     Cancelled,
+    /// The quoted procedure does not fit the execution. The procedure was not entered.
+    #[error("{summary}")]
+    Budget {
+        /// Bound, consumed work, and what was not entered.
+        receipt: antecedent_core::SearchReceipt,
+        /// The receipt summary.
+        summary: String,
+    },
+}
+
+pub(crate) fn budget_stop(receipt: antecedent_core::SearchReceipt) -> AdaptiveInferenceError {
+    let summary = receipt.summary();
+    AdaptiveInferenceError::Budget { receipt, summary }
 }
 
 /// Number of Gauss-Legendre nodes per integration panel.

@@ -35,18 +35,18 @@
 use super::capacity::CapacityError;
 use super::group_sequential::Sidedness;
 
-/// Most arms of one procedure.
+/// Historical arm count of the Bernoulli procedure. Not enforced: the enumeration quotes
+/// arms, contexts, cells, looks and lag against the execution.
 pub const MAX_PROCEDURE_ARMS: usize = 4;
-/// Most contexts of one procedure.
+/// Historical context count. Not enforced: see [`MAX_PROCEDURE_ARMS`].
 pub const MAX_PROCEDURE_CONTEXTS: usize = 4;
-/// Most arm-by-context cells of one procedure.
+/// Historical arm-by-context cell count. Not enforced: see [`MAX_PROCEDURE_ARMS`].
 pub const MAX_PROCEDURE_CELLS: usize = 8;
-/// Most looks of one procedure.
+/// Historical look count. Not enforced: see [`MAX_PROCEDURE_ARMS`].
 pub const MAX_PROCEDURE_LOOKS: usize = 24;
-/// Most units one procedure enrols in total: the largest count a 16-bit
-/// observed-count cell holds.
+/// Count width of a 16-bit observed-count cell. Enforced.
 pub const MAX_PROCEDURE_UNITS: u32 = 65_535;
-/// Longest outcome delay, in looks.
+/// Historical outcome delay, in looks. Not enforced: see [`MAX_PROCEDURE_ARMS`].
 pub const MAX_OUTCOME_LAG: usize = 4;
 
 /// Tolerance for probability vectors summing to one.
@@ -523,12 +523,6 @@ fn validate_assignment_and_enrolment(
                 antecedent_core::reason_details::adaptive_inference::LOOKS_NOT_ORDERED,
             ));
         }
-        if schedule.len() > MAX_PROCEDURE_LOOKS {
-            gaps.push(ContractGap::Capacity(CapacityError::DeclaredLooks {
-                limit: MAX_PROCEDURE_LOOKS as u64,
-                requested: schedule.len() as u64,
-            }));
-        }
         if total > u64::from(MAX_PROCEDURE_UNITS) {
             gaps.push(ContractGap::Capacity(CapacityError::DeclaredUnits {
                 limit: u64::from(MAX_PROCEDURE_UNITS),
@@ -627,16 +621,15 @@ impl ProcedureSpec {
         }
         let arms = declaration.arms;
         let contexts = declaration.context_probabilities.clone().unwrap_or_else(|| vec![1.0]);
-        if !(2..=MAX_PROCEDURE_ARMS).contains(&arms) {
+        if arms < 2 {
             gaps.push(ContractGap::Invalid(
                 antecedent_core::reason_details::adaptive_inference::ARMS_INVALID,
             ));
         }
         if contexts.is_empty()
-            || contexts.len() > MAX_PROCEDURE_CONTEXTS
             || contexts.iter().any(|&p| !(p.is_finite() && p > 0.0))
             || !probability_vector(&contexts)
-            || contexts.len() * arms > MAX_PROCEDURE_CELLS
+            || contexts.len().checked_mul(arms).is_none()
         {
             gaps.push(ContractGap::Invalid(
                 antecedent_core::reason_details::adaptive_inference::CONTEXTS_INVALID,
@@ -646,10 +639,7 @@ impl ProcedureSpec {
         let looks = validate_assignment_and_enrolment(&declaration, &mut gaps);
         if let Some(observation) = &declaration.observation {
             let retention = |p: f64| p.is_finite() && p > 0.0 && p <= 1.0;
-            if observation.lag_looks > MAX_OUTCOME_LAG
-                || !retention(observation.retain_success)
-                || !retention(observation.retain_failure)
-            {
+            if !retention(observation.retain_success) || !retention(observation.retain_failure) {
                 gaps.push(ContractGap::Invalid(antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID));
             }
         }

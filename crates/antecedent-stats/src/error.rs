@@ -68,6 +68,16 @@ pub enum StatsError {
     /// The execution context's cancellation token fired before the computation finished.
     #[error("cancelled")]
     Cancelled,
+    /// The quoted work does not fit the execution. The computation was not entered.
+    #[error("{summary}")]
+    Search {
+        /// Stop code (`search.operations`, `search.depth`, `search.memory`, `search.cancelled`).
+        stop: &'static str,
+        /// Receipt summary: the bound, the consumed work, and what was not entered.
+        summary: String,
+        /// The receipt.
+        receipt: antecedent_core::SearchReceipt,
+    },
     /// A planned allocation exceeds the execution context's hard memory limit.
     #[error("resource limit: {message} needs {required_bytes} bytes, limit {limit_bytes}")]
     ResourceLimit {
@@ -131,6 +141,13 @@ pub enum StatsError {
 }
 
 impl StatsError {
+    /// A search receipt. The computation was not entered.
+    pub(crate) fn search(receipt: antecedent_core::SearchReceipt) -> Self {
+        let stop = receipt.stop.code();
+        let summary = receipt.summary();
+        Self::Search { stop, summary, receipt }
+    }
+
     /// Smallest fitted-probability margin of a refused GLM fit, when it was measured.
     #[must_use]
     pub fn glm_boundary_margin(&self) -> Option<f64> {

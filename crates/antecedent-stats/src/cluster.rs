@@ -9,22 +9,56 @@ use std::collections::{HashMap, HashSet};
 
 use crate::error::StatsError;
 
-/// Maximum clustering dimensions for multiway / tuple interning.
-///
-/// Cameron–Gelbach–Miller inclusion–exclusion visits the `2^d − 1` nonempty subsets of the
-/// dimensions, so the cost grows as `2^d · n`; the real bound is [`MAX_MULTIWAY_WORK`]
-/// ([`multiway_work`]), and this only keeps `1 << d` representable and the subset walk finite.
+/// Historical clustering-dimension count. Not enforced: multiway quotes `(2^d − 1) · n`
+/// against the execution.
 pub const MAX_CLUSTER_DIMENSIONS: usize = 20;
 
-/// Largest `(2^d − 1) · n` tuple-interning passes one multiway meat may request.
+/// Historical `(2^d − 1) · n` ceiling. Not enforced: see [`MAX_CLUSTER_DIMENSIONS`].
 pub const MAX_MULTIWAY_WORK: u64 = 1 << 32;
 
 /// Row-interning work `(2^d − 1) · n` of a `d`-dimensional multiway meat over `n` rows, or `None`
-/// on overflow. A caller compares it with [`MAX_MULTIWAY_WORK`].
+/// on overflow.
 #[must_use]
 pub fn multiway_work(d: usize, n: usize) -> Option<u64> {
     let subsets = 1u64.checked_shl(u32::try_from(d).ok()?)?.checked_sub(1)?;
     subsets.checked_mul(u64::try_from(n).ok()?)
+}
+
+const MULTIWAY_UNEVALUATED: &str = "multiway clustering inclusion-exclusion of (2^d - 1) * n";
+
+/// Quote `(2^d − 1) · n` against `ctx` and lease the bytes. The subsets are not entered on a miss.
+///
+/// # Errors
+/// The dimension count is not a representable shift, the work overflows, or the quote does not
+/// fit the execution.
+pub fn admit_multiway(
+    d: usize,
+    n: usize,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, StatsError> {
+    if d == 0 || d >= usize::BITS as usize {
+        return Err(StatsError::search(crate::execution_quote::unrepresentable_quote(
+            MULTIWAY_UNEVALUATED,
+        )));
+    }
+    let Some(work) = multiway_work(d, n) else {
+        return Err(StatsError::search(crate::execution_quote::unrepresentable_quote(
+            MULTIWAY_UNEVALUATED,
+        )));
+    };
+    let Some(bytes) = work.checked_mul(8) else {
+        return Err(StatsError::search(crate::execution_quote::unrepresentable_quote(
+            MULTIWAY_UNEVALUATED,
+        )));
+    };
+    crate::execution_quote::admit_execution_quote(
+        ctx,
+        work.max(1),
+        work,
+        bytes,
+        MULTIWAY_UNEVALUATED,
+    )
+    .map_err(StatsError::search)
 }
 
 /// Dimensions held inline in a cluster key; more spill to a heap slice.
@@ -56,9 +90,9 @@ pub fn intern_cluster_tuples(
     out_ids: &mut [u32],
 ) -> Result<usize, StatsError> {
     let d = dimensions.len();
-    if d == 0 || d > MAX_CLUSTER_DIMENSIONS {
+    if d == 0 || d >= usize::BITS as usize {
         return Err(StatsError::Shape {
-            message: "cluster tuple interning supports 1..=MAX_CLUSTER_DIMENSIONS dimensions",
+            message: "cluster tuple interning needs a representable nonempty subset mask",
         });
     }
     if subset_mask == 0 || subset_mask >= (1usize << d) {
@@ -75,14 +109,13 @@ pub fn intern_cluster_tuples(
         }
     }
 
-    let mut selected = [0usize; MAX_CLUSTER_DIMENSIONS];
-    let mut k = 0usize;
+    let mut selected = Vec::with_capacity(d);
     for i in 0..d {
-        if (subset_mask & (1 << i)) != 0 {
-            selected[k] = i;
-            k += 1;
+        if (subset_mask & (1usize << i)) != 0 {
+            selected.push(i);
         }
     }
+    let k = selected.len();
 
     let mut next = 0u32;
     if k <= INLINE_CLUSTER_LABELS {

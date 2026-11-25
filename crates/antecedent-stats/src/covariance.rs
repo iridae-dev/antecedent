@@ -11,9 +11,8 @@
 )]
 
 use crate::cluster::{
-    MAX_CLUSTER_DIMENSIONS, MAX_MULTIWAY_WORK, bartlett_weight, effective_nw_lag,
-    intern_cluster_tuples, multiway_subset_masks, multiway_work, panel_hac_meat_matrix,
-    validate_panel_hac,
+    bartlett_weight, effective_nw_lag, intern_cluster_tuples, multiway_subset_masks,
+    panel_hac_meat_matrix, validate_panel_hac,
 };
 use crate::error::StatsError;
 
@@ -85,7 +84,32 @@ pub fn coefficient_covariance(
     residuals: &[f64],
     kind: SandwichKind<'_>,
 ) -> Result<Vec<f64>, StatsError> {
-    sandwich_from_multipliers(x_colmajor, nrows, ncols, residuals, None, kind)
+    coefficient_covariance_in(
+        x_colmajor,
+        nrows,
+        ncols,
+        residuals,
+        kind,
+        &crate::execution_quote::open_execution(),
+    )
+}
+
+/// [`coefficient_covariance`] against `ctx`'s execution budget.
+///
+/// Multiway clustering quotes `(2^d − 1) · n` before the inclusion–exclusion. A miss is
+/// [`StatsError::Search`] and the subsets are not entered.
+///
+/// # Errors
+/// Shape mismatch, empty design, singular bread matrix, or a quote the execution does not hold.
+pub fn coefficient_covariance_in(
+    x_colmajor: &[f64],
+    nrows: usize,
+    ncols: usize,
+    residuals: &[f64],
+    kind: SandwichKind<'_>,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<f64>, StatsError> {
+    sandwich_from_multipliers(x_colmajor, nrows, ncols, residuals, None, kind, ctx)
 }
 
 /// HC2 variance of one OLS coefficient with its Bell–McCaffrey degrees of freedom.
@@ -187,6 +211,7 @@ pub fn score_coefficient_covariance(
         score_multipliers,
         Some(fisher_weights),
         kind,
+        &crate::execution_quote::open_execution(),
     )
 }
 
@@ -197,6 +222,7 @@ fn sandwich_from_multipliers(
     multipliers: &[f64],
     fisher_weights: Option<&[f64]>,
     kind: SandwichKind<'_>,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<f64>, StatsError> {
     if multipliers.len() != nrows {
         return Err(StatsError::Shape { message: "score/residual length != nrows" });
@@ -264,7 +290,7 @@ fn sandwich_from_multipliers(
                     });
                 }
             }
-            let meat = multiway_meat(x_colmajor, nrows, ncols, multipliers, dimensions)?;
+            let meat = multiway_meat(x_colmajor, nrows, ncols, multipliers, dimensions, ctx)?;
             Ok(congruence(bread, &meat, ncols))
         }
         SandwichKind::NeweyWest { lag } => {
@@ -443,19 +469,14 @@ fn multiway_meat(
     ncols: usize,
     residuals: &[f64],
     dimensions: &[&[u32]],
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<Vec<f64>, StatsError> {
     // Two-way: V1 + V2 − V12. General: inclusion–exclusion over non-empty subsets.
     let d = dimensions.len();
-    if d == 0 || d > MAX_CLUSTER_DIMENSIONS {
-        return Err(StatsError::Shape {
-            message: "multiway supports 1..=MAX_CLUSTER_DIMENSIONS dimensions",
-        });
+    if d == 0 {
+        return Err(StatsError::Shape { message: "multiway needs ≥1 dimension" });
     }
-    if multiway_work(d, nrows).is_none_or(|work| work > MAX_MULTIWAY_WORK) {
-        return Err(StatsError::Shape {
-            message: "multiway inclusion-exclusion work (2^d - 1) * n exceeds MAX_MULTIWAY_WORK",
-        });
-    }
+    let _lease = crate::cluster::admit_multiway(d, nrows, ctx)?;
     let mut meat = vec![0.0; ncols * ncols];
     let mut abs_diag = vec![0.0; ncols];
     let mut combined = vec![0u32; nrows];

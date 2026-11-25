@@ -46,7 +46,7 @@ use super::confidence_sequence::mixture_hoeffding_radius;
 use super::procedure_contract::{
     AssignmentRule, Attribution, BetaPrior, DelayMechanism, ProcedureSpec, StoppingRule,
 };
-use super::procedure_law::{OutcomeKernel, ProcedureLaw, TerminalAtom, enumerate_law};
+use super::procedure_law::{OutcomeKernel, ProcedureLaw, TerminalAtom, enumerate_law_in};
 
 /// Calibration status carried by every result of this module.
 pub const DERIVED_NOT_MEASURED: &str = "derived_not_measured";
@@ -323,10 +323,24 @@ pub fn posterior_mean_gaps(
     priors: &[BetaPrior],
     cancelled: &dyn Fn() -> bool,
 ) -> Result<Vec<PosteriorMeanGap>, Error> {
-    let law = enumerate_law(
+    posterior_mean_gaps_in(spec, priors, cancelled, &crate::execution_quote::open_execution())
+}
+
+/// [`posterior_mean_gaps`] against `ctx`'s execution budget.
+///
+/// # Errors
+/// As [`enumerate_law_in`].
+pub fn posterior_mean_gaps_in(
+    spec: &ProcedureSpec,
+    priors: &[BetaPrior],
+    cancelled: &dyn Fn() -> bool,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Vec<PosteriorMeanGap>, Error> {
+    let law = enumerate_law_in(
         spec,
         &OutcomeKernel::PriorPredictive { priors: priors.to_vec() },
         cancelled,
+        ctx,
     )?;
     Ok(priors
         .iter()
@@ -544,14 +558,28 @@ pub fn decision_report(
     truth: &[f64],
     cancelled: &dyn Fn() -> bool,
 ) -> Result<DecisionReport, Error> {
+    decision_report_in(spec, truth, cancelled, &crate::execution_quote::open_execution())
+}
+
+/// [`decision_report`] against `ctx`'s execution budget.
+///
+/// # Errors
+/// A premise failure, a truth of the wrong shape, or an enumeration failure.
+pub fn decision_report_in(
+    spec: &ProcedureSpec,
+    truth: &[f64],
+    cancelled: &dyn Fn() -> bool,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<DecisionReport, Error> {
     admit(spec, UncertaintyParadigm::DecisionTheoreticStopping)?;
     if spec.contexts().len() != 1 || truth.len() != spec.arms() {
         return Err(Error::Shape("a decision report needs one truth per arm in one context"));
     }
-    let law = enumerate_law(
+    let law = enumerate_law_in(
         spec,
         &OutcomeKernel::Fixed { success_probabilities: truth.to_vec() },
         cancelled,
+        ctx,
     )?;
     let best = truth.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let (decisions, undecided) = law.decision_probabilities();
@@ -662,11 +690,34 @@ pub fn anytime_exclusion_probability(
     tuning_samples: f64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<f64, Error> {
+    anytime_exclusion_probability_in(
+        spec,
+        truth,
+        alpha,
+        tuning_samples,
+        cancelled,
+        &crate::execution_quote::open_execution(),
+    )
+}
+
+/// [`anytime_exclusion_probability`] against `ctx`'s execution budget.
+///
+/// # Errors
+/// A truth of the wrong shape, a bad level, or an enumeration failure.
+pub fn anytime_exclusion_probability_in(
+    spec: &ProcedureSpec,
+    truth: &[f64],
+    alpha: f64,
+    tuning_samples: f64,
+    cancelled: &dyn Fn() -> bool,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<f64, Error> {
     admit(spec, UncertaintyParadigm::AnytimeValidFrequentist)?;
-    let law = enumerate_law(
+    let law = enumerate_law_in(
         spec,
         &OutcomeKernel::Fixed { success_probabilities: truth.to_vec() },
         cancelled,
+        ctx,
     )?;
     if !(alpha.is_finite() && alpha > 0.0 && alpha < 1.0) {
         return Err(Error::InvalidParameter("the miscoverage level must lie in (0, 1)"));
@@ -858,6 +909,30 @@ pub fn inversion_interval(
     alpha: f64,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<InversionInterval, Error> {
+    inversion_interval_in(
+        spec,
+        observed,
+        grid,
+        alpha,
+        cancelled,
+        &crate::execution_quote::open_execution(),
+    )
+}
+
+/// [`inversion_interval`] against `ctx`'s execution budget.
+///
+/// # Errors
+/// A premise failure, a contrast of arm 1 against arm 0 on a procedure with
+/// other than two arms in one context, an empty or oversized grid, or an
+/// enumeration failure.
+pub fn inversion_interval_in(
+    spec: &ProcedureSpec,
+    observed: &ObservedTerminal,
+    grid: &InversionGrid,
+    alpha: f64,
+    cancelled: &dyn Fn() -> bool,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<InversionInterval, Error> {
     admit(spec, UncertaintyParadigm::WholeProcedureInversion)?;
     if spec.arms() != 2 {
         return Err(Error::Shape(
@@ -890,10 +965,11 @@ pub fn inversion_interval(
             if !(0.0..=1.0).contains(&baseline) || !(0.0..=1.0).contains(&other) {
                 continue;
             }
-            let law = enumerate_law(
+            let law = enumerate_law_in(
                 spec,
                 &OutcomeKernel::Fixed { success_probabilities: vec![baseline, other] },
                 cancelled,
+                ctx,
             )?;
             evaluated += 1;
             let p = ordering_p_values(&law, 1, 0, observed)?;

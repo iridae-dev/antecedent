@@ -148,7 +148,11 @@ fn the_domain_and_bounds_are_refused() {
     assert!(HierarchicalChoicePosterior::new(&good, &rows).is_ok());
     let mut four = good.clone();
     four.shapes = vec![1.0; 4];
-    assert!(HierarchicalChoicePosterior::new(&four, &[vec![1, 1, 0, 0]]).is_err());
+    let wider = HierarchicalChoicePosterior::new(&four, &[vec![2, 1, 0, 0], vec![0, 1, 1, 1]])
+        .expect("four options");
+    let summary = wider.summary(&never).expect("stick quadrature");
+    assert_eq!(summary.mean.len(), 4);
+    assert!(summary.mean.iter().all(|m| m.is_finite()));
     let mut sparse = good.clone();
     sparse.shapes = vec![0.5, 1.0, 1.0];
     assert!(HierarchicalChoicePosterior::new(&sparse, &rows).is_err());

@@ -1,11 +1,11 @@
 //! Admission and deterministic construction of correlated family tables.
 
-use super::{CANCEL_STRIDE, ChainError, MAX_CHAIN_CELLS};
+use super::{CANCEL_STRIDE, ChainError};
 
 // ------------------------------------------------------------- family tables
 
-/// Most variables one joint normal table may carry: the covariance (`k²` cells) must fit within
-/// [`MAX_CHAIN_CELLS`].
+/// Most variables one joint normal table may carry. The covariance cells are quoted against
+/// the execution.
 pub const MAX_TABLE_VARIABLES: usize = 1 << 14;
 
 /// `SplitMix64` stream, so a seed reproduces the table on every platform.
@@ -134,8 +134,21 @@ pub fn admit_moment_matched_table_work(
     if k == 0 || k > MAX_TABLE_VARIABLES {
         return Err(ChainError::Shape("invalid joint table dimension"));
     }
-    if rows.checked_mul(k).is_none_or(|cells| cells > MAX_CHAIN_CELLS) {
-        return Err(ChainError::Budget("table rows"));
+    if let Some(cells) = rows.checked_mul(k) {
+        let Ok(quoted) = u64::try_from(cells) else {
+            return Err(super::chain_search(crate::execution_quote::unrepresentable_quote(
+                "chain table cells",
+            )));
+        };
+        let _lease = super::admit_chain_cells(
+            quoted,
+            &crate::execution_quote::open_execution(),
+            "chain table cells",
+        )?;
+    } else {
+        return Err(super::chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain table cells",
+        )));
     }
     if rows < k + 2 {
         return Err(ChainError::Shape("a moment-matched table needs more rows than variables"));
@@ -170,7 +183,7 @@ pub fn admit_moment_matched_table_work(
 /// # Errors
 /// No variables or too many; a covariance of the wrong size, not finite, not
 /// symmetric or not positive semidefinite; fewer than `variables + 2` rows or
-/// whose `rows × variables` cells exceed [`MAX_CHAIN_CELLS`].
+/// whose `rows × variables` cells do not fit the execution.
 pub fn moment_matched_normal_table(
     means: &[f64],
     covariance: &[f64],
@@ -205,8 +218,21 @@ pub fn moment_matched_normal_table_with_work_limit(
             "a joint table needs one mean per variable and a k by k covariance",
         ));
     }
-    if rows.checked_mul(k).is_none_or(|cells| cells > MAX_CHAIN_CELLS) {
-        return Err(ChainError::Budget("table rows"));
+    if let Some(cells) = rows.checked_mul(k) {
+        let Ok(quoted) = u64::try_from(cells) else {
+            return Err(super::chain_search(crate::execution_quote::unrepresentable_quote(
+                "chain table cells",
+            )));
+        };
+        let _lease = super::admit_chain_cells(
+            quoted,
+            &crate::execution_quote::open_execution(),
+            "chain table cells",
+        )?;
+    } else {
+        return Err(super::chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain table cells",
+        )));
     }
     if rows < k + 2 {
         return Err(ChainError::Shape("a moment-matched table needs more rows than variables"));

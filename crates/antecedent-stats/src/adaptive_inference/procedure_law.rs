@@ -730,6 +730,51 @@ impl Engine<'_> {
     }
 }
 
+const PROCEDURE_UNEVALUATED: &str =
+    "adaptive procedure enumeration of arms, contexts, cells, looks, and lag";
+
+fn admit_procedure(
+    spec: &ProcedureSpec,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, Error> {
+    let arms = u64::try_from(spec.arms()).unwrap_or(u64::MAX);
+    let contexts = u64::try_from(spec.contexts().len()).unwrap_or(u64::MAX).max(1);
+    let cells = u64::try_from(spec.cells()).unwrap_or(u64::MAX).max(1);
+    let looks = u64::try_from(spec.enrolment().len()).unwrap_or(u64::MAX).max(1);
+    let lag = u64::try_from(spec.observation().lag_looks).unwrap_or(u64::MAX).saturating_add(1);
+    let units: u64 = spec.enrolment().iter().map(|&n| u64::from(n)).sum();
+    let Some(state) = arms
+        .checked_mul(contexts)
+        .and_then(|v| v.checked_mul(cells))
+        .and_then(|v| v.checked_mul(looks))
+        .and_then(|v| v.checked_mul(lag))
+    else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            PROCEDURE_UNEVALUATED,
+        )));
+    };
+    let Some(operations) = units.checked_mul(state.max(1)) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            PROCEDURE_UNEVALUATED,
+        )));
+    };
+    let Some(bytes) = state.checked_mul(16).and_then(|head| {
+        operations.checked_mul(16).and_then(|tail| head.checked_add(tail))
+    }) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            PROCEDURE_UNEVALUATED,
+        )));
+    };
+    crate::execution_quote::admit_execution_quote(
+        ctx,
+        operations.max(1),
+        operations,
+        bytes,
+        PROCEDURE_UNEVALUATED,
+    )
+    .map_err(super::budget_stop)
+}
+
 /// The exact law of the terminal state of `spec` under `kernel`.
 ///
 /// # Errors
@@ -740,7 +785,28 @@ pub fn enumerate_law(
     kernel: &OutcomeKernel,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ProcedureLaw, Error> {
+    enumerate_law_in(spec, kernel, cancelled, &crate::execution_quote::open_execution())
+}
+
+/// [`enumerate_law`] against `ctx`'s execution budget.
+///
+/// Arms, contexts, cells, looks, lag and enrolment are quoted before the dynamic program.
+/// A miss is [`Error::Budget`] and the program is not entered.
+///
+/// # Errors
+/// A kernel whose shape does not match the procedure, a quote the execution does not hold,
+/// a state or work bound exceeded, a numerical failure of a posterior, or cancellation.
+pub fn enumerate_law_in(
+    spec: &ProcedureSpec,
+    kernel: &OutcomeKernel,
+    cancelled: &dyn Fn() -> bool,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ProcedureLaw, Error> {
     kernel.check(spec.cells())?;
+    if cancelled() || ctx.cancellation.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    let _lease = admit_procedure(spec, ctx)?;
     let layout = Layout::new(spec, kernel.is_predictive());
     let cumulative = spec.cumulative_enrolment();
     let total_length = layout.total;

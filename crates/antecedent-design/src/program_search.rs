@@ -75,7 +75,8 @@ pub struct ProgramSearchScope {
     pub horizon: u32,
     /// Common units of compared utility values.
     pub utility_units: String,
-    /// Maximum candidates this consumer accepts; at most the shared decision limit.
+    /// Maximum candidates this consumer accepts. The search quotes the candidates and the
+    /// controls against the execution.
     pub max_candidates: usize,
 }
 /// Input the search consumes, selected against the existing source-demand contract.
@@ -108,6 +109,14 @@ pub enum ProgramSearchError {
     /// Caller cancellation; no partial result is certified.
     #[error("program search cancelled")]
     Cancelled,
+    /// The quoted candidates and controls do not fit the execution. The search was not entered.
+    #[error("{summary}")]
+    Budget {
+        /// The receipt.
+        receipt: antecedent_core::SearchReceipt,
+        /// Receipt summary.
+        summary: String,
+    },
 }
 impl ProgramSearchError {
     /// Wrap a typed upstream error, keeping it as the error source.
@@ -317,10 +326,15 @@ impl PreparedFiniteProgramSearch {
         let bytes = retained_bytes
             .checked_add(scratch_bytes)
             .ok_or_else(|| ProgramSearchError::Resource("quote overflow".into()))?;
-        if ctx.memory_limit_bytes().is_some_and(|limit| bytes > limit) {
-            return Err(ProgramSearchError::Resource(
-                "search exceeds configured memory limit".into(),
-            ));
+        if let Err(receipt) = antecedent_stats::execution_quote::probe_execution_quote(
+            ctx,
+            bytes.max(1),
+            bytes,
+            bytes,
+            "program search candidates and controls",
+        ) {
+            let summary = receipt.summary();
+            return Err(ProgramSearchError::Budget { receipt, summary });
         }
         let retention = Arc::new(
             ctx.acquire_admission(0, retained_bytes)
@@ -561,9 +575,7 @@ fn validate_domain(
     scope: &ProgramSearchScope,
 ) -> Result<(), ProgramSearchError> {
     if scope.max_candidates == 0
-        || scope.max_candidates > 1024
         || domain.controls.is_empty()
-        || domain.controls.len() > 4096
         || domain.budget.is_some_and(|budget| !budget.is_finite() || budget < 0.)
     {
         return Err(invalid("invalid finite domain or consumer limit"));
@@ -1062,10 +1074,13 @@ mod tests {
         );
         let mut ctx = ExecutionContext::for_tests(19);
         ctx.admission = antecedent_core::execution::AdmissionPool::fixed(1, 1);
-        assert!(matches!(
-            search.execute(ProgramSearchSource::Means(&source), &ctx),
-            Err(ProgramSearchError::Resource(_))
-        ));
+        match search.execute(ProgramSearchSource::Means(&source), &ctx) {
+            Err(ProgramSearchError::Budget { summary, .. }) => {
+                assert!(summary.contains("not entered"));
+                assert!(summary.contains("search.memory") || summary.contains("search.operations"));
+            }
+            other => panic!("expected a search receipt, got {other:?}"),
+        }
         assert_eq!(ctx.admission.available().bytes(), 1);
     }
     #[test]

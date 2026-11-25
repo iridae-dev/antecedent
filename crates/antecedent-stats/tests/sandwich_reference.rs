@@ -13,8 +13,8 @@
 
 use antecedent_stats::{
     DenseLinearAlgebra, FaerBackend, LeastSquaresWorkspace, MEstimateOptions, SandwichKind,
-    StatsError, coefficient_covariance, fit_huber_m, hc2_coefficient_bell_mccaffrey, iid_se,
-    mean_and_se, score_coefficient_covariance,
+    StatsError, coefficient_covariance, coefficient_covariance_in, fit_huber_m,
+    hc2_coefficient_bell_mccaffrey, iid_se, mean_and_se, score_coefficient_covariance,
 };
 use serde_json::Value;
 
@@ -377,4 +377,38 @@ fn a_dependent_or_underdetermined_design_has_no_sandwich() {
     }
     assert!(coefficient_covariance(&x, 4, 2, &r, SandwichKind::Hc0).is_ok());
     assert!(coefficient_covariance(&x, 4, 2, &r, SandwichKind::Hc1).is_ok());
+}
+
+#[test]
+fn twenty_one_cluster_dimensions_run_when_the_quote_fits() {
+    let x = [1.0, 1.0];
+    let residuals = [0.5, -0.5];
+    let columns: Vec<Vec<u32>> = (0..21).map(|_| vec![0, 1]).collect();
+    let dims: Vec<&[u32]> = columns.iter().map(Vec::as_slice).collect();
+    let open = antecedent_core::ExecutionContext::for_tests(0);
+    let got = coefficient_covariance_in(
+        &x,
+        2,
+        1,
+        &residuals,
+        SandwichKind::Multiway { dimensions: &dims },
+        &open,
+    );
+    assert!(got.is_ok(), "{got:?}");
+    let tight = open.with_memory_limit(Some(1024));
+    match coefficient_covariance_in(
+        &x,
+        2,
+        1,
+        &residuals,
+        SandwichKind::Multiway { dimensions: &dims },
+        &tight,
+    ) {
+        Err(StatsError::Search { summary, .. }) => {
+            assert!(summary.contains("not entered"));
+            assert!(summary.contains("multiway clustering"));
+            assert!(!summary.contains("at most"));
+        }
+        other => panic!("expected a search receipt, got {other:?}"),
+    }
 }

@@ -24,7 +24,8 @@ pub const MAX_EXACT_COMPOSITIONS: u64 = 250_000;
 /// Monte Carlo draws used beyond the enumeration cap.
 pub const MONTE_CARLO_DRAWS: usize = 20_000;
 
-/// Largest future study the Monte Carlo evaluates.
+/// Historical Monte Carlo study size. Not enforced: a study whose compositions exceed
+/// [`MAX_EXACT_COMPOSITIONS`] is Monte Carlo when the quote fits the execution.
 pub const MAX_MONTE_CARLO_STUDY: u32 = 10_000;
 
 /// Why a ranking request is refused.
@@ -40,6 +41,14 @@ pub enum ChoiceEvsiError {
     /// The ranking exceeds a work or admission limit.
     #[error("choice ranking resource limit: {0}")]
     Resource(String),
+    /// The quoted candidates and posterior shapes do not fit the execution.
+    #[error("{summary}")]
+    Budget {
+        /// The receipt.
+        receipt: antecedent_core::SearchReceipt,
+        /// Receipt summary.
+        summary: String,
+    },
 }
 
 impl ChoiceEvsiError {
@@ -50,6 +59,12 @@ impl ChoiceEvsiError {
             Self::Invalid(_) => "choice_evidence_invalid",
             Self::Cancelled => "execution_cancelled",
             Self::Resource(_) => "execution_resource_limit",
+            Self::Budget { receipt, .. } => match receipt.stop {
+                antecedent_core::SearchStop::Cancelled => "execution_cancelled",
+                antecedent_core::SearchStop::Operations
+                | antecedent_core::SearchStop::Depth
+                | antecedent_core::SearchStop::Memory => "execution_resource_limit",
+            },
         }
     }
 }
@@ -106,6 +121,25 @@ pub struct StudyRank {
     pub rank_uncertain: bool,
     /// Calibration of this study-value estimate; always `not_measured`.
     pub calibration: &'static str,
+}
+
+fn wider_compositions(
+    k: usize,
+    _n: u32,
+    index: usize,
+    left: u32,
+    slots: &mut [u32],
+    visit: &mut dyn FnMut(&[u32]) -> Result<(), ChoiceEvsiError>,
+) -> Result<(), ChoiceEvsiError> {
+    if index + 1 == k {
+        slots[index] = left;
+        return visit(slots);
+    }
+    for take in 0..=left {
+        slots[index] = take;
+        wider_compositions(k, _n, index + 1, left - take, slots, visit)?;
+    }
+    Ok(())
 }
 
 fn compositions(n: u32, k: usize) -> u64 {
@@ -273,16 +307,13 @@ pub fn rank_studies_with_context(
     if ctx.cancellation.is_cancelled() {
         return Err(ChoiceEvsiError::Cancelled);
     }
-    if !(2..=64).contains(&alpha.len())
+    if alpha.len() < 2
         || alpha.iter().any(|a| !a.is_finite() || *a <= 0.0)
         || !alpha.iter().sum::<f64>().is_finite()
     {
         return Err(ChoiceEvsiError::Invalid(
-            "two to 64 finite positive posterior shapes are required".into(),
+            "at least two finite positive posterior shapes are required".into(),
         ));
-    }
-    if candidates.len() > 1024 {
-        return Err(ChoiceEvsiError::Resource("too many candidate studies".into()));
     }
     let bytes = candidates
         .len()
@@ -291,7 +322,6 @@ pub fn rank_studies_with_context(
         .and_then(|n| u64::try_from(n).ok())
         .ok_or_else(|| ChoiceEvsiError::Resource("admission size overflow".into()))?;
     let _lease = ctx.acquire_admission(0, bytes).map_err(|error| admission_error(ctx, error))?;
-    let mut work = 0u64;
     if values.len() != alpha.len() || values.iter().any(|v| !v.is_finite()) {
         return Err(ChoiceEvsiError::Invalid("one finite value per option is required".into()));
     }
@@ -313,7 +343,7 @@ pub fn rank_studies_with_context(
     let a0: f64 = alpha.iter().sum();
     let zero = vec![0.0; alpha.len()];
     let now = best_value(values, alpha, &zero, a0);
-    let mut rows: Vec<StudyRank> = Vec::with_capacity(candidates.len());
+    let mut quoted = 0_u64;
     for c in candidates {
         let comps = compositions(c.observations, alpha.len());
         let candidate_work = if comps <= MAX_EXACT_COMPOSITIONS {
@@ -323,12 +353,24 @@ pub fn rank_studies_with_context(
                 .saturating_mul(alpha.len() as u64)
                 .saturating_mul(MONTE_CARLO_DRAWS as u64)
         };
-        work = work.saturating_add(candidate_work);
-        if work > 100_000_000 {
-            return Err(ChoiceEvsiError::Resource(
-                "cumulative candidate work exceeds 100000000 operations".into(),
-            ));
-        }
+        quoted = quoted.saturating_add(candidate_work);
+    }
+    let Some(quote_bytes) = quoted.checked_mul(8) else {
+        return Err(choice_budget(antecedent_stats::execution_quote::unrepresentable_quote(
+            "choice EVSI candidates and posterior shapes",
+        )));
+    };
+    let _quote = antecedent_stats::execution_quote::admit_execution_quote(
+        ctx,
+        quoted.max(1),
+        quoted,
+        quote_bytes,
+        "choice EVSI candidates and posterior shapes",
+    )
+    .map_err(choice_budget)?;
+    let mut rows: Vec<StudyRank> = Vec::with_capacity(candidates.len());
+    for c in candidates {
+        let comps = compositions(c.observations, alpha.len());
         let cancelled = || ctx.cancellation.is_cancelled();
         let (value, se, method) = if comps <= MAX_EXACT_COMPOSITIONS {
             (
@@ -336,14 +378,9 @@ pub fn rank_studies_with_context(
                 0.0,
                 EvsiMethod::Exact { compositions: comps },
             )
-        } else if c.observations <= MAX_MONTE_CARLO_STUDY {
+        } else {
             let (v, se) = monte_carlo_evsi(alpha, values, c.observations, seed, &cancelled)?;
             (v, se, EvsiMethod::MonteCarlo { draws: MONTE_CARLO_DRAWS })
-        } else {
-            return Err(ChoiceEvsiError::Invalid(format!(
-                "candidate `{}` exceeds the supported study size",
-                c.label
-            )));
         };
         if !value.is_finite() || !se.is_finite() || !now.is_finite() || !(value - now).is_finite() {
             return Err(ChoiceEvsiError::Invalid("ranking produced a non-finite value".into()));
@@ -365,6 +402,11 @@ pub fn rank_studies_with_context(
         rows[i].rank_uncertain = gap <= 2.0 * (rows[i].standard_error + rows[i + 1].standard_error);
     }
     Ok(rows)
+}
+
+fn choice_budget(receipt: antecedent_core::SearchReceipt) -> ChoiceEvsiError {
+    let summary = receipt.summary();
+    ChoiceEvsiError::Budget { receipt, summary }
 }
 
 fn admission_error(
@@ -471,16 +513,43 @@ mod resource_tests {
             Err(ChoiceEvsiError::Invalid(_))
         ));
         let huge = StudyCandidate { observations: 10_000, ..candidate.clone() };
-        assert!(matches!(
-            rank_studies(&[1.0; 4], &[1.0; 4], &[huge], 1),
-            Err(ChoiceEvsiError::Resource(_))
-        ));
+        let tight =
+            antecedent_core::ExecutionContext::for_tests(1).with_memory_limit(Some(1 << 20));
+        let missed = rank_studies_with_context(&[1.0; 4], &[1.0; 4], &[huge], 1, &tight);
+        match missed {
+            Err(ChoiceEvsiError::Budget { receipt, summary }) => {
+                assert_eq!(receipt.stop, antecedent_core::SearchStop::Memory);
+                assert!(summary.contains("not entered"));
+                assert!(summary.contains("choice EVSI candidates and posterior shapes"));
+                assert!(!summary.contains("at most"));
+            }
+            other => panic!("expected a search receipt, got {other:?}"),
+        }
         let ctx = antecedent_core::ExecutionContext::for_tests(1);
         ctx.cancellation.cancel();
         assert!(matches!(
             rank_studies_with_context(&[1.0, 1.0], &[1.0, 1.0], &[candidate], 1, &ctx),
             Err(ChoiceEvsiError::Cancelled)
         ));
+    }
+
+    #[test]
+    fn sixty_five_shapes_and_a_thousand_candidates_run_when_the_quote_fits() {
+        let shapes = vec![1.0; 65];
+        let values = vec![1.0; 65];
+        let one = StudyCandidate { label: "one".into(), observations: 1, cost: 0.0 };
+        let ranked = rank_studies(&shapes, &values, &[one], 1).expect("65 shapes");
+        assert_eq!(ranked.len(), 1);
+        assert!(ranked[0].evsi.is_finite());
+        let candidates: Vec<StudyCandidate> = (0..1025)
+            .map(|i| StudyCandidate {
+                label: format!("c{i}"),
+                observations: 1,
+                cost: f64::from(i),
+            })
+            .collect();
+        let many = rank_studies(&[1.0, 1.0], &[1.0, 1.0], &candidates, 1).expect("1025 candidates");
+        assert_eq!(many.len(), 1025);
     }
 }
 
@@ -506,14 +575,13 @@ pub fn rank_hierarchical_studies(
 ) -> Result<Vec<StudyRank>, ChoiceEvsiError> {
     use antecedent_stats::adaptive_inference::HierarchicalChoicePosterior;
     let k = prior.shapes.len();
-    if !(2..=3).contains(&k)
+    if k < 2
         || values.len() != k
         || values.iter().any(|v| !v.is_finite())
         || candidates.is_empty()
-        || candidates.len() > 64
         || candidates.iter().any(|c| {
             c.label.trim().is_empty()
-                || !(1..=2).contains(&c.observations)
+                || c.observations == 0
                 || !c.cost.is_finite()
                 || c.cost < 0.0
         })
@@ -524,7 +592,10 @@ pub fn rank_hierarchical_studies(
             .len()
             != candidates.len()
     {
-        return Err(ChoiceEvsiError::Invalid("hierarchical candidates require distinct identities, one or two choices by one new respondent and finite values and costs".into()));
+        return Err(ChoiceEvsiError::Invalid(
+            "hierarchical candidates require distinct identities, a positive observation count and finite values and costs"
+                .into(),
+        ));
     }
     if ctx.cancellation.is_cancelled() {
         return Err(ChoiceEvsiError::Cancelled);
@@ -537,6 +608,30 @@ pub fn rank_hierarchical_studies(
         .and_then(|n| u64::try_from(n).ok())
         .ok_or_else(|| ChoiceEvsiError::Resource("hierarchical ranking size overflow".into()))?;
     let _lease = ctx.acquire_admission(0, cells).map_err(|error| admission_error(ctx, error))?;
+    let observations: u64 = candidates.iter().map(|c| u64::from(c.observations)).sum();
+    let Some(quoted) = u64::try_from(k)
+        .ok()
+        .and_then(|options| options.checked_mul(u64::try_from(respondents.len()).unwrap_or(u64::MAX).max(1)))
+        .and_then(|state| state.checked_mul(observations.max(1)))
+        .and_then(|state| state.checked_mul(u64::try_from(candidates.len()).unwrap_or(u64::MAX).max(1)))
+    else {
+        return Err(choice_budget(antecedent_stats::execution_quote::unrepresentable_quote(
+            "hierarchical choice ranking of options, studies, and observations",
+        )));
+    };
+    let Some(quote_bytes) = quoted.checked_mul(16) else {
+        return Err(choice_budget(antecedent_stats::execution_quote::unrepresentable_quote(
+            "hierarchical choice ranking of options, studies, and observations",
+        )));
+    };
+    let _quote = antecedent_stats::execution_quote::admit_execution_quote(
+        ctx,
+        quoted.max(1),
+        quoted,
+        quote_bytes,
+        "hierarchical choice ranking of options, studies, and observations",
+    )
+    .map_err(choice_budget)?;
     let cancelled = || ctx.cancellation.is_cancelled();
     let convert = |e: antecedent_stats::adaptive_inference::AdaptiveInferenceError| {
         if cancelled() {
@@ -557,7 +652,40 @@ pub fn rank_hierarchical_studies(
         let mut count = 0u64;
         let mut quadrature_change = base.quadrature_error;
         let mut data = respondents.to_vec();
+        if k > 3 {
+            let mut slots = vec![0_u32; k];
+            wider_compositions(k, n, 0, n, &mut slots, &mut |observed| {
+                data.push(observed.to_vec());
+                let updated = HierarchicalChoicePosterior::new(prior, &data)
+                    .map_err(convert)?
+                    .summary(&cancelled)
+                    .map_err(convert)?;
+                data.pop();
+                quadrature_change = quadrature_change.max(updated.quadrature_error);
+                let log_mult = ln_gamma(f64::from(n) + 1.0)
+                    - observed.iter().map(|c| ln_gamma(f64::from(*c) + 1.0)).sum::<f64>();
+                let p = (updated.log_marginal_likelihood - base.log_marginal_likelihood + log_mult)
+                    .exp();
+                let value = values
+                    .iter()
+                    .zip(&updated.mean)
+                    .map(|(v, p)| v * p)
+                    .fold(f64::NEG_INFINITY, f64::max);
+                if !p.is_finite() || !value.is_finite() {
+                    return Err(ChoiceEvsiError::Invalid(
+                        "hierarchical predictive value is non-finite".into(),
+                    ));
+                }
+                mass += p;
+                gain += p * value;
+                count += 1;
+                Ok(())
+            })?;
+        }
         for first in 0..=n {
+            if k > 3 {
+                break;
+            }
             for second in 0..=n - first {
                 if k == 2 && first + second != n {
                     continue;

@@ -32,11 +32,12 @@ use super::procedure_law::{
     CANCEL_STRIDE, MAX_LAW_STATES, MAX_LAW_WORK, THRESHOLD_TOLERANCE, check_states, remember,
 };
 
-/// Most options an enumerated choice procedure may have.
+/// Historical option count of an enumerated choice procedure. Not enforced: the enumeration
+/// quotes the options against the execution.
 pub const MAX_CHOICE_PROCEDURE_OPTIONS: usize = 4;
-/// Most looks an enumerated choice procedure may have.
+/// Historical look count. Not enforced: see [`MAX_CHOICE_PROCEDURE_OPTIONS`].
 pub const MAX_CHOICE_PROCEDURE_LOOKS: usize = 24;
-/// Most units an enumerated choice procedure may enrol.
+/// Count width of a 16-bit observed-count cell. Enforced.
 pub const MAX_CHOICE_PROCEDURE_UNITS: u32 = 65_535;
 
 /// The Bayesian stopping rule of a choice procedure.
@@ -205,21 +206,20 @@ impl Rules<'_> {
 
 fn validate(spec: &ChoiceProcedureSpec, kernel: &ChoiceKernel) -> Result<(), Error> {
     let k = spec.prior.len();
-    if !(2..=MAX_CHOICE_PROCEDURE_OPTIONS).contains(&k) {
-        return Err(Error::Shape("an enumerated choice procedure has two to four options"));
+    if k < 2 {
+        return Err(Error::Shape("an enumerated choice procedure has at least two options"));
     }
     DirichletPosterior::new(spec.prior.clone())?;
     if !spec.rule.is_valid() {
         return Err(Error::InvalidParameter("the choice stopping rule is outside its domain"));
     }
     if spec.batches.is_empty()
-        || spec.batches.len() > MAX_CHOICE_PROCEDURE_LOOKS
         || spec.batches.contains(&0)
         || spec.batches.iter().map(|b| u64::from(*b)).sum::<u64>()
             > u64::from(MAX_CHOICE_PROCEDURE_UNITS)
     {
         return Err(Error::Shape(
-            "a choice procedure has 1 to 24 nonempty batches of at most 65535 units",
+            "a choice procedure has nonempty batches whose enrolment fits the 16-bit count width",
         ));
     }
     match kernel {
@@ -254,12 +254,59 @@ pub fn enumerate_choice_law(
     kernel: &ChoiceKernel,
     cancelled: &dyn Fn() -> bool,
 ) -> Result<ChoiceLaw, Error> {
+    enumerate_choice_law_in(spec, kernel, cancelled, &crate::execution_quote::open_execution())
+}
+
+const CHOICE_UNEVALUATED: &str = "choice procedure enumeration of options";
+
+/// [`enumerate_choice_law`] against `ctx`'s execution budget.
+///
+/// # Errors
+/// A spec or kernel outside its domain, a quote the execution does not hold, a state or work
+/// bound exceeded, a numerical failure of a posterior, or cancellation.
+pub fn enumerate_choice_law_in(
+    spec: &ChoiceProcedureSpec,
+    kernel: &ChoiceKernel,
+    cancelled: &dyn Fn() -> bool,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<ChoiceLaw, Error> {
     validate(spec, kernel)?;
+    if cancelled() || ctx.cancellation.is_cancelled() {
+        return Err(Error::Cancelled);
+    }
+    let options = u64::try_from(spec.prior.len()).unwrap_or(u64::MAX);
+    let looks = u64::try_from(spec.batches.len()).unwrap_or(u64::MAX).max(1);
+    let units: u64 = spec.batches.iter().map(|b| u64::from(*b)).sum();
+    let Some(state) = options.checked_mul(looks) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            CHOICE_UNEVALUATED,
+        )));
+    };
+    let Some(operations) = units.checked_mul(state.max(1)) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            CHOICE_UNEVALUATED,
+        )));
+    };
+    let Some(bytes) = state.checked_mul(16).and_then(|head| {
+        operations.checked_mul(16).and_then(|tail| head.checked_add(tail))
+    }) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            CHOICE_UNEVALUATED,
+        )));
+    };
+    let _lease = crate::execution_quote::admit_execution_quote(
+        ctx,
+        operations.max(1),
+        operations,
+        bytes,
+        CHOICE_UNEVALUATED,
+    )
+    .map_err(super::budget_stop)?;
     let k = spec.prior.len();
     let mut cumulative = Vec::with_capacity(spec.batches.len());
     let mut total = 0_u32;
     for b in &spec.batches {
-        total += b;
+        total += *b;
         cumulative.push(total);
     }
     let mut rules = Rules { spec, cancelled, cache: BTreeMap::new() };

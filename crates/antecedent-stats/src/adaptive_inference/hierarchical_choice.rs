@@ -39,11 +39,14 @@ use std::collections::BTreeMap;
 use super::{AdaptiveInferenceError as Error, composite_rule, graded_rule, panel_rule};
 use crate::special::ln_gamma;
 
-/// Most options the hierarchical family is verified for.
+/// Historical option count of the region quadrature. Not enforced: two and three options keep
+/// that quadrature; a wider choice set is a stick-breaking product, quoted with the studies
+/// and observations.
 pub const MAX_HIERARCHICAL_OPTIONS: usize = 3;
-/// Most choices one respondent may contribute.
+/// Historical choices one respondent may contribute. Not enforced: the posterior quotes
+/// options, studies and observations.
 pub const MAX_HIERARCHICAL_CHOICES: u32 = 512;
-/// Most distinct respondent count vectors one posterior may hold.
+/// Historical distinct respondent count vectors. Not enforced: see [`MAX_HIERARCHICAL_CHOICES`].
 pub const MAX_DISTINCT_HISTOGRAMS: usize = 4096;
 /// Largest change between the coarse and the fine rule that is reported.
 pub const QUADRATURE_ERROR_LIMIT: f64 = 1e-8;
@@ -120,22 +123,84 @@ struct Cube {
 struct Scratch {
     prefix: Vec<Vec<f64>>,
     kappa: Vec<f64>,
-    pi: [f64; 3],
+    pi: Vec<f64>,
+}
+
+struct StickMass {
+    mean: Vec<f64>,
+    best: Vec<f64>,
+    loss: Vec<f64>,
+    log_concentration_mean: f64,
+    log_concentration_sd: f64,
+    rho: f64,
+    log_marginal: f64,
+}
+
+const HIERARCHICAL_UNEVALUATED: &str =
+    "hierarchical choice posterior of options, studies, and observations";
+
+fn admit_hierarchical(
+    options: usize,
+    studies: usize,
+    totals: &[u64],
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, Error> {
+    let Some(observations) = totals.iter().try_fold(0u64, |acc, m| acc.checked_add(*m)) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            HIERARCHICAL_UNEVALUATED,
+        )));
+    };
+    let Some(state) = u64::try_from(options)
+        .ok()
+        .and_then(|k| k.checked_mul(u64::try_from(studies).ok()?.max(1)))
+        .and_then(|v| v.checked_mul(observations.max(1)))
+    else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            HIERARCHICAL_UNEVALUATED,
+        )));
+    };
+    let Some(bytes) = state.checked_mul(16) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            HIERARCHICAL_UNEVALUATED,
+        )));
+    };
+    crate::execution_quote::admit_execution_quote(
+        ctx,
+        state.max(1),
+        state,
+        bytes,
+        HIERARCHICAL_UNEVALUATED,
+    )
+    .map_err(super::budget_stop)
 }
 
 impl HierarchicalChoicePosterior {
     /// Condition the declared prior on the respondents' count vectors.
     ///
     /// # Errors
-    /// Fewer than two or more than three options, a prior outside its domain, counts of the wrong
-    /// length, no respondent with more than one choice (heterogeneity is not identified), or a
-    /// size bound exceeded.
+    /// Fewer than two options, a prior outside its domain, counts of the wrong length, no
+    /// respondent with more than one choice (heterogeneity is not identified), or a quote the
+    /// execution does not hold.
     pub fn new(prior: &HierarchicalChoicePrior, counts: &[Vec<u32>]) -> Result<Self, Error> {
+        Self::new_in(prior, counts, &crate::execution_quote::open_execution())
+    }
+
+    /// [`Self::new`] against `ctx`'s execution budget.
+    ///
+    /// Options, studies and observations are quoted before the histograms are built.
+    ///
+    /// # Errors
+    /// Fewer than two options, a prior outside its domain, counts of the wrong length, no
+    /// respondent with more than one choice, a quote the execution does not hold, or an
+    /// unrepresentable size.
+    pub fn new_in(
+        prior: &HierarchicalChoicePrior,
+        counts: &[Vec<u32>],
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<Self, Error> {
         let k = prior.shapes.len();
-        if !(2..=MAX_HIERARCHICAL_OPTIONS).contains(&k) {
-            return Err(Error::Shape(
-                "the hierarchical family is verified for two or three options",
-            ));
+        if k < 2 {
+            return Err(Error::Shape("the hierarchical family needs at least two options"));
         }
         if prior.shapes.iter().any(|a| !(a.is_finite() && *a >= 1.0))
             || !prior.log_concentration_mean.is_finite()
@@ -150,8 +215,8 @@ impl HierarchicalChoicePosterior {
         }
         let totals: Vec<u64> =
             counts.iter().map(|c| c.iter().map(|x| u64::from(*x)).sum()).collect();
-        if totals.iter().any(|m| *m == 0 || *m > u64::from(MAX_HIERARCHICAL_CHOICES)) {
-            return Err(Error::Limit("a respondent contributes 1 to 512 choices"));
+        if totals.iter().any(|m| *m == 0) {
+            return Err(Error::Limit("a respondent contributes at least one choice"));
         }
         if totals.iter().all(|m| *m < 2) {
             return Err(Error::PremiseFailed {
@@ -159,12 +224,10 @@ impl HierarchicalChoicePosterior {
                 message: "respondent-level heterogeneity is identified only by respondents who choose more than once",
             });
         }
+        let _lease = admit_hierarchical(k, counts.len(), &totals, ctx)?;
         let mut grouped: BTreeMap<Vec<u32>, f64> = BTreeMap::new();
         for c in counts {
             *grouped.entry(c.clone()).or_insert(0.0) += 1.0;
-        }
-        if grouped.len() > MAX_DISTINCT_HISTOGRAMS {
-            return Err(Error::Limit("more than 4096 distinct respondent count vectors"));
         }
         let histograms: Vec<(Vec<u32>, f64)> = grouped.into_iter().collect();
         let max_n = (0..k)
@@ -198,7 +261,7 @@ impl HierarchicalChoicePosterior {
         Scratch {
             prefix: self.max_n.iter().map(|n| vec![0.0; n + 1]).collect(),
             kappa: vec![0.0; self.max_m + 1],
-            pi: [0.0; 3],
+            pi: vec![0.0; self.options],
         }
     }
 
@@ -411,6 +474,9 @@ impl HierarchicalChoicePosterior {
     /// # Errors
     /// A posterior the quadrature cannot resolve to `1e-8`, or cancellation.
     pub fn summary(&self, cancelled: &dyn Fn() -> bool) -> Result<HierarchicalSummary, Error> {
+        if self.options > 3 {
+            return self.summary_stick(cancelled);
+        }
         let regions = self.regions();
         let mut zoomed = Vec::with_capacity(regions.len());
         let mut reference = f64::NEG_INFINITY;
@@ -429,6 +495,186 @@ impl HierarchicalChoicePosterior {
         }
         let _ = last;
         Err(Error::Numerical("the hierarchical posterior is not resolved by the quadrature"))
+    }
+
+    /// Stick-breaking product quadrature for more than three options. Two and three options
+    /// never reach this: their region quadrature is unchanged.
+    fn summary_stick(&self, cancelled: &dyn Fn() -> bool) -> Result<HierarchicalSummary, Error> {
+        let coarse = self.stick_mass(8, cancelled)?;
+        let fine = self.stick_mass(12, cancelled)?;
+        let mut error = (coarse.rho - fine.rho).abs();
+        for j in 0..self.options {
+            error = error
+                .max((coarse.best[j] - fine.best[j]).abs())
+                .max((coarse.mean[j] - fine.mean[j]).abs())
+                .max((coarse.loss[j] - fine.loss[j]).abs());
+        }
+        error = error
+            .max(
+                (coarse.log_concentration_mean - fine.log_concentration_mean).abs()
+                    / (1.0 + fine.log_concentration_mean.abs().min(1.0)),
+            )
+            .max(
+                (coarse.log_concentration_sd - fine.log_concentration_sd).abs()
+                    / (1.0 + fine.log_concentration_sd),
+            );
+        if !fine.mean.iter().all(|m| m.is_finite()) || !fine.log_marginal.is_finite() {
+            return Err(Error::Numerical(
+                "the hierarchical posterior is not resolved by the quadrature",
+            ));
+        }
+        Ok(HierarchicalSummary {
+            mean: fine.mean,
+            probability_best: fine.best,
+            expected_loss: fine.loss,
+            log_concentration_mean: fine.log_concentration_mean,
+            log_concentration_sd: fine.log_concentration_sd,
+            correlation_mean: fine.rho,
+            log_marginal_likelihood: fine.log_marginal,
+            quadrature_error: error,
+        })
+    }
+
+    fn stick_mass(&self, nodes: usize, cancelled: &dyn Fn() -> bool) -> Result<StickMass, Error> {
+        let (xs, ws) = crate::special::gauss_legendre(nodes);
+        let sticks = self.options - 1;
+        let dims = sticks + 1;
+        let vlo = V_LIMIT.0.max(self.mu - 8.0 * self.sigma);
+        let vhi = V_LIMIT.1.min(self.mu + 8.0 * self.sigma);
+        let mut coords = vec![0.0; dims];
+        let mut log_weights = vec![0.0; dims];
+        let mut points = Vec::new();
+        self.stick_walk(
+            0,
+            &xs,
+            &ws,
+            vlo,
+            vhi,
+            &mut coords,
+            &mut log_weights,
+            &mut points,
+            cancelled,
+        )?;
+        let mut max_log = f64::NEG_INFINITY;
+        for (log_w, _, _) in &points {
+            if log_w.is_finite() {
+                max_log = max_log.max(*log_w);
+            }
+        }
+        if !max_log.is_finite() {
+            return Err(Error::Numerical(
+                "the hierarchical posterior is not resolved by the quadrature",
+            ));
+        }
+        let k = self.options;
+        let mut z = 0.0;
+        let mut mean = vec![0.0; k];
+        let mut best = vec![0.0; k];
+        let mut emax = 0.0;
+        let mut v_mean = 0.0;
+        let mut v_second = 0.0;
+        let mut rho = 0.0;
+        for (log_w, pi, v) in &points {
+            if !log_w.is_finite() {
+                continue;
+            }
+            let w = (log_w - max_log).exp();
+            z += w;
+            let winner = pi
+                .iter()
+                .enumerate()
+                .max_by(|a, b| a.1.total_cmp(b.1).then_with(|| b.0.cmp(&a.0)))
+                .map(|(j, _)| j)
+                .unwrap_or(0);
+            let peak = pi.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            for j in 0..k {
+                mean[j] += w * pi[j];
+            }
+            best[winner] += w;
+            emax += w * peak;
+            v_mean += w * v;
+            v_second += w * v * v;
+            rho += w / (v.exp() + 1.0);
+        }
+        if !(z.is_finite() && z > 0.0) {
+            return Err(Error::Numerical(
+                "the hierarchical posterior is not resolved by the quadrature",
+            ));
+        }
+        let scale = 1.0 / z;
+        for value in mean.iter_mut().chain(&mut best) {
+            *value *= scale;
+        }
+        let vm = v_mean * scale;
+        let vs = (v_second * scale - vm * vm).max(0.0).sqrt();
+        let loss = mean.iter().map(|m| emax * scale - m).collect();
+        Ok(StickMass {
+            mean,
+            best,
+            loss,
+            log_concentration_mean: vm,
+            log_concentration_sd: vs,
+            rho: rho * scale,
+            log_marginal: max_log + z.ln(),
+        })
+    }
+
+    fn stick_walk(
+        &self,
+        dim: usize,
+        xs: &[f64],
+        ws: &[f64],
+        vlo: f64,
+        vhi: f64,
+        coords: &mut [f64],
+        log_weights: &mut [f64],
+        points: &mut Vec<(f64, Vec<f64>, f64)>,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<(), Error> {
+        let sticks = self.options - 1;
+        if dim == sticks + 1 {
+            if cancelled() {
+                return Err(Error::Cancelled);
+            }
+            let mut remain = 1.0;
+            let mut log_jac = 0.0;
+            let mut pi = vec![0.0; self.options];
+            for j in 0..sticks {
+                let u = coords[j];
+                pi[j] = remain * u;
+                let left = sticks - 1 - j;
+                if left > 0 {
+                    log_jac += left as f64 * (1.0 - u).ln();
+                }
+                remain *= 1.0 - u;
+            }
+            pi[sticks] = remain;
+            if pi.iter().any(|p| !(*p > 0.0)) {
+                return Ok(());
+            }
+            let mut scratch = self.scratch();
+            scratch.pi.clone_from(&pi);
+            let v = coords[sticks];
+            let log_quad: f64 = log_weights.iter().sum();
+            let log_w = self.log_target(&mut scratch, v) + log_jac + log_quad;
+            points.push((log_w, pi, v));
+            return Ok(());
+        }
+        let eps = 1e-6;
+        let (lo, _hi, span) = if dim == sticks {
+            (vlo, vhi, vhi - vlo)
+        } else {
+            (eps, 1.0 - eps, 1.0 - 2.0 * eps)
+        };
+        for (x, w) in xs.iter().zip(ws) {
+            if *w <= 0.0 {
+                continue;
+            }
+            coords[dim] = lo + 0.5 * (x + 1.0) * span;
+            log_weights[dim] = w.ln() + (0.5 * span).ln();
+            self.stick_walk(dim + 1, xs, ws, vlo, vhi, coords, log_weights, points, cancelled)?;
+        }
+        Ok(())
     }
 
     /// Integrate every region with a coarse and a fine rule and report the summary of the fine rule
@@ -511,6 +757,11 @@ impl HierarchicalChoicePosterior {
     ) -> Result<(f64, f64), Error> {
         if option >= self.options || !(level > 0.0 && level < 1.0) {
             return Err(Error::InvalidParameter("an option index and a level in (0, 1)"));
+        }
+        if self.options > 3 {
+            return Err(Error::Numerical(
+                "a share interval of more than three options is outside the region quadrature",
+            ));
         }
         let region = Region { option, c_lo: 0.0, c_hi: 1.0, constrained: false };
         let (cube, reference) = self.zoom(&region, cancelled)?;

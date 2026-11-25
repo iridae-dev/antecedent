@@ -62,16 +62,16 @@ use crate::joint_law::DecisionVerdict;
 use crate::special::normal_ppf;
 use crate::synthesis::{SynthesisError, fixed_effect_gls, fixed_effect_inverse_variance};
 
-/// Most `f64` cells (rows times nodes) one chain table may hold: 2 GiB of draws. The only
-/// limit on a table is that it fits in memory.
+/// Historical cell count of one chain table. Not enforced: the table quotes its cells
+/// against the execution.
 pub const MAX_CHAIN_CELLS: usize = 1 << 28;
 /// Most rows one chain table may carry: a single column within [`MAX_CHAIN_CELLS`].
 pub const MAX_CHAIN_ROWS: usize = MAX_CHAIN_CELLS;
 /// Most sources plus stages one chain may name. The product of nodes and rows is held to
 /// [`MAX_CHAIN_CELLS`]; this bounds only the validation walk.
 pub const MAX_CHAIN_NODES: usize = 1 << 16;
-/// Rows from which a preposterior update averages over a subsample of simulated studies
-/// instead of one study per row: every study compares its likelihood with every row.
+/// Rows a caller receives when they ask for a subsample. The default update quotes every
+/// study-by-row comparison and uses every row when the quote fits.
 pub const MAX_PREPOSTERIOR_ROWS: usize = 2_048;
 /// Smallest mean effective size of the updated draws a preposterior update
 /// may report. Below it the likelihood of the simulated study leaves too few
@@ -134,9 +134,37 @@ pub enum ChainError {
     /// A declared budget was exceeded.
     #[error("propagation chain budget exceeded: {0}")]
     Budget(&'static str),
+    /// The quoted cells or comparisons do not fit the execution. The table was not entered.
+    #[error("{summary}")]
+    Search {
+        /// Stop code.
+        stop: &'static str,
+        /// Receipt summary.
+        summary: String,
+        /// The receipt.
+        receipt: antecedent_core::SearchReceipt,
+    },
     /// Cancellation was observed at a work boundary.
     #[error("propagation chain cancelled")]
     Cancelled,
+}
+
+fn chain_search(receipt: antecedent_core::SearchReceipt) -> ChainError {
+    let stop = receipt.stop.code();
+    let summary = receipt.summary();
+    ChainError::Search { stop, summary, receipt }
+}
+
+fn admit_chain_cells(
+    cells: u64,
+    ctx: &antecedent_core::ExecutionContext,
+    unevaluated: &'static str,
+) -> Result<antecedent_core::execution::AdmissionLease, ChainError> {
+    let Some(bytes) = cells.checked_mul(8) else {
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote(unevaluated)));
+    };
+    crate::execution_quote::admit_execution_quote(ctx, cells.max(1), cells, bytes, unevaluated)
+        .map_err(chain_search)
 }
 
 fn check_cancel(cancel: &CancellationToken) -> Result<(), ChainError> {
@@ -776,10 +804,19 @@ fn covariance_of(a: &[f64], b: &[f64], mean_a: f64, mean_b: f64) -> f64 {
 }
 
 fn pool_covariance_cells(arity: usize) -> Result<usize, ChainError> {
-    arity
-        .checked_mul(arity)
-        .filter(|&cells| cells <= MAX_CHAIN_CELLS)
-        .ok_or(ChainError::Budget("pool covariance"))
+    let Some(cells) = arity.checked_mul(arity) else {
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain pool covariance cells",
+        )));
+    };
+    let Ok(quoted) = u64::try_from(cells) else {
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain pool covariance cells",
+        )));
+    };
+    let _lease =
+        admit_chain_cells(quoted, &crate::execution_quote::open_execution(), "chain pool covariance cells")?;
+    Ok(cells)
 }
 
 fn pool_columns(
@@ -848,14 +885,32 @@ pub fn evaluate_columns(
     stages: &[StageSpec],
     cancel: &CancellationToken,
 ) -> Result<Evaluated, ChainError> {
+    evaluate_columns_in(sources, stages, cancel, &crate::execution_quote::open_execution())
+}
+
+/// [`evaluate_columns`] against `ctx`'s execution budget.
+///
+/// # Errors
+/// A malformed chain, columns of different lengths, a cell quote the execution does not hold,
+/// a transformation leaving its domain, a singular pool, or cancellation.
+pub fn evaluate_columns_in(
+    sources: &[Vec<f64>],
+    stages: &[StageSpec],
+    cancel: &CancellationToken,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<Evaluated, ChainError> {
     validate_spec(sources.len(), stages)?;
     let rows = sources[0].len();
     if rows == 0 {
         return Err(ChainError::Shape("a chain table needs at least one row"));
     }
-    if rows.checked_mul(sources.len() + stages.len()).is_none_or(|cells| cells > MAX_CHAIN_CELLS) {
-        return Err(ChainError::Budget("rows"));
-    }
+    let Some(cells) = rows.checked_mul(sources.len() + stages.len()) else {
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote("chain table cells")));
+    };
+    let Ok(quoted) = u64::try_from(cells) else {
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote("chain table cells")));
+    };
+    let _lease = admit_chain_cells(quoted, ctx, "chain table cells")?;
     for column in sources {
         if column.len() != rows {
             return Err(ChainError::Shape("source columns have different lengths"));
@@ -1159,10 +1214,8 @@ pub struct PreposteriorOutcome {
     pub mean_effective_size: f64,
     /// Smallest effective size of the updated draws.
     pub min_effective_size: f64,
-    /// Number of simulated studies averaged over. It is the row count up to
-    /// [`MAX_PREPOSTERIOR_ROWS`]; beyond it the studies are a systematic weighted subsample of the
-    /// rows (every study still reweights all rows), which widens the Monte Carlo error of the
-    /// averages above but leaves the effective size of each updated posterior intact.
+    /// Number of simulated studies averaged over. The default update uses every row. A caller
+    /// who asks for a subsample receives [`MAX_PREPOSTERIOR_ROWS`] rows when the table is longer.
     pub simulated_studies: usize,
 }
 
@@ -1180,17 +1233,67 @@ pub struct PreposteriorOutcome {
 /// Columns of different lengths, noise of another length, updated draws with mean
 /// effective size below [`MIN_UPDATE_EFFECTIVE_SIZE`], or cancellation.
 ///
-/// Every simulated study compares its likelihood with all `n` rows, so the cost is `O(n m)` for
-/// `m` studies. Above [`MAX_PREPOSTERIOR_ROWS`] rows the studies are a systematic subsample of
-/// `MAX_PREPOSTERIOR_ROWS` rows drawn at the weighted quantiles of the row weights; each
-/// updated posterior still uses all `n` rows, so only the outer Monte Carlo average loses
-/// precision ([`PreposteriorOutcome::simulated_studies`] reports `m`).
+/// Every simulated study compares its likelihood with all `n` rows, so the cost is `O(n²)`.
+/// That product is quoted against the execution before any comparison. [`preposterior_subsample`]
+/// is the same update over [`MAX_PREPOSTERIOR_ROWS`] rows when the caller asks for a subsample.
 pub fn preposterior(
     parameter: &[f64],
     utility: &[f64],
     weights: Option<&[f64]>,
     study: &Preposterior,
     cancel: &CancellationToken,
+) -> Result<PreposteriorOutcome, ChainError> {
+    preposterior_in(
+        parameter,
+        utility,
+        weights,
+        study,
+        cancel,
+        &crate::execution_quote::open_execution(),
+    )
+}
+
+/// [`preposterior`] against `ctx`'s execution budget.
+///
+/// # Errors
+/// Columns of different lengths, a comparison quote the execution does not hold, noise of
+/// another length, updated draws with mean effective size below [`MIN_UPDATE_EFFECTIVE_SIZE`],
+/// or cancellation.
+pub fn preposterior_in(
+    parameter: &[f64],
+    utility: &[f64],
+    weights: Option<&[f64]>,
+    study: &Preposterior,
+    cancel: &CancellationToken,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<PreposteriorOutcome, ChainError> {
+    preposterior_mode(parameter, utility, weights, study, cancel, ctx, false)
+}
+
+/// The preposterior update over a subsample of [`MAX_PREPOSTERIOR_ROWS`] rows when the table
+/// is longer. Each kept study still reweights every row.
+///
+/// # Errors
+/// As [`preposterior_in`], quoting the subsample's study-by-row comparisons.
+pub fn preposterior_subsample(
+    parameter: &[f64],
+    utility: &[f64],
+    weights: Option<&[f64]>,
+    study: &Preposterior,
+    cancel: &CancellationToken,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<PreposteriorOutcome, ChainError> {
+    preposterior_mode(parameter, utility, weights, study, cancel, ctx, true)
+}
+
+fn preposterior_mode(
+    parameter: &[f64],
+    utility: &[f64],
+    weights: Option<&[f64]>,
+    study: &Preposterior,
+    cancel: &CancellationToken,
+    ctx: &antecedent_core::ExecutionContext,
+    subsample: bool,
 ) -> Result<PreposteriorOutcome, ChainError> {
     let n = parameter.len();
     if n == 0 || utility.len() != n || study.noise.len() != n {
@@ -1205,7 +1308,21 @@ pub fn preposterior(
     }
     let uniform = 1.0 / n as f64;
     let prior = |row: usize| weights.map_or(uniform, |w| w[row]);
-    let studies = preposterior_studies(n, &prior);
+    check_cancel(cancel)?;
+    let studies = if subsample {
+        preposterior_studies(n, &prior)
+    } else {
+        (0..n).map(|row| (row, prior(row))).collect::<Vec<_>>()
+    };
+    let Some(comparisons) = u64::try_from(studies.len())
+        .ok()
+        .and_then(|m| m.checked_mul(u64::try_from(n).ok()?))
+    else {
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote(
+            "preposterior study-by-row comparisons",
+        )));
+    };
+    let _lease = admit_chain_cells(comparisons, ctx, "preposterior study-by-row comparisons")?;
     let scale = study.noise_sd / study.sample_size.sqrt();
     let current: f64 = (0..n).map(|row| prior(row) * utility[row]).sum();
     let current_acts = current > study.reference_utility;
@@ -1302,7 +1419,7 @@ mod table_tests;
 
 #[cfg(test)]
 mod preposterior_study_selection_tests {
-    use super::{MAX_PREPOSTERIOR_ROWS, preposterior_studies};
+    use super::*;
 
     #[test]
     fn small_tables_use_every_row_and_large_ones_a_mass_preserving_subsample() {
@@ -1316,6 +1433,50 @@ mod preposterior_study_selection_tests {
         assert!(picked.windows(2).all(|pair| pair[0].0 <= pair[1].0));
         assert!(picked.iter().all(|(row, _)| *row < n));
     }
+
+    #[test]
+    fn the_default_update_uses_every_row_and_a_small_pool_does_not_subsample() {
+        let study = |n: usize| Preposterior {
+            noise_sd: 1.0,
+            sample_size: 1.0,
+            reference_utility: 0.0,
+            noise: vec![0.0; n],
+        };
+        let run = |n: usize, ctx: &antecedent_core::ExecutionContext| {
+            preposterior_in(
+                &vec![0.0; n],
+                &vec![0.0; n],
+                None,
+                &study(n),
+                &CancellationToken::new(),
+                ctx,
+            )
+        };
+        let open = antecedent_core::ExecutionContext::for_tests(0);
+        let small = run(16, &open).expect("sixteen rows");
+        assert_eq!(small.simulated_studies, 16);
+        let above = run(2_100, &open).expect("every row above the old subsample");
+        assert_eq!(above.simulated_studies, 2_100);
+        let asked = preposterior_subsample(
+            &vec![0.0; 2_100],
+            &vec![0.0; 2_100],
+            None,
+            &study(2_100),
+            &CancellationToken::new(),
+            &open,
+        )
+        .expect("asked subsample");
+        assert_eq!(asked.simulated_studies, MAX_PREPOSTERIOR_ROWS);
+        let tight = open.with_memory_limit(Some(1024));
+        match run(100, &tight) {
+            Err(ChainError::Search { summary, .. }) => {
+                assert!(summary.contains("not entered"));
+                assert!(summary.contains("preposterior study-by-row comparisons"));
+                assert!(!summary.contains("at most"));
+            }
+            other => panic!("expected a search receipt, got {other:?}"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1323,14 +1484,39 @@ mod pool_budget_tests {
     use super::*;
 
     #[test]
-    fn repeated_pool_inputs_cannot_exceed_the_covariance_cell_budget() {
+    fn repeated_pool_inputs_quote_their_cells() {
         let pool =
             |arity| StageSpec { inputs: vec![0; arity], op: StageOp::Pool { dependent: false } };
         assert!(validate_spec(1, &[pool(1 << 14)]).is_ok());
-        assert_eq!(
-            validate_spec(1, &[pool((1 << 14) + 1)]),
-            Err(ChainError::Budget("pool covariance"))
-        );
-        assert_eq!(pool_covariance_cells(usize::MAX), Err(ChainError::Budget("pool covariance")));
+        assert!(validate_spec(1, &[pool((1 << 14) + 1)]).is_ok());
+        assert!(matches!(
+            pool_covariance_cells(usize::MAX),
+            Err(ChainError::Search { stop, summary, .. })
+                if stop == "search.operations" && summary.contains("not entered")
+        ));
+    }
+
+    #[test]
+    fn a_chain_table_that_does_not_fit_the_pool_is_not_entered() {
+        let rows = 4_000;
+        let sources = vec![vec![0.0; rows], vec![1.0; rows]];
+        let stages = [StageSpec {
+            inputs: vec![0],
+            op: StageOp::Affine {
+                scale: Coefficient::Fixed(1.0),
+                shift: Coefficient::Fixed(0.0),
+            },
+        }];
+        let open = evaluate_columns(&sources, &stages, &CancellationToken::new());
+        assert!(open.is_ok(), "{open:?}");
+        let tight = antecedent_core::ExecutionContext::for_tests(0).with_memory_limit(Some(1024));
+        match evaluate_columns_in(&sources, &stages, &CancellationToken::new(), &tight) {
+            Err(ChainError::Search { summary, .. }) => {
+                assert!(summary.contains("not entered"));
+                assert!(summary.contains("chain table cells"));
+                assert!(!summary.contains("at most"));
+            }
+            other => panic!("expected a search receipt, got {other:?}"),
+        }
     }
 }

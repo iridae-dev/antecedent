@@ -468,8 +468,11 @@ fn independent_rows_bounds_and_arguments_refuse() {
     assert_refusal(
         exact_enumeration_covariance(&family, &capped, &ctx()),
         "execution_resource_limit",
-        antecedent_core::reason_details::scenario_covariance::EXACT_ENUMERATION_CAP,
+        antecedent_core::SearchStop::Operations.code(),
     );
+    let message = exact_enumeration_covariance(&family, &capped, &ctx()).unwrap_err().to_string();
+    assert!(message.contains("not entered"), "{message}");
+    assert!(!message.contains("at most"), "{message}");
 }
 
 #[test]
@@ -714,4 +717,20 @@ fn scenario_covariance_posterior_consumer_replays_the_shrunk_entries() {
         assert!(got.is_finite());
         assert!((got - weight * moment).abs() < 1e-12);
     }
+}
+
+#[test]
+fn count_vectors_above_the_old_ceiling_run_when_the_quote_fits() {
+    let n = 13;
+    let ids: Vec<Arc<str>> = (0..n).map(|i| Arc::from(format!("u{i}"))).collect();
+    let family = vec![ScenarioRowEstimator::new("a", SNAPSHOT, ids, |_| Ok(0.0))];
+    let options = ExactEnumerationOptions { max_compositions: 6_000_000, max_failure_mass: 0.0 };
+    let got = exact_enumeration_covariance(&family, &options, &ctx()).expect("thirteen rows");
+    assert_eq!(got.replicates_total, 5_200_300);
+    let tight = ctx().with_memory_limit(Some(1024));
+    assert_refusal(
+        exact_enumeration_covariance(&family, &options, &tight),
+        "execution_resource_limit",
+        antecedent_core::SearchStop::Memory.code(),
+    );
 }

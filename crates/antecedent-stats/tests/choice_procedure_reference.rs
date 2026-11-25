@@ -5,8 +5,10 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference::{
-    ChoiceKernel, ChoiceProcedureSpec, ChoiceStoppingRule, enumerate_choice_law,
+    AdaptiveInferenceError, ChoiceKernel, ChoiceProcedureSpec, ChoiceStoppingRule,
+    enumerate_choice_law, enumerate_choice_law_in,
 };
 use serde_json::Value;
 
@@ -104,8 +106,26 @@ fn bounds_and_domain_are_refused() {
     let mut five = base.clone();
     five.prior = vec![1.0; 5];
     assert!(
-        enumerate_choice_law(&five, &ChoiceKernel::Fixed { theta: vec![0.2; 5] }, &never).is_err()
+        enumerate_choice_law(&five, &ChoiceKernel::Fixed { theta: vec![0.2; 5] }, &never).is_ok()
     );
+    let wide = ChoiceProcedureSpec {
+        prior: vec![1.0; 4],
+        batches: vec![10_000],
+        rule: five.rule,
+    };
+    let tight = ExecutionContext::for_tests(0).with_memory_limit(Some(1024));
+    match enumerate_choice_law_in(
+        &wide,
+        &ChoiceKernel::Fixed { theta: vec![0.25; 4] },
+        &never,
+        &tight,
+    ) {
+        Err(AdaptiveInferenceError::Budget { summary, .. }) => {
+            assert!(summary.contains("not entered"));
+            assert!(!summary.contains("at most"));
+        }
+        other => panic!("expected a search receipt, got {other:?}"),
+    }
     let mut bad_rule = base.clone();
     bad_rule.rule.min_probability_best = Some(0.4);
     assert!(enumerate_choice_law(&bad_rule, &fixed, &never).is_err());

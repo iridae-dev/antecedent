@@ -56,9 +56,11 @@ pub const MAX_REPLICATES: usize = 2000;
 pub(crate) const MIN_REPLICATES: usize = 2;
 /// Fewest rows (one row cannot vary).
 pub(crate) const MIN_ROWS: usize = 2;
-/// Most rows the exact enumeration accepts (keeps `n^n` exact in `u128`).
+/// Historical row count of the exact enumeration. Not enforced: the enumeration quotes the
+/// multinomial count vectors against the caller's composition budget and the execution.
 pub const MAX_EXACT_ROWS: usize = 24;
-/// Largest number of count vectors the exact enumeration will ever visit.
+/// Historical count-vector ceiling. Not enforced: the caller's `max_compositions` is the
+/// operation budget, and the execution's pool is the memory budget.
 pub const EXACT_ENUMERATION_HARD_CAP: u64 = 4_000_000;
 /// How the covariance may be read.
 pub const COVARIANCE_INTERPRETATION: &str =
@@ -279,10 +281,6 @@ fn unknown_dependence(message: &str) -> EstimationError {
 
 fn invalid(detail: &str, message: &str) -> EstimationError {
     refuse(antecedent_core::reason_code!("invalid_argument"), detail, message)
-}
-
-fn over_bound(detail: &str, message: &str) -> EstimationError {
-    refuse(antecedent_core::reason_code!("execution_resource_limit"), detail, message)
 }
 
 fn numerical(detail: &str, message: &str) -> EstimationError {
@@ -711,6 +709,96 @@ pub fn shared_row_bootstrap_covariance(
     Ok(out)
 }
 
+const COUNT_VECTORS: &str = "scenario exact enumeration of multinomial count vectors";
+
+fn search_receipt(receipt: antecedent_core::SearchReceipt) -> EstimationError {
+    let code = if receipt.stop == antecedent_core::SearchStop::Cancelled {
+        antecedent_core::reason_code!("cancelled_no_claim")
+    } else {
+        antecedent_core::reason_code!("execution_resource_limit")
+    };
+    EstimationError::refused_detail(code, receipt.stop.code(), receipt.summary())
+}
+
+fn count_vector_bytes(total: u64, scenarios: usize) -> Option<u64> {
+    total.checked_mul(u64::try_from(scenarios).ok()?).and_then(|bytes| bytes.checked_mul(8))
+}
+
+/// `n!` and `n^n` fit in `u128`, so the walk's probabilities are exact.
+fn enumeration_arithmetic_fits(n: usize) -> bool {
+    let mut acc = 1_u128;
+    for i in 1..=n {
+        let Some(next) = u64::try_from(i).ok().and_then(|i| acc.checked_mul(u128::from(i))) else {
+            return false;
+        };
+        acc = next;
+    }
+    u64::try_from(n)
+        .ok()
+        .and_then(|base| u32::try_from(n).ok().and_then(|exp| u128::from(base).checked_pow(exp)))
+        .is_some()
+}
+
+fn count_vectors_fit(
+    n: usize,
+    scenarios: usize,
+    max_compositions: u64,
+    ctx: &ExecutionContext,
+) -> bool {
+    let Some(total) = composition_count(n).and_then(|total| u64::try_from(total).ok()) else {
+        return false;
+    };
+    if !enumeration_arithmetic_fits(n) {
+        return false;
+    }
+    let Some(bytes) = count_vector_bytes(total, scenarios) else {
+        return false;
+    };
+    antecedent_stats::execution_quote::execution_quote_fits(
+        ctx,
+        max_compositions.max(1),
+        total,
+        bytes,
+    )
+}
+
+fn admit_count_vectors(
+    n: usize,
+    scenarios: usize,
+    max_compositions: u64,
+    ctx: &ExecutionContext,
+) -> Result<(u128, antecedent_core::execution::AdmissionLease), EstimationError> {
+    let Some(total) = composition_count(n) else {
+        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+            COUNT_VECTORS,
+        )));
+    };
+    let Ok(quoted) = u64::try_from(total) else {
+        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+            COUNT_VECTORS,
+        )));
+    };
+    if !enumeration_arithmetic_fits(n) {
+        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+            COUNT_VECTORS,
+        )));
+    }
+    let Some(bytes) = count_vector_bytes(quoted, scenarios) else {
+        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+            COUNT_VECTORS,
+        )));
+    };
+    let lease = antecedent_stats::execution_quote::admit_execution_quote(
+        ctx,
+        max_compositions.max(1),
+        quoted,
+        bytes,
+        COUNT_VECTORS,
+    )
+    .map_err(search_receipt)?;
+    Ok((total, lease))
+}
+
 /// Number of multinomial count vectors of `n` rows: `C(2n - 1, n)`.
 fn composition_count(n: usize) -> Option<u128> {
     let n = u128::from(widen(n));
@@ -786,10 +874,9 @@ pub fn exact_or_bootstrap_covariance(
     ctx: &ExecutionContext,
 ) -> Result<ScenarioCovariance, EstimationError> {
     let identity = validate_family(scenarios)?;
-    let cap = exact.max_compositions.min(EXACT_ENUMERATION_HARD_CAP);
-    let fits = identity.n <= MAX_EXACT_ROWS
-        && composition_count(identity.n).is_some_and(|total| total <= u128::from(cap));
-    if fits {
+    if ctx.cancellation.is_cancelled()
+        || count_vectors_fit(identity.n, scenarios.len(), exact.max_compositions, ctx)
+    {
         exact_enumeration_covariance(scenarios, exact, ctx)
     } else {
         shared_row_bootstrap_covariance(scenarios, bootstrap, ctx)
@@ -805,10 +892,10 @@ pub fn exact_or_bootstrap_covariance(
 /// resampling distribution).
 ///
 /// # Errors
-/// The [`validate_family`] refusals; `execution_resource_limit`
-/// (`scenario_covariance.exact_enumeration_cap`) when `n` exceeds [`MAX_EXACT_ROWS`] or the
-/// number of count vectors exceeds the declared cap or [`EXACT_ENUMERATION_HARD_CAP`];
-/// `invalid_argument` (`scenario_covariance.invalid_failure_bound`);
+/// The [`validate_family`] refusals; `execution_resource_limit` (`search.operations`,
+/// `search.memory`, `search.depth`) or `cancelled_no_claim` (`search.cancelled`) when the
+/// count-vector quote does not fit the execution; `invalid_argument`
+/// (`scenario_covariance.invalid_failure_bound`);
 /// `transport_numerical_failure` (`scenario_covariance.too_many_failed_replicates`,
 /// `scenario_covariance.not_positive_semidefinite`); `cancelled_no_claim`
 /// (`scenario_covariance.cancelled`).
@@ -825,23 +912,24 @@ pub fn exact_enumeration_covariance(
     }
     let identity = validate_family(scenarios)?;
     let n = identity.n;
-    let cap = options.max_compositions.min(EXACT_ENUMERATION_HARD_CAP);
-    let total = if n <= MAX_EXACT_ROWS { composition_count(n) } else { None };
-    let Some(total) = total.filter(|t| *t <= u128::from(cap)) else {
-        return Err(over_bound(
-            antecedent_core::reason_details::scenario_covariance::EXACT_ENUMERATION_CAP,
-            &format!(
-                "{n} rows have more multinomial count vectors than the cap {cap} (rows at most \
-                 {MAX_EXACT_ROWS}); use the shared-row bootstrap"
-            ),
-        ));
-    };
+    check_cancel(ctx)?;
+    let (total, _lease) = admit_count_vectors(n, scenarios.len(), options.max_compositions, ctx)?;
     let mut fact = vec![1_u128];
     for i in 1..=n {
         let prev = fact[i - 1];
-        fact.push(prev * u128::from(widen(i)));
+        let Some(next) = prev.checked_mul(u128::from(widen(i))) else {
+            return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+                COUNT_VECTORS,
+            )));
+        };
+        fact.push(next);
     }
-    let denominator = u128::from(widen(n)).pow(u32::try_from(n).unwrap_or(0)) as f64;
+    let Some(den) = u128::from(widen(n)).checked_pow(u32::try_from(n).unwrap_or(0)) else {
+        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+            COUNT_VECTORS,
+        )));
+    };
+    let denominator = den as f64;
     let mut digest = seed_digest(scenarios, &identity, "exact_enumeration");
     digest.word(widen(n));
     let mut walker = Enumerator {

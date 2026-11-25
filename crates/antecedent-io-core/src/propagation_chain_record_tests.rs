@@ -1204,12 +1204,12 @@ fn point_sources_replicated_past_the_cell_budget_are_refused_before_any_column_i
         sources,
         stages,
     );
-    let refusal =
-        PropagationChainRecordWire::seal(draft, &ctx()).expect_err("over budget").to_refusal();
-    assert_eq!(
-        refusal.detail(),
-        antecedent_core::reason_details::propagation_chain::BUDGET_EXCEEDED
-    );
+    let tight = ctx().with_memory_limit(Some(1 << 20));
+    let refusal = PropagationChainRecordWire::seal(draft, &tight)
+        .expect_err("over budget")
+        .to_refusal();
+    assert_eq!(refusal.detail(), antecedent_core::SearchStop::Memory.code());
+    assert!(refusal.message().contains("not entered"));
 }
 
 /// A small posterior artifact for a host to carry the record in.

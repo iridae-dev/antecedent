@@ -77,8 +77,8 @@ use antecedent_core::CanonicalWriter;
 use antecedent_core::ExecutionContext;
 use antecedent_stats::propagation_chain::{
     ChainError, Coefficient, Combine, Enclosure, Evaluated, ExprTerm, MixedSource, Preposterior,
-    StageOp, StageSpec, UnaryFn, decide, evaluate_columns, evaluate_enclosures,
-    evaluate_mixed_enclosures, preposterior, summarize, weights_from_log,
+    StageOp, StageSpec, UnaryFn, decide, evaluate_columns_in, evaluate_enclosures,
+    evaluate_mixed_enclosures, preposterior_in, summarize, weights_from_log,
 };
 
 use crate::IoError;
@@ -136,6 +136,8 @@ pub const MAX_STAGE_VALUES: usize = 64;
 /// Most cells (`rows × (sources + stages)`) a record may evaluate. Point sources are
 /// replicated down every row of the table, so the cells, not the wire bytes, set the memory
 /// an execution needs; the check runs before any column is built.
+/// Historical cell count of a retained chain record. Not enforced: evaluation quotes the
+/// cells against the execution.
 pub const MAX_PROPAGATION_CHAIN_CELLS: usize = 1 << 26;
 
 /// Intake bounds for a propagation chain record. The defaults are
@@ -301,6 +303,17 @@ fn map_chain_error(error: ChainError) -> Error {
             invalid,
             antecedent_core::reason_details::propagation_chain::BUDGET_EXCEEDED,
             format!("the chain exceeds the declared budget of {what}"),
+            None,
+            RAISE_BUDGET_OR_THIN_DRAWS,
+        ),
+        ChainError::Search { stop, summary, .. } => refused(
+            if stop == antecedent_core::SearchStop::Cancelled.code() {
+                antecedent_core::reason_code!("cancelled_no_claim")
+            } else {
+                antecedent_core::reason_code!("execution_resource_limit")
+            },
+            stop,
+            summary,
             None,
             RAISE_BUDGET_OR_THIN_DRAWS,
         ),
@@ -1064,11 +1077,21 @@ impl PropagationChainRecordWire {
             });
         }
         let table_rows = rows.unwrap_or(1);
-        if table_rows
-            .checked_mul(n_sources.saturating_add(self.stages.len()))
-            .is_none_or(|cells| cells > MAX_PROPAGATION_CHAIN_CELLS)
-        {
-            return Err(map_chain_error(ChainError::Budget("table cells")));
+        if table_rows.checked_mul(n_sources.saturating_add(self.stages.len())).is_none() {
+            return Err(map_chain_error(ChainError::Search {
+                stop: antecedent_core::SearchStop::Operations.code(),
+                summary: "receipt: stop search.operations; operations not entered; depth not entered; memory 0 bytes; explored []; unevaluated [chain table cells]".into(),
+                receipt: antecedent_core::SearchReceipt {
+                    stop: antecedent_core::SearchStop::Operations,
+                    operations_limit: 1,
+                    depth_limit: 1,
+                    memory_limit_bytes: Some(0),
+                    operations_consumed: None,
+                    depth_reached: None,
+                    explored: Vec::new(),
+                    unevaluated: vec!["chain table cells".into()],
+                },
+            }));
         }
         let columns: Vec<Vec<f64>> = self
             .sources
@@ -1082,7 +1105,8 @@ impl PropagationChainRecordWire {
             })
             .collect();
         let evaluated =
-            evaluate_columns(&columns, &specs, &ctx.cancellation).map_err(map_chain_error)?;
+            evaluate_columns_in(&columns, &specs, &ctx.cancellation, ctx)
+                .map_err(map_chain_error)?;
         for (position, stage) in self.stages.iter().enumerate() {
             let (status, invalidated_by) = stage_status(&stage.id);
             let mut values = Vec::new();
@@ -1197,8 +1221,9 @@ impl PropagationChainRecordWire {
             ) else {
                 return Err(malformed("an update reads two columns"));
             };
-            let outcome = preposterior(parameter, utility, weights, study, &ctx.cancellation)
-                .map_err(map_chain_error)?;
+            let outcome =
+                preposterior_in(parameter, utility, weights, study, &ctx.cancellation, ctx)
+                    .map_err(map_chain_error)?;
             push_float(values, "current_expected_utility", outcome.current_expected_utility);
             push_float(values, "expected_value_with_study", outcome.expected_value_with_study);
             push_float(values, "value_of_information", outcome.value_of_information);

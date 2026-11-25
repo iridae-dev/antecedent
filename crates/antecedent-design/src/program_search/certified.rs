@@ -191,8 +191,8 @@ impl PreparedCertifiedSearch {
         controls: Vec<CertifiedControl>,
         restrictions: Vec<CertifiedRestriction>,
     ) -> Result<Self, ProgramSearchError> {
-        if controls.is_empty() || controls.len() > 4096 {
-            return Err(invalid("certificate requires 1..4096 bounded controls"));
+        if controls.is_empty() {
+            return Err(invalid("certificate requires bounded controls"));
         }
         let mut writer = CanonicalWriter::new("antecedent.certified_objective.v1");
         let mut seen = std::collections::HashSet::new();
@@ -343,10 +343,15 @@ impl PreparedCertifiedSearch {
             .and_then(|n| n.checked_add(self.restrictions.len().checked_mul(32)?))
             .and_then(|n| n.checked_add(1024))
             .ok_or_else(|| invalid("certificate storage overflow"))?;
-        if ctx.memory_limit_bytes().is_some_and(|limit| quote as u64 > limit) {
-            return Err(ProgramSearchError::Resource(
-                "certificate frontier exceeds memory limit".into(),
-            ));
+        if let Err(receipt) = antecedent_stats::execution_quote::probe_execution_quote(
+            ctx,
+            (quote as u64).max(1),
+            quote as u64,
+            quote as u64,
+            "program search candidates and controls",
+        ) {
+            let summary = receipt.summary();
+            return Err(ProgramSearchError::Budget { receipt, summary });
         }
         Ok(Arc::new(
             ctx.acquire_admission(0, quote as u64)
@@ -628,5 +633,40 @@ mod tests {
         assert!(result.global_upper >= 0.6);
         assert!(result.gap <= 1e-3);
         assert!(result.infeasible_regions > 0);
+    }
+
+    #[test]
+    fn more_controls_than_the_old_ceiling_compile_and_a_small_pool_does_not_enter() {
+        let controls: Vec<CertifiedControl> = (0..4097)
+            .map(|i| CertifiedControl {
+                variable: VariableId::from_raw(i),
+                bounds: ObjectiveInterval { lower: 0.0, upper: 1.0 },
+            })
+            .collect();
+        let plan = PreparedCertifiedSearch::compile(
+            ValueExpr::var(VariableId::from_raw(0)),
+            controls,
+            vec![],
+        )
+        .expect("4097 controls");
+        let open = plan
+            .execute(
+                vec![0.0; 4097],
+                CertificateOptions { absolute_gap: 1.0e9, max_splits: 1 },
+                &ExecutionContext::for_tests(1),
+            )
+            .expect("quote fits an open execution");
+        assert!(open.gap.is_finite());
+        let tight = ExecutionContext::for_tests(1).with_memory_limit(Some(64));
+        match plan.execute(
+            vec![0.0; 4097],
+            CertificateOptions { absolute_gap: 1.0e9, max_splits: 1 },
+            &tight,
+        ) {
+            Err(ProgramSearchError::Budget { summary, .. }) => {
+                assert!(summary.contains("not entered"));
+            }
+            other => panic!("expected a search receipt, got {other:?}"),
+        }
     }
 }

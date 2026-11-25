@@ -715,6 +715,13 @@ fn table_refusal(error: &antecedent_stats::ChainError) -> ChainRefusal {
         match error {
             antecedent_stats::ChainError::Cancelled => "execution_cancelled",
             antecedent_stats::ChainError::Budget(_) => "moment_matched_table_work_budget",
+            antecedent_stats::ChainError::Search { stop, .. } => {
+                if *stop == antecedent_core::SearchStop::Cancelled.code() {
+                    "cancelled_no_claim"
+                } else {
+                    "execution_resource_limit"
+                }
+            }
             _ => antecedent_core::reason_code!("invalid_argument"),
         },
         match error {
@@ -724,6 +731,7 @@ fn table_refusal(error: &antecedent_stats::ChainError) -> ChainRefusal {
             antecedent_stats::ChainError::Budget(_) => {
                 antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_WORK_LIMIT
             }
+            antecedent_stats::ChainError::Search { stop, .. } => *stop,
             _ => antecedent_core::reason_details::propagation_chain::FAMILY_TABLE_REFUSED,
         },
         error.to_string(),

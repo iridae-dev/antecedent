@@ -4,12 +4,12 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent_core::ExecutionContext;
 use antecedent_stats::adaptive_inference::{
     AdaptiveInferenceError as Error, AssignmentRule, BetaPrior, CapacityError, ContractGap,
-    Estimand, ExposureModel, FinalSelection, MAX_OUTCOME_LAG, MAX_PROCEDURE_ARMS,
-    MAX_PROCEDURE_CELLS, MAX_PROCEDURE_CONTEXTS, MAX_PROCEDURE_LOOKS, MAX_PROCEDURE_UNITS,
-    MAX_SIMULATION_REPLICATIONS, OutcomeModelPrior, OutcomeObservation, ProcedureDeclaration,
-    ProcedureSpec, SimulationRequest, StoppingRule, WeightScheme, simulate_procedure,
+    Estimand, ExposureModel, FinalSelection, MAX_PROCEDURE_UNITS, MAX_SIMULATION_REPLICATIONS,
+    OutcomeKernel, OutcomeModelPrior, OutcomeObservation, ProcedureDeclaration, ProcedureSpec,
+    SimulationRequest, StoppingRule, WeightScheme, enumerate_law_in, simulate_procedure,
 };
 
 fn never() -> bool {
@@ -36,14 +36,7 @@ fn gaps(declaration: ProcedureDeclaration) -> Vec<ContractGap> {
 
 #[test]
 fn arms_are_bounded() {
-    assert_eq!(MAX_PROCEDURE_ARMS, 4);
-    assert!(ProcedureSpec::new(base(MAX_PROCEDURE_ARMS, 2)).is_ok());
-    assert_eq!(
-        gaps(base(MAX_PROCEDURE_ARMS + 1, 2)),
-        vec![ContractGap::Invalid(
-            antecedent_core::reason_details::adaptive_inference::ARMS_INVALID
-        )]
-    );
+    assert!(ProcedureSpec::new(base(5, 3)).is_ok());
     assert_eq!(
         gaps(base(1, 2)),
         vec![ContractGap::Invalid(
@@ -54,41 +47,23 @@ fn arms_are_bounded() {
 
 #[test]
 fn contexts_and_cells_are_bounded() {
-    assert_eq!(MAX_PROCEDURE_CONTEXTS, 4);
-    assert_eq!(MAX_PROCEDURE_CELLS, 8);
     let contextual = |arms: usize, contexts: usize| {
         let mut d = base(arms, 2);
         d.assignment = Some(AssignmentRule::ThompsonBeta { prior: BetaPrior::UNIFORM });
         d.context_probabilities = Some(vec![1.0 / contexts as f64; contexts]);
         d
     };
-    // Four contexts of two arms: the context bound and the cell bound are both met exactly.
-    assert!(ProcedureSpec::new(contextual(2, MAX_PROCEDURE_CONTEXTS)).is_ok());
-    // One context more.
-    assert_eq!(
-        gaps(contextual(2, MAX_PROCEDURE_CONTEXTS + 1)),
-        vec![ContractGap::Invalid(
-            antecedent_core::reason_details::adaptive_inference::CONTEXTS_INVALID
-        )]
-    );
-    // Within the context bound and over the cell bound: three contexts of four arms.
-    assert_eq!(
-        gaps(contextual(4, 3)),
-        vec![ContractGap::Invalid(
-            antecedent_core::reason_details::adaptive_inference::CONTEXTS_INVALID
-        )]
-    );
+    assert!(ProcedureSpec::new(contextual(2, 5)).is_ok());
+    assert!(ProcedureSpec::new(contextual(4, 3)).is_ok());
+    let mut empty = base(2, 2);
+    empty.context_probabilities = Some(vec![]);
+    assert!(ProcedureSpec::new(empty).is_err());
 }
 
 #[test]
 fn looks_and_units_are_bounded() {
-    assert_eq!(MAX_PROCEDURE_LOOKS, 24);
     assert_eq!(MAX_PROCEDURE_UNITS, 65_535);
-    assert!(ProcedureSpec::new(base(2, MAX_PROCEDURE_LOOKS)).is_ok());
-    assert_eq!(
-        gaps(base(2, MAX_PROCEDURE_LOOKS + 1)),
-        vec![ContractGap::Capacity(CapacityError::DeclaredLooks { limit: 24, requested: 25 })]
-    );
+    assert!(ProcedureSpec::new(base(2, 25)).is_ok());
 
     let mut at_units = base(2, 1);
     at_units.enrolment = Some(vec![MAX_PROCEDURE_UNITS]);
@@ -126,20 +101,48 @@ fn looks_and_units_are_bounded() {
 
 #[test]
 fn outcome_delay_is_bounded() {
-    assert_eq!(MAX_OUTCOME_LAG, 4);
     let lagged = |lag_looks: usize| {
         let mut d = base(2, 8);
         d.observation =
             Some(OutcomeObservation { lag_looks, retain_success: 1.0, retain_failure: 1.0 });
         d
     };
-    assert!(ProcedureSpec::new(lagged(MAX_OUTCOME_LAG)).is_ok());
-    assert_eq!(
-        gaps(lagged(MAX_OUTCOME_LAG + 1)),
-        vec![ContractGap::Invalid(
-            antecedent_core::reason_details::adaptive_inference::OUTCOME_AVAILABILITY_INVALID
-        )]
+    assert!(ProcedureSpec::new(lagged(5)).is_ok());
+    let mut broken = base(2, 2);
+    broken.observation =
+        Some(OutcomeObservation { lag_looks: 0, retain_success: 0.0, retain_failure: 1.0 });
+    assert!(ProcedureSpec::new(broken).is_err());
+}
+
+#[test]
+fn five_arms_run_when_the_quote_fits_and_a_large_enrolment_stops_before_entry() {
+    let spec = ProcedureSpec::new(base(5, 3)).unwrap();
+    let law = enumerate_law_in(
+        &spec,
+        &OutcomeKernel::Fixed { success_probabilities: vec![0.5; 5] },
+        &never,
+        &ExecutionContext::for_tests(0),
     );
+    assert!(law.is_ok(), "{law:?}");
+
+    let mut wide = base(4, 1);
+    wide.enrolment = Some(vec![10_000]);
+    let spec = ProcedureSpec::new(wide).unwrap();
+    let tight = ExecutionContext::for_tests(0).with_memory_limit(Some(1 << 20));
+    match enumerate_law_in(
+        &spec,
+        &OutcomeKernel::Fixed { success_probabilities: vec![0.5; 4] },
+        &never,
+        &tight,
+    ) {
+        Err(Error::Budget { receipt, summary }) => {
+            assert!(receipt.operations_consumed.is_none());
+            assert!(summary.contains("not entered"));
+            assert!(summary.contains("adaptive procedure enumeration"));
+            assert!(!summary.contains("at most"));
+        }
+        other => panic!("expected a search receipt, got {other:?}"),
+    }
 }
 
 #[test]

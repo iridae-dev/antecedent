@@ -783,6 +783,7 @@ fn map_search_error(
     use antecedent_design::program_search::ProgramSearchError;
     match error {
         ProgramSearchError::Resource(error) => engine::PanelError::Resource(error).into(),
+        ProgramSearchError::Budget { summary, .. } => engine::PanelError::Resource(summary).into(),
         ProgramSearchError::Cancelled => engine::PanelError::Cancelled.into(),
         error @ (ProgramSearchError::Invalid(_) | ProgramSearchError::Upstream { .. }) => {
             JointPanelError::compile(error)

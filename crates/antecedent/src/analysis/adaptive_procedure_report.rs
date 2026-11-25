@@ -32,10 +32,10 @@ use antecedent_stats::adaptive_inference::{
     RepeatedMeasuresDeclaration, RepeatedMeasuresDerivation, RepeatedMeasuresRequest,
     RepeatedMeasuresSpec, ResourceBudget, ResourceReceipt, SimulatedLaw, SimulationRequest,
     SimulationSummary, StagewiseInference, StagewiseLook, StoppingRule, UncertaintyParadigm,
-    UnitAssignment, admit, admit_repeated_measures, anytime_exclusion_probability,
-    anytime_valid_report, bayesian_report, decision_report, derive_repeated_measures_within,
-    enumerate_law, exact_fixed_contrast_law, inversion_interval, ordering_p_values,
-    posterior_mean_gaps, simulate_procedure_within, stagewise_inference,
+    UnitAssignment, admit, admit_repeated_measures, anytime_exclusion_probability_in,
+    anytime_valid_report, bayesian_report, decision_report_in, derive_repeated_measures_within,
+    enumerate_law_in, exact_fixed_contrast_law, inversion_interval_in, ordering_p_values,
+    posterior_mean_gaps_in, simulate_procedure_within, stagewise_inference,
 };
 
 use super::adaptive_inference::AdaptiveInferenceRefusal;
@@ -347,6 +347,15 @@ pub(super) fn refusal_of(error: &AdaptiveInferenceError) -> AdaptiveInferenceRef
             message: "cancelled before a result was formed; this is not a verdict on the data"
                 .to_owned(),
         },
+        AdaptiveInferenceError::Budget { receipt, summary } => AdaptiveInferenceRefusal {
+            code: if receipt.stop == antecedent_core::SearchStop::Cancelled {
+                antecedent_core::reason_code!("cancelled_no_claim")
+            } else {
+                antecedent_core::reason_code!("execution_resource_limit")
+            },
+            detail: receipt.stop.code().to_owned(),
+            message: summary.clone(),
+        },
         other => AdaptiveInferenceRefusal {
             code: antecedent_core::reason_code!("invalid_argument"),
             detail: antecedent_core::reason_details::adaptive_inference::INPUT_INVALID.to_owned(),
@@ -367,10 +376,11 @@ impl AdaptiveProcedure {
         ctx: &ExecutionContext,
     ) -> Result<ProcedureLawReport, AdaptiveInferenceRefusal> {
         let cancelled = || ctx.cancellation.is_cancelled();
-        let law = enumerate_law(
+        let law = enumerate_law_in(
             &self.spec,
             &OutcomeKernel::Fixed { success_probabilities: truth.to_vec() },
             &cancelled,
+            ctx,
         )
         .map_err(|e| refusal_of(&e))?;
         Ok(ProcedureLawReport {
@@ -435,14 +445,14 @@ impl AdaptiveProcedure {
                     None
                 };
                 let priors = vec![*prior; spec.cells()];
-                let mean_gaps = posterior_mean_gaps(spec, &priors, &cancelled).map_err(fail)?;
+                let mean_gaps = posterior_mean_gaps_in(spec, &priors, &cancelled, ctx).map_err(fail)?;
                 (
                     UncertaintyParadigm::BayesianPosterior,
                     ProcedureReportBody::Bayesian { posterior, mean_gaps },
                 )
             }
             ProcedureReportRequest::DecisionTheoretic { truth } => {
-                let report = decision_report(spec, truth, &cancelled).map_err(fail)?;
+                let report = decision_report_in(spec, truth, &cancelled, ctx).map_err(fail)?;
                 (
                     UncertaintyParadigm::DecisionTheoreticStopping,
                     ProcedureReportBody::DecisionTheoretic(report),
@@ -450,10 +460,11 @@ impl AdaptiveProcedure {
             }
             ProcedureReportRequest::FixedSample { truth, plus, minus, observed } => {
                 admit(spec, UncertaintyParadigm::FrequentistFixedSample).map_err(fail)?;
-                let law = enumerate_law(
+                let law = enumerate_law_in(
                     spec,
                     &OutcomeKernel::Fixed { success_probabilities: truth.clone() },
                     &cancelled,
+                    ctx,
                 )
                 .map_err(fail)?;
                 let contrast = law
@@ -480,10 +491,11 @@ impl AdaptiveProcedure {
                 let total = f64::from(*spec.cumulative_enrolment().last().unwrap_or(&1));
                 let fractions: Vec<f64> =
                     spec.cumulative_enrolment().iter().map(|&n| f64::from(n) / total).collect();
-                let law = enumerate_law(
+                let law = enumerate_law_in(
                     spec,
                     &OutcomeKernel::Fixed { success_probabilities: truth.clone() },
                     &cancelled,
+                    ctx,
                 )
                 .map_err(fail)?;
                 let stagewise = observed
@@ -535,7 +547,9 @@ impl AdaptiveProcedure {
                 let exclusion_probability = truth
                     .as_ref()
                     .map(|t| {
-                        anytime_exclusion_probability(spec, t, *alpha, *tuning_samples, &cancelled)
+                        anytime_exclusion_probability_in(
+                            spec, t, *alpha, *tuning_samples, &cancelled, ctx,
+                        )
                     })
                     .transpose()
                     .map_err(fail)?;
@@ -546,7 +560,8 @@ impl AdaptiveProcedure {
             }
             ProcedureReportRequest::WholeProcedureInversion { observed, grid, alpha } => {
                 let interval =
-                    inversion_interval(spec, observed, grid, *alpha, &cancelled).map_err(fail)?;
+                    inversion_interval_in(spec, observed, grid, *alpha, &cancelled, ctx)
+                        .map_err(fail)?;
                 (
                     UncertaintyParadigm::WholeProcedureInversion,
                     ProcedureReportBody::WholeProcedureInversion(interval),
