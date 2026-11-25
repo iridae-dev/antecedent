@@ -612,6 +612,7 @@ def _binary_study():
 
 def test_analyze_fits_declared_learners_as_a_study_setting():
     import antecedent as ant
+    from antecedent.errors import CausalUnsupportedError
     from antecedent.estimators import learner_estimator
     from antecedent.query import AverageEffect
 
@@ -620,10 +621,11 @@ def test_analyze_fits_declared_learners_as_a_study_setting():
     assert learner_estimator("causal.forest") == ("causal_forest", "aipw")
     data, graph, learners = _binary_study()
     query = AverageEffect("t", "y")
-    refused = ant.analyze(
-        data, graph=graph, query=query, learners=learners, inference=ant.Frequentist(bootstrap=10)
-    )
-    assert refused.refusal.code == "option_not_applicable"
+    with pytest.raises(CausalUnsupportedError, match="inference") as unsupported:
+        ant.analyze(
+            data, graph=graph, query=query, learners=learners, inference=ant.Frequentist(bootstrap=10)
+        )
+    assert unsupported.value.reason_code == "option_not_applicable"
     outcome = ant.analyze(data, graph=graph, query=query, learners=learners, estimator="dml")
     assert outcome.refusal is None
     assert outcome.answer.value == pytest.approx(2.0)

@@ -24,7 +24,7 @@ entry stays, and the refusal that call returns.
 A caller prepares an immutable study, branches it, and executes each branch.
 
 ```python
-study = ant.prepare(data, query=query, inference=ant.Frequentist(), execution=ant.Execution(seed=1))
+study = ant.prepare(data, graph=graph, query=query, inference=ant.Frequentist(), execution=ant.Execution(seed=1))
 branched = ant.rebind(study, data=new_data)
 outcome = ant.estimate(branched)
 ```
@@ -64,13 +64,15 @@ static average effect or response curve when the utility is an affine mean:
 decision = contract.evaluate(joint_distribution)
 ```
 
-Rust grows the same entry on the compiled result (batch 6b). It does not
-re-estimate. A missing authority, a payload that is not a mean the contract
-can read, or a failed constraint raises `DecisionRefusal`.
+Rust applies the contract to an executed result with
+`antecedent::analysis::decision_result::apply_decision(&contract, &result, &schema, &ctx)`.
+Python returns scientific refusals on the outcome. Call `require_success`
+to raise the corresponding typed error.
 
 ### Opening a saved study is two operations
 
-`ant.load(artifact, expected=outcome.expectation)` returns the recorded
+`artifact = outcome.export()` supplies the bytes and the expectation to
+retain. `ant.load(artifact.data, expected=artifact.expectation)` returns the recorded
 outcome. It recomputes only when the caller passes `replay=True`.
 `decision.replay(bytes, contract=, source=)` recomputes a stored decision
 under the contract.
@@ -83,8 +85,8 @@ identity stay distinct checks (batch 2b).
 ### What the caller sees on refusal
 
 A question the structure cannot answer is an `Outcome` whose refusal carries
-the registered reason. `DecisionRefusal` and `ExternalRefusal` stay raised
-errors, as `docs/api_naming.md` already specifies. A budget stop is
+the registered reason. On an outcome-returning operation, `require_success`
+raises the original typed error, including `DecisionRefusal` and `ExternalRefusal`. A budget stop is
 `SearchReceipt` / `SearchStop` in both languages. Its text names the bound in
 force, how much was consumed, and what was not entered. It is never reported
 as non-identification, and it never says "at most N" for a fixed problem size.
