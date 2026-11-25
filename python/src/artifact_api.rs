@@ -652,15 +652,13 @@ impl FittedEffectModel {
                 .collect();
             // Snapshot every column while attached: Python arrays may be mutated by another
             // thread once prediction releases the interpreter.
-            let owned: Vec<Vec<f64>> = columns
+            let owned = columns
                 .iter()
                 .enumerate()
                 .map(|(index, column)| {
-                    column
-                        .values(&format!("prediction column {index}"))
-                        .map(std::borrow::Cow::into_owned)
+                    column.owned(&format!("prediction column {index}")).map(|(values, _)| values)
                 })
-                .collect::<PyResult<_>>()?;
+                .collect::<PyResult<Vec<_>>>()?;
             let slices: Vec<&[f64]> = owned.iter().map(|column| &column[..]).collect();
             let ctx = crate::execution_api::context(0);
             let values = py.detach(|| {

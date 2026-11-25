@@ -209,38 +209,18 @@ impl<'py> NumericColumn<'py> {
         }
     }
 
-    /// The column as a contiguous float64 slice, when it already is one (no copy needed to read
-    /// it for the duration of the call).
-    pub(crate) fn as_f64_slice(&self) -> Option<&[f64]> {
-        match self {
-            Self::F64(a) => a.as_slice().ok(),
-            _ => None,
-        }
-    }
-
-    /// The column's values as float64 for the duration of the call: borrowed when it is a
-    /// contiguous float64 array, otherwise widened/gathered once.
-    ///
-    /// # Errors
-    ///
-    /// An integer column holding a value beyond 2**53.
-    pub(crate) fn values(&self, name: &str) -> PyResult<std::borrow::Cow<'_, [f64]>> {
-        match self.as_f64_slice() {
-            Some(slice) => Ok(std::borrow::Cow::Borrowed(slice)),
-            None => Ok(std::borrow::Cow::Owned(self.owned(name)?.0.to_vec())),
-        }
-    }
-
     /// The column's values as an owned float64 vector (one copy; widened when needed).
     ///
     /// # Errors
     ///
     /// An integer column holding a value beyond 2**53.
     pub(crate) fn to_vec(&self, name: &str) -> PyResult<Vec<f64>> {
-        match self.as_f64_slice() {
-            Some(slice) => Ok(slice.to_vec()),
-            None => Ok(self.owned(name)?.0.to_vec()),
+        if let Self::F64(array) = self
+            && let Ok(values) = array.as_slice()
+        {
+            return Ok(values.to_vec());
         }
+        self.collect_range(name, 0, self.len()).map(|(values, _)| values)
     }
 
     /// The column's values as one owned float64 buffer, and whether the source was strided.
@@ -258,29 +238,41 @@ impl<'py> NumericColumn<'py> {
     /// # Errors
     ///
     /// An integer column holding a value beyond 2**53 in the window.
-    #[allow(
-        clippy::cast_precision_loss,
-        reason = "integers are range-checked to 2**53 before they are widened, so the cast is exact"
-    )]
     pub(crate) fn owned_range(
         &self,
         name: &str,
         lo: usize,
         hi: usize,
     ) -> PyResult<(Arc<[f64]>, bool)> {
+        if let Self::F64(array) = self
+            && let Ok(values) = array.as_slice()
+        {
+            return Ok((Arc::from(&values[lo..hi]), false));
+        }
+        self.collect_range(name, lo, hi)
+    }
+
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "integers are range-checked to 2**53 before they are widened, so the cast is exact"
+    )]
+    fn collect_range<B: FromIterator<f64>>(
+        &self,
+        name: &str,
+        lo: usize,
+        hi: usize,
+    ) -> PyResult<(B, bool)> {
         macro_rules! widen {
             ($array:expr, $convert:expr) => {{
                 let array = $array;
                 let convert = $convert;
                 match array.as_slice() {
-                    Ok(slice) => {
-                        (slice[lo..hi].iter().map(|v| convert(*v)).collect::<Arc<[f64]>>(), false)
-                    }
+                    Ok(slice) => (slice[lo..hi].iter().map(|v| convert(*v)).collect::<B>(), false),
                     // A strided column is gathered by index: the mapped range reports its exact
                     // length, so the shared slice is allocated and filled once.
                     Err(_) => {
                         let view = array.as_array();
-                        ((lo..hi).map(|i| convert(view[i])).collect::<Arc<[f64]>>(), true)
+                        ((lo..hi).map(|i| convert(view[i])).collect::<B>(), true)
                     }
                 }
             }};
