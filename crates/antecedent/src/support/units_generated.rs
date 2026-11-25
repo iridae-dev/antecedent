@@ -184,6 +184,13 @@ pub(crate) const TRANSPORT_SINGLE_SOURCE_Z_TRANSPORT: UnitId =
     UnitId::new("transport.single_source_z_transport");
 pub(crate) const TRANSPORT_SMOOTHED_DOSE_CALLER_LEARNERS: UnitId =
     UnitId::new("transport.smoothed_dose_caller_learners");
+pub(crate) const TRANSPORT_SURROGATE_BRIDGE_PREMISE: UnitId =
+    UnitId::new("transport.surrogate_bridge_premise");
+pub(crate) const TRANSPORT_SYNTHESIS_BORROWING: UnitId =
+    UnitId::new("transport.synthesis_borrowing");
+pub(crate) const TRANSPORT_SYNTHESIS_POOLING: UnitId = UnitId::new("transport.synthesis_pooling");
+pub(crate) const TRANSPORT_SYNTHESIS_TRANSPORTED_PRIOR: UnitId =
+    UnitId::new("transport.synthesis_transported_prior");
 pub(crate) const TRANSPORT_TEMPORAL_PATH_SPECIFIC: UnitId =
     UnitId::new("transport.temporal_path_specific");
 pub(crate) const TRANSPORT_TRIAL_AIPW_CALLER_LEARNERS: UnitId =
@@ -363,6 +370,10 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "SharedScenarioCovariance" => Some(TRANSPORT_SHARED_SCENARIO_COVARIANCE),
         "ZTransportEstimate" => Some(TRANSPORT_SINGLE_SOURCE_Z_TRANSPORT),
         "SmoothedDoseLearnerTransport" => Some(TRANSPORT_SMOOTHED_DOSE_CALLER_LEARNERS),
+        "SurrogateBridge" => Some(TRANSPORT_SURROGATE_BRIDGE_PREMISE),
+        "SynthesisBorrowing" => Some(TRANSPORT_SYNTHESIS_BORROWING),
+        "SynthesisPooling" => Some(TRANSPORT_SYNTHESIS_POOLING),
+        "SynthesisTransportedPrior" => Some(TRANSPORT_SYNTHESIS_TRANSPORTED_PRIOR),
         "TemporalPathTransport" => Some(TRANSPORT_TEMPORAL_PATH_SPECIFIC),
         "TrialAipwLearnerTransport" => Some(TRANSPORT_TRIAL_AIPW_CALLER_LEARNERS),
         "TrialIpwPredictiveDecision" | "TrialIpwTransportDecision" => {

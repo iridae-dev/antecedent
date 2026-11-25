@@ -445,7 +445,11 @@ class CrossWorldExecutor:
     def execute(
         self, request: CrossWorldRequest, *, execution: Execution | None = None
     ) -> ExecutionResult:
-        """Execute a request, reusing matching retained abductions."""
+        """Execute a request on this executor, reusing matching retained abductions.
+
+        The request is compiled as the ``CrossWorldFiniteExecution`` cell and gated, then run
+        on the executor this object already holds.
+        """
         if not isinstance(request, CrossWorldRequest):
             raise CausalTypeError("request must be a CrossWorldRequest")
         payload, refusal = _run(execution, self._native.execute, request.to_json())

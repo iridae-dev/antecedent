@@ -49,6 +49,8 @@ pub mod sampled_recovery;
 pub mod scenario_covariance;
 pub mod sequential_evaluation;
 pub mod split_effect;
+pub mod surrogate_bridge;
+pub mod transported_synthesis;
 pub mod z_transport;
 
 /// How a family's kernel turns its input into the published answer.

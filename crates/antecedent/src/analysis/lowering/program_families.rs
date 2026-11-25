@@ -378,6 +378,14 @@ macro_rules! program_families {
             TemporalPolicyEvaluation => Structural, unit "transport.period_shift_policy";
             /// An adaptive trial's arm means standardized to a target stratum law.
             AdaptiveTrialTransport => Structural, unit "transport.adaptive_trial_source";
+            /// Generalized least squares of native and transported claims, transport error once.
+            SynthesisPooling => Structural, unit "transport.synthesis_pooling";
+            /// Hierarchical borrowing of native and transported claims under a declared prior.
+            SynthesisBorrowing => Structural, unit "transport.synthesis_borrowing";
+            /// A transported claim as the prior of a native likelihood.
+            SynthesisTransportedPrior => Structural, unit "transport.synthesis_transported_prior";
+            /// A surrogate bridge carried outside the population where it was validated.
+            SurrogateBridge => Structural, unit "transport.surrogate_bridge_premise";
         }
     };
 }

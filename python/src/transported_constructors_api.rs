@@ -23,8 +23,8 @@ use antecedent::analysis::transported_constructors::{
     TargetUtility, TemporalPolicyRequest, TemporalTarget, TimeInvariance, TransportedConstruction,
     TransportedContribution, TransportedPolicyRequest, TransportedResponse,
     TransportedSurrogateBridge, TransportedSynthesisMethod, TrialMechanism, TrialSelectionDiagram,
-    UtilityProvenance, surrogate_bridge_response, transported_synthesis_response,
-    verify_adaptive_transport, verify_temporal_policy, verify_transported_policy,
+    UtilityProvenance, verify_adaptive_transport, verify_temporal_policy,
+    verify_transported_policy,
 };
 use antecedent::contract::bridge::{BridgeScope, TrialEffectPair, TrialLevelValidation};
 use antecedent::inference::synthesis::{MeanPrior, TauPrior};
@@ -49,6 +49,23 @@ type Built = (Option<TransportedResponseHandle>, Option<String>, Option<String>)
 
 fn refused(refusal: &antecedent::contract::ExternalRefusal) -> Built {
     (None, None, Some(external_refusal_json(refusal)))
+}
+
+fn compile_refusal(error: &antecedent::CausalError) -> antecedent::contract::ExternalRefusal {
+    match error {
+        antecedent::CausalError::Cancelled { .. } => antecedent::contract::ExternalRefusal::new(
+            antecedent::reason::reason_code!("cancelled_no_claim"),
+            "bind",
+            antecedent::reason::reason_details::sequential_evaluation::CANCELLED,
+        )
+        .with_remedy("re-run the evaluation; a partial enumeration is not a result"),
+        _ => antecedent::contract::ExternalRefusal::new(
+            antecedent::reason::reason_code!("invalid_argument"),
+            "bind",
+            "kernel_program.compile",
+        )
+        .with_remedy("compile the route outside a lowered dispatch"),
+    }
 }
 
 fn cancelled_evaluation() -> seq::SequentialEvaluationError {
@@ -881,46 +898,50 @@ fn transported_synthesis_construct(
         .collect::<PyResult<Vec<_>>>()?;
     let method = method_of(declaration(method_json, "synthesis method")?)?;
     let coordinate = quantity_of(coordinate_json, "transported coordinate")?;
+    let ctx = execution_context(0, None, None);
     let mut staged = ledger.ledger().clone();
-    Ok(
-        match transported_synthesis_response(
-            &mut staged,
-            label,
-            &contributions,
-            &method,
-            native_population,
-            coordinate,
-            provider_id,
-        ) {
-            Ok(built) => {
-                let e = &built.evaluation;
-                let hex = |ids: &[SourceId]| ids.iter().map(SourceId::to_hex).collect::<Vec<_>>();
-                let evaluation = json!({
-                    "route": "synthesis",
-                    "result": e.result.to_hex(),
-                    "method": e.method,
-                    "estimate": e.estimate,
-                    "variance": e.variance,
-                    "transport_variance_added": e.transport_variance_added,
-                    "native_sources": hex(&e.native_sources),
-                    "transported_sources": hex(&e.transported_sources),
-                    "transport_identities": e.transport_identities.iter().map(SemanticDigest::to_hex).collect::<Vec<_>>(),
-                    "target_population": e.target_population,
-                    "source_populations": e.source_populations,
-                    "native_population": e.native_population,
-                    "distinct_observations": e.mass.distinct_observations,
-                    "repeated_slots": e.mass.repeated_slots,
-                    "claim_class": e.claim_class.as_str(),
-                });
-                (
-                    Some(TransportedResponseHandle { inner: built.response }),
-                    Some(evaluation.to_string()),
-                    None,
-                )
-            }
-            Err(refusal) => refused(&refusal),
-        },
-    )
+    let compiled = match antecedent::analysis::Study::compile_transported_synthesis(
+        &staged,
+        label,
+        &contributions,
+        &method,
+        native_population,
+        coordinate,
+        provider_id,
+        &ctx,
+    ) {
+        Ok(compiled) => compiled,
+        Err(error) => return Ok(refused(&compile_refusal(&error))),
+    };
+    Ok(match compiled.execute(&mut staged, &ctx) {
+        Ok(built) => {
+            let e = &built.evaluation;
+            let hex = |ids: &[SourceId]| ids.iter().map(SourceId::to_hex).collect::<Vec<_>>();
+            let evaluation = json!({
+                "route": "synthesis",
+                "result": e.result.to_hex(),
+                "method": e.method,
+                "estimate": e.estimate,
+                "variance": e.variance,
+                "transport_variance_added": e.transport_variance_added,
+                "native_sources": hex(&e.native_sources),
+                "transported_sources": hex(&e.transported_sources),
+                "transport_identities": e.transport_identities.iter().map(SemanticDigest::to_hex).collect::<Vec<_>>(),
+                "target_population": e.target_population,
+                "source_populations": e.source_populations,
+                "native_population": e.native_population,
+                "distinct_observations": e.mass.distinct_observations,
+                "repeated_slots": e.mass.repeated_slots,
+                "claim_class": e.claim_class.as_str(),
+            });
+            (
+                Some(TransportedResponseHandle { inner: built.response }),
+                Some(evaluation.to_string()),
+                None,
+            )
+        }
+        Err(refusal) => refused(&refusal),
+    })
 }
 
 /// A surrogate bridge's terminal-outcome value in another population, as a transported
@@ -971,7 +992,17 @@ fn surrogate_bridge_construct(
         .get("claim")
         .ok_or_else(|| crate::value_err("a source claim declares `claim`"))?;
     let claim = crate::scientific_bridge_api::parse_claim(claim_member)?;
-    Ok(match surrogate_bridge_response(&bridge, &claim, provider_id) {
+    let ctx = execution_context(0, None, None);
+    let compiled = match antecedent::analysis::Study::compile_surrogate_bridge(
+        &bridge,
+        &claim,
+        provider_id,
+        &ctx,
+    ) {
+        Ok(compiled) => compiled,
+        Err(error) => return Ok(refused(&compile_refusal(&error))),
+    };
+    Ok(match compiled.execute(&ctx) {
         Ok(built) => {
             let e = &built.evaluation;
             let evaluation = json!({

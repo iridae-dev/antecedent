@@ -760,6 +760,15 @@ const PINNED: &[(C, R, &str, F)] = &[
         F::Structural,
     ),
     (C::AdaptiveTrialTransport, R::AdaptiveTrialTransport, "AdaptiveTrialTransport", F::Structural),
+    (C::SynthesisPooling, R::SynthesisPooling, "SynthesisPooling", F::Structural),
+    (C::SynthesisBorrowing, R::SynthesisBorrowing, "SynthesisBorrowing", F::Structural),
+    (
+        C::SynthesisTransportedPrior,
+        R::SynthesisTransportedPrior,
+        "SynthesisTransportedPrior",
+        F::Structural,
+    ),
+    (C::SurrogateBridge, R::SurrogateBridge, "SurrogateBridge", F::Structural),
 ];
 
 #[test]

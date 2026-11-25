@@ -1115,3 +1115,27 @@ lowering = "AdaptiveTrialTransport"
 unit_kind = "capability"
 unit = "transport.adaptive_trial_source"
 entry = { rust = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs", python = "python/antecedent/transported_constructors.py" }
+
+[[route]]
+lowering = "SynthesisPooling"
+unit_kind = "capability"
+unit = "transport.synthesis_pooling"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/transported_synthesis.rs", python = "python/antecedent/transported_constructors.py" }
+
+[[route]]
+lowering = "SynthesisBorrowing"
+unit_kind = "capability"
+unit = "transport.synthesis_borrowing"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/transported_synthesis.rs", python = "python/antecedent/transported_constructors.py" }
+
+[[route]]
+lowering = "SynthesisTransportedPrior"
+unit_kind = "capability"
+unit = "transport.synthesis_transported_prior"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/transported_synthesis.rs", python = "python/antecedent/transported_constructors.py" }
+
+[[route]]
+lowering = "SurrogateBridge"
+unit_kind = "capability"
+unit = "transport.surrogate_bridge_premise"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/surrogate_bridge.rs", python = "python/antecedent/transported_constructors.py" }

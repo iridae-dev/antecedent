@@ -369,7 +369,23 @@ pub fn adaptive_trial_response(
 /// native bridged claim; the response refusal for a validation and claim in
 /// one population under different regimes (no source population distinct from
 /// the target).
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_surrogate_bridge which calls surrogate_bridge_response_kernel with the same inputs"
+)]
 pub fn surrogate_bridge_response(
+    bridge: &TransportedSurrogateBridge,
+    claim: &ClaimEnvelope,
+    provider_id: &str,
+) -> Result<TransportedConstruction<BridgedClaim>, ExternalRefusal> {
+    surrogate_bridge_response_kernel(bridge, claim, provider_id)
+}
+
+/// The bridge derivation and the response built from it.
+///
+/// `NotTransported` stays a structured refusal when the claim is about the
+/// validated scope. The response refusal is unchanged.
+pub(crate) fn surrogate_bridge_response_kernel(
     bridge: &TransportedSurrogateBridge,
     claim: &ClaimEnvelope,
     provider_id: &str,
@@ -400,7 +416,36 @@ pub fn surrogate_bridge_response(
 /// The synthesis refusal, or the response refusal
 /// ([`TransportedRefusal::NotTransported`] for native sources only, a
 /// coordinate in another population than the target).
+#[deprecated(
+    since = "3.1.0",
+    note = "use Study::compile_transported_synthesis which calls transported_synthesis_response_kernel with the same inputs"
+)]
 pub fn transported_synthesis_response(
+    ledger: &mut EvidenceLedger,
+    label: &str,
+    contributions: &[TransportedContribution],
+    method: &TransportedSynthesisMethod,
+    native_population: Option<&str>,
+    coordinate: ScientificQuantity,
+    provider_id: &str,
+) -> Result<TransportedConstruction<TransportedSynthesis>, ExternalRefusal> {
+    transported_synthesis_response_kernel(
+        ledger,
+        label,
+        contributions,
+        method,
+        native_population,
+        coordinate,
+        provider_id,
+    )
+}
+
+/// Register the synthesis on a copy of the ledger and replace the caller's
+/// ledger only when the response was also built.
+///
+/// Every synthesis refusal and every response refusal is the one the direct
+/// path returned. A refusal leaves the caller's ledger as it was.
+pub(crate) fn transported_synthesis_response_kernel(
     ledger: &mut EvidenceLedger,
     label: &str,
     contributions: &[TransportedContribution],

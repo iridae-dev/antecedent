@@ -331,16 +331,27 @@ impl PyCrossWorldExecutor {
         request_json: &str,
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<Refused<String>> {
-        let request = match parse_request(request_json) {
-            Ok((_, r)) => r,
+        // A malformed request refuses here, as it does for seal, before any compile.
+        let wire = match parse_request(request_json) {
+            Ok((wire, _)) => wire,
             Err(e) => return Ok((None, Some(e))),
         };
         let ctx = execution_context(0, None, cancel);
-        detach_catch(py, || {
-            Ok(match self.inner.execute(&request, &ctx) {
-                Ok(result) => (Some(result_json(&result).to_string()), None),
-                Err(error) => (None, Some(core_refusal(&error))),
-            })
+        // The compiled CrossWorldFiniteExecution cell, on the executor this object already
+        // holds. A fresh executor would drop the retained abductions.
+        let outcome =
+            detach_catch(py, || {
+                match antecedent::Study::compile_cross_world_execution(wire, &ctx) {
+                    Ok(compiled) => Ok(compiled.execute_retained(&mut self.inner, &ctx)),
+                    Err(antecedent::CausalError::Cancelled { .. }) => {
+                        Ok(Err(CrossWorldExecutionError::Cancelled))
+                    }
+                    Err(error) => Err(crate::py_err(error)),
+                }
+            })?;
+        Ok(match outcome {
+            Ok(result) => (Some(result_json(&result).to_string()), None),
+            Err(error) => (None, Some(core_refusal(&error))),
         })
     }
 

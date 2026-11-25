@@ -8,6 +8,9 @@
 
 use antecedent_contract::DataClassification;
 use antecedent_core::{ExecutionContext, NotSupported};
+use antecedent_counterfactual::selective::{
+    CrossWorldExecutionError, CrossWorldRefusal, FiniteExecutionResult, FiniteScmExecutor,
+};
 use antecedent_io::cross_world_execution_artifact::{
     CrossWorldExecutionArtifact, CrossWorldExecutionArtifactError, CrossWorldExecutionRefusalWire,
     CrossWorldRequestWire, request_of,
@@ -143,6 +146,48 @@ impl CompiledCrossWorldExecution {
         })?;
         let request = request_of(self.program.input())?;
         CrossWorldExecutionArtifact::seal(&request, ctx).map(CrossWorldExecution::from_artifact)
+    }
+
+    /// Gate the program on its unit, then execute the bound request on `executor`.
+    ///
+    /// `executor` is the caller's. A fresh executor is not built, so abductions it already
+    /// retains stay available to this request. The kernel is [`FiniteScmExecutor::execute`].
+    ///
+    /// # Errors
+    ///
+    /// A unit the support model does not support (`not_supported`, stage `gate`), a request
+    /// the wire cannot rebuild (`invalid_argument`), and every refusal or cancellation of
+    /// the executor.
+    pub fn execute_retained(
+        &self,
+        executor: &mut FiniteScmExecutor,
+        ctx: &ExecutionContext,
+    ) -> Result<FiniteExecutionResult, CrossWorldExecutionError> {
+        self.program.gate(ctx).map_err(|refusal| {
+            CrossWorldExecutionError::Refused(Box::new(CrossWorldRefusal {
+                refusal: antecedent_contract::ExternalRefusal::new(
+                    refusal.code(),
+                    "gate",
+                    refusal.detail,
+                )
+                .with_remedy(
+                    "run the route in a development build, which records the missing evidence, \
+                     or use a supported route",
+                ),
+                missing: refusal.missing,
+            }))
+        })?;
+        let request = request_of(self.program.input()).map_err(|_| {
+            CrossWorldExecutionError::Refused(Box::new(CrossWorldRefusal {
+                refusal: antecedent_contract::ExternalRefusal::new(
+                    antecedent_core::reason_code!("invalid_argument"),
+                    "execute",
+                    antecedent_core::reason_details::cross_world_execution::INVALID_REQUEST,
+                ),
+                missing: Vec::new(),
+            }))
+        })?;
+        executor.execute(&request, ctx)
     }
 }
 
