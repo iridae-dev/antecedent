@@ -229,15 +229,21 @@ def test_arrow_chunks_are_joined_once_by_the_native_loader_not_in_python():
     assert one.python_copy_count == 0 and one.bytes_borrowed == COLUMN_BYTES
 
 
-def test_columns_chunked_differently_are_joined_in_python_and_recorded():
+def test_mismatched_arrow_chunks_are_joined_in_one_native_copy():
     pa = pytest.importorskip("pyarrow")
     half = pa.array(np.arange(ROWS // 2, dtype=np.float64))
     whole = pa.array(np.arange(ROWS, dtype=np.float64))
     mixed = pa.table({"a": pa.chunked_array([half, half]), "b": pa.chunked_array([whole])})
     receipt = antecedent.data.ingestion_receipt(mixed)
-    assert _kinds(receipt) == ["chunk_concatenation"]
-    assert receipt.python_bytes_copied == COLUMN_BYTES
-    # Agreeing layouts stay chunked: two columns of the same two chunks cost no Python copy.
+    assert receipt.python_copy_count == 0
+    assert receipt.ownership_bytes_copied == COLUMN_BYTES + (ROWS + 7) // 8
+    assert receipt.bytes_borrowed == COLUMN_BYTES
+    assert receipt.native.diagnostic_count == 1
+    retained = antecedent.data.table(mixed)
+    assert retained.bytes_copied == 2 * COLUMN_BYTES
+    np.testing.assert_array_equal(retained["a"], np.tile(np.arange(ROWS // 2), 2))
+    np.testing.assert_array_equal(retained["b"], np.arange(ROWS))
+    # Agreeing layouts take the same per-column path.
     same = pa.table({"a": pa.chunked_array([half, half]), "b": pa.chunked_array([half, half])})
     agreeing = antecedent.data.ingestion_receipt(same)
     assert agreeing.python_copy_count == 0

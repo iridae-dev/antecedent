@@ -462,14 +462,15 @@ def _chunk_layout(column: Any) -> tuple[int, ...]:
     return (len(column),)
 
 
-def _settle_chunks(columns: list[Any], receipt: _CopyLedger | None) -> list[Any]:
-    """Keep chunked columns chunked when every column shares one chunk layout.
+def _settle_chunks(
+    columns: list[Any], receipt: _CopyLedger | None, *, native_dtypes: bool
+) -> list[Any]:
+    """Keep chunk layouts for the native numeric loader.
 
-    The native table aligns chunks across columns, so columns of different layouts (a chunked
-    column beside a plain one, or chunked differently) cannot be loaded chunk by chunk. In that
-    case each chunked column is joined here, and the join is recorded.
+    The legacy float64 routes align chunks across columns. Join their mismatched chunks and
+    record the Python allocation.
     """
-    if not any(isinstance(column, ArrowChunkColumn) for column in columns):
+    if native_dtypes or not any(isinstance(column, ArrowChunkColumn) for column in columns):
         return columns
     if len({_chunk_layout(column) for column in columns}) == 1:
         return columns
@@ -509,8 +510,7 @@ def _export_numeric(
 
     A column of several chunks stays chunked: the native reader takes the chunks as they are
     and joins them into the table's own buffer in the one ownership copy it makes, so Python
-    allocates nothing for it (:func:`_settle_chunks` joins only when columns disagree on their
-    chunking, which the native table cannot align).
+    allocates nothing for it. Each column can carry its own chunk layout.
     """
     chunks = _arrow_chunks(column)
     if chunks is not None:
@@ -704,6 +704,7 @@ def try_as_arrow_c_columns(
                     for n, c in zip(names, cols, strict=True)
                 ],
                 receipt,
+                native_dtypes=native_dtypes,
             )
         return None
 
@@ -719,7 +720,7 @@ def try_as_arrow_c_columns(
             for i in range(len(names))
         ]
         if cols and all(_exports_arrow_array(c) for c in cols):
-            return names, _settle_chunks(cols, receipt)
+            return names, _settle_chunks(cols, receipt, native_dtypes=native_dtypes)
         return None
 
     # Frame columns that export CDI, but not pandas (it has to_numpy and
@@ -735,6 +736,7 @@ def try_as_arrow_c_columns(
                         for n, c in zip(names, cols, strict=True)
                     ],
                     receipt,
+                    native_dtypes=native_dtypes,
                 )
         except (AttributeError, KeyError, TypeError):
             pass  # not a column-indexable frame; try a table-level stream next
@@ -752,7 +754,7 @@ def try_as_arrow_c_columns(
             for i in range(len(names))
         ]
         if names:
-            return names, _settle_chunks(cols, receipt)
+            return names, _settle_chunks(cols, receipt, native_dtypes=native_dtypes)
     return None
 
 
