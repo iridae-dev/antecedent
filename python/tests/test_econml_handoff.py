@@ -724,10 +724,9 @@ def test_learner_result_and_attached_handoff_are_one_adjustment_claim() -> None:
     assert isinstance(attached.claim, BoundExternalClaim)
     assert list(attached.claim.values) == [2.0]
     loaded = require_success(antecedent.load(bytes(attached.export())))
-    assert (
-        handoff_claim.effect_digest
-        == loaded.decoded_artifact.contract["claim"]["attested"][0]["payload_digest"]
-    )
+    attested = loaded.decoded_artifact.contract["claim"]["attested"]
+    assert isinstance(attested, tuple)
+    assert handoff_claim.effect_digest == attested[0]["payload_digest"]
     document = json.loads(antecedent.handoff.encode_adjustment_claim(handoff_claim))
     assert document["contract"] == "adjustment"
     assert document["fold_policy"] == "handoff_unknown"

@@ -1565,7 +1565,8 @@ def _recorded_payload_digest(contract: Mapping[str, Any]) -> str:
     claim = contract.get("claim")
     attested = claim.get("attested") if isinstance(claim, Mapping) else None
     digest = None
-    if isinstance(attested, list) and attested and isinstance(attested[0], Mapping):
+    # Decoded artifacts freeze wire arrays as tuples.
+    if isinstance(attested, (list, tuple)) and attested and isinstance(attested[0], Mapping):
         digest = attested[0].get("payload_digest")
     if not isinstance(digest, str) or not digest:
         raise _refuse(
