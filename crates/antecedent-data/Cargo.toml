@@ -34,7 +34,7 @@ arrow = [
 # was refused and its empty feature retired: the record is
 # parity/polars_decision/decision.toml.
 parquet = ["arrow", "dep:parquet"]
-ipc = ["arrow", "dep:arrow-ipc"]
+ipc = ["arrow", "dep:arrow-ipc", "dep:lz4", "dep:zstd", "arrow-ipc/zstd"]
 
 [dependencies]
 antecedent-core = { workspace = true }
@@ -46,6 +46,8 @@ arrow-data = { workspace = true, optional = true }
 arrow-ipc = { workspace = true, optional = true }
 # Snappy and zstd cover the codecs pyarrow, pandas, Polars and Spark write by default.
 parquet = { workspace = true, optional = true, features = ["arrow", "snap", "zstd"] }
+lz4 = { version = "1.28", optional = true }
+zstd = { workspace = true, optional = true }
 realfft = { workspace = true }
 blake3 = { workspace = true }
 

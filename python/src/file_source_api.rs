@@ -477,6 +477,28 @@ impl PyTableFile {
         Ok(out.unbind())
     }
 
+    /// Scan the packed observation masks of a projection without retaining its values.
+    #[pyo3(signature = (columns, *, chunk_rows=None, memory_limit_bytes=None, cancel=None))]
+    fn observation_frame(
+        &self,
+        py: Python<'_>,
+        columns: Vec<String>,
+        chunk_rows: Option<usize>,
+        memory_limit_bytes: Option<u64>,
+        cancel: Option<crate::PyCancellationToken>,
+    ) -> PyResult<crate::cohort_pushdown_api::FileObservationFrame> {
+        let plan =
+            plan(&self.inner, Some(columns), chunk_rows).map_err(|error| source_err(&error))?;
+        let ctx = execution_context(0, memory_limit_bytes, cancel);
+        let table = &self.inner;
+        crate::detach_catch(py, move || {
+            table
+                .scan_observations(&plan, &ctx)
+                .map(crate::cohort_pushdown_api::FileObservationFrame)
+                .map_err(|error| source_err(&error))
+        })
+    }
+
     /// Stream `columns` (all readable columns when `None`) once and return
     /// `(identity_hex, rows, chunks)`. Nothing is kept resident.
     #[pyo3(signature = (columns=None, *, chunk_rows=None, memory_limit_bytes=None, cancel=None))]

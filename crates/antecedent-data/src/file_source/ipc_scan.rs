@@ -68,7 +68,7 @@ pub(crate) fn scan_file(path: &Path, compact: bool) -> Result<IpcCosts, FileSour
 }
 
 pub(super) fn read_footer_bytes(
-    file: &mut File,
+    file: &mut (impl Read + Seek),
     length: u64,
     path: &Path,
 ) -> Result<Vec<u8>, FileSourceError> {
@@ -128,7 +128,7 @@ enum Kind {
 
 /// Start of the metadata and its byte length, from the framing at `position`.
 pub(super) fn read_prefix(
-    file: &mut File,
+    file: &mut (impl Read + Seek),
     position: u64,
     length: u64,
     path: &Path,
@@ -149,7 +149,7 @@ pub(super) fn read_prefix(
 }
 
 pub(super) fn read_metadata(
-    file: &mut File,
+    file: &mut (impl Read + Seek),
     meta_start: u64,
     meta_len: u64,
     length: u64,
@@ -308,7 +308,7 @@ fn compact_buffer(buffer: &Buffer) -> Buffer {
 }
 
 pub(super) fn read_at(
-    file: &mut File,
+    file: &mut (impl Read + Seek),
     position: u64,
     buffer: &mut [u8],
     path: &Path,

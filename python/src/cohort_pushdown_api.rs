@@ -47,7 +47,15 @@ fn closure_of(duties: ClosureDuties) -> ColumnClosure {
     inputs.close()
 }
 
-fn frame_of(observed: Vec<(String, Vec<bool>)>) -> PyResult<ObservationFrame> {
+/// Packed masks owned by the file read and passed directly to the cohort checks.
+#[pyclass(name = "_FileObservationFrame", frozen)]
+pub(crate) struct FileObservationFrame(pub(crate) ObservationFrame);
+
+fn frame_of(observed: &Bound<'_, PyAny>) -> PyResult<ObservationFrame> {
+    if let Ok(file) = observed.extract::<PyRef<'_, FileObservationFrame>>() {
+        return Ok(file.0.clone());
+    }
+    let observed: Vec<(String, Vec<bool>)> = observed.extract()?;
     ObservationFrame::try_new(
         observed.into_iter().map(|(name, mask)| (ColumnRole::new(name), mask)).collect(),
     )
@@ -59,7 +67,7 @@ fn frame_of(observed: Vec<(String, Vec<bool>)>) -> PyResult<ObservationFrame> {
 #[pyfunction]
 fn cohort_checked_projection(
     closure: ClosureDuties,
-    observed: Vec<(String, Vec<bool>)>,
+    observed: &Bound<'_, PyAny>,
     keep: Vec<String>,
 ) -> PyResult<Vec<usize>> {
     crate::catch_ffi(|| {
@@ -75,7 +83,7 @@ fn cohort_checked_projection(
 #[pyfunction]
 fn cohort_checked_push_filter(
     closure: ClosureDuties,
-    observed: Vec<(String, Vec<bool>)>,
+    observed: &Bound<'_, PyAny>,
     column: &str,
     drop_row: Vec<bool>,
 ) -> PyResult<Vec<usize>> {
@@ -89,6 +97,7 @@ fn cohort_checked_push_filter(
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<FileObservationFrame>()?;
     module.add_function(wrap_pyfunction!(cohort_checked_projection, module)?)?;
     module.add_function(wrap_pyfunction!(cohort_checked_push_filter, module)?)?;
     Ok(())

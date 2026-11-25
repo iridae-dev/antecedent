@@ -2403,6 +2403,7 @@ pub fn <antecedent_data::column_closure::ColumnRole>::fn as_str(&self) -> &str
 pub fn <antecedent_data::column_closure::ColumnRole>::fn new(name: impl core::convert::AsRef<str>) -> Self
 pub fn <antecedent_data::column_closure::ObservationFrame>::const fn row_count(&self) -> usize
 pub fn <antecedent_data::column_closure::ObservationFrame>::fn complete_case(&self, columns: &[antecedent_data::column_closure::ColumnRole]) -> core::result::Result<antecedent_data::column_closure::Cohort, antecedent_data::column_closure::ClosureError>
+pub fn <antecedent_data::column_closure::ObservationFrame>::fn try_from_masks(columns: alloc::vec::Vec<(antecedent_data::column_closure::ColumnRole, antecedent_core::row_mask::RowMask)>) -> core::result::Result<Self, antecedent_data::column_closure::ClosureError>
 pub fn <antecedent_data::column_closure::ObservationFrame>::fn try_new(columns: alloc::vec::Vec<(antecedent_data::column_closure::ColumnRole, alloc::vec::Vec<bool>)>) -> core::result::Result<Self, antecedent_data::column_closure::ClosureError>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn n_rows(&self) -> usize
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn receipt(&self) -> &antecedent_data::design_layout::OwnershipReceipt
@@ -2499,6 +2500,7 @@ pub fn <antecedent_data::file_source::TableFile>::fn plan_columns<S: core::conve
 pub fn <antecedent_data::file_source::TableFile>::fn quote(&self, plan: &antecedent_data::file_source::ReadPlan) -> core::result::Result<core::option::Option<antecedent_data::file_source::MaterializationQuote>, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn reader(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn scan_identity(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::ScanReceipt, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn scan_observations(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::column_closure::ObservationFrame, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn as_str(self) -> &'static str
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn feature(self) -> &'static str
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn is_compiled(self) -> bool

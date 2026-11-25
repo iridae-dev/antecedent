@@ -105,7 +105,7 @@ impl FileStamp {
         })
     }
 
-    fn verify_times(&self, path: &Path) -> Result<(), FileSourceError> {
+    pub(super) fn verify_times(&self, path: &Path) -> Result<(), FileSourceError> {
         let (len, modified) = file_times(path)?;
         if len != self.len || modified != self.modified {
             return Err(changed(path, "the file size or modification time differs from open"));

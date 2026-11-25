@@ -298,6 +298,9 @@ class TableFile(Mapping[str, NDArray[Any]]):
             self._cache.pop(name, None)
         return columns
 
+    def _observation_frame(self, names: Sequence[str]) -> Any:
+        return self._run(self._native.observation_frame, list(names), **self._controls())
+
     def _visible_readable(self) -> list[str]:
         return [column.name for column in self._schema if column.kind != "unsupported"]
 

@@ -255,6 +255,8 @@ class ArrowLoadInfo:
     diagnostic_count: int
     column_names: list[str]
 
+class _FileObservationFrame: ...
+
 class NativeTableFile:
     """Parquet file or dataset, or Arrow IPC file or stream, read in bounded chunks."""
 
@@ -280,6 +282,14 @@ class NativeTableFile:
         for_ingest: bool = False,
         numeric_columns: set[str] | None = None,
     ) -> dict[str, Any]: ...
+    def observation_frame(
+        self,
+        columns: list[str],
+        *,
+        chunk_rows: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _FileObservationFrame: ...
     def content_identity(
         self,
         columns: list[str] | None = None,
@@ -10792,12 +10802,12 @@ def recipe_logistic_standardized_effect(
 ) -> tuple[float, float, float, list[float], list[float], int, int]: ...
 def cohort_checked_projection(
     closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
-    observed: list[tuple[str, list[bool]]],
+    observed: list[tuple[str, list[bool]]] | _FileObservationFrame,
     keep: list[str],
 ) -> list[int]: ...
 def cohort_checked_push_filter(
     closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
-    observed: list[tuple[str, list[bool]]],
+    observed: list[tuple[str, list[bool]]] | _FileObservationFrame,
     column: str,
     drop_row: list[bool],
 ) -> list[int]: ...
