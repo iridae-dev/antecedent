@@ -486,9 +486,11 @@ fn conditional_state_with(
         .iter()
         .enumerate()
         .map(|(index, group)| {
-            (0..group.outcome.len())
-                .map(|time| {
-                    group.outcome[time]
+            data.outcome(index)
+                .iter()
+                .enumerate()
+                .map(|(time, value)| {
+                    value
                         - likelihood::observed_response_with(
                             data,
                             mechanisms.at(time),
@@ -631,7 +633,7 @@ fn fit_candidates(
     ctx: &ExecutionContext,
 ) -> Result<Selected, PanelError> {
     let p = likelihood::parameter_count(data);
-    let initial = options.initial.clone().unwrap_or_else(|| likelihood::initial(data));
+    let initial = options.initial.clone().unwrap_or_else(|| data.initial());
     let start = likelihood::encode(data, &initial)?;
     let n = data.groups.iter().map(|group| group.outcome.len()).sum::<usize>() as f64;
     let stalled = std::cell::RefCell::new(None::<(f64, Vec<f64>, TemporalModelChoice)>);
@@ -783,14 +785,15 @@ fn bootstrap_data(
     draw: &TemporalPanelDraw,
     ctx: &ExecutionContext,
     replicate: usize,
-) -> Result<PanelData, PanelError> {
-    let mut simulated = data.source.clone();
+) -> Result<Vec<Vec<f64>>, PanelError> {
+    let mut simulated = Vec::with_capacity(data.groups.len());
     let mut rng =
         ctx.rng.stream(antecedent_core::derive_stream(0x5830_3342_4f4f_5453, replicate as u64));
     let base = &draw.baseline.parameters;
     let spatial = likelihood::spatial_prior_intercepts(data, base, &mut rng)
         .ok_or_else(|| PanelError::Numerical("spatial correlation is not factorable".into()))?;
-    for (index, group) in simulated.groups.iter_mut().enumerate() {
+    let mut scratch = likelihood::ResponseScratch::default();
+    for (index, group) in data.groups.iter().enumerate() {
         check_cancelled(ctx)?;
         let intercept = match &spatial {
             likelihood::SpatialPriorIntercepts::Correlated(draws) => draws[index],
@@ -800,12 +803,15 @@ fn bootstrap_data(
         };
         let mut error =
             base.innovation_sd / (1.0 - base.rho.powi(2)).sqrt() * standard_normal(&mut rng);
+        let mut outcome = Vec::with_capacity(group.outcome.len());
         for time in 0..group.outcome.len() {
             let p = &draw.parameters[time];
             error = base.rho * error + base.innovation_sd * standard_normal(&mut rng);
-            group.outcome[time] =
-                likelihood::observed_response(data, p, group, index, time) + intercept + error;
+            let response =
+                likelihood::observed_response_with(data, p, group, index, time, &mut scratch);
+            outcome.push(response + intercept + error);
         }
+        simulated.push(outcome);
     }
     Ok(simulated)
 }
@@ -1094,7 +1100,7 @@ fn fit_temporal_inner(
     validate_temporal_spec(data, spec)?;
     super::validate_fit_options(data, options)?;
     check_cancelled(ctx)?;
-    let compiled = likelihood::CompiledPanel::new(data)?;
+    let mut compiled = likelihood::CompiledPanel::new(data)?;
     let data = &compiled;
     let TemporalFitAdmission { p, path_parameters, slots, retained, retention, scratch: _scratch } =
         admit_temporal_fit(data, spec, options, ctx)?;
@@ -1123,31 +1129,26 @@ fn fit_temporal_inner(
             let mut output = Vec::with_capacity(*draws);
             for replicate in 0..*draws {
                 check_cancelled(ctx)?;
-                let simulated = bootstrap_data(data, &point, ctx, replicate)?;
-                let compiled_simulated = likelihood::CompiledPanel::new(&simulated)?;
-                let draw =
-                    match fit_candidates(&compiled_simulated, spec, options, polish, false, ctx) {
-                        Ok(fit) => {
-                            let mut rng = ctx.rng.stream(antecedent_core::derive_stream(
-                                0x5830_3352_414e_444f,
-                                replicate as u64,
-                            ));
-                            realization(
-                                &compiled_simulated,
-                                spec,
-                                &fit.choice,
-                                &fit.values,
-                                Some(&mut rng),
-                            )
-                        }
-                        Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
-                        Err(_) => None,
-                    };
+                compiled.simulated_outcomes =
+                    Some(bootstrap_data(&compiled, &point, ctx, replicate)?);
+                let draw = match fit_candidates(&compiled, spec, options, polish, false, ctx) {
+                    Ok(fit) => {
+                        let mut rng = ctx.rng.stream(antecedent_core::derive_stream(
+                            0x5830_3352_414e_444f,
+                            replicate as u64,
+                        ));
+                        realization(&compiled, spec, &fit.choice, &fit.values, Some(&mut rng))
+                    }
+                    Err(PanelError::Cancelled) => return Err(PanelError::Cancelled),
+                    Err(_) => None,
+                };
                 output.push(draw);
+                compiled.simulated_outcomes = None;
             }
             (output, "hierarchical model-based parametric bootstrap of the complete candidate/change/smooth-penalty selection procedure; conditional random-effect uncertainty retained; not calibrated coverage or a posterior".to_owned())
         }
         PanelInference::Bayesian { prior, sampler } => {
+            let data = &compiled;
             let choices = candidate_choices(spec);
             // The density of one specification over the full coordinate vector: global
             // parameters followed by every path coordinate. Coordinates a specification does
@@ -1306,7 +1307,7 @@ fn fit_temporal_inner(
         uncertainty,
         claim: "model_conditional_temporal_mechanism_only".into(),
         calibration: "not_measured".into(),
-        source_identity: data.identity()?,
+        source_identity: compiled.identity()?,
         retention,
         retained_volume: retained,
     })
@@ -1602,6 +1603,36 @@ mod tests {
         };
         assert!(matches!(&error, PanelError::Numerical(_)));
         assert!(error.to_string().contains("6 attempted"));
+    }
+
+    #[test]
+    fn simulated_outcomes_yield_the_same_refit_as_a_rebuilt_panel() {
+        let (mut data, baseline, _) = super::super::tests::fixture();
+        data.groups[0].outcome[4] = f64::NAN;
+        let spec = specification();
+        let choice = TemporalModelChoice::NoChange;
+        let values = likelihood::encode(&data, &baseline.parameters).unwrap();
+        let mut compiled = likelihood::CompiledPanel::new(&data).unwrap();
+        let point = realization(&compiled, &spec, &choice, &values, None).unwrap();
+        let simulated =
+            bootstrap_data(&compiled, &point, &ExecutionContext::for_tests(79), 0).unwrap();
+        let mut rebuilt = data.clone();
+        for (group, outcome) in rebuilt.groups.iter_mut().zip(&simulated) {
+            group.outcome.clone_from(outcome);
+        }
+        let rebuilt = likelihood::CompiledPanel::new(&rebuilt).unwrap();
+        compiled.simulated_outcomes = Some(simulated);
+        assert_eq!(compiled.groups[0].channels[0].as_ptr(), data.groups[0].channels[0].as_ptr());
+        assert!(compiled.outcome(0)[4].is_finite());
+        assert_eq!(compiled.initial(), rebuilt.initial());
+        assert_eq!(
+            objective(&compiled, &spec, &choice, &values).to_bits(),
+            objective(&rebuilt, &spec, &choice, &values).to_bits(),
+        );
+        assert_eq!(
+            score(&compiled, &spec, &choice, &values),
+            score(&rebuilt, &spec, &choice, &values),
+        );
     }
 
     #[test]

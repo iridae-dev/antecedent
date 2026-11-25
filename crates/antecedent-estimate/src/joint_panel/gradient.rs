@@ -425,9 +425,10 @@ pub(super) fn independent_score_with(
     let mut responses = ResponseScratch::default();
     let mut buffers = Buffers::default();
     for (group_index, group) in data.groups.iter().enumerate() {
-        let mut observed = Vec::with_capacity(group.outcome.len());
-        for time in 0..group.outcome.len() {
-            if group.outcome[time].is_finite() {
+        let outcome = data.outcome(group_index);
+        let mut observed = Vec::with_capacity(outcome.len());
+        for (time, &value) in outcome.iter().enumerate() {
+            if value.is_finite() {
                 let fitted = observed_response_with(
                     data,
                     slot_p(slot_of(time)),
@@ -436,7 +437,7 @@ pub(super) fn independent_score_with(
                     time,
                     &mut responses,
                 );
-                observed.push((time, group.outcome[time] - fitted));
+                observed.push((time, value - fitted));
             }
         }
         let score = group_score(&observed, base.rho, base.innovation_sd, base.group_sd)?;
