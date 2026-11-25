@@ -471,6 +471,12 @@ status = "bound"
 python = "antecedent.composition_verification.plan_declaration"
 
 [[entry]]
+rust = "antecedent::analysis::composition_verification::support_label_premise"
+kind = "fn"
+status = "internal"
+reason = "Appends the premise for a carried support label when building the graph node exposed by antecedent.cohort_decision.TransportedCohortEffect.composition_node."
+
+[[entry]]
 rust = "antecedent::analysis::composition_verification::unresolved_registry_calibrations"
 kind = "fn"
 status = "bound"
@@ -610,6 +616,43 @@ rust = "antecedent::analysis::decision_reliability::reach_decision_carrier"
 kind = "fn"
 status = "bound"
 python = "native:python/src/decision_reliability_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability_programs::compile_decision_reliability_assessment"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision_reliability.assess"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability_programs::compile_decision_reliability_derivation"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision_reliability.derive_uncertainty"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability_programs::compile_producer_carrier_assessment"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision_reliability.ProducerCarrier.assess"
+
+[[entry]]
+rust = "antecedent::analysis::decision_reliability_programs::compile_producer_carrier_derivation"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision_reliability.ProducerCarrier.derive_uncertainty"
+
+[[entry]]
+rust = "antecedent::analysis::decision_result::apply_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision.Contract.evaluate"
+reason = "Python projects static effects through the shared native effect adapter and curves through native_claim, then evaluates the contract on that source."
+
+[[entry]]
+rust = "antecedent::analysis::decision_result::supplied_child_identity"
+kind = "fn"
+status = "internal"
+reason = "Frames the program, snapshot and execution digests compared during antecedent.decision.CompiledDecision.execute_supplied."
 
 [[entry]]
 rust = "antecedent::analysis::winning_design::project_stored_winner"
@@ -1029,6 +1072,18 @@ status = "bound"
 python = "native:python/src/mechanism_discrepancy_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::mechanism_reuse::evaluate_retained_mechanism"
+kind = "fn"
+status = "missing"
+reason = "Python does not expose evaluating a newly identified attribution or simulation query against an existing fitted mechanism with matching execution identities."
+
+[[entry]]
+rust = "antecedent::analysis::mechanism_reuse::retain_fitted_mechanism"
+kind = "fn"
+status = "missing"
+reason = "Python does not expose a retained fit from a prepared attribution or simulation bound to its observation and data snapshot identities."
+
+[[entry]]
 rust = "antecedent::analysis::msm_sensitivity::msm_sensitivity"
 kind = "fn"
 status = "bound"
@@ -1442,6 +1497,12 @@ status = "bound"
 python = "antecedent.sensitivity_decision.SensitivityArtifact.export"
 
 [[entry]]
+rust = "antecedent::analysis::sequential_evaluation::compare_policies"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust wrapper. antecedent.sequential_evaluation.compare compiles the same comparison through Study::compile_compare_policies."
+
+[[entry]]
 rust = "antecedent::analysis::sequential_evaluation::consume"
 kind = "fn"
 status = "bound"
@@ -1455,16 +1516,40 @@ status = "bound"
 python = "antecedent.sequential_evaluation.evaluate"
 
 [[entry]]
+rust = "antecedent::analysis::sequential_evaluation::evaluate_off_policy"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust wrapper with a caller-owned ledger. antecedent.sequential_evaluation.evaluate_off_policy compiles through Study::compile_evaluate_off_policy and uses a binding-owned ledger."
+
+[[entry]]
+rust = "antecedent::analysis::sequential_evaluation::evaluate_policy"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust wrapper. antecedent.sequential_evaluation.evaluate compiles the finite policy through Study::compile_evaluate_policy."
+
+[[entry]]
 rust = "antecedent::analysis::sequential_evaluation::export"
 kind = "fn"
 status = "bound"
 python = "antecedent.sequential_evaluation.EvaluationArtifact.export"
 
 [[entry]]
+rust = "antecedent::analysis::sequential_evaluation::rollout_policy"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust wrapper. antecedent.sequential_evaluation.rollout compiles the rollout through Study::compile_rollout_policy."
+
+[[entry]]
 rust = "antecedent::analysis::sequential_evaluation::seal"
 kind = "fn"
 status = "bound"
 python = "antecedent.sequential_evaluation.seal"
+
+[[entry]]
+rust = "antecedent::analysis::sequential_evaluation::value_of_collecting_evidence"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust wrapper. antecedent.sequential_evaluation.value_of_collecting_evidence uses Study::compile_value_of_collecting_evidence."
 
 [[entry]]
 rust = "antecedent::analysis::source_projection::source_resolved_consumer"
@@ -1559,6 +1644,13 @@ status = "bound"
 python = "antecedent.temporal_counterfactual.transported_path_specific"
 
 [[entry]]
+rust = "antecedent::analysis::transport_assumption_program::compile_transport_assumption_range"
+kind = "fn"
+status = "bound"
+python = "antecedent.transport.sensitivity.transport_sensitivity"
+reason = "The binding compiles the admitted range specification, executes it and seals the sensitivity artifact against the supplied reference."
+
+[[entry]]
 rust = "antecedent::analysis::transport_handoff::consume_for_callback"
 kind = "fn"
 status = "bound"
@@ -1569,6 +1661,12 @@ rust = "antecedent::analysis::transport_handoff::hand_to_callback"
 kind = "fn"
 status = "bound"
 python = "antecedent.transport_handoff.hand_to_callback"
+
+[[entry]]
+rust = "antecedent::analysis::transport_receipt_projection::project_transported_response"
+kind = "fn"
+status = "bound"
+python = "antecedent.transported_response.project_transported_response"
 
 [[entry]]
 rust = "antecedent::analysis::transport_revalidation::claim_node_key"
@@ -1631,6 +1729,12 @@ status = "internal"
 reason = "step of transport_range, reached through antecedent.transport.sensitivity.transport_sensitivity"
 
 [[entry]]
+rust = "antecedent::analysis::transport_sensitivity::transport_assumption_range"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust wrapper over a range specification. antecedent.transport.sensitivity.transport_sensitivity executes the compiled range after deriving the specification from a transported response."
+
+[[entry]]
 rust = "antecedent::analysis::transport_sensitivity::transport_range"
 kind = "fn"
 status = "bound"
@@ -1668,6 +1772,18 @@ status = "bound"
 python = "native:python/src/transported_constructors_api.rs"
 
 [[entry]]
+rust = "antecedent::analysis::transported_constructors::evaluate_temporal_policy"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust evaluator. antecedent.transported_constructors.from_period_shift executes Study::compile_temporal_policy and returns the evaluation with a transported response."
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::evaluate_transported_policy"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust evaluator. antecedent.transported_constructors.from_policy executes Study::compile_transported_policy and returns the evaluation with a transported response."
+
+[[entry]]
 rust = "antecedent::analysis::transported_constructors::surrogate_bridge_response"
 kind = "fn"
 status = "bound"
@@ -1684,6 +1800,12 @@ rust = "antecedent::analysis::transported_constructors::temporal_policy_response
 kind = "fn"
 status = "bound"
 python = "native:python/src/transported_constructors_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::transported_constructors::transport_adaptive_trial"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust evaluator. antecedent.transported_constructors.from_adaptive_trial executes Study::compile_adaptive_trial and returns the evaluation with a transported response."
 
 [[entry]]
 rust = "antecedent::analysis::transported_constructors::transported_policy_response"
@@ -1715,6 +1837,12 @@ rust = "antecedent::analysis::transported_measurement::verify_measurement_transp
 kind = "fn"
 status = "bound"
 python = "antecedent.measurement_models.verify_measurement_transport"
+
+[[entry]]
+rust = "antecedent::analysis::transported_mechanism::transport_linear_gaussian"
+kind = "fn"
+status = "internal"
+reason = "Deprecated Rust wrapper for a raw mechanism request. antecedent.mechanism_composition.PreparedMechanismComposition.transport_to constructs the request from a prepared composition and executes Study::compile_fitted_mechanism_transport."
 
 [[entry]]
 rust = "antecedent::analysis::transported_mechanism::verify_mechanism_transport"
@@ -4532,6 +4660,12 @@ rust = "antecedent::analysis::input_decision_programs::compile_prior_signal_adap
 kind = "fn"
 status = "bound"
 python = "native:python/src/prior_signal_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::input_decision_programs::compile_producer_carrier_ranking"
+kind = "fn"
+status = "missing"
+reason = "Python's decision_reliability.rank compiles ranking from draws. ProducerCarrier exposes assessment and derivation, and has no ranking entry that preserves the carrier's joint-law standing."
 
 [[entry]]
 rust = "antecedent::analysis::input_decision_programs::compile_sensitivity_decision"
