@@ -43,7 +43,7 @@ from ._study_lifecycle import guard_design, replay_declaration, retain
 from .errors import CausalTypeError, CausalValueError
 from .execution import Execution
 from .external_learners import Learners, OriginScopedLearners
-from .outcomes import Outcome, Refusal, as_outcome, capture_outcome
+from .outcomes import Outcome, Refusal, as_outcome, capture_outcome, require_success
 
 T = TypeVar("T")
 
@@ -1030,7 +1030,7 @@ def prepare(
             operation.value,
             policy,
             declarations,
-            data if refused else operation.value._data,
+            data if refused else require_success(operation)._data,
             _refused=operation if refused else None,
         )
     from ._table_snapshot import Table, table

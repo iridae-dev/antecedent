@@ -132,7 +132,7 @@ def test_declared_learners_reach_the_fold_receipts():
     data, graph, learners = _binary_study()
     declarations = dict(graph=graph, query=ant.AverageEffect("t", "y"), learners=learners)
     staged = require_success(ant.estimate(ant.prepare(data, **declarations)))
-    one_shot = require_success(ant.analyze(data, **declarations))
+    one_shot = require_success(ant.analyze(data, inference=ant.Frequentist(), **declarations))
     assert one_shot.estimate.method == staged.estimate.method == "partially_linear"
     assert one_shot.effect == staged.effect
     receipts = one_shot.provenance["fold_receipts"]

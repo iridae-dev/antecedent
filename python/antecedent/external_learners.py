@@ -149,7 +149,7 @@ class ExternalLearner:
             bytes(result.artifact),
             matrix.shape[1],
             result if callback_bytes is None else replace(result, callback_bytes=callback_bytes),
-            spec.fold_policy,
+            FoldPolicy.decode(spec.fold_policy),
         )
 
 
@@ -362,8 +362,8 @@ def declare_portable_route(route: str, learners: Learners) -> Learners:
     return learners
 
 
-def _require_iid_policy(policy: FoldPolicy) -> None:
-    if not policy.estimator_honours():
+def _require_iid_policy(policy: FoldPolicy | str) -> None:
+    if not FoldPolicy.decode(policy).estimator_honours():
         raise CausalValueError("temporal cross-fitting is not supported by this fold contract")
 
 
@@ -834,6 +834,7 @@ def _edge_list(graph: Any) -> list[tuple[str, str]]:
 
 
 def _decline_learner_options(declarations: Mapping[str, Any], *, temporal: bool) -> None:
+    from .inference import Frequentist
     from .prepared import _AUTO_DATA_DIAGNOSTICS
 
     blocked: list[str] = []
@@ -841,7 +842,13 @@ def _decline_learner_options(declarations: Mapping[str, Any], *, temporal: bool)
         blocked.append("discovery")
     if declarations.get("accept_discovered"):
         blocked.append("accept_discovered")
-    if declarations.get("inference") is not None:
+    inference = declarations.get("inference")
+    if inference is not None and not (
+        isinstance(inference, Frequentist)
+        and inference.kind == "frequentist"
+        and inference.bootstrap in (None, 0)
+        and inference.profile is None
+    ):
         blocked.append("inference")
     for name in (
         "identifier",
