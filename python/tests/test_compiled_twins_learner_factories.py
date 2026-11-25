@@ -1,10 +1,7 @@
-"""Learners declared on a compiled study reproduce the direct external-learner entries.
+"""Deprecated learner wrappers and the compiled study agree on recorded fits.
 
-``analyze_ate`` declares two registered providers as the study's learners and runs the compiled
-static average-effect route, which fits the configured estimator with them through the same
-``fit_with_factories`` kernel as the direct entries. The direct entries warn with
-``AntecedentDeprecationWarning`` and still return their numbers; the compiled entry returns the
-same estimate, standard error, rows, folds and per-row effects, bit for bit.
+The compatibility wrappers retain their warning and result fields. The common compiled
+route supplies the configured estimator's effect, rows and fold receipts.
 """
 
 from __future__ import annotations
@@ -51,6 +48,11 @@ def _data(n: int = 240):
 
 
 def _assert_same(direct, compiled):
+    assert compiled.estimator == direct.estimator
+    assert compiled.score == direct.score
+    assert compiled.fold_policy is direct.fold_policy
+    assert direct.propensity is None
+    assert compiled.assumptions == direct.assumptions
     assert compiled.estimate == direct.estimate
     assert compiled.standard_error == direct.standard_error
     assert compiled.row_ids == direct.row_ids
@@ -175,3 +177,10 @@ def test_learners_require_external_learners():
     outcome, treatment = _learners()
     with pytest.raises(ValueError, match="Learners"):
         analyze_ate(_data(), GRAPH, "t", "y", learners=(outcome, treatment))  # type: ignore[arg-type]
+    data = _data()
+    for wrapper in (dml_ate, aipw_ate, dr_learner_ate, causal_forest_ate):
+        with (
+            pytest.warns(AntecedentDeprecationWarning, match=wrapper.__name__),
+            pytest.raises(ValueError, match="ExternalLearner"),
+        ):
+            wrapper(data, GRAPH, "t", "y", outcome=object(), treatment=treatment)

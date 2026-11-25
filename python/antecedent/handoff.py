@@ -39,6 +39,7 @@ from .results import AnalysisResult, CausalResponseView, IdentificationView
 
 if TYPE_CHECKING:
     from .external import BoundExternalClaim
+    from .external_learners import ExternalAteEstimate
 
 _ADJUSTMENT_IDENTIFIERS = frozenset(
     {
@@ -132,7 +133,7 @@ class AdjustmentHandoff:
     @property
     def spec(self):
         """Reusable declaration of this handoff's boundaries, not a learner runner."""
-        from .extensibility import CausalProviderSpec, FoldPolicy, ProviderCapability
+        from .extensibility import CausalProviderSpec, ProviderCapability
 
         if not isinstance(self.tool, str) or not self.tool.strip():
             raise _refuse(
@@ -660,16 +661,12 @@ def decode_adjustment_claim(data: bytes) -> AdjustmentClaim:
         or body.get("contract") != _ADJUSTMENT_CONTRACT
     ):
         raise ValueError("adjustment claim is not the adjustment codec document")
-    try:
-        policy = FoldPolicy.decode(body["fold_policy"])
-    except (TypeError, ValueError) as error:
-        raise ValueError(str(error)) from error
     return AdjustmentClaim(
         adjustment_identity=body["adjustment_identity"],
         column_digest=body["column_digest"],
         learner_id=body["learner_id"],
         learner_version=body["learner_version"],
-        fold_policy=policy,
+        fold_policy=body["fold_policy"],
         effect_digest=body["effect_digest"],
     )
 
@@ -1425,14 +1422,14 @@ def adjustment_claim(source: object) -> AdjustmentClaim:
     )
 
 
-def _claim_from_learner(result: object) -> AdjustmentClaim:
-    learner_id, learner_version = _learner_id_version(getattr(result, "receipts", ()))
+def _claim_from_learner(result: ExternalAteEstimate) -> AdjustmentClaim:
+    learner_id, learner_version = _learner_id_version(result.receipts)
     return AdjustmentClaim(
         adjustment_identity=_adjustment_identity_learner(result),
         column_digest=_column_digest_learner(result),
         learner_id=learner_id,
         learner_version=learner_version,
-        fold_policy=FoldPolicy.decode(result.fold_policy),
+        fold_policy=result.fold_policy,
         effect_digest=_effect_digest_learner(result),
     )
 
@@ -1489,14 +1486,13 @@ def _adjustment_identity_handoff(spec: AdjustmentHandoff) -> str:
     )
 
 
-def _adjustment_identity_learner(result: object) -> str:
-    assumptions = getattr(result, "assumptions", ())
+def _adjustment_identity_learner(result: ExternalAteEstimate) -> str:
     return canonical_digest(
         "antecedent.adjustment.identity.v1",
         {
             "contract": _ADJUSTMENT_CONTRACT,
-            "adjustment_set": list(getattr(result, "adjustment_set", ())),
-            "assumptions": [dict(item) for item in assumptions],
+            "adjustment_set": list(result.adjustment_set),
+            "assumptions": [dict(item) for item in result.assumptions],
         },
     )
 
@@ -1525,12 +1521,12 @@ def _column_digest_handoff(
     )
 
 
-def _column_digest_learner(result: object) -> str:
+def _column_digest_learner(result: ExternalAteEstimate) -> str:
     return canonical_digest(
         "antecedent.adjustment.columns.v1",
         {
-            "adjustment_set": list(getattr(result, "adjustment_set", ())),
-            "row_ids": list(getattr(result, "row_ids", ())),
+            "adjustment_set": list(result.adjustment_set),
+            "row_ids": list(result.row_ids),
         },
     )
 
@@ -1553,17 +1549,15 @@ def _column_bytes(spec: AdjustmentHandoff, data: Mapping[str, Any]) -> bytes:
     return b"".join(chunks)
 
 
-def _effect_digest_learner(result: object) -> str:
+def _effect_digest_learner(result: ExternalAteEstimate) -> str:
     effect: dict[str, Any] = {
         "estimate": result.estimate,
         "standard_error": result.standard_error,
     }
-    cate = getattr(result, "cate", None)
-    cate_se = getattr(result, "cate_standard_errors", None)
-    if cate is not None:
-        effect["cate"] = list(cate)
-    if cate_se is not None:
-        effect["cate_standard_errors"] = list(cate_se)
+    if result.cate is not None:
+        effect["cate"] = list(result.cate)
+    if result.cate_standard_errors is not None:
+        effect["cate_standard_errors"] = list(result.cate_standard_errors)
     return canonical_digest("antecedent.adjustment.effect.v1", effect)
 
 

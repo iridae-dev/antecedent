@@ -18,6 +18,7 @@ type PythonReceipt = (u64, Py<PyAny>, Py<PyAny>);
 mod declared;
 mod smoothed_dose;
 
+#[derive(Default)]
 struct CallbackState {
     error: Mutex<Option<PyErr>>,
     receipts: Mutex<Vec<PythonReceipt>>,
@@ -32,6 +33,28 @@ impl CallbackState {
         }
         LearnError::Backend("external learner callback failed".into())
     }
+
+    fn finish<T>(&self, result: PyResult<T>) -> PyResult<(T, Vec<PythonReceipt>)> {
+        if let Some(error) =
+            self.error.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
+        {
+            return Err(error);
+        }
+        let payload = result?;
+        let receipts = std::mem::take(
+            &mut *self.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        Ok((payload, receipts))
+    }
+}
+
+fn learner_weights(py: Python<'_>, learner: &Py<PyAny>, expected: &str) -> PyResult<bool> {
+    let bound = learner.bind(py);
+    let task: String = bound.getattr("task")?.extract()?;
+    if task != expected {
+        return Err(crate::value_err("nuisance learner task mismatch"));
+    }
+    bound.getattr("supports_weights")?.extract()
 }
 
 struct PythonFactory {
@@ -255,21 +278,9 @@ fn external_aipw_crossfit(
     let t = copy_numeric_array(&t);
     let fold_ids = fold_ids.as_array().iter().copied().collect::<Vec<_>>();
     let weights = weights.as_ref().map(copy_numeric_array);
-    let task_and_weights = |obj: &Py<PyAny>, expected: &str| -> PyResult<bool> {
-        let bound = obj.bind(py);
-        let task: String = bound.getattr("task")?.extract()?;
-        if task != expected {
-            return Err(crate::value_err("nuisance learner task mismatch"));
-        }
-        bound.getattr("supports_weights")?.extract()
-    };
-    let outcome_weights = task_and_weights(&outcome, "regression")?;
-    let treatment_weights = task_and_weights(&treatment, "binary_probability")?;
-    let state = Arc::new(CallbackState {
-        error: Mutex::new(None),
-        receipts: Mutex::new(Vec::new()),
-        next: AtomicU64::new(0),
-    });
+    let outcome_weights = learner_weights(py, &outcome, "regression")?;
+    let treatment_weights = learner_weights(py, &treatment, "binary_probability")?;
+    let state = Arc::new(CallbackState::default());
     let result = py.detach(|| {
         let outcome = PythonFactory {
             learner: outcome,
@@ -298,237 +309,24 @@ fn external_aipw_crossfit(
             weights.as_deref(),
         )
     });
-    if let Some(error) =
-        state.error.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
-    {
-        return Err(error);
-    }
-    let (mu0, mu1, e, record) = result.map_err(|e| match e {
+    let ((mu0, mu1, e, record), receipts) = state.finish(result.map_err(|e| match e {
         antecedent::estimate::external_learner::AipwCrossFitError::Cancelled => {
             crate::py_err(antecedent::CausalError::Cancelled { stage: "nuisance" })
         }
         other => crate::value_err(other.to_string()),
-    })?;
+    }))?;
     let provenance = record
         .model_provenance
         .into_iter()
         .map(|p| vec![p.spec, p.implementation, p.version])
         .collect();
-    let receipts = std::mem::take(
-        &mut *state.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
-    );
     Ok((mu0, mu1, e, provenance, receipts))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(external_aipw_crossfit, module)?)?;
     module.add_function(wrap_pyfunction!(declared::declared_learner_ate, module)?)?;
-    module
-        .add_function(wrap_pyfunction!(smoothed_dose::smoothed_dose_learner_transport, module)?)?;
-    module.add_function(wrap_pyfunction!(external_dml_ate, module)?)
-}
-
-/// Identify a static DAG adjustment and fit its DML AIPW score using Python providers.
-#[pyfunction]
-#[pyo3(signature = (names, columns, edges, treatment_name, outcome_name, outcome, treatment, *, folds=5, weights=None, seed=1, cancel=None, method="dml", score="aipw", memory_limit_bytes=None))]
-#[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn external_dml_ate(
-    py: Python<'_>,
-    names: Vec<String>,
-    columns: Vec<PyReadonlyArray1<'_, f64>>,
-    edges: Vec<(String, String)>,
-    treatment_name: String,
-    outcome_name: String,
-    outcome: Py<PyAny>,
-    treatment: Py<PyAny>,
-    folds: usize,
-    weights: Option<PyReadonlyArray1<'_, f64>>,
-    seed: u64,
-    cancel: Option<crate::PyCancellationToken>,
-    method: &str,
-    score: &str,
-    memory_limit_bytes: Option<u64>,
-) -> PyResult<(
-    f64,
-    f64,
-    Vec<u64>,
-    Vec<u32>,
-    Vec<u32>,
-    Vec<Vec<String>>,
-    String,
-    Option<Vec<f64>>,
-    Option<Vec<f64>>,
-    Vec<PythonReceipt>,
-)> {
-    use antecedent::data::TableView;
-    if names.len() != columns.len() || names.is_empty() {
-        return Err(crate::value_err("one data column is required per name"));
-    }
-    let task_and_weights = |obj: &Py<PyAny>, expected: &str| -> PyResult<bool> {
-        let bound = obj.bind(py);
-        let task: String = bound.getattr("task")?.extract()?;
-        if task != expected {
-            return Err(crate::value_err("nuisance learner task mismatch"));
-        }
-        bound.getattr("supports_weights")?.extract()
-    };
-    let outcome_weights = task_and_weights(&outcome, "regression")?;
-    let treatment_weights = task_and_weights(&treatment, "binary_probability")?;
-    let state = Arc::new(CallbackState {
-        error: Mutex::new(None),
-        receipts: Mutex::new(Vec::new()),
-        next: AtomicU64::new(0),
-    });
-    let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
-    let _input_hold = ctx
-        .acquire_admission(0, input_bytes(&columns, weights.as_ref())?)
-        .map_err(|e| admission_error(e, &ctx))?;
-    let weights = weights.as_ref().map(copy_numeric_array);
-    let data = learner_table(&names, &columns)?;
-    let result: PyResult<_> = py.detach(|| {
-        let t = data.schema().id_of(&treatment_name).map_err(crate::py_err)?;
-        let y = data.schema().id_of(&outcome_name).map_err(crate::py_err)?;
-        let dag = crate::dag_from_named_edges(data.schema(), &edges)?;
-        let query = antecedent::query::AverageEffectQuery::binary_ate(t, y);
-        let identification = antecedent::Study::tabular(data.clone())
-            .graph(dag)
-            .query(query.clone())
-            .identify_structure_within(&ctx)
-            .map_err(crate::py_err)?;
-        if !identification.is_identified() {
-            return Err(crate::value_err(
-                "DML requires an identified adjustment estimand",
-            ));
-        }
-        let estimand = identification.estimands().first().ok_or_else(|| {
-            crate::value_err(
-                "identification produced no adjustment estimand",
-            )
-        })?;
-        let assumptions = match &identification {
-            antecedent::Identification::Point { result, .. } => result.required_assumptions.clone(),
-            _ => {
-                return Err(crate::value_err(
-                    "DML requires point identification",
-                ));
-            }
-        };
-        let sampling = weights
-            .map(antecedent::estimate::SamplingWeights::new)
-            .transpose()
-            .map_err(crate::py_err)?;
-        let outcome = PythonFactory {
-            learner: outcome,
-            task: PredictionTask::Regression,
-            weights: outcome_weights,
-            state: Arc::clone(&state),
-        };
-        let treatment = PythonFactory {
-            learner: treatment,
-            task: PredictionTask::BinaryProbability,
-            weights: treatment_weights,
-            state: Arc::clone(&state),
-        };
-        let (problem, effect) = match method {
-            "dml" => {
-                let score = antecedent::estimate::DmlScore::parse(score).map_err(crate::py_err)?;
-                let mut estimator =
-                    antecedent::estimate::DmlAte::new().with_folds(folds).with_score(score);
-                if let Some(weights) = sampling {
-                    estimator = estimator.with_sampling_weights(weights);
-                }
-                let problem = estimator.prepare(&data, estimand, &query).map_err(crate::py_err)?;
-                let effect = estimator
-                    .fit_with_factories(&problem, &ctx, assumptions, &outcome, &treatment)
-                    .map_err(crate::py_err)?;
-                (problem, effect)
-            }
-            "aipw" => {
-                if score != "aipw" {
-                    return Err(crate::value_err(
-                        "AIPW requires the AIPW score",
-                    ));
-                }
-                if folds != 5 {
-                    return Err(crate::value_err("AIPW uses five folds"));
-                }
-                let mut estimator =
-                    antecedent::estimate::AipwAte::new().with_bootstrap_replicates(0);
-                if let Some(weights) = sampling {
-                    estimator = estimator.with_sampling_weights(weights);
-                }
-                let problem = estimator.prepare(&data, estimand, &query).map_err(crate::py_err)?;
-                let effect = estimator
-                    .fit_with_factories(&problem, &ctx, assumptions, &outcome, &treatment)
-                    .map_err(crate::py_err)?;
-                (problem, effect)
-            }
-            "dr_learner" => {
-                if score != "aipw" { return Err(crate::value_err("DR learner requires the AIPW score")); }
-                let mut estimator = antecedent::estimate::DrLearner::new().with_folds(folds);
-                if let Some(weights) = sampling { estimator = estimator.with_sampling_weights(weights); }
-                let problem = estimator.prepare(&data, estimand, &query).map_err(crate::py_err)?;
-                let effect = estimator.fit_with_factories(&problem, &ctx, assumptions, &outcome, &treatment).map_err(crate::py_err)?;
-                (problem, effect)
-            }
-            "causal_forest" => {
-                if score != "aipw" || folds != 5 || sampling.is_some() {
-                    return Err(crate::value_err("causal forest requires its five-fold AIPW score and does not support sampling weights"));
-                }
-                let estimator = antecedent::estimate::CausalForest::new();
-                let problem = estimator.prepare(&data, estimand, &query).map_err(crate::py_err)?;
-                let effect = estimator.fit_with_factories(&problem, &ctx, assumptions, &outcome, &treatment).map_err(crate::py_err)?;
-                (problem, effect)
-            }
-            _ => return Err(crate::value_err("unknown external estimator")),
-        };
-        let row_ids = problem.row_index.iter().map(|row| row.get()).collect();
-        let adjustment = problem.adjustment_set.iter().map(|id| id.raw()).collect();
-        let fold_ids = effect.crossfit.fold_assignment.as_deref().unwrap_or(&[]).to_vec();
-        let provenance = effect
-            .crossfit
-            .learner_provenance
-            .iter()
-            .map(|p| vec![p.spec.clone(), p.implementation.clone(), p.version.clone()])
-            .collect();
-        let assumptions = serde_json::to_string(&antecedent::io::assumptions_to_wire(
-            &effect.provenance.assumptions,
-        ))
-        .map_err(|error| crate::value_err(error.to_string()))?;
-        Ok((
-            effect.ate,
-            effect.se_analytic(),
-            row_ids,
-            fold_ids,
-            adjustment,
-            provenance,
-            assumptions,
-            effect.heterogeneity.cate.as_deref().map(<[f64]>::to_vec),
-            effect.heterogeneity.cate_se.as_deref().map(<[f64]>::to_vec),
-        ))
-    });
-    if let Some(error) =
-        state.error.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
-    {
-        return Err(error);
-    }
-    let (estimate, se, row_ids, fold_ids, adjustment, provenance, assumptions, cate, cate_se) =
-        result?;
-    let receipts = std::mem::take(
-        &mut *state.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
-    );
-    Ok((
-        estimate,
-        se,
-        row_ids,
-        fold_ids,
-        adjustment,
-        provenance,
-        assumptions,
-        cate,
-        cate_se,
-        receipts,
-    ))
+    module.add_function(wrap_pyfunction!(smoothed_dose::smoothed_dose_learner_transport, module)?)
 }
 
 fn copy_numeric_array(values: &PyReadonlyArray1<'_, f64>) -> Vec<f64> {

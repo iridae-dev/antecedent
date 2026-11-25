@@ -2,20 +2,21 @@
 //!
 //! [`declared_learner_ate`] declares the two registered Python providers as the study's learner
 //! factories and runs the study through the compiler: the static average-effect route over the
-//! declared DAG fits the configured DML, AIPW, DR-learner or causal-forest estimator with them,
-//! through the same `fit_with_factories` kernel the direct `external_dml_ate` calls. The
-//! factories are the binding's row-isolated provider callbacks, so every fit and prediction
+//! declared DAG fits the configured DML, AIPW, DR-learner or causal-forest estimator with them.
+//! The factories are the binding's row-isolated provider callbacks, so every fit and prediction
 //! still returns its provider receipt.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::{Arc, Mutex, atomic::AtomicU64};
+use std::sync::Arc;
 
 use antecedent::analysis::declared_learners::LearnerFactories;
 use antecedent::estimate::external_learner::PredictionTask;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
-use super::{CallbackState, PythonFactory, PythonReceipt, admission_error, callback_context};
+use super::{
+    CallbackState, PythonFactory, PythonReceipt, admission_error, callback_context, learner_weights,
+};
 
 /// The configured estimator a declared-learner study runs.
 #[allow(
@@ -30,7 +31,7 @@ enum Configured {
 }
 
 impl Configured {
-    /// The estimator `method` names, configured as `external_dml_ate` configures it.
+    /// Configure the estimator named by `method` using the declared score and folds.
     fn new(
         method: &str,
         score: &str,
@@ -115,7 +116,7 @@ impl Configured {
     }
 }
 
-/// What `declared_learner_ate` returns: the `external_dml_ate` tuple followed by the
+/// The effect, retained rows, fold evidence and callback receipts. The last item is the
 /// out-of-fold propensity of each analysed row, when the fit keeps an AIPW score table.
 type DeclaredAte = (
     f64,
@@ -158,21 +159,9 @@ pub(super) fn declared_learner_ate(
     if names.len() != columns.len() || names.is_empty() {
         return Err(crate::value_err("one data column is required per name"));
     }
-    let task_and_weights = |obj: &Py<PyAny>, expected: &str| -> PyResult<bool> {
-        let bound = obj.bind(py);
-        let task: String = bound.getattr("task")?.extract()?;
-        if task != expected {
-            return Err(crate::value_err("nuisance learner task mismatch"));
-        }
-        bound.getattr("supports_weights")?.extract()
-    };
-    let outcome_weights = task_and_weights(&outcome, "regression")?;
-    let treatment_weights = task_and_weights(&treatment, "binary_probability")?;
-    let state = Arc::new(CallbackState {
-        error: Mutex::new(None),
-        receipts: Mutex::new(Vec::new()),
-        next: AtomicU64::new(0),
-    });
+    let outcome_weights = learner_weights(py, &outcome, "regression")?;
+    let treatment_weights = learner_weights(py, &treatment, "binary_probability")?;
+    let state = Arc::new(CallbackState::default());
     let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
     let _input_hold = ctx
         .acquire_admission(0, super::input_bytes(&columns, weights.as_ref())?)
@@ -249,16 +238,10 @@ pub(super) fn declared_learner_ate(
             propensity,
         ))
     });
-    if let Some(error) =
-        state.error.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
-    {
-        return Err(error);
-    }
-    let (estimate, se, rows, fold_ids, adjustment, provenance, assumptions, cate, cate_se, e) =
-        result?;
-    let receipts = std::mem::take(
-        &mut *state.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
-    );
+    let (
+        (estimate, se, rows, fold_ids, adjustment, provenance, assumptions, cate, cate_se, e),
+        receipts,
+    ) = state.finish(result)?;
     Ok((
         estimate,
         se,

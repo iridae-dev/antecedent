@@ -267,23 +267,17 @@ pub(crate) fn fit_static_effect(
     assumptions: AssumptionSet,
     ctx: &ExecutionContext,
 ) -> Result<EffectEstimate, CausalError> {
-    let StaticEstimateInput { data, estimand, query, .. } = input;
     if let (Some(spec), Some(design)) = (spec, input.sampling_design) {
         crate::estimator_spec::ensure_dependence_honoured(spec, design)?;
     }
-    let (outcome, treatment) = (factories.outcome(), factories.treatment());
     let estimate = match spec {
-        Some(EstimatorSpec::Dml(config)) => {
-            fit_dml(config, data, estimand, query, ctx, assumptions, outcome, treatment)
-        }
-        Some(EstimatorSpec::Aipw(config)) => {
-            fit_aipw(config, data, estimand, query, ctx, assumptions, outcome, treatment)
-        }
+        Some(EstimatorSpec::Dml(config)) => fit_dml(config, input, factories, assumptions, ctx),
+        Some(EstimatorSpec::Aipw(config)) => fit_aipw(config, input, factories, assumptions, ctx),
         Some(EstimatorSpec::DrLearner(config)) => {
-            fit_dr(config, data, estimand, query, ctx, assumptions, outcome, treatment)
+            fit_dr(config, input, factories, assumptions, ctx)
         }
         Some(EstimatorSpec::CausalForest(config)) => {
-            fit_forest(config, data, estimand, query, ctx, assumptions, outcome, treatment)
+            fit_forest(config, input, factories, assumptions, ctx)
         }
         _ => {
             return Err(crate::unsupported_reason!(
@@ -299,19 +293,21 @@ pub(crate) fn fit_static_effect(
 
 macro_rules! factory_fit {
     ($name:ident, $estimator:ty) => {
-        #[allow(clippy::too_many_arguments, reason = "one prepare-and-fit step per estimator")]
         fn $name(
             estimator: &$estimator,
-            data: &antecedent_data::TabularData,
-            estimand: &antecedent_expr::IdentifiedEstimand,
-            query: &antecedent_core::AverageEffectQuery,
-            ctx: &ExecutionContext,
+            input: StaticEstimateInput<'_>,
+            factories: &LearnerFactories,
             assumptions: AssumptionSet,
-            outcome: &dyn LearnerFactory,
-            treatment: &dyn LearnerFactory,
+            ctx: &ExecutionContext,
         ) -> Result<EffectEstimate, antecedent_estimate::EstimationError> {
-            let problem = estimator.prepare(data, estimand, query)?;
-            estimator.fit_with_factories(&problem, ctx, assumptions, outcome, treatment)
+            let problem = estimator.prepare(input.data, input.estimand, input.query)?;
+            estimator.fit_with_factories(
+                &problem,
+                ctx,
+                assumptions,
+                factories.outcome(),
+                factories.treatment(),
+            )
         }
     };
 }

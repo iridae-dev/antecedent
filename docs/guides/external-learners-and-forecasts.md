@@ -12,9 +12,10 @@ keeps the provider's receipt on every result.
 | Held-out nuisance propensities on the study's fold plan | `propensity` and `fold_ids` of the `analyze_ate` result |
 | Rolling-origin forecasts to assess | `antecedent.forecasting.rolling`, then [`predictive_assessment.assess`](../predictive-assessment.md) |
 
-`dml_ate`, `aipw_ate`, `dr_learner_ate`, `causal_forest_ate` and `cross_fit_aipw` run the same
-fits without the compiler. They warn with `AntecedentDeprecationWarning`, return the same
-numbers as `analyze_ate`, and are removed in 4.0.
+`dml_ate`, `aipw_ate`, `dr_learner_ate`, and `causal_forest_ate` use the compiled
+`analyze_ate` fit. `cross_fit_aipw` returns nuisance predictions for a caller-supplied fold
+assignment. All five entries warn with `AntecedentDeprecationWarning` and are scheduled
+for removal in 4.0.
 
 ## What a provider result establishes
 

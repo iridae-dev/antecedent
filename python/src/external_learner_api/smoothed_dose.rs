@@ -10,10 +10,7 @@
 //! fit receipt of every fold is returned.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::{Arc, atomic::Ordering};
 
 use antecedent::Study;
 use antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRequest;
@@ -28,7 +25,9 @@ use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
-use super::{CallbackState, PythonReceipt, callback_bytes, callback_context, fit_columns};
+use super::{
+    CallbackState, PythonReceipt, callback_bytes, callback_context, fit_columns, learner_weights,
+};
 
 /// A registered Python provider whose fits are portable prediction maps.
 struct PortablePythonFactory {
@@ -120,16 +119,8 @@ pub(super) fn smoothed_dose_learner_transport(
     cancel: Option<crate::PyCancellationToken>,
     memory_limit_bytes: Option<u64>,
 ) -> PyResult<SmoothedDoseLearnersPayload> {
-    let task_and_weights = |obj: &Py<PyAny>, expected: &str| -> PyResult<bool> {
-        let bound = obj.bind(py);
-        let task: String = bound.getattr("task")?.extract()?;
-        if task != expected {
-            return Err(crate::value_err("nuisance learner task mismatch"));
-        }
-        bound.getattr("supports_weights")?.extract()
-    };
-    let outcome_weights = task_and_weights(&outcome, "regression")?;
-    let membership_weights = task_and_weights(&membership, "binary_probability")?;
+    let outcome_weights = learner_weights(py, &outcome, "regression")?;
+    let membership_weights = learner_weights(py, &membership, "binary_probability")?;
     let portable =
         |obj: &Py<PyAny>| -> PyResult<bool> { obj.bind(py).getattr("portable")?.extract() };
     let outcome_portable = portable(&outcome)?;
@@ -139,11 +130,7 @@ pub(super) fn smoothed_dose_learner_transport(
     let options: SmoothedDoseOptions =
         serde_json::from_str(options).map_err(|e| crate::value_err(e.to_string()))?;
     let names = graph.names.clone();
-    let state = Arc::new(CallbackState {
-        error: Mutex::new(None),
-        receipts: Mutex::new(Vec::new()),
-        next: AtomicU64::new(0),
-    });
+    let state = Arc::new(CallbackState::default());
     let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
     let result: PyResult<String> = py.detach(|| {
         let learners = LearnerFactories::new(
@@ -191,14 +178,5 @@ pub(super) fn smoothed_dose_learner_transport(
         })
         .to_string())
     });
-    if let Some(error) =
-        state.error.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()
-    {
-        return Err(error);
-    }
-    let payload = result?;
-    let receipts = std::mem::take(
-        &mut *state.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner),
-    );
-    Ok((payload, receipts))
+    state.finish(result)
 }
