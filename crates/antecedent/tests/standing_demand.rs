@@ -256,13 +256,13 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
     ),
     (
         "analysis/joint_transport_effect_decision.rs",
-        "compile_joint_transport_effect_decision",
+        "compile_joint_transport_effect_decision_as",
         "ClaimDemand",
         "decision",
     ),
     (
         "analysis/joint_transport_predictive_decision.rs",
-        "compile_joint_transport_predictive_decision",
+        "compile_joint_transport_predictive_decision_as",
         "ClaimDemand",
         "decision",
     ),
@@ -312,8 +312,18 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
         "point",
     ),
     ("analysis/observation_query.rs", "compile_joint_measured_observation", "ClaimDemand", "point"),
-    ("analysis/observational_policy.rs", "compile_observational_policy", "ClaimDemand", "decision"),
-    ("analysis/observational_policy.rs", "compile_policy_subsampling", "ClaimDemand", "decision"),
+    (
+        "analysis/observational_policy.rs",
+        "compile_observational_policy_as",
+        "ClaimDemand",
+        "decision",
+    ),
+    (
+        "analysis/observational_policy.rs",
+        "compile_policy_subsampling_as",
+        "ClaimDemand",
+        "decision",
+    ),
     ("analysis/preference_learning_programs.rs", "compile_model", "TerminalSpec", "association"),
     ("analysis/preference_learning_programs.rs", "compile_set", "TerminalSpec", "bounds"),
     (
@@ -360,7 +370,7 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
     ),
     (
         "analysis/sequential_policy_reliability.rs",
-        "compile_sequential_policy_reliability",
+        "compile_sequential_policy_reliability_as",
         "ClaimDemand",
         "decision",
     ),
@@ -397,13 +407,13 @@ const ROUTES: &[(&str, &str, &str, &str)] = &[
     ("analysis/transport_response_grid.rs", "lower", "PointProgram", "response"),
     (
         "analysis/trial_ipw_predictive_decision.rs",
-        "compile_trial_ipw_predictive_decision",
+        "compile_trial_ipw_predictive_decision_as",
         "ClaimDemand",
         "decision",
     ),
     (
         "analysis/trial_ipw_transport_decision.rs",
-        "compile_trial_ipw_transport_decision",
+        "compile_trial_ipw_transport_decision_as",
         "ClaimDemand",
         "decision",
     ),
@@ -654,7 +664,17 @@ fn scan() -> Vec<Construction> {
     let root = src();
     let mut files = Vec::new();
     sources(&root, &root, &mut files);
-    files.iter().flat_map(|(name, text)| constructions(name, text)).collect()
+    // A route's demand is what its production code states: test modules and test files build
+    // demands as fixtures and are not routes.
+    files
+        .iter()
+        .filter(|(name, _)| !name.ends_with("tests.rs") && !name.contains("/tests/"))
+        .flat_map(|(name, text)| {
+            let production =
+                text.find("\n#[cfg(test)]\nmod ").map_or(text.as_str(), |at| &text[..at]);
+            constructions(name, production)
+        })
+        .collect()
 }
 
 /// The publication a demand expression states, in the vocabulary of [`ROUTES`].

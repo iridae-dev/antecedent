@@ -972,6 +972,36 @@ pub(super) mod tests {
         (diagram, functional, data, assignment)
     }
 
+    /// [`fixture`] with the second experimental law (`do(z = true)`) beside the first, so the
+    /// order of the declared laws is observable.
+    pub(in crate::analysis) fn fixture_two_laws(
+        empirical: bool,
+    ) -> (SelectionDiagram, BoundZTransportFunctional, ExactTransportData, Assignment) {
+        let (diagram, functional, data, assignment) = fixture(empirical);
+        let first = data.laws()[0].clone();
+        let (z, w, x, y) = (
+            VariableId::from_raw(1),
+            VariableId::from_raw(0),
+            VariableId::from_raw(2),
+            VariableId::from_raw(3),
+        );
+        let second = ExactDiscreteLaw::try_new(
+            "source",
+            RegimeId::from_raw(1),
+            [InterventionAssignment::concrete(z, Value::Bool(true))],
+            [w, x, y].map(|variable| DiscreteAxis {
+                variable,
+                values: Arc::from([Value::Bool(false), Value::Bool(true)]),
+            }),
+            first.probabilities().to_vec(),
+            "do-z-1",
+            LawTolerance::default(),
+        )
+        .unwrap();
+        let data = ExactTransportData::try_new([first, second], data.max_support_rows()).unwrap();
+        (diagram, functional, data, assignment)
+    }
+
     fn independent_component(
         graph: &SelectionDiagram,
         population: &str,

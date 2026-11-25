@@ -258,7 +258,9 @@ proptest! {
                 }
                 prop_assert!(!has(SOURCE_ASSUMPTIONS_UNAVAILABLE));
             }
-            SlotAvailability::Unavailable { .. } => {
+            // An unavailable slot, or any slot state a later release adds, is not an
+            // inspectable source assumption set.
+            _ => {
                 prop_assert!(has(SOURCE_ASSUMPTIONS_UNAVAILABLE));
                 prop_assert!(receipt_has(SOURCE_ASSUMPTIONS_UNAVAILABLE));
             }

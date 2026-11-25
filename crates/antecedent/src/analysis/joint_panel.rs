@@ -872,7 +872,7 @@ impl JointPanelResult {
     /// # Errors
     /// Unsupported worlds and missing design premises remain explicit.
     pub fn require_identified(&self) -> Result<(), JointPanelError> {
-        if self.identification().is_identified_claim() {
+        if self.identification().identifies_within_model() {
             Ok(())
         } else {
             Err(JointPanelError::Unsupported(

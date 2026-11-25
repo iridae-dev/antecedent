@@ -503,7 +503,7 @@ mod site_tests {
         };
         let mut identities = vec![base, relearn, model(model_options)];
         let set_edits: [fn(&mut SetLearningOptions); 7] = [
-            |o| o.tolerance *= 2.0,
+            |o| o.tolerance += 0.5,
             |o| o.conflict_search_size += 1,
             |o| o.lp.feasibility_tolerance *= 2.0,
             |o| o.lp.optimality_tolerance *= 2.0,

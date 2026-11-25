@@ -121,9 +121,11 @@ impl PreparedStudy<JointPanelState> {
         let mut retained = result.clone();
         retained.status = IdentificationStatus::IdentifiedUnderParametricRestrictions;
         retained.required_assumptions.extend_unique(&target.assumptions().records().entries);
+        // Identified under a parametric restriction: evaluated inside its model, so the class is
+        // model-conditional and never the observational identified-claim class.
         let mut parts = CompiledProductParts::new(
             IdentificationOutcome::Identified,
-            IdentificationClaimClass::IdentifiedClaim,
+            IdentificationClaimClass::ModelConditional,
         );
         parts.world_obligations = worlds
             .iter()
@@ -131,7 +133,7 @@ impl PreparedStudy<JointPanelState> {
                 IdentificationObligation::for_world(
                     world.id(),
                     IdentificationOutcome::Identified,
-                    IdentificationClaimClass::IdentifiedClaim,
+                    IdentificationClaimClass::ModelConditional,
                     vec![],
                     None,
                 )
@@ -140,7 +142,7 @@ impl PreparedStudy<JointPanelState> {
         if matches!(target.form(), TargetForm::Contrast(_) | TargetForm::DoseTime(_)) {
             parts.assembled = Some(IdentificationObligation::assembled(
                 IdentificationOutcome::Identified,
-                IdentificationClaimClass::IdentifiedClaim,
+                IdentificationClaimClass::ModelConditional,
                 vec![],
                 None,
             ));

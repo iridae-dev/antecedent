@@ -708,7 +708,7 @@ mod tests {
         let mut units = contract();
         units.utility_units = "wishlist_value".into();
         let mut shifted = request();
-        shifted.noise[0][0] = -0.3;
+        shifted.model.noise_covariance[0] = 2.0;
         crate::identity_laws::all_distinct(&[
             compile(request(), &outputs(), contract()),
             compile(request(), &outputs(), units),

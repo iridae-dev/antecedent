@@ -337,7 +337,7 @@ mod identity_tests {
     use antecedent_core::{Value, VariableId};
 
     use super::*;
-    use crate::analysis::z_transport::tests::fixture;
+    use crate::analysis::z_transport::tests::{fixture, fixture_two_laws};
     use crate::identity_laws::{all_distinct, set_laws};
 
     fn prepared() -> (PreparedZTransport, Assignment) {
@@ -383,7 +383,17 @@ mod identity_tests {
     #[test]
     fn site_z_transport_request_is_keyed_and_laws_ordered() {
         let limits = ExactEvaluationLimits::default();
-        let (first, _) = prepared();
+        let ctx = ExecutionContext::for_tests(0);
+        let (diagram, functional, data, request) = fixture_two_laws(false);
+        let first = StudyBuilder::z_transport(
+            diagram.clone(),
+            functional.clone(),
+            data.clone(),
+            request.clone(),
+            limits,
+            &ctx,
+        )
+        .unwrap();
         set_laws(&[(2_u32, 0.0), (3, 1.0), (0, 0.5)], |pairs| {
             let request = Assignment::from_pairs(
                 pairs
@@ -392,8 +402,6 @@ mod identity_tests {
             );
             Some(digest(&first, &request, limits, false))
         });
-        let ctx = ExecutionContext::for_tests(0);
-        let (diagram, functional, data, request) = fixture(false);
         let mut laws: Vec<_> = data.laws().to_vec();
         assert!(laws.len() >= 2, "the fixture declares several laws");
         laws.reverse();

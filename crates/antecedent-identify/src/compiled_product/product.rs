@@ -385,6 +385,28 @@ impl CompiledIdentificationProduct {
             )
     }
 
+    /// Whether this product identifies its target, under the declared model when a
+    /// restriction is stated: the outcome is identified and the class is an identified claim
+    /// or model-conditional, for the product, every world and any assembled functional.
+    /// An identified claim implies it; it never states the observational class.
+    #[must_use]
+    pub fn identifies_within_model(&self) -> bool {
+        let own = matches!(self.outcome, IdentificationOutcome::Identified)
+            && matches!(
+                self.claim_class,
+                IdentificationClaimClass::IdentifiedClaim
+                    | IdentificationClaimClass::ModelConditional
+            );
+        if self.world_obligations.is_empty() && self.assembled.is_none() {
+            return own;
+        }
+        own && self.world_obligations.iter().all(IdentificationObligation::identifies_within_model)
+            && self.assembled.as_ref().map_or(
+                self.target_identity.is_some(),
+                IdentificationObligation::identifies_within_model,
+            )
+    }
+
     /// Whether the assembled functional is an identified claim.
     ///
     /// `false` when no assembled obligation was recorded. World-level numerical

@@ -1086,7 +1086,10 @@ mod support_tests {
         };
         let prepared = Study::prepare_cyclic_family(&request, &ctx).unwrap();
         let decision = prepared.state.support().expect("the family route is bound to a unit");
-        assert_eq!(decision.unit.label(), "cyclic.general_systems");
+        assert_eq!(
+            decision.unit.label(),
+            crate::support::units_generated::CYCLIC_GENERAL_SYSTEMS.as_str()
+        );
         assert_eq!(
             prepared.plan_view().unit_support().map(|unit| unit.status()),
             Some(decision.status)

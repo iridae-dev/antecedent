@@ -357,8 +357,12 @@ fn site_design_planning_programs_registry_problems_are_keyed_by_id() {
     all_distinct(&[
         registry_identity(&registry(&[Some(2)])),
         registry_identity(&registry(&[None, Some(2)])),
-        registry_identity(&registry(&[Some(2), None])),
     ]);
+    // An empty slot registers nothing, so a trailing one leaves the registry as it was.
+    assert_eq!(
+        registry_identity(&registry(&[Some(2), None])),
+        registry_identity(&registry(&[Some(2)]))
+    );
 }
 
 #[test]

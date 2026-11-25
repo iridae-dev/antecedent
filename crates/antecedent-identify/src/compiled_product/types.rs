@@ -330,6 +330,18 @@ impl IdentificationObligation {
         self.numerical_value
     }
 
+    /// Whether `outcome` is identified and the class is an identified claim or is evaluated
+    /// inside the declared model: the identification a stated restriction supports.
+    #[must_use]
+    pub const fn identifies_within_model(&self) -> bool {
+        matches!(self.outcome, IdentificationOutcome::Identified)
+            && matches!(
+                self.claim_class,
+                IdentificationClaimClass::IdentifiedClaim
+                    | IdentificationClaimClass::ModelConditional
+            )
+    }
+
     /// Whether `outcome` and `claim_class` are an identified claim.
     ///
     /// [`Self::numerical_value`] is not consulted.

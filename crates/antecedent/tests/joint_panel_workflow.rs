@@ -1551,7 +1551,9 @@ mod gaussian_restriction {
         let graph = UnrolledPanelGraph::build(spec(vec![])).unwrap();
         let bound = panel.with_unrolled_graph_attempt(&graph, &[HORIZON - 1], &ctx).unwrap();
         let inspection = bound.inspect();
-        assert!(inspection.identification.is_identified_claim());
+        // Identified under a declared restriction: inside its model, never the observational class.
+        assert!(inspection.identification.identifies_within_model());
+        assert!(!inspection.identification.is_identified_claim());
         assert_restriction_recorded(&inspection.identification);
         let attempt = inspection
             .design_attempts
@@ -1649,7 +1651,9 @@ mod gaussian_restriction {
         );
         let graph = UnrolledPanelGraph::build(spec(vec![])).unwrap();
         let bound = panel.with_unrolled_graph_attempt(&graph, &[HORIZON - 1], &ctx).unwrap();
-        assert!(bound.inspect().identification.is_identified_claim());
+        // Identified under a declared restriction: inside its model, never the observational class.
+        assert!(bound.inspect().identification.identifies_within_model());
+        assert!(!bound.inspect().identification.is_identified_claim());
         let result = bound.estimate(&ctx).unwrap();
         assert!(!result.identification().is_identified_claim());
         assert!(matches!(result.require_identified(), Err(JointPanelError::Unsupported(_))));

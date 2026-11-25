@@ -204,7 +204,7 @@ mod site_tests {
     use antecedent_core::SemanticDigest;
 
     use super::*;
-    use crate::analysis::z_transport::tests::fixture;
+    use crate::analysis::z_transport::tests::fixture_two_laws;
     use crate::identity_laws::{all_distinct, bit_exact};
 
     fn identity(
@@ -213,7 +213,7 @@ mod site_tests {
         decision_threshold: Option<f64>,
     ) -> SemanticDigest {
         let ctx = ExecutionContext::for_tests(0);
-        let (diagram, functional, data, _) = fixture(false);
+        let (diagram, functional, data, _) = fixture_two_laws(false);
         let data = if reverse_laws {
             let mut laws = data.laws().to_vec();
             laws.reverse();

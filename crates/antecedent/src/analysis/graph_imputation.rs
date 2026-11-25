@@ -1206,7 +1206,10 @@ mod compiled_tests {
         let view = plan.plan_view().unit_support().expect("the route is bound to a unit");
         let decision = route_decision(plan.lowered().route()).expect("the table binds the route");
         assert_eq!(plan.lowered().route(), "GraphImputation");
-        assert_eq!(view.unit(), "graph_imputation.compiled_candidate");
+        assert_eq!(
+            view.unit(),
+            crate::support::units_generated::GRAPH_IMPUTATION_COMPILED_CANDIDATE.as_str()
+        );
         assert_eq!(view.status(), decision.status);
         assert_eq!(plan.support().map(|d| d.status), Some(decision.status));
     }
@@ -1224,7 +1227,9 @@ mod compiled_tests {
         // otherwise a development build records what a release build refuses and runs, and a
         // release build refuses.
         let gated = require_route_support(&ctx, "GraphImputationEffectDecision");
-        if crate::support::capability_supported("graph_imputation.compiled_decision") {
+        if crate::support::capability_supported(
+            crate::support::units_generated::GRAPH_IMPUTATION_COMPILED_DECISION.as_str(),
+        ) {
             gated.unwrap();
             assert!(ctx.would_refuse().is_empty());
         } else if cfg!(feature = "development") {

@@ -539,7 +539,10 @@ mod tests {
         let view = candidate.plan_view().unit_support().expect("the route is bound to a unit");
         let decision = route_decision(candidate.program().route()).expect("the table binds it");
         assert_eq!(candidate.program().route(), "CategoricalPosteriorCandidate");
-        assert_eq!(view.unit(), "categorical_treatment.compiled_candidate");
+        assert_eq!(
+            view.unit(),
+            crate::support::units_generated::CATEGORICAL_TREATMENT_COMPILED_CANDIDATE.as_str()
+        );
         assert_eq!(view.status(), decision.status);
         assert_eq!(candidate.support().map(|d| d.status), Some(decision.status));
         // A supported unit passes every gated entry without recording a would-refuse entry.

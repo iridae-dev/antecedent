@@ -56,9 +56,8 @@ fn effect_class(effect: Option<&ObservedEffect>) -> Revalidation {
     match effect {
         None => Revalidation::StillValid,
         Some(ObservedEffect::Recomputed { .. }) => Revalidation::Recompute,
-        Some(ObservedEffect::Withdrawn { .. } | ObservedEffect::Refused { .. }) => {
-            Revalidation::Withdrawn
-        }
+        // A refusal, a withdrawal or any effect a later release adds withdraws.
+        Some(_) => Revalidation::Withdrawn,
     }
 }
 
@@ -143,7 +142,9 @@ fn hops() -> impl Strategy<Value = Vec<HandoffReceipt>> {
         specs
             .into_iter()
             .enumerate()
-            .map(|(index, (retained, omitted, unresolved, contiguous))| {
+            .map(|(index, (mut retained, omitted, unresolved, contiguous))| {
+                // A hop that omits a field does not also retain it.
+                retained.retain(|field| !omitted.contains(field));
                 let input = u8::try_from(index).expect("few hops") + 1;
                 let output = if contiguous { input + 1 } else { input + 100 };
                 HandoffReceipt::new(
