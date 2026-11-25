@@ -398,6 +398,8 @@ impl core::clone::Clone for antecedent_estimate::TransportOverlapReport
 impl core::clone::Clone for antecedent_estimate::TransportResponseGridEstimate
 impl core::clone::Clone for antecedent_estimate::TransportUncertaintyRow
 impl core::clone::Clone for antecedent_estimate::TreatmentArm
+impl core::clone::Clone for antecedent_estimate::TreatmentClassification
+impl core::clone::Clone for antecedent_estimate::TreatmentDeclaration
 impl core::clone::Clone for antecedent_estimate::TrialAipwEstimate
 impl core::clone::Clone for antecedent_estimate::TrialAipwInput
 impl core::clone::Clone for antecedent_estimate::TrialAipwOptions
@@ -1294,6 +1296,8 @@ impl core::cmp::Eq for antecedent_estimate::SmoothedDoseUncertainty
 impl core::cmp::Eq for antecedent_estimate::TileError
 impl core::cmp::Eq for antecedent_estimate::TransportIntervalReason
 impl core::cmp::Eq for antecedent_estimate::TreatmentArm
+impl core::cmp::Eq for antecedent_estimate::TreatmentClassification
+impl core::cmp::Eq for antecedent_estimate::TreatmentDeclaration
 impl core::cmp::Eq for antecedent_estimate::TrialSampling
 impl core::cmp::Eq for antecedent_estimate::Unavailable
 impl core::cmp::Eq for antecedent_estimate::adaptive_inference::AdaptiveInferenceError
@@ -1701,6 +1705,8 @@ impl core::cmp::PartialEq for antecedent_estimate::TransportOverlapReport
 impl core::cmp::PartialEq for antecedent_estimate::TransportResponseGridEstimate
 impl core::cmp::PartialEq for antecedent_estimate::TransportUncertaintyRow
 impl core::cmp::PartialEq for antecedent_estimate::TreatmentArm
+impl core::cmp::PartialEq for antecedent_estimate::TreatmentClassification
+impl core::cmp::PartialEq for antecedent_estimate::TreatmentDeclaration
 impl core::cmp::PartialEq for antecedent_estimate::TrialAipwOptions
 impl core::cmp::PartialEq for antecedent_estimate::TrialSampling
 impl core::cmp::PartialEq for antecedent_estimate::Unavailable
@@ -2598,6 +2604,7 @@ impl core::default::Default for antecedent_estimate::StatisticalTransportInput
 impl core::default::Default for antecedent_estimate::TemporalLinearAdjustment
 impl core::default::Default for antecedent_estimate::TemporalMediationEstimator
 impl core::default::Default for antecedent_estimate::TemporalResponseEstimator
+impl core::default::Default for antecedent_estimate::TreatmentDeclaration
 impl core::default::Default for antecedent_estimate::TrialAipwOptions
 impl core::default::Default for antecedent_estimate::TwoStageLeastSquares
 impl core::default::Default for antecedent_estimate::TwoStageLeastSquaresWorkspace
@@ -2959,6 +2966,8 @@ impl core::fmt::Debug for antecedent_estimate::TransportOverlapReport
 impl core::fmt::Debug for antecedent_estimate::TransportResponseGridEstimate
 impl core::fmt::Debug for antecedent_estimate::TransportUncertaintyRow
 impl core::fmt::Debug for antecedent_estimate::TreatmentArm
+impl core::fmt::Debug for antecedent_estimate::TreatmentClassification
+impl core::fmt::Debug for antecedent_estimate::TreatmentDeclaration
 impl core::fmt::Debug for antecedent_estimate::TrialAipwEstimate
 impl core::fmt::Debug for antecedent_estimate::TrialAipwInput
 impl core::fmt::Debug for antecedent_estimate::TrialAipwOptions
@@ -3969,6 +3978,8 @@ impl core::marker::Copy for antecedent_estimate::TransportIntervalReason
 impl core::marker::Copy for antecedent_estimate::TransportOverlapDiagnostic
 impl core::marker::Copy for antecedent_estimate::TransportOverlapReport
 impl core::marker::Copy for antecedent_estimate::TreatmentArm
+impl core::marker::Copy for antecedent_estimate::TreatmentClassification
+impl core::marker::Copy for antecedent_estimate::TreatmentDeclaration
 impl core::marker::Copy for antecedent_estimate::TrialAipwOptions
 impl core::marker::Copy for antecedent_estimate::TrialSampling
 impl core::marker::Copy for antecedent_estimate::Unavailable
@@ -4516,6 +4527,8 @@ impl core::marker::Freeze for antecedent_estimate::TransportOverlapReport [auto]
 impl core::marker::Freeze for antecedent_estimate::TransportResponseGridEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::TransportUncertaintyRow [auto]
 impl core::marker::Freeze for antecedent_estimate::TreatmentArm [auto]
+impl core::marker::Freeze for antecedent_estimate::TreatmentClassification [auto]
+impl core::marker::Freeze for antecedent_estimate::TreatmentDeclaration [auto]
 impl core::marker::Freeze for antecedent_estimate::TrialAipwEstimate [auto]
 impl core::marker::Freeze for antecedent_estimate::TrialAipwInput [auto]
 impl core::marker::Freeze for antecedent_estimate::TrialAipwOptions [auto]
@@ -5645,6 +5658,8 @@ impl core::marker::Send for antecedent_estimate::TransportOverlapReport [auto]
 impl core::marker::Send for antecedent_estimate::TransportResponseGridEstimate [auto]
 impl core::marker::Send for antecedent_estimate::TransportUncertaintyRow [auto]
 impl core::marker::Send for antecedent_estimate::TreatmentArm [auto]
+impl core::marker::Send for antecedent_estimate::TreatmentClassification [auto]
+impl core::marker::Send for antecedent_estimate::TreatmentDeclaration [auto]
 impl core::marker::Send for antecedent_estimate::TrialAipwEstimate [auto]
 impl core::marker::Send for antecedent_estimate::TrialAipwInput [auto]
 impl core::marker::Send for antecedent_estimate::TrialAipwOptions [auto]
@@ -6671,6 +6686,8 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::TransportOverlap
 impl core::marker::StructuralPartialEq for antecedent_estimate::TransportResponseGridEstimate
 impl core::marker::StructuralPartialEq for antecedent_estimate::TransportUncertaintyRow
 impl core::marker::StructuralPartialEq for antecedent_estimate::TreatmentArm
+impl core::marker::StructuralPartialEq for antecedent_estimate::TreatmentClassification
+impl core::marker::StructuralPartialEq for antecedent_estimate::TreatmentDeclaration
 impl core::marker::StructuralPartialEq for antecedent_estimate::TrialAipwOptions
 impl core::marker::StructuralPartialEq for antecedent_estimate::TrialSampling
 impl core::marker::StructuralPartialEq for antecedent_estimate::Unavailable
@@ -7718,6 +7735,8 @@ impl core::marker::Sync for antecedent_estimate::TransportOverlapReport [auto]
 impl core::marker::Sync for antecedent_estimate::TransportResponseGridEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::TransportUncertaintyRow [auto]
 impl core::marker::Sync for antecedent_estimate::TreatmentArm [auto]
+impl core::marker::Sync for antecedent_estimate::TreatmentClassification [auto]
+impl core::marker::Sync for antecedent_estimate::TreatmentDeclaration [auto]
 impl core::marker::Sync for antecedent_estimate::TrialAipwEstimate [auto]
 impl core::marker::Sync for antecedent_estimate::TrialAipwInput [auto]
 impl core::marker::Sync for antecedent_estimate::TrialAipwOptions [auto]
@@ -8850,6 +8869,8 @@ impl core::marker::Unpin for antecedent_estimate::TransportOverlapReport [auto]
 impl core::marker::Unpin for antecedent_estimate::TransportResponseGridEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::TransportUncertaintyRow [auto]
 impl core::marker::Unpin for antecedent_estimate::TreatmentArm [auto]
+impl core::marker::Unpin for antecedent_estimate::TreatmentClassification [auto]
+impl core::marker::Unpin for antecedent_estimate::TreatmentDeclaration [auto]
 impl core::marker::Unpin for antecedent_estimate::TrialAipwEstimate [auto]
 impl core::marker::Unpin for antecedent_estimate::TrialAipwInput [auto]
 impl core::marker::Unpin for antecedent_estimate::TrialAipwOptions [auto]
@@ -9985,6 +10006,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TransportO
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TransportResponseGridEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TransportUncertaintyRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TreatmentArm [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TreatmentClassification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TreatmentDeclaration [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TrialAipwEstimate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TrialAipwInput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::TrialAipwOptions [auto]
@@ -11116,6 +11139,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TransportOver
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TransportResponseGridEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TransportUncertaintyRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TreatmentArm [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TreatmentClassification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TreatmentDeclaration [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TrialAipwEstimate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TrialAipwInput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::TrialAipwOptions [auto]
@@ -13577,6 +13602,8 @@ pub enum antecedent_estimate::SerialDependence
 pub enum antecedent_estimate::TemporalInterventionKind
 pub enum antecedent_estimate::TransportIntervalReason
 pub enum antecedent_estimate::TreatmentArm
+pub enum antecedent_estimate::TreatmentClassification
+pub enum antecedent_estimate::TreatmentDeclaration
 pub enum antecedent_estimate::TrialSampling
 pub enum antecedent_estimate::adaptive_resample_waves::CancelPolicy
 pub enum antecedent_estimate::adaptive_resample_waves::StopReason
@@ -14099,6 +14126,7 @@ pub field antecedent_estimate::EstimateDiagnostics::overlap_report: core::option
 pub field antecedent_estimate::EstimateDiagnostics::penalized: core::option::Option<alloc::boxed::Box<antecedent_estimate::PenalizedReport>>
 pub field antecedent_estimate::EstimateDiagnostics::resampling: core::option::Option<antecedent_estimate::ResamplingReport>
 pub field antecedent_estimate::EstimateDiagnostics::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeightRecord>
+pub field antecedent_estimate::EstimateDiagnostics::treatment_classification: core::option::Option<antecedent_estimate::TreatmentClassification>
 pub field antecedent_estimate::EstimateDiagnostics::treatment_levels: core::option::Option<antecedent_estimate::DeclaredTreatmentLevels>
 pub field antecedent_estimate::EstimateHeterogeneity::cate: core::option::Option<alloc::sync::Arc<[f64]>>
 pub field antecedent_estimate::EstimateHeterogeneity::cate_leaf_dispersion: core::option::Option<alloc::sync::Arc<[f64]>>
@@ -14205,6 +14233,7 @@ pub field antecedent_estimate::GlmAdjustmentAte::other_levels: antecedent_estima
 pub field antecedent_estimate::GlmAdjustmentAte::overlap: antecedent_estimate::OverlapPolicy
 pub field antecedent_estimate::GlmAdjustmentAte::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
 pub field antecedent_estimate::GlmAdjustmentAte::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeights>
+pub field antecedent_estimate::GlmAdjustmentAte::treatment_declaration: antecedent_estimate::TreatmentDeclaration
 pub field antecedent_estimate::GlmAdjustmentWorkspace::ols: antecedent_stats::linalg::LeastSquaresWorkspace
 pub field antecedent_estimate::GlmAdjustmentWorkspace::retain_point: bool
 pub field antecedent_estimate::GlmAdjustmentWorkspace::retained_point: core::option::Option<antecedent_estimate::RetainedGlmPoint>
@@ -14332,7 +14361,6 @@ pub field antecedent_estimate::LevelRows::level: f64
 pub field antecedent_estimate::LevelRows::rows: u64
 pub field antecedent_estimate::LinearAdjustmentAte::backend: antecedent_stats::faer_backend::FaerBackend
 pub field antecedent_estimate::LinearAdjustmentAte::contrasts: alloc::vec::Vec<(antecedent_core::ids::VariableId, antecedent_data::categorical::Contrast)>
-pub field antecedent_estimate::LinearAdjustmentAte::dose_reading: bool
 pub field antecedent_estimate::LinearAdjustmentAte::fit_kind: antecedent_estimate::LinearFitKind
 pub field antecedent_estimate::LinearAdjustmentAte::inference: antecedent_estimate::InferenceSpec
 pub field antecedent_estimate::LinearAdjustmentAte::other_levels: antecedent_estimate::OtherLevels
@@ -14340,6 +14368,7 @@ pub field antecedent_estimate::LinearAdjustmentAte::overlap: antecedent_estimate
 pub field antecedent_estimate::LinearAdjustmentAte::population_registry: core::option::Option<antecedent_core::query::population::PopulationRegistry>
 pub field antecedent_estimate::LinearAdjustmentAte::preparation_budget: core::option::Option<antecedent_data::materialize::PreparationBudget>
 pub field antecedent_estimate::LinearAdjustmentAte::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeights>
+pub field antecedent_estimate::LinearAdjustmentAte::treatment_declaration: antecedent_estimate::TreatmentDeclaration
 pub field antecedent_estimate::LinearContrast::se: f64
 pub field antecedent_estimate::LinearContrast::value: f64
 pub field antecedent_estimate::LoweredCounterfactualItem::arena: antecedent_expr::CausalExprArena
@@ -14526,6 +14555,7 @@ pub field antecedent_estimate::PreparedEstimationProblem::preparation: anteceden
 pub field antecedent_estimate::PreparedEstimationProblem::sampling_weights: core::option::Option<antecedent_estimate::SamplingWeightRecord>
 pub field antecedent_estimate::PreparedEstimationProblem::target_population: antecedent_core::query::target::TargetPopulation
 pub field antecedent_estimate::PreparedEstimationProblem::treatment: alloc::sync::Arc<[f64]>
+pub field antecedent_estimate::PreparedEstimationProblem::treatment_classification: core::option::Option<antecedent_estimate::TreatmentClassification>
 pub field antecedent_estimate::PreparedEstimationProblem::treatment_delta: f64
 pub field antecedent_estimate::PreparedEstimationProblem::treatment_levels: core::option::Option<antecedent_estimate::DeclaredTreatmentLevels>
 pub field antecedent_estimate::PreparedFrontDoorProblem::active: f64
@@ -14566,6 +14596,7 @@ pub field antecedent_estimate::PreparedGlmProblem::preparation: antecedent_data:
 pub field antecedent_estimate::PreparedGlmProblem::sampling: core::option::Option<antecedent_estimate::RetainedSamplingWeights>
 pub field antecedent_estimate::PreparedGlmProblem::target_population: antecedent_core::query::target::TargetPopulation
 pub field antecedent_estimate::PreparedGlmProblem::treatment: alloc::sync::Arc<[f64]>
+pub field antecedent_estimate::PreparedGlmProblem::treatment_classification: core::option::Option<antecedent_estimate::TreatmentClassification>
 pub field antecedent_estimate::PreparedGlmProblem::treatment_levels: core::option::Option<antecedent_estimate::DeclaredTreatmentLevels>
 pub field antecedent_estimate::PreparedIvProblem::adjustment_set: alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub field antecedent_estimate::PreparedIvProblem::exogenous_matrix: alloc::sync::Arc<[f64]>
@@ -18757,6 +18788,7 @@ pub fn <antecedent_estimate::EffectEstimate>::fn with_retained_memory_bytes(self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_sampling_weights(self, record: core::option::Option<antecedent_estimate::SamplingWeightRecord>) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_score_table(self, table: core::option::Option<antecedent_estimate::ScoreTable>) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
+pub fn <antecedent_estimate::EffectEstimate>::fn with_treatment_classification(self, classification: antecedent_estimate::TreatmentClassification) -> Self
 pub fn <antecedent_estimate::EffectEstimate>::fn with_treatment_levels(self, levels: antecedent_estimate::DeclaredTreatmentLevels) -> Self
 pub fn <antecedent_estimate::EmpiricalTableEstimator>::const fn as_str(self) -> &'static str
 pub fn <antecedent_estimate::EmpiricalTableEstimator>::fn identity(self) -> alloc::string::String
@@ -18834,6 +18866,7 @@ pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_glm_options(self, 
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_other_levels(self, other_levels: antecedent_estimate::OtherLevels) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
+pub fn <antecedent_estimate::GlmAdjustmentAte>::const fn with_treatment_declaration(self, declaration: antecedent_estimate::TreatmentDeclaration) -> Self
 pub fn <antecedent_estimate::GlmAdjustmentAte>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedGlmProblem, workspace: &mut antecedent_estimate::GlmAdjustmentWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::GlmAdjustmentAte>::fn fit(&self, problem: &antecedent_estimate::PreparedGlmProblem, workspace: &mut antecedent_estimate::GlmAdjustmentWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, assumptions: antecedent_core::assumption::AssumptionSet) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::GlmAdjustmentAte>::fn new() -> Self
@@ -18879,6 +18912,7 @@ pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_other_levels(se
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_preparation_budget(self, budget: antecedent_data::materialize::PreparationBudget) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
+pub fn <antecedent_estimate::LinearAdjustmentAte>::const fn with_treatment_declaration(self, declaration: antecedent_estimate::TreatmentDeclaration) -> Self
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn ate_on_row_indices(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, row_src: &[usize]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn ate_on_row_indices_into(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, row_src: &[usize], x_boot: &mut [f64], y_boot: &mut [f64]) -> core::result::Result<f64, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::LinearAdjustmentAte>::fn attach_bootstrap(&self, problem: &antecedent_estimate::PreparedEstimationProblem, workspace: &mut antecedent_estimate::EstimationWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext, point: antecedent_estimate::EffectEstimate) -> core::result::Result<antecedent_estimate::EffectEstimate, antecedent_estimate::EstimationError>
@@ -19212,6 +19246,8 @@ pub fn <antecedent_estimate::TreatmentArm>::fn classify(indicators: &[f64]) -> a
 pub fn <antecedent_estimate::TreatmentArm>::fn exact(indicator: f64) -> core::option::Option<Self>
 pub fn <antecedent_estimate::TreatmentArm>::fn is_treated_indicator(indicator: f64) -> bool
 pub fn <antecedent_estimate::TreatmentArm>::fn of(indicator: f64) -> Self
+pub fn <antecedent_estimate::TreatmentClassification>::const fn as_str(self) -> &'static str
+pub fn <antecedent_estimate::TreatmentDeclaration>::const fn declared(self) -> core::option::Option<antecedent_estimate::TreatmentClassification>
 pub fn <antecedent_estimate::TwoStageLeastSquares>::const fn with_bootstrap_replicates(self, replicates: u32) -> Self
 pub fn <antecedent_estimate::TwoStageLeastSquares>::const fn with_overlap(self, overlap: antecedent_estimate::OverlapPolicy) -> Self
 pub fn <antecedent_estimate::TwoStageLeastSquares>::const fn with_se_kind(self, se_kind: antecedent_estimate::AnalyticSeKind) -> Self
@@ -22042,6 +22078,8 @@ pub use antecedent_estimate::propensity::PropensityWeighting = antecedent_estima
 pub use antecedent_estimate::propensity::REFIT_BOOTSTRAP_UNCERTAINTY_KIND = antecedent_estimate::REFIT_BOOTSTRAP_UNCERTAINTY_KIND
 pub use antecedent_estimate::propensity::ReplicatePenalties = antecedent_estimate::ReplicatePenalties
 pub use antecedent_estimate::propensity::RidgeTuning = antecedent_estimate::RidgeTuning
+pub use antecedent_estimate::propensity::TreatmentClassification = antecedent_estimate::TreatmentClassification
+pub use antecedent_estimate::propensity::TreatmentDeclaration = antecedent_estimate::TreatmentDeclaration
 pub use antecedent_estimate::propensity::crossfit_influence_se = antecedent_estimate::crossfit_influence_se
 pub use antecedent_estimate::propensity::default_propensity_overlap = antecedent_estimate::default_propensity_overlap
 pub use antecedent_estimate::provenance_marks_penalized = antecedent_estimate::propensity::provenance_marks_penalized
@@ -22404,6 +22442,11 @@ pub variant antecedent_estimate::TransportIntervalReason::NumericalFailure
 pub variant antecedent_estimate::TransportIntervalReason::UnsupportedDependence
 pub variant antecedent_estimate::TreatmentArm::Control
 pub variant antecedent_estimate::TreatmentArm::Treated
+pub variant antecedent_estimate::TreatmentClassification::Dose
+pub variant antecedent_estimate::TreatmentClassification::Levels
+pub variant antecedent_estimate::TreatmentDeclaration::Dose
+pub variant antecedent_estimate::TreatmentDeclaration::Levels
+pub variant antecedent_estimate::TreatmentDeclaration::Undeclared
 pub variant antecedent_estimate::TrialSampling::IndependentSamples
 pub variant antecedent_estimate::TrialSampling::NestedCohort
 pub variant antecedent_estimate::adaptive_inference::PosteriorRule::ExpectedLoss { loss_threshold: f64 }

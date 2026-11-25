@@ -5296,7 +5296,7 @@ pub fn <antecedent_identify::StudyPlan>::const fn receipt(&self) -> core::option
 pub fn <antecedent_identify::StudyPlan>::fn status(&self) -> core::option::Option<(&'static str, &'static str)>
 pub fn <antecedent_identify::StudyPlanLimits>::const fn for_route(route: &antecedent_identify::StudyPlanRoute) -> Self
 pub fn <antecedent_identify::StudyPlanLimits>::const fn max_candidates(&self) -> usize
-pub fn <antecedent_identify::StudyPlanLimits>::fn check_bounds(&self, route: &antecedent_identify::StudyPlanRoute, regimes_per_candidate: &[usize]) -> core::result::Result<(), antecedent_identify::StudyPlanRefusal>
+pub fn <antecedent_identify::StudyPlanLimits>::fn check_bounds(&self, _route: &antecedent_identify::StudyPlanRoute, regimes_per_candidate: &[usize]) -> core::result::Result<(), antecedent_identify::StudyPlanRefusal>
 pub fn <antecedent_identify::StudyPlanRefusal>::fn bounds_exceeded(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::StudyPlanRefusal>::fn invalid_candidate(message: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn <antecedent_identify::StudyPlanRoute>::const fn decision_operations(&self) -> usize

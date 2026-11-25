@@ -209,6 +209,7 @@ impl core::clone::Clone for antecedent_contract::ExternalTrustState
 impl core::clone::Clone for antecedent_contract::ExternalUncertaintyMeaning
 impl core::clone::Clone for antecedent_contract::ExternalVerificationError
 impl core::clone::Clone for antecedent_contract::FactorDisclosure
+impl core::clone::Clone for antecedent_contract::FoldPolicy
 impl core::clone::Clone for antecedent_contract::HandoffReceipt
 impl core::clone::Clone for antecedent_contract::HostOperation
 impl core::clone::Clone for antecedent_contract::IdentificationSlot
@@ -611,6 +612,7 @@ impl core::cmp::Eq for antecedent_contract::ExternalRefusal
 impl core::cmp::Eq for antecedent_contract::ExternalUncertaintyMeaning
 impl core::cmp::Eq for antecedent_contract::ExternalVerificationError
 impl core::cmp::Eq for antecedent_contract::FactorDisclosure
+impl core::cmp::Eq for antecedent_contract::FoldPolicy
 impl core::cmp::Eq for antecedent_contract::HandoffReceipt
 impl core::cmp::Eq for antecedent_contract::HostOperation
 impl core::cmp::Eq for antecedent_contract::InferenceBasis
@@ -1006,6 +1008,7 @@ impl core::cmp::PartialEq for antecedent_contract::ExternalTrustState
 impl core::cmp::PartialEq for antecedent_contract::ExternalUncertaintyMeaning
 impl core::cmp::PartialEq for antecedent_contract::ExternalVerificationError
 impl core::cmp::PartialEq for antecedent_contract::FactorDisclosure
+impl core::cmp::PartialEq for antecedent_contract::FoldPolicy
 impl core::cmp::PartialEq for antecedent_contract::HandoffReceipt
 impl core::cmp::PartialEq for antecedent_contract::HostOperation
 impl core::cmp::PartialEq for antecedent_contract::IdentificationSlot
@@ -1519,6 +1522,7 @@ impl core::fmt::Debug for antecedent_contract::ExternalTrustState
 impl core::fmt::Debug for antecedent_contract::ExternalUncertaintyMeaning
 impl core::fmt::Debug for antecedent_contract::ExternalVerificationError
 impl core::fmt::Debug for antecedent_contract::FactorDisclosure
+impl core::fmt::Debug for antecedent_contract::FoldPolicy
 impl core::fmt::Debug for antecedent_contract::HandoffReceipt
 impl core::fmt::Debug for antecedent_contract::HostOperation
 impl core::fmt::Debug for antecedent_contract::IdentificationSlot
@@ -1909,6 +1913,7 @@ impl core::hash::Hash for antecedent_contract::EvidenceObligationKind
 impl core::hash::Hash for antecedent_contract::EvidencePort
 impl core::hash::Hash for antecedent_contract::ExternalCapability
 impl core::hash::Hash for antecedent_contract::FactorDisclosure
+impl core::hash::Hash for antecedent_contract::FoldPolicy
 impl core::hash::Hash for antecedent_contract::HostOperation
 impl core::hash::Hash for antecedent_contract::InferenceBasis
 impl core::hash::Hash for antecedent_contract::InputRole
@@ -2054,6 +2059,7 @@ impl core::marker::Copy for antecedent_contract::ExternalCapability
 impl core::marker::Copy for antecedent_contract::ExternalEvidenceKind
 impl core::marker::Copy for antecedent_contract::ExternalPosteriorKind
 impl core::marker::Copy for antecedent_contract::FactorDisclosure
+impl core::marker::Copy for antecedent_contract::FoldPolicy
 impl core::marker::Copy for antecedent_contract::HostOperation
 impl core::marker::Copy for antecedent_contract::InferenceBasis
 impl core::marker::Copy for antecedent_contract::InputRole
@@ -2276,6 +2282,7 @@ impl core::marker::Freeze for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Freeze for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Freeze for antecedent_contract::ExternalVerificationError [auto]
 impl core::marker::Freeze for antecedent_contract::FactorDisclosure [auto]
+impl core::marker::Freeze for antecedent_contract::FoldPolicy [auto]
 impl core::marker::Freeze for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Freeze for antecedent_contract::HostOperation [auto]
 impl core::marker::Freeze for antecedent_contract::IdentificationSlot [auto]
@@ -2701,6 +2708,7 @@ impl core::marker::Send for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Send for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Send for antecedent_contract::ExternalVerificationError [auto]
 impl core::marker::Send for antecedent_contract::FactorDisclosure [auto]
+impl core::marker::Send for antecedent_contract::FoldPolicy [auto]
 impl core::marker::Send for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Send for antecedent_contract::HostOperation [auto]
 impl core::marker::Send for antecedent_contract::IdentificationSlot [auto]
@@ -3125,6 +3133,7 @@ impl core::marker::StructuralPartialEq for antecedent_contract::ExternalTrustSta
 impl core::marker::StructuralPartialEq for antecedent_contract::ExternalUncertaintyMeaning
 impl core::marker::StructuralPartialEq for antecedent_contract::ExternalVerificationError
 impl core::marker::StructuralPartialEq for antecedent_contract::FactorDisclosure
+impl core::marker::StructuralPartialEq for antecedent_contract::FoldPolicy
 impl core::marker::StructuralPartialEq for antecedent_contract::HandoffReceipt
 impl core::marker::StructuralPartialEq for antecedent_contract::HostOperation
 impl core::marker::StructuralPartialEq for antecedent_contract::IdentificationSlot
@@ -3543,6 +3552,7 @@ impl core::marker::Sync for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Sync for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Sync for antecedent_contract::ExternalVerificationError [auto]
 impl core::marker::Sync for antecedent_contract::FactorDisclosure [auto]
+impl core::marker::Sync for antecedent_contract::FoldPolicy [auto]
 impl core::marker::Sync for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Sync for antecedent_contract::HostOperation [auto]
 impl core::marker::Sync for antecedent_contract::IdentificationSlot [auto]
@@ -3968,6 +3978,7 @@ impl core::marker::Unpin for antecedent_contract::ExternalTrustState [auto]
 impl core::marker::Unpin for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::marker::Unpin for antecedent_contract::ExternalVerificationError [auto]
 impl core::marker::Unpin for antecedent_contract::FactorDisclosure [auto]
+impl core::marker::Unpin for antecedent_contract::FoldPolicy [auto]
 impl core::marker::Unpin for antecedent_contract::HandoffReceipt [auto]
 impl core::marker::Unpin for antecedent_contract::HostOperation [auto]
 impl core::marker::Unpin for antecedent_contract::IdentificationSlot [auto]
@@ -4393,6 +4404,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExternalTr
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::ExternalVerificationError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::FactorDisclosure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::FoldPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::HandoffReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::HostOperation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_contract::IdentificationSlot [auto]
@@ -4818,6 +4830,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExternalTrust
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExternalUncertaintyMeaning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::ExternalVerificationError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::FactorDisclosure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::FoldPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::HandoffReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::HostOperation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_contract::IdentificationSlot [auto]
@@ -5269,6 +5282,7 @@ pub const <antecedent_contract::CompositionStage>::ALL: [Self; 10]
 pub const <antecedent_contract::DomainStatus>::ALL: [Self; 8]
 pub const <antecedent_contract::EvidenceObligationKind>::ALL: [Self; 9]
 pub const <antecedent_contract::EvidencePort>::ALL: [Self; 10]
+pub const <antecedent_contract::FoldPolicy>::ALL: [Self; 6]
 pub const <antecedent_contract::InputRole>::ALL: [Self; 5]
 pub const <antecedent_contract::JointAxisKind>::ALL: [Self; 7]
 pub const <antecedent_contract::JointConsumer>::ALL: [Self; 3]
@@ -5305,7 +5319,7 @@ pub const <antecedent_contract::composition_verification::TrustStanding>::ALL: [
 pub const <antecedent_contract::evidence_ledger::SourceKind>::ALL: [Self; 5]
 pub const <antecedent_contract::evidence_ledger::SynthesisKind>::ALL: [Self; 5]
 pub const <antecedent_contract::interface_contract::CalibrationRequirement>::ALL: [Self; 2]
-pub const <antecedent_contract::interface_contract::ContractOperation>::ALL: [Self; 8]
+pub const <antecedent_contract::interface_contract::ContractOperation>::ALL: [Self; 10]
 pub const <antecedent_contract::interface_contract::DependenceRequirement>::ALL: [Self; 3]
 pub const <antecedent_contract::interface_contract::UncertaintyMeaning>::ALL_MEANINGS: [antecedent_contract::DistributionMeaning; 7]
 pub const <antecedent_contract::interface_contract::UncertaintyParadigm>::ALL: [Self; 4]
@@ -5476,6 +5490,7 @@ pub enum antecedent_contract::ExternalScientificObject
 pub enum antecedent_contract::ExternalTrustState
 pub enum antecedent_contract::ExternalUncertaintyMeaning
 pub enum antecedent_contract::ExternalVerificationError
+pub enum antecedent_contract::FoldPolicy
 pub enum antecedent_contract::InferenceBasis
 pub enum antecedent_contract::InputAlignment
 pub enum antecedent_contract::InputRole
@@ -6752,6 +6767,13 @@ pub fn <antecedent_contract::ExternalTrustState>::fn attest(object: &antecedent_
 pub fn <antecedent_contract::ExternalTrustState>::fn verifies(&self, object: &antecedent_contract::ExternalScientificObject) -> bool
 pub fn <antecedent_contract::ExternalTrustState>::fn verifies_execution(&self, execution: &antecedent_contract::ExecutionContract) -> bool
 pub fn <antecedent_contract::ExternalVerificationError>::fn to_refusal(&self) -> antecedent_contract::ExternalRefusal
+pub fn <antecedent_contract::FoldPolicy>::const fn as_str(self) -> &'static str
+pub fn <antecedent_contract::FoldPolicy>::const fn assigner(self) -> &'static str
+pub fn <antecedent_contract::FoldPolicy>::const fn assignment_recorded(self) -> bool
+pub fn <antecedent_contract::FoldPolicy>::const fn dependence(self) -> &'static str
+pub fn <antecedent_contract::FoldPolicy>::const fn estimator_honours(self) -> bool
+pub fn <antecedent_contract::FoldPolicy>::fn from_legacy(word: &str) -> core::option::Option<Self>
+pub fn <antecedent_contract::FoldPolicy>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_contract::HandoffReceipt>::fn chain(&self, next: &Self) -> Self
 pub fn <antecedent_contract::HandoffReceipt>::fn equivalent_claim(&self) -> bool
 pub fn <antecedent_contract::HandoffReceipt>::fn lossless(input: antecedent_core::identity::SemanticDigest, consumer: impl core::convert::Into<alloc::sync::Arc<str>>) -> Self
@@ -7622,6 +7644,7 @@ pub mod antecedent_contract::evidence_ports
 pub mod antecedent_contract::external
 pub mod antecedent_contract::external_binding
 pub mod antecedent_contract::external_refusal
+pub mod antecedent_contract::fold_policy
 pub mod antecedent_contract::interface_contract
 pub mod antecedent_contract::joint_alignment
 pub mod antecedent_contract::joint_event_quantity
@@ -8071,6 +8094,7 @@ pub use antecedent_contract::external_refusal::StructuredRefusal = antecedent_co
 pub use antecedent_contract::external_refusal::capability_from_name = antecedent_contract::capability_from_name
 pub use antecedent_contract::external_refusal::capability_name = antecedent_contract::capability_name
 pub use antecedent_contract::external_values_digest = antecedent_contract::external_binding::external_values_digest
+pub use antecedent_contract::fold_policy::FoldPolicy = antecedent_contract::FoldPolicy
 pub use antecedent_contract::joint_alignment::AlignedLaw = antecedent_contract::AlignedLaw
 pub use antecedent_contract::joint_alignment::JointAlignment = antecedent_contract::JointAlignment
 pub use antecedent_contract::joint_alignment::JointAlignmentError = antecedent_contract::JointAlignmentError
@@ -8402,6 +8426,12 @@ pub variant antecedent_contract::ExternalVerificationError::MissingProbe(anteced
 pub variant antecedent_contract::ExternalVerificationError::Request { index: usize, cause: alloc::boxed::Box<antecedent_contract::ExternalVerificationError> }
 pub variant antecedent_contract::FactorDisclosure::Complete
 pub variant antecedent_contract::FactorDisclosure::UnknownOverlap
+pub variant antecedent_contract::FoldPolicy::CallerOwned
+pub variant antecedent_contract::FoldPolicy::HandoffUnknown
+pub variant antecedent_contract::FoldPolicy::HostOwned
+pub variant antecedent_contract::FoldPolicy::None
+pub variant antecedent_contract::FoldPolicy::OriginScoped
+pub variant antecedent_contract::FoldPolicy::ProviderOwned
 pub variant antecedent_contract::HostOperation::AcceptClaim
 pub variant antecedent_contract::HostOperation::ApplyTransform
 pub variant antecedent_contract::HostOperation::CheckCompatibility
@@ -8906,12 +8936,14 @@ pub variant antecedent_contract::interface_contract::CalibrationStatus::NotMeasu
 pub variant antecedent_contract::interface_contract::CalibrationStatus::PointOnly
 pub variant antecedent_contract::interface_contract::ContractOperation::Covariance
 pub variant antecedent_contract::interface_contract::ContractOperation::Draws
+pub variant antecedent_contract::interface_contract::ContractOperation::Fit
 pub variant antecedent_contract::interface_contract::ContractOperation::Interval
 pub variant antecedent_contract::interface_contract::ContractOperation::JointDraws
 pub variant antecedent_contract::interface_contract::ContractOperation::Law
 pub variant antecedent_contract::interface_contract::ContractOperation::Mean
 pub variant antecedent_contract::interface_contract::ContractOperation::Point
 pub variant antecedent_contract::interface_contract::ContractOperation::Posterior
+pub variant antecedent_contract::interface_contract::ContractOperation::Predict
 pub variant antecedent_contract::interface_contract::DependenceRequirement::DeclaredEvidence
 pub variant antecedent_contract::interface_contract::DependenceRequirement::DisjointEvidence
 pub variant antecedent_contract::interface_contract::DependenceRequirement::Unconstrained

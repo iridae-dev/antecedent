@@ -335,8 +335,10 @@ impl core::clone::Clone for antecedent_design::composition_bundle::NodeFailure
 impl core::clone::Clone for antecedent_design::composition_bundle::NodeKind
 impl core::clone::Clone for antecedent_design::composition_bundle::NodeSource
 impl core::clone::Clone for antecedent_design::composition_bundle::NodeStatus
+impl core::clone::Clone for antecedent_design::composition_bundle::ProducerCheck
 impl core::clone::Clone for antecedent_design::composition_bundle::ProviderOrData
 impl core::clone::Clone for antecedent_design::composition_bundle::SuppliedData
+impl core::clone::Clone for antecedent_design::composition_bundle::SuppliedProducer
 impl core::clone::Clone for antecedent_design::composition_bundle::SuppliedProvider
 impl core::clone::Clone for antecedent_design::composition_bundle::SuppliedSources
 impl core::clone::Clone for antecedent_design::composition_bundle::VerifiedNode
@@ -996,6 +998,8 @@ impl core::clone::Clone for antecedent_design::transported_synthesis::Transporte
 impl core::clone::Clone for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::clone::Clone for antecedent_design::transported_synthesis::TransportedSynthesisMethod
 impl core::clone::Clone for antecedent_design::transported_synthesis::TransportedSynthesisRefusal
+impl core::clone::Clone for antecedent_design::winning_design::WinningDesignDeclaration
+impl core::clone::Clone for antecedent_design::winning_design::WinningDesignError
 impl core::cmp::Eq for antecedent_design::ActionKind
 impl core::cmp::Eq for antecedent_design::BinomialSignal
 impl core::cmp::Eq for antecedent_design::ConfounderPriorDeclaration
@@ -1091,8 +1095,10 @@ impl core::cmp::Eq for antecedent_design::composition_bundle::EvidenceRelationsh
 impl core::cmp::Eq for antecedent_design::composition_bundle::NodeFailure
 impl core::cmp::Eq for antecedent_design::composition_bundle::NodeKind
 impl core::cmp::Eq for antecedent_design::composition_bundle::NodeSource
+impl core::cmp::Eq for antecedent_design::composition_bundle::ProducerCheck
 impl core::cmp::Eq for antecedent_design::composition_bundle::ProviderOrData
 impl core::cmp::Eq for antecedent_design::composition_bundle::SuppliedData
+impl core::cmp::Eq for antecedent_design::composition_bundle::SuppliedProducer
 impl core::cmp::Eq for antecedent_design::composition_bundle::SuppliedProvider
 impl core::cmp::Eq for antecedent_design::composition_bundle::SuppliedSources
 impl core::cmp::Eq for antecedent_design::decision_adapters::ClaimKind
@@ -1329,6 +1335,8 @@ impl core::cmp::Eq for antecedent_design::transported_policy::ModelMechanism
 impl core::cmp::Eq for antecedent_design::transported_policy::SelectionDiagram
 impl core::cmp::Eq for antecedent_design::transported_policy::TransportPremises
 impl core::cmp::Eq for antecedent_design::transported_policy::UtilityProvenance
+impl core::cmp::Eq for antecedent_design::winning_design::WinningDesignDeclaration
+impl core::cmp::Eq for antecedent_design::winning_design::WinningDesignError
 impl core::cmp::Ord for antecedent_design::DecisionProblemId
 impl core::cmp::Ord for antecedent_design::adaptive_trial_transport::TrialMechanism
 impl core::cmp::Ord for antecedent_design::composition_bundle::NodeKind
@@ -1528,8 +1536,10 @@ impl core::cmp::PartialEq for antecedent_design::composition_bundle::NodeFailure
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::NodeKind
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::NodeSource
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::NodeStatus
+impl core::cmp::PartialEq for antecedent_design::composition_bundle::ProducerCheck
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::ProviderOrData
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::SuppliedData
+impl core::cmp::PartialEq for antecedent_design::composition_bundle::SuppliedProducer
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::SuppliedProvider
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::SuppliedSources
 impl core::cmp::PartialEq for antecedent_design::composition_bundle::VerifiedNode
@@ -2120,6 +2130,8 @@ impl core::cmp::PartialEq for antecedent_design::transported_synthesis::Transpor
 impl core::cmp::PartialEq for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::cmp::PartialEq for antecedent_design::transported_synthesis::TransportedSynthesisMethod
 impl core::cmp::PartialEq for antecedent_design::transported_synthesis::TransportedSynthesisRefusal
+impl core::cmp::PartialEq for antecedent_design::winning_design::WinningDesignDeclaration
+impl core::cmp::PartialEq for antecedent_design::winning_design::WinningDesignError
 impl core::cmp::PartialEq<str> for antecedent_design::program_search::OperationalReason
 impl core::cmp::PartialOrd for antecedent_design::DecisionProblemId
 impl core::cmp::PartialOrd for antecedent_design::adaptive_trial_transport::TrialMechanism
@@ -2281,6 +2293,7 @@ impl core::error::Error for antecedent_design::sensitivity_decision::Sensitivity
 impl core::error::Error for antecedent_design::sequential_evaluation::SequentialEvaluationError
 impl core::error::Error for antecedent_design::source_evidence::SourceEvidenceError
 impl core::error::Error for antecedent_design::transport_sensitivity::TransportSensitivityRefusal
+impl core::error::Error for antecedent_design::winning_design::WinningDesignError
 impl core::fmt::Debug for antecedent_design::ActionKind
 impl core::fmt::Debug for antecedent_design::AffineUtility
 impl core::fmt::Debug for antecedent_design::BackdoorRepairFamily
@@ -2501,8 +2514,10 @@ impl core::fmt::Debug for antecedent_design::composition_bundle::NodeFailure
 impl core::fmt::Debug for antecedent_design::composition_bundle::NodeKind
 impl core::fmt::Debug for antecedent_design::composition_bundle::NodeSource
 impl core::fmt::Debug for antecedent_design::composition_bundle::NodeStatus
+impl core::fmt::Debug for antecedent_design::composition_bundle::ProducerCheck
 impl core::fmt::Debug for antecedent_design::composition_bundle::ProviderOrData
 impl core::fmt::Debug for antecedent_design::composition_bundle::SuppliedData
+impl core::fmt::Debug for antecedent_design::composition_bundle::SuppliedProducer
 impl core::fmt::Debug for antecedent_design::composition_bundle::SuppliedProvider
 impl core::fmt::Debug for antecedent_design::composition_bundle::SuppliedSources
 impl core::fmt::Debug for antecedent_design::composition_bundle::VerifiedNode
@@ -3162,6 +3177,8 @@ impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedC
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesisMethod
 impl core::fmt::Debug for antecedent_design::transported_synthesis::TransportedSynthesisRefusal
+impl core::fmt::Debug for antecedent_design::winning_design::WinningDesignDeclaration
+impl core::fmt::Debug for antecedent_design::winning_design::WinningDesignError
 impl core::fmt::Display for antecedent_design::ConfounderValueError
 impl core::fmt::Display for antecedent_design::DecisionContractError
 impl core::fmt::Display for antecedent_design::DecisionProblemId
@@ -3212,6 +3229,7 @@ impl core::fmt::Display for antecedent_design::sequential_evaluation::HistoryKey
 impl core::fmt::Display for antecedent_design::sequential_evaluation::SequentialEvaluationError
 impl core::fmt::Display for antecedent_design::source_evidence::SourceEvidenceError
 impl core::fmt::Display for antecedent_design::transport_sensitivity::TransportSensitivityRefusal
+impl core::fmt::Display for antecedent_design::winning_design::WinningDesignError
 impl core::hash::Hash for antecedent_design::ActionKind
 impl core::hash::Hash for antecedent_design::DecisionProblemId
 impl core::hash::Hash for antecedent_design::RepairClassification
@@ -3488,6 +3506,7 @@ impl core::marker::Copy for antecedent_design::transport_sensitivity::ViolationF
 impl core::marker::Copy for antecedent_design::transported_policy::MechanismStatus
 impl core::marker::Copy for antecedent_design::transported_policy::ModelMechanism
 impl core::marker::Copy for antecedent_design::transported_policy::TransportPremises
+impl core::marker::Copy for antecedent_design::winning_design::WinningDesignError
 impl core::marker::Freeze for antecedent_design::ActionKind [auto]
 impl core::marker::Freeze for antecedent_design::AffineUtility [auto]
 impl core::marker::Freeze for antecedent_design::BackdoorRepairFamily [auto]
@@ -3711,8 +3730,10 @@ impl core::marker::Freeze for antecedent_design::composition_bundle::NodeFailure
 impl core::marker::Freeze for antecedent_design::composition_bundle::NodeKind [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::NodeSource [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::NodeStatus [auto]
+impl core::marker::Freeze for antecedent_design::composition_bundle::ProducerCheck [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::ProviderOrData [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::SuppliedData [auto]
+impl core::marker::Freeze for antecedent_design::composition_bundle::SuppliedProducer [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::SuppliedProvider [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::VerifiedNode [auto]
@@ -4376,6 +4397,8 @@ impl core::marker::Freeze for antecedent_design::transported_synthesis::Transpor
 impl core::marker::Freeze for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Freeze for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
 impl core::marker::Freeze for antecedent_design::transported_synthesis::TransportedSynthesisRefusal [auto]
+impl core::marker::Freeze for antecedent_design::winning_design::WinningDesignDeclaration [auto]
+impl core::marker::Freeze for antecedent_design::winning_design::WinningDesignError [auto]
 impl core::marker::Send for antecedent_design::ActionKind [auto]
 impl core::marker::Send for antecedent_design::AffineUtility [auto]
 impl core::marker::Send for antecedent_design::BackdoorRepairFamily [auto]
@@ -4598,8 +4621,10 @@ impl core::marker::Send for antecedent_design::composition_bundle::NodeFailure [
 impl core::marker::Send for antecedent_design::composition_bundle::NodeKind [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::NodeSource [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::NodeStatus [auto]
+impl core::marker::Send for antecedent_design::composition_bundle::ProducerCheck [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::ProviderOrData [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::SuppliedData [auto]
+impl core::marker::Send for antecedent_design::composition_bundle::SuppliedProducer [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::SuppliedProvider [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::VerifiedNode [auto]
@@ -5263,6 +5288,8 @@ impl core::marker::Send for antecedent_design::transported_synthesis::Transporte
 impl core::marker::Send for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Send for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
 impl core::marker::Send for antecedent_design::transported_synthesis::TransportedSynthesisRefusal [auto]
+impl core::marker::Send for antecedent_design::winning_design::WinningDesignDeclaration [auto]
+impl core::marker::Send for antecedent_design::winning_design::WinningDesignError [auto]
 impl core::marker::StructuralPartialEq for antecedent_design::ActionKind
 impl core::marker::StructuralPartialEq for antecedent_design::AffineUtility
 impl core::marker::StructuralPartialEq for antecedent_design::BinomialSignal
@@ -5449,8 +5476,10 @@ impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::NodeKind
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::NodeSource
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::NodeStatus
+impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::ProducerCheck
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::ProviderOrData
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::SuppliedData
+impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::SuppliedProducer
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::SuppliedProvider
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::SuppliedSources
 impl core::marker::StructuralPartialEq for antecedent_design::composition_bundle::VerifiedNode
@@ -6041,6 +6070,8 @@ impl core::marker::StructuralPartialEq for antecedent_design::transported_synthe
 impl core::marker::StructuralPartialEq for antecedent_design::transported_synthesis::TransportedSynthesis
 impl core::marker::StructuralPartialEq for antecedent_design::transported_synthesis::TransportedSynthesisMethod
 impl core::marker::StructuralPartialEq for antecedent_design::transported_synthesis::TransportedSynthesisRefusal
+impl core::marker::StructuralPartialEq for antecedent_design::winning_design::WinningDesignDeclaration
+impl core::marker::StructuralPartialEq for antecedent_design::winning_design::WinningDesignError
 impl core::marker::Sync for antecedent_design::ActionKind [auto]
 impl core::marker::Sync for antecedent_design::AffineUtility [auto]
 impl core::marker::Sync for antecedent_design::BackdoorRepairFamily [auto]
@@ -6263,8 +6294,10 @@ impl core::marker::Sync for antecedent_design::composition_bundle::NodeFailure [
 impl core::marker::Sync for antecedent_design::composition_bundle::NodeKind [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::NodeSource [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::NodeStatus [auto]
+impl core::marker::Sync for antecedent_design::composition_bundle::ProducerCheck [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::ProviderOrData [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::SuppliedData [auto]
+impl core::marker::Sync for antecedent_design::composition_bundle::SuppliedProducer [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::SuppliedProvider [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::VerifiedNode [auto]
@@ -6928,6 +6961,8 @@ impl core::marker::Sync for antecedent_design::transported_synthesis::Transporte
 impl core::marker::Sync for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Sync for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
 impl core::marker::Sync for antecedent_design::transported_synthesis::TransportedSynthesisRefusal [auto]
+impl core::marker::Sync for antecedent_design::winning_design::WinningDesignDeclaration [auto]
+impl core::marker::Sync for antecedent_design::winning_design::WinningDesignError [auto]
 impl core::marker::Unpin for antecedent_design::ActionKind [auto]
 impl core::marker::Unpin for antecedent_design::AffineUtility [auto]
 impl core::marker::Unpin for antecedent_design::BackdoorRepairFamily [auto]
@@ -7151,8 +7186,10 @@ impl core::marker::Unpin for antecedent_design::composition_bundle::NodeFailure 
 impl core::marker::Unpin for antecedent_design::composition_bundle::NodeKind [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::NodeSource [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::NodeStatus [auto]
+impl core::marker::Unpin for antecedent_design::composition_bundle::ProducerCheck [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::ProviderOrData [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::SuppliedData [auto]
+impl core::marker::Unpin for antecedent_design::composition_bundle::SuppliedProducer [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::SuppliedProvider [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::VerifiedNode [auto]
@@ -7816,6 +7853,8 @@ impl core::marker::Unpin for antecedent_design::transported_synthesis::Transport
 impl core::marker::Unpin for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::marker::Unpin for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
 impl core::marker::Unpin for antecedent_design::transported_synthesis::TransportedSynthesisRefusal [auto]
+impl core::marker::Unpin for antecedent_design::winning_design::WinningDesignDeclaration [auto]
+impl core::marker::Unpin for antecedent_design::winning_design::WinningDesignError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ActionKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::AffineUtility [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::BackdoorRepairFamily [auto]
@@ -8038,8 +8077,10 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::NodeKind [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::NodeSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::NodeStatus [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::ProducerCheck [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::ProviderOrData [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::SuppliedData [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::SuppliedProducer [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::SuppliedProvider [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::VerifiedNode [auto]
@@ -8693,6 +8734,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesisRefusal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::winning_design::WinningDesignDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::winning_design::WinningDesignError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ActionKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::AffineUtility [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::BackdoorRepairFamily [auto]
@@ -8915,8 +8958,10 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bun
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::NodeKind [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::NodeSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::NodeStatus [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::ProducerCheck [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::ProviderOrData [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::SuppliedData [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::SuppliedProducer [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::SuppliedProvider [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::VerifiedNode [auto]
@@ -9570,6 +9615,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_syn
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesis [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesisMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_synthesis::TransportedSynthesisRefusal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::winning_design::WinningDesignDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::winning_design::WinningDesignError [auto]
 impl serde_core::ser::Serialize for antecedent_design::DecisionFunctional
 impl serde_core::ser::Serialize for antecedent_design::DesignCost
 impl serde_core::ser::Serialize for antecedent_design::EvidencePlanArtifact
@@ -9816,14 +9863,18 @@ impl<'a> core::clone::Clone for antecedent_design::evsi::EvsiEvidence<'a>
 impl<'a> core::clone::Clone for antecedent_design::program_search::ProgramSearchSource<'a>
 impl<'a> core::clone::Clone for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a>
 impl<'a> core::clone::Clone for antecedent_design::transported_policy::TransportedPolicyRequest<'a>
+impl<'a> core::clone::Clone for antecedent_design::winning_design::StoredDesignRow<'a>
 impl<'a> core::cmp::Eq for antecedent_design::ObjectiveChannel<'a>
+impl<'a> core::cmp::Eq for antecedent_design::winning_design::StoredDesignRow<'a>
 impl<'a> core::cmp::PartialEq for antecedent_design::ObjectiveChannel<'a>
+impl<'a> core::cmp::PartialEq for antecedent_design::winning_design::StoredDesignRow<'a>
 impl<'a> core::fmt::Debug for antecedent_design::ObjectiveChannel<'a>
 impl<'a> core::fmt::Debug for antecedent_design::RepairFamilyRef<'a>
 impl<'a> core::fmt::Debug for antecedent_design::adaptive_trial_transport::AdaptiveTransportRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_design::composition_bundle::UpstreamNode<'a>
 impl<'a> core::fmt::Debug for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a>
 impl<'a> core::fmt::Debug for antecedent_design::transported_policy::TransportedPolicyRequest<'a>
+impl<'a> core::fmt::Debug for antecedent_design::winning_design::StoredDesignRow<'a>
 impl<'a> core::marker::Copy for antecedent_design::ObjectiveChannel<'a>
 impl<'a> core::marker::Copy for antecedent_design::PlanInputs<'a>
 impl<'a> core::marker::Copy for antecedent_design::RepairFamilyRef<'a>
@@ -9833,6 +9884,7 @@ impl<'a> core::marker::Copy for antecedent_design::evsi::EvsiEvidence<'a>
 impl<'a> core::marker::Copy for antecedent_design::program_search::ProgramSearchSource<'a>
 impl<'a> core::marker::Copy for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a>
 impl<'a> core::marker::Copy for antecedent_design::transported_policy::TransportedPolicyRequest<'a>
+impl<'a> core::marker::Copy for antecedent_design::winning_design::StoredDesignRow<'a>
 impl<'a> core::marker::Freeze for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::RepairFamilyRef<'a> [auto]
@@ -9844,6 +9896,7 @@ impl<'a> core::marker::Freeze for antecedent_design::evsi::EvsiEvidence<'a> [aut
 impl<'a> core::marker::Freeze for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_design::winning_design::StoredDesignRow<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::RepairFamilyRef<'a> [auto]
@@ -9855,7 +9908,9 @@ impl<'a> core::marker::Send for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Send for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
+impl<'a> core::marker::Send for antecedent_design::winning_design::StoredDesignRow<'a> [auto]
 impl<'a> core::marker::StructuralPartialEq for antecedent_design::ObjectiveChannel<'a>
+impl<'a> core::marker::StructuralPartialEq for antecedent_design::winning_design::StoredDesignRow<'a>
 impl<'a> core::marker::Sync for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::RepairFamilyRef<'a> [auto]
@@ -9867,6 +9922,7 @@ impl<'a> core::marker::Sync for antecedent_design::evsi::EvsiEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_design::winning_design::StoredDesignRow<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::RepairFamilyRef<'a> [auto]
@@ -9878,6 +9934,7 @@ impl<'a> core::marker::Unpin for antecedent_design::evsi::EvsiEvidence<'a> [auto
 impl<'a> core::marker::Unpin for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_design::winning_design::StoredDesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::RepairFamilyRef<'a> [auto]
@@ -9889,6 +9946,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::Ev
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_design::winning_design::StoredDesignRow<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::ObjectiveChannel<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::PlanInputs<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::RepairFamilyRef<'a> [auto]
@@ -9900,6 +9958,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiE
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::program_search::ProgramSearchSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::temporal_policy_transport::TemporalPolicyRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::transported_policy::TransportedPolicyRequest<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_design::winning_design::StoredDesignRow<'a> [auto]
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::DecisionFunctional
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::DesignCost
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::EvidencePlanArtifact
@@ -10184,6 +10243,7 @@ pub const antecedent_design::adaptive_trial_transport::ADAPTIVE_TRANSPORT_IDENTI
 pub const antecedent_design::choice_evsi::MAX_EXACT_COMPOSITIONS: u64
 pub const antecedent_design::choice_evsi::MAX_MONTE_CARLO_STUDY: u32
 pub const antecedent_design::choice_evsi::MONTE_CARLO_DRAWS: usize
+pub const antecedent_design::composition_bundle::CATALOG_ROLE_FACT: &str
 pub const antecedent_design::composition_bundle::FACT_EVIDENCE_DIGEST: &str
 pub const antecedent_design::composition_bundle::FACT_LAW: &str
 pub const antecedent_design::composition_bundle::FACT_QUANTITY_DIGEST: &str
@@ -10445,6 +10505,7 @@ pub enum antecedent_design::composition_bundle::EvidenceRelationship
 pub enum antecedent_design::composition_bundle::NodeKind
 pub enum antecedent_design::composition_bundle::NodeSource
 pub enum antecedent_design::composition_bundle::NodeStatus
+pub enum antecedent_design::composition_bundle::ProducerCheck
 pub enum antecedent_design::composition_bundle::ProviderOrData
 pub enum antecedent_design::decision_adapters::AdapterError
 pub enum antecedent_design::decision_adapters::ClaimKind
@@ -10635,6 +10696,7 @@ pub enum antecedent_design::signal::SignalUpdateMode
 pub enum antecedent_design::source_projection_artifact::ProjectionSource
 pub enum antecedent_design::source_projection_artifact::SourceProjection
 pub enum antecedent_design::transported_synthesis::TransportedSynthesisMethod
+pub enum antecedent_design::winning_design::WinningDesignError
 pub field antecedent_design::AffineUtility::intercepts: alloc::sync::Arc<[f64]>
 pub field antecedent_design::AffineUtility::slopes: alloc::sync::Arc<[f64]>
 pub field antecedent_design::CandidateGeneration::templates: alloc::vec::Vec<antecedent_design::CandidateTemplate>
@@ -11292,10 +11354,13 @@ pub field antecedent_design::composition_bundle::NodeFailure::reason: alloc::str
 pub field antecedent_design::composition_bundle::NodeFailure::stage: antecedent_design::composition_bundle::BundleStage
 pub field antecedent_design::composition_bundle::SuppliedData::digest: alloc::string::String
 pub field antecedent_design::composition_bundle::SuppliedData::snapshot_id: alloc::string::String
+pub field antecedent_design::composition_bundle::SuppliedProducer::bytes: alloc::vec::Vec<u8>
+pub field antecedent_design::composition_bundle::SuppliedProducer::role: alloc::string::String
 pub field antecedent_design::composition_bundle::SuppliedProvider::provider_id: alloc::string::String
 pub field antecedent_design::composition_bundle::SuppliedProvider::request_fingerprint: alloc::string::String
 pub field antecedent_design::composition_bundle::SuppliedProvider::snapshot_id: alloc::string::String
 pub field antecedent_design::composition_bundle::SuppliedSources::data: alloc::vec::Vec<antecedent_design::composition_bundle::SuppliedData>
+pub field antecedent_design::composition_bundle::SuppliedSources::producers: alloc::vec::Vec<antecedent_design::composition_bundle::SuppliedProducer>
 pub field antecedent_design::composition_bundle::SuppliedSources::providers: alloc::vec::Vec<antecedent_design::composition_bundle::SuppliedProvider>
 pub field antecedent_design::composition_bundle::UpstreamNode::facts: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub field antecedent_design::composition_bundle::UpstreamNode::id: &'a str
@@ -13468,6 +13533,11 @@ pub field antecedent_design::transported_synthesis::TransportedSynthesis::transp
 pub field antecedent_design::transported_synthesis::TransportedSynthesis::transport_variance_added: core::option::Option<f64>
 pub field antecedent_design::transported_synthesis::TransportedSynthesis::transported_sources: alloc::vec::Vec<antecedent_contract::evidence_ledger::ids::SourceId>
 pub field antecedent_design::transported_synthesis::TransportedSynthesis::variance: f64
+pub field antecedent_design::winning_design::StoredDesignRow::candidate_id: &'a str
+pub field antecedent_design::winning_design::StoredDesignRow::n: u64
+pub field antecedent_design::winning_design::StoredDesignRow::rank: u64
+pub field antecedent_design::winning_design::WinningDesignDeclaration::candidate_id: alloc::string::String
+pub field antecedent_design::winning_design::WinningDesignDeclaration::n: u64
 pub fn <antecedent_design::AffineUtility>::fn new(intercepts: alloc::vec::Vec<f64>, slopes: alloc::vec::Vec<f64>) -> core::result::Result<Self, antecedent_design::DesignError>
 pub fn <antecedent_design::BackdoorRepairFamily>::fn check_regimes(&self, regimes: &[antecedent_core::query::transport_catalog::EvidenceRegime], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::FamilyVerdict, antecedent_design::repair::RepairCancelled>
 pub fn <antecedent_design::BackdoorRepairFamily>::fn dag(&self) -> &antecedent_graph::dag::Dag
@@ -13765,6 +13835,7 @@ pub fn <antecedent_design::composition_bundle::NodeKind>::const fn as_str(self) 
 pub fn <antecedent_design::composition_bundle::NodeKind>::const fn stage(self) -> antecedent_contract::composition_provenance::CompositionStage
 pub fn <antecedent_design::composition_bundle::NodeKind>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_data(self, snapshot_id: &str, digest: &str) -> Self
+pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_producer(self, role: &str, bytes: alloc::vec::Vec<u8>) -> Self
 pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_provider(self, provider_id: &str, snapshot_id: &str, request_fingerprint: &str) -> Self
 pub fn <antecedent_design::decision_adapters::AdapterError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::decision_artifact::DecisionContractArtifact>::fn contract(&self) -> &antecedent_design::DecisionContract
@@ -14410,6 +14481,10 @@ pub fn antecedent_design::composition_boundary::check_composition(inputs: &[ante
 pub fn antecedent_design::composition_boundary::check_paired_draws(inputs: &[antecedent_design::composition_boundary::DecisionInput], relations: &[antecedent_design::composition_boundary::PairRelation]) -> core::result::Result<antecedent_design::composition_boundary::CompositionReceipt, antecedent_design::composition_boundary::BoundaryError>
 pub fn antecedent_design::composition_boundary::evaluate_functional_on_input(contract: &antecedent_design::DecisionContract, action_id: &str, functional: antecedent_design::DecisionFunctional, input: &antecedent_design::composition_boundary::DecisionInput, weakest: antecedent_core::response::SupportStatus) -> core::result::Result<antecedent_design::decision_eval::FunctionalValue, antecedent_design::composition_boundary::BoundaryError>
 pub fn antecedent_design::composition_boundary::evaluate_with_support(contract: &antecedent_design::DecisionContract, inputs: &[antecedent_design::composition_boundary::DecisionInput], policy: &antecedent_design::composition_boundary::SupportPolicy) -> core::result::Result<antecedent_design::composition_boundary::SupportedDecision, antecedent_design::composition_boundary::BoundaryError>
+pub fn antecedent_design::composition_bundle::check_producer(role: &str, expected: &str, bytes: core::option::Option<&[u8]>) -> antecedent_design::composition_bundle::ProducerCheck
+pub fn antecedent_design::composition_bundle::node_kind_for_role(role: &str) -> core::option::Option<antecedent_design::composition_bundle::NodeKind>
+pub fn antecedent_design::composition_bundle::producer_identity(role: &str, bytes: &[u8]) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub fn antecedent_design::composition_bundle::producer_reference(id: &str, role: &str, bytes: &[u8]) -> core::result::Result<antecedent_design::composition_bundle::BundleNode, antecedent_design::composition_bundle::BundleError>
 pub fn antecedent_design::composition_verifiers::describe_artifact(kind: antecedent_design::composition_bundle::NodeKind, bytes: &[u8]) -> core::result::Result<antecedent_design::composition_verifiers::ArtifactDescription, antecedent_design::composition_bundle::NodeFailure>
 pub fn antecedent_design::composition_verifiers::detect_node_kind(bytes: &[u8]) -> core::option::Option<antecedent_design::composition_bundle::NodeKind>
 pub fn antecedent_design::composition_verifiers::evidence_relationship_bytes(relationship: antecedent_design::composition_bundle::EvidenceRelationship, left: &str, right: &str) -> alloc::vec::Vec<u8>
@@ -14608,6 +14683,12 @@ pub fn antecedent_design::transported_policy::evaluate_transported_policy(reques
 pub fn antecedent_design::transported_policy::verify_transported_policy(evaluation: &antecedent_design::transported_policy::TransportedPolicyEvaluation, request: &antecedent_design::transported_policy::TransportedPolicyRequest<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::sequential_evaluation::SequentialResult<()>
 pub fn antecedent_design::transported_synthesis::synthesize_transported(ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, label: &str, contributions: &[antecedent_design::transported_synthesis::TransportedContribution], method: &antecedent_design::transported_synthesis::TransportedSynthesisMethod) -> core::result::Result<antecedent_design::transported_synthesis::TransportedSynthesis, antecedent_design::transported_synthesis::TransportedSynthesisRefusal>
 pub fn antecedent_design::transported_synthesis::synthesize_transported_in_population(ledger: &mut antecedent_contract::evidence_ledger::ledger::EvidenceLedger, label: &str, contributions: &[antecedent_design::transported_synthesis::TransportedContribution], method: &antecedent_design::transported_synthesis::TransportedSynthesisMethod, native_population: &str) -> core::result::Result<antecedent_design::transported_synthesis::TransportedSynthesis, antecedent_design::transported_synthesis::TransportedSynthesisRefusal>
+pub fn antecedent_design::winning_design::project_choice_study_ranking(ranking: &[antecedent_design::choice_evsi::StudyRank]) -> core::result::Result<antecedent_design::winning_design::WinningDesignDeclaration, antecedent_design::winning_design::WinningDesignError>
+pub fn antecedent_design::winning_design::project_ranking_record(record: &antecedent_design::ranking::RankingRecord) -> core::result::Result<antecedent_design::winning_design::WinningDesignDeclaration, antecedent_design::winning_design::WinningDesignError>
+pub fn antecedent_design::winning_design::project_ranking_wire(wire: &antecedent_design::design_ranking_artifact::DesignRankingArtifactWire) -> core::result::Result<antecedent_design::winning_design::WinningDesignDeclaration, antecedent_design::winning_design::WinningDesignError>
+pub fn antecedent_design::winning_design::project_scored_design(ranking: &antecedent_design::ScoredDesignRanking) -> core::result::Result<antecedent_design::winning_design::WinningDesignDeclaration, antecedent_design::winning_design::WinningDesignError>
+pub fn antecedent_design::winning_design::project_stored_winner<'a>(rows: impl core::iter::traits::collect::IntoIterator<Item = antecedent_design::winning_design::StoredDesignRow<'a>>) -> core::result::Result<antecedent_design::winning_design::WinningDesignDeclaration, antecedent_design::winning_design::WinningDesignError>
+pub fn antecedent_design::winning_design::stored_sample_size(design: &antecedent_design::CandidateDesign) -> u64
 pub mod antecedent_design::accepted_preferences
 pub mod antecedent_design::adaptive_policy
 pub mod antecedent_design::adaptive_policy_search
@@ -14709,6 +14790,7 @@ pub mod antecedent_design::transported_bridge
 pub mod antecedent_design::transported_decision_artifact
 pub mod antecedent_design::transported_policy
 pub mod antecedent_design::transported_synthesis
+pub mod antecedent_design::winning_design
 pub mod antecedent_design::z_transport_planner
 pub mod antecedent_design::z_transport_repair
 pub struct antecedent_design::AffineUtility
@@ -14899,6 +14981,7 @@ pub struct antecedent_design::composition_bundle::ConsumedBundle has private fie
 pub struct antecedent_design::composition_bundle::ConsumedNode
 pub struct antecedent_design::composition_bundle::NodeFailure
 pub struct antecedent_design::composition_bundle::SuppliedData
+pub struct antecedent_design::composition_bundle::SuppliedProducer
 pub struct antecedent_design::composition_bundle::SuppliedProvider
 pub struct antecedent_design::composition_bundle::SuppliedSources
 pub struct antecedent_design::composition_bundle::UpstreamNode<'a>
@@ -15411,6 +15494,8 @@ pub struct antecedent_design::transported_policy::TransportedPolicyRequest<'a>
 pub struct antecedent_design::transported_policy::UtilityProvenance
 pub struct antecedent_design::transported_synthesis::TransportedContribution
 pub struct antecedent_design::transported_synthesis::TransportedSynthesis
+pub struct antecedent_design::winning_design::StoredDesignRow<'a>
+pub struct antecedent_design::winning_design::WinningDesignDeclaration
 pub trait antecedent_design::DecisionConstraint<A, O>: core::marker::Send + core::marker::Sync
 pub trait antecedent_design::DecisionSignal<O>: core::marker::Send + core::marker::Sync
 pub trait antecedent_design::FailedContract: antecedent_design::RepairFamily
@@ -15990,6 +16075,7 @@ pub variant antecedent_design::adaptive_policy_search::StandingRequest::FittedMo
 pub variant antecedent_design::adaptive_policy_search::StandingRequest::IdentifiedPolicyEffect
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::OutcomeGivenStratumAndArm
 pub variant antecedent_design::adaptive_trial_transport::TrialMechanism::StratumLaw
+pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Budget { receipt: antecedent_core::search::SearchReceipt, summary: alloc::string::String }
 pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Cancelled
 pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Invalid(alloc::string::String)
 pub variant antecedent_design::choice_evsi::ChoiceEvsiError::Resource(alloc::string::String)
@@ -16171,6 +16257,9 @@ pub variant antecedent_design::composition_bundle::NodeSource::Reference { ident
 pub variant antecedent_design::composition_bundle::NodeStatus::Failed { stage: antecedent_design::composition_bundle::BundleStage, reason: alloc::string::String }
 pub variant antecedent_design::composition_bundle::NodeStatus::ReferenceUnresolved { requires: antecedent_design::composition_bundle::ProviderOrData }
 pub variant antecedent_design::composition_bundle::NodeStatus::Verified
+pub variant antecedent_design::composition_bundle::ProducerCheck::Match
+pub variant antecedent_design::composition_bundle::ProducerCheck::Missing
+pub variant antecedent_design::composition_bundle::ProducerCheck::Refused { stage: antecedent_design::composition_bundle::BundleStage, reason: alloc::string::String }
 pub variant antecedent_design::composition_bundle::ProviderOrData::Data { snapshot_id: alloc::string::String, digest: alloc::string::String }
 pub variant antecedent_design::composition_bundle::ProviderOrData::Provider { provider_id: alloc::string::String, snapshot_id: alloc::string::String, request_fingerprint: alloc::string::String }
 pub variant antecedent_design::decision_adapters::AdapterError::Admissibility(antecedent_design::decision_contract::AdmissibilityError)
@@ -17010,6 +17099,7 @@ pub variant antecedent_design::program_search::OperationalReason::Restriction(al
 pub variant antecedent_design::program_search::ProgramFeasibility::Feasible
 pub variant antecedent_design::program_search::ProgramFeasibility::Operational(antecedent_design::program_search::OperationalReason)
 pub variant antecedent_design::program_search::ProgramFeasibility::Risk(alloc::vec::Vec<alloc::string::String>)
+pub variant antecedent_design::program_search::ProgramSearchError::Budget { receipt: antecedent_core::search::SearchReceipt, summary: alloc::string::String }
 pub variant antecedent_design::program_search::ProgramSearchError::Cancelled
 pub variant antecedent_design::program_search::ProgramSearchError::Invalid(alloc::string::String)
 pub variant antecedent_design::program_search::ProgramSearchError::Resource(alloc::string::String)
@@ -17163,3 +17253,8 @@ pub variant antecedent_design::transported_synthesis::TransportedSynthesisMethod
 pub variant antecedent_design::transported_synthesis::TransportedSynthesisRefusal::Declaration { detail: &'static str, source: core::option::Option<antecedent_contract::evidence_ledger::ids::SourceId>, remedy: &'static str }
 pub variant antecedent_design::transported_synthesis::TransportedSynthesisRefusal::Ledger(antecedent_contract::evidence_ledger::refusal::LedgerError)
 pub variant antecedent_design::transported_synthesis::TransportedSynthesisRefusal::Numeric(antecedent_stats::synthesis_transport::TransportedSynthesisError)
+pub variant antecedent_design::winning_design::WinningDesignError::Ambiguous
+pub variant antecedent_design::winning_design::WinningDesignError::BlankId
+pub variant antecedent_design::winning_design::WinningDesignError::Empty
+pub variant antecedent_design::winning_design::WinningDesignError::Mixed
+pub variant antecedent_design::winning_design::WinningDesignError::NoWinner

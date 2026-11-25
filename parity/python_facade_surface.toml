@@ -649,6 +649,13 @@ python = "antecedent.decision.Contract.evaluate"
 reason = "Python projects static effects through the shared native effect adapter and curves through native_claim, then evaluates the contract on that source."
 
 [[entry]]
+rust = "antecedent::analysis::decision_result::project_static_effect"
+kind = "fn"
+status = "bound"
+python = "antecedent.joint_distribution.ScientificQuantity.from_effect"
+reason = "The native effect_source_json method projects the original checked effect; Contract.evaluate also uses it when reading a static effect."
+
+[[entry]]
 rust = "antecedent::analysis::decision_result::supplied_child_identity"
 kind = "fn"
 status = "internal"
@@ -1365,6 +1372,12 @@ status = "internal"
 reason = "composition-graph or planner plumbing executed behind the prepared study, recalculation or verification entries; Python reaches the capability through those entries and has no separate call"
 
 [[entry]]
+rust = "antecedent::analysis::interactive_admitted_envelope_atoms"
+kind = "fn"
+status = "internal"
+reason = "Quotes how many identified graph atoms fit the execution memory limit before an Interactive-tier analysis subsamples its posterior envelope. Python supplies the limit on Execution."
+
+[[entry]]
 rust = "antecedent::analysis::refuse_non_report_hmc"
 kind = "fn"
 status = "internal"
@@ -1663,7 +1676,7 @@ status = "bound"
 python = "antecedent.transport_handoff.hand_to_callback"
 
 [[entry]]
-rust = "antecedent::analysis::transport_receipt_projection::project_transported_response"
+rust = "antecedent::analysis::project_transported_response"
 kind = "fn"
 status = "bound"
 python = "antecedent.transported_response.project_transported_response"

@@ -1808,6 +1808,7 @@ pub fn <antecedent_discovery::DbnPosterior>::fn run(&self, data: &antecedent_dat
 pub fn <antecedent_discovery::DbnPosterior>::fn run_panel(&self, units: &[antecedent_data::dataset::TimeSeriesData], variables: &[antecedent_core::ids::VariableId], prior: &antecedent_discovery::GraphPrior, score_family: antecedent_state::graph_score::GraphScoreFamily, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::GraphPosterior, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::DbnPosterior>::fn with_force_mcmc(self, force: bool) -> Self
 pub fn <antecedent_discovery::DbnPosterior>::fn with_mcmc_schedule(self, n_chains: u32, n_warmup: u32, n_draws: u32) -> Self
+pub fn <antecedent_discovery::DbnPosterior>::fn with_template_limit(self, templates: u64) -> Self
 pub fn <antecedent_discovery::DirectLingam>::fn new() -> Self
 pub fn <antecedent_discovery::DirectLingam>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], _workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticDagDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::DirectLingam>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
@@ -2284,6 +2285,7 @@ pub struct antecedent_discovery::CandidateCatalog has private fields
 pub struct antecedent_discovery::CiScreenedPosterior
 pub struct antecedent_discovery::CompiledConstraints
 pub struct antecedent_discovery::DbnPosterior
+pub struct antecedent_discovery::DbnPosterior has private fields
 pub struct antecedent_discovery::DirectLingam
 pub struct antecedent_discovery::DiscoveryConstraints
 pub struct antecedent_discovery::DiscoveryDiagnostic

@@ -5069,6 +5069,7 @@ pub fn <antecedent_stats::adaptive_inference::GaussianMixtureLaw>::fn mean(&self
 pub fn <antecedent_stats::adaptive_inference::GaussianMixtureLaw>::fn variance(&self) -> f64
 pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::const fn respondents(&self) -> usize
 pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::fn new(prior: &antecedent_stats::adaptive_inference::HierarchicalChoicePrior, counts: &[alloc::vec::Vec<u32>]) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::fn new_in(prior: &antecedent_stats::adaptive_inference::HierarchicalChoicePrior, counts: &[alloc::vec::Vec<u32>], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::fn share_interval(&self, option: usize, level: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<(f64, f64), antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::HierarchicalChoicePosterior>::fn summary(&self, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::HierarchicalSummary, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn <antecedent_stats::adaptive_inference::HistoricalPrior>::fn borrowed_trials(&self) -> f64
@@ -5219,6 +5220,7 @@ pub fn antecedent_stats::adaptive_inference::adaptive_scores(arms: usize, assign
 pub fn antecedent_stats::adaptive_inference::admit(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, paradigm: antecedent_stats::adaptive_inference::UncertaintyParadigm) -> core::result::Result<antecedent_stats::adaptive_inference::EstimandStatement, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::admit_repeated_measures(spec: &antecedent_stats::adaptive_inference::RepeatedMeasuresSpec, paradigm: antecedent_stats::adaptive_inference::UncertaintyParadigm) -> core::result::Result<(), antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::anytime_exclusion_probability(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, truth: &[f64], alpha: f64, tuning_samples: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<f64, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::anytime_exclusion_probability_in(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, truth: &[f64], alpha: f64, tuning_samples: f64, cancelled: &dyn core::ops::function::Fn() -> bool, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::anytime_valid_report(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, observed: &[u16], alpha: f64, tuning_samples: f64) -> core::result::Result<antecedent_stats::adaptive_inference::AnytimeReport, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::apply_exploration_floor(row: &mut [f64], floor: f64)
 pub fn antecedent_stats::adaptive_inference::bayesian_report(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, prior: antecedent_stats::adaptive_inference::BetaPrior, observed: &[u16], cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::BayesianReport, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
@@ -5231,21 +5233,25 @@ pub fn antecedent_stats::adaptive_inference::beta_binomial_pmf(responses: u32, m
 pub fn antecedent_stats::adaptive_inference::boundaries(fractions: &[f64], alpha: f64, spending: antecedent_stats::adaptive_inference::SpendingFunction, sidedness: antecedent_stats::adaptive_inference::Sidedness, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::Boundaries, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::bounded_mean_confidence_sequence(values: &[f64], alpha: f64, tuning_samples: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ArmSequence, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::choice_procedure::enumerate_choice_law(spec: &antecedent_stats::adaptive_inference::ChoiceProcedureSpec, kernel: &antecedent_stats::adaptive_inference::ChoiceKernel, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ChoiceLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::choice_procedure::enumerate_choice_law_in(spec: &antecedent_stats::adaptive_inference::ChoiceProcedureSpec, kernel: &antecedent_stats::adaptive_inference::ChoiceKernel, cancelled: &dyn core::ops::function::Fn() -> bool, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::adaptive_inference::ChoiceLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::contrast_bounds(a: &antecedent_stats::adaptive_inference::ArmSequence, b: &antecedent_stats::adaptive_inference::ArmSequence) -> (f64, f64)
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::mixture_hoeffding_radius(count: u64, alpha: f64, tuning_samples: f64) -> core::result::Result<f64, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::confidence_sequence::plug_in_confidence_sequence(values: &[f64], alpha: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ArmSequence, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::crossing_probabilities(fractions: &[f64], critical: &[f64], sidedness: antecedent_stats::adaptive_inference::Sidedness, drift: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::decision_report(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, truth: &[f64], cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::DecisionReport, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::decision_report_in(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, truth: &[f64], cancelled: &dyn core::ops::function::Fn() -> bool, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::adaptive_inference::DecisionReport, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::derive_repeated_measures(spec: &antecedent_stats::adaptive_inference::RepeatedMeasuresSpec, arm_means: &[f64], request: &antecedent_stats::adaptive_inference::RepeatedMeasuresRequest, z: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::derive_repeated_measures_within(spec: &antecedent_stats::adaptive_inference::RepeatedMeasuresSpec, arm_means: &[f64], request: &antecedent_stats::adaptive_inference::RepeatedMeasuresRequest, z: f64, budget: &antecedent_stats::adaptive_inference::ResourceBudget, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::RepeatedMeasuresDerivation, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::design_effect(responses: u32, correlation: f64) -> f64
 pub fn antecedent_stats::adaptive_inference::enumerate_law(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, kernel: &antecedent_stats::adaptive_inference::OutcomeKernel, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ProcedureLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::enumerate_law_in(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, kernel: &antecedent_stats::adaptive_inference::OutcomeKernel, cancelled: &dyn core::ops::function::Fn() -> bool, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::adaptive_inference::ProcedureLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::exact_fixed_contrast_law(spec: &antecedent_stats::adaptive_inference::RepeatedMeasuresSpec, arm_means: &[f64]) -> core::result::Result<antecedent_stats::adaptive_inference::GaussianMixtureLaw, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::exact_posterior(request: &antecedent_stats::adaptive_inference::PosteriorRequest<'_>, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ExactPosterior, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::first_crossing(statistics: &[f64], critical: &[f64], sidedness: antecedent_stats::adaptive_inference::Sidedness) -> core::option::Option<usize>
 pub fn antecedent_stats::adaptive_inference::group_sequential::stagewise_inference(fractions: &[f64], critical: &[f64], sidedness: antecedent_stats::adaptive_inference::Sidedness, observed: antecedent_stats::adaptive_inference::StagewiseLook, level: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::StagewiseInference, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::group_sequential::stagewise_upper_p_value(fractions: &[f64], critical: &[f64], sidedness: antecedent_stats::adaptive_inference::Sidedness, observed: antecedent_stats::adaptive_inference::StagewiseLook, drift: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<f64, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::inversion_interval(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, observed: &antecedent_stats::adaptive_inference::ObservedTerminal, grid: &antecedent_stats::adaptive_inference::InversionGrid, alpha: f64, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::InversionInterval, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::inversion_interval_in(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, observed: &antecedent_stats::adaptive_inference::ObservedTerminal, grid: &antecedent_stats::adaptive_inference::InversionGrid, alpha: f64, cancelled: &dyn core::ops::function::Fn() -> bool, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::adaptive_inference::InversionInterval, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::ordering_p_values(law: &antecedent_stats::adaptive_inference::ProcedureLaw, plus: usize, minus: usize, observed: &antecedent_stats::adaptive_inference::ObservedTerminal) -> core::result::Result<antecedent_stats::adaptive_inference::OrderingPValues, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::participant_procedure::invalid_reason_code() -> &'static str
 pub fn antecedent_stats::adaptive_inference::participant_procedure::premise_reason_code() -> &'static str
@@ -5254,6 +5260,7 @@ pub fn antecedent_stats::adaptive_inference::participant_procedure::simulate_par
 pub fn antecedent_stats::adaptive_inference::participant_procedure::simulate_participant_procedure(spec: &antecedent_stats::adaptive_inference::ParticipantSpec, truth: &[f64], request: &antecedent_stats::adaptive_inference::ParticipantSimulationRequest, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ParticipantSimulation, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::participant_procedure::simulate_participant_procedure_within(spec: &antecedent_stats::adaptive_inference::ParticipantSpec, truth: &[f64], request: &antecedent_stats::adaptive_inference::ParticipantSimulationRequest, budget: &antecedent_stats::adaptive_inference::ResourceBudget, cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::adaptive_inference::ParticipantSimulation, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::posterior_mean_gaps(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, priors: &[antecedent_stats::adaptive_inference::BetaPrior], cancelled: &dyn core::ops::function::Fn() -> bool) -> core::result::Result<alloc::vec::Vec<antecedent_stats::adaptive_inference::PosteriorMeanGap>, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
+pub fn antecedent_stats::adaptive_inference::posterior_mean_gaps_in(spec: &antecedent_stats::adaptive_inference::ProcedureSpec, priors: &[antecedent_stats::adaptive_inference::BetaPrior], cancelled: &dyn core::ops::function::Fn() -> bool, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<antecedent_stats::adaptive_inference::PosteriorMeanGap>, antecedent_stats::adaptive_inference::AdaptiveInferenceError>
 pub fn antecedent_stats::adaptive_inference::procedure_repeated_measures::incomplete_reason_code() -> &'static str
 pub fn antecedent_stats::adaptive_inference::procedure_repeated_measures::invalid_reason_code() -> &'static str
 pub fn antecedent_stats::adaptive_inference::procedure_repeated_measures::premise_reason_code() -> &'static str
@@ -5290,6 +5297,7 @@ pub fn antecedent_stats::cholesky_spd(a: &[f64], n: usize) -> core::option::Opti
 pub fn antecedent_stats::ci::ci_from_name(name: &str) -> core::result::Result<alloc::sync::Arc<dyn antecedent_stats::ConditionalIndependence + core::marker::Send + core::marker::Sync>, antecedent_stats::StatsError>
 pub fn antecedent_stats::ci::ensure_alpha_resolvable(min_p: f64, alpha: f64) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn antecedent_stats::classifier_two_sample(a: &[f64], b: &[f64]) -> core::result::Result<(f64, f64), antecedent_stats::StatsError>
+pub fn antecedent_stats::cluster::admit_multiway(d: usize, n: usize, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_core::execution::admission::AdmissionLease, antecedent_stats::StatsError>
 pub fn antecedent_stats::cluster::cluster_meat_scalar(values: &[f64], groups: &[u32], mean: f64) -> core::result::Result<(f64, usize), antecedent_stats::StatsError>
 pub fn antecedent_stats::cluster::combine_inclusion_exclusion(terms: &[f64]) -> core::result::Result<f64, antecedent_stats::StatsError>
 pub fn antecedent_stats::cluster::effective_nw_lag(requested: usize, max_span: usize) -> usize
@@ -5300,6 +5308,7 @@ pub fn antecedent_stats::cluster::multiway_work(d: usize, n: usize) -> core::opt
 pub fn antecedent_stats::cluster::newey_west_meat_scalar(demeaned: &[f64], lag: usize) -> f64
 pub fn antecedent_stats::cluster::panel_hac_meat_scalar(demeaned: &[f64], clusters: &[u32], time: &[i64], max_lag: usize) -> core::result::Result<(f64, usize), antecedent_stats::StatsError>
 pub fn antecedent_stats::coefficient_covariance(x_colmajor: &[f64], nrows: usize, ncols: usize, residuals: &[f64], kind: antecedent_stats::SandwichKind<'_>) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
+pub fn antecedent_stats::coefficient_covariance_in(x_colmajor: &[f64], nrows: usize, ncols: usize, residuals: &[f64], kind: antecedent_stats::SandwichKind<'_>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_stats::StatsError>
 pub fn antecedent_stats::column_is_constant(x_colmajor: &[f64], nrows: usize, col: usize) -> bool
 pub fn antecedent_stats::composed_exceedance_decision(draws: &[f64], threshold: f64, cutoff: f64, band_level: f64, effective_size: core::option::Option<f64>) -> core::result::Result<antecedent_stats::ExceedanceDecision, antecedent_stats::JointLawError>
 pub fn antecedent_stats::conditional_logit_log_likelihood(design: &antecedent_stats::ConditionalLogitDesign<'_>, coefficients: &[f64]) -> core::result::Result<f64, antecedent_stats::ConditionalLogitError>
@@ -5335,6 +5344,11 @@ pub fn antecedent_stats::equal_tail_interval_sorted(sorted: &[f64], level: f64, 
 pub fn antecedent_stats::equicorrelated_gls(estimates: &[f64], standard_errors: &[f64], rho: f64) -> core::result::Result<(f64, f64), antecedent_stats::SynthesisError>
 pub fn antecedent_stats::evaluate_columns(sources: &[alloc::vec::Vec<f64>], stages: &[antecedent_stats::StageSpec], cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<antecedent_stats::Evaluated, antecedent_stats::ChainError>
 pub fn antecedent_stats::evaluate_enclosures(sources: &[antecedent_stats::Enclosure], stages: &[antecedent_stats::StageSpec]) -> core::result::Result<alloc::vec::Vec<antecedent_stats::Enclosure>, antecedent_stats::ChainError>
+pub fn antecedent_stats::execution_quote::admit_execution_quote(ctx: &antecedent_core::execution::context::ExecutionContext, operation_limit: u64, quoted_operations: u64, bytes: u64, unevaluated: &str) -> core::result::Result<antecedent_core::execution::admission::AdmissionLease, antecedent_core::search::SearchReceipt>
+pub fn antecedent_stats::execution_quote::execution_quote_fits(ctx: &antecedent_core::execution::context::ExecutionContext, operation_limit: u64, quoted_operations: u64, bytes: u64) -> bool
+pub fn antecedent_stats::execution_quote::open_execution() -> antecedent_core::execution::context::ExecutionContext
+pub fn antecedent_stats::execution_quote::probe_execution_quote(ctx: &antecedent_core::execution::context::ExecutionContext, operation_limit: u64, quoted_operations: u64, bytes: u64, unevaluated: &str) -> core::result::Result<(), antecedent_core::search::SearchReceipt>
+pub fn antecedent_stats::execution_quote::unrepresentable_quote(unevaluated: &str) -> antecedent_core::search::SearchReceipt
 pub fn antecedent_stats::expand_bspline(x: &[f64], n_basis: usize, knots: core::option::Option<&[f64]>) -> core::result::Result<(alloc::vec::Vec<f64>, alloc::sync::Arc<[f64]>), antecedent_stats::StatsError>
 pub fn antecedent_stats::exposure_probabilities(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping, level: antecedent_core::query::interference::ExposureLevel, monte_carlo_draws: u32, seed: u64) -> core::result::Result<antecedent_stats::ExposureProbabilities, antecedent_stats::StatsError>
 pub fn antecedent_stats::exposure_probabilities_with_context(design: &antecedent_core::query::interference::AssignmentDesign, incoming: &[alloc::vec::Vec<(usize, f64)>], mapping: &antecedent_core::query::interference::ExposureMapping, level: antecedent_core::query::interference::ExposureLevel, monte_carlo_draws: u32, seed: u64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::ExposureProbabilities, antecedent_stats::StatsError>
@@ -5475,7 +5489,10 @@ pub fn antecedent_stats::predict_lasso(fit: &antecedent_stats::LassoFit, x_colma
 pub fn antecedent_stats::predict_propensity(x_colmajor: &[f64], nrows: usize, ncols: usize, coefficients: &[f64], out: &mut [f64]) -> core::result::Result<(), antecedent_stats::StatsError>
 pub fn antecedent_stats::preposterior(parameter: &[f64], utility: &[f64], weights: core::option::Option<&[f64]>, study: &antecedent_stats::Preposterior, cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<antecedent_stats::PreposteriorOutcome, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::admit_moment_matched_table_work(k: usize, rows: usize, limit: u64) -> core::result::Result<(), antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::evaluate_columns_in(sources: &[alloc::vec::Vec<f64>], stages: &[antecedent_stats::StageSpec], cancel: &antecedent_core::execution::cancel::CancellationToken, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::Evaluated, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::evaluate_mixed_enclosures(sources: &[antecedent_stats::propagation_chain::MixedSource<'_>], stages: &[antecedent_stats::StageSpec], cancel: &antecedent_core::execution::cancel::CancellationToken) -> core::result::Result<alloc::vec::Vec<alloc::vec::Vec<antecedent_stats::Enclosure>>, antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::preposterior_in(parameter: &[f64], utility: &[f64], weights: core::option::Option<&[f64]>, study: &antecedent_stats::Preposterior, cancel: &antecedent_core::execution::cancel::CancellationToken, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::PreposteriorOutcome, antecedent_stats::ChainError>
+pub fn antecedent_stats::propagation_chain::preposterior_subsample(parameter: &[f64], utility: &[f64], weights: core::option::Option<&[f64]>, study: &antecedent_stats::Preposterior, cancel: &antecedent_core::execution::cancel::CancellationToken, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_stats::PreposteriorOutcome, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::shared_row_correlation(rows_a: usize, rows_b: usize, shared: usize) -> core::result::Result<f64, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::summarize(column: &[f64], weights: core::option::Option<&[f64]>) -> core::result::Result<antecedent_stats::ColumnSummary, antecedent_stats::ChainError>
 pub fn antecedent_stats::propagation_chain::validate_spec(n_sources: usize, stages: &[antecedent_stats::StageSpec]) -> core::result::Result<(), antecedent_stats::ChainError>
@@ -5526,6 +5543,7 @@ pub mod antecedent_stats::describe
 pub mod antecedent_stats::design
 pub mod antecedent_stats::divergence
 pub mod antecedent_stats::error
+pub mod antecedent_stats::execution_quote
 pub mod antecedent_stats::faer_backend
 pub mod antecedent_stats::faer_scope
 pub mod antecedent_stats::fdr
@@ -5904,6 +5922,7 @@ pub use antecedent_stats::adaptive_inference::dirichlet_choice::DirichletPosteri
 pub use antecedent_stats::adaptive_inference::dirichlet_choice::MAX_CHOICE_COUNT = antecedent_stats::adaptive_inference::MAX_CHOICE_COUNT
 pub use antecedent_stats::adaptive_inference::dirichlet_choice::MAX_CHOICE_OPTIONS = antecedent_stats::adaptive_inference::MAX_CHOICE_OPTIONS
 pub use antecedent_stats::adaptive_inference::enumerate_choice_law = antecedent_stats::adaptive_inference::choice_procedure::enumerate_choice_law
+pub use antecedent_stats::adaptive_inference::enumerate_choice_law_in = antecedent_stats::adaptive_inference::choice_procedure::enumerate_choice_law_in
 pub use antecedent_stats::adaptive_inference::expected_losses = antecedent_stats::adaptive_inference::beta_bernoulli::expected_losses
 pub use antecedent_stats::adaptive_inference::group_sequential::Boundaries = antecedent_stats::adaptive_inference::Boundaries
 pub use antecedent_stats::adaptive_inference::group_sequential::MAX_LOOKS = antecedent_stats::adaptive_inference::MAX_LOOKS
@@ -5990,6 +6009,7 @@ pub use antecedent_stats::adaptive_inference::procedure_law::ProcedureLaw = ante
 pub use antecedent_stats::adaptive_inference::procedure_law::TerminalAtom = antecedent_stats::adaptive_inference::TerminalAtom
 pub use antecedent_stats::adaptive_inference::procedure_law::apply_exploration_floor = antecedent_stats::adaptive_inference::apply_exploration_floor
 pub use antecedent_stats::adaptive_inference::procedure_law::enumerate_law = antecedent_stats::adaptive_inference::enumerate_law
+pub use antecedent_stats::adaptive_inference::procedure_law::enumerate_law_in = antecedent_stats::adaptive_inference::enumerate_law_in
 pub use antecedent_stats::adaptive_inference::procedure_repeated_measures::AnalysisEstimator = antecedent_stats::adaptive_inference::AnalysisEstimator
 pub use antecedent_stats::adaptive_inference::procedure_repeated_measures::CellLabel = antecedent_stats::adaptive_inference::CellLabel
 pub use antecedent_stats::adaptive_inference::procedure_repeated_measures::FinalAnalysis = antecedent_stats::adaptive_inference::FinalAnalysis
@@ -6035,12 +6055,16 @@ pub use antecedent_stats::adaptive_inference::procedure_uncertainty::PosteriorMe
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::UncertaintyParadigm = antecedent_stats::adaptive_inference::UncertaintyParadigm
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::admit = antecedent_stats::adaptive_inference::admit
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::anytime_exclusion_probability = antecedent_stats::adaptive_inference::anytime_exclusion_probability
+pub use antecedent_stats::adaptive_inference::procedure_uncertainty::anytime_exclusion_probability_in = antecedent_stats::adaptive_inference::anytime_exclusion_probability_in
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::anytime_valid_report = antecedent_stats::adaptive_inference::anytime_valid_report
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::bayesian_report = antecedent_stats::adaptive_inference::bayesian_report
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::decision_report = antecedent_stats::adaptive_inference::decision_report
+pub use antecedent_stats::adaptive_inference::procedure_uncertainty::decision_report_in = antecedent_stats::adaptive_inference::decision_report_in
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::inversion_interval = antecedent_stats::adaptive_inference::inversion_interval
+pub use antecedent_stats::adaptive_inference::procedure_uncertainty::inversion_interval_in = antecedent_stats::adaptive_inference::inversion_interval_in
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::ordering_p_values = antecedent_stats::adaptive_inference::ordering_p_values
 pub use antecedent_stats::adaptive_inference::procedure_uncertainty::posterior_mean_gaps = antecedent_stats::adaptive_inference::posterior_mean_gaps
+pub use antecedent_stats::adaptive_inference::procedure_uncertainty::posterior_mean_gaps_in = antecedent_stats::adaptive_inference::posterior_mean_gaps_in
 pub use antecedent_stats::adaptive_inference::regularized_incomplete_beta = antecedent_stats::adaptive_inference::beta_bernoulli::regularized_incomplete_beta
 pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::ArmMeanPosterior = antecedent_stats::adaptive_inference::ArmMeanPosterior
 pub use antecedent_stats::adaptive_inference::repeated_measures_posterior::ContrastPosterior = antecedent_stats::adaptive_inference::ContrastPosterior
@@ -6113,6 +6137,7 @@ pub use antecedent_stats::combine_inclusion_exclusion = antecedent_stats::cluste
 pub use antecedent_stats::covariance::Hc2Coefficient = antecedent_stats::Hc2Coefficient
 pub use antecedent_stats::covariance::SandwichKind = antecedent_stats::SandwichKind
 pub use antecedent_stats::covariance::coefficient_covariance = antecedent_stats::coefficient_covariance
+pub use antecedent_stats::covariance::coefficient_covariance_in = antecedent_stats::coefficient_covariance_in
 pub use antecedent_stats::design::BasisKind = antecedent_stats::BasisKind
 pub use antecedent_stats::design::CompiledDesign = antecedent_stats::CompiledDesign
 pub use antecedent_stats::design::ContrastCodingKind = antecedent_stats::ContrastCodingKind
@@ -6423,6 +6448,7 @@ pub variant antecedent_stats::ChainError::LowEffectiveSize { effective: f64, min
 pub variant antecedent_stats::ChainError::NonFinite(&'static str)
 pub variant antecedent_stats::ChainError::Operator(&'static str)
 pub variant antecedent_stats::ChainError::PoolCovariance(antecedent_stats::SynthesisError)
+pub variant antecedent_stats::ChainError::Search { stop: &'static str, summary: alloc::string::String, receipt: antecedent_core::search::SearchReceipt }
 pub variant antecedent_stats::ChainError::Shape(&'static str)
 pub variant antecedent_stats::ChainError::SingularPool
 pub variant antecedent_stats::Coefficient::Fixed(f64)
@@ -6561,6 +6587,7 @@ pub variant antecedent_stats::StatsError::NonPositiveVariance { message: &'stati
 pub variant antecedent_stats::StatsError::RankDeficient { rank: usize, ncols: usize }
 pub variant antecedent_stats::StatsError::ResourceLimit { message: &'static str, required_bytes: u64, limit_bytes: u64 }
 pub variant antecedent_stats::StatsError::Route { message: &'static str, diagnostic: antecedent_core::diagnostic::RouteNativeDiagnostic }
+pub variant antecedent_stats::StatsError::Search { stop: &'static str, summary: alloc::string::String, receipt: antecedent_core::search::SearchReceipt }
 pub variant antecedent_stats::StatsError::Shape { message: &'static str }
 pub variant antecedent_stats::StatsError::SingularLocalDesign { order: usize }
 pub variant antecedent_stats::StatsError::Unsupported { message: &'static str }
@@ -6588,6 +6615,7 @@ pub variant antecedent_stats::ValueFunctional::Minimum
 pub variant antecedent_stats::ValueFunctional::Product
 pub variant antecedent_stats::ValueFunctional::Ratio
 pub variant antecedent_stats::ValueFunctional::SquaredDifference
+pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::Budget { receipt: antecedent_core::search::SearchReceipt, summary: alloc::string::String }
 pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::Cancelled
 pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::Capacity(antecedent_stats::adaptive_inference::CapacityError)
 pub variant antecedent_stats::adaptive_inference::AdaptiveInferenceError::InvalidParameter(&'static str)

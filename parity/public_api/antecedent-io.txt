@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[deprecated(since = "3.1.0")] pub fn <antecedent_io::cyclic_graph::CyclicGraphSpec>::fn graph(&self) -> core::result::Result<antecedent_graph::cyclic::CyclicMixedGraph, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 #[deprecated(since = "3.1.0")] pub fn antecedent_io::accept_claim(bytes: &[u8], profile: &antecedent_contract::claim::ConsumerProfile) -> core::result::Result<(antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_contract::claim::HandoffReceipt), antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn decode_unchecked(bytes: &[u8]) -> core::result::Result<antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta, antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>
 #[doc(hidden)] pub fn <antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifact>::fn from_meta(meta: &antecedent_io::adaptive_inference_result_artifact::AdaptiveResultMeta, expected_identity: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io::adaptive_inference_result_artifact::AdaptiveInferenceResultArtifactError>
@@ -9396,7 +9397,7 @@ pub fn <antecedent_io::cyclic_family_artifact::RetainedRecoveryInputs>::fn recip
 pub fn <antecedent_io::cyclic_family_artifact::RetainedRecoveryInputs>::fn report(&self) -> &antecedent_io::cyclic_family_artifact::CyclicFamilyReport
 pub fn <antecedent_io::cyclic_family_artifact::RetainedRecoveryInputs>::fn source_id(&self) -> &str
 pub fn <antecedent_io::cyclic_graph::CyclicGraphRequest>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::cyclic_graph::CyclicGraphReport, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
-pub fn <antecedent_io::cyclic_graph::CyclicGraphSpec>::fn graph(&self) -> core::result::Result<antecedent_graph::cyclic::CyclicMixedGraph, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
+pub fn <antecedent_io::cyclic_graph::CyclicGraphSpec>::fn graph_in(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::cyclic::CyclicMixedGraph, antecedent_io::cyclic_system_artifact::CyclicArtifactError>
 pub fn <antecedent_io::cyclic_system_artifact::CyclicExecutionReport>::const fn lowered_program_identity(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
 pub fn <antecedent_io::cyclic_system_artifact::CyclicExecutionReport>::fn retained_admitted_bytes(&self) -> u64
 pub fn <antecedent_io::cyclic_system_artifact::CyclicExecutionReport>::fn with_lowered_program_identity(self, identity: antecedent_core::identity::SemanticDigest) -> Self
@@ -10992,6 +10993,7 @@ pub use antecedent_io::callback_result_artifact = antecedent_io_core::callback_r
 pub use antecedent_io::canonical_dag_wire = antecedent_io_core::canonical_dag_wire
 pub use antecedent_io::canonical_json = antecedent_io_core::canonical_json
 pub use antecedent_io::canonical_temporal_dag_wire = antecedent_io_core::canonical_temporal_dag_wire
+pub use antecedent_io::catalog_role = antecedent_io_core::catalog_role
 pub use antecedent_io::causal_artifact = antecedent_io_core::causal_artifact
 pub use antecedent_io::causal_query_from_wire = antecedent_io_core::causal_query_from_wire
 pub use antecedent_io::causal_query_from_wire_with_registry = antecedent_io_core::causal_query_from_wire_with_registry
@@ -11012,6 +11014,7 @@ pub use antecedent_io::claim_kind_of_section = antecedent_io_core::claim_kind_of
 pub use antecedent_io::cohort_decision = antecedent_io_core::cohort_decision
 pub use antecedent_io::compact_export = antecedent_io_core::compact_export
 pub use antecedent_io::compiled_identification_wire = antecedent_io_core::compiled_identification_wire
+pub use antecedent_io::compiled_study = antecedent_io_core::compiled_study
 pub use antecedent_io::composition_verification_artifact = antecedent_io_core::composition_verification_artifact
 pub use antecedent_io::container = antecedent_io_core::container
 pub use antecedent_io::container_kind = antecedent_io_core::container_kind
@@ -11070,6 +11073,7 @@ pub use antecedent_io::decode_external_estimate_claim = antecedent_io_core::deco
 pub use antecedent_io::decode_external_estimate_claim_expecting = antecedent_io_core::decode_external_estimate_claim_expecting
 pub use antecedent_io::decode_posterior_artifact = antecedent_io_core::decode_posterior_artifact
 pub use antecedent_io::decode_posterior_meta_from_bytes = antecedent_io_core::decode_posterior_meta_from_bytes
+pub use antecedent_io::decode_posterior_meta_from_bytes_expecting = antecedent_io_core::decode_posterior_meta_from_bytes_expecting
 pub use antecedent_io::decode_posterior_meta_from_path = antecedent_io_core::decode_posterior_meta_from_path
 pub use antecedent_io::decode_posterior_meta_from_path_expecting = antecedent_io_core::decode_posterior_meta_from_path_expecting
 pub use antecedent_io::decode_posterior_meta_from_seek = antecedent_io_core::decode_posterior_meta_from_seek

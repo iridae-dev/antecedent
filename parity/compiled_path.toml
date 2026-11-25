@@ -1251,6 +1251,26 @@ disposition = "deprecated"
 replacement = "route:SupportedInputDecision"
 
 [[row]]
+path = "antecedent_design::composition_bundle::check_producer"
+disposition = "not_scientific"
+reason = "checks a producer reference against its supplied artifact"
+
+[[row]]
+path = "antecedent_design::composition_bundle::node_kind_for_role"
+disposition = "not_scientific"
+reason = "maps a catalog role to its bundle node kind"
+
+[[row]]
+path = "antecedent_design::composition_bundle::producer_identity"
+disposition = "not_scientific"
+reason = "reads the identity of a producer artifact"
+
+[[row]]
+path = "antecedent_design::composition_bundle::producer_reference"
+disposition = "not_scientific"
+reason = "constructs a reference to an artifact producer"
+
+[[row]]
 path = "antecedent_design::composition_verifiers::describe_artifact"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
@@ -3609,6 +3629,31 @@ disposition = "consume"
 path = "antecedent_io_core::causal_response_to_wire"
 disposition = "not_scientific"
 reason = "serialization or identity helper; computes no estimate"
+
+[[row]]
+path = "antecedent_io_core::compiled_study::accept_source_body"
+disposition = "not_scientific"
+reason = "checks retained source bytes against their declared content digest"
+
+[[row]]
+path = "antecedent_io_core::compiled_study::body_section"
+disposition = "not_scientific"
+reason = "maps a compiled-study body to its container section"
+
+[[row]]
+path = "antecedent_io_core::compiled_study::layer5_quote"
+disposition = "not_scientific"
+reason = "computes the byte quote for materializing a retained source"
+
+[[row]]
+path = "antecedent_io_core::compiled_study::source_content_digest"
+disposition = "not_scientific"
+reason = "reconstructs the source witness to hash its content"
+
+[[row]]
+path = "antecedent_io_core::compiled_study::write"
+disposition = "not_scientific"
+reason = "serializes the compiled invariant, catalog bodies and optional claim"
 
 [[row]]
 path = "antecedent_io_core::contract_section::decode_analysis_result_contract"

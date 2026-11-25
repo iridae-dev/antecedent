@@ -811,6 +811,7 @@ pub fn <antecedent_graph::Admg>::fn districts(&self) -> alloc::vec::Vec<u32>
 pub fn <antecedent_graph::Admg>::fn empty() -> Self
 pub fn <antecedent_graph::Admg>::fn from_dag(dag: &antecedent_graph::Dag) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Admg>::fn from_nodes<const N: usize>(nodes: &[antecedent_core::node::NodeRef; N]) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn has_bidirected(&self) -> bool
 pub fn <antecedent_graph::Admg>::fn insert_bidirected(&mut self, a: antecedent_graph::DenseNodeId, b: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
 pub fn <antecedent_graph::Admg>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>
@@ -959,6 +960,7 @@ pub fn <antecedent_graph::Dag>::fn directed_paths_with_budget(&self, from: antec
 pub fn <antecedent_graph::Dag>::fn edges(&self) -> impl core::iter::traits::iterator::Iterator<Item = antecedent_graph::MarkedEdge> + '_
 pub fn <antecedent_graph::Dag>::fn empty() -> Self
 pub fn <antecedent_graph::Dag>::fn from_named_edges(schema: &antecedent_core::schema::CausalSchema, edges: &[(&str, &str)]) -> core::result::Result<Self, antecedent_graph::GraphError>
+pub fn <antecedent_graph::Dag>::fn from_nodes<const N: usize>(nodes: &[antecedent_core::node::NodeRef; N]) -> core::result::Result<Self, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn from_unfolding(indexer: &antecedent_core::temporal::TemporalIndexer) -> core::result::Result<antecedent_graph::AdmittedUnfoldedTemporalGraph, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn from_unfolding_within(indexer: &antecedent_core::temporal::TemporalIndexer, budget: &mut antecedent_core::intervention::TemporalBudget, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_graph::AdmittedUnfoldedTemporalGraph, antecedent_graph::GraphError>
 pub fn <antecedent_graph::Dag>::fn insert_directed(&mut self, from: antecedent_graph::DenseNodeId, to: antecedent_graph::DenseNodeId) -> core::result::Result<(), antecedent_graph::GraphError>

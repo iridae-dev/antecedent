@@ -42,7 +42,11 @@
 #[doc(hidden)] pub fn antecedent_io_core::cross_world_artifact::cross_world_data_digest(names: &[alloc::string::String], columns: &[alloc::vec::Vec<f64>]) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 #[doc(hidden)] pub fn antecedent_io_core::cross_world_artifact::cross_world_identity(wire: &antecedent_io_core::cross_world_artifact::CrossWorldArtifactWire) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 #[doc(hidden)] pub fn antecedent_io_core::error::convert_err(error: impl core::fmt::Display) -> antecedent_io_core::IoError
+#[doc(hidden)] pub fn antecedent_io_core::identity::canonical_label_order(labels: &[antecedent_io_core::identity::IdentityNodeWire], order: &mut [usize], position: &mut [u32]) -> core::option::Option<()>
+#[doc(hidden)] pub fn antecedent_io_core::identity::canonical_pair(position: &[u32], (a, b): (u32, u32), orient: bool) -> core::option::Option<(u32, u32)>
 #[doc(hidden)] pub fn antecedent_io_core::identity::digest_wire_hex<T: serde_core::ser::Serialize>(domain: antecedent_core::identity::IdentityDomain, value: &T) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
+#[doc(hidden)] pub fn antecedent_io_core::identity::schema_aligned(nodes: &[antecedent_io_core::identity::IdentityNodeWire]) -> bool
+#[doc(hidden)] pub fn antecedent_io_core::identity::sort_identity_pairs(pairs: &[(u32, u32)], scratch: &mut [(u32, u32)], sorted: &mut [(u32, u32)], counts: &mut [usize])
 #[doc(hidden)] pub fn antecedent_io_core::recalc_receipt_artifact::decode_parts(bytes: &[u8]) -> core::result::Result<antecedent_io_core::recalc_receipt_artifact::RecalcReceiptMeta, antecedent_io_core::recalc_receipt_artifact::RecalcReceiptArtifactError>
 #[doc(hidden)] pub trait antecedent_io_core::artifact_codec::CanonicalSize
 #[non_exhaustive] pub enum antecedent_io_core::ArtifactCheckError
@@ -561,6 +565,7 @@ impl core::clone::Clone for antecedent_io_core::capacity_account::SpillFault
 impl core::clone::Clone for antecedent_io_core::capacity_account::SpillOptions
 impl core::clone::Clone for antecedent_io_core::capacity_account::WeightFault
 impl core::clone::Clone for antecedent_io_core::capacity_account::WeightedCapacityResult
+impl core::clone::Clone for antecedent_io_core::catalog_role::KindRow
 impl core::clone::Clone for antecedent_io_core::cohort_decision::CohortBinding
 impl core::clone::Clone for antecedent_io_core::cohort_decision::CohortColumn
 impl core::clone::Clone for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -590,7 +595,12 @@ impl core::clone::Clone for antecedent_io_core::compact_export::PointWithSe
 impl core::clone::Clone for antecedent_io_core::compact_export::QueryValue
 impl core::clone::Clone for antecedent_io_core::compact_export::TermSpec
 impl core::clone::Clone for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
+impl core::clone::Clone for antecedent_io_core::compiled_study::OpenedStudy
+impl core::clone::Clone for antecedent_io_core::compiled_study::Placement
+impl core::clone::Clone for antecedent_io_core::compiled_study::StudyBody
 impl core::clone::Clone for antecedent_io_core::compiled_study::StudyInvariant
+impl core::clone::Clone for antecedent_io_core::compiled_study::UnresolvedBody
+impl core::clone::Clone for antecedent_io_core::compiled_study::WrittenStudy
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -732,6 +742,7 @@ impl core::clone::Clone for antecedent_io_core::graphless_support::GraphlessResa
 impl core::clone::Clone for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::clone::Clone for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::clone::Clone for antecedent_io_core::identity::IdentityNodeWire
+impl core::clone::Clone for antecedent_io_core::identity::NestedDigestBytes
 impl core::clone::Clone for antecedent_io_core::identity::TemporalAdmgIdentityWire
 impl core::clone::Clone for antecedent_io_core::interface_contract_artifact::CalibrationWire
 impl core::clone::Clone for antecedent_io_core::interface_contract_artifact::ConsumedPortWire
@@ -1232,6 +1243,7 @@ impl core::cmp::Eq for antecedent_io_core::capacity_account::DesignShape
 impl core::cmp::Eq for antecedent_io_core::capacity_account::RowFileFault
 impl core::cmp::Eq for antecedent_io_core::capacity_account::SpillFault
 impl core::cmp::Eq for antecedent_io_core::capacity_account::WeightFault
+impl core::cmp::Eq for antecedent_io_core::catalog_role::KindRow
 impl core::cmp::Eq for antecedent_io_core::cohort_decision::CohortExpectation
 impl core::cmp::Eq for antecedent_io_core::cohort_decision::CohortIntakeLimits
 impl core::cmp::Eq for antecedent_io_core::cohort_decision::CohortRefusal
@@ -1241,7 +1253,10 @@ impl core::cmp::Eq for antecedent_io_core::compact_export::ExportLimits
 impl core::cmp::Eq for antecedent_io_core::compact_export::ExportRefusal
 impl core::cmp::Eq for antecedent_io_core::compact_export::ExportScope
 impl core::cmp::Eq for antecedent_io_core::compact_export::TermSpec
+impl core::cmp::Eq for antecedent_io_core::compiled_study::Placement
 impl core::cmp::Eq for antecedent_io_core::compiled_study::StudyInvariant
+impl core::cmp::Eq for antecedent_io_core::compiled_study::UnresolvedBody
+impl core::cmp::Eq for antecedent_io_core::compiled_study::WrittenStudy
 impl core::cmp::Eq for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::cmp::Eq for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::cmp::Eq for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -1335,6 +1350,7 @@ impl core::cmp::Eq for antecedent_io_core::frozen_scores_artifact::FrozenScoresI
 impl core::cmp::Eq for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::cmp::Eq for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::cmp::Eq for antecedent_io_core::identity::IdentityNodeWire
+impl core::cmp::Eq for antecedent_io_core::identity::NestedDigestBytes
 impl core::cmp::Eq for antecedent_io_core::identity::TemporalAdmgIdentityWire
 impl core::cmp::Eq for antecedent_io_core::interface_contract_artifact::CalibrationWire
 impl core::cmp::Eq for antecedent_io_core::interface_contract_artifact::ConsumedPortWire
@@ -1880,6 +1896,7 @@ impl core::cmp::PartialEq for antecedent_io_core::capacity_account::ResidualChec
 impl core::cmp::PartialEq for antecedent_io_core::capacity_account::RowFileFault
 impl core::cmp::PartialEq for antecedent_io_core::capacity_account::SpillFault
 impl core::cmp::PartialEq for antecedent_io_core::capacity_account::WeightFault
+impl core::cmp::PartialEq for antecedent_io_core::catalog_role::KindRow
 impl core::cmp::PartialEq for antecedent_io_core::cohort_decision::CohortBinding
 impl core::cmp::PartialEq for antecedent_io_core::cohort_decision::CohortColumn
 impl core::cmp::PartialEq for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -1908,7 +1925,10 @@ impl core::cmp::PartialEq for antecedent_io_core::compact_export::MaskRegion
 impl core::cmp::PartialEq for antecedent_io_core::compact_export::PointWithSe
 impl core::cmp::PartialEq for antecedent_io_core::compact_export::QueryValue
 impl core::cmp::PartialEq for antecedent_io_core::compact_export::TermSpec
+impl core::cmp::PartialEq for antecedent_io_core::compiled_study::Placement
 impl core::cmp::PartialEq for antecedent_io_core::compiled_study::StudyInvariant
+impl core::cmp::PartialEq for antecedent_io_core::compiled_study::UnresolvedBody
+impl core::cmp::PartialEq for antecedent_io_core::compiled_study::WrittenStudy
 impl core::cmp::PartialEq for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::cmp::PartialEq for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::cmp::PartialEq for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -2035,6 +2055,7 @@ impl core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessRe
 impl core::cmp::PartialEq for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::cmp::PartialEq for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::cmp::PartialEq for antecedent_io_core::identity::IdentityNodeWire
+impl core::cmp::PartialEq for antecedent_io_core::identity::NestedDigestBytes
 impl core::cmp::PartialEq for antecedent_io_core::identity::TemporalAdmgIdentityWire
 impl core::cmp::PartialEq for antecedent_io_core::interface_contract_artifact::CalibrationWire
 impl core::cmp::PartialEq for antecedent_io_core::interface_contract_artifact::ConsumedPortWire
@@ -2894,6 +2915,7 @@ impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightFault
 impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightedCapacityError
 impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightedCapacityOutput
 impl core::fmt::Debug for antecedent_io_core::capacity_account::WeightedCapacityResult
+impl core::fmt::Debug for antecedent_io_core::catalog_role::KindRow
 impl core::fmt::Debug for antecedent_io_core::cohort_decision::CohortBinding
 impl core::fmt::Debug for antecedent_io_core::cohort_decision::CohortColumn
 impl core::fmt::Debug for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -2923,7 +2945,12 @@ impl core::fmt::Debug for antecedent_io_core::compact_export::PointWithSe
 impl core::fmt::Debug for antecedent_io_core::compact_export::QueryValue
 impl core::fmt::Debug for antecedent_io_core::compact_export::TermSpec
 impl core::fmt::Debug for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
+impl core::fmt::Debug for antecedent_io_core::compiled_study::OpenedStudy
+impl core::fmt::Debug for antecedent_io_core::compiled_study::Placement
+impl core::fmt::Debug for antecedent_io_core::compiled_study::StudyBody
 impl core::fmt::Debug for antecedent_io_core::compiled_study::StudyInvariant
+impl core::fmt::Debug for antecedent_io_core::compiled_study::UnresolvedBody
+impl core::fmt::Debug for antecedent_io_core::compiled_study::WrittenStudy
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -3067,6 +3094,7 @@ impl core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessResamp
 impl core::fmt::Debug for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::fmt::Debug for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::fmt::Debug for antecedent_io_core::identity::IdentityNodeWire
+impl core::fmt::Debug for antecedent_io_core::identity::NestedDigestBytes
 impl core::fmt::Debug for antecedent_io_core::identity::TemporalAdmgIdentityWire
 impl core::fmt::Debug for antecedent_io_core::interface_contract_artifact::CalibrationWire
 impl core::fmt::Debug for antecedent_io_core::interface_contract_artifact::ConsumedPortWire
@@ -3452,6 +3480,7 @@ impl core::marker::Copy for antecedent_io_core::capacity_account::ResidualCheck
 impl core::marker::Copy for antecedent_io_core::capacity_account::RowFileFault
 impl core::marker::Copy for antecedent_io_core::capacity_account::SpillFault
 impl core::marker::Copy for antecedent_io_core::capacity_account::WeightFault
+impl core::marker::Copy for antecedent_io_core::catalog_role::KindRow
 impl core::marker::Copy for antecedent_io_core::cohort_decision::CohortIntakeLimits
 impl core::marker::Copy for antecedent_io_core::cohort_decision::LawRequest
 impl core::marker::Copy for antecedent_io_core::compact_export::ExportLimits
@@ -3957,6 +3986,7 @@ impl core::marker::Freeze for antecedent_io_core::capacity_account::SpillOptions
 impl core::marker::Freeze for antecedent_io_core::capacity_account::WeightFault [auto]
 impl core::marker::Freeze for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
 impl core::marker::Freeze for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
+impl core::marker::Freeze for antecedent_io_core::catalog_role::KindRow [auto]
 impl core::marker::Freeze for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Freeze for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Freeze for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -3986,7 +4016,12 @@ impl core::marker::Freeze for antecedent_io_core::compact_export::PointWithSe [a
 impl core::marker::Freeze for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Freeze for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Freeze for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Freeze for antecedent_io_core::compiled_study::OpenedStudy [auto]
+impl core::marker::Freeze for antecedent_io_core::compiled_study::Placement [auto]
+impl core::marker::Freeze for antecedent_io_core::compiled_study::StudyBody [auto]
 impl core::marker::Freeze for antecedent_io_core::compiled_study::StudyInvariant [auto]
+impl core::marker::Freeze for antecedent_io_core::compiled_study::UnresolvedBody [auto]
+impl core::marker::Freeze for antecedent_io_core::compiled_study::WrittenStudy [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -4129,6 +4164,7 @@ impl core::marker::Freeze for antecedent_io_core::graphless_support::GraphlessRe
 impl core::marker::Freeze for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Freeze for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Freeze for antecedent_io_core::identity::IdentityNodeWire [auto]
+impl core::marker::Freeze for antecedent_io_core::identity::NestedDigestBytes [auto]
 impl core::marker::Freeze for antecedent_io_core::identity::TemporalAdmgIdentityWire [auto]
 impl core::marker::Freeze for antecedent_io_core::interface_contract_artifact::CalibrationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::interface_contract_artifact::ConsumedPortWire [auto]
@@ -4830,6 +4866,7 @@ impl core::marker::Send for antecedent_io_core::capacity_account::WeightFault [a
 impl core::marker::Send for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
 impl core::marker::Send for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
 impl core::marker::Send for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
+impl core::marker::Send for antecedent_io_core::catalog_role::KindRow [auto]
 impl core::marker::Send for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Send for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Send for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -4859,7 +4896,12 @@ impl core::marker::Send for antecedent_io_core::compact_export::PointWithSe [aut
 impl core::marker::Send for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Send for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Send for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Send for antecedent_io_core::compiled_study::OpenedStudy [auto]
+impl core::marker::Send for antecedent_io_core::compiled_study::Placement [auto]
+impl core::marker::Send for antecedent_io_core::compiled_study::StudyBody [auto]
 impl core::marker::Send for antecedent_io_core::compiled_study::StudyInvariant [auto]
+impl core::marker::Send for antecedent_io_core::compiled_study::UnresolvedBody [auto]
+impl core::marker::Send for antecedent_io_core::compiled_study::WrittenStudy [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -5003,6 +5045,7 @@ impl core::marker::Send for antecedent_io_core::graphless_support::GraphlessResa
 impl core::marker::Send for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Send for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Send for antecedent_io_core::identity::IdentityNodeWire [auto]
+impl core::marker::Send for antecedent_io_core::identity::NestedDigestBytes [auto]
 impl core::marker::Send for antecedent_io_core::identity::TemporalAdmgIdentityWire [auto]
 impl core::marker::Send for antecedent_io_core::interface_contract_artifact::CalibrationWire [auto]
 impl core::marker::Send for antecedent_io_core::interface_contract_artifact::ConsumedPortWire [auto]
@@ -5675,6 +5718,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account:
 impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::RowFileFault
 impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::SpillFault
 impl core::marker::StructuralPartialEq for antecedent_io_core::capacity_account::WeightFault
+impl core::marker::StructuralPartialEq for antecedent_io_core::catalog_role::KindRow
 impl core::marker::StructuralPartialEq for antecedent_io_core::cohort_decision::CohortBinding
 impl core::marker::StructuralPartialEq for antecedent_io_core::cohort_decision::CohortColumn
 impl core::marker::StructuralPartialEq for antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -5703,7 +5747,10 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::M
 impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::PointWithSe
 impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::QueryValue
 impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::TermSpec
+impl core::marker::StructuralPartialEq for antecedent_io_core::compiled_study::Placement
 impl core::marker::StructuralPartialEq for antecedent_io_core::compiled_study::StudyInvariant
+impl core::marker::StructuralPartialEq for antecedent_io_core::compiled_study::UnresolvedBody
+impl core::marker::StructuralPartialEq for antecedent_io_core::compiled_study::WrittenStudy
 impl core::marker::StructuralPartialEq for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -5830,6 +5877,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::graphless_support
 impl core::marker::StructuralPartialEq for antecedent_io_core::graphless_support::GraphlessSupportStatus
 impl core::marker::StructuralPartialEq for antecedent_io_core::identity::IdentityMarkedEdgeWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::identity::IdentityNodeWire
+impl core::marker::StructuralPartialEq for antecedent_io_core::identity::NestedDigestBytes
 impl core::marker::StructuralPartialEq for antecedent_io_core::identity::TemporalAdmgIdentityWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::interface_contract_artifact::CalibrationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::interface_contract_artifact::ConsumedPortWire
@@ -6519,6 +6567,7 @@ impl core::marker::Sync for antecedent_io_core::capacity_account::WeightFault [a
 impl core::marker::Sync for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
 impl core::marker::Sync for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
 impl core::marker::Sync for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
+impl core::marker::Sync for antecedent_io_core::catalog_role::KindRow [auto]
 impl core::marker::Sync for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Sync for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Sync for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -6548,7 +6597,12 @@ impl core::marker::Sync for antecedent_io_core::compact_export::PointWithSe [aut
 impl core::marker::Sync for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Sync for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Sync for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Sync for antecedent_io_core::compiled_study::OpenedStudy [auto]
+impl core::marker::Sync for antecedent_io_core::compiled_study::Placement [auto]
+impl core::marker::Sync for antecedent_io_core::compiled_study::StudyBody [auto]
 impl core::marker::Sync for antecedent_io_core::compiled_study::StudyInvariant [auto]
+impl core::marker::Sync for antecedent_io_core::compiled_study::UnresolvedBody [auto]
+impl core::marker::Sync for antecedent_io_core::compiled_study::WrittenStudy [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -6692,6 +6746,7 @@ impl core::marker::Sync for antecedent_io_core::graphless_support::GraphlessResa
 impl core::marker::Sync for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Sync for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Sync for antecedent_io_core::identity::IdentityNodeWire [auto]
+impl core::marker::Sync for antecedent_io_core::identity::NestedDigestBytes [auto]
 impl core::marker::Sync for antecedent_io_core::identity::TemporalAdmgIdentityWire [auto]
 impl core::marker::Sync for antecedent_io_core::interface_contract_artifact::CalibrationWire [auto]
 impl core::marker::Sync for antecedent_io_core::interface_contract_artifact::ConsumedPortWire [auto]
@@ -7394,6 +7449,7 @@ impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightFault [
 impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightedCapacityError [auto]
 impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
 impl core::marker::Unpin for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
+impl core::marker::Unpin for antecedent_io_core::catalog_role::KindRow [auto]
 impl core::marker::Unpin for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::marker::Unpin for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::marker::Unpin for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -7423,7 +7479,12 @@ impl core::marker::Unpin for antecedent_io_core::compact_export::PointWithSe [au
 impl core::marker::Unpin for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Unpin for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Unpin for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Unpin for antecedent_io_core::compiled_study::OpenedStudy [auto]
+impl core::marker::Unpin for antecedent_io_core::compiled_study::Placement [auto]
+impl core::marker::Unpin for antecedent_io_core::compiled_study::StudyBody [auto]
 impl core::marker::Unpin for antecedent_io_core::compiled_study::StudyInvariant [auto]
+impl core::marker::Unpin for antecedent_io_core::compiled_study::UnresolvedBody [auto]
+impl core::marker::Unpin for antecedent_io_core::compiled_study::WrittenStudy [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -7567,6 +7628,7 @@ impl core::marker::Unpin for antecedent_io_core::graphless_support::GraphlessRes
 impl core::marker::Unpin for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::marker::Unpin for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::marker::Unpin for antecedent_io_core::identity::IdentityNodeWire [auto]
+impl core::marker::Unpin for antecedent_io_core::identity::NestedDigestBytes [auto]
 impl core::marker::Unpin for antecedent_io_core::identity::TemporalAdmgIdentityWire [auto]
 impl core::marker::Unpin for antecedent_io_core::interface_contract_artifact::CalibrationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::interface_contract_artifact::ConsumedPortWire [auto]
@@ -8269,6 +8331,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_ac
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::WeightFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::catalog_role::KindRow [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -8298,7 +8361,12 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_exp
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::OpenedStudy [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::Placement [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::StudyBody [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::StudyInvariant [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::UnresolvedBody [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::WrittenStudy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -8442,6 +8510,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_s
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::identity::IdentityNodeWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::identity::NestedDigestBytes [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::identity::TemporalAdmgIdentityWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::interface_contract_artifact::CalibrationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::interface_contract_artifact::ConsumedPortWire [auto]
@@ -9143,6 +9212,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_accou
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::WeightFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityOutput [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::WeightedCapacityResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::catalog_role::KindRow [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cohort_decision::CohortBinding [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cohort_decision::CohortColumn [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::cohort_decision::CohortDecisionSource [auto]
@@ -9172,7 +9242,12 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::OpenedStudy [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::Placement [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::StudyBody [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::StudyInvariant [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::UnresolvedBody [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::WrittenStudy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -9316,6 +9391,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_supp
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportStatus [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::identity::IdentityMarkedEdgeWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::identity::IdentityNodeWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::identity::NestedDigestBytes [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::identity::TemporalAdmgIdentityWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::interface_contract_artifact::CalibrationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::interface_contract_artifact::ConsumedPortWire [auto]
@@ -10278,6 +10354,7 @@ impl<'a> core::marker::Freeze for antecedent_io_core::ScoreTableKey<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_io_core::compiled_study::StudyParts<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::container::StreamWork<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
@@ -10291,6 +10368,7 @@ impl<'a> core::marker::Send for antecedent_io_core::ScoreTableKey<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
+impl<'a> core::marker::Send for antecedent_io_core::compiled_study::StudyParts<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::container::StreamWork<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
 impl<'a> core::marker::Send for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
@@ -10306,6 +10384,7 @@ impl<'a> core::marker::Sync for antecedent_io_core::ScoreTableKey<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_io_core::compiled_study::StudyParts<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::container::StreamWork<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
@@ -10319,6 +10398,7 @@ impl<'a> core::marker::Unpin for antecedent_io_core::ScoreTableKey<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_io_core::compiled_study::StudyParts<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::container::StreamWork<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
@@ -10332,6 +10412,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::ScoreTa
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::StudyParts<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
@@ -10344,6 +10425,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::ScoreTable
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_result_artifact::rollout_support::DidRolloutRowSpec<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::analysis_wire::BorrowedIdentificationWire<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::capacity_account::ResidentWeightedRows<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::StudyParts<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::expr_wire::BorrowedExprArenaWire<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::feature_version::RequestedVersion<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_io_core::graphless_support::GraphlessSupportKey<'a> [auto]
@@ -11145,6 +11227,24 @@ pub const antecedent_io_core::callback_result_artifact::MAX_CALLBACK_WIRE_EVIDEN
 pub const antecedent_io_core::canonical_json::MAX_CANONICAL_JSON_BYTES: usize
 pub const antecedent_io_core::canonical_json::MAX_CANONICAL_JSON_DEPTH: usize
 pub const antecedent_io_core::capacity_account::DECOMPRESSION_CAP: usize
+pub const antecedent_io_core::catalog_role::CALLBACK_DECLARATION: &str
+pub const antecedent_io_core::catalog_role::CALLBACK_OUTPUT: &str
+pub const antecedent_io_core::catalog_role::COMPOSED_MODEL: &str
+pub const antecedent_io_core::catalog_role::CONTINUATION_ROLES: [&str; 9]
+pub const antecedent_io_core::catalog_role::DISCOVERY: &str
+pub const antecedent_io_core::catalog_role::DISCOVERY_STATISTICS: &str
+pub const antecedent_io_core::catalog_role::FROZEN_SCORES: &str
+pub const antecedent_io_core::catalog_role::KIND_INVENTORY: &[antecedent_io_core::catalog_role::KindRow]
+pub const antecedent_io_core::catalog_role::LEDGER: &str
+pub const antecedent_io_core::catalog_role::MEASUREMENT: &str
+pub const antecedent_io_core::catalog_role::POSTERIOR_DRAWS: &str
+pub const antecedent_io_core::catalog_role::PRODUCER_ROLES: [&str; 6]
+pub const antecedent_io_core::catalog_role::PROPAGATION: &str
+pub const antecedent_io_core::catalog_role::PROVIDER_PAYLOAD: &str
+pub const antecedent_io_core::catalog_role::RELIABILITY: &str
+pub const antecedent_io_core::catalog_role::RETAINED_SUMMARY: &str
+pub const antecedent_io_core::catalog_role::SOURCE_ROWS: &str
+pub const antecedent_io_core::catalog_role::SPILL: &str
 pub const antecedent_io_core::cohort_decision::CATE_FUNCTIONAL_ID: &str
 pub const antecedent_io_core::cohort_decision::COHORT_CONDITIONING_VARIABLE: &str
 pub const antecedent_io_core::cohort_decision::COHORT_DECISION_ARTIFACT_KIND: &str
@@ -11169,6 +11269,12 @@ pub const antecedent_io_core::compact_export::MAX_POLYNOMIAL_DEGREE: u32
 pub const antecedent_io_core::compact_export::POINT_SCOPE: &str
 pub const antecedent_io_core::compact_export::SE_BASIS: &str
 pub const antecedent_io_core::compact_export::UNCERTAINTY_SCOPE: &str
+pub const antecedent_io_core::compiled_study::CATALOG_SECTION: &str
+pub const antecedent_io_core::compiled_study::CATALOG_VERSION: u16
+pub const antecedent_io_core::compiled_study::CLAIM_SECTION: &str
+pub const antecedent_io_core::compiled_study::FORMAT: antecedent_io_core::FormatVersion
+pub const antecedent_io_core::compiled_study::INVARIANT_SECTION: &str
+pub const antecedent_io_core::compiled_study::KIND: &str
 pub const antecedent_io_core::composition_verification_artifact::COMPOSITION_VERIFICATION_ARTIFACT_FEATURE: &str
 pub const antecedent_io_core::composition_verification_artifact::COMPOSITION_VERIFICATION_ARTIFACT_VERSION: u16
 pub const antecedent_io_core::composition_verification_artifact::MAX_COMPOSITION_VERIFICATION_ARTIFACT_BYTES: usize
@@ -11463,6 +11569,7 @@ pub enum antecedent_io_core::cohort_decision::LawRequest
 pub enum antecedent_io_core::compact_export::InputSupport
 pub enum antecedent_io_core::compact_export::QueryValue
 pub enum antecedent_io_core::compact_export::TermSpec
+pub enum antecedent_io_core::compiled_study::Placement
 pub enum antecedent_io_core::contract_section::CyclicIdentificationWire
 pub enum antecedent_io_core::contract_section::CyclicTargetWire
 pub enum antecedent_io_core::counterfactual_transport_wire::DecisionInputFault
@@ -12084,6 +12191,7 @@ pub field antecedent_io_core::EstimatorConfigWire::sampling_weights: core::optio
 pub field antecedent_io_core::EstimatorConfigWire::score: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::EstimatorConfigWire::se_kind: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::EstimatorConfigWire::treatment: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::EstimatorConfigWire::treatment_classification: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::EstimatorConfigWire::treatment_config: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::ExecutionIdentityWire::adaptive_bootstrap: core::option::Option<antecedent_io_core::AdaptiveBudgetWire>
 pub field antecedent_io_core::ExecutionIdentityWire::adaptive_draws: core::option::Option<antecedent_io_core::AdaptiveBudgetWire>
@@ -13560,6 +13668,10 @@ pub field antecedent_io_core::capacity_account::WeightedCapacityResult::residual
 pub field antecedent_io_core::capacity_account::WeightedCapacityResult::retention: antecedent_core::execution_facts::OutputRetention
 pub field antecedent_io_core::capacity_account::WeightedCapacityResult::robust_covariance: alloc::vec::Vec<f64>
 pub field antecedent_io_core::capacity_account::WeightedCapacityResult::source_passes: u64
+pub field antecedent_io_core::catalog_role::KindRow::continuation: core::option::Option<&'static str>
+pub field antecedent_io_core::catalog_role::KindRow::kind: &'static str
+pub field antecedent_io_core::catalog_role::KindRow::producer: core::option::Option<&'static str>
+pub field antecedent_io_core::catalog_role::KindRow::table: &'static str
 pub field antecedent_io_core::cohort_decision::CohortExpectation::cohort_digest: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::cohort_decision::CohortExpectation::contrast_regime: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::cohort_decision::CohortExpectation::identity: alloc::string::String
@@ -13636,10 +13748,33 @@ pub field antecedent_io_core::compact_export::PointWithSe::export_identity: allo
 pub field antecedent_io_core::compact_export::PointWithSe::model_based_se: f64
 pub field antecedent_io_core::compact_export::PointWithSe::point: f64
 pub field antecedent_io_core::compact_export::PointWithSe::se_basis: &'static str
+pub field antecedent_io_core::compiled_study::OpenedStudy::bodies: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::vec::Vec<u8>>
+pub field antecedent_io_core::compiled_study::OpenedStudy::callback_live: bool
+pub field antecedent_io_core::compiled_study::OpenedStudy::callback_requires_caller: bool
+pub field antecedent_io_core::compiled_study::OpenedStudy::claim: core::option::Option<antecedent_io_core::AnalysisResultLoad>
+pub field antecedent_io_core::compiled_study::OpenedStudy::estimate: core::option::Option<f64>
+pub field antecedent_io_core::compiled_study::OpenedStudy::invariant: alloc::vec::Vec<u8>
+pub field antecedent_io_core::compiled_study::OpenedStudy::layer5_bytes: core::option::Option<u64>
+pub field antecedent_io_core::compiled_study::OpenedStudy::refit_refused: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::compiled_study::OpenedStudy::resumable: bool
 pub field antecedent_io_core::compiled_study::OpenedStudy::source_names: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub field antecedent_io_core::compiled_study::OpenedStudy::unresolved: alloc::vec::Vec<antecedent_io_core::compiled_study::UnresolvedBody>
+pub field antecedent_io_core::compiled_study::StudyBody::bytes: alloc::vec::Vec<u8>
+pub field antecedent_io_core::compiled_study::StudyBody::external_uri: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::compiled_study::StudyBody::names: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::compiled_study::StudyBody::required: bool
+pub field antecedent_io_core::compiled_study::StudyBody::role: alloc::string::String
+pub field antecedent_io_core::compiled_study::StudyBody::summary_only: bool
 pub field antecedent_io_core::compiled_study::StudyInvariant::continuation: alloc::vec::Vec<u8>
 pub field antecedent_io_core::compiled_study::StudyInvariant::data_snapshot: [u8; 32]
 pub field antecedent_io_core::compiled_study::StudyInvariant::program: [u8; 32]
+pub field antecedent_io_core::compiled_study::StudyParts::bodies: &'a [antecedent_io_core::compiled_study::StudyBody]
+pub field antecedent_io_core::compiled_study::StudyParts::claim: core::option::Option<&'a [u8]>
+pub field antecedent_io_core::compiled_study::StudyParts::invariant: &'a [u8]
+pub field antecedent_io_core::compiled_study::UnresolvedBody::role: alloc::string::String
+pub field antecedent_io_core::compiled_study::UnresolvedBody::uri: core::option::Option<alloc::string::String>
+pub field antecedent_io_core::compiled_study::WrittenStudy::bytes: alloc::vec::Vec<u8>
+pub field antecedent_io_core::compiled_study::WrittenStudy::expected_identity: alloc::string::String
 pub field antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire::coordinate: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire::from: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire::kind: alloc::string::String
@@ -14276,6 +14411,8 @@ pub field antecedent_io_core::identity::IdentityMarkedEdgeWire::at_a: antecedent
 pub field antecedent_io_core::identity::IdentityMarkedEdgeWire::at_b: antecedent_io_core::EndpointWire
 pub field antecedent_io_core::identity::IdentityMarkedEdgeWire::b: u32
 pub field antecedent_io_core::identity::IdentityMarkedEdgeWire::middle: alloc::string::String
+pub field antecedent_io_core::identity::NestedDigestBytes::bytes: alloc::vec::Vec<u8>
+pub field antecedent_io_core::identity::NestedDigestBytes::digest: antecedent_core::identity::SemanticDigest
 pub field antecedent_io_core::identity::TemporalAdmgIdentityWire::bidirected: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::identity::TemporalAdmgIdentityWire::directed: alloc::vec::Vec<(u32, u32)>
 pub field antecedent_io_core::identity::TemporalAdmgIdentityWire::nodes: alloc::vec::Vec<antecedent_io_core::TemporalNodeKeyWire>
@@ -16385,6 +16522,9 @@ pub fn antecedent_io_core::capability_provenance(capability: &str) -> antecedent
 pub fn antecedent_io_core::capacity_account::encode_weighted_row_file(x_rowmajor: &[f64], y: &[f64], weights: &[f64]) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::capacity_account::WeightedCapacityError>
 pub fn antecedent_io_core::capacity_account::read_spilled_summary(handle: &antecedent_io_core::capacity_account::SpillHandle) -> core::result::Result<antecedent_io_core::capacity_account::WeightedCapacityResult, antecedent_io_core::capacity_account::WeightedCapacityError>
 pub fn antecedent_io_core::capacity_account::run_weighted_capacity(control: antecedent_io_core::capacity_account::CapacityControl, source: &mut dyn antecedent_io_core::capacity_account::WeightedRowSource, options: &antecedent_io_core::capacity_account::CapacityOptions) -> core::result::Result<antecedent_io_core::capacity_account::WeightedCapacityOutput, antecedent_io_core::capacity_account::WeightedCapacityError>
+pub fn antecedent_io_core::catalog_role::is_continuation(role: &str) -> bool
+pub fn antecedent_io_core::catalog_role::is_producer(role: &str) -> bool
+pub fn antecedent_io_core::catalog_role::is_role(role: &str) -> bool
 pub fn antecedent_io_core::causal_artifact::decode_causal_payload_artifact(bytes: &[u8]) -> core::result::Result<(antecedent_io_core::EncodedArtifact, antecedent_io_core::CausalPayloadHeader, antecedent_io_core::CausalPayloadWire), antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_artifact::decode_causal_payload_artifact_expecting(bytes: &[u8], retained: &antecedent_io_core::RetainedArtifactIdentity) -> core::result::Result<(antecedent_io_core::EncodedArtifact, antecedent_io_core::CausalPayloadHeader, antecedent_io_core::CausalPayloadWire), antecedent_io_core::IoError>
 pub fn antecedent_io_core::causal_artifact::encode_causal_payload_artifact(payload: &antecedent_io_core::CausalPayloadWire, variable_names: alloc::vec::Vec<alloc::string::String>, artifact_id: &str) -> core::result::Result<antecedent_io_core::EncodedArtifact, antecedent_io_core::IoError>
@@ -16406,6 +16546,13 @@ pub fn antecedent_io_core::claim_kind(body: &antecedent_io_core::AnalysisResultW
 pub fn antecedent_io_core::claim_kind_name(body: &antecedent_io_core::AnalysisResultWire, identification: core::option::Option<&antecedent_io_core::IdentificationSlotWire>) -> &'static str
 pub fn antecedent_io_core::claim_kind_name_of_section(body: &antecedent_io_core::AnalysisResultWire, identification: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> &'static str
 pub fn antecedent_io_core::claim_kind_of_section(body: &antecedent_io_core::AnalysisResultWire, identification: &antecedent_io_core::SlotSectionWire<antecedent_io_core::IdentificationSlotWire>) -> antecedent_contract::claim::ClaimKind
+pub fn antecedent_io_core::compiled_study::accept_source_body(bytes: &[u8], names: &[alloc::string::String], declared: &[u8; 32]) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
+pub fn antecedent_io_core::compiled_study::body_section(role: &str) -> alloc::string::String
+pub fn antecedent_io_core::compiled_study::layer5_quote(rows: u64, columns: u64) -> core::result::Result<u64, antecedent_io_core::IoError>
+pub fn antecedent_io_core::compiled_study::open(bytes: &[u8], expected_identity: &str, resolve: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::vec::Vec<u8>>, caller_supplied: bool) -> core::result::Result<antecedent_io_core::compiled_study::OpenedStudy, antecedent_io_core::IoError>
+pub fn antecedent_io_core::compiled_study::open_expecting(bytes: &[u8], retained: &antecedent_io_core::RetainedArtifactIdentity, resolve: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::vec::Vec<u8>>, caller_supplied: bool) -> core::result::Result<antecedent_io_core::compiled_study::OpenedStudy, antecedent_io_core::IoError>
+pub fn antecedent_io_core::compiled_study::source_content_digest(bytes: &[u8], names: &[alloc::string::String]) -> core::result::Result<[u8; 32], antecedent_io_core::IoError>
+pub fn antecedent_io_core::compiled_study::write(parts: antecedent_io_core::compiled_study::StudyParts<'_>) -> core::result::Result<antecedent_io_core::compiled_study::WrittenStudy, antecedent_io_core::IoError>
 pub fn antecedent_io_core::container::describe_streaming(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, source: &dyn antecedent_io_core::container::LogicalSource, policy: antecedent_io_core::CompressPolicy, work: &antecedent_io_core::container::StreamWork<'_>) -> core::result::Result<(antecedent_io_core::SectionDescriptor, antecedent_io_core::container::StreamReceipt), antecedent_io_core::IoError>
 pub fn antecedent_io_core::container::pack_section(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, logical: alloc::vec::Vec<u8>, policy: antecedent_io_core::CompressPolicy) -> (antecedent_io_core::SectionDescriptor, antecedent_io_core::SectionBytes)
 pub fn antecedent_io_core::container::pack_section_shared(id: impl core::convert::Into<alloc::string::String>, content_type: impl core::convert::Into<alloc::string::String>, logical: alloc::sync::Arc<[u8]>, policy: antecedent_io_core::CompressPolicy) -> (antecedent_io_core::SectionDescriptor, antecedent_io_core::SectionBytes)
@@ -16459,7 +16606,7 @@ pub fn antecedent_io_core::convert::schema_wire_from_v01(v01: &antecedent_io_cor
 pub fn antecedent_io_core::convert::to_cbor<T: serde_core::ser::Serialize>(value: &T) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::convert::vars_from_raw(raw: &[u32]) -> alloc::sync::Arc<[antecedent_core::ids::VariableId]>
 pub fn antecedent_io_core::convert::vars_to_raw(vars: &[antecedent_core::ids::VariableId]) -> alloc::vec::Vec<u32>
-pub fn antecedent_io_core::counterfactual_transport_wire::check_decision_inputs(problem: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportProblemWire, query: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportQueryWire, variable_names: &[alloc::string::String], search: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire, catalog: &antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire) -> core::result::Result<(), antecedent_io_core::counterfactual_transport_wire::DecisionInputFault>
+pub fn antecedent_io_core::counterfactual_transport_wire::check_decision_inputs(problem: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportProblemWire, query: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportQueryWire, variable_names: &[alloc::string::String], _search: &antecedent_io_core::counterfactual_transport_wire::CounterfactualTransportSearchLimitsWire, catalog: &antecedent_io_core::transport_catalog_wire::EvidenceCatalogWire) -> core::result::Result<(), antecedent_io_core::counterfactual_transport_wire::DecisionInputFault>
 pub fn antecedent_io_core::cpdag_from_dot(dot: &str) -> core::result::Result<antecedent_graph::cpdag::Cpdag, antecedent_io_core::IoError>
 pub fn antecedent_io_core::cpdag_from_gml(gml: &str) -> core::result::Result<antecedent_graph::cpdag::Cpdag, antecedent_io_core::IoError>
 pub fn antecedent_io_core::cpdag_from_json(json: &str) -> core::result::Result<antecedent_graph::cpdag::Cpdag, antecedent_io_core::IoError>
@@ -16495,6 +16642,7 @@ pub fn antecedent_io_core::decode_external_estimate_claim_expecting(bytes: &[u8]
 pub fn antecedent_io_core::decode_method_provenance_section(artifact: &antecedent_io_core::EncodedArtifact, identifier: core::option::Option<&str>, estimator: core::option::Option<&str>) -> core::result::Result<core::option::Option<antecedent_io_core::MethodProvenanceWire>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_artifact(artifact: &antecedent_io_core::EncodedArtifact) -> core::result::Result<(antecedent_io_core::CausalPosteriorWire, alloc::vec::Vec<f64>), antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_meta_from_bytes(bytes: &[u8]) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
+pub fn antecedent_io_core::decode_posterior_meta_from_bytes_expecting(bytes: &[u8], retained: &antecedent_io_core::RetainedArtifactIdentity) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_meta_from_path(path: impl core::convert::AsRef<std::path::Path>) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_meta_from_path_expecting(path: impl core::convert::AsRef<std::path::Path>, retained: &antecedent_io_core::RetainedArtifactIdentity) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_meta_from_seek<R: std::io::Read + std::io::Seek>(r: R) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
@@ -16593,12 +16741,16 @@ pub fn antecedent_io_core::identification_digest(wire: &antecedent_io_core::Iden
 pub fn antecedent_io_core::identification_product_digest(result: &antecedent_identify::result::IdentificationResult, search_capped: bool) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identification_product_digest_wire(wire: &antecedent_io_core::IdentificationProductWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identification_product_wire(result: &antecedent_identify::result::IdentificationResult, search_capped: bool) -> core::result::Result<antecedent_io_core::IdentificationProductWire, antecedent_io_core::IoError>
+pub fn antecedent_io_core::identity::decode_identification_product(bytes: &[u8]) -> core::result::Result<antecedent_io_core::IdentificationProductWire, antecedent_io_core::IoError>
+pub fn antecedent_io_core::identity::identification_product_canonical_bytes(wire: &antecedent_io_core::IdentificationProductWire) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identity::inference_binding_digest(wire: &antecedent_io_core::InferenceBindingWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
+pub fn antecedent_io_core::identity::nested_digest_bytes(domain: antecedent_core::identity::IdentityDomain, bytes: &[u8]) -> antecedent_io_core::identity::NestedDigestBytes
 pub fn antecedent_io_core::identity::observation_identity_wire(schema: &antecedent_core::schema::CausalSchema, observation: impl core::iter::traits::collect::IntoIterator<Item = impl core::convert::Into<alloc::string::String>>) -> antecedent_io_core::ObservationIdentityWire
 pub fn antecedent_io_core::identity::pag_identity(pag: &antecedent_graph::pag::Pag) -> core::result::Result<antecedent_io_core::GraphIdentityWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identity::payload_digest(kind: &str, bytes: &[u8]) -> [u8; 32]
 pub fn antecedent_io_core::identity::prior_set_identity(prior: &antecedent_prob::prior::PriorSet) -> antecedent_io_core::PriorSetIdentityWire
 pub fn antecedent_io_core::identity::program_digest(wire: &antecedent_io_core::ProgramIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
+pub fn antecedent_io_core::identity::resolve_nested_digest(domain: antecedent_core::identity::IdentityDomain, nested: &antecedent_io_core::identity::NestedDigestBytes) -> core::result::Result<(), antecedent_io_core::IoError>
 pub fn antecedent_io_core::identity::score_reuse_digest(wire: &antecedent_io_core::ScoreReuseIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identity::target_weights_digest(wire: &antecedent_io_core::TargetWeightsIdentityWire) -> core::result::Result<antecedent_core::identity::SemanticDigest, antecedent_io_core::IoError>
 pub fn antecedent_io_core::identity::temporal_admg_identity(graph: &antecedent_graph::temporal_admg::TemporalAdmg) -> core::result::Result<antecedent_io_core::GraphIdentityWire, antecedent_io_core::IoError>
@@ -16725,10 +16877,12 @@ pub mod antecedent_io_core::calibration
 pub mod antecedent_io_core::callback_result_artifact
 pub mod antecedent_io_core::canonical_json
 pub mod antecedent_io_core::capacity_account
+pub mod antecedent_io_core::catalog_role
 pub mod antecedent_io_core::causal_artifact
 pub mod antecedent_io_core::cohort_decision
 pub mod antecedent_io_core::compact_export
 pub mod antecedent_io_core::compiled_identification_wire
+pub mod antecedent_io_core::compiled_study
 pub mod antecedent_io_core::composition_verification_artifact
 pub mod antecedent_io_core::container
 pub mod antecedent_io_core::contract_section
@@ -17180,6 +17334,7 @@ pub struct antecedent_io_core::capacity_account::SpillOptions
 pub struct antecedent_io_core::capacity_account::SpilledCapacity
 pub struct antecedent_io_core::capacity_account::WeightedCapacityResult
 pub struct antecedent_io_core::capacity_account::WeightedCapacityResult has private fields
+pub struct antecedent_io_core::catalog_role::KindRow
 pub struct antecedent_io_core::cohort_decision::CohortBinding
 pub struct antecedent_io_core::cohort_decision::CohortBinding has private fields
 pub struct antecedent_io_core::cohort_decision::CohortDecisionSource
@@ -17209,7 +17364,12 @@ pub struct antecedent_io_core::compact_export::MaskRegion
 pub struct antecedent_io_core::compact_export::PointWithSe
 pub struct antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
 pub struct antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire has private fields
+pub struct antecedent_io_core::compiled_study::OpenedStudy
+pub struct antecedent_io_core::compiled_study::StudyBody
 pub struct antecedent_io_core::compiled_study::StudyInvariant
+pub struct antecedent_io_core::compiled_study::StudyParts<'a>
+pub struct antecedent_io_core::compiled_study::UnresolvedBody
+pub struct antecedent_io_core::compiled_study::WrittenStudy
 pub struct antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 pub struct antecedent_io_core::composition_verification_artifact::ClaimWire
 pub struct antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -17346,6 +17506,7 @@ pub struct antecedent_io_core::graphless_support::GraphlessAssignmentSupport
 pub struct antecedent_io_core::graphless_support::GraphlessResampleSupport
 pub struct antecedent_io_core::graphless_support::GraphlessSupportKey<'a>
 pub struct antecedent_io_core::identity::IdentityMarkedEdgeWire
+pub struct antecedent_io_core::identity::NestedDigestBytes
 pub struct antecedent_io_core::identity::TemporalAdmgIdentityWire
 pub struct antecedent_io_core::interface_contract_artifact::CalibrationWire
 pub struct antecedent_io_core::interface_contract_artifact::ConsumedPortWire
@@ -18043,6 +18204,7 @@ pub use antecedent_io_core::posterior::decode_causal_posterior_bytes = anteceden
 pub use antecedent_io_core::posterior::decode_causal_posterior_bytes_expecting = antecedent_io_core::decode_causal_posterior_bytes_expecting
 pub use antecedent_io_core::posterior::decode_posterior_artifact = antecedent_io_core::decode_posterior_artifact
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_bytes = antecedent_io_core::decode_posterior_meta_from_bytes
+pub use antecedent_io_core::posterior::decode_posterior_meta_from_bytes_expecting = antecedent_io_core::decode_posterior_meta_from_bytes_expecting
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_path = antecedent_io_core::decode_posterior_meta_from_path
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_path_expecting = antecedent_io_core::decode_posterior_meta_from_path_expecting
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_seek = antecedent_io_core::decode_posterior_meta_from_seek
@@ -19213,6 +19375,8 @@ pub variant antecedent_io_core::compact_export::TermSpec::Intercept
 pub variant antecedent_io_core::compact_export::TermSpec::Linear { quantity: alloc::string::String }
 pub variant antecedent_io_core::compact_export::TermSpec::OneHot { quantity: alloc::string::String, level: alloc::string::String }
 pub variant antecedent_io_core::compact_export::TermSpec::Power { quantity: alloc::string::String, degree: u32 }
+pub variant antecedent_io_core::compiled_study::Placement::External { uri: alloc::string::String }
+pub variant antecedent_io_core::compiled_study::Placement::Inline
 pub variant antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError::Container(antecedent_io_core::IoError)
 pub variant antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError::Decode(alloc::string::String)
 pub variant antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError::Encode(alloc::string::String)
