@@ -30,7 +30,17 @@ const LOGISTIC_RIDGE: f64 = 1e-4;
 const JITTER: f64 = 1e-9;
 
 /// Writes row `i`'s design (intercept, then the other variables) from the current columns.
-type DesignRow<'a> = dyn Fn(usize, &mut [f64], &[Vec<f64>]) + 'a;
+type DesignRow<'a> = dyn Fn(usize, &mut [f64], &[Arc<[f64]>]) + 'a;
+
+#[derive(Default)]
+struct ChainedWorkspace {
+    row: Vec<f64>,
+    matrix: Vec<f64>,
+    outcomes: Vec<f64>,
+    weights: Vec<f64>,
+    gram: Vec<f64>,
+    cross: Vec<f64>,
+}
 
 /// One variable of the imputation model: its name and its values, `NaN` where missing.
 #[derive(Clone, Debug, PartialEq)]
@@ -495,10 +505,10 @@ impl Imputer {
     /// intercept, the other variables at row `i`, then each variable at the neighbouring
     /// rows `i - lags ..= i - 1` and `i + 1 ..= i + lags` (the nearest end row stands in for a
     /// neighbour beyond the series).
-    fn design_row(&self, j: usize) -> impl Fn(usize, &mut [f64], &[Vec<f64>]) + '_ {
+    fn design_row(&self, j: usize) -> impl Fn(usize, &mut [f64], &[Arc<[f64]>]) + '_ {
         let lags = self.lags;
         let last = self.rows.saturating_sub(1);
-        move |i: usize, out: &mut [f64], current: &[Vec<f64>]| {
+        move |i: usize, out: &mut [f64], current: &[Arc<[f64]>]| {
             out[0] = 1.0;
             let mut c = 1;
             for (other, column) in current.iter().enumerate() {
@@ -602,10 +612,9 @@ impl Imputer {
     #[must_use]
     pub fn imputation_bytes(&self) -> u64 {
         let p = self.names.len();
-        let k = self.width();
-        // The completed columns, the per-row design of one conditional model, the row
-        // weights and the scratch of the solves.
-        let cells = self.rows.saturating_mul(2 * p + 4).saturating_add(8 * k * k + 64);
+        let k = self.visit.iter().map(|&j| self.width_for(j)).max().unwrap_or(p);
+        // The completed columns, one design, the row weights, and the solve scratch.
+        let cells = self.rows.saturating_mul(p + k + 4).saturating_add(8 * k * k + 64);
         u64::try_from(cells.saturating_mul(size_of::<f64>())).unwrap_or(u64::MAX)
     }
 
@@ -645,22 +654,24 @@ impl Imputer {
             ReductionPolicy::Strict,
         )
         .open(self.spec.seed);
-        let mut current: Vec<Vec<f64>> = self.values.iter().map(|v| v.to_vec()).collect();
+        let mut current = self.values.clone();
         for &j in &self.visit {
             let observed = &self.observed_rows[j];
+            let column = Arc::make_mut(&mut current[j]);
             for &i in &self.missing_rows[j] {
                 let pick = observed[uniform_index(&mut rng, observed.len())];
-                current[j][i] = self.values[j][pick];
+                column[i] = self.values[j][pick];
             }
         }
         if !self.visit.is_empty() {
+            let mut workspace = ChainedWorkspace::default();
             for _ in 0..self.spec.iterations {
                 check_cancelled(ctx)?;
                 match self.spec.model {
                     ImputationModel::JointNormal => self.augment(&mut current, &mut rng)?,
                     _ => {
                         for &j in &self.visit {
-                            self.chained_step(j, &mut current, &mut rng)?;
+                            self.chained_step(j, &mut current, &mut workspace, &mut rng)?;
                         }
                     }
                 }
@@ -669,7 +680,7 @@ impl Imputer {
         Ok(CompletedTable {
             index,
             names: Arc::clone(&self.names),
-            columns: current.into_iter().map(Arc::from).collect(),
+            columns: current,
             _lease: lease,
         })
     }
@@ -695,21 +706,25 @@ impl Imputer {
     fn chained_step(
         &self,
         j: usize,
-        current: &mut [Vec<f64>],
+        current: &mut [Arc<[f64]>],
+        workspace: &mut ChainedWorkspace,
         rng: &mut CausalRng,
     ) -> Result<(), MultipleImputationError> {
         let k = self.width_for(j); // intercept, other variables, neighbours, interactions
         let weights = self.row_weights(rng);
         let design = self.design_row(j);
         let observed = self.fit_rows_of(j);
-        let mut x = vec![0.0; k];
+        workspace.row.resize(k, 0.0);
         let kind = self.kinds[j];
         match kind {
             VariableKind::Continuous => {
-                let mut gram = vec![0.0; k * k];
-                let mut cross = vec![0.0; k];
+                let ChainedWorkspace { row: x, gram, cross, .. } = workspace;
+                gram.resize(k * k, 0.0);
+                gram.fill(0.0);
+                cross.resize(k, 0.0);
+                cross.fill(0.0);
                 for &i in observed {
-                    design(i, &mut x, &*current);
+                    design(i, x, current);
                     let w = weights[i];
                     let y = self.values[j][i];
                     for a in 0..k {
@@ -719,13 +734,13 @@ impl Imputer {
                         }
                     }
                 }
-                symmetrize(&mut gram, k);
-                let beta = solve_spd(&gram, &cross, k).ok_or_else(|| not_fitted(&self.names[j]))?;
+                symmetrize(gram, k);
+                let beta = solve_spd(gram, cross, k).ok_or_else(|| not_fitted(&self.names[j]))?;
                 let mut rss = 0.0;
                 let mut total_weight = 0.0;
                 for &i in observed {
-                    design(i, &mut x, &*current);
-                    let r = self.values[j][i] - dot(&x, &beta);
+                    design(i, x, current);
+                    let r = self.values[j][i] - dot(x, &beta);
                     rss += weights[i] * r * r;
                     total_weight += weights[i];
                 }
@@ -733,9 +748,9 @@ impl Imputer {
                 let sigma2 = if dof > 0.0 { rss / dof } else { rss / total_weight.max(1.0) };
                 let sigma = sigma2.max(0.0).sqrt();
                 for &i in &self.missing_rows[j] {
-                    design(i, &mut x, &*current);
-                    let draw = dot(&x, &beta) + sigma * standard_normal(rng);
-                    current[j][i] = draw;
+                    design(i, x, current);
+                    let draw = dot(x, &beta) + sigma * standard_normal(rng);
+                    Arc::make_mut(&mut current[j])[i] = draw;
                 }
             }
             VariableKind::Binary => {
@@ -746,16 +761,18 @@ impl Imputer {
                     let value = self.values[j][first];
                     if observed.iter().all(|&i| self.values[j][i] == value) {
                         for &i in &self.missing_rows[j] {
-                            current[j][i] = value;
+                            Arc::make_mut(&mut current[j])[i] = value;
                         }
                         return Ok(());
                     }
                 }
-                let beta = self.logistic_fit(j, &weights, &*current, &design)?;
+                let beta = self.logistic_fit(j, &weights, current, &design, workspace)?;
+                let x = &mut workspace.row;
                 for &i in &self.missing_rows[j] {
-                    design(i, &mut x, &*current);
-                    let prob = logistic(dot(&x, &beta));
-                    current[j][i] = if rng.next_f64() < prob { 1.0 } else { 0.0 };
+                    design(i, x, current);
+                    let prob = logistic(dot(x, &beta));
+                    Arc::make_mut(&mut current[j])[i] =
+                        if rng.next_f64() < prob { 1.0 } else { 0.0 };
                 }
             }
         }
@@ -767,25 +784,35 @@ impl Imputer {
         &self,
         j: usize,
         weights: &[f64],
-        current: &[Vec<f64>],
+        current: &[Arc<[f64]>],
         design: &DesignRow<'_>,
+        workspace: &mut ChainedWorkspace,
     ) -> Result<Vec<f64>, MultipleImputationError> {
         let k = self.width_for(j);
         let observed = self.fit_rows_of(j);
         let nrows = observed.len();
-        let mut x = vec![0.0; k];
-        let mut matrix = vec![0.0; nrows * k];
+        let ChainedWorkspace { row, matrix, outcomes, weights: row_weights, .. } = workspace;
+        matrix.resize(nrows * k, 0.0);
+        outcomes.clear();
+        row_weights.clear();
         for (r, &i) in observed.iter().enumerate() {
-            design(i, &mut x, current);
-            for (a, &value) in x.iter().enumerate() {
+            design(i, row, current);
+            for (a, &value) in row.iter().enumerate() {
                 matrix[a * nrows + r] = value;
             }
+            outcomes.push(self.values[j][i]);
+            row_weights.push(weights[i]);
         }
-        let y: Vec<f64> = observed.iter().map(|&i| self.values[j][i]).collect();
-        let row_weights: Vec<f64> = observed.iter().map(|&i| weights[i]).collect();
         // The shared GLM engine, intercept unpenalised and a small ridge on the rest.
-        crate::util::fit_logistic_ridge(&matrix, nrows, k, &y, Some(&row_weights), LOGISTIC_RIDGE)
-            .map_err(|_| not_fitted(&self.names[j]))
+        crate::util::fit_logistic_ridge(
+            matrix,
+            nrows,
+            k,
+            outcomes,
+            Some(row_weights),
+            LOGISTIC_RIDGE,
+        )
+        .map_err(|_| not_fitted(&self.names[j]))
     }
 
     /// One data-augmentation sweep of the joint normal model: draw the mean and covariance
@@ -793,7 +820,7 @@ impl Imputer {
     /// cells (I-step).
     fn augment(
         &self,
-        current: &mut [Vec<f64>],
+        current: &mut [Arc<[f64]>],
         rng: &mut CausalRng,
     ) -> Result<(), MultipleImputationError> {
         let p = self.names.len();
@@ -839,7 +866,7 @@ impl Imputer {
                 for (c, zc) in z.iter().enumerate().take(a + 1) {
                     value += law.chol[a * m + c] * zc;
                 }
-                current[target][*i] = value;
+                Arc::make_mut(&mut current[target])[*i] = value;
             }
         }
         Ok(())
@@ -849,7 +876,7 @@ impl Imputer {
     /// `Σ ~ InvWishart(n − 1, S)`, `μ | Σ ~ N(x̄, Σ / n)`.
     fn jeffreys_draw(
         &self,
-        current: &[Vec<f64>],
+        current: &[Arc<[f64]>],
         rng: &mut CausalRng,
     ) -> Result<(Vec<f64>, Vec<f64>), MultipleImputationError> {
         let p = self.names.len();
@@ -970,7 +997,7 @@ fn not_fitted(name: &Arc<str>) -> MultipleImputationError {
 
 /// Weighted mean and (biased) covariance of the completed columns, row-major `p x p`.
 fn weighted_moments(
-    current: &[Vec<f64>],
+    current: &[Arc<[f64]>],
     weights: &[f64],
     rows: usize,
     p: usize,
@@ -1035,4 +1062,28 @@ fn uniform_index(rng: &mut CausalRng, n: usize) -> usize {
 #[allow(clippy::cast_precision_loss, reason = "row and variable counts are far below 2^52")]
 fn count(n: usize) -> f64 {
     n as f64
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn repeated_imputation_sweeps_preserve_complete_column_storage() {
+        let complete: Arc<[f64]> = (0..12).map(f64::from).collect();
+        let mut missing: Vec<f64> = (0..12).map(|i| f64::from(i % 3 != 0)).collect();
+        missing[4] = f64::NAN;
+        let imputer = Imputer::new(
+            vec![
+                ImputationColumn::new("complete", Arc::clone(&complete)),
+                ImputationColumn::new("missing", missing),
+            ],
+            ImputationSpec::new().with_iterations(2),
+            ImputationUnits::Rows,
+        )
+        .unwrap();
+        let table = imputer.impute(0, &ExecutionContext::for_tests(7)).unwrap();
+        assert!(Arc::ptr_eq(table.column("complete").unwrap(), &complete));
+        assert!(table.column("missing").unwrap()[4].is_finite());
+    }
 }

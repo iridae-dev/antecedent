@@ -80,11 +80,7 @@ impl ForestLearner {
         let seed = rng.next_u64();
         let n_trees = self.spec.n_trees as usize;
         let leaf = self.spec.resolved_min_samples_leaf(self.task) as usize;
-        let matrix = dense_column_major(
-            std::borrow::Cow::Borrowed(&prepared.design),
-            prepared.nrows,
-            prepared.ncols,
-        )?;
+        let matrix = dense_column_major(prepared.design, prepared.nrows, prepared.ncols)?;
         let model = if self.spec.extra_trees {
             FittedForest::Extra(
                 ExtraTreesRegressor::fit(
@@ -113,12 +109,12 @@ impl ForestLearner {
         Ok(Box::new(FittedForestPredictor { model, task: self.task, columns: prepared.ncols }))
     }
 
-    fn prepare(
+    fn prepare<'a>(
         &self,
-        x: DesignView<'_>,
+        x: DesignView<'a>,
         y: TargetView<'_>,
         weights: Option<&[f64]>,
-    ) -> Result<Prepared, LearnError> {
+    ) -> Result<Prepared<'a>, LearnError> {
         if weights.is_some() {
             return Err(LearnError::Unsupported {
                 message: "random forest does not accept sample weights",
@@ -139,12 +135,12 @@ impl ForestLearner {
         if gathered_y.iter().any(|value| !value.is_finite()) {
             return Err(LearnError::NonFinite { message: "forest target" });
         }
-        Ok(Prepared { design: design.into_owned(), y: gathered_y, nrows, ncols })
+        Ok(Prepared { design, y: gathered_y, nrows, ncols })
     }
 
     fn fit_per_tree(
         &self,
-        prepared: &Prepared,
+        prepared: &Prepared<'_>,
         ctx: &ExecutionContext,
     ) -> Result<Box<dyn FittedPredictor>, LearnError> {
         let n_trees = self.spec.n_trees as usize;
@@ -206,8 +202,8 @@ impl LearnerFactory for ForestLearner {
     }
 }
 
-struct Prepared {
-    design: Vec<f64>,
+struct Prepared<'a> {
+    design: std::borrow::Cow<'a, [f64]>,
     y: Vec<f64>,
     nrows: usize,
     ncols: usize,
@@ -648,8 +644,8 @@ impl FittedPredictor for GrownForest {
     }
 }
 
-/// Wrap a column-major design for the forest backend. An owned buffer (a gathered or
-/// reordered design) is moved in; only a borrowed one has to be copied.
+/// The legacy SmartCore path requires an owned, mutable `Array2` type at fit and predict.
+/// Move a gathered design into that matrix or copy a borrowed input for this path.
 fn dense_column_major(
     colmajor: std::borrow::Cow<'_, [f64]>,
     nrows: usize,
@@ -729,6 +725,17 @@ mod tests {
             y[i] = if i * 2 < n { 0.0 } else { 1.0 };
         }
         (x, y)
+    }
+
+    #[test]
+    fn forest_fold_fit_keeps_a_packed_design_borrowed() {
+        let matrix = [0.0, 1.0, 4.0, 9.0];
+        let outcomes = [0.0, 2.0, 8.0, 18.0];
+        let forest = ForestLearner::new(ForestSpec::default(), PredictionTask::Regression);
+        let design = DesignView::from_column_major(&matrix, matrix.len(), 1).unwrap();
+        let prepared = forest.prepare(design, TargetView::new(&outcomes), None).unwrap();
+        assert_eq!(prepared.design.as_ptr(), matrix.as_ptr());
+        forest.fit_per_tree(&prepared, &ExecutionContext::for_tests(4)).unwrap();
     }
 
     fn spec(n_trees: u32, leaf: u32, extra_trees: bool) -> ForestSpec {
