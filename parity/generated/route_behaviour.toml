@@ -808,7 +808,6 @@ refusals = [
   { code = "invalid_argument", detail = "scenario_covariance.too_few_rows" },
   { code = "invalid_argument", detail = "scenario_covariance.too_few_replicates" },
   { code = "invalid_argument", detail = "scenario_covariance.invalid_failure_bound" },
-  { code = "execution_resource_limit", detail = "scenario_covariance.exact_enumeration_cap" },
   { code = "transport_numerical_failure", detail = "scenario_covariance.too_many_failed_replicates" },
   { code = "transport_numerical_failure", detail = "scenario_covariance.not_positive_semidefinite" },
   { code = "invalid_argument", detail = "scenario_covariance.invalid_row_table" },
@@ -1290,7 +1289,6 @@ status = "supported"
 refusals = [
   { code = "transport_not_certified", detail = "identification_repair.wrong_contract" },
   { code = "invalid_argument", detail = "identification_repair.invalid_request" },
-  { code = "invalid_argument", detail = "identification_repair.bounds_exceeded" },
   { code = "invalid_argument", detail = "identification_repair.not_a_failure" },
   { code = "transport_budget_cancel", detail = "identification_repair.budget" },
   { code = "design_cost_units_mismatch", detail = "identification_repair.cost_units_mismatch" },

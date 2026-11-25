@@ -107,8 +107,7 @@ pub fn unresolved_obligations(family: &dyn RepairFamily) -> Vec<EvidenceObligati
 /// Rank the candidates (and bounded subsets of them) that repair the contract.
 ///
 /// # Errors
-/// `identification_repair.bounds_exceeded` for a request beyond the declared
-/// bounds, `identification_repair.cost_units_mismatch` when cost ranking
+/// `identification_repair.cost_units_mismatch` when cost ranking
 /// compares different unit labels and `identification_repair.budget` when the
 /// budget is stopped before the search. A stop during the search is a report.
 pub fn repair_contract(

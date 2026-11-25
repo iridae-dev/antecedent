@@ -2425,7 +2425,6 @@ refusals = [
   { detail = "scenario_covariance.too_few_rows" },
   { detail = "scenario_covariance.too_few_replicates" },
   { detail = "scenario_covariance.invalid_failure_bound" },
-  { detail = "scenario_covariance.exact_enumeration_cap" },
   { detail = "scenario_covariance.too_many_failed_replicates" },
   { detail = "scenario_covariance.not_positive_semidefinite" },
   { detail = "scenario_covariance.invalid_row_table" },
@@ -4249,7 +4248,6 @@ bounds = { cancellation = true, contract = "antecedent_core::SearchBudget", oper
 refusals = [
   { detail = "identification_repair.wrong_contract" },
   { detail = "identification_repair.invalid_request" },
-  { detail = "identification_repair.bounds_exceeded", when = "A request declares more candidates, a deeper subset search, more operations or more memory than the declared repair bounds." },
   { detail = "identification_repair.not_a_failure" },
   { detail = "identification_repair.budget" },
   { detail = "identification_repair.cost_units_mismatch" },

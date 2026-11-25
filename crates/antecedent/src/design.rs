@@ -828,8 +828,7 @@ pub mod repair {
     /// names. This forwards to [`antecedent_design::repair`](fn@antecedent_design::repair).
     ///
     /// # Errors
-    /// `identification_repair.bounds_exceeded` for a request beyond the declared
-    /// bounds, `identification_repair.cost_units_mismatch` when cost ranking
+    /// `identification_repair.cost_units_mismatch` when cost ranking
     /// compares different unit labels, and `identification_repair.budget` when the
     /// budget is stopped before the search is entered. A stop during the search is
     /// a report, never an error.
