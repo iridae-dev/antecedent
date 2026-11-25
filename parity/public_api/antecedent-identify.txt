@@ -5033,6 +5033,7 @@ pub fn <antecedent_identify::CompiledIdentificationProduct>::const fn target_ide
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn bind_target(self, target: &antecedent_core::scientific_target::identity::ScientificTarget) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn bounded_search_diagnostics(&self) -> &[antecedent_core::diagnostic::Diagnostic]
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identified(&self) -> &[antecedent_expr::estimand::IdentifiedEstimand]
+pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identifies_within_model(&self) -> bool
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn identity(&self) -> antecedent_core::identity::SemanticDigest
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn is_identified_claim(&self) -> bool
 pub fn <antecedent_identify::CompiledIdentificationProduct>::fn new(estimands: alloc::vec::Vec<antecedent_expr::estimand::IdentifiedEstimand>, arena: antecedent_expr::CausalExprArena, derivation: antecedent_identify::DerivationTrace, assumptions: antecedent_core::assumption::AssumptionSet, bounded_search: alloc::vec::Vec<antecedent_core::diagnostic::Diagnostic>, parts: antecedent_identify::CompiledProductParts) -> core::result::Result<Self, antecedent_identify::ProductRefusal>
@@ -5357,6 +5358,7 @@ pub fn <antecedent_identify::backdoor::CheckedJointAdjustment>::fn treatments(&s
 pub fn <antecedent_identify::compiled_product::IdentificationObligation>::const fn assembled(outcome: antecedent_identify::IdentificationOutcome, claim_class: antecedent_identify::IdentificationClaimClass, unresolved: alloc::vec::Vec<antecedent_identify::UnresolvedObligation>, numerical_value: core::option::Option<f64>) -> Self
 pub fn <antecedent_identify::compiled_product::IdentificationObligation>::const fn claim_class(&self) -> antecedent_identify::IdentificationClaimClass
 pub fn <antecedent_identify::compiled_product::IdentificationObligation>::const fn for_world(world: antecedent_core::scientific_target::model::ScientificWorldId, outcome: antecedent_identify::IdentificationOutcome, claim_class: antecedent_identify::IdentificationClaimClass, unresolved: alloc::vec::Vec<antecedent_identify::UnresolvedObligation>, numerical_value: core::option::Option<f64>) -> Self
+pub fn <antecedent_identify::compiled_product::IdentificationObligation>::const fn identifies_within_model(&self) -> bool
 pub fn <antecedent_identify::compiled_product::IdentificationObligation>::const fn is_identified_claim(&self) -> bool
 pub fn <antecedent_identify::compiled_product::IdentificationObligation>::const fn is_numerically_feasible(&self) -> bool
 pub fn <antecedent_identify::compiled_product::IdentificationObligation>::const fn numerical_value(&self) -> core::option::Option<f64>

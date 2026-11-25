@@ -1720,7 +1720,7 @@ guarantee = "checked_prepared_point_route"
 reference = "https://ftp.cs.ucla.edu/pub/stat_ser/r408.pdf"
 limits = "Evaluates the frozen formula: exact laws stay point only; counted tables attach the nominal percentile bootstrap, reported as not measured."
 evidence_test = "crates/antecedent/tests/z_transport_known_truth.rs"
-evidence_assertion = "an_empirical_table_at_the_law_returns_the_enumerated_point_with_a_nominal_interval"
+evidence_assertion = "the_prepared_estimate_is_repeatable_and_its_point_is_the_enumerated_truth"
 
 [[routes]]
 route = "antecedent.PreparedZTransport.estimate_bayesian"

@@ -242,6 +242,27 @@ fn the_prepared_route_recovers_the_enumerated_target_law_from_the_source_experim
 }
 
 #[test]
+fn the_prepared_estimate_is_repeatable_and_its_point_is_the_enumerated_truth() {
+    // Evaluating the frozen formula twice gives the same bits: the prepared route holds no
+    // state an estimate changes, and each call reads the retained plan.
+    let joint = source_joint();
+    let ctx = ExecutionContext::for_tests(3);
+    let prepared = StudyBuilder::z_transport(
+        diagram(),
+        functional(),
+        law(joint, None),
+        Assignment::from_pairs([(X, Value::Bool(true))]),
+        ExactEvaluationLimits::default(),
+        &ctx,
+    )
+    .unwrap();
+    let first = y_risk(&prepared.estimate(&ctx).unwrap());
+    let second = y_risk(&prepared.estimate(&ctx).unwrap());
+    assert_eq!(first.to_bits(), second.to_bits());
+    assert!((first - truth(true)).abs() < 1e-12, "{first}");
+}
+
+#[test]
 fn an_empirical_table_at_the_law_returns_the_enumerated_point_with_a_nominal_interval() {
     // 10 000 units whose cell counts equal the source law exactly (every cell is a multiple of
     // 1 / 10 000), so the plug-in point is the enumerated truth.
