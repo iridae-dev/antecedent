@@ -42,12 +42,15 @@ impl CompiledLinearExecution {
         data: &antecedent_data::TabularData,
         query: &AverageEffectQuery,
         plan: &mut PhysicalExecutionPlan,
+        retained: Option<Arc<super::prepared::CachedStaticIdentification>>,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<Option<Self>, CausalError> {
-        let identification =
-            Arc::new(source.prepare_static_identification(plan)?.ok_or_else(|| {
+        let identification = match retained {
+            Some(cache) => cache,
+            None => Arc::new(source.prepare_static_identification(plan)?.ok_or_else(|| {
                 CausalError::Compile { message: "linear compilation omitted identification".into() }
-            })?);
+            })?),
+        };
         let (mut fitter, default_id) = match source.declared.estimator_spec.as_deref() {
             Some(crate::estimator_spec::EstimatorSpec::LinearAdjustmentAte(config)) => {
                 ((**config).clone(), false)

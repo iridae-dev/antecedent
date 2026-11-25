@@ -105,6 +105,8 @@ pub(crate) struct LoweringContext<'a> {
     pub(crate) plan: &'a PhysicalExecutionPlan,
     /// What compile was asked to produce.
     pub(crate) goal: &'a CompileGoal,
+    /// Existing proof authorized by estimator-swap admission.
+    swapped: Option<&'a RetainedIdentification>,
     /// Compile context.
     pub(crate) ctx: &'a ExecutionContext,
 }
@@ -120,6 +122,7 @@ pub(crate) fn attach(
     input: RouteInput<'_>,
     plan: &mut PhysicalExecutionPlan,
     goal: &CompileGoal,
+    swapped: Option<&RetainedIdentification>,
     ctx: &ExecutionContext,
 ) -> Result<(), CausalError> {
     let lowered = lower(&LoweringContext {
@@ -128,6 +131,7 @@ pub(crate) fn attach(
         input: Some(input),
         plan: &*plan,
         goal,
+        swapped,
         ctx,
     })?;
     install(study, plan, lowered, ctx)
@@ -184,7 +188,7 @@ pub(crate) fn reconfigure_retained(
     let input = study.route_input_classified().ok_or(CausalError::Unsupported {
         message: "configured refresh requires a retained static route",
     })?;
-    attach(study, input, plan, &CompileGoal::Estimate, ctx)
+    attach(study, input, plan, &CompileGoal::Estimate, None, ctx)
 }
 
 /// Lower a graph-posterior study for `goal` and attach the program to `plan`.
@@ -209,6 +213,7 @@ pub(crate) fn attach_graph_posterior(
         input: None,
         plan: &*plan,
         goal,
+        swapped: None,
         ctx,
     })?;
     install(study, plan, lowered, ctx)
@@ -351,6 +356,12 @@ pub(crate) fn retain_identification(
     // identification reads; a compiled product must agree independently too.
     if cx.ctx.cancellation.is_cancelled() {
         return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_IDENTIFY });
+    }
+    if let Some(swapped) = cx.swapped {
+        let mut rebound = swapped.clone();
+        rebound.key = retention_key(cx.study);
+        rebound.product = product;
+        return Ok(IdentificationLayer::Retained(Arc::new(rebound)));
     }
     if let Some(retained) = cx.plan.lowered().and_then(LoweredProgram::retained_identification)
         && retained.key.is_some()

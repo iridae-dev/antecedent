@@ -2445,3 +2445,60 @@ mod projected_ids {
         assert!((got - 2.0).abs() < 0.2, "uniform retarget of the exact-structure table: {got}");
     }
 }
+
+struct NoIdentification;
+
+impl antecedent_core::ProgressSink for NoIdentification {
+    fn report(&self, _fraction: f64, stage: &str) {
+        assert_ne!(stage, "identify.compute", "estimator swap must reuse the retained proof");
+    }
+}
+
+#[test]
+fn a_prepared_estimator_swap_executes_the_new_program_with_the_original_proof() {
+    use antecedent_data::TableView;
+
+    let treatment: Vec<_> = (0..160).map(|i| f64::from(i % 2)).collect();
+    let outcome: Vec<_> =
+        (0..160).map(|i| f64::from(u8::from((i / 2) % 4 <= (i % 2) * 2))).collect();
+    let data =
+        TabularData::from_f64_columns([("t", treatment.as_slice()), ("y", outcome.as_slice())])
+            .unwrap();
+    let graph = Dag::from_named_edges(data.schema(), &[("t", "y")]).unwrap();
+    let query = AverageEffectQuery::binary_ate(
+        data.schema().id_of("t").unwrap(),
+        data.schema().id_of("y").unwrap(),
+    );
+    let mut ctx = ExecutionContext::for_tests(17);
+    let prepared = Study::tabular(data)
+        .graph(graph)
+        .query(query)
+        .estimator(EstimatorId::LinearAdjustmentAte)
+        .bootstrap_replicates(0)
+        .refute(RefuteSuite::None)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let original = prepared.estimate_retained(&ctx).unwrap();
+
+    ctx.progress = Some(Arc::new(NoIdentification));
+    let refused = prepared.swap_estimator(EstimatorId::BayesianGcomp, &ctx).unwrap_err();
+    assert_eq!(refused.reason_code(), Some("route_not_supported"));
+    let incompatible = prepared.swap_estimator(EstimatorId::Iv2Sls, &ctx).unwrap_err();
+    assert_eq!(incompatible.reason_code(), Some("strategy_incompatible"));
+
+    let swapped = prepared.swap_estimator(EstimatorId::GlmAdjustment, &ctx).unwrap();
+    let result = swapped.estimate_retained(&ctx).unwrap();
+    let original_id = original.executed_contract().unwrap().identities;
+    let swapped_id = result.executed_contract().unwrap().identities;
+    assert_ne!(original_id.program, swapped_id.program);
+    assert_eq!(original_id.identification, swapped_id.identification);
+    assert!(original_id.identification_product.is_some());
+    assert_eq!(original_id.identification_product, swapped_id.identification_product);
+    assert_eq!(swapped.plan().logical.record.estimator.as_deref(), Some("glm.adjustment"));
+
+    let restored = swapped.swap_estimator(EstimatorId::LinearAdjustmentAte, &ctx).unwrap();
+    let result = restored.estimate_retained(&ctx).unwrap();
+    assert_eq!(result.executed_contract().unwrap().identities.program, original_id.program);
+}

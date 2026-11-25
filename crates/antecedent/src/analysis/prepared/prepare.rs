@@ -75,7 +75,7 @@ impl Study {
     pub fn prepare(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         antecedent_estimate::prepare::with_preparation_budget(
             crate::planner::PhysicalExecutionPlan::preparation_budget(ctx),
-            || self.prepare_metered(ctx, true, None),
+            || self.prepare_metered(ctx, true, None, None),
         )
     }
 
@@ -86,7 +86,7 @@ impl Study {
     pub fn prepare_deferred(&self, ctx: &ExecutionContext) -> Result<PreparedStudy, CausalError> {
         antecedent_estimate::prepare::with_preparation_budget(
             PhysicalExecutionPlan::preparation_budget(ctx),
-            || self.prepare_metered(ctx, false, None),
+            || self.prepare_metered(ctx, false, None, None),
         )
     }
 
@@ -99,7 +99,7 @@ impl Study {
     ) -> Result<PreparedStudy, CausalError> {
         antecedent_estimate::prepare::with_preparation_budget(
             PhysicalExecutionPlan::preparation_budget(ctx),
-            || self.prepare_metered(ctx, false, Some(previous)),
+            || self.prepare_metered(ctx, false, Some(previous), None),
         )
     }
 
@@ -113,7 +113,18 @@ impl Study {
     ) -> Result<PreparedStudy, CausalError> {
         antecedent_estimate::prepare::with_preparation_budget(
             PhysicalExecutionPlan::preparation_budget(ctx),
-            || self.prepare_metered(ctx, false, Some(plan)),
+            || self.prepare_metered(ctx, false, Some(plan), None),
+        )
+    }
+
+    pub(crate) fn prepare_with_swapped_estimator(
+        &self,
+        proof: &crate::planner::lowered::RetainedIdentification,
+        ctx: &ExecutionContext,
+    ) -> Result<PreparedStudy, CausalError> {
+        antecedent_estimate::prepare::with_preparation_budget(
+            PhysicalExecutionPlan::preparation_budget(ctx),
+            || self.prepare_metered(ctx, false, None, Some(proof)),
         )
     }
 
@@ -122,6 +133,7 @@ impl Study {
         ctx: &ExecutionContext,
         materialized: bool,
         previous: Option<&PhysicalExecutionPlan>,
+        swapped: Option<&crate::planner::lowered::RetainedIdentification>,
     ) -> Result<PreparedStudy, CausalError> {
         // A functional query under cheap or full validation is prepared as the same query at
         // validation none: its program is the one every refit re-executes, and the handle keeps
@@ -129,7 +141,7 @@ impl Study {
         if crate::analysis::functional_validation::requested(self) {
             let mut base = self.clone();
             base.settings.refute = crate::analysis::builder::RefuteSuite::None;
-            let mut handle = base.prepare_metered(ctx, materialized, previous)?;
+            let mut handle = base.prepare_metered(ctx, materialized, previous, swapped)?;
             handle.analysis.settings.refute = self.settings.refute;
             handle.program_cache = std::sync::OnceLock::new();
             handle.contract_cache = std::sync::OnceLock::new();
@@ -145,7 +157,19 @@ impl Study {
             &crate::analysis::lowering::CompileGoal::Estimate,
             ctx,
             previous,
+            swapped,
         )?);
+        if let Some(proof) = swapped
+            && !plan
+                .lowered()
+                .and_then(crate::planner::lowered::LoweredProgram::retained_identification)
+                .is_some_and(|retained| Arc::ptr_eq(&retained.caches, &proof.caches))
+        {
+            return Err(crate::unsupported_reason!(
+                "strategy_incompatible",
+                "the new estimator's lowering does not preserve the retained identification"
+            ));
+        }
         let posterior_programs = crate::analysis::contract::graph_posterior_programs(
             self,
             plan.logical.record.estimator.as_deref(),

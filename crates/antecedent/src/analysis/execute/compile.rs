@@ -870,7 +870,7 @@ impl super::Study {
         goal: &crate::analysis::lowering::CompileGoal,
         ctx: &ExecutionContext,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
-        self.compile_with_retained_identification(goal, ctx, None)
+        self.compile_with_retained_identification(goal, ctx, None, None)
     }
 
     /// Requote every physical input while offering a compatible causal proof to lowering.
@@ -879,6 +879,7 @@ impl super::Study {
         goal: &crate::analysis::lowering::CompileGoal,
         ctx: &ExecutionContext,
         previous: Option<&PhysicalExecutionPlan>,
+        swapped: Option<&crate::planner::lowered::RetainedIdentification>,
     ) -> Result<PhysicalExecutionPlan, CausalError> {
         crate::analysis::lowering::refuse_reentry(ctx)?;
         if ctx.cancellation.is_cancelled() {
@@ -920,12 +921,23 @@ impl super::Study {
             plan.linear = match rebound {
                 Some(rebound) => Some(std::sync::Arc::new(rebound?)),
                 None => crate::analysis::compiled_linear::CompiledLinearExecution::compile(
-                    self, data, query, &mut plan, ctx,
+                    self,
+                    data,
+                    query,
+                    &mut plan,
+                    swapped.and_then(|proof| {
+                        proof
+                            .caches()
+                            .iter()
+                            .find_map(crate::analysis::IdentificationCache::static_cache)
+                            .cloned()
+                    }),
+                    ctx,
                 )?
                 .map(std::sync::Arc::new),
             };
         }
-        crate::analysis::lowering::attach(self, input, &mut plan, goal, ctx)?;
+        crate::analysis::lowering::attach(self, input, &mut plan, goal, swapped, ctx)?;
         Ok(plan)
     }
 
