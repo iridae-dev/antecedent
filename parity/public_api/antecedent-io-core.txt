@@ -590,6 +590,7 @@ impl core::clone::Clone for antecedent_io_core::compact_export::PointWithSe
 impl core::clone::Clone for antecedent_io_core::compact_export::QueryValue
 impl core::clone::Clone for antecedent_io_core::compact_export::TermSpec
 impl core::clone::Clone for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
+impl core::clone::Clone for antecedent_io_core::compiled_study::StudyInvariant
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::clone::Clone for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -1240,6 +1241,7 @@ impl core::cmp::Eq for antecedent_io_core::compact_export::ExportLimits
 impl core::cmp::Eq for antecedent_io_core::compact_export::ExportRefusal
 impl core::cmp::Eq for antecedent_io_core::compact_export::ExportScope
 impl core::cmp::Eq for antecedent_io_core::compact_export::TermSpec
+impl core::cmp::Eq for antecedent_io_core::compiled_study::StudyInvariant
 impl core::cmp::Eq for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::cmp::Eq for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::cmp::Eq for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -1906,6 +1908,7 @@ impl core::cmp::PartialEq for antecedent_io_core::compact_export::MaskRegion
 impl core::cmp::PartialEq for antecedent_io_core::compact_export::PointWithSe
 impl core::cmp::PartialEq for antecedent_io_core::compact_export::QueryValue
 impl core::cmp::PartialEq for antecedent_io_core::compact_export::TermSpec
+impl core::cmp::PartialEq for antecedent_io_core::compiled_study::StudyInvariant
 impl core::cmp::PartialEq for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::cmp::PartialEq for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::cmp::PartialEq for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -2920,6 +2923,7 @@ impl core::fmt::Debug for antecedent_io_core::compact_export::PointWithSe
 impl core::fmt::Debug for antecedent_io_core::compact_export::QueryValue
 impl core::fmt::Debug for antecedent_io_core::compact_export::TermSpec
 impl core::fmt::Debug for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
+impl core::fmt::Debug for antecedent_io_core::compiled_study::StudyInvariant
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::fmt::Debug for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact
@@ -3982,6 +3986,7 @@ impl core::marker::Freeze for antecedent_io_core::compact_export::PointWithSe [a
 impl core::marker::Freeze for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Freeze for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Freeze for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Freeze for antecedent_io_core::compiled_study::StudyInvariant [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Freeze for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -4854,6 +4859,7 @@ impl core::marker::Send for antecedent_io_core::compact_export::PointWithSe [aut
 impl core::marker::Send for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Send for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Send for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Send for antecedent_io_core::compiled_study::StudyInvariant [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Send for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -5697,6 +5703,7 @@ impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::M
 impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::PointWithSe
 impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::QueryValue
 impl core::marker::StructuralPartialEq for antecedent_io_core::compact_export::TermSpec
+impl core::marker::StructuralPartialEq for antecedent_io_core::compiled_study::StudyInvariant
 impl core::marker::StructuralPartialEq for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl core::marker::StructuralPartialEq for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifactError
@@ -6541,6 +6548,7 @@ impl core::marker::Sync for antecedent_io_core::compact_export::PointWithSe [aut
 impl core::marker::Sync for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Sync for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Sync for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Sync for antecedent_io_core::compiled_study::StudyInvariant [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Sync for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -7415,6 +7423,7 @@ impl core::marker::Unpin for antecedent_io_core::compact_export::PointWithSe [au
 impl core::marker::Unpin for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::marker::Unpin for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::marker::Unpin for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::marker::Unpin for antecedent_io_core::compiled_study::StudyInvariant [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::marker::Unpin for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -8289,6 +8298,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_exp
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::compiled_study::StudyInvariant [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -9162,6 +9172,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export::QueryValue [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compact_export::TermSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::compiled_study::StudyInvariant [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::ClaimWire [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact [auto]
@@ -9926,6 +9937,7 @@ impl serde_core::ser::Serialize for antecedent_io_core::compact_export::MaskCond
 impl serde_core::ser::Serialize for antecedent_io_core::compact_export::MaskRegion
 impl serde_core::ser::Serialize for antecedent_io_core::compact_export::TermSpec
 impl serde_core::ser::Serialize for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
+impl serde_core::ser::Serialize for antecedent_io_core::compiled_study::StudyInvariant
 impl serde_core::ser::Serialize for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl serde_core::ser::Serialize for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl serde_core::ser::Serialize for antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta
@@ -10704,6 +10716,7 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compact_expor
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compact_export::MaskRegion
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compact_export::TermSpec
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::compiled_study::StudyInvariant
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::composition_verification_artifact::ClaimWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_io_core::composition_verification_artifact::CompositionVerificationMeta
@@ -13623,6 +13636,10 @@ pub field antecedent_io_core::compact_export::PointWithSe::export_identity: allo
 pub field antecedent_io_core::compact_export::PointWithSe::model_based_se: f64
 pub field antecedent_io_core::compact_export::PointWithSe::point: f64
 pub field antecedent_io_core::compact_export::PointWithSe::se_basis: &'static str
+pub field antecedent_io_core::compiled_study::OpenedStudy::source_names: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub field antecedent_io_core::compiled_study::StudyInvariant::continuation: alloc::vec::Vec<u8>
+pub field antecedent_io_core::compiled_study::StudyInvariant::data_snapshot: [u8; 32]
+pub field antecedent_io_core::compiled_study::StudyInvariant::program: [u8; 32]
 pub field antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire::coordinate: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire::from: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire::kind: alloc::string::String
@@ -15852,6 +15869,9 @@ pub fn <antecedent_io_core::compact_export::ExportQuery>::fn with_number(self, q
 pub fn <antecedent_io_core::compact_export::ExportScope>::fn declared() -> Self
 pub fn <antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire>::fn from_domain(proof: &antecedent_identify::compiled_product::product::CompiledIdentificationProduct, target: &antecedent_core::scientific_target::identity::ScientificTarget) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire>::fn to_domain(&self, target: &antecedent_core::scientific_target::identity::ScientificTarget) -> core::result::Result<antecedent_identify::compiled_product::product::CompiledIdentificationProduct, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::compiled_study::StudyInvariant>::fn decode(bytes: &[u8]) -> core::result::Result<core::option::Option<Self>, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::compiled_study::StudyInvariant>::fn decode_expecting(bytes: &[u8], retained: &antecedent_io_core::RetainedArtifactIdentity) -> core::result::Result<core::option::Option<Self>, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::compiled_study::StudyInvariant>::fn encode(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact>::const fn current(&self) -> &antecedent_contract::composition_verification::graph::CompositionGraph
 pub fn <antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact>::const fn effects(&self) -> &alloc::collections::btree::map::BTreeMap<alloc::string::String, antecedent_contract::composition_verification::revalidate::ObservedEffect>
 pub fn <antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact>::const fn ledger_state(&self) -> core::option::Option<antecedent_core::identity::SemanticDigest>
@@ -16054,6 +16074,7 @@ pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::f
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn new(model: &antecedent_core::measurement_model::MeasurementModel, result: core::option::Option<&antecedent_io_core::measurement_model_wire::MeasurementResult>) -> core::result::Result<Self, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn result(&self) -> core::result::Result<core::option::Option<antecedent_io_core::measurement_model_wire::MeasurementResult>, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn to_bytes(&self, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::IoError>
+pub fn <antecedent_io_core::measurement_model_wire::MeasurementModelArtifact>::fn validate_model_identity(bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_io_core::IoError>
 pub fn <antecedent_io_core::native_execution_wire::NativeExecutionWire>::fn from_facts(facts: &antecedent_core::execution_facts::ExecutionFacts) -> core::option::Option<Self>
 pub fn <antecedent_io_core::native_execution_wire::NativeExecutionWire>::fn recorded_facts(&self) -> antecedent_core::execution_facts::ExecutionFacts
 pub fn <antecedent_io_core::propagation_chain_record::PropagationChainDraftWire>::fn plan(&self) -> core::result::Result<antecedent_contract::propagation_chain::ChainPlan, antecedent_io_core::PropagationChainError>
@@ -17187,6 +17208,7 @@ pub struct antecedent_io_core::compact_export::MaskRegion
 pub struct antecedent_io_core::compact_export::PointWithSe
 pub struct antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire
 pub struct antecedent_io_core::compiled_identification_wire::CompiledIdentificationWire has private fields
+pub struct antecedent_io_core::compiled_study::StudyInvariant
 pub struct antecedent_io_core::composition_verification_artifact::CalibrationDeclarationWire
 pub struct antecedent_io_core::composition_verification_artifact::ClaimWire
 pub struct antecedent_io_core::composition_verification_artifact::CompositionVerificationArtifact

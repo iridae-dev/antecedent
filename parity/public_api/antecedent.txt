@@ -20611,6 +20611,7 @@ pub fn <antecedent::PreparedStudy>::fn report(&self, result: core::option::Optio
 pub fn <antecedent::PreparedStudy>::fn retained_operation(&self) -> antecedent::analysis::RetainedOperation<'_>
 pub fn <antecedent::PreparedStudy>::fn retained_refresh_family(&self) -> core::result::Result<antecedent::retained_refresh::RefreshFamily, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn retarget(&self, weights: &[f64], depends_on: &[antecedent_core::ids::VariableId], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::StudyResult, antecedent::CausalError>
+pub fn <antecedent::PreparedStudy>::fn save_compiled_study(&self, result: &antecedent::StudyResult, ctx: &antecedent_core::execution::context::ExecutionContext, source_uri: core::option::Option<&str>) -> core::result::Result<antecedent_io_core::compiled_study::WrittenStudy, antecedent_io_core::error::IoError>
 pub fn <antecedent::PreparedStudy>::fn schema(&self) -> &antecedent_core::schema::CausalSchema
 pub fn <antecedent::PreparedStudy>::fn score_reuse_identity(&self) -> core::result::Result<core::option::Option<antecedent_core::identity::SemanticDigest>, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn score_table(&self) -> core::option::Option<&antecedent_estimate::scores::ScoreTable>
@@ -20624,6 +20625,7 @@ pub fn <antecedent::PreparedStudy>::fn staleness_plan(&self) -> antecedent_valid
 pub fn <antecedent::PreparedStudy>::fn start_period_refresh(&self, data: &antecedent_data::dataset::TimeSeriesData, column: &str, spec: &antecedent::period_refresh::PeriodRefreshSpec<'_>, window: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, prior: &antecedent_state::conjugate_refresh::ConjugateOlsPrior) -> core::result::Result<antecedent::period_refresh::PeriodRefresh, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn start_retained_refresh(&self, source: &str, width: usize, rows: &[antecedent::retained_refresh::RefreshObservation], conjugate: core::option::Option<(&antecedent_state::conjugate_refresh::ConjugateOlsPrior, &str)>) -> core::result::Result<antecedent::retained_refresh::RetainedRefresh, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn streams_stages(&self) -> bool
+pub fn <antecedent::PreparedStudy>::fn swap_estimator(&self, estimator: antecedent::EstimatorId, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::CausalError>
 pub fn <antecedent::PreparedStudy>::fn temporal_identification(&self) -> core::option::Option<alloc::borrow::Cow<'_, antecedent::analysis::CachedTemporalIdentification>>
 pub fn <antecedent::PreparedStudy>::fn temporal_invalidations(&self) -> &antecedent_state::invalidation::InvalidationLog
 pub fn <antecedent::PreparedStudy>::fn temporal_treatment_score(&self, spec: &antecedent::analysis::array_fits::TemporalTreatmentScoreSpec) -> core::result::Result<antecedent::analysis::array_fits::ArrayFit, antecedent::CausalError>
@@ -22097,6 +22099,7 @@ pub fn <antecedent::analysis::graph_falsification::CompiledGraphFalsification>::
 pub fn <antecedent::analysis::graph_falsification::CompiledGraphFalsification>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::graph_falsification::CompiledGraphFalsification>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn compile(source: antecedent_data::dataset::TabularData, spec: &antecedent::analysis::graph_imputation::GraphImputationSpec, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::graph_imputation::GraphImputationError>
+pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn compile_from_masks(source: antecedent_data::dataset::TabularData, spec: &antecedent::analysis::graph_imputation::GraphImputationSpec, candidates: &[antecedent_core::adjacency_mask::AdjacencyMask], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationPoint, antecedent::analysis::graph_imputation::GraphImputationError>
 pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn export(&self, point: &antecedent::analysis::graph_imputation::GraphImputationPoint, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::graph_imputation::GraphImputationArtifact, antecedent::CausalError>
 pub fn <antecedent::analysis::graph_imputation::CompiledGraphImputation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
@@ -24466,6 +24469,8 @@ pub fn antecedent::inference::outcome_prior_source_from_artifact(bytes: &[u8], m
 pub fn antecedent::inference::outcome_prior_source_from_composed(composed: &antecedent_prob::external_prior::ComposedPrior) -> core::result::Result<antecedent_estimate::dml_outcome_prior::OutcomePriorSource, antecedent::CausalError>
 pub fn antecedent::inference::project_external_sources(ext: &antecedent::inference::ExternalComposeSpec, names: &[alloc::sync::Arc<str>], target: &[alloc::sync::Arc<str>], fill: &antecedent_prob::prior::PriorSet) -> core::result::Result<(alloc::vec::Vec<antecedent_prob::external_prior::ExternalPriorSource>, antecedent_prob::prior::PriorSet), antecedent::CausalError>
 pub fn antecedent::inference::resolve_bayesian_prior_with_conflict(cfg: &antecedent::BayesianConfig, prep: &antecedent_estimate::bayesian::gcomp::PreparedBayesianProblem, ctx: core::option::Option<&antecedent_core::execution::context::ExecutionContext>) -> core::result::Result<(core::option::Option<antecedent_prob::prior::PriorSet>, core::option::Option<antecedent_prob::diagnostics::ConflictSummary>), antecedent::CausalError>
+pub fn antecedent::io::compiled_study::open(bytes: &[u8], expected_identity: &str, resolve: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::vec::Vec<u8>>, caller_supplied: bool) -> core::result::Result<antecedent_io_core::compiled_study::OpenedStudy, antecedent_io_core::error::IoError>
+pub fn antecedent::io::compiled_study::open_expecting(bytes: &[u8], retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity, resolve: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::vec::Vec<u8>>, caller_supplied: bool) -> core::result::Result<antecedent_io_core::compiled_study::OpenedStudy, antecedent_io_core::error::IoError>
 pub fn antecedent::io::decode_model_bundle_bytes_expecting(bytes: &[u8], retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<antecedent_io::model_bundle::ModelBundle, antecedent::CausalError>
 pub fn antecedent::io::encode_model_bundle_bytes(input: &antecedent_io::model_bundle::ModelBundleEncode<'_>) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::CausalError>
 pub fn antecedent::period_refresh::window_factor_changes(old: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity, new: &antecedent_estimate::temporal_refresh::TemporalWindowIdentity) -> alloc::collections::btree::set::BTreeSet<antecedent_state::invalidation::TemporalFactor>
@@ -24871,6 +24876,7 @@ pub mod antecedent::io::bayesian_prior_recalc_artifact
 pub mod antecedent::io::calibration
 pub mod antecedent::io::canonical_json
 pub mod antecedent::io::choice_inference_result_artifact
+pub mod antecedent::io::compiled_study
 pub mod antecedent::io::composition_verification_artifact
 pub mod antecedent::io::container
 pub mod antecedent::io::contract_section
@@ -30781,6 +30787,24 @@ pub use antecedent::io::choice_inference_result_artifact::ChoiceSpecWire = antec
 pub use antecedent::io::choice_inference_result_artifact::MAX_CHOICE_INFERENCE_RESULT_BYTES = antecedent_io::choice_inference_result_artifact::MAX_CHOICE_INFERENCE_RESULT_BYTES
 pub use antecedent::io::choice_inference_result_artifact::declaration_from_wire = antecedent_io::choice_inference_result_artifact::declaration_from_wire
 pub use antecedent::io::choice_inference_result_artifact::spec_from_wire = antecedent_io::choice_inference_result_artifact::spec_from_wire
+pub use antecedent::io::compiled_study::CATALOG_SECTION = antecedent_io::compiled_study::CATALOG_SECTION
+pub use antecedent::io::compiled_study::CATALOG_VERSION = antecedent_io::compiled_study::CATALOG_VERSION
+pub use antecedent::io::compiled_study::CLAIM_SECTION = antecedent_io::compiled_study::CLAIM_SECTION
+pub use antecedent::io::compiled_study::FORMAT = antecedent_io::compiled_study::FORMAT
+pub use antecedent::io::compiled_study::INVARIANT_SECTION = antecedent_io::compiled_study::INVARIANT_SECTION
+pub use antecedent::io::compiled_study::KIND = antecedent_io::compiled_study::KIND
+pub use antecedent::io::compiled_study::OpenedStudy = antecedent_io::compiled_study::OpenedStudy
+pub use antecedent::io::compiled_study::Placement = antecedent_io::compiled_study::Placement
+pub use antecedent::io::compiled_study::StudyBody = antecedent_io::compiled_study::StudyBody
+pub use antecedent::io::compiled_study::StudyInvariant = antecedent_io::compiled_study::StudyInvariant
+pub use antecedent::io::compiled_study::StudyParts = antecedent_io::compiled_study::StudyParts
+pub use antecedent::io::compiled_study::UnresolvedBody = antecedent_io::compiled_study::UnresolvedBody
+pub use antecedent::io::compiled_study::WrittenStudy = antecedent_io::compiled_study::WrittenStudy
+pub use antecedent::io::compiled_study::accept_source_body = antecedent_io::compiled_study::accept_source_body
+pub use antecedent::io::compiled_study::body_section = antecedent_io::compiled_study::body_section
+pub use antecedent::io::compiled_study::layer5_quote = antecedent_io::compiled_study::layer5_quote
+pub use antecedent::io::compiled_study::source_content_digest = antecedent_io::compiled_study::source_content_digest
+pub use antecedent::io::compiled_study::write = antecedent_io::compiled_study::write
 pub use antecedent::io::composition_verification_artifact::CompositionVerificationArtifact = antecedent_io::composition_verification_artifact::CompositionVerificationArtifact
 pub use antecedent::io::composition_verification_artifact::CompositionVerificationArtifactError = antecedent_io::composition_verification_artifact::CompositionVerificationArtifactError
 pub use antecedent::io::container::MAGIC = antecedent_io::container::MAGIC
@@ -32487,7 +32511,7 @@ pub variant antecedent::analysis::graph_imputation::GraphImputationError::AtomFa
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::Engine(antecedent::CausalError)
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::IntervalUnavailable
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::SearchStopped(antecedent_core::search::SearchReceipt)
-pub variant antecedent::analysis::graph_imputation::GraphImputationError::SupportedGraphNotIdentified { mask: u64 }
+pub variant antecedent::analysis::graph_imputation::GraphImputationError::SupportedGraphNotIdentified { mask: antecedent_core::adjacency_mask::AdjacencyMask }
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::Unidentified { table: u32, mass: f64 }
 pub variant antecedent::analysis::graph_imputation::GraphImputationError::Unscorable { table: u32, count: u64 }
 pub variant antecedent::analysis::graph_imputation_effect_decision::GraphImputationEffectDecisionError::Chain(antecedent::analysis::ChainDecisionError)

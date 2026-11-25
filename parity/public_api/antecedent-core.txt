@@ -733,6 +733,7 @@ impl core::clone::Clone for antecedent_core::WorldId
 impl core::clone::Clone for antecedent_core::WorldObservation
 impl core::clone::Clone for antecedent_core::WorldSpec
 impl core::clone::Clone for antecedent_core::WouldRefuse
+impl core::clone::Clone for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::clone::Clone for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource
 impl core::clone::Clone for antecedent_core::device_reservation::ArithmeticPath
 impl core::clone::Clone for antecedent_core::device_reservation::ComputeSelection
@@ -1218,6 +1219,7 @@ impl core::cmp::Eq for antecedent_core::WorldId
 impl core::cmp::Eq for antecedent_core::WorldObservation
 impl core::cmp::Eq for antecedent_core::WorldSpec
 impl core::cmp::Eq for antecedent_core::WouldRefuse
+impl core::cmp::Eq for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::cmp::Eq for antecedent_core::device_reservation::ArithmeticPath
 impl core::cmp::Eq for antecedent_core::device_reservation::ComputeSelection
 impl core::cmp::Eq for antecedent_core::device_reservation::CpuAdmission
@@ -1388,6 +1390,7 @@ impl core::cmp::Ord for antecedent_core::TemporalNodeKey
 impl core::cmp::Ord for antecedent_core::VariableId
 impl core::cmp::Ord for antecedent_core::WorldId
 impl core::cmp::Ord for antecedent_core::WorldObservation
+impl core::cmp::Ord for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::cmp::Ord for antecedent_core::identity::DependencyAxis
 impl core::cmp::Ord for antecedent_core::identity::ReusableProduct
 impl core::cmp::Ord for antecedent_core::measurement_model::MeasurementKind
@@ -1803,6 +1806,7 @@ impl core::cmp::PartialEq for antecedent_core::WorldId
 impl core::cmp::PartialEq for antecedent_core::WorldObservation
 impl core::cmp::PartialEq for antecedent_core::WorldSpec
 impl core::cmp::PartialEq for antecedent_core::WouldRefuse
+impl core::cmp::PartialEq for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::cmp::PartialEq for antecedent_core::device_reservation::ArithmeticPath
 impl core::cmp::PartialEq for antecedent_core::device_reservation::ComputeSelection
 impl core::cmp::PartialEq for antecedent_core::device_reservation::CpuAdmission
@@ -1954,6 +1958,7 @@ impl core::cmp::PartialEq for antecedent_core::search_budget::SearchEstimate
 impl core::cmp::PartialEq for antecedent_core::search_budget::SearchFamily
 impl core::cmp::PartialEq for antecedent_core::search_budget::SearchResourceLimit
 impl core::cmp::PartialEq for antecedent_core::value::InterventionValueError
+impl core::cmp::PartialEq<u64> for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::cmp::PartialOrd for antecedent_core::CategoryDomainId
 impl core::cmp::PartialOrd for antecedent_core::ComponentId
 impl core::cmp::PartialOrd for antecedent_core::CounterfactualEvent
@@ -1980,6 +1985,7 @@ impl core::cmp::PartialOrd for antecedent_core::TemporalNodeKey
 impl core::cmp::PartialOrd for antecedent_core::VariableId
 impl core::cmp::PartialOrd for antecedent_core::WorldId
 impl core::cmp::PartialOrd for antecedent_core::WorldObservation
+impl core::cmp::PartialOrd for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::cmp::PartialOrd for antecedent_core::identity::DependencyAxis
 impl core::cmp::PartialOrd for antecedent_core::identity::ReusableProduct
 impl core::cmp::PartialOrd for antecedent_core::measurement_model::MeasurementKind
@@ -1992,6 +1998,8 @@ impl core::cmp::PartialOrd for antecedent_core::recalc::Stage
 impl core::cmp::PartialOrd for antecedent_core::recalc::StageIdentity
 impl core::convert::AsRef<[i32]> for antecedent_core::AdmittedTemporalOffsets
 impl core::convert::From<&[alloc::vec::Vec<f64>]> for antecedent_core::ProbabilityRows
+impl core::convert::From<&antecedent_core::adjacency_mask::AdjacencyMask> for antecedent_core::adjacency_mask::AdjacencyMask
+impl core::convert::From<&u64> for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::convert::From<alloc::vec::Vec<alloc::vec::Vec<f64>>> for antecedent_core::ProbabilityRows
 impl core::convert::From<antecedent_core::AnomalyAttributionQuery> for antecedent_core::CausalQuery
 impl core::convert::From<antecedent_core::AssociationQuery> for antecedent_core::CausalQuery
@@ -2030,6 +2038,7 @@ impl core::convert::From<antecedent_core::UnitChangeQuery> for antecedent_core::
 impl core::convert::From<antecedent_core::VariableId> for antecedent_core::ComponentId
 impl core::convert::From<antecedent_core::execution::AdmissionError> for antecedent_core::TemporalMaterializationError
 impl core::convert::From<antecedent_core::intervention::CapabilityRefusal> for antecedent_core::intervention::AdmitError
+impl core::convert::From<u64> for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::default::Default for antecedent_core::AdaptiveBootstrapBudget
 impl core::default::Default for antecedent_core::AdaptiveDrawBudget
 impl core::default::Default for antecedent_core::AnomalyReference
@@ -2071,6 +2080,7 @@ impl core::default::Default for antecedent_core::StateVersion
 impl core::default::Default for antecedent_core::SyntheticInterval
 impl core::default::Default for antecedent_core::SyntheticPanelMethod
 impl core::default::Default for antecedent_core::TemporalMaterializationLimits
+impl core::default::Default for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::default::Default for antecedent_core::execution_attempt::AttemptReport
 impl core::default::Default for antecedent_core::execution_attempt::ObservationToken
 impl core::default::Default for antecedent_core::execution_attempt::OperationCounts
@@ -2572,6 +2582,7 @@ impl core::fmt::Debug for antecedent_core::WorldId
 impl core::fmt::Debug for antecedent_core::WorldObservation
 impl core::fmt::Debug for antecedent_core::WorldSpec
 impl core::fmt::Debug for antecedent_core::WouldRefuse
+impl core::fmt::Debug for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::fmt::Debug for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource
 impl core::fmt::Debug for antecedent_core::device_reservation::ArithmeticPath
 impl core::fmt::Debug for antecedent_core::device_reservation::ComputeSelection
@@ -2837,6 +2848,7 @@ impl core::fmt::Display for antecedent_core::Value
 impl core::fmt::Display for antecedent_core::VariableId
 impl core::fmt::Display for antecedent_core::VarianceRule
 impl core::fmt::Display for antecedent_core::WouldRefuse
+impl core::fmt::Display for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::fmt::Display for antecedent_core::device_reservation::ArithmeticPath
 impl core::fmt::Display for antecedent_core::device_reservation::CpuAdmissionError
 impl core::fmt::Display for antecedent_core::device_reservation::DeviceReservationError
@@ -2875,6 +2887,7 @@ impl core::fmt::Display for antecedent_core::search_budget::MatchingDistance
 impl core::fmt::Display for antecedent_core::search_budget::SearchBudgetError
 impl core::fmt::Display for antecedent_core::search_budget::SearchFamily
 impl core::fmt::Display for antecedent_core::value::InterventionValueError
+impl core::fmt::LowerHex for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::hash::Hash for antecedent_core::AdmittedBytes
 impl core::hash::Hash for antecedent_core::AdmittedRouteMemory
 impl core::hash::Hash for antecedent_core::AllocationMethod
@@ -3111,6 +3124,7 @@ impl core::hash::Hash for antecedent_core::WorldId
 impl core::hash::Hash for antecedent_core::WorldObservation
 impl core::hash::Hash for antecedent_core::WorldSpec
 impl core::hash::Hash for antecedent_core::WouldRefuse
+impl core::hash::Hash for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::hash::Hash for antecedent_core::device_reservation::ArithmeticPath
 impl core::hash::Hash for antecedent_core::device_reservation::ComputeSelection
 impl core::hash::Hash for antecedent_core::device_reservation::CpuAdmission
@@ -3913,6 +3927,7 @@ impl core::marker::Freeze for antecedent_core::WorldId [auto]
 impl core::marker::Freeze for antecedent_core::WorldObservation [auto]
 impl core::marker::Freeze for antecedent_core::WorldSpec [auto]
 impl core::marker::Freeze for antecedent_core::WouldRefuse [auto]
+impl core::marker::Freeze for antecedent_core::adjacency_mask::AdjacencyMask [auto]
 impl core::marker::Freeze for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Freeze for antecedent_core::device_reservation::ComputeSelection [auto]
@@ -4491,6 +4506,7 @@ impl core::marker::Send for antecedent_core::WorldId [auto]
 impl core::marker::Send for antecedent_core::WorldObservation [auto]
 impl core::marker::Send for antecedent_core::WorldSpec [auto]
 impl core::marker::Send for antecedent_core::WouldRefuse [auto]
+impl core::marker::Send for antecedent_core::adjacency_mask::AdjacencyMask [auto]
 impl core::marker::Send for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Send for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Send for antecedent_core::device_reservation::ComputeSelection [auto]
@@ -5053,6 +5069,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::WorldId
 impl core::marker::StructuralPartialEq for antecedent_core::WorldObservation
 impl core::marker::StructuralPartialEq for antecedent_core::WorldSpec
 impl core::marker::StructuralPartialEq for antecedent_core::WouldRefuse
+impl core::marker::StructuralPartialEq for antecedent_core::adjacency_mask::AdjacencyMask
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::ArithmeticPath
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::ComputeSelection
 impl core::marker::StructuralPartialEq for antecedent_core::device_reservation::CpuAdmission
@@ -5622,6 +5639,7 @@ impl core::marker::Sync for antecedent_core::WorldId [auto]
 impl core::marker::Sync for antecedent_core::WorldObservation [auto]
 impl core::marker::Sync for antecedent_core::WorldSpec [auto]
 impl core::marker::Sync for antecedent_core::WouldRefuse [auto]
+impl core::marker::Sync for antecedent_core::adjacency_mask::AdjacencyMask [auto]
 impl core::marker::Sync for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Sync for antecedent_core::device_reservation::ComputeSelection [auto]
@@ -6204,6 +6222,7 @@ impl core::marker::Unpin for antecedent_core::WorldId [auto]
 impl core::marker::Unpin for antecedent_core::WorldObservation [auto]
 impl core::marker::Unpin for antecedent_core::WorldSpec [auto]
 impl core::marker::Unpin for antecedent_core::WouldRefuse [auto]
+impl core::marker::Unpin for antecedent_core::adjacency_mask::AdjacencyMask [auto]
 impl core::marker::Unpin for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::marker::Unpin for antecedent_core::device_reservation::ComputeSelection [auto]
@@ -6791,6 +6810,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WorldSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::WouldRefuse [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::adjacency_mask::AdjacencyMask [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::device_reservation::ComputeSelection [auto]
@@ -7372,6 +7392,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldId [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldObservation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WorldSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::WouldRefuse [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::adjacency_mask::AdjacencyMask [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::categorical_candidate_contract::CategoricalCandidateSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::ArithmeticPath [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::device_reservation::ComputeSelection [auto]
@@ -7649,6 +7670,7 @@ pub const <antecedent_core::TransportOutcomeKind>::ALL: [Self; 10]
 pub const <antecedent_core::TransportOutcomeKind>::IDENTIFICATION: [Self; 5]
 pub const <antecedent_core::TransportOutcomeKind>::LEGACY_IDENTIFICATION_SPELLINGS: [(&'static str, Self); 6]
 pub const <antecedent_core::WorldId>::CAPACITY: usize
+pub const <antecedent_core::adjacency_mask::AdjacencyMask>::EMPTY: Self
 pub const <antecedent_core::identity::DependencyAxis>::ALL: [Self; 14]
 pub const <antecedent_core::identity::ReusableProduct>::ALL: [Self; 6]
 pub const <antecedent_core::intervention::CyclicFamily>::ALL: [Self; 3]
@@ -10861,6 +10883,7 @@ pub const antecedent_core::recalc::MAX_EXTERNAL_BRANCHES: u8
 pub const antecedent_core::recalc::STANDING_INPUT_VERSION: u64
 pub const antecedent_core::temporal::MAX_UNFOLDED_NODES: u32
 pub const antecedent_core::treatment_indicator::TREATED_THRESHOLD: f64
+pub const fn antecedent_core::adjacency_mask::n_directed_edges(n: usize) -> usize
 pub const fn antecedent_core::derive_stream(master: u64, stream_id: u64) -> u64
 pub const fn antecedent_core::device_reservation::nested_thread_request(free_threads: u32) -> u32
 pub const fn antecedent_core::device_reservation::neural_baseline() -> antecedent_core::device_reservation::ArithmeticPath
@@ -11633,9 +11656,10 @@ pub field antecedent_core::execution_facts::PlannedResources::peak_memory_bytes:
 pub field antecedent_core::execution_facts::PlannedResources::worker_threads: core::option::Option<u64>
 pub field antecedent_core::execution_facts::PlannedResources::workspace_bytes: core::option::Option<u64>
 pub field antecedent_core::graph_imputation_contract::AtomOperation::adjustment: alloc::vec::Vec<u32>
-pub field antecedent_core::graph_imputation_contract::AtomOperation::mask: u64
+pub field antecedent_core::graph_imputation_contract::AtomOperation::mask: antecedent_core::adjacency_mask::AdjacencyMask
 pub field antecedent_core::graph_imputation_contract::AtomOperation::status: antecedent_core::IdentificationStatus
 pub field antecedent_core::graph_imputation_contract::GraphImputationParts::atoms: alloc::vec::Vec<antecedent_core::graph_imputation_contract::AtomOperation>
+pub field antecedent_core::graph_imputation_contract::GraphImputationParts::candidates: core::option::Option<alloc::vec::Vec<antecedent_core::adjacency_mask::AdjacencyMask>>
 pub field antecedent_core::graph_imputation_contract::GraphImputationParts::columns: alloc::vec::Vec<alloc::vec::Vec<f64>>
 pub field antecedent_core::graph_imputation_contract::GraphImputationParts::data_digest: [u8; 32]
 pub field antecedent_core::graph_imputation_contract::GraphImputationParts::domains: alloc::vec::Vec<u8>
@@ -12170,6 +12194,7 @@ pub fn <antecedent_core::ExecutionContext>::fn id_work_limit(&self) -> u64
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_scratch_if_free<T, S, E, F>(&self, n: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
+pub fn <antecedent_core::ExecutionContext>::fn map_indexed_with_spare_workers<T, E, F>(&self, n: usize, f: F) -> core::result::Result<alloc::vec::Vec<T>, antecedent_core::execution::MapExecutionError<E>> where E: core::marker::Send, F: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn memory_limit_bytes(&self) -> core::option::Option<u64>
 pub fn <antecedent_core::ExecutionContext>::fn pipeline_indexed<T, E, P, C>(&self, n: usize, window: usize, produce: P, consume: C) -> core::result::Result<antecedent_core::execution::PipelineReceipt, antecedent_core::execution::MapExecutionError<E>> where C: core::ops::function::FnMut(usize, T) -> core::result::Result<antecedent_core::execution::PipelineStep, E>, E: core::marker::Send, P: core::ops::function::Fn(usize, &Self) -> core::result::Result<T, E> + core::marker::Sync, T: core::marker::Send
 pub fn <antecedent_core::ExecutionContext>::fn pipeline_indexed_with_scratch<T, S, E, P, C>(&self, n: usize, window: usize, make_scratch: impl core::ops::function::Fn() -> S + core::marker::Sync, produce: P, consume: C) -> core::result::Result<antecedent_core::execution::PipelineReceipt, antecedent_core::execution::MapExecutionError<E>> where C: core::ops::function::FnMut(usize, T) -> core::result::Result<antecedent_core::execution::PipelineStep, E>, E: core::marker::Send, P: core::ops::function::Fn(usize, &Self, &mut S) -> core::result::Result<T, E> + core::marker::Sync, S: core::marker::Send, T: core::marker::Send
@@ -12933,6 +12958,28 @@ pub fn <antecedent_core::WorldSpec>::fn interventions(&self) -> impl core::iter:
 pub fn <antecedent_core::WorldSpec>::fn new(interventions: impl core::iter::traits::collect::IntoIterator<Item = (antecedent_core::VariableId, f64)>, routes: impl core::iter::traits::collect::IntoIterator<Item = antecedent_core::EdgeRoute>) -> core::result::Result<Self, antecedent_core::QueryError>
 pub fn <antecedent_core::WorldSpec>::fn routes(&self) -> &[antecedent_core::EdgeRoute]
 pub fn <antecedent_core::WouldRefuse>::fn not_supported(detail: impl core::convert::Into<alloc::string::String>, missing: &[&str]) -> Self
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::const fn from_word(word: u64) -> Self
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn admission_bytes(&self) -> u64
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn bit(&self, bit: u32) -> bool
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn contains_all(&self, other: &Self) -> bool
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn count_ones(&self) -> usize
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn difference(&self, other: &Self) -> Self
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn edges(&self, n: usize) -> impl core::iter::traits::iterator::Iterator<Item = (usize, usize)> + '_
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn fits_graph(&self, n: usize) -> bool
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn from_le_bytes(bytes: &[u8]) -> Self
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn from_words(words: &[u64]) -> Self
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn has_edge(&self, n: usize, from: usize, to: usize) -> bool
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn intersects(&self, other: &Self) -> bool
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn is_empty(&self) -> bool
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn key(&self) -> u64
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn set_bit(&mut self, bit: u32, present: bool)
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn set_bits(&self) -> impl core::iter::traits::iterator::Iterator<Item = u32> + '_
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn set_edge(&mut self, n: usize, from: usize, to: usize, present: bool)
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn to_le_bytes(&self) -> alloc::vec::Vec<u8>
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn to_word(&self) -> core::option::Option<u64>
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn union(&self, other: &Self) -> Self
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn with_bit(self, bit: u32, present: bool) -> Self
+pub fn <antecedent_core::adjacency_mask::AdjacencyMask>::fn words(&self) -> &[u64]
 pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::const fn program_identity(&self) -> antecedent_core::SemanticDigest
 pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::const fn query_digest(&self) -> [u8; 32]
 pub fn <antecedent_core::categorical_candidate_contract::CategoricalCandidateSource>::const fn source_digest(&self) -> [u8; 32]
@@ -13101,7 +13148,9 @@ pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_counts(
 pub fn <antecedent_core::execution_facts::MeasuredExecution>::fn try_add_resources(&mut self, extra: antecedent_core::execution_facts::ExecutionResources) -> core::result::Result<(), antecedent_core::execution_facts::ExecutionFactError>
 pub fn <antecedent_core::execution_facts::OutputRetention>::const fn as_str(self) -> &'static str
 pub fn <antecedent_core::execution_facts::PhysicalExecutionIdentity>::const fn digest(self) -> antecedent_core::SemanticDigest
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn admission_bytes(&self) -> u64
 pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn contract_digest(&self) -> [u8; 32]
+pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn declared_candidate_identity(&self) -> core::option::Option<antecedent_core::SemanticDigest>
 pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn rows(&self) -> usize
 pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn source_digest(&self) -> [u8; 32]
 pub fn <antecedent_core::graph_imputation_contract::GraphImputationParts>::fn validate(&self) -> core::result::Result<(), &'static str>
@@ -13384,6 +13433,8 @@ pub fn <antecedent_core::search_budget::SearchFamily>::const fn as_str(self) -> 
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn memory_bytes(self) -> u64
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn new(memory_bytes: u64, work: u64) -> Self
 pub fn <antecedent_core::search_budget::SearchResourceLimit>::const fn work(self) -> u64
+pub fn antecedent_core::adjacency_mask::edge_bit(n: usize, from: usize, to: usize) -> u32
+pub fn antecedent_core::adjacency_mask::edge_bits_fit(n: usize) -> bool
 pub fn antecedent_core::admit_temporal_intervention_validation<'a>(interventions: impl core::iter::traits::collect::IntoIterator<Item = &'a antecedent_core::Intervention>, budget: &mut antecedent_core::TemporalBudget, ctx: &antecedent_core::ExecutionContext) -> core::result::Result<antecedent_core::execution::AdmissionLease, antecedent_core::TemporalMaterializationError>
 pub fn antecedent_core::blake3_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::categorical_candidate_contract::admission_bytes(rows: usize, levels: usize) -> u64
@@ -13400,7 +13451,10 @@ pub fn antecedent_core::execution_attempt::observe_execution<T, E>(execute: impl
 pub fn antecedent_core::execution_attempt::observe_with_context<T, E>(ctx: &antecedent_core::ExecutionContext, execute: impl core::ops::function::FnOnce() -> core::result::Result<T, E>) -> antecedent_core::execution_attempt::ExecutionAttempt<T, E>
 pub fn antecedent_core::fnv1a_u64(bytes: &[u8]) -> u64
 pub fn antecedent_core::graph_imputation_contract::admission_bytes(rows: usize, variables: usize) -> u64
+pub fn antecedent_core::graph_imputation_contract::admission_bytes_for_atoms(rows: usize, variables: usize, atoms: u64) -> u64
 pub fn antecedent_core::graph_imputation_contract::labeled_dag_count(n: usize) -> u64
+pub fn antecedent_core::graph_imputation_contract::valid_variable_count(variables: usize) -> bool
+pub fn antecedent_core::graph_imputation_contract::write_mask(writer: &mut antecedent_core::CanonicalWriter, mask: &antecedent_core::adjacency_mask::AdjacencyMask, variables: usize)
 pub fn antecedent_core::identity::to_hex(bytes: &[u8]) -> alloc::string::String
 pub fn antecedent_core::inspect::inspect(inputs: antecedent_core::inspect::InspectionInputs) -> core::result::Result<antecedent_core::inspect::PlanInspection, antecedent_core::inspect::InspectionRefusal>
 pub fn antecedent_core::is_blank(text: &str) -> bool
@@ -13425,6 +13479,7 @@ pub fn antecedent_core::support_gate::drain_unscoped() -> alloc::vec::Vec<antece
 pub fn antecedent_core::support_gate::forbid_fixture_write()
 pub fn antecedent_core::support_gate::require_supported_unscoped(detail: &'static str, missing: &[&str]) -> core::result::Result<(), antecedent_core::NotSupported>
 pub fn antecedent_core::treatment_indicator::is_treated_indicator(indicator: f64) -> bool
+pub mod antecedent_core::adjacency_mask
 pub mod antecedent_core::assumption
 pub mod antecedent_core::calibration_basis
 pub mod antecedent_core::callback
@@ -14056,6 +14111,8 @@ pub struct antecedent_core::WorldObservation
 pub struct antecedent_core::WorldSpec
 pub struct antecedent_core::WorldSpec has private fields
 pub struct antecedent_core::WouldRefuse
+pub struct antecedent_core::adjacency_mask::AdjacencyMask
+pub struct antecedent_core::adjacency_mask::AdjacencyMask has private fields
 pub struct antecedent_core::categorical_candidate_contract::CategoricalCandidateSource
 pub struct antecedent_core::categorical_candidate_contract::CategoricalCandidateSource has private fields
 pub struct antecedent_core::device_reservation::CpuAdmission
@@ -14236,6 +14293,7 @@ pub trait fn fn antecedent_core::measurement_record::ResourceProbe::allocation(&
 pub trait fn fn antecedent_core::measurement_record::ResourceProbe::begin_window(&self) {default}
 pub trait fn fn antecedent_core::measurement_record::ResourceProbe::peak_rss(&self) -> antecedent_core::measurement_record::PeakRss
 pub type antecedent_core::NonZeroThreadCount = core::num::nonzero::NonZeroU32
+pub type antecedent_core::adjacency_mask::LagMask = antecedent_core::adjacency_mask::AdjacencyMask
 pub type antecedent_core::refusal::RefusalParts = (&'static str, alloc::string::String, alloc::string::String)
 pub use antecedent_core::assumption::Assumption = antecedent_core::Assumption
 pub use antecedent_core::assumption::AssumptionRecord = antecedent_core::AssumptionRecord

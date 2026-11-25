@@ -5512,6 +5512,19 @@ status = "internal"
 reason = "Deprecated direct facade path, kept for Rust callers until its removal in 4.0. Python reaches the capability through the compiled replacement (route:PowerPriorLinearSelection), never through this path."
 
 [[entry]]
+rust = "antecedent::io::compiled_study::open"
+kind = "fn"
+status = "bound"
+python = "antecedent.compiled_study.open_study"
+
+[[entry]]
+rust = "antecedent::io::compiled_study::open_expecting"
+kind = "fn"
+status = "bound"
+python = "antecedent.compiled_study.open_study"
+reason = "Python supplies the independently retained invariant identity as a string."
+
+[[entry]]
 rust = "antecedent::io::decode_analysis_result_artifact"
 kind = "fn"
 status = "bound"
