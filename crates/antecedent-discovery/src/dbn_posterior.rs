@@ -289,7 +289,6 @@ impl DbnPosterior {
         }
 
         let (score_data, _) = build_lagged_score_data(units, variables, max_lag)?;
-        let use_exact = !self.force_mcmc && exact_fits_budget(p, n_lag_bits);
 
         let pair_logs = (prior.edge_priors.is_some() || prior.soft_tiers.is_some()).then(|| {
             crate::edge_prior::pair_logs(
@@ -309,32 +308,18 @@ impl DbnPosterior {
             score_family,
             pair_logs: pair_logs.as_deref(),
         };
-        if !use_exact && !self.force_mcmc && self.template_limit.is_some() {
-            return self.run_declared_exact(&target, n_lag_bits, ctx);
+        if self.force_mcmc {
+            return self.run_mcmc(&target, ctx);
         }
-        if use_exact { Self::run_exact(&target, ctx) } else { self.run_mcmc(&target, ctx) }
-    }
-
-    /// Exact listing of a product the caller declared. A quote the pool does not hold is a
-    /// receipt; the sampler is not entered.
-    fn run_declared_exact(
-        &self,
-        target: &DbnTarget<'_>,
-        n_lag_bits: usize,
-        ctx: &ExecutionContext,
-    ) -> Result<GraphPosterior, DiscoveryError> {
-        let declared = u128::from(self.template_limit.unwrap_or(DBN_EXACT_MAX_TEMPLATES));
-        let Some(templates) = template_product(target.p, n_lag_bits) else {
-            return refuse_template_quote(ctx);
-        };
-        if templates > declared {
-            return refuse_template_quote(ctx);
+        if let Some(limit) = self.template_limit {
+            if template_product(p, n_lag_bits).is_none_or(|templates| templates > u128::from(limit))
+            {
+                return refuse_template_quote(ctx);
+            }
+        } else if !exact_fits_budget(p, n_lag_bits) {
+            return self.run_mcmc(&target, ctx);
         }
-        let Some(bytes) = template_bytes(templates) else {
-            return refuse_template_quote(ctx);
-        };
-        crate::exact_enumeration::admit_quote(ctx, usize::MAX, bytes, 0, "exact DBN templates")?;
-        Self::run_exact(target, ctx)
+        Self::run_exact(&target, ctx)
     }
 
     fn run_exact(
@@ -355,12 +340,12 @@ impl DbnPosterior {
                 "exact DBN templates were not entered",
             ));
         }
-        let contemp = enumerate_unique_dags(p);
         let n_lag_bits = (max_lag as usize) * p * p;
         let est_bytes = template_product(p, n_lag_bits)
             .and_then(template_bytes)
             .unwrap_or(u64::MAX);
         crate::exact_enumeration::admit_quote(ctx, usize::MAX, est_bytes, 0, "exact DBN templates")?;
+        let contemp = enumerate_unique_dags(p);
         let mut kept_masks = Vec::new();
         let mut kept_lag = Vec::new();
         let mut kept_log = Vec::new();
@@ -1847,6 +1832,25 @@ mod tests {
         assert!(text.contains("exact DBN templates"), "{text}");
         assert!(text.contains("search.operations") || text.contains("search.memory"), "{text}");
         assert!(!text.contains("order MCMC"), "{text}");
+    }
+
+    #[test]
+    fn a_declared_template_limit_applies_to_the_default_exact_range() {
+        let (data, vars) = one_series(20);
+        let ctx = ExecutionContext::for_tests(1);
+        let run = |limit| {
+            DbnPosterior::new(1).with_template_limit(limit).run(
+                &data,
+                &vars,
+                &GraphPrior::uniform(),
+                GraphScoreFamily::GaussianBic,
+                &ctx,
+            )
+        };
+        let error = run(1).unwrap_err().to_string();
+        assert!(error.contains("exact DBN templates"), "{error}");
+        let posterior = run(2).unwrap();
+        assert_eq!(posterior.weights().len(), 2);
     }
 
     #[test]
