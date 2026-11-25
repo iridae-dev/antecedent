@@ -512,9 +512,9 @@ limitations = [
 empty = { premises = "A total function over the status.", obligations = "Its output is a class; it carries nothing to a user." }
 
 [[operations]]
-id = "antecedent_core::recalc::RecalcPlan::plan"
+id = "antecedent_core::recalc::RecalcPlan::plan_with_rule"
 file = "crates/antecedent-core/src/recalc.rs"
-item = "impl:RecalcPlan#0/fn:plan#0"
+item = "impl:RecalcPlan#0/fn:plan_with_rule#0"
 generated = ["implementation", "justification"]
 inputs = [
     "the previous stage identities",
@@ -529,7 +529,7 @@ justification = [
     { record = "revalidation.raised_only_by_recomputation", kind = "verified_implementation", tool = "lean+aeneas", binds = "none", names = ["AntecedentRust.Revalidation.of_provider_spec", "AntecedentRust.Revalidation.trust_move_is_numerical_spec", "AntecedentRust.Revalidation.trust_withdraws_spec", "AntecedentRust.Revalidation.revalidation_class_spec", "AntecedentRust.Revalidation.loss_class_spec", "AntecedentRust.Revalidation.status_step_spec"] },
     { record = "revalidation.raised_only_by_recomputation", kind = "bounded_model_check", tool = "kani", binds = "code", names = ["worst_is_a_join", "a_change_never_keeps_a_dependent_valid"] },
 ]
-implementation = { public_path = "antecedent_core::recalc::RecalcPlan::plan", bound_by = ["revalidation.raised_only_by_recomputation"] }
+implementation = { visibility = "crate", bound_by = ["revalidation.raised_only_by_recomputation"] }
 obligations = [
     { obligation = "a refused stage, with its reason, cannot be served until its inputs are supplied", carried_in = "StageEntry" },
 ]
@@ -1005,3 +1005,219 @@ limitations = [
     "The Kani proof stubs the refusal message's formatting: it covers the refusal's code and control flow, not its wording.",
 ]
 empty = { obligations = "Whatever the loader's result carries is the loader's; binding adds nothing." }
+
+[[operations]]
+id = "antecedent_core::framing::dedup_sorted_digests"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:dedup_sorted_digests#0"
+generated = ["implementation", "justification"]
+inputs = ["a sorted list of 32-byte digests"]
+output = "the list with adjacent repeats removed"
+premises = []
+transformation = "keep each digest that differs from its predecessor"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_bytes"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_bytes#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and a byte string (raw bytes, text or a domain tag)"]
+output = "the byte string's length word then its bytes appended to the sink"
+premises = []
+transformation = "length word, then the payload bytes"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_count"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_count#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and a length or count"]
+output = "the count as a word appended to the sink"
+premises = []
+transformation = "the count widened to u64, then frame_word"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_digest_multiset"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_digest_multiset#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and a list of 32-byte digests"]
+output = "the digests as a multiset: sorted, repeats kept, then framed as an ordered list"
+premises = []
+transformation = "sort, frame_digests"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_digest_set"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_digest_set#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and a list of 32-byte digests"]
+output = "the digests as a set: sorted, repeats removed, then framed as an ordered list"
+premises = []
+transformation = "sort, deduplicate, frame_digests"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_digests"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_digests#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and an ordered list of 32-byte digests"]
+output = "the count word then each digest's bytes, in the order given"
+premises = []
+transformation = "count word, then each digest in order"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_presence"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_presence#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and whether an optional value is present"]
+output = "the presence word, 1 or 0, appended to the sink"
+premises = []
+transformation = "the boolean as a word, 1 when present"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_real_bits"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_real_bits#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and a real's IEEE-754 bit pattern"]
+output = "the bit pattern as a word appended to the sink, so -0.0 and 0.0 and distinct NaN payloads frame apart"
+premises = []
+transformation = "the bits as a word"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_u32_multiset"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_u32_multiset#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and a list of u32 values"]
+output = "the values as a multiset: sorted, repeats kept, then framed as an ordered list"
+premises = []
+transformation = "sort, frame_u32s"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_u32s"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_u32s#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and an ordered list of u32 values"]
+output = "the count word then each value widened to a word, in the order given"
+premises = []
+transformation = "count word, then each value as a word in order"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_word"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_word#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and one u64 word"]
+output = "the word's eight little-endian bytes appended to the sink"
+premises = []
+transformation = "eight little-endian bytes of the word"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }
+
+[[operations]]
+id = "antecedent_core::framing::frame_words"
+file = "crates/antecedent-core/src/framing.rs"
+item = "fn:frame_words#0"
+generated = ["implementation", "justification"]
+inputs = ["a sink and an ordered list of words"]
+output = "the count word then each word in the order given"
+premises = []
+transformation = "count word, then each word in order"
+justification = [
+    { record = "identity.canonical_framing_injective", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Framing.prefixFree_of_width", "Antecedent.Framing.PrefixFreeOn.seq", "Antecedent.Framing.PrefixFreeOn.dseq", "Antecedent.Framing.PrefixFreeOn.tag_separates", "Antecedent.Framing.prefixFree_option", "Antecedent.Framing.prefixFree_ordered", "Antecedent.Framing.ordered_swap_ne", "Antecedent.Framing.set_eq_iff", "Antecedent.Framing.set_perm", "Antecedent.Framing.set_dup", "Antecedent.Framing.multiset_eq_iff", "Antecedent.Framing.multiset_dup_ne", "Antecedent.Framing.identity_eq_iff"] },
+    { record = "identity.canonical_framing_injective", kind = "verified_implementation", tool = "lean+aeneas", binds = "code", names = ["AntecedentRust.Framing.word_prefixFree", "AntecedentRust.Framing.count_prefixFree", "AntecedentRust.Framing.bytes_prefixFree", "AntecedentRust.Framing.presence_prefixFree", "AntecedentRust.Framing.u32_prefixFree", "AntecedentRust.Framing.digest_prefixFree", "AntecedentRust.Framing.neg_zero_frames_apart", "AntecedentRust.Framing.nan_payloads_frame_apart", "AntecedentRust.Framing.frame_word_spec", "AntecedentRust.Framing.frame_count_spec", "AntecedentRust.Framing.frame_bytes_spec", "AntecedentRust.Framing.frame_presence_spec", "AntecedentRust.Framing.frame_real_bits_spec", "AntecedentRust.Framing.frame_words_spec", "AntecedentRust.Framing.frame_u32s_spec", "AntecedentRust.Framing.frame_digests_spec", "AntecedentRust.Framing.dedup_sorted_digests_spec", "AntecedentRust.Framing.frame_digest_set_spec", "AntecedentRust.Framing.frame_digest_multiset_spec", "AntecedentRust.Framing.frame_u32_multiset_spec", "AntecedentRust.Framing.ordered_words_prefixFree", "AntecedentRust.Framing.ordered_digests_prefixFree", "AntecedentRust.Framing.option_word_prefixFree", "AntecedentRust.Framing.tags_separate", "AntecedentRust.Framing.frame_bytes_eq_iff", "AntecedentRust.Framing.frame_words_eq_iff", "AntecedentRust.Framing.words_order_sensitive", "AntecedentRust.Framing.frame_digest_set_eq_iff", "AntecedentRust.Framing.digest_set_perm", "AntecedentRust.Framing.digest_set_dup", "AntecedentRust.Framing.frame_digest_multiset_eq_iff", "AntecedentRust.Framing.digest_multiset_dup_ne", "AntecedentRust.Framing.frame_u32_multiset_eq_iff", "AntecedentRust.Framing.u32_multiset_dup_ne", "AntecedentRust.Framing.frame_real_bits_eq_iff", "AntecedentRust.Framing.frame_presence_eq_iff"] },
+]
+implementation = { visibility = "crate", bound_by = ["identity.canonical_framing_injective"] }
+obligations = []
+limitations = []
+empty = { premises = "A total function over its inputs; no input is refused.", obligations = "Its output is a byte stream; it carries nothing to a user.", limitations = "Proved equal to its specification by Aeneas translation; the order in which callers compose the kernels is covered by the identity-site inventory." }

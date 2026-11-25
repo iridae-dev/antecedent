@@ -144,37 +144,20 @@ limitations = [
     "Counts and lengths are framed as 64-bit words; the theorems hold for lists and payloads shorter than 2^64, which every Rust slice is.",
 ]
 
-[records.operation]
-inputs = ["the values of an identity: words, byte strings and texts, presence of optional values, real bit patterns, ordered lists, sets and multisets of digests or u32 values"]
-output = "the byte stream hashed by BLAKE3 into the identity"
-premises = ["the sink appends the bytes it is given in order", "sort_unstable sorts ascending"]
-transformation = "little-endian words; a length word before every byte string; a presence word before every optional value; IEEE-754 bits for reals; a count word before every list; sets sorted with repeats removed and multisets sorted with repeats kept before being written as lists"
-justification = [
-    "Antecedent.Framing.prefixFree_ordered",
-    "Antecedent.Framing.set_eq_iff",
-    "Antecedent.Framing.multiset_eq_iff",
-    "Antecedent.Framing.identity_eq_iff",
-    "AntecedentRust.Framing.frame_bytes_spec",
-    "AntecedentRust.Framing.frame_digest_set_spec",
-    "AntecedentRust.Framing.frame_digest_set_eq_iff",
-    "AntecedentRust.Framing.frame_digest_multiset_eq_iff",
-    "AntecedentRust.Framing.frame_u32_multiset_eq_iff",
-]
-implementation = [
+operations = [
     "antecedent_core::framing::frame_word",
+    "antecedent_core::framing::frame_count",
     "antecedent_core::framing::frame_bytes",
     "antecedent_core::framing::frame_presence",
     "antecedent_core::framing::frame_real_bits",
     "antecedent_core::framing::frame_words",
     "antecedent_core::framing::frame_u32s",
     "antecedent_core::framing::frame_digests",
+    "antecedent_core::framing::dedup_sorted_digests",
     "antecedent_core::framing::frame_digest_set",
     "antecedent_core::framing::frame_digest_multiset",
     "antecedent_core::framing::frame_u32_multiset",
-    "antecedent_core::identity::CanonicalWriter",
 ]
-obligations = []
-limitations = []
 
 [[records.checks]]
 kind = "machine_checked_proof"
@@ -642,7 +625,7 @@ operations = [
     "antecedent_core::recalc::Revalidation::worst",
     "antecedent_core::recalc::ChangeKind::revalidation",
     "antecedent_core::recalc::StageStatus::revalidation",
-    "antecedent_core::recalc::RecalcPlan::plan",
+    "antecedent_core::recalc::RecalcPlan::plan_with_rule",
     "antecedent_contract::composition_verification::graph::TrustStanding::of_provider",
     "antecedent_contract::composition_verification::revalidate::revalidate",
     "antecedent_contract::composition_verification::revalidate::trust_move_is_numerical",
@@ -732,7 +715,7 @@ rust_items = [
         "enum:ChangeKind#0",
         "impl:ChangeKind#0/fn:revalidation#0",
         "impl:StageStatus#0/fn:revalidation#0",
-        "impl:RecalcPlan#0/fn:plan#0",
+        "impl:RecalcPlan#0/fn:plan_with_rule#0",
     ] },
 ]
 
