@@ -78,6 +78,38 @@ def test_numpy_integer_column_is_widened_while_it_is_copied_once():
     assert receipt.total_bytes_copied == COLUMN_BYTES
 
 
+def test_estimate_click_widens_treatment_in_the_measured_native_copy(monkeypatch):
+    import antecedent._data as normalization
+
+    rng = np.random.default_rng(23)
+    treatment = np.arange(ROWS, dtype=np.int64) % 2
+    data = {"t": treatment, "y": 2.0 * treatment + rng.normal(size=ROWS)}
+    study = antecedent.prepare(
+        data,
+        query=antecedent.AverageEffect("t", "y"),
+        graph=[("t", "y")],
+        inference=antecedent.Frequentist(bootstrap=0),
+        refute="none",
+    )
+    normalize = normalization.ingest_columns_with_receipt
+    seen = []
+
+    def record(data, **kwargs):
+        payload = normalize(data, **kwargs)
+        seen.append(payload)
+        return payload
+
+    monkeypatch.setattr(normalization, "ingest_columns_with_receipt", record)
+    result = study._engine.estimate(data)
+    assert result.effect == pytest.approx(2.0, abs=0.15)
+    receipt = antecedent.data.ingestion_receipt(data)
+    for names, columns, copies in seen:
+        assert columns[names.index("t")] is treatment
+        assert copies == receipt.python_copies == ()
+    assert len(seen) >= 2
+    assert receipt.ownership_bytes_copied == 2 * COLUMN_BYTES
+
+
 def test_boolean_unsigned_and_float32_columns_are_widened_in_the_same_single_pass():
     columns = {
         "flag": np.arange(ROWS) % 2 == 0,
@@ -166,14 +198,20 @@ def test_arrow_float64_table_is_borrowed_with_no_copy_at_all():
     assert receipt.bytes_borrowed == COLUMN_BYTES
 
 
-def test_arrow_integer_column_is_cast_once_then_borrowed():
+def test_arrow_integer_column_is_widened_directly_into_one_owned_buffer():
     pa = pytest.importorskip("pyarrow")
     table = pa.table({"a": pa.array(np.arange(ROWS, dtype=np.int64))})
     receipt = antecedent.data.ingestion_receipt(table)
-    assert _kinds(receipt) == ["arrow_cast"]
-    assert receipt.python_bytes_copied == COLUMN_BYTES
-    assert receipt.bytes_borrowed == COLUMN_BYTES
-    assert receipt.ownership_bytes_copied == 0
+    assert receipt.python_copy_count == 0
+    assert receipt.ownership_bytes_copied == COLUMN_BYTES
+    assert receipt.bytes_borrowed == 0
+    assert receipt.native.diagnostic_count == 1
+    retained = antecedent.data.table(table)
+    assert retained.bytes_copied == COLUMN_BYTES
+    assert retained.bytes_borrowed == 0
+    np.testing.assert_array_equal(retained["a"], np.arange(ROWS))
+    with pytest.raises(Exception, match=r"beyond 2\*\*53"):
+        antecedent.data.table(pa.table({"a": pa.array([2**53 + 1])}))
 
 
 def test_arrow_chunks_are_joined_once_by_the_native_loader_not_in_python():
@@ -191,15 +229,21 @@ def test_arrow_chunks_are_joined_once_by_the_native_loader_not_in_python():
     assert one.python_copy_count == 0 and one.bytes_borrowed == COLUMN_BYTES
 
 
-def test_columns_chunked_differently_are_joined_in_python_and_recorded():
+def test_mismatched_arrow_chunks_are_joined_in_one_native_copy():
     pa = pytest.importorskip("pyarrow")
     half = pa.array(np.arange(ROWS // 2, dtype=np.float64))
     whole = pa.array(np.arange(ROWS, dtype=np.float64))
     mixed = pa.table({"a": pa.chunked_array([half, half]), "b": pa.chunked_array([whole])})
     receipt = antecedent.data.ingestion_receipt(mixed)
-    assert _kinds(receipt) == ["chunk_concatenation"]
-    assert receipt.python_bytes_copied == COLUMN_BYTES
-    # Agreeing layouts stay chunked: two columns of the same two chunks cost no Python copy.
+    assert receipt.python_copy_count == 0
+    assert receipt.ownership_bytes_copied == COLUMN_BYTES + (ROWS + 7) // 8
+    assert receipt.bytes_borrowed == COLUMN_BYTES
+    assert receipt.native.diagnostic_count == 1
+    retained = antecedent.data.table(mixed)
+    assert retained.bytes_copied == 2 * COLUMN_BYTES
+    np.testing.assert_array_equal(retained["a"], np.tile(np.arange(ROWS // 2), 2))
+    np.testing.assert_array_equal(retained["b"], np.arange(ROWS))
+    # Agreeing layouts take the same per-column path.
     same = pa.table({"a": pa.chunked_array([half, half]), "b": pa.chunked_array([half, half])})
     agreeing = antecedent.data.ingestion_receipt(same)
     assert agreeing.python_copy_count == 0

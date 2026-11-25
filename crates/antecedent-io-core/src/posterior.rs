@@ -173,83 +173,75 @@ pub fn validate_posterior_meta(
         )));
     }
     if let Some(draws) = draws {
-        if draws.iter().any(|value| !value.is_finite()) {
-            return Err(IoError::Convert("posterior draws must be finite".into()));
-        }
-        let expected = if meta.draws_encoding == "none" {
-            0
-        } else {
-            usize::try_from(meta.n_draws)
-                .ok()
-                .and_then(|count| count.checked_mul(quantities))
-                .ok_or(IoError::TooLarge)?
-        };
-        if draws.len() != expected {
-            return Err(IoError::Convert(format!(
-                "posterior draws length {} != expected {expected}",
-                draws.len()
-            )));
-        }
+        validate_draw_count(meta, draws.len())?;
         if !draws.is_empty() {
-            validate_summaries_against_draws(meta, draws)?;
+            let mut scratch = Vec::with_capacity(meta.n_draws as usize);
+            for (quantity, column) in draws.chunks_exact(meta.n_draws as usize).enumerate() {
+                scratch.clear();
+                scratch.extend_from_slice(column);
+                validate_draw_column(meta, quantity, &mut scratch)?;
+            }
         }
     }
     Ok(())
 }
 
-/// Stored summaries must describe the embedded draws, so a summary-reading and a
-/// draw-reading consumer see one posterior.
-///
-/// Every summary is recomputed with the producer's own routine
-/// (`PosteriorDraws::summarize`) and must agree to a relative 1e-9. Producers whose summaries
-/// are analytic (the structural-envelope mixture) publish draws that carry those moments, so no
-/// sampling-error slack is needed, and none is allowed: a summary that differs from the draws by
-/// Monte Carlo noise is a summary of a different distribution.
-fn validate_summaries_against_draws(
-    meta: &CausalPosteriorWire,
-    draws: &[f64],
-) -> Result<(), IoError> {
-    use antecedent_prob::{PosteriorDraws, PosteriorQuantityKind, PosteriorSchema};
+fn validate_draw_count(meta: &CausalPosteriorWire, count: usize) -> Result<(), IoError> {
+    let expected = if meta.draws_encoding == "none" {
+        0
+    } else {
+        usize::try_from(meta.n_draws)
+            .ok()
+            .and_then(|count| count.checked_mul(meta.quantities.len()))
+            .ok_or(IoError::TooLarge)?
+    };
+    if count != expected {
+        return Err(IoError::Convert(format!(
+            "posterior draws length {count} != expected {expected}"
+        )));
+    }
+    Ok(())
+}
 
-    // Summaries restated from the embedded draws: a relative `1e-9` of the larger value,
-    // absolute below one; a non-finite summary is a mismatch.
+/// Verify one draw column with the summary kernels used by the producer, with a relative
+/// tolerance of 1e-9. The column is scratch space for sorting the quantiles.
+fn validate_draw_column(
+    meta: &CausalPosteriorWire,
+    quantity: usize,
+    column: &mut [f64],
+) -> Result<(), IoError> {
+    use antecedent_kernels::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
+
+    if column.iter().any(|value| !value.is_finite()) {
+        return Err(IoError::Convert("posterior draws must be finite".into()));
+    }
     const SUMMARY: ReplayTolerance =
         ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::Refuse);
-    let n_draws = meta.n_draws as usize;
-    let schema = PosteriorSchema {
-        quantities: (0..meta.quantities.len())
-            .map(|_| PosteriorQuantityKind::Scalar { name: "q".into() })
-            .collect(),
+    let policy = antecedent_core::KernelPolicy::default_policy();
+    let mean = reduce_posterior_draws(column, PosteriorReduceOp::Mean, &policy).unwrap_or(f64::NAN);
+    let sd = reduce_posterior_draws(column, PosteriorReduceOp::Std, &policy).unwrap_or(f64::NAN);
+    column.sort_by(f64::total_cmp);
+    let agrees = |lower, upper| {
+        SUMMARY.close(meta.q025[quantity], lower) && SUMMARY.close(meta.q975[quantity], upper)
     };
-    let recomputed = PosteriorDraws::from_column_major(schema, n_draws, draws.to_vec())
-        .map_err(|err| IoError::Convert(err.to_string()))?
-        .summarize();
-    let close = |stored: f64, derived: f64| SUMMARY.close(stored, derived);
-    for q in 0..meta.quantities.len() {
-        // The interval is the type-7 interval of the draws, or the exchangeable-rank (type-6)
-        // interval a Laplace posterior publishes below its measured draw count: both are
-        // functions of the embedded draws alone.
-        let rank = || {
-            let mut column = draws[q * n_draws..(q + 1) * n_draws].to_vec();
-            column.sort_by(f64::total_cmp);
+    // A Laplace posterior can publish the exchangeable-rank interval below its measured
+    // draw count. Both accepted intervals are computed from the same stored draws.
+    let interval =
+        agrees(quantile_type7_sorted(column, 0.025), quantile_type7_sorted(column, 0.975)) || {
             let (lower, upper) = antecedent_stats::equal_tail_interval_sorted(
-                &column,
+                column,
                 0.95,
                 antecedent_stats::QuantileRule::ExchangeableRank,
             );
-            close(meta.q025[q], lower) && close(meta.q975[q], upper)
+            agrees(lower, upper)
         };
-        let interval_agrees = (close(meta.q025[q], recomputed.q025[q])
-            && close(meta.q975[q], recomputed.q975[q]))
-            || rank();
-        let agrees = close(meta.mean[q], recomputed.mean[q])
-            && close(meta.sd[q], recomputed.sd[q])
-            && interval_agrees;
-        if !agrees {
-            return Err(IoError::Convert(format!(
-                "posterior summaries for quantity {q} disagree with the embedded draws"
-            )));
-        }
+    if !interval
+        || !SUMMARY.close(meta.mean[quantity], mean)
+        || !SUMMARY.close(meta.sd[quantity], sd)
+    {
+        return Err(IoError::Convert(format!(
+            "posterior summaries for quantity {quantity} disagree with the embedded draws"
+        )));
     }
     Ok(())
 }
@@ -315,29 +307,44 @@ pub fn encode_posterior_artifact(
 pub fn decode_posterior_artifact(
     artifact: &EncodedArtifact,
 ) -> Result<(CausalPosteriorWire, Vec<f64>), IoError> {
-    if artifact.manifest.artifact_kind != ArtifactKind::CausalPosterior {
-        return Err(IoError::Convert(format!(
-            "expected CausalPosterior, got {:?}",
-            artifact.manifest.artifact_kind
-        )));
-    }
-    let meta_sec = artifact
-        .sections
-        .iter()
-        .find(|s| s.id == "posterior.meta")
-        .ok_or_else(|| IoError::Convert("missing posterior.meta".into()))?;
-    let draw_sec = artifact
-        .sections
-        .iter()
-        .find(|s| s.id == "posterior.draws")
-        .ok_or_else(|| IoError::Convert("missing posterior.draws".into()))?;
-    let meta: CausalPosteriorWire = from_cbor(&meta_sec.data)?;
-    if draw_sec.data.len() % 8 != 0 {
-        return Err(IoError::Convert("posterior.draws not multiple of 8".into()));
-    }
-    let draws = crate::artifact_codec::f64s_from_le_bytes(&draw_sec.data);
+    let (meta, draw_bytes) = posterior_sections(artifact)?;
+    let draws = crate::artifact_codec::f64s_from_le_bytes(draw_bytes);
     validate_posterior_meta(&meta, Some(&draws))?;
     Ok((meta, draws))
+}
+
+fn posterior_sections(artifact: &EncodedArtifact) -> Result<(CausalPosteriorWire, &[u8]), IoError> {
+    require_posterior_kind(&artifact.manifest.artifact_kind)?;
+    let section = |id| {
+        artifact
+            .sections
+            .iter()
+            .find(|section| section.id == id)
+            .ok_or_else(|| IoError::Convert(format!("missing {id}")))
+    };
+    let meta = decode_posterior_meta(&section("posterior.meta")?.data)?;
+    let draws = section("posterior.draws")?.data.as_ref();
+    if draws.len() % size_of::<f64>() != 0 {
+        return Err(IoError::Convert("posterior.draws not multiple of 8".into()));
+    }
+    Ok((meta, draws))
+}
+
+/// Validate the body and summaries without materializing a float64 draw matrix.
+pub(crate) fn validate_causal_posterior_bytes(bytes: &[u8]) -> Result<(), IoError> {
+    let artifact = crate::migrate::read_and_migrate(bytes)?;
+    let (meta, draws) = posterior_sections(&artifact)?;
+    validate_draw_count(&meta, draws.len() / size_of::<f64>())?;
+    if !draws.is_empty() {
+        let rows = meta.n_draws as usize;
+        let mut scratch = Vec::with_capacity(rows);
+        for (quantity, column) in draws.chunks_exact(rows * size_of::<f64>()).enumerate() {
+            scratch.clear();
+            scratch.extend(column.as_chunks::<8>().0.iter().copied().map(f64::from_le_bytes));
+            validate_draw_column(&meta, quantity, &mut scratch)?;
+        }
+    }
+    Ok(())
 }
 
 /// Decode only posterior metadata from a seekable artifact (draws stay unread).
@@ -349,19 +356,46 @@ pub fn decode_posterior_meta_from_seek<R: std::io::Read + std::io::Seek>(
     r: R,
 ) -> Result<CausalPosteriorWire, IoError> {
     let mut reader = crate::reader::ArtifactReader::open_seek(r)?;
-    if reader.manifest().artifact_kind != ArtifactKind::CausalPosterior {
-        return Err(IoError::Convert(format!(
-            "expected CausalPosterior, got {:?}",
-            reader.manifest().artifact_kind
-        )));
-    }
+    load_posterior_meta(&mut reader)
+}
+
+fn load_posterior_meta<R: std::io::Read + std::io::Seek>(
+    reader: &mut crate::reader::ArtifactReader<R>,
+) -> Result<CausalPosteriorWire, IoError> {
+    require_posterior_kind(&reader.manifest().artifact_kind)?;
     let access = reader.load_section("posterior.meta")?;
-    let meta = from_cbor(access.as_bytes())?;
+    decode_posterior_meta(access.as_bytes())
+}
+
+fn check_section_extent(
+    index: &[crate::reader::SectionIndexEntry],
+    len: u64,
+) -> Result<(), IoError> {
+    if let Some(section) = index.last()
+        && section
+            .file_offset
+            .checked_add(u64::from(section.on_wire_len))
+            .is_none_or(|end| end > len)
+    {
+        return Err(IoError::io("artifact ends inside a declared section"));
+    }
+    Ok(())
+}
+
+fn require_posterior_kind(kind: &ArtifactKind) -> Result<(), IoError> {
+    if *kind != ArtifactKind::CausalPosterior {
+        return Err(IoError::Convert(format!("expected CausalPosterior, got {kind:?}")));
+    }
+    Ok(())
+}
+
+fn decode_posterior_meta(bytes: &[u8]) -> Result<CausalPosteriorWire, IoError> {
+    let meta = from_cbor(bytes)?;
     validate_posterior_meta(&meta, None)?;
     Ok(meta)
 }
 
-/// Decode only posterior metadata from a memory-mapped artifact path.
+/// Decode only posterior metadata from a file path, seeking past the draws.
 ///
 /// # Errors
 ///
@@ -369,24 +403,17 @@ pub fn decode_posterior_meta_from_seek<R: std::io::Read + std::io::Seek>(
 pub fn decode_posterior_meta_from_path(
     path: impl AsRef<std::path::Path>,
 ) -> Result<CausalPosteriorWire, IoError> {
-    let mut reader = crate::reader::MappedArtifactReader::open_path(path)?;
-    if reader.manifest().artifact_kind != ArtifactKind::CausalPosterior {
-        return Err(IoError::Convert(format!(
-            "expected CausalPosterior, got {:?}",
-            reader.manifest().artifact_kind
-        )));
-    }
-    let access = reader.load_section("posterior.meta")?;
-    let meta = from_cbor(access.as_bytes())?;
-    validate_posterior_meta(&meta, None)?;
-    Ok(meta)
+    let file = std::fs::File::open(path).map_err(IoError::from)?;
+    let len = file.metadata().map_err(IoError::from)?.len();
+    let mut reader = crate::reader::ArtifactReader::open_seek(file)?;
+    check_section_extent(reader.index(), len)?;
+    load_posterior_meta(&mut reader)
 }
 
 /// As [`decode_posterior_meta_from_seek`], admitting only the artifact the consumer retained.
 ///
-/// The bytes from the current position of `r` bind to `retained`
-/// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed
-/// ([`crate::reader::ArtifactReader::open_seek_expecting`]).
+/// The bytes from the current position of `r` are hashed as they are read. Only the metadata
+/// is materialized, and it is returned after the digest matches `retained`.
 ///
 /// # Errors
 ///
@@ -396,24 +423,48 @@ pub fn decode_posterior_meta_from_seek_expecting<R: std::io::Read + std::io::See
     r: R,
     retained: &crate::retained_artifact::RetainedArtifactIdentity,
 ) -> Result<CausalPosteriorWire, IoError> {
-    let mut reader = crate::reader::ArtifactReader::open_seek_expecting(r, retained)?;
-    if reader.manifest().artifact_kind != ArtifactKind::CausalPosterior {
-        return Err(IoError::Convert(format!(
-            "expected CausalPosterior, got {:?}",
-            reader.manifest().artifact_kind
-        )));
+    use std::io::Read;
+
+    use crate::container::ContainerLimits;
+    use crate::retained_artifact::{ARTIFACT_IDENTITY_DOMAIN, bind_retained_digest};
+
+    struct HashingReader<R> {
+        inner: R,
+        digest: blake3::Hasher,
     }
-    let access = reader.load_section("posterior.meta")?;
-    let meta = from_cbor(access.as_bytes())?;
-    validate_posterior_meta(&meta, None)?;
-    Ok(meta)
+
+    impl<R: Read> Read for HashingReader<R> {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.inner.read(buffer)?;
+            self.digest.update(&buffer[..n]);
+            Ok(n)
+        }
+    }
+
+    let limits = ContainerLimits::default();
+    let cap = (limits.max_manifest_bytes as u64)
+        .saturating_add(limits.max_total_uncompressed_bytes)
+        .saturating_add(1 << 20);
+    let mut reader = HashingReader {
+        inner: r.take(cap.saturating_add(1)),
+        digest: blake3::Hasher::new_derive_key(ARTIFACT_IDENTITY_DOMAIN),
+    };
+    let metadata = read_selective_posterior_meta(&mut reader);
+    // Bind the entire presented input, including any bytes after the last declared section.
+    std::io::copy(&mut reader, &mut std::io::sink()).map_err(IoError::from)?;
+    if reader.inner.limit() == 0 {
+        return Err(IoError::TooLarge);
+    }
+    bind_retained_digest(
+        antecedent_core::SemanticDigest::from_bytes(*reader.digest.finalize().as_bytes()),
+        retained,
+    )?;
+    metadata
 }
 
 /// As [`decode_posterior_meta_from_path`], admitting only the artifact the consumer retained.
 ///
-/// The bytes read from `path` bind to `retained`
-/// ([`crate::retained_artifact::bind_retained_artifact`]) before the container is parsed
-/// ([`crate::reader::MappedArtifactReader::open_path_expecting`]).
+/// The whole file is hashed to bind it to `retained`, with only its metadata payload retained.
 ///
 /// # Errors
 ///
@@ -423,17 +474,57 @@ pub fn decode_posterior_meta_from_path_expecting(
     path: impl AsRef<std::path::Path>,
     retained: &crate::retained_artifact::RetainedArtifactIdentity,
 ) -> Result<CausalPosteriorWire, IoError> {
-    let mut reader = crate::reader::MappedArtifactReader::open_path_expecting(path, retained)?;
-    if reader.manifest().artifact_kind != ArtifactKind::CausalPosterior {
-        return Err(IoError::Convert(format!(
-            "expected CausalPosterior, got {:?}",
-            reader.manifest().artifact_kind
-        )));
+    let file = std::fs::File::open(path).map_err(IoError::from)?;
+    decode_posterior_meta_from_seek_expecting(file, retained)
+}
+
+/// Read and validate posterior metadata from retained bytes without materializing the draws.
+///
+/// # Errors
+/// Invalid container, unsupported format, invalid metadata checksum, or invalid metadata.
+pub fn decode_posterior_meta_from_bytes(bytes: &[u8]) -> Result<CausalPosteriorWire, IoError> {
+    let mut reader = crate::reader::ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
+    check_section_extent(reader.index(), bytes.len() as u64)?;
+    let manifest = reader.manifest();
+    let version = manifest.format_version;
+    let minimum = manifest.minimum_reader_version;
+    if !crate::migrate::is_supported_source(version) {
+        return Err(IoError::UnsupportedFormat { major: version.major, minor: version.minor });
     }
-    let access = reader.load_section("posterior.meta")?;
-    let meta = from_cbor(access.as_bytes())?;
-    validate_posterior_meta(&meta, None)?;
+    let stable = crate::migrate::STABLE_FORMAT;
+    if (minimum.major, minimum.minor) > (stable.major, stable.minor) {
+        return Err(IoError::UnsupportedFormat { major: minimum.major, minor: minimum.minor });
+    }
+    require_posterior_kind(&manifest.artifact_kind)?;
+    let draws = manifest
+        .sections
+        .iter()
+        .find(|section| section.id == "posterior.draws")
+        .ok_or_else(|| IoError::Convert("missing posterior.draws".into()))?
+        .uncompressed_size;
+    let meta = decode_posterior_meta(reader.load_section("posterior.meta")?.as_bytes())?;
+    let draws = usize::try_from(draws).map_err(|_| IoError::TooLarge)?;
+    if draws % size_of::<f64>() != 0 {
+        return Err(IoError::Convert("posterior.draws not multiple of 8".into()));
+    }
+    validate_draw_count(&meta, draws / size_of::<f64>())?;
     Ok(meta)
+}
+
+fn read_selective_posterior_meta(r: impl std::io::Read) -> Result<CausalPosteriorWire, IoError> {
+    let mut artifact =
+        EncodedArtifact::read_selective(r, &std::collections::HashSet::from(["posterior.meta"]))?;
+    // Migration only needs the section we materialized. Posterior metadata has no v0.1
+    // schema section to upgrade.
+    artifact.manifest.sections.retain(|section| section.id == "posterior.meta");
+    let artifact = crate::migrate::migrate_artifact(artifact)?;
+    require_posterior_kind(&artifact.manifest.artifact_kind)?;
+    let section = artifact
+        .sections
+        .iter()
+        .find(|section| section.id == "posterior.meta")
+        .ok_or_else(|| IoError::Convert("missing posterior.meta".into()))?;
+    decode_posterior_meta(&section.data)
 }
 
 /// Decode posterior wire metadata + draws (Python / tooling consumers).
@@ -630,6 +721,24 @@ mod tests {
 
     #[test]
     fn posterior_meta_only_skips_draws() {
+        use std::io::{Cursor, Read, Seek, SeekFrom};
+
+        struct NoDrawReads<'a> {
+            inner: Cursor<&'a [u8]>,
+            draws_start: u64,
+        }
+        impl Read for NoDrawReads<'_> {
+            fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+                assert!(self.inner.position() + buf.len() as u64 <= self.draws_start);
+                self.inner.read(buf)
+            }
+        }
+        impl Seek for NoDrawReads<'_> {
+            fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
+                self.inner.seek(pos)
+            }
+        }
+
         let meta = CausalPosteriorWire {
             quantities: vec![PosteriorQuantityWire::Effect { name: "ate".into() }],
             n_draws: 8192,
@@ -651,15 +760,28 @@ mod tests {
         let art = encode_posterior_artifact(&meta, &draws, "meta-only", "0.1.0").unwrap();
         let mut buf = Vec::new();
         art.write_to(&mut buf).unwrap();
-        let got = decode_posterior_meta_from_seek(std::io::Cursor::new(buf.clone())).unwrap();
+        let mut reader = crate::reader::ArtifactReader::open_seek(Cursor::new(&buf)).unwrap();
+        let draws_start = reader.index()[1].file_offset;
+        let guarded = NoDrawReads { inner: Cursor::new(&buf), draws_start };
+        let got = decode_posterior_meta_from_seek(guarded).unwrap();
         assert_eq!(got.n_draws, 8192);
         assert_eq!(got.backend_id, "laplace");
+        assert_eq!(decode_posterior_meta_from_bytes(&buf).unwrap(), got);
+        let (full_meta, full_draws) = decode_causal_posterior_bytes(&buf).unwrap();
+        assert_eq!(full_meta, got);
+        assert_eq!(draws, full_draws);
+        validate_causal_posterior_bytes(&buf).unwrap();
+        let path = std::env::temp_dir()
+            .join(format!("antecedent-posterior-meta-only-{}.bin", std::process::id()));
+        std::fs::write(&path, &buf).unwrap();
+        assert_eq!(decode_posterior_meta_from_path(&path).unwrap(), got);
+        std::fs::write(&path, &buf[..buf.len() - 1]).unwrap();
+        assert!(decode_posterior_meta_from_path(&path).is_err());
+        std::fs::remove_file(path).unwrap();
 
         // Zero-copy accounting (DESIGN rule 22): a meta-only read must not pay
         // for the 64 KiB draws section — bytes_loaded stays below the draws
         // payload and the draws section remains skipped.
-        let mut reader =
-            crate::reader::ArtifactReader::open_seek(std::io::Cursor::new(buf)).unwrap();
         let _ = reader.load_section("posterior.meta").unwrap();
         let stats = reader.stats();
         let draws_bytes = (8192 * std::mem::size_of::<f64>()) as u64;

@@ -663,57 +663,6 @@ impl PreparedAssociation {
     pub const fn rows_dropped(&self) -> usize {
         self.rows_dropped
     }
-
-    /// The rows `index` (with repeats) as their own sample, on the design and the strata of
-    /// these rows.
-    fn resampled(&self, index: &[usize]) -> Self {
-        let gather =
-            |values: &[f64]| -> Vec<f64> { index.iter().map(|&row| values[row]).collect() };
-        let column = |column: &PreparedColumn| PreparedColumn {
-            name: column.name.clone(),
-            values: match &column.values {
-                ColumnValues::Numeric(values) => ColumnValues::Numeric(gather(values)),
-                ColumnValues::Levels { codes, labels, reference } => ColumnValues::Levels {
-                    codes: index.iter().map(|&row| codes[row]).collect(),
-                    labels: labels.clone(),
-                    reference: *reference,
-                },
-            },
-        };
-        let design = self.design.as_ref().map(|design| {
-            let mut matrix = Vec::with_capacity(index.len() * design.ncols);
-            for c in 0..design.ncols {
-                matrix.extend(gather(&design.matrix[c * self.rows..(c + 1) * self.rows]));
-            }
-            Design {
-                matrix,
-                ncols: design.ncols,
-                names: design.names.clone(),
-                report: design.report.clone(),
-            }
-        });
-        let strata = self.strata.as_ref().map(|strata| {
-            let of_row: Vec<usize> = index.iter().map(|&row| strata.of_row[row]).collect();
-            let mut counts = vec![0_usize; strata.labels.len()];
-            for &k in &of_row {
-                counts[k] += 1;
-            }
-            Strata { labels: strata.labels.clone(), of_row, counts }
-        });
-        Self {
-            selection: self.selection.clone(),
-            rows: index.len(),
-            rows_dropped: self.rows_dropped,
-            outcome_name: self.outcome_name.clone(),
-            y: gather(&self.y),
-            weight: gather(&self.weight),
-            unit_weights: self.unit_weights,
-            predictors: self.predictors.iter().map(column).collect(),
-            conditioning: self.conditioning.iter().map(column).collect(),
-            design,
-            strata,
-        }
-    }
 }
 
 struct RawColumn {
@@ -997,6 +946,24 @@ struct WeightedFit {
     y: Vec<f64>,
     w: Vec<f64>,
     family: GlmFamily,
+}
+
+impl WeightedFit {
+    fn new(prepared: &PreparedAssociation) -> Result<Self, EstimationError> {
+        let family = prepared
+            .selection
+            .analysis
+            .family()
+            .ok_or_else(|| refuse_invalid("the analysis fits no model"))?;
+        Ok(Self {
+            family,
+            coefficients: Vec::new(),
+            kept: Vec::new(),
+            x: Vec::new(),
+            y: Vec::new(),
+            w: Vec::new(),
+        })
+    }
 }
 
 struct TermSpec {
@@ -1592,34 +1559,50 @@ impl AssociationEstimator {
         prepared: &PreparedAssociation,
         effective: &[f64],
     ) -> Result<WeightedFit, EstimationError> {
+        let mut fit = WeightedFit::new(prepared)?;
+        Self::refit_rows(
+            prepared,
+            effective,
+            0..prepared.rows,
+            &mut fit,
+            &mut LeastSquaresWorkspace::default(),
+        )?;
+        Ok(fit)
+    }
+
+    fn refit_rows(
+        prepared: &PreparedAssociation,
+        effective: &[f64],
+        rows: impl IntoIterator<Item = usize>,
+        fit: &mut WeightedFit,
+        workspace: &mut LeastSquaresWorkspace,
+    ) -> Result<(), EstimationError> {
         let design = prepared.design.as_ref().ok_or_else(|| refuse_invalid("no design"))?;
-        let family = prepared
-            .selection
-            .analysis
-            .family()
-            .ok_or_else(|| refuse_invalid("the analysis fits no model"))?;
-        let kept: Vec<usize> = (0..prepared.rows).filter(|&row| effective[row] > 0.0).collect();
-        let (n, p) = (kept.len(), design.ncols);
+        fit.kept.clear();
+        fit.kept.extend(rows.into_iter().filter(|&row| effective[row] > 0.0));
+        let (n, p) = (fit.kept.len(), design.ncols);
         if n <= p {
             return Err(EstimationError::refused(
                 reason_code!("design_rank_deficient"),
                 format!("the model has {p} coefficients but {n} rows of positive weight"),
             ));
         }
-        let mut x = Vec::with_capacity(n * p);
+        fit.x.clear();
+        fit.x.reserve(n * p);
         for column in 0..p {
             let source = &design.matrix[column * prepared.rows..(column + 1) * prepared.rows];
-            x.extend(kept.iter().map(|&row| source[row]));
+            fit.x.extend(fit.kept.iter().map(|&row| source[row]));
         }
-        let y: Vec<f64> = kept.iter().map(|&row| prepared.y[row]).collect();
-        let w: Vec<f64> = kept.iter().map(|&row| effective[row]).collect();
-        let mut workspace = LeastSquaresWorkspace::default();
-        let fit = fit_glm_weighted(
-            family,
-            GlmDesignRef { x_colmajor: &x, nrows: n, ncols: p, y: &y },
-            &w,
+        fit.y.clear();
+        fit.y.extend(fit.kept.iter().map(|&row| prepared.y[row]));
+        fit.w.clear();
+        fit.w.extend(fit.kept.iter().map(|&row| effective[row]));
+        let result = fit_glm_weighted(
+            fit.family,
+            GlmDesignRef { x_colmajor: &fit.x, nrows: n, ncols: p, y: &fit.y },
+            &fit.w,
             &FaerBackend,
-            &mut workspace,
+            workspace,
             &GlmOptions::default().without_separation_ridge(),
         )
         .map_err(|error| {
@@ -1631,7 +1614,7 @@ impl AssociationEstimator {
                 ),
             )
         })?;
-        fit.require_ok().map_err(|error| {
+        result.require_ok().map_err(|error| {
             EstimationError::refused(
                 reason_code!("design_rank_deficient"),
                 format!(
@@ -1640,7 +1623,8 @@ impl AssociationEstimator {
                 ),
             )
         })?;
-        Ok(WeightedFit { coefficients: fit.coefficients, kept, x, y, w, family })
+        fit.coefficients = result.coefficients;
+        Ok(())
     }
 
     /// Score multiplier and Fisher weight of each fitted row.
@@ -1926,6 +1910,13 @@ impl AssociationEstimator {
         let mut draws = Vec::with_capacity(replicates);
         let mut errors = Vec::new();
         let mut index = vec![0_usize; rows];
+        let mut multiplier = vec![0.0_f64; rows];
+        let mut error_fit = match (&prepared.design, block_length) {
+            (Some(design), None) => {
+                Some((design, WeightedFit::new(prepared)?, LeastSquaresWorkspace::default()))
+            }
+            _ => None,
+        };
         for replicate in 0..replicates {
             if ctx.cancellation.is_cancelled() {
                 return Err(cancelled());
@@ -1946,7 +1937,7 @@ impl AssociationEstimator {
                     *slot = unbiased_index(&mut rng, rows);
                 }
             }
-            let mut multiplier = vec![0.0_f64; rows];
+            multiplier.fill(0.0);
             for &source in &index {
                 multiplier[source] += 1.0;
             }
@@ -1955,24 +1946,23 @@ impl AssociationEstimator {
             );
             // Only a regression coefficient is studentized, so only a model resample is
             // given its own errors.
-            if block_length.is_none() && prepared.design.is_some() {
-                errors.push(Self::replicate_errors(prepared, &index, terms));
+            if let Some((design, fit, workspace)) = &mut error_fit {
+                // Keep repeats distinct and in draw order for the HC1 meat and row count.
+                let fitted = Self::refit_rows(
+                    prepared,
+                    &prepared.weight,
+                    index.iter().copied(),
+                    fit,
+                    workspace,
+                );
+                errors.push(if fitted.is_ok() && design.report.len() == terms {
+                    Self::pivot_errors(fit, design)
+                } else {
+                    vec![f64::NAN; terms]
+                });
             }
         }
         Ok(ReplicateDraws { draws, errors, block_length })
-    }
-
-    /// HC1 errors of the coefficients on the resampled rows `index`; `NaN` where the resample
-    /// has none.
-    fn replicate_errors(prepared: &PreparedAssociation, index: &[usize], terms: usize) -> Vec<f64> {
-        let resample = prepared.resampled(index);
-        let Some(design) = &resample.design else {
-            return vec![f64::NAN; terms];
-        };
-        match Self::fit_with_weights(&resample, &resample.weight) {
-            Ok(fit) if design.report.len() == terms => Self::pivot_errors(&fit, design),
-            _ => vec![f64::NAN; terms],
-        }
     }
 
     /// Draws of the statistic vector under Dirichlet row (or block) weights.
@@ -2962,6 +2952,37 @@ mod tests {
             stratum_series_standard_error(&psi, lag, 20) > error,
             "a smaller support widens the interval"
         );
+    }
+
+    #[test]
+    fn bootstrap_scratch_matches_refitting_a_materialized_resample() {
+        let (data, x, y) = simple_regression_data();
+        let query = AssociationQuery::new(v(1), [v(0)]);
+        let estimator = AssociationEstimator::new(Modality::CrossSection);
+        let prepared = estimator.prepare(data.storage(), &query).unwrap();
+        let mut scratch = WeightedFit::new(&prepared).unwrap();
+        let mut workspace = LeastSquaresWorkspace::default();
+        for rows in [[8, 5, 8, 4, 4, 9, 1, 6], [4, 7, 4, 4, 9, 2, 2, 0]] {
+            AssociationEstimator::refit_rows(
+                &prepared,
+                &prepared.weight,
+                rows,
+                &mut scratch,
+                &mut workspace,
+            )
+            .unwrap();
+            let sample = table(&[
+                ("x", rows.iter().map(|&row| x[row]).collect()),
+                ("y", rows.iter().map(|&row| y[row]).collect()),
+            ]);
+            let sample = estimator.prepare(sample.storage(), &query).unwrap();
+            let fitted = AssociationEstimator::fit_with_weights(&sample, &sample.weight).unwrap();
+            assert_eq!(scratch.coefficients, fitted.coefficients);
+            assert_eq!(
+                AssociationEstimator::pivot_errors(&scratch, prepared.design.as_ref().unwrap()),
+                AssociationEstimator::pivot_errors(&fitted, sample.design.as_ref().unwrap()),
+            );
+        }
     }
 
     #[test]

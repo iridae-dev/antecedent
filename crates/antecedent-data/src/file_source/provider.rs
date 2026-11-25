@@ -46,6 +46,11 @@ pub(crate) trait BatchProvider {
 
     /// Next batch, or `None` when the source is exhausted.
     fn next_batch(&mut self) -> Result<Option<RecordBatch>, FileSourceError>;
+
+    /// Actual resident bytes when decode scratch has been released by the provider.
+    fn retained_batch_bytes(&self, _batch: &RecordBatch) -> Option<u64> {
+        None
+    }
 }
 
 /// Schema and size facts read from a file without decoding its rows.
@@ -100,7 +105,7 @@ impl FileStamp {
         })
     }
 
-    fn verify_times(&self, path: &Path) -> Result<(), FileSourceError> {
+    pub(super) fn verify_times(&self, path: &Path) -> Result<(), FileSourceError> {
         let (len, modified) = file_times(path)?;
         if len != self.len || modified != self.modified {
             return Err(changed(path, "the file size or modification time differs from open"));
@@ -239,6 +244,10 @@ impl BatchProvider for Chained {
             }
             self.current = None;
         }
+    }
+
+    fn retained_batch_bytes(&self, batch: &RecordBatch) -> Option<u64> {
+        self.current.as_ref()?.retained_batch_bytes(batch)
     }
 }
 
@@ -452,6 +461,7 @@ fn ipc_open(
         path: PathBuf,
         costs: super::ipc_scan::IpcCosts,
         next: usize,
+        compact: bool,
     }
 
     impl<R> BatchProvider for IpcBatches<R>
@@ -469,15 +479,34 @@ fn ipc_open(
 
         fn next_batch(&mut self) -> Result<Option<RecordBatch>, FileSourceError> {
             self.next += 1;
-            self.reader.next().transpose().map_err(|error| format_error(&self.path, &error))
+            self.reader
+                .next()
+                .map(|batch| {
+                    let batch = batch?;
+                    if self.compact {
+                        super::ipc_scan::compact_projection(&batch)
+                    } else {
+                        Ok(batch)
+                    }
+                })
+                .transpose()
+                .map_err(|error| format_error(&self.path, &error))
+        }
+
+        fn retained_batch_bytes(&self, batch: &RecordBatch) -> Option<u64> {
+            self.compact.then(|| {
+                (batch.get_array_memory_size() as u64).saturating_add(self.costs.dictionaries)
+            })
         }
     }
 
     stamp.verify_reopen(path, None)?;
+    let compact = projection.len() < stamp.schema.fields().len();
+    let charge_compaction = compact && !projection.is_empty();
     let costs = if stream {
-        super::ipc_scan::scan_stream(path)?
+        super::ipc_scan::scan_stream(path, charge_compaction)?
     } else {
-        super::ipc_scan::scan_file(path)?
+        super::ipc_scan::scan_file(path, charge_compaction)?
     };
     let reader = BufReader::new(open_file(path)?);
     // Both readers report the projected schema, so the stamp is projected the same way.
@@ -494,14 +523,14 @@ fn ipc_open(
         if !same(&reader.schema()) {
             return Err(changed(&path, "the schema differs from open"));
         }
-        Ok(Box::new(IpcBatches { reader, path, costs, next: 0 }))
+        Ok(Box::new(IpcBatches { reader, path, costs, next: 0, compact }))
     } else {
         let reader =
             FileReader::try_new(reader, projection).map_err(|error| format_error(&path, &error))?;
         if !same(&reader.schema()) {
             return Err(changed(&path, "the schema differs from open"));
         }
-        Ok(Box::new(IpcBatches { reader, path, costs, next: 0 }))
+        Ok(Box::new(IpcBatches { reader, path, costs, next: 0, compact }))
     }
 }
 

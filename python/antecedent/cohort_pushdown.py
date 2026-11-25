@@ -12,9 +12,9 @@ scan, is only legal when it delivers that same cohort:
   the cohort (the refusal names the filter column, which still decides membership).
 
 ``source`` is any mapping of column name to array, so a :class:`~antecedent.data.TableFile`
-works: only the closure columns, the kept columns and no others are read. A cell is observed when
-it is not ``NaN`` / ``NaT`` / ``None``. The cohort, the legality rules and the check are
-computed in Rust; this module reads the missingness and decodes the rows.
+works: the native reader scans observation masks for the closure and kept columns. A cell
+is observed when it is not ``NaN`` / ``NaT`` / ``None``. Rust computes the cohort and checks
+the projection and filter rules.
 """
 
 from __future__ import annotations
@@ -28,6 +28,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import _native
+from ._table_file import TableFile
 from .errors import CausalTypeError, CausalValueError
 
 __all__ = ["ColumnClosure", "checked_projection", "checked_push_filter"]
@@ -117,15 +118,16 @@ def _observed(values: Any) -> list[bool]:
     return [True] * int(array.shape[0])
 
 
-def _frame(source: Mapping[str, Any], names: Sequence[str]) -> list[tuple[str, list[bool]]]:
+def _frame(source: Mapping[str, Any], names: Sequence[str]) -> Any:
     if not isinstance(source, Mapping):
         raise CausalTypeError("source must be a mapping of column name to array")
-    frame: list[tuple[str, list[bool]]] = []
-    for name in dict.fromkeys(names):
+    unique = tuple(dict.fromkeys(names))
+    for name in unique:
         if name not in source:
             raise CausalValueError(f"source has no column {name!r}")
-        frame.append((name, _observed(source[name])))
-    return frame
+    if unique and isinstance(source, TableFile):
+        return source._observation_frame(unique)  # noqa: SLF001
+    return [(name, _observed(source[name])) for name in unique]
 
 
 def checked_projection(

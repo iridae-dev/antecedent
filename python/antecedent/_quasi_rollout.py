@@ -50,7 +50,7 @@ def staggered_rollout_payload(
         "cohorts": tuple(_integer_column(raw[query.cohort], "cohort", minimum=0)),
     }
     numeric = (query.outcome, *query.covariates)
-    names, columns = ingest_columns({name: raw[name] for name in numeric})
+    names, columns = ingest_columns({name: raw[name] for name in numeric}, native_dtypes=True)
     return names, columns, design
 
 
@@ -79,7 +79,7 @@ def covariate_adjusted_payload(
         "post": tuple(_binary(raw[query.post], query.post)),
     }
     numeric = (query.outcome, *query.covariates)
-    names, columns = ingest_columns({name: raw[name] for name in numeric})
+    names, columns = ingest_columns({name: raw[name] for name in numeric}, native_dtypes=True)
     return names, columns, design
 
 

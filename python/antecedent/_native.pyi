@@ -30,19 +30,19 @@ __build_optimized__: bool
 def external_aipw_crossfit(
     outcome: Any,
     treatment: Any,
-    design: Sequence[Sequence[float]],
-    y: Sequence[float],
-    t: Sequence[float],
-    fold_ids: Sequence[int],
+    design: NDArray[np.float64],
+    y: NDArray[np.float64],
+    t: NDArray[np.float64],
+    fold_ids: NDArray[np.uint16],
     *,
-    weights: Sequence[float] | None = None,
+    weights: NDArray[np.float64] | None = None,
     seed: int = 1,
     cancel: Any | None = None,
     memory_limit_bytes: int | None = None,
 ) -> tuple[list[float], list[float], list[float], list[list[str]], list[tuple[int, Any, Any]]]: ...
 def external_dml_ate(
     names: Sequence[str],
-    columns: Sequence[Sequence[float]],
+    columns: Sequence[NDArray[np.float64]],
     edges: Sequence[tuple[str, str]],
     treatment_name: str,
     outcome_name: str,
@@ -50,7 +50,7 @@ def external_dml_ate(
     treatment: Any,
     *,
     folds: int = 5,
-    weights: Sequence[float] | None = None,
+    weights: NDArray[np.float64] | None = None,
     seed: int = 1,
     cancel: Any | None = None,
     method: str = "dml",
@@ -84,7 +84,7 @@ def smoothed_dose_learner_transport(
 ) -> tuple[str, list[tuple[int, Any, Any]]]: ...
 def declared_learner_ate(
     names: Sequence[str],
-    columns: Sequence[Sequence[float]],
+    columns: Sequence[NDArray[np.float64]],
     edges: Sequence[tuple[str, str]],
     treatment_name: str,
     outcome_name: str,
@@ -93,7 +93,7 @@ def declared_learner_ate(
     *,
     identity: str,
     folds: int = 5,
-    weights: Sequence[float] | None = None,
+    weights: NDArray[np.float64] | None = None,
     seed: int = 1,
     cancel: Any | None = None,
     method: str = "dml",
@@ -255,6 +255,8 @@ class ArrowLoadInfo:
     diagnostic_count: int
     column_names: list[str]
 
+class _FileObservationFrame: ...
+
 class NativeTableFile:
     """Parquet file or dataset, or Arrow IPC file or stream, read in bounded chunks."""
 
@@ -277,7 +279,17 @@ class NativeTableFile:
         chunk_rows: int | None = None,
         memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
+        for_ingest: bool = False,
+        numeric_columns: set[str] | None = None,
     ) -> dict[str, Any]: ...
+    def observation_frame(
+        self,
+        columns: list[str],
+        *,
+        chunk_rows: int | None = None,
+        memory_limit_bytes: int | None = None,
+        cancel: CancellationToken | None = None,
+    ) -> _FileObservationFrame: ...
     def content_identity(
         self,
         columns: list[str] | None = None,
@@ -2448,13 +2460,14 @@ class PreparedAnalysis:
         columns: Sequence[Any],
         outcome: str,
         units: list[str],
-        periods: list[int],
+        periods: NDArray[np.int64] | NDArray[np.float64] | list[int],
         design: str,
         *,
         lag: int = 0,
         quantile_level: float | None = None,
         min_probability: float = 0.05,
         misclassification: tuple[int, int, int, int] | None = None,
+        buffers: dict[str, Any] | None = None,
         seed: int = 1,
         threads: int | None = None,
         options: dict[str, Any] | None = None,
@@ -3626,7 +3639,9 @@ class PreparedPolicy:
     ) -> dict[str, Any]: ...
 
 def encode_policy_program(names: list[str], policies: str) -> bytes: ...
-def decode_policy_program(names: list[str], data: bytes, retained_identity: str | None = None) -> str: ...
+def decode_policy_program(
+    names: list[str], data: bytes, retained_identity: str | None = None
+) -> str: ...
 def policy_program_identity(names: list[str], policies: str) -> str: ...
 def load_float64_columns(
     names: list[str],
@@ -4788,8 +4803,8 @@ def estimate_observational_network_exposure(
 ) -> tuple[float, float, float, int, int, int, int, float, float, int]: ...
 def randomized_survival_ipcw(
     duration: NDArray[np.float64],
-    event_observed: list[bool],
-    treated: list[bool],
+    event_observed: NDArray[np.float64] | list[bool],
+    treated: NDArray[np.float64] | list[bool],
     times: NDArray[np.float64] | list[float],
     censoring_survival: NDArray[np.float64],
     tau: float,
@@ -4797,8 +4812,8 @@ def randomized_survival_ipcw(
 ) -> tuple[list[float], list[float], list[float], float, float, int | None, int | None, float]: ...
 def randomized_cumulative_incidence_ipcw(
     duration: NDArray[np.float64],
-    event_cause: list[int],
-    treated: list[bool],
+    event_cause: NDArray[np.int64] | NDArray[np.float64] | list[int],
+    treated: NDArray[np.float64] | list[bool],
     times: NDArray[np.float64] | list[float],
     censoring_survival: NDArray[np.float64],
     tau: float,
@@ -5303,7 +5318,9 @@ def prior_catalog_rank(
     scores: dict[str, float],
 ) -> list[dict[str, Any]]: ...
 def encode_prior_source_meta(meta: dict[str, Any]) -> bytes: ...
-def decode_prior_source_meta(bytes: bytes | list[int], retained_identity: str | None = None) -> dict[str, Any]: ...
+def decode_prior_source_meta(
+    bytes: bytes | list[int], retained_identity: str | None = None
+) -> dict[str, Any]: ...
 def mapped_posterior_transfer(
     artifact: bytes,
     expected_source_json: str,
@@ -5517,7 +5534,6 @@ def native_response_claim(
     calibration: str | None = None,
     premises_json: str | None = None,
 ) -> tuple[NativeResponseClaim | None, str | None]: ...
-
 def convert_legacy_posterior(
     legacy: bytes, expected_identity_json: str, bindings_json: str
 ) -> JointDistributionArtifact: ...
@@ -5561,7 +5577,9 @@ def encode_causal_artifact(
     artifact_id: str,
     contract_json: str | None = None,
 ) -> bytes: ...
-def decode_causal_artifact(bytes: bytes, retained_identity: str | None = None) -> DecodedCausalArtifact: ...
+def decode_causal_artifact(
+    bytes: bytes, retained_identity: str | None = None
+) -> DecodedCausalArtifact: ...
 def accept_analysis_result_contract(
     bytes: bytes, replay: bool = False, retained_identity: str | None = None
 ) -> dict[str, str]: ...
@@ -7915,6 +7933,7 @@ class ProviderVerificationReceipt:
 
 def canonical_json_digest_hex(domain: str, json: str) -> str: ...
 def blake3_digest_hex(data: bytes) -> str: ...
+def _blake3_float64_digest_hex(data: NDArray[np.float64]) -> str: ...
 def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
 def open_provider_result(
     bytes: bytes,
@@ -9316,7 +9335,9 @@ def export_rollout(
     artifact_id: str,
     source_evidence: bytes | None = None,
 ) -> tuple[str, bytes]: ...
-def consume_rollout(artifact: bytes, expectation_json: str, retained_identity: str | None = None) -> str: ...
+def consume_rollout(
+    artifact: bytes, expectation_json: str, retained_identity: str | None = None
+) -> str: ...
 
 class ExternalCallbackProviderHandle:
     def __init__(self, text: str, callback: Any) -> None: ...
@@ -9428,7 +9449,9 @@ def export_law_functional_source(
     contract_json: str, action_id: str, functional_json: str, input: DecisionInput
 ) -> tuple[str, list[int]]: ...
 def consume_law_functional_source(bytes: bytes, expected_identity: str | None = None) -> str: ...
-def rollout_ranking(artifact: bytes, expectation_json: str, retained_identity: str | None = None) -> list[int]: ...
+def rollout_ranking(
+    artifact: bytes, expectation_json: str, retained_identity: str | None = None
+) -> list[int]: ...
 def sensitivity_source_summary(artifact: SensitivityArtifact) -> str | None: ...
 def original_sensitivity_source(artifact: SensitivityArtifact) -> bytes | None: ...
 def export_sensitivity_source(artifact: SensitivityArtifact) -> bytes: ...
@@ -9598,7 +9621,6 @@ def temporal_dependent_interval_compiled(
     memory_limit_bytes: int | None = None,
     cancel: CancellationToken | None = None,
 ) -> tuple[NativeMeasuredInference | None, str | None]: ...
-
 def temporal_dependent_interval_measured(
     snapshot_id: str,
     units: list[tuple[int, list[tuple[int, int, int, int, int, float]]]] | None,
@@ -9733,7 +9755,9 @@ class NativeCompiledPooledDifferentialTransport:
     def route(self) -> str: ...
     @property
     def program_identity(self) -> str: ...
-    def execute(self, *, seed: int = 1, threads: int | None = None) -> PooledDifferentialSection: ...
+    def execute(
+        self, *, seed: int = 1, threads: int | None = None
+    ) -> PooledDifferentialSection: ...
 
 def compile_pooled_differential_transport(
     sources: list[tuple[str, int, int, int, int]],
@@ -10790,12 +10814,12 @@ def recipe_logistic_standardized_effect(
 ) -> tuple[float, float, float, list[float], list[float], int, int]: ...
 def cohort_checked_projection(
     closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
-    observed: list[tuple[str, list[bool]]],
+    observed: list[tuple[str, list[bool]]] | _FileObservationFrame,
     keep: list[str],
 ) -> list[int]: ...
 def cohort_checked_push_filter(
     closure: tuple[list[str], list[str], list[str], list[str], list[str], list[str]],
-    observed: list[tuple[str, list[bool]]],
+    observed: list[tuple[str, list[bool]]] | _FileObservationFrame,
     column: str,
     drop_row: list[bool],
 ) -> list[int]: ...
@@ -11942,11 +11966,11 @@ def require_ordinary_temporal_curve_posterior_native(serial_error_model: str) ->
 def trajectory_contrast_native(
     subjects: int,
     periods: int,
-    treatment: list[bool],
-    event: list[bool],
-    at_risk: list[bool],
-    treatment_probability: list[float],
-    censoring_weight: list[float],
+    treatment: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    event: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    at_risk: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    treatment_probability: NDArray[np.float64],
+    censoring_weight: NDArray[np.float64],
     minimum_probability: float,
     active: list[bool],
     control: list[bool],
@@ -11954,11 +11978,11 @@ def trajectory_contrast_native(
 def trajectory_bootstrap_native(
     subjects: int,
     periods: int,
-    treatment: list[bool],
-    event: list[bool],
-    at_risk: list[bool],
-    treatment_probability: list[float],
-    censoring_weight: list[float],
+    treatment: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    event: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    at_risk: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    treatment_probability: NDArray[np.float64],
+    censoring_weight: NDArray[np.float64],
     minimum_probability: float,
     active: list[bool],
     control: list[bool],
@@ -11968,11 +11992,11 @@ def trajectory_bootstrap_native(
 def trajectory_credible_interval_native(
     subjects: int,
     periods: int,
-    treatment: list[bool],
-    event: list[bool],
-    at_risk: list[bool],
-    treatment_probability: list[float],
-    censoring_weight: list[float],
+    treatment: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    event: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    at_risk: NDArray[np.bool_] | NDArray[np.float64] | list[bool],
+    treatment_probability: NDArray[np.float64],
+    censoring_weight: NDArray[np.float64],
     minimum_probability: float,
     active: list[bool],
     control: list[bool],
@@ -12391,6 +12415,7 @@ class _PreparedJointPanelImputation:
 def prepare_joint_panel(
     declaration_json: str,
     *,
+    buffers: list[list[NDArray[np.float64] | None]] | None = None,
     seed: int = 0,
     threads: int = 1,
     max_bytes: int | None = None,
@@ -12399,6 +12424,7 @@ def prepare_joint_panel(
 def prepare_joint_panel_imputed(
     request_json: str,
     *,
+    buffers: list[list[NDArray[np.float64] | None]] | None = None,
     seed: int = 0,
     threads: int = 1,
     max_bytes: int | None = None,
@@ -12407,6 +12433,7 @@ def prepare_joint_panel_imputed(
 def dummy_code_joint_panel(
     declaration_json: str,
     *,
+    buffers: list[list[NDArray[np.float64] | None]] | None = None,
     seed: int = 0,
     threads: int = 1,
     max_bytes: int | None = None,
@@ -13020,7 +13047,9 @@ def consume_previous_release(
     artifact: bytes, level: float, retained_identity: str | None = None
 ) -> tuple[bytes, bytes, str, list[tuple[str, str]]]: ...
 def consume_previous_routes(
-    artifact: bytes, methods: list[tuple[str, str, str, str, str, str]], retained_identity: str | None = None
+    artifact: bytes,
+    methods: list[tuple[str, str, str, str, str, str]],
+    retained_identity: str | None = None,
 ) -> str: ...
 
 class _Execution:

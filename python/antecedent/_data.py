@@ -101,6 +101,7 @@ def project_columns(
     *,
     subset: bool = False,
     what: str = "analysis",
+    numeric_file_columns: Sequence[str] = (),
 ) -> Any:
     """``data`` restricted to the named columns, before any column is converted.
 
@@ -137,7 +138,7 @@ def project_columns(
         )
     if isinstance(data, TableFile):
         # One planned read of exactly these columns; the rest of the file is never decoded.
-        return data.read(chosen)
+        return data._read_for_ingest(chosen, numeric=numeric_file_columns)  # noqa: SLF001
     if chosen == available:
         return data
     positions = [available.index(name) for name in chosen]
@@ -210,9 +211,11 @@ def _raw_array(table: Any, position: int, name: str) -> NDArray[Any]:
 
 def ingest_columns(
     data: Mapping[str, Any] | Any,
+    *,
+    native_dtypes: bool = False,
 ) -> tuple[list[str], list[Any]]:
     """Normalize to ``(names, columns)`` preferring Arrow CDI exporters."""
-    names, columns, _ = ingest_columns_with_receipt(data)
+    names, columns, _ = ingest_columns_with_receipt(data, native_dtypes=native_dtypes)
     return names, columns
 
 
@@ -230,8 +233,8 @@ def ingest_columns_with_receipt(
     """
     ledger = _CopyLedger()
     if isinstance(data, TableFile):
-        data = data.read()
-    arrow = try_as_arrow_c_columns(data, receipt=ledger)
+        data = data._read_for_ingest(numeric=data.names)  # noqa: SLF001
+    arrow = try_as_arrow_c_columns(data, receipt=ledger, native_dtypes=True)
     if arrow is not None:
         return arrow[0], arrow[1], tuple(ledger.copies)
     names, columns = as_columns(data, receipt=ledger, native_dtypes=native_dtypes)
@@ -313,7 +316,7 @@ def as_columns(
 ) -> tuple[list[str], list[NDArray[np.float64]]]:
     """Normalize a mapping or pandas DataFrame to ``(names, float64 columns)``."""
     if isinstance(data, TableFile):
-        data = data.read()
+        data = data._read_for_ingest()  # noqa: SLF001
     if isinstance(data, Mapping):
         names = list(data.keys())
         cols = [
@@ -381,8 +384,14 @@ def _frame_column_values(series: Any, *, name: str, receipt: _CopyLedger | None)
     return series.to_numpy()
 
 
-def _arrow_float64(column: Any, name: str | None = None, receipt: _CopyLedger | None = None) -> Any:
-    """An Arrow-exporting column as float64, so every Arrow route casts alike.
+def _arrow_float64(
+    column: Any,
+    name: str | None = None,
+    receipt: _CopyLedger | None = None,
+    *,
+    native_dtypes: bool = False,
+) -> Any:
+    """Validate a numeric Arrow column and cast for consumers requiring float64.
 
     Integer, boolean and floating columns cast (Arrow refuses an integer beyond
     2**53); any other type is refused naming the column and its type, as strings and
@@ -401,6 +410,8 @@ def _arrow_float64(column: Any, name: str | None = None, receipt: _CopyLedger | 
     if pa.types.is_float64(kind):
         return col
     if pa.types.is_integer(kind) or pa.types.is_boolean(kind) or pa.types.is_floating(kind):
+        if native_dtypes:
+            return col
         _note(receipt, name, "arrow_cast", len(col) * 8)
         return col.cast(pa.float64())
     label = f" {name!r}" if name is not None else ""
@@ -451,14 +462,15 @@ def _chunk_layout(column: Any) -> tuple[int, ...]:
     return (len(column),)
 
 
-def _settle_chunks(columns: list[Any], receipt: _CopyLedger | None) -> list[Any]:
-    """Keep chunked columns chunked when every column shares one chunk layout.
+def _settle_chunks(
+    columns: list[Any], receipt: _CopyLedger | None, *, native_dtypes: bool
+) -> list[Any]:
+    """Keep chunk layouts for the native numeric loader.
 
-    The native table aligns chunks across columns, so columns of different layouts (a chunked
-    column beside a plain one, or chunked differently) cannot be loaded chunk by chunk. In that
-    case each chunked column is joined here, and the join is recorded.
+    The legacy float64 routes align chunks across columns. Join their mismatched chunks and
+    record the Python allocation.
     """
-    if not any(isinstance(column, ArrowChunkColumn) for column in columns):
+    if native_dtypes or not any(isinstance(column, ArrowChunkColumn) for column in columns):
         return columns
     if len({_chunk_layout(column) for column in columns}) == 1:
         return columns
@@ -491,24 +503,27 @@ def _arrow_chunks(column: Any) -> list[Any] | None:
     return None
 
 
-def _export_numeric(column: Any, name: str, receipt: _CopyLedger | None = None) -> Any:
-    """Float64 view of a column. Several chunks stay several chunks.
+def _export_numeric(
+    column: Any, name: str, receipt: _CopyLedger | None = None, *, native_dtypes: bool = False
+) -> Any:
+    """Arrow view of a numeric column. Several chunks stay several chunks.
 
     A column of several chunks stays chunked: the native reader takes the chunks as they are
     and joins them into the table's own buffer in the one ownership copy it makes, so Python
-    allocates nothing for it (:func:`_settle_chunks` joins only when columns disagree on their
-    chunking, which the native table cannot align).
+    allocates nothing for it. Each column can carry its own chunk layout.
     """
     chunks = _arrow_chunks(column)
     if chunks is not None:
-        exported = [_arrow_float64(chunk, name, receipt) for chunk in chunks]
+        exported = [
+            _arrow_float64(chunk, name, receipt, native_dtypes=native_dtypes) for chunk in chunks
+        ]
         if len(exported) == 1:
             return exported[0]
         return ArrowChunkColumn(exported, name)
     if hasattr(column, "combine_chunks"):
         _note(receipt, name, "chunk_concatenation", len(column) * 8)
         column = column.combine_chunks()
-    return _arrow_float64(column, name, receipt)
+    return _arrow_float64(column, name, receipt, native_dtypes=native_dtypes)
 
 
 def _preserve_exact(column: Any, name: str | None = None) -> Any:
@@ -665,6 +680,7 @@ def try_as_arrow_c_columns(
     data: Any,
     *,
     receipt: _CopyLedger | None = None,
+    native_dtypes: bool = False,
 ) -> tuple[list[str], list[Any]] | None:
     """If ``data`` exports Arrow C Data Interface columns, return ``(names, cols)``.
 
@@ -683,8 +699,12 @@ def try_as_arrow_c_columns(
         cols = [data[n] for n in names]
         if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
             return names, _settle_chunks(
-                [_export_numeric(c, str(n), receipt) for n, c in zip(names, cols, strict=True)],
+                [
+                    _export_numeric(c, str(n), receipt, native_dtypes=native_dtypes)
+                    for n, c in zip(names, cols, strict=True)
+                ],
                 receipt,
+                native_dtypes=native_dtypes,
             )
         return None
 
@@ -695,9 +715,12 @@ def try_as_arrow_c_columns(
         names_attr = getattr(schema, "names", None) if schema is not None else None
     if names_attr is not None and hasattr(data, "column"):
         names = [str(n) for n in list(names_attr)]
-        cols = [_export_numeric(data.column(i), names[i], receipt) for i in range(len(names))]
+        cols = [
+            _export_numeric(data.column(i), names[i], receipt, native_dtypes=native_dtypes)
+            for i in range(len(names))
+        ]
         if cols and all(_exports_arrow_array(c) for c in cols):
-            return names, _settle_chunks(cols, receipt)
+            return names, _settle_chunks(cols, receipt, native_dtypes=native_dtypes)
         return None
 
     # Frame columns that export CDI, but not pandas (it has to_numpy and
@@ -708,23 +731,30 @@ def try_as_arrow_c_columns(
             cols = [data[c] for c in data.columns]
             if names and all(hasattr(c, "__arrow_c_array__") for c in cols):
                 return names, _settle_chunks(
-                    [_export_numeric(c, n, receipt) for n, c in zip(names, cols, strict=True)],
+                    [
+                        _export_numeric(c, n, receipt, native_dtypes=native_dtypes)
+                        for n, c in zip(names, cols, strict=True)
+                    ],
                     receipt,
+                    native_dtypes=native_dtypes,
                 )
         except (AttributeError, KeyError, TypeError):
             pass  # not a column-indexable frame; try a table-level stream next
 
     # Table-level Arrow PyCapsule (Polars, DuckDB) or a bare stream/array capsule.
-    # Batches stay chunks. The numeric route still casts each chunk to float64.
+    # Batches stay chunks. The receiving route determines when numeric values widen.
     if _is_capsule(data) or _is_capsule_pair(data) or hasattr(data, "__arrow_c_stream__"):
         try:
             table = _table_from_arrow_export(data, receipt)
         except ImportError:
             return None
         names = [str(n) for n in table.column_names]
-        cols = [_export_numeric(table.column(i), names[i], receipt) for i in range(len(names))]
+        cols = [
+            _export_numeric(table.column(i), names[i], receipt, native_dtypes=native_dtypes)
+            for i in range(len(names))
+        ]
         if names:
-            return names, _settle_chunks(cols, receipt)
+            return names, _settle_chunks(cols, receipt, native_dtypes=native_dtypes)
     return None
 
 
@@ -842,6 +872,7 @@ def to_f64(
     if (
         native_dtypes
         and isinstance(arr, np.ndarray)
+        and raw.dtype.isnative
         and raw.dtype != np.float64
         and (kind in "iub" or raw.dtype == np.float32)
     ):
@@ -1062,22 +1093,24 @@ def _materialize_f64(
 
 def as_multi_env_columns(
     data: Sequence[Mapping[str, Any] | Any],
-) -> tuple[list[str], list[list[NDArray[np.float64]]]]:
+    *,
+    native_dtypes: bool = False,
+) -> tuple[list[str], list[list[Any]]]:
     if not data:
         raise CausalValueError(
             "expected a non-empty sequence of environment frames",
             reason_code="invalid_argument",
         )
-    names, first = ingest_columns(data[0])
-    env_columns = [[_materialize_f64(col) for col in first]]
+    names, first = ingest_columns(data[0], native_dtypes=native_dtypes)
+    env_columns = [first if native_dtypes else [_materialize_f64(col) for col in first]]
     for i, env in enumerate(data[1:], start=1):
-        n, cols = ingest_columns(env)
+        n, cols = ingest_columns(env, native_dtypes=native_dtypes)
         if n != names:
             raise CausalValueError(
                 f"environment {i} column names {n!r} do not match environment 0 {names!r}",
                 reason_code="invalid_argument",
             )
-        env_columns.append([_materialize_f64(col) for col in cols])
+        env_columns.append(cols if native_dtypes else [_materialize_f64(col) for col in cols])
     return names, env_columns
 
 

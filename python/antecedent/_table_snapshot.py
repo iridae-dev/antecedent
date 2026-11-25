@@ -103,6 +103,10 @@ def table(data: Any, *, borrow: bool = False) -> Table:
     if isinstance(data, Table):
         return data
     from ._data import as_columns, try_as_arrow_c_columns
+    from ._table_file import TableFile
+
+    if isinstance(data, TableFile):
+        data = data._read_for_ingest(numeric=data.names)  # noqa: SLF001
 
     raw = _raw_columns(data)
     design: dict[str, Any] = {}
@@ -139,7 +143,7 @@ def table(data: Any, *, borrow: bool = False) -> Table:
             if numeric and hasattr(data, "column_names") and hasattr(data, "select")
             else numeric
         )
-    arrow = try_as_arrow_c_columns(data)
+    arrow = try_as_arrow_c_columns(data, native_dtypes=True)
     if arrow is None:
         numeric_names, columns = as_columns(data, native_dtypes=True)
     else:

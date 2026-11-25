@@ -74,6 +74,11 @@ def test_native_predictor_snapshots_contiguous_and_strided_columns():
     expected = np.asarray(model._native.predict([contiguous], len(contiguous)))
     actual = np.asarray(model._native.predict([strided], len(strided)))
     np.testing.assert_array_equal(actual, expected)
+    integers = interleaved.astype(np.int64)[::2]
+    info = ac.data.load_float64_columns(["z"], [integers])
+    assert info.diagnostic_count == 1
+    assert info.bytes_copied == strided.nbytes
+    np.testing.assert_array_equal(model._native.predict([integers], len(integers)), expected)
     contiguous[:] = 10.0
     interleaved[:] = 20.0
     np.testing.assert_array_equal(actual, expected)

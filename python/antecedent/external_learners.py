@@ -69,6 +69,21 @@ class ExternalLearner:
 
     def fit(self, x: Any, y: Any, weights: Any | None = None) -> FittedExternalLearner:
         """Fit or bind the model to these training rows and retain the execution receipt."""
+        return self._fit(x, y, weights, None)
+
+    def _fit_columns(
+        self,
+        columns: NDArray[np.float64],
+        y: NDArray[np.float64],
+        weights: NDArray[np.float64] | None,
+        callback_bytes: int,
+    ) -> FittedExternalLearner:
+        # Each row here is one contiguous feature column in the native allocation.
+        return self._fit(columns.T, y, weights, callback_bytes)
+
+    def _fit(
+        self, x: Any, y: Any, weights: Any | None, callback_bytes: int | None
+    ) -> FittedExternalLearner:
         if self.task not in ("regression", "binary_probability"):
             raise CausalValueError("unknown nuisance prediction task")
         if self.training not in ("fold_fit", "frozen", "fine_tuned"):
@@ -88,15 +103,16 @@ class ExternalLearner:
             raise CausalValueError("supports_weights must be a bool")
         if self.supports_weights and "sample_weights" not in spec.data_dependence:
             raise CausalValueError("provider does not declare sample_weights in data_dependence")
-        matrix = _matrix(x)
-        target = _vector(y, matrix.shape[0], "target")
+        copy_inputs = callback_bytes is None
+        matrix = _matrix(x, copy=copy_inputs)
+        target = _vector(y, matrix.shape[0], "target", copy=copy_inputs)
         if self.task == "binary_probability" and np.any((target != 0) & (target != 1)):
             raise CausalValueError("binary probability targets must be 0 or 1")
         selected_weights = None
         if weights is not None:
             if not self.supports_weights:
                 raise CausalValueError("nuisance provider does not declare sample-weight support")
-            selected_weights = _vector(weights, matrix.shape[0], "weights")
+            selected_weights = _vector(weights, matrix.shape[0], "weights", copy=copy_inputs)
             if np.any(selected_weights < 0) or not np.any(selected_weights > 0):
                 raise CausalValueError("weights must be nonnegative and have positive mass")
         config = copy.deepcopy(dict(self.configuration or {}))
@@ -130,7 +146,7 @@ class ExternalLearner:
             digest,
             bytes(result.artifact),
             matrix.shape[1],
-            result,
+            result if callback_bytes is None else replace(result, callback_bytes=callback_bytes),
             spec.fold_policy,
         )
 
@@ -175,7 +191,15 @@ class FittedExternalLearner:
 
     def predict(self, x: Any) -> ProviderResult:
         """Predict on the supplied rows and return the registry's validated result."""
-        matrix = _matrix(x)
+        return self._predict(x, None)
+
+    def _predict_columns(
+        self, columns: NDArray[np.float64], callback_bytes: int
+    ) -> ProviderResult:
+        return self._predict(columns.T, callback_bytes)
+
+    def _predict(self, x: Any, callback_bytes: int | None) -> ProviderResult:
+        matrix = _matrix(x, copy=callback_bytes is None)
         if matrix.shape[1] != self.n_features:
             raise CausalValueError("nuisance prediction feature count differs from fit")
         if _request_digest(self.configuration) != self.configuration_digest:
@@ -208,7 +232,7 @@ class FittedExternalLearner:
             (result.estimate < 0) | (result.estimate > 1)
         ):
             raise CausalValueError("nuisance probability predictions must lie in [0, 1]")
-        return result
+        return result if callback_bytes is None else replace(result, callback_bytes=callback_bytes)
 
 
 @dataclass(frozen=True, slots=True)
@@ -440,7 +464,7 @@ def analyze_ate(
         propensity,
     ) = _native.declared_learner_ate(
         names,
-        [col.tolist() for col in raw_columns],
+        raw_columns,
         list(edges),
         treatment_name,
         outcome_name,
@@ -448,7 +472,7 @@ def analyze_ate(
         treatment,
         identity=identity,
         folds=folds,
-        weights=None if selected_weights is None else selected_weights.tolist(),
+        weights=selected_weights,
         method=estimator,
         score=score,
         **native_controls(
@@ -556,14 +580,14 @@ def _direct_ate(
     point, se, rows, fold_ids, adjustment, provenance, assumptions, cate, cate_se, receipts = (
         _native.external_dml_ate(
             names,
-            [col.tolist() for col in raw_columns],
+            raw_columns,
             list(edges),
             treatment_name,
             outcome_name,
             outcome,
             treatment,
             folds=folds,
-            weights=None if selected_weights is None else selected_weights.tolist(),
+            weights=selected_weights,
             method=estimator,
             score=score,
             **native_controls(
@@ -683,11 +707,11 @@ def cross_fit_aipw(
     m0, m1, e, provenance, receipts = _native.external_aipw_crossfit(
         outcome,
         treatment,
-        matrix.tolist(),
-        target.tolist(),
-        arms.tolist(),
-        folds.tolist(),
-        weights=None if selected_weights is None else selected_weights.tolist(),
+        matrix,
+        target,
+        arms,
+        folds.astype(np.uint16, copy=False),
+        weights=selected_weights,
         **native_controls(
             execution,
             seed="seed",
@@ -706,8 +730,8 @@ def cross_fit_aipw(
     )
 
 
-def _matrix(value: Any) -> NDArray[np.float64]:
-    matrix = np.array(value, dtype=np.float64, copy=True)
+def _matrix(value: Any, *, copy: bool = True) -> NDArray[np.float64]:
+    matrix = np.array(value, dtype=np.float64, copy=copy)
     if (
         matrix.ndim != 2
         or not matrix.shape[0]
@@ -719,8 +743,8 @@ def _matrix(value: Any) -> NDArray[np.float64]:
     return matrix
 
 
-def _vector(value: Any, length: int, name: str) -> NDArray[np.float64]:
-    vector = np.array(value, dtype=np.float64, copy=True)
+def _vector(value: Any, length: int, name: str, *, copy: bool = True) -> NDArray[np.float64]:
+    vector = np.array(value, dtype=np.float64, copy=copy)
     if vector.shape != (length,) or not np.isfinite(vector).all():
         raise CausalValueError(f"nuisance {name} must have one finite value per row")
     vector.flags.writeable = False
@@ -988,7 +1012,7 @@ def _static_result(spec: Mapping[str, Any]) -> Any:
         propensity,
     ) = _native.declared_learner_ate(
         names,
-        [column.tolist() for column in raw_columns],
+        raw_columns,
         edges,
         query.treatment,
         query.outcome,

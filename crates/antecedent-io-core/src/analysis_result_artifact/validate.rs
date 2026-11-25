@@ -613,7 +613,7 @@ pub(super) fn validate_result(
         validate_response_result(response, variable_names.len())?;
     }
     if let Some(posterior) = &result.posterior_artifact {
-        crate::decode_causal_posterior_bytes(posterior)?;
+        crate::posterior::validate_causal_posterior_bytes(posterior)?;
     }
     if let Some(grid) = &result.mediation_grid {
         validate_mediation_grid(grid, variable_names.len())?;
@@ -779,7 +779,7 @@ fn validate_structural_response(
             crate::causal_artifact::validate_response_result(response, n_variables)?;
         }
         if let Some(posterior) = &atom.posterior_artifact {
-            crate::decode_causal_posterior_bytes(posterior)?;
+            crate::posterior::validate_causal_posterior_bytes(posterior)?;
         }
     }
     Ok(())

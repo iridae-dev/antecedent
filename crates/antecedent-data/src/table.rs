@@ -47,19 +47,21 @@ pub trait TableView {
         }
     }
 
-    /// Column values as `f64`, borrowed when the column is native `Float64`.
+    /// Column values as `f64`, borrowed when a native `Float64` column is all valid.
     ///
     /// Yields exactly the same values as [`TableView::float64_values`]
     /// (including the `Int64`/`Boolean` coercions), but avoids the copy for
-    /// native `Float64` columns.
+    /// all-valid native `Float64` columns.
     ///
     /// # Errors
     ///
     /// Unknown variable or unsupported column type.
     fn float64_cow(&self, id: VariableId) -> Result<std::borrow::Cow<'_, [f64]>, DataError> {
-        match self.float64_slice(id) {
-            Ok(s) => Ok(std::borrow::Cow::Borrowed(s)),
-            Err(_) => self.float64_values(id).map(std::borrow::Cow::Owned),
+        match self.column(id)? {
+            ColumnView::Float64(c) if c.validity.is_all_valid() => {
+                Ok(std::borrow::Cow::Borrowed(c.values.as_slice()))
+            }
+            _ => self.float64_values(id).map(std::borrow::Cow::Owned),
         }
     }
 

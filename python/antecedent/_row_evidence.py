@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 
 from ._data import read_columns, table_column_names
+from ._table_file import TableFile
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 
 _INT64_MIN, _INT64_MAX = -(2**63), 2**63 - 1
@@ -110,12 +111,19 @@ def table_identity(data: Any, names: tuple[str, ...]) -> str:
     from ._data import ingest_columns
     from ._native import table_content_identity
 
+    if isinstance(data, TableFile):
+        kinds = {column.name: column.kind for column in data.schema}
+        readable = [name for name in names if kinds.get(name) not in (None, "unsupported")]
+        if readable:
+            return data.content_identity(readable)
+        raise _no_readable_columns()
+
     try:
         ingested, arrays = ingest_columns(data)
         return table_content_identity(list(ingested), list(arrays))
     except Exception:  # noqa: BLE001 - fall back to the columns the engine can read
         pass
-    readable: list[str] = []
+    readable = []
     columns: list[Any] = []
     for name in names:
         try:
@@ -126,12 +134,16 @@ def table_identity(data: Any, names: tuple[str, ...]) -> str:
         readable.extend(ingested)
         columns.extend(arrays)
     if not readable:
-        raise CausalValueError(
-            "the rows of a static response study are identified by the content of the table "
-            "they were taken from, and the engine can read no column of this table",
-            reason_code="invalid_argument",
-        )
+        raise _no_readable_columns()
     return table_content_identity(readable, columns)
+
+
+def _no_readable_columns() -> CausalValueError:
+    return CausalValueError(
+        "the rows of a static response study are identified by the content of the table "
+        "they were taken from, and the engine can read no column of this table",
+        reason_code="invalid_argument",
+    )
 
 
 class RowSource:

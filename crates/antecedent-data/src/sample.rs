@@ -261,6 +261,46 @@ impl LaggedSamplePlan {
         self.lag_map.n_effective
     }
 
+    /// Borrow the planned lag-aligned columns and, when requested, mark complete windows.
+    ///
+    /// # Errors
+    ///
+    /// The same input refusals as [`Self::prepare`] or [`Self::prepare_with_gaps`].
+    pub fn borrow_columns<'a>(
+        &self,
+        data: &'a TimeSeriesData,
+        allow_gaps: bool,
+    ) -> Result<LaggedColumnViews<'a>, DataError> {
+        self.validate_data(data)?;
+        let n = self.lag_map.n_effective;
+        let mut columns = Vec::with_capacity(self.columns.len());
+        let mut complete = allow_gaps.then(|| vec![true; n]);
+        for column in self.columns.iter() {
+            let source = lag_float_column(data, column.variable)?;
+            let start = self.lag_map.row_index(column.lag, 0);
+            if let Some(complete) = &mut complete {
+                for (index, valid) in complete.iter_mut().enumerate() {
+                    *valid = *valid && source.validity.is_valid(start + index);
+                }
+            } else {
+                ensure_complete_float(source)?;
+            }
+            columns.push(&source.values[start..start + n]);
+        }
+        Ok(LaggedColumnViews { columns, complete })
+    }
+
+    fn validate_data(&self, data: &TimeSeriesData) -> Result<(), DataError> {
+        if data.row_count() != self.lag_map.series_len {
+            return Err(DataError::LengthMismatch {
+                expected: self.lag_map.series_len,
+                actual: data.row_count(),
+                context: "time series length vs sample plan",
+            });
+        }
+        ensure_unmasked(data)
+    }
+
     /// Gather planned columns into `workspace` (grows once, then reuses capacity).
     ///
     /// # Errors
@@ -355,23 +395,14 @@ impl LaggedSamplePlan {
         policy: KernelPolicy,
         allow_gaps: bool,
     ) -> Result<Option<Vec<bool>>, DataError> {
-        if data.row_count() != self.lag_map.series_len {
-            return Err(DataError::LengthMismatch {
-                expected: self.lag_map.series_len,
-                actual: data.row_count(),
-                context: "time series length vs sample plan",
-            });
-        }
-        ensure_unmasked(data)?;
+        self.validate_data(data)?;
         let n = self.lag_map.n_effective;
         let ncols = self.columns.len();
         workspace.prepare(n, ncols);
         let mut complete = allow_gaps.then(|| vec![true; n]);
 
         for (c, col) in self.columns.iter().enumerate() {
-            let ColumnView::Float64(src) = data.column(col.variable)? else {
-                return Err(DataError::TypeMismatch { id: col.variable, expected: "float64" });
-            };
+            let src = lag_float_column(data, col.variable)?;
             if !allow_gaps {
                 ensure_complete_float(src)?;
             }
@@ -407,6 +438,22 @@ impl LaggedSamplePlan {
             dropped: DropSummary { requested: self.lag_map.series_len, retained: n },
         }
     }
+}
+
+fn lag_float_column(data: &TimeSeriesData, id: VariableId) -> Result<&Float64Column, DataError> {
+    match data.column(id)? {
+        ColumnView::Float64(column) => Ok(column),
+        _ => Err(DataError::TypeMismatch { id, expected: "float64" }),
+    }
+}
+
+/// Lag-aligned views on the source series.
+#[derive(Clone, Debug)]
+pub struct LaggedColumnViews<'a> {
+    /// The planned columns, in order.
+    pub columns: Vec<&'a [f64]>,
+    /// Complete-window flags when gaps are allowed.
+    pub complete: Option<Vec<bool>>,
 }
 
 /// A lagged sample whose windows may contain missing values, with the windows that do not.

@@ -11069,6 +11069,7 @@ pub use antecedent_io::decode_container = antecedent_io_core::decode_container
 pub use antecedent_io::decode_external_estimate_claim = antecedent_io_core::decode_external_estimate_claim
 pub use antecedent_io::decode_external_estimate_claim_expecting = antecedent_io_core::decode_external_estimate_claim_expecting
 pub use antecedent_io::decode_posterior_artifact = antecedent_io_core::decode_posterior_artifact
+pub use antecedent_io::decode_posterior_meta_from_bytes = antecedent_io_core::decode_posterior_meta_from_bytes
 pub use antecedent_io::decode_posterior_meta_from_path = antecedent_io_core::decode_posterior_meta_from_path
 pub use antecedent_io::decode_posterior_meta_from_path_expecting = antecedent_io_core::decode_posterior_meta_from_path_expecting
 pub use antecedent_io::decode_posterior_meta_from_seek = antecedent_io_core::decode_posterior_meta_from_seek

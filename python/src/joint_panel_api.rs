@@ -20,6 +20,7 @@ use antecedent::prelude::{
 };
 use antecedent::schema::{CategoryDomainId, MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
 use antecedent::scientific::{InferenceSelection, ScientificTarget, ScientificWorldId};
+use numpy::PyReadonlyArray1;
 use pyo3::{prelude::*, types::PyBytes};
 use serde::Deserialize;
 use std::{collections::BTreeMap, sync::Arc};
@@ -45,6 +46,8 @@ struct SourceGroup {
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum SourceColumn {
+    #[serde(skip)]
+    Native(Arc<[f64]>),
     Numeric(Vec<Option<f64>>),
     Labels(Vec<Option<String>>),
 }
@@ -867,11 +870,54 @@ fn admit_bytes(ctx: &ExecutionContext, bytes: u64) -> PyResult<antecedent::execu
         }
     })
 }
+type SourceBuffers<'py> = Vec<Vec<Option<PyReadonlyArray1<'py, f64>>>>;
+
+/// Replace empty numeric metadata slots with the owned native column snapshots.
+fn bind_source_buffers(
+    groups: &mut [SourceGroup],
+    buffers: Option<SourceBuffers<'_>>,
+    ctx: &ExecutionContext,
+) -> PyResult<Option<antecedent::execution::Retention>> {
+    let Some(buffers) = buffers else {
+        return Ok(None);
+    };
+    if groups.len() != buffers.len()
+        || groups.iter().zip(&buffers).any(|(group, columns)| group.columns.len() != columns.len())
+    {
+        return Err(crate::value_err(
+            "source buffers must match the declared panel groups and columns",
+        ));
+    }
+    let cells = buffers
+        .iter()
+        .flatten()
+        .flatten()
+        .try_fold(0_u64, |total, array| total.checked_add(array.as_array().len() as u64));
+    let bytes = cells
+        .and_then(|count| count.checked_mul(8))
+        .ok_or_else(|| crate::value_err("panel source buffer size overflow"))?;
+    let lease = admit_bytes(ctx, bytes)?;
+    for (group, columns) in groups.iter_mut().zip(buffers) {
+        for (column, array) in group.columns.iter_mut().zip(columns) {
+            if let Some(array) = array {
+                if !matches!(column, SourceColumn::Numeric(values) if values.is_empty()) {
+                    return Err(crate::value_err(
+                        "panel source column has both metadata cells and a buffer",
+                    ));
+                }
+                *column = SourceColumn::Native(crate::ingest::snapshot_shared(&array));
+            }
+        }
+    }
+    Ok(Some(lease))
+}
+
 #[pyfunction]
-#[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+#[pyo3(signature=(declaration_json,*,buffers=None,seed=0,threads=1,max_bytes=None,cancel=None))]
 fn prepare_joint_panel(
     py: Python<'_>,
     declaration_json: &str,
+    buffers: Option<SourceBuffers<'_>>,
     seed: u64,
     threads: u32,
     max_bytes: Option<u64>,
@@ -879,8 +925,9 @@ fn prepare_joint_panel(
 ) -> PyResult<PyPreparedJointPanel> {
     let ctx = context(seed, threads, max_bytes, cancel)?;
     let _input = admit_declaration(&ctx, declaration_json)?;
-    let declaration = serde_json::from_str(declaration_json)
+    let mut declaration: Declaration = serde_json::from_str(declaration_json)
         .map_err(|error| crate::value_err(error.to_string()))?;
+    let _buffers = bind_source_buffers(&mut declaration.groups, buffers, &ctx)?;
     crate::detach_catch(py, || prepare(declaration, &ctx))
 }
 #[derive(Deserialize)]
@@ -900,10 +947,11 @@ struct CodingDeclaration {
 /// Returns the rewritten panel as named columns (a missing cell is `null`), the channel names
 /// in order, and every indicator with its source and level.
 #[pyfunction]
-#[pyo3(signature=(declaration_json,*,seed=0,threads=1,max_bytes=None,cancel=None))]
+#[pyo3(signature=(declaration_json,*,buffers=None,seed=0,threads=1,max_bytes=None,cancel=None))]
 fn dummy_code_joint_panel(
     py: Python<'_>,
     declaration_json: &str,
+    buffers: Option<SourceBuffers<'_>>,
     seed: u64,
     threads: u32,
     max_bytes: Option<u64>,
@@ -911,8 +959,9 @@ fn dummy_code_joint_panel(
 ) -> PyResult<String> {
     let ctx = context(seed, threads, max_bytes, cancel)?;
     let _input = admit_declaration(&ctx, declaration_json)?;
-    let declaration: CodingDeclaration = serde_json::from_str(declaration_json)
+    let mut declaration: CodingDeclaration = serde_json::from_str(declaration_json)
         .map_err(|error| crate::value_err(error.to_string()))?;
+    let _buffers = bind_source_buffers(&mut declaration.groups, buffers, &ctx)?;
     // The coding rewrites the panel: the source copy, the coded copy with one indicator per
     // non-reference level, and the returned document, charged before any of them exists.
     let rows: usize = declaration
@@ -922,6 +971,7 @@ fn dummy_code_joint_panel(
             group.columns.first().map_or(0, |column| match column {
                 SourceColumn::Numeric(values) => values.len(),
                 SourceColumn::Labels(labels) => labels.len(),
+                SourceColumn::Native(values) => values.len(),
             })
         })
         .sum();
@@ -1057,8 +1107,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-fn numeric_cells(column: SourceColumn, name: &str) -> PyResult<Vec<f64>> {
+fn numeric_cells(column: SourceColumn, name: &str) -> PyResult<Arc<[f64]>> {
     match column {
+        SourceColumn::Native(values) => Ok(values),
         SourceColumn::Numeric(cells) => {
             Ok(cells.into_iter().map(|value| value.unwrap_or(f64::NAN)).collect())
         }
@@ -1075,7 +1126,7 @@ fn label_cells(column: &SourceColumn, name: &str) -> PyResult<Vec<Option<String>
         SourceColumn::Numeric(cells) if cells.iter().all(Option::is_none) => {
             Ok(vec![None; cells.len()])
         }
-        SourceColumn::Numeric(_) => Err(crate::value_err(format!(
+        SourceColumn::Numeric(_) | SourceColumn::Native(_) => Err(crate::value_err(format!(
             "categorical channel {name:?} must supply category labels, not numbers"
         ))),
     }
@@ -1133,21 +1184,7 @@ fn source_data(
     let units = groups
         .into_iter()
         .map(|group| {
-            let series = if categorical.is_empty() {
-                let values = group
-                    .columns
-                    .into_iter()
-                    .zip(names)
-                    .map(|(column, name)| numeric_cells(column, name))
-                    .collect::<PyResult<Vec<_>>>()?;
-                TimeSeriesData::from_f64_columns(
-                    names.iter().map(String::as_str).zip(values.iter().map(Vec::as_slice)),
-                    interval_ns,
-                )
-                .map_err(crate::py_err)?
-            } else {
-                mixed_series(names, group.columns, &domains, interval_ns)?
-            };
+            let series = mixed_series(names, group.columns, &domains, interval_ns)?;
             Ok(PanelUnit { unit_id: group.id, series })
         })
         .collect::<PyResult<Vec<_>>>()?;
@@ -1203,6 +1240,11 @@ fn mixed_series(
             ));
         } else {
             let values = numeric_cells(column, name)?;
+            if values.iter().any(|value| value.is_infinite()) {
+                return Err(crate::value_err(format!(
+                    "panel column {name:?} requires finite or missing values"
+                )));
+            }
             length = values.len();
             builder
                 .add_variable(
@@ -1214,10 +1256,9 @@ fn mixed_series(
                     MeasurementSpec::default(),
                 )
                 .map_err(schema_error)?;
-            let validity = validity_of(values.iter().map(|value| !value.is_nan()), values.len())?;
+            let validity = ValidityBitmap::all_valid(values.len());
             built.push(OwnedColumn::Float64(
-                Float64Column::new(id, Arc::<[f64]>::from(values), validity)
-                    .map_err(crate::py_err)?,
+                Float64Column::new(id, values, validity).map_err(crate::py_err)?,
             ));
         }
     }

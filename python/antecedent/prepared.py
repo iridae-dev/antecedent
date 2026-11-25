@@ -1070,7 +1070,8 @@ def prepare(
     else:
         from ._owned_input import project_prepared_input
 
-        projected = project_prepared_input(
+        projected = policy._call(
+            project_prepared_input,
             data,
             query=query,
             graph=graph,

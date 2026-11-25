@@ -8,7 +8,10 @@ use crate::evidence_ledger_artifact::{EvidenceLedgerArtifact, EvidenceLedgerMeta
 use crate::joint_panel_artifact::{
     MAX_JOINT_PANEL_ARTIFACT_BYTES, PanelArtifactError, PanelExecutionProgram,
 };
-use crate::joint_panel_artifact_support::{Counter, admit, cancelled, invalid};
+use crate::joint_panel_artifact_support::{
+    Counter, admit, cancelled, canonical_json_digest, invalid, matches_draw_bytes, read_sections,
+    write_sections,
+};
 use antecedent_contract::bridge::BridgeContract;
 use antecedent_contract::evidence_ledger::{EvidenceLedger, Overlap, SourceId, SourceStatus};
 use antecedent_core::execution::AdmissionLease;
@@ -134,7 +137,11 @@ impl PanelExperimentExecutionProgram {
         // The frozen panel program (dominated by its retained draws) is represented by its own
         // complete identity, which it digests once; serializing it again here would repeat
         // that work for every export and consumption of the same immutable program.
-        let mut value = serde_json::to_value(PanelExperimentIdentityView {
+        let value = serde_json::to_value(self.identity_view()?).map_err(invalid)?;
+        Ok(canonical_json_digest("antecedent.joint_panel.experimental_program.v2", &value)?.0)
+    }
+    fn identity_view(&self) -> Result<PanelExperimentIdentityView<'_>, PanelArtifactError> {
+        Ok(PanelExperimentIdentityView {
             version: self.version,
             panel: self.panel.identity()?,
             bridge: &self.bridge,
@@ -149,12 +156,6 @@ impl PanelExperimentExecutionProgram {
             mapping_dependency: self.mapping_dependency,
             policy: &self.policy,
         })
-        .map_err(invalid)?;
-        value.as_object_mut().ok_or_else(|| invalid("experiment request shape"))?;
-        Ok(CanonicalWriter::digest_bytes(
-            "antecedent.joint_panel.experimental_program.v2",
-            &serde_json::to_vec(&value).map_err(invalid)?,
-        ))
     }
     fn validate(&self) -> Result<(), PanelArtifactError> {
         if self.version != 1
@@ -218,7 +219,10 @@ impl PanelExperimentExecutionProgram {
             return Err(invalid("frozen posterior slot count differs"));
         }
         let mut quote = Counter(0);
-        serde_json::to_writer(&mut quote, self).map_err(invalid)?;
+        // The original replay already reserves its shared frozen panel. Count only the
+        // additional experiment fields owned by the historical update.
+        serde_json::to_writer(&mut quote, &(self.identity_view()?, &self.ledger))
+            .map_err(invalid)?;
         let bytes = count
             .checked_mul(width + 8)
             .and_then(|n| n.checked_mul(24))
@@ -332,6 +336,17 @@ struct Record {
     result_identity: crate::distribution_artifact::DistributionIdentity,
 }
 
+const EXPERIMENT_METADATA_SECTION: &str = "joint_panel_experiment_v2";
+const EXPERIMENT_LEGACY_SECTION: &str = "joint_panel_experiment_v1";
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExperimentResultMetadata<'a> {
+    version: u16,
+    identity: [u8; 32],
+    result_metadata: std::borrow::Cow<'a, DistributionMetadata>,
+}
+
 /// Export the already checked actual updated joint law with exact original frozen inputs.
 /// # Errors
 /// Bridge/ledger failure, serialization, unsupported limits, resource or cancellation.
@@ -342,26 +357,12 @@ pub fn encode_panel_experiment(
 ) -> Result<Vec<u8>, PanelArtifactError> {
     cancelled(ctx)?;
     program.validate()?;
-    let record = Record {
-        version: 1,
+    let metadata = ExperimentResultMetadata {
+        version: 2,
         identity: program.identity()?,
-        program,
-        result: law.to_bytes("joint_panel_experiment_law")?,
-        result_identity: law.metadata().identity.clone(),
+        result_metadata: std::borrow::Cow::Borrowed(law.metadata()),
     };
-    let mut counter = Counter(0);
-    serde_json::to_writer(&mut counter, &record).map_err(invalid)?;
-    if counter.0 > MAX_JOINT_PANEL_ARTIFACT_BYTES {
-        return Err(invalid("experiment payload exceeds byte ceiling"));
-    }
-    let _lease = admit(
-        ctx,
-        (counter.0 as u64)
-            .checked_mul(4)
-            .ok_or_else(|| invalid("experiment encoding quote overflow"))?,
-    )?;
-    let payload = serde_json::to_vec(&record).map_err(invalid)?;
-    crate::encode_container(
+    let bytes = write_sections(
         &crate::ArtifactContainer {
             kind: "joint_panel_experiment",
             note: "historical_conditional_experiment",
@@ -369,13 +370,15 @@ pub fn encode_panel_experiment(
             artifact_id: "joint_panel_experiment",
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: "joint_panel_experiment_v1",
-            content_type: crate::CONTENT_BYTES,
-            bytes: &payload,
-        }],
-    )
-    .map_err(|error| PanelArtifactError::Io(error.into_io("experiment encoding")))
+        EXPERIMENT_METADATA_SECTION,
+        &metadata,
+        &program,
+        law.draws().iter(),
+        law.draws().len(),
+        ctx,
+    );
+    drop(program);
+    bytes
 }
 /// Recompute historical frozen response projection and the declared experimental update.
 /// # Errors
@@ -384,19 +387,50 @@ pub fn consume_panel_experiment(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<HistoricalPanelExperiment, PanelArtifactError> {
-    let (_lease, payload) = decode_payload(bytes, ctx)?;
-    let record: Record = serde_json::from_slice(&payload).map_err(invalid)?;
-    if record.version != 1 || record.identity != record.program.identity()? {
-        return Err(PanelArtifactError::Mismatch);
+    let (_lease, sections) = read_sections(
+        "joint_panel_experiment",
+        EXPERIMENT_LEGACY_SECTION,
+        EXPERIMENT_METADATA_SECTION,
+        bytes,
+        ctx,
+    )?;
+    match sections.as_slice() {
+        [payload] => {
+            let record: Record = serde_json::from_slice(payload).map_err(invalid)?;
+            if record.version != 1 || record.identity != record.program.identity()? {
+                return Err(PanelArtifactError::Mismatch);
+            }
+            let expected =
+                DistributionArtifact::from_bytes(&record.result, &record.result_identity)?;
+            let replay = record.program.replay(ctx)?;
+            if expected.metadata() != replay.law.metadata()
+                || !expected.draws().iter().map(|draw| draw.to_bits()).eq(replay
+                    .law
+                    .draws()
+                    .iter()
+                    .map(|draw| draw.to_bits()))
+            {
+                return Err(PanelArtifactError::Mismatch);
+            }
+            Ok(replay)
+        }
+        [metadata, program, draws] => {
+            let record: ExperimentResultMetadata<'_> =
+                serde_json::from_slice(metadata).map_err(invalid)?;
+            let program: PanelExperimentExecutionProgram = antecedent_io_core::from_cbor(program)?;
+            if record.version != 2 || record.identity != program.identity()? {
+                return Err(PanelArtifactError::Mismatch);
+            }
+            let replay = program.replay(ctx)?;
+            if record.result_metadata.as_ref() != replay.law.metadata()
+                || !matches_draw_bytes(draws, replay.law.draws().iter())
+            {
+                return Err(PanelArtifactError::Mismatch);
+            }
+            Ok(replay)
+        }
+        _ => Err(invalid("missing experiment sections")),
     }
-    let expected = DistributionArtifact::from_bytes(&record.result, &record.result_identity)?;
-    let replay = record.program.replay(ctx)?;
-    if expected.metadata() != replay.law.metadata()
-        || bits(expected.draws()) != bits(replay.law.draws())
-    {
-        return Err(PanelArtifactError::Mismatch);
-    }
-    Ok(replay)
 }
 
 /// [`consume_panel_experiment`], admitting only the artifact the consumer retained: the bytes bind
@@ -505,36 +539,6 @@ fn validate_origins(
         return Err(invalid("mapping independence contradicts source origins"));
     }
     Ok(())
-}
-fn decode_payload(
-    bytes: &[u8],
-    ctx: &ExecutionContext,
-) -> Result<(AdmissionLease, Vec<u8>), PanelArtifactError> {
-    cancelled(ctx)?;
-    if bytes.len() > MAX_JOINT_PANEL_ARTIFACT_BYTES {
-        return Err(invalid("experiment input exceeds ceiling"));
-    }
-    let reader = crate::ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-    let logical = reader.manifest().sections.iter().try_fold(0u64, |total, section| {
-        total
-            .checked_add(section.uncompressed_size)
-            .ok_or_else(|| invalid("experiment decoded quote overflow"))
-    })?;
-    if logical > MAX_JOINT_PANEL_ARTIFACT_BYTES as u64 {
-        return Err(invalid("experiment decoded payload exceeds ceiling"));
-    }
-    let lease = admit(
-        ctx,
-        logical.checked_mul(8).ok_or_else(|| invalid("experiment decoded quote overflow"))?,
-    )?;
-    let mut payloads = crate::decode_container(
-        "joint_panel_experiment",
-        MAX_JOINT_PANEL_ARTIFACT_BYTES,
-        &["joint_panel_experiment_v1"],
-        bytes,
-    )
-    .map_err(|error| PanelArtifactError::Io(error.into_io("experiment decoding")))?;
-    Ok((lease, payloads.pop().ok_or_else(|| invalid("missing experiment feature"))?))
 }
 fn bits(values: &[f64]) -> Vec<u64> {
     values.iter().map(|value| value.to_bits()).collect()

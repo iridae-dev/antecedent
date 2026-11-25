@@ -7,6 +7,7 @@ from typing import Any
 
 from ._columns import _declared_strings, analysis_columns, collect_column_names
 from ._data import project_columns
+from ._table_file import TableFile
 
 
 def project_prepared_input(
@@ -24,7 +25,8 @@ def project_prepared_input(
     The existing analysis projection determines which graph families read a
     subset. Design columns remain available to resolve and check declarations;
     they are removed from numeric ingest by their existing consumers. Projection
-    never casts, encodes or borrows values. Missing columns retain the existing
+    leaves design values in their source dtype. File-backed numeric columns can
+    widen directly into owned snapshots. Missing columns retain the existing
     consumer's validation, while selected duplicate names are refused explicitly.
     """
     from ._estimate_helpers import _unwrap_estimator
@@ -36,9 +38,19 @@ def project_prepared_input(
     if projection is None:
         return data
     required = set(projection.names)
-    required.update(collect_column_names(query))
+    design_names = collect_column_names(query)
+    required.update(design_names)
     _declared_strings(query, required)
     _declared_strings(config, required)
     if participant is not None:
         required.add(participant)
-    return project_columns(data, sorted(required), subset=True)
+        design_names.add(participant)
+    numeric: tuple[str, ...] = ()
+    if isinstance(data, TableFile):
+        _declared_strings(config, design_names)
+        if isinstance(getattr(query, "control_level", None), str) or isinstance(
+            getattr(query, "active_level", None), str
+        ):
+            _declared_strings(getattr(query, "treatment", None), design_names)
+        numeric = tuple(name for name in projection.names if name not in design_names)
+    return project_columns(data, sorted(required), subset=True, numeric_file_columns=numeric)

@@ -24,8 +24,8 @@ use burn::tensor::backend::{AutodiffBackend, Backend};
 
 use super::device::{EpochLoss, record_host_loss};
 use super::{
-    DenseLayer, LearnBurnError, Mlp, MlpSpec, TrainedMlp, colmajor_to_rowmajor_f32,
-    column_standardization, epoch_loss, standardized, target_standardization, tensor2,
+    DenseLayer, LearnBurnError, Mlp, MlpSpec, TrainedMlp, column_standardization, epoch_loss,
+    standardized_rowmajor, target_standardization, tensor2,
 };
 
 /// Names of the stages in report order.
@@ -172,8 +172,7 @@ pub fn fit_staged<B: AutodiffBackend>(
     validate_fit(x_colmajor, nrows, ncols, y, spec)?;
     let (x_center, x_scale) = column_standardization(x_colmajor, nrows, ncols);
     let (y_center, y_scale) = if binary { (0.0, 1.0) } else { target_standardization(y) };
-    let x_std = standardized(x_colmajor, nrows, ncols, &x_center, &x_scale);
-    let x_rm = colmajor_to_rowmajor_f32(&x_std, nrows, ncols);
+    let x_rm = standardized_rowmajor(x_colmajor, nrows, ncols, &x_center, &x_scale);
     #[allow(
         clippy::cast_possible_truncation,
         reason = "the network trains in f32, so narrowing the standardized target is the intended precision"
@@ -182,8 +181,8 @@ pub fn fit_staged<B: AutodiffBackend>(
     let prepare = start.elapsed();
 
     let start = Instant::now();
-    let x_t = tensor2::<B, 2>(&x_rm, [nrows, ncols], device);
-    let y_t = tensor2::<B, 2>(&y_f, [nrows, 1], device);
+    let x_t = tensor2::<B, 2>(x_rm, [nrows, ncols], device);
+    let y_t = tensor2::<B, 2>(y_f, [nrows, 1], device);
     B::sync(device);
     let upload = start.elapsed();
 

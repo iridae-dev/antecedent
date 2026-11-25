@@ -211,14 +211,13 @@ impl TrainedMlp {
         if nrows == 0 {
             return Ok(());
         }
-        let x_std = standardized(x_colmajor, nrows, ncols, &self.x_center, &self.x_scale);
-        let x_rm = colmajor_to_rowmajor_f32(&x_std, nrows, ncols);
+        let mut row = vec![0.0f32; ncols];
         let mut h1 = vec![0.0f32; self.l1.dout];
         let mut h2 = vec![0.0f32; self.l2.dout];
         let mut ybuf = vec![0.0f32; self.out.dout];
-        for r in 0..nrows {
-            let row = &x_rm[r * ncols..(r + 1) * ncols];
-            self.l1.forward_into(row, &mut h1);
+        for (r, slot) in out.iter_mut().enumerate() {
+            standardize_row(x_colmajor, nrows, r, &self.x_center, &self.x_scale, &mut row);
+            self.l1.forward_into(&row, &mut h1);
             relu_inplace(&mut h1);
             self.l2.forward_into(&h1, &mut h2);
             relu_inplace(&mut h2);
@@ -228,9 +227,9 @@ impl TrainedMlp {
                 // Deliberately an f32 logistic: this optional provider has no antecedent
                 // dependency, and its clip (1e-6) is the f32 resolution of the network.
                 yhat = (1.0 / (1.0 + (-yhat).exp())).clamp(1e-6, 1.0 - 1e-6);
-                out[r] = f64::from(yhat);
+                *slot = f64::from(yhat);
             } else {
-                out[r] = f64::from(yhat) * self.y_scale + self.y_center;
+                *slot = f64::from(yhat) * self.y_scale + self.y_center;
             }
         }
         Ok(())
@@ -296,8 +295,8 @@ fn seeded_linear<B: Backend>(
     let weight = draw(din * dout);
     let bias = draw(dout);
     Linear {
-        weight: burn::module::Param::from_tensor(tensor2::<B, 2>(&weight, [din, dout], device)),
-        bias: Some(burn::module::Param::from_tensor(tensor2::<B, 1>(&bias, [dout], device))),
+        weight: burn::module::Param::from_tensor(tensor2::<B, 2>(weight, [din, dout], device)),
+        bias: Some(burn::module::Param::from_tensor(tensor2::<B, 1>(bias, [dout], device))),
     }
 }
 
@@ -349,42 +348,40 @@ fn target_standardization(y: &[f64]) -> (f64, f64) {
     if sd > 1e-12 * mean.abs().max(1.0) { (mean, sd) } else { (mean, 1.0) }
 }
 
-fn standardized(
-    x: &[f64],
+fn standardized_rowmajor(
+    x_colmajor: &[f64],
     nrows: usize,
     ncols: usize,
     centers: &[f64],
     scales: &[f64],
-) -> Vec<f64> {
-    let mut out = vec![0.0; nrows * ncols];
-    for c in 0..ncols {
-        for r in 0..nrows {
-            out[c * nrows + r] = (x[c * nrows + r] - centers[c]) / scales[c];
-        }
+) -> Vec<f32> {
+    let mut out = vec![0.0f32; nrows.saturating_mul(ncols)];
+    for (index, row) in out.chunks_exact_mut(ncols).enumerate() {
+        standardize_row(x_colmajor, nrows, index, centers, scales, row);
     }
     out
 }
 
-#[allow(
-    clippy::cast_possible_truncation,
-    reason = "the network consumes f32 inputs, so narrowing the standardized features is the intended precision"
-)]
-fn colmajor_to_rowmajor_f32(x: &[f64], nrows: usize, ncols: usize) -> Vec<f32> {
-    let mut out = vec![0.0f32; nrows.saturating_mul(ncols)];
-    for r in 0..nrows {
-        for c in 0..ncols {
-            out[r * ncols + c] = x[c * nrows + r] as f32;
-        }
+#[allow(clippy::cast_possible_truncation, reason = "the network consumes standardized f32 inputs")]
+fn standardize_row(
+    x_colmajor: &[f64],
+    nrows: usize,
+    index: usize,
+    centers: &[f64],
+    scales: &[f64],
+    row: &mut [f32],
+) {
+    for (column, slot) in row.iter_mut().enumerate() {
+        *slot = ((x_colmajor[column * nrows + index] - centers[column]) / scales[column]) as f32;
     }
-    out
 }
 
 fn tensor2<B: Backend, const D: usize>(
-    values: &[f32],
+    values: Vec<f32>,
     shape: [usize; D],
     device: &B::Device,
 ) -> Tensor<B, D> {
-    Tensor::<B, D>::from_data(TensorData::new(values.to_vec(), shape), device)
+    Tensor::<B, D>::from_data(TensorData::new(values, shape), device)
 }
 
 #[cfg(test)]

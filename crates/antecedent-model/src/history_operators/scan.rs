@@ -40,6 +40,19 @@ impl HistoryScan {
         &self.plan
     }
 
+    /// Borrow aligned source columns when the caller writes windows into its final design.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::complete`] and [`Self::with_gaps`].
+    pub fn borrow_columns<'a>(
+        &self,
+        data: &'a antecedent_data::TimeSeriesData,
+        allow_gaps: bool,
+    ) -> Result<antecedent_data::sample::LaggedColumnViews<'a>, antecedent_data::DataError> {
+        self.plan.borrow_columns(data, allow_gaps)
+    }
+
     /// Gather the windows; every window must be intact.
     ///
     /// # Errors

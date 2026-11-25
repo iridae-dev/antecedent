@@ -649,11 +649,11 @@ def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
     if isinstance(data, Table):
         names, columns = data._native_columns()
         return names, columns, False
-    arrow = try_as_arrow_c_columns(data)
+    arrow = try_as_arrow_c_columns(data, native_dtypes=True)
     if arrow is not None:
         names, columns = arrow
         return names, columns, True
-    names, columns = as_columns(data)
+    names, columns = as_columns(data, native_dtypes=True)
     return names, columns, False
 
 
@@ -783,13 +783,17 @@ def _frame_payload(
         # A sequence of tables is multi-environment data (the J-PCMCI+ spelling).
         from ._data import as_multi_env_columns
 
-        names, env_columns = as_multi_env_columns(list(data))
+        names, env_columns = as_multi_env_columns(list(data), native_dtypes=True)
         return names, [], {"kind": "multi_env", "env_columns": env_columns}
     if columns is not None:
         data = project_columns(
-            data, columns.names, subset=not columns.ordered, what="graph or query"
+            data,
+            columns.names,
+            subset=not columns.ordered,
+            what="graph or query",
+            numeric_file_columns=columns.names,
         )
-    names, arrays = ingest_columns(data)
+    names, arrays = ingest_columns(data, native_dtypes=True)
     return names, arrays, None
 
 
@@ -818,7 +822,7 @@ def _panel_did_payload(
         "post": tuple(_binary(raw[query.post], query.post)),
         "repeated_cross_section": query.sampling == "repeated_cross_section",
     }
-    names, columns = ingest_columns({query.outcome: raw[query.outcome]})
+    names, columns = ingest_columns({query.outcome: raw[query.outcome]}, native_dtypes=True)
     return names, columns, design
 
 
@@ -849,7 +853,7 @@ def _augmented_panel_did_payload(
         "clusters": clusters,
         "treated": tuple(_binary(raw[query.treated], query.treated)),
     }
-    names, columns = ingest_columns({name: raw[name] for name in numeric})
+    names, columns = ingest_columns({name: raw[name] for name in numeric}, native_dtypes=True)
     return names, columns, design
 
 
@@ -884,7 +888,7 @@ def _staggered_payload(
         "target_cohort": query.target_cohort,
         "target_period": query.target_period,
     }
-    names, columns = ingest_columns({query.outcome: raw[query.outcome]})
+    names, columns = ingest_columns({query.outcome: raw[query.outcome]}, native_dtypes=True)
     return names, columns, design
 
 
@@ -898,7 +902,7 @@ def _synthetic_control_payload(
     if any(not value.strip() for value in units):
         raise CausalValueError("unit IDs must be non-empty")
     periods = tuple(_integer_column(raw[query.period], "period", minimum=1))
-    names, columns = ingest_columns({query.outcome: raw[query.outcome]})
+    names, columns = ingest_columns({query.outcome: raw[query.outcome]}, native_dtypes=True)
     return names, columns, {"units": units, "periods": periods}
 
 
@@ -911,7 +915,8 @@ def _continuous_dose_payload(
     if any(not isinstance(group, str) or not group for group in groups):
         raise CausalValueError("baseline group labels must be non-empty strings")
     names, columns = ingest_columns(
-        {name: raw[name] for name in (query.outcome, query.dose, query.dose_density)}
+        {name: raw[name] for name in (query.outcome, query.dose, query.dose_density)},
+        native_dtypes=True,
     )
     return names, columns, {"baseline_groups": groups}
 
@@ -935,7 +940,7 @@ def _longitudinal_regime_payload(
         if not np.isfinite(values[observed]).all():
             raise CausalValueError("observed terminal outcomes must be finite")
         outcome = np.where(observed, values, 0.0)
-    return ingest_columns({query.outcome: outcome, **covariates})
+    return ingest_columns({query.outcome: outcome, **covariates}, native_dtypes=True)
 
 
 def _sequential_contrast_payload(
@@ -962,7 +967,7 @@ def _sequential_contrast_payload(
         if len(fold_of_row) != rows:
             raise CausalValueError("folds must give one fold per row of the data")
         fold_count = max(fold_of_row) + 1
-    names, columns = ingest_columns({name: raw[name] for name in required})
+    names, columns = ingest_columns({name: raw[name] for name in required}, native_dtypes=True)
     return names, columns, {"fold_of_row": fold_of_row, "fold_count": fold_count}
 
 
@@ -971,7 +976,7 @@ def _history_match_payload(data: Any, query: PeriodHistoryMatch) -> tuple[list[s
     required = [query.outcome, query.treated, *query.history]
     required.extend(name for name in (query.period, query.weight) if name is not None)
     raw = read_columns(data, tuple(required), what="history match")
-    return ingest_columns({name: raw[name] for name in required})
+    return ingest_columns({name: raw[name] for name in required}, native_dtypes=True)
 
 
 def _iv_bounds_payload(data: Any, query: IvBounds) -> tuple[list[str], list[Any]]:
@@ -980,7 +985,7 @@ def _iv_bounds_payload(data: Any, query: IvBounds) -> tuple[list[str], list[Any]
     if query.weight is not None:
         required.append(query.weight)
     raw = read_columns(data, tuple(required), what="IV bounds")
-    return ingest_columns({name: raw[name] for name in required})
+    return ingest_columns({name: raw[name] for name in required}, native_dtypes=True)
 
 
 def _association_payload(data: Any, query: Association) -> tuple[list[str], list[Any]]:
@@ -989,7 +994,7 @@ def _association_payload(data: Any, query: Association) -> tuple[list[str], list
     if query.weight is not None:
         required.append(query.weight)
     raw = read_columns(data, tuple(required), what="association")
-    return ingest_columns({name: raw[name] for name in required})
+    return ingest_columns({name: raw[name] for name in required}, native_dtypes=True)
 
 
 def _inference_wire(inference: Frequentist | Bayesian) -> dict[str, Any]:
@@ -2400,7 +2405,12 @@ class _PreparedEngine(Generic[ResultT]):
         data = drop_columns(data, self._named_design_columns)
         if self._column_names is None:
             return data
-        return project_columns(data, self._column_names, what="prepared")
+        return project_columns(
+            data,
+            self._column_names,
+            what="prepared",
+            numeric_file_columns=() if self._design_columns else self._column_names,
+        )
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         guard_design(self, data)
@@ -2418,7 +2428,10 @@ class _PreparedEngine(Generic[ResultT]):
 
         if isinstance(query, TEMPORAL_DESIGN_QUERIES):
             names, columns, design = temporal_design_payload(data, query)
-            if design != self._design_columns:
+            if self._design_columns is None or any(
+                design[key] != self._design_columns[key]
+                for key in ("units", "period_identity", "spec", "buffer_identity")
+            ):
                 raise CausalUnsupportedError(
                     "a temporal-design refresh requires the prepared units, periods and "
                     "recorded assignment law",
@@ -2488,7 +2501,7 @@ class _PreparedEngine(Generic[ResultT]):
             from .observation import Complete, _ensure_latent_schema_column
 
             if not isinstance(query.observation, Complete):
-                names, columns = ingest_columns(data)
+                names, columns = ingest_columns(data, native_dtypes=True)
                 names, columns = _ensure_latent_schema_column(names, columns, query.observation)
                 return names, columns, None
         return _frame_payload(data)
@@ -2784,9 +2797,12 @@ class _PreparedEngine(Generic[ResultT]):
             # added or missing column is reported and a mere reordering of the frame is not.
             prepared = [name for name in self._column_names if name in present]
             data = project_columns(
-                data, prepared + [name for name in present if name not in prepared], what="new"
+                data,
+                prepared + [name for name in present if name not in prepared],
+                what="new",
+                numeric_file_columns=present,
             )
-        return ingest_columns(data)
+        return ingest_columns(data, native_dtypes=True)
 
     @describe_refusal
     def staleness(

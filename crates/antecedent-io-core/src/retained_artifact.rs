@@ -110,7 +110,14 @@ pub fn bind_retained_artifact(
     bytes: &[u8],
     retained: &RetainedArtifactIdentity,
 ) -> Result<(), IoError> {
-    bind_artifact_identity(artifact_identity(bytes), retained).map_err(|refusal| IoError::Refused {
+    bind_retained_digest(artifact_identity(bytes), retained)
+}
+
+pub(crate) fn bind_retained_digest(
+    digest: SemanticDigest,
+    retained: &RetainedArtifactIdentity,
+) -> Result<(), IoError> {
+    bind_artifact_identity(digest, retained).map_err(|refusal| IoError::Refused {
         code: antecedent_core::reason_code!("external_binding_mismatch"),
         message: format!(
             "retained artifact identity: the bytes are not the artifact the consumer \

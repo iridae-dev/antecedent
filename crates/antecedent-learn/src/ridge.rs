@@ -70,8 +70,9 @@ impl LearnerFactory for RidgeLearner {
         // Judge the intercept before √w scaling makes a ones column non-constant.
         let intercept = RidgeIntercept::sniff(&design, nrows, ncols);
         if let Some(w) = weights {
-            // Prior-weighted ridge `Σ w_i (y_i − x_iβ)² + λ|β|²`: scale each row of the design
-            // and the target by √w_i and solve the ordinary ridge problem.
+            // The ridge solver borrows its design. Prior weights require a rooted design
+            // for `Σ w_i (y_i − x_iβ)² + λ|β|²`, so this fit scales a mutable buffer. A
+            // matrix already gathered for a fold can be scaled in that same allocation.
             if w.len() != x.physical_nrows() {
                 return Err(LearnError::Shape { message: "weights length != physical rows" });
             }

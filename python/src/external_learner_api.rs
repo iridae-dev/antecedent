@@ -1,4 +1,5 @@
 //! Row-isolated Python provider factories for the native AIPW cross-fit.
+use std::borrow::Cow;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicU64, Ordering},
@@ -9,6 +10,7 @@ use antecedent::estimate::external_learner::{
     LearnerProvenance, PredictionTask, TargetView,
 };
 use antecedent::prelude::ExecutionContext;
+use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, ndarray::Array2};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
@@ -39,19 +41,43 @@ struct PythonFactory {
     state: Arc<CallbackState>,
 }
 
-fn rows(x: DesignView<'_>) -> Result<Vec<Vec<f64>>, LearnError> {
-    (0..x.nrows()).map(|r| (0..x.ncols()).map(|c| x.get(r, c)).collect()).collect()
+fn design_columns<'py>(py: Python<'py>, x: DesignView<'_>) -> PyResult<Bound<'py, PyArray2<f64>>> {
+    let elements = x
+        .nrows()
+        .checked_mul(x.ncols())
+        .ok_or_else(|| crate::value_err("callback design size overflow"))?;
+    let mut values = Vec::with_capacity(elements);
+    for col in 0..x.ncols() {
+        for row in 0..x.nrows() {
+            values.push(x.get(row, col).map_err(|error| crate::value_err(error.to_string()))?);
+        }
+    }
+    let columns = Array2::from_shape_vec((x.ncols(), x.nrows()), values)
+        .map_err(|error| crate::value_err(error.to_string()))?;
+    Ok(PyArray2::from_owned_array(py, columns))
 }
 
 fn callback_bytes(x: DesignView<'_>, vectors: usize) -> Result<u64, LearnError> {
     x.ncols()
         .checked_add(vectors)
         .and_then(|n| n.checked_mul(x.nrows()))
-        // Charge for Rust copies, Python float/list objects and NumPy materialization.
-        .and_then(|n| n.checked_mul(64))
-        .and_then(|n| x.nrows().checked_mul(96).and_then(|rows| n.checked_add(rows)))
+        .and_then(|n| n.checked_mul(size_of::<f64>()))
         .and_then(|n| u64::try_from(n).ok())
         .ok_or(LearnError::Shape { message: "callback data size overflow" })
+}
+
+fn fit_columns<'py>(
+    py: Python<'py>,
+    learner: &Bound<'py, PyAny>,
+    x: DesignView<'_>,
+    y: TargetView<'_>,
+    weights: Option<&[f64]>,
+    bytes: u64,
+) -> PyResult<Bound<'py, PyAny>> {
+    let columns = design_columns(py, x)?;
+    let target = PyArray1::from_slice(py, y.values());
+    let weights = weights.map(|weights| PyArray1::from_slice(py, weights));
+    learner.call_method1("_fit_columns", (columns, target, weights, bytes))
 }
 
 fn admission_error(error: impl std::fmt::Display, ctx: &ExecutionContext) -> PyErr {
@@ -104,14 +130,10 @@ impl LearnerFactory for PythonFactory {
         if ctx.cancellation.is_cancelled() {
             return Err(LearnError::Cancelled);
         }
-        let _hold = ctx
-            .acquire_admission(0, callback_bytes(x, 1 + usize::from(weights.is_some()))?)
-            .map_err(LearnError::Admission)?;
-        let matrix = rows(x)?;
-        let target = y.values().to_vec();
-        let weights = weights.map(<[f64]>::to_vec);
+        let bytes = callback_bytes(x, 1 + usize::from(weights.is_some()))?;
+        let _hold = ctx.acquire_admission(0, bytes).map_err(LearnError::Admission)?;
         let fitted = Python::attach(|py| {
-            self.learner.bind(py).call_method1("fit", (matrix, target, weights)).map(Bound::unbind)
+            fit_columns(py, self.learner.bind(py), x, y, weights, bytes).map(Bound::unbind)
         })
         .map_err(|e| self.state.fail(e))?;
         if ctx.cancellation.is_cancelled() {
@@ -140,19 +162,21 @@ impl FittedPredictor for PythonPredictor {
         if ctx.cancellation.is_cancelled() {
             return Err(LearnError::Cancelled);
         }
-        let _hold =
-            ctx.acquire_admission(0, callback_bytes(x, 0)?).map_err(LearnError::Admission)?;
-        let matrix = rows(x)?;
+        let bytes = callback_bytes(x, 1)?;
+        let _hold = ctx.acquire_admission(0, bytes).map_err(LearnError::Admission)?;
         Python::attach(|py| -> PyResult<()> {
             let fitted = self.fitted.bind(py);
-            let result = fitted.call_method1("predict", (matrix,))?;
-            let values: Vec<f64> = result.getattr("estimate")?.call_method0("tolist")?.extract()?;
+            let result =
+                fitted.call_method1("_predict_columns", (design_columns(py, x)?, bytes))?;
+            let estimate = result.getattr("estimate")?;
+            let array = estimate.extract::<PyReadonlyArray1<'_, f64>>()?;
+            let values = array.as_slice().map_err(|error| crate::value_err(error.to_string()))?;
             if values.len() != out.len() {
                 return Err(crate::value_err(
                     "provider prediction length does not match held-out rows",
                 ));
             }
-            out.copy_from_slice(&values);
+            out.copy_from_slice(values);
             let fit = fitted.getattr("fit_receipt")?.unbind();
             self.state.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push((
                 self.id,
@@ -189,39 +213,48 @@ fn external_aipw_crossfit(
     py: Python<'_>,
     outcome: Py<PyAny>,
     treatment: Py<PyAny>,
-    design: Vec<Vec<f64>>,
-    y: Vec<f64>,
-    t: Vec<f64>,
-    fold_ids: Vec<u16>,
-    weights: Option<Vec<f64>>,
+    design: PyReadonlyArray2<'_, f64>,
+    y: PyReadonlyArray1<'_, f64>,
+    t: PyReadonlyArray1<'_, f64>,
+    fold_ids: PyReadonlyArray1<'_, u16>,
+    weights: Option<PyReadonlyArray1<'_, f64>>,
     seed: u64,
     cancel: Option<crate::PyCancellationToken>,
     memory_limit_bytes: Option<u64>,
 ) -> PyResult<(Vec<f64>, Vec<f64>, Vec<f64>, Vec<Vec<String>>, Vec<PythonReceipt>)> {
-    if design.is_empty()
-        || design[0].is_empty()
-        || design.iter().any(|row| row.len() != design[0].len())
-    {
+    let design = design.as_array();
+    let (n, cols) = design.dim();
+    if n == 0 || cols == 0 {
         return Err(crate::value_err("design must be a nonempty rectangular matrix"));
     }
-    let n = design.len();
-    let cols = design[0].len();
     let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
-    let bytes = cols
-        .checked_add(3)
-        .and_then(|v| v.checked_mul(n))
-        .and_then(|v| v.checked_mul(8))
-        .and_then(|v| u64::try_from(v).ok())
-        .ok_or_else(|| crate::value_err("design size overflow"))?;
+    let bytes = [
+        design.len(),
+        y.as_array().len(),
+        t.as_array().len(),
+        weights.as_ref().map_or(0, |w| w.as_array().len()),
+    ]
+    .into_iter()
+    .try_fold(0usize, usize::checked_add)
+    .and_then(|v| v.checked_mul(size_of::<f64>()))
+    .and_then(|v| {
+        fold_ids
+            .as_array()
+            .len()
+            .checked_mul(size_of::<u16>())
+            .and_then(|folds| v.checked_add(folds))
+    })
+    .and_then(|v| u64::try_from(v).ok())
+    .ok_or_else(|| crate::value_err("design size overflow"))?;
     let _input_hold = ctx.acquire_admission(0, bytes).map_err(|e| admission_error(e, &ctx))?;
-    let mut column_major = Vec::with_capacity(
-        n.checked_mul(cols).ok_or_else(|| crate::value_err("design size overflow"))?,
-    );
-    for c in 0..cols {
-        for row in &design {
-            column_major.push(row[c]);
-        }
+    let mut column_major = Vec::with_capacity(design.len());
+    for column in design.columns() {
+        column_major.extend(column.iter().copied());
     }
+    let y = copy_numeric_array(&y);
+    let t = copy_numeric_array(&t);
+    let fold_ids = fold_ids.as_array().iter().copied().collect::<Vec<_>>();
+    let weights = weights.as_ref().map(copy_numeric_array);
     let task_and_weights = |obj: &Py<PyAny>, expected: &str| -> PyResult<bool> {
         let bound = obj.bind(py);
         let task: String = bound.getattr("task")?.extract()?;
@@ -302,14 +335,14 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 fn external_dml_ate(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<Vec<f64>>,
+    columns: Vec<PyReadonlyArray1<'_, f64>>,
     edges: Vec<(String, String)>,
     treatment_name: String,
     outcome_name: String,
     outcome: Py<PyAny>,
     treatment: Py<PyAny>,
     folds: usize,
-    weights: Option<Vec<f64>>,
+    weights: Option<PyReadonlyArray1<'_, f64>>,
     seed: u64,
     cancel: Option<crate::PyCancellationToken>,
     method: &str,
@@ -347,15 +380,12 @@ fn external_dml_ate(
         next: AtomicU64::new(0),
     });
     let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
+    let _input_hold = ctx
+        .acquire_admission(0, input_bytes(&columns, weights.as_ref())?)
+        .map_err(|e| admission_error(e, &ctx))?;
+    let weights = weights.as_ref().map(copy_numeric_array);
+    let data = learner_table(&names, &columns)?;
     let result: PyResult<_> = py.detach(|| {
-        let bytes = columns.iter().try_fold(0usize, |sum, column| sum.checked_add(column.len()))
-            .and_then(|n| n.checked_mul(16)).and_then(|n| u64::try_from(n).ok())
-            .ok_or_else(|| crate::value_err("input size overflow"))?;
-        let _input_hold = ctx.acquire_admission(0, bytes).map_err(|e| admission_error(e, &ctx))?;
-        let data = antecedent::prelude::TabularData::from_f64_columns(
-            names.iter().zip(&columns).map(|(name, column)| (name.as_str(), column.as_slice())),
-        )
-        .map_err(crate::py_err)?;
         let t = data.schema().id_of(&treatment_name).map_err(crate::py_err)?;
         let y = data.schema().id_of(&outcome_name).map_err(crate::py_err)?;
         let dag = crate::dag_from_named_edges(data.schema(), &edges)?;
@@ -499,4 +529,40 @@ fn external_dml_ate(
         cate_se,
         receipts,
     ))
+}
+
+fn copy_numeric_array(values: &PyReadonlyArray1<'_, f64>) -> Vec<f64> {
+    values.as_array().iter().copied().collect()
+}
+
+fn learner_table(
+    names: &[String],
+    columns: &[PyReadonlyArray1<'_, f64>],
+) -> PyResult<antecedent::prelude::TabularData> {
+    let values = columns
+        .iter()
+        .map(|column| match column.as_slice() {
+            Ok(values) => Cow::Borrowed(values),
+            Err(_) => Cow::Owned(copy_numeric_array(column)),
+        })
+        .collect::<Vec<_>>();
+    antecedent::prelude::TabularData::from_f64_columns(
+        names.iter().zip(&values).map(|(name, column)| (name.as_str(), column.as_ref())),
+    )
+    .map_err(crate::py_err)
+}
+
+fn input_bytes(
+    columns: &[PyReadonlyArray1<'_, f64>],
+    weights: Option<&PyReadonlyArray1<'_, f64>>,
+) -> PyResult<u64> {
+    columns
+        .iter()
+        .try_fold(weights.map_or(0, |w| w.as_array().len()), |values, column| {
+            let copies = if column.as_slice().is_ok() { 1 } else { 2 };
+            values.checked_add(column.as_array().len().checked_mul(copies)?)
+        })
+        .and_then(|n| n.checked_mul(size_of::<f64>()))
+        .and_then(|n| u64::try_from(n).ok())
+        .ok_or_else(|| crate::value_err("input size overflow"))
 }

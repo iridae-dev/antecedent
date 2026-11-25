@@ -1743,12 +1743,14 @@ impl<'a> core::clone::Clone for antecedent_data::ColumnView<'a>
 impl<'a> core::clone::Clone for antecedent_data::GappedSample<'a>
 impl<'a> core::clone::Clone for antecedent_data::LaggedPreparedSample<'a>
 impl<'a> core::clone::Clone for antecedent_data::design_layout::DesignLayout<'a>
+impl<'a> core::clone::Clone for antecedent_data::sample::LaggedColumnViews<'a>
 impl<'a> core::clone::Clone for antecedent_data::source::BorrowedSource<'a>
 impl<'a> core::fmt::Debug for antecedent_data::CategoricalView<'a>
 impl<'a> core::fmt::Debug for antecedent_data::ColumnView<'a>
 impl<'a> core::fmt::Debug for antecedent_data::GappedSample<'a>
 impl<'a> core::fmt::Debug for antecedent_data::LaggedPreparedSample<'a>
 impl<'a> core::fmt::Debug for antecedent_data::design_layout::DesignLayout<'a>
+impl<'a> core::fmt::Debug for antecedent_data::sample::LaggedColumnViews<'a>
 impl<'a> core::fmt::Debug for antecedent_data::source::BorrowedSource<'a>
 impl<'a> core::marker::Copy for antecedent_data::CategoricalView<'a>
 impl<'a> core::marker::Copy for antecedent_data::ColumnView<'a>
@@ -1760,6 +1762,7 @@ impl<'a> core::marker::Freeze for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent_data::sample::LaggedColumnViews<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::ColumnView<'a> [auto]
@@ -1767,6 +1770,7 @@ impl<'a> core::marker::Send for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Send for antecedent_data::sample::LaggedColumnViews<'a> [auto]
 impl<'a> core::marker::Send for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::ColumnView<'a> [auto]
@@ -1774,6 +1778,7 @@ impl<'a> core::marker::Sync for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Sync for antecedent_data::sample::LaggedColumnViews<'a> [auto]
 impl<'a> core::marker::Sync for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::ColumnView<'a> [auto]
@@ -1781,15 +1786,18 @@ impl<'a> core::marker::Unpin for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::PanelUnitView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent_data::sample::LaggedColumnViews<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent_data::source::BorrowedSource<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent_data::sample::LaggedColumnViews<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::CategoricalView<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::GappedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::LaggedPreparedSample<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::design_layout::DesignLayout<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent_data::sample::LaggedColumnViews<'a> [auto]
 pub const <antecedent_data::BalanceRequirement>::ALL: [Self; 4]
 pub const <antecedent_data::DiscreteColumn>::MISSING: u32
 pub const <antecedent_data::ImputationModel>::ALL: [Self; 2]
@@ -2028,6 +2036,8 @@ pub field antecedent_data::missing::ChunkMissing::rows_total: usize
 pub field antecedent_data::missing::MissingConversion::chunks: alloc::sync::Arc<[antecedent_data::missing::ChunkMissing]>
 pub field antecedent_data::missing::MissingConversion::policy: antecedent_data::MissingPolicy
 pub field antecedent_data::missing::MissingConversion::population_bound: bool
+pub field antecedent_data::sample::LaggedColumnViews::columns: alloc::vec::Vec<&'a [f64]>
+pub field antecedent_data::sample::LaggedColumnViews::complete: core::option::Option<alloc::vec::Vec<bool>>
 pub field antecedent_data::source::SnapshotContract::cohort: antecedent_data::source::CohortOrder
 pub field antecedent_data::source::SnapshotContract::event_times: core::option::Option<[u8; 32]>
 pub field antecedent_data::source::SnapshotContract::identity: antecedent_data::source::SourceIdentity
@@ -2045,6 +2055,7 @@ pub fn <antecedent_data::ArrowCColumn>::fn from_arrow_array(name: impl core::con
 pub fn <antecedent_data::ArrowCColumn>::fn into_array(self) -> core::result::Result<arrow_array::array::ArrayRef, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn into_chunk_arrays(self) -> core::result::Result<alloc::vec::Vec<arrow_array::array::ArrayRef>, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn n_chunks(&self) -> usize
+pub fn <antecedent_data::ArrowCColumn>::fn row_count(&self) -> core::result::Result<usize, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi(name: impl core::convert::Into<alloc::string::String>, array: arrow_data::ffi::FFI_ArrowArray, schema: arrow_schema::ffi::FFI_ArrowSchema) -> Self
 pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi_chunks(name: impl core::convert::Into<alloc::string::String>, chunks: alloc::vec::Vec<(arrow_data::ffi::FFI_ArrowArray, arrow_schema::ffi::FFI_ArrowSchema)>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowFrameView>::fn column_chunks(&self, index: usize) -> core::result::Result<&[antecedent_data::OwnedColumn], antecedent_data::DataError>
@@ -2174,6 +2185,7 @@ pub fn <antecedent_data::LaggedFrame>::fn stack(frames: &[Self]) -> core::result
 pub fn <antecedent_data::LaggedFrame>::fn values_bytes(&self) -> u64
 pub fn <antecedent_data::LaggedFrame>::fn variables(&self) -> &[antecedent_core::ids::VariableId]
 pub fn <antecedent_data::LaggedPreparedSample<'_>>::fn column(&self, c: usize) -> &[f64]
+pub fn <antecedent_data::LaggedSamplePlan>::fn borrow_columns<'a>(&self, data: &'a antecedent_data::TimeSeriesData, allow_gaps: bool) -> core::result::Result<antecedent_data::sample::LaggedColumnViews<'a>, antecedent_data::DataError>
 pub fn <antecedent_data::LaggedSamplePlan>::fn columns(&self) -> &[antecedent_data::LaggedColumn]
 pub fn <antecedent_data::LaggedSamplePlan>::fn columns_arc(&self) -> &alloc::sync::Arc<[antecedent_data::LaggedColumn]>
 pub fn <antecedent_data::LaggedSamplePlan>::fn lag_map(&self) -> &antecedent_data::LagMap
@@ -2391,6 +2403,7 @@ pub fn <antecedent_data::column_closure::ColumnRole>::fn as_str(&self) -> &str
 pub fn <antecedent_data::column_closure::ColumnRole>::fn new(name: impl core::convert::AsRef<str>) -> Self
 pub fn <antecedent_data::column_closure::ObservationFrame>::const fn row_count(&self) -> usize
 pub fn <antecedent_data::column_closure::ObservationFrame>::fn complete_case(&self, columns: &[antecedent_data::column_closure::ColumnRole]) -> core::result::Result<antecedent_data::column_closure::Cohort, antecedent_data::column_closure::ClosureError>
+pub fn <antecedent_data::column_closure::ObservationFrame>::fn try_from_masks(columns: alloc::vec::Vec<(antecedent_data::column_closure::ColumnRole, antecedent_core::row_mask::RowMask)>) -> core::result::Result<Self, antecedent_data::column_closure::ClosureError>
 pub fn <antecedent_data::column_closure::ObservationFrame>::fn try_new(columns: alloc::vec::Vec<(antecedent_data::column_closure::ColumnRole, alloc::vec::Vec<bool>)>) -> core::result::Result<Self, antecedent_data::column_closure::ClosureError>
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn n_rows(&self) -> usize
 pub fn <antecedent_data::design_layout::DesignLayout<'a>>::const fn receipt(&self) -> &antecedent_data::design_layout::OwnershipReceipt
@@ -2487,6 +2500,7 @@ pub fn <antecedent_data::file_source::TableFile>::fn plan_columns<S: core::conve
 pub fn <antecedent_data::file_source::TableFile>::fn quote(&self, plan: &antecedent_data::file_source::ReadPlan) -> core::result::Result<core::option::Option<antecedent_data::file_source::MaterializationQuote>, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn reader(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::TableChunkReader, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFile>::fn scan_identity(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::file_source::ScanReceipt, antecedent_data::file_source::FileSourceError>
+pub fn <antecedent_data::file_source::TableFile>::fn scan_observations(&self, plan: &antecedent_data::file_source::ReadPlan, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_data::column_closure::ObservationFrame, antecedent_data::file_source::FileSourceError>
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn as_str(self) -> &'static str
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn feature(self) -> &'static str
 pub fn <antecedent_data::file_source::TableFileFormat>::const fn is_compiled(self) -> bool
@@ -2574,6 +2588,7 @@ pub fn <antecedent_data::source::SegmentedSource>::fn rows(&self) -> usize
 pub fn <antecedent_data::source::SegmentedSource>::fn unit_id(&self, index: usize) -> core::option::Option<u32>
 pub fn <antecedent_data::source::SegmentedSource>::fn with_part(self, index: usize, part: antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::SnapshotContract>::fn full_digest(&self) -> core::option::Option<[u8; 32]>
+pub fn antecedent_data::arrow_adapter::load_numeric_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>, retain: bool) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>
@@ -2807,6 +2822,7 @@ pub struct antecedent_data::materialize::StreamingScan
 pub struct antecedent_data::materialize::StreamingScan has private fields
 pub struct antecedent_data::missing::ChunkMissing
 pub struct antecedent_data::missing::MissingConversion
+pub struct antecedent_data::sample::LaggedColumnViews<'a>
 pub struct antecedent_data::source::BorrowedSource has private fields
 pub struct antecedent_data::source::BorrowedSource<'a>
 pub struct antecedent_data::source::OwnedSource

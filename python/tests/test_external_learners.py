@@ -1,3 +1,4 @@
+import json
 import warnings
 from dataclasses import replace
 
@@ -13,10 +14,9 @@ from antecedent.extensibility import (
     ProviderVerificationFixture,
     connect_to_decision,
 )
-from antecedent.interface_contract import InterfaceContractRefusal
-from antecedent.joint_distribution import ScientificQuantity
 from antecedent.external_learners import (
     ExternalLearner,
+    FittedExternalLearner,
     ForecastNuisanceAdapter,
     Learners,
     aipw_ate,
@@ -27,6 +27,8 @@ from antecedent.external_learners import (
     dml_ate,
     dr_learner_ate,
 )
+from antecedent.interface_contract import InterfaceContractRefusal
+from antecedent.joint_distribution import ScientificQuantity
 
 
 class MeanProvider:
@@ -192,7 +194,40 @@ def test_forecast_mean_adapter_requires_an_explicit_iid_information_contract():
         incompatible.fit([[1]], [2])
 
 
-def test_native_crossfit_isolates_folds_and_treatment_arms():
+def test_native_crossfit_isolates_folds_and_treatment_arms(monkeypatch):
+    fit_columns = ExternalLearner._fit_columns
+    predict_columns = FittedExternalLearner._predict_columns
+    fit_bytes = []
+    predict_bytes = []
+
+    def column_bytes(columns):
+        assert isinstance(columns, np.ndarray) and columns.ndim == 2
+        assert columns.flags.c_contiguous and np.shares_memory(columns, columns.T)
+        assert all(
+            isinstance(column, np.ndarray)
+            and column.dtype == np.float64
+            and column.ndim == 1
+            and column.flags.c_contiguous
+            for column in columns
+        )
+        return sum(column.nbytes for column in columns)
+
+    def record_fit(self, columns, target, weights, charged):
+        assert isinstance(target, np.ndarray) and isinstance(weights, np.ndarray)
+        expected = column_bytes(columns) + target.nbytes + weights.nbytes
+        assert charged == expected
+        fit_bytes.append(expected)
+        return fit_columns(self, columns, target, weights, charged)
+
+    def record_predict(self, columns, charged):
+        result = predict_columns(self, columns, charged)
+        expected = column_bytes(columns) + result.estimate.nbytes
+        assert charged == expected
+        predict_bytes.append(expected)
+        return result
+
+    monkeypatch.setattr(ExternalLearner, "_fit_columns", record_fit)
+    monkeypatch.setattr(FittedExternalLearner, "_predict_columns", record_predict)
     registry = ProviderRegistry()
     registry.register("outcome", MeanProvider())
     registry.register("treatment", MeanProvider())
@@ -210,10 +245,40 @@ def test_native_crossfit_isolates_folds_and_treatment_arms():
         assert result.propensity[row] == 0.5
     assert result.fold_policy is FoldPolicy.CALLER_OWNED
     assert len(result.receipts) == 6
+    assert sorted(fit.callback_bytes for _, fit, _ in result.receipts) == sorted(fit_bytes)
+    assert sorted(predict.callback_bytes for _, _, predict in result.receipts) == sorted(predict_bytes)
     assert len(result.provenance) == 6
     assert {int(p[1].split(":")[1]) for p in result.provenance} == {r[0] for r in result.receipts}
     with pytest.raises(ValueError, match="temporal cross-fitting"):
         cross_fit_aipw(outcome, treatment, x, y, t, folds, fold_policy="temporal")
+
+
+def test_columnar_callback_hashes_float64_views_in_the_original_row_order():
+    from antecedent import _native
+    from antecedent._digest import _array_form
+    from antecedent.extensibility import _request_digest
+
+    packed = np.arange(2400.0).reshape(3, 800)
+    packed[0, 0] = -0.0
+    for view in (packed, packed.T, packed.T[::-2], packed[0, ::2]):
+        row_order = np.ascontiguousarray(view, dtype="<f8")
+        legacy = {
+            "operation": "fit",
+            "x": {
+                "__antecedent_array__": {
+                    "dtype": row_order.dtype.str,
+                    "shape": list(row_order.shape),
+                    "blake3": _native.blake3_digest_hex(row_order.tobytes()),
+                }
+            },
+        }
+        expected = _native.canonical_json_digest_hex(
+            "antecedent.provider.request.v2", json.dumps(legacy)
+        )
+        assert _request_digest({"operation": "fit", "x": view}) == expected
+    packed[0, 0] = np.nan
+    with pytest.raises(ValueError, match="Out of range float values"):
+        _array_form(packed.T)
 
 
 def test_native_crossfit_preserves_callback_failure_and_cancellation():

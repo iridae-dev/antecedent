@@ -77,6 +77,10 @@ impl Measure {
         usize::try_from(PEAK.load(Ordering::SeqCst) - self.start).unwrap_or(0)
     }
 
+    fn live(&self) -> usize {
+        usize::try_from(LIVE.load(Ordering::SeqCst) - self.start).unwrap_or(0)
+    }
+
     #[allow(
         clippy::unused_self,
         reason = "The measurement guard must remain alive while sampling is paused."
@@ -274,6 +278,35 @@ fn an_admitted_batch_is_read_within_the_pool_byte_budget() {
     measure.resume();
     drop(reader);
     assert_eq!(pool.available().bytes(), budget);
+}
+
+#[test]
+fn a_projected_ipc_batch_releases_unselected_buffers_before_yielding_chunks() {
+    const ROWS: usize = 150_000;
+    for stream in [false, true] {
+        let scratch = Scratch::new("projected");
+        let path = scratch.path(if stream { "p.arrows" } else { "p.arrow" });
+        write_ipc(&path, &numeric(ROWS), stream);
+        let table = TableFile::open(&path).unwrap();
+        let plan = table.plan_columns(&["x"], ReadOptions::with_chunk_rows(100)).unwrap();
+        let pool = AdmissionPool::fixed(1, 8 << 20);
+        let ctx = study(&pool);
+        let mut reader = table.reader(&plan, &ctx).unwrap();
+        let measure = Measure::begin();
+        let chunk = reader.next_chunk().unwrap().unwrap();
+        assert_eq!(chunk.rows(), 100);
+        assert_eq!(chunk.column("x").unwrap().len(), 100);
+        assert!(chunk.column("y").is_none());
+        drop(chunk);
+
+        let projected = ROWS * size_of::<f64>();
+        let heap = measure.live();
+        let charged = pool.byte_budget() - pool.available().bytes();
+        assert!(heap >= projected && heap < projected + 128 * 1024, "{heap} bytes retained");
+        assert!(charged >= projected as u64 && charged < (projected + 128 * 1024) as u64);
+        drop(reader);
+        assert_eq!(pool.available().bytes(), pool.byte_budget());
+    }
 }
 
 #[test]

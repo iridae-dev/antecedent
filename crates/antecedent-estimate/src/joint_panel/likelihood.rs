@@ -9,6 +9,7 @@ use super::{
 /// Bound once at a numerical execution boundary; never constructs a causal model or builder.
 pub(super) struct CompiledPanel<'a> {
     pub source: &'a PanelData,
+    pub(super) simulated_outcomes: Option<Vec<Vec<f64>>>,
     features: Vec<antecedent_model::program::NodeProgram>,
     /// The portable expression of every feature, for exact partial derivatives.
     pub(super) expressions: Vec<antecedent_core::ValueExpr>,
@@ -41,8 +42,19 @@ impl<'a> CompiledPanel<'a> {
             source.interactions.iter().map(|f| f.expression.to_domain()).collect();
         let products =
             expressions.iter().map(|expression| product_columns(&axis, expression)).collect();
-        Ok(Self { source, features, expressions, axis, products })
+        Ok(Self { source, simulated_outcomes: None, features, expressions, axis, products })
     }
+    /// The active outcome column for a group, with the source design shared across refits.
+    pub(super) fn outcome(&self, group: usize) -> &[f64] {
+        self.simulated_outcomes
+            .as_ref()
+            .map_or_else(|| self.groups[group].outcome.as_slice(), |columns| &columns[group])
+    }
+
+    pub(super) fn initial(&self) -> PanelParameters {
+        initial_with(self, |group| self.outcome(group))
+    }
+
     /// One interaction feature at the saturated channel values, as the mechanism evaluates it.
     pub fn feature_value(
         &self,
@@ -341,7 +353,11 @@ pub(super) fn decode(data: &PanelData, x: &[f64]) -> Option<PanelParameters> {
     validate_parameters(data, &p).ok().map(|()| p)
 }
 pub(super) fn initial(data: &PanelData) -> PanelParameters {
-    let analysed = || data.groups.iter().flat_map(|g| &g.outcome).filter(|v| v.is_finite());
+    initial_with(data, |group| &data.groups[group].outcome)
+}
+
+fn initial_with<'a>(data: &PanelData, outcome: impl Fn(usize) -> &'a [f64]) -> PanelParameters {
+    let analysed = || (0..data.groups.len()).flat_map(&outcome).filter(|v| v.is_finite());
     let n = analysed().count() as f64;
     let mean = analysed().sum::<f64>() / n;
     let variance = analysed().map(|v| (v - mean).powi(2)).sum::<f64>() / n;
@@ -355,9 +371,11 @@ pub(super) fn initial(data: &PanelData) -> PanelParameters {
     let mut exposures: Vec<_> = data
         .groups
         .iter()
-        .flat_map(|g| {
-            g.channels.iter().flat_map(|values| {
-                values.iter().zip(&g.outcome).filter(|(_, y)| y.is_finite()).map(|(v, _)| v)
+        .enumerate()
+        .flat_map(|(index, group)| {
+            let outcome = outcome(index);
+            group.channels.iter().flat_map(move |values| {
+                values.iter().zip(outcome).filter(|(_, y)| y.is_finite()).map(|(v, _)| v)
             })
         })
         .copied()
@@ -744,16 +762,26 @@ pub(super) fn group_marginal(
     sigma: f64,
     tau: f64,
 ) -> Option<GaussianGroup> {
-    if group.outcome.iter().all(|value| value.is_finite()) {
+    outcome_marginal(&group.outcome, residuals, rho, sigma, tau)
+}
+
+fn outcome_marginal(
+    outcome: &[f64],
+    residuals: &[f64],
+    rho: f64,
+    sigma: f64,
+    tau: f64,
+) -> Option<GaussianGroup> {
+    if outcome.iter().all(|value| value.is_finite()) {
         return ar1_random_intercept(residuals, rho, sigma, tau);
     }
-    let observed = observed_periods(group, residuals)?;
+    let observed = observed_periods(outcome, residuals)?;
     ar1_random_intercept_at(&observed, rho, sigma, tau)
 }
 /// `(period, residual)` of every analysed period, or `None` if one of them is not finite.
-fn observed_periods(group: &PanelGroup, residuals: &[f64]) -> Option<Vec<(usize, f64)>> {
+fn observed_periods(outcome: &[f64], residuals: &[f64]) -> Option<Vec<(usize, f64)>> {
     let mut observed = Vec::with_capacity(residuals.len());
-    for (time, (&outcome, &residual)) in group.outcome.iter().zip(residuals).enumerate() {
+    for (time, (&outcome, &residual)) in outcome.iter().zip(residuals).enumerate() {
         if outcome.is_finite() {
             if !residual.is_finite() {
                 return None;
@@ -1015,7 +1043,7 @@ pub(super) fn spatial_correlation(data: &PanelData, range: f64) -> Option<Vec<f6
 /// Woodbury identity gives `r'(S + Z V Z')^-1 r = sum_g r_g' S_g^-1 r_g - b'(V^-1 + D)^-1 b`
 /// and `log|S + Z V Z'| = sum_g log|S_g| + log|I + D^(1/2) V D^(1/2)|` for `V = tau^2 K`.
 fn spatial_marginal(
-    data: &PanelData,
+    data: &CompiledPanel<'_>,
     p: &PanelParameters,
     residuals: &[Vec<f64>],
     detail: Detail,
@@ -1027,11 +1055,12 @@ fn spatial_marginal(
     let kernel = spatial_correlation(data, p.family.spatial_range)?;
     let (mut ones, mut cross) = (Vec::with_capacity(groups), Vec::with_capacity(groups));
     let (mut quad, mut log_det, mut rows) = (0.0, 0.0, 0.0);
-    for (group, r) in data.groups.iter().zip(residuals) {
-        let (moments, analysed) = if group.outcome.iter().all(|value| value.is_finite()) {
+    for (index, r) in residuals.iter().enumerate() {
+        let outcome = data.outcome(index);
+        let (moments, analysed) = if outcome.iter().all(|value| value.is_finite()) {
             (ar1_moments(r, p.rho, p.innovation_sd)?, r.len())
         } else {
-            let observed = observed_periods(group, r)?;
+            let observed = observed_periods(outcome, r)?;
             (ar1_moments_at(&observed, p.rho, p.innovation_sd)?, observed.len())
         };
         ones.push(moments.ones);
@@ -1121,7 +1150,7 @@ fn spatial_marginal(
 }
 /// Marginal law of all residuals, independent per group or spatially correlated.
 pub(super) fn marginal(
-    data: &PanelData,
+    data: &CompiledPanel<'_>,
     p: &PanelParameters,
     residuals: &[Vec<f64>],
     detail: Detail,
@@ -1135,8 +1164,8 @@ pub(super) fn marginal(
     let capacity = if keep { residuals.len() } else { 0 };
     let mut intercept_mean = Vec::with_capacity(capacity);
     let mut intercept_variance = Vec::with_capacity(capacity);
-    for (group, r) in data.groups.iter().zip(residuals) {
-        let value = group_marginal(group, r, p.rho, p.innovation_sd, p.group_sd)?;
+    for (index, (group, r)) in data.groups.iter().zip(residuals).enumerate() {
+        let value = outcome_marginal(data.outcome(index), r, p.rho, p.innovation_sd, p.group_sd)?;
         total += group.weight * value.log_likelihood;
         if keep {
             intercept_mean.push(value.intercept_mean);

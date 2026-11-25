@@ -22,6 +22,8 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
+use antecedent_core::RowMask;
+
 /// Owned column name. Equality is the name, not the allocation.
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ColumnRole(Arc<str>);
@@ -288,7 +290,7 @@ pub struct ObservationFrame {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct ColumnMask {
     role: ColumnRole,
-    observed: Vec<bool>,
+    observed: RowMask,
 }
 
 impl ObservationFrame {
@@ -300,6 +302,20 @@ impl ObservationFrame {
     /// [`ClosureError::DuplicateColumn`] when a name is repeated.
     /// [`ClosureError::LengthMismatch`] when a column's length differs from the first.
     pub fn try_new(columns: Vec<(ColumnRole, Vec<bool>)>) -> Result<Self, ClosureError> {
+        Self::try_from_masks(
+            columns
+                .into_iter()
+                .map(|(role, observed)| (role, RowMask::from_bools(&observed)))
+                .collect(),
+        )
+    }
+
+    /// Build a frame from packed per-column observation masks.
+    ///
+    /// # Errors
+    ///
+    /// The same length and duplicate checks as for bool vectors.
+    pub fn try_from_masks(columns: Vec<(ColumnRole, RowMask)>) -> Result<Self, ClosureError> {
         let mut rows = None;
         let mut seen = HashSet::new();
         let mut stored = Vec::with_capacity(columns.len());
@@ -355,7 +371,7 @@ impl ObservationFrame {
         for row in 0..self.rows {
             let mut observed = true;
             for mask in &masks {
-                if !mask[row] {
+                if !mask.get(row) {
                     observed = false;
                     break;
                 }
@@ -370,10 +386,10 @@ impl ObservationFrame {
         Ok(Cohort { rows: kept })
     }
 
-    fn mask(&self, role: &ColumnRole) -> Result<&[bool], ClosureError> {
+    fn mask(&self, role: &ColumnRole) -> Result<&RowMask, ClosureError> {
         for column in &self.columns {
             if &column.role == role {
-                return Ok(column.observed.as_slice());
+                return Ok(&column.observed);
             }
         }
         Err(ClosureError::UnknownColumn { column: role.clone() })

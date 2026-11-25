@@ -41,8 +41,13 @@ mod error;
 mod identity;
 #[cfg(feature = "ipc")]
 mod ipc_scan;
+#[cfg(feature = "ipc")]
+mod ipc_validity;
 mod materialize;
+#[cfg(feature = "parquet")]
+mod parquet_validity;
 mod provider;
+mod validity;
 mod writer;
 
 use std::fmt;
@@ -56,7 +61,7 @@ use arrow_schema::{DataType, Schema, SchemaRef};
 
 use crate::arrow_ffi::ArrowCStream;
 use crate::column::OwnedColumn;
-use crate::column_closure::{ClosureInputs, ColumnClosure, ColumnRole};
+use crate::column_closure::{ClosureInputs, ColumnClosure, ColumnRole, ObservationFrame};
 use crate::global_index::{ChunkIndex, GlobalId};
 
 use convert::ColumnState;
@@ -297,6 +302,65 @@ impl TableFile {
             ctx,
             provider,
         )
+    }
+
+    /// Scan the projected columns' observation masks without materializing column values.
+    ///
+    /// Floating-point NaNs and the nanosecond `NaT` sentinel are also missing.
+    ///
+    /// # Errors
+    ///
+    /// Invalid plans, files that changed since opening, and decode or admission failures.
+    pub fn scan_observations(
+        &self,
+        plan: &ReadPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<ObservationFrame, FileSourceError> {
+        #[cfg(feature = "ipc")]
+        if self.format != TableFileFormat::Parquet
+            && let ([path], [stamp]) = (self.paths.as_slice(), self.stamps.as_ref())
+        {
+            self.check_plan(plan)?;
+            stamp.verify_times(path)?;
+            if let Some(frame) = ipc_validity::scan(path, self.format, &stamp.schema, plan, ctx)? {
+                stamp.verify_times(path)?;
+                return Ok(frame);
+            }
+        }
+        let names = || plan.columns().iter().map(|column| ColumnRole::new(&column.name));
+        #[cfg(feature = "parquet")]
+        if self.format == TableFileFormat::Parquet {
+            self.check_plan(plan)?;
+            provider::verify_all(self.format, &self.paths, &self.stamps)?;
+            let rows = self.declared_rows.map_or(0, GlobalId::get);
+            let bytes = rows.div_ceil(8).saturating_mul(plan.columns().len() as u64);
+            let _masks =
+                admit_file_bytes(ctx, MemoryStage::ChunkColumns, bytes, plan.chunk_rows())?;
+            let mut masks = parquet_validity::scan(&self.paths, plan, ctx)?;
+            let fallback = masks
+                .iter()
+                .zip(plan.columns())
+                .filter_map(|(mask, column)| mask.is_none().then_some(&column.name))
+                .collect::<Vec<_>>();
+            if !fallback.is_empty() {
+                let projection =
+                    self.plan_columns(&fallback, ReadOptions::with_chunk_rows(plan.chunk_rows()))?;
+                let mut decoded =
+                    validity::decoded_masks(self.reader(&projection, ctx)?, true)?.into_iter();
+                for mask in masks.iter_mut().filter(|mask| mask.is_none()) {
+                    *mask = decoded.next();
+                }
+            }
+            let masks = masks.into_iter().collect::<Option<Vec<_>>>().ok_or_else(|| {
+                FileSourceError::Data(crate::error::DataError::mismatch("file observation masks"))
+            })?;
+            for (path, stamp) in self.paths.iter().zip(self.stamps.iter()) {
+                stamp.verify_times(path)?;
+            }
+            return validity::finish(names(), masks);
+        }
+        let masks = validity::decoded_masks(self.reader(plan, ctx)?, false)?;
+        validity::finish(names(), masks)
     }
 
     /// Stream every chunk of `plan` and return the content identity.

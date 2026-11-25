@@ -8,6 +8,34 @@
 )]
 use crate::*;
 
+/// Detach one numeric column from Python ownership, preserving logical row order.
+pub(crate) fn snapshot_array<T: numpy::Element + Copy>(array: &PyReadonlyArray1<'_, T>) -> Vec<T> {
+    let values = match array.as_slice() {
+        Ok(slice) => slice.to_vec(),
+        Err(_) => array.as_array().iter().copied().collect(),
+    };
+    record_input_copy::<T>(values.len());
+    values
+}
+
+/// Detach directly into the shared slice retained by native callers.
+pub(crate) fn snapshot_shared<T: numpy::Element + Copy>(
+    array: &PyReadonlyArray1<'_, T>,
+) -> Arc<[T]> {
+    let values = match array.as_slice() {
+        Ok(slice) => Arc::from(slice),
+        Err(_) => array.as_array().iter().copied().collect(),
+    };
+    record_input_copy::<T>(values.len());
+    values
+}
+
+pub(crate) fn record_input_copy<T>(elements: usize) {
+    let bytes = u64::try_from(elements.saturating_mul(size_of::<T>())).unwrap_or(u64::MAX);
+    crate::execution_attempt_api::record_input_copy(bytes);
+    antecedent::execution::record_input_copy(bytes);
+}
+
 /// Result of the conversion probe (same Arrow→tabular path as analyze/discover).
 #[pyclass]
 pub(crate) struct ArrowLoadInfo {
@@ -39,6 +67,25 @@ pub(crate) struct ColumnBatch {
 }
 
 impl ColumnBatch {
+    pub(crate) fn names(&self) -> &[String] {
+        &self.names
+    }
+
+    pub(crate) fn columns(&self) -> &[antecedent::data::F64Buffer] {
+        &self.columns
+    }
+
+    /// Freeze explicitly borrowed Arrow inputs before retaining a batch in mutable state.
+    pub(crate) fn freeze_foreign_columns(&mut self) {
+        for column in &mut self.columns {
+            if column.is_foreign() {
+                self.receipt.owned_copies += 1;
+                self.receipt.bytes_copied += column.nbytes();
+                *column = antecedent::data::F64Buffer::owned(column.as_slice());
+            }
+        }
+    }
+
     /// Rows in every column.
     pub(crate) fn num_rows(&self) -> usize {
         self.columns.first().map_or(0, antecedent::data::F64Buffer::len)
@@ -190,38 +237,18 @@ impl<'py> NumericColumn<'py> {
         }
     }
 
-    /// The column as a contiguous float64 slice, when it already is one (no copy needed to read
-    /// it for the duration of the call).
-    pub(crate) fn as_f64_slice(&self) -> Option<&[f64]> {
-        match self {
-            Self::F64(a) => a.as_slice().ok(),
-            _ => None,
-        }
-    }
-
-    /// The column's values as float64 for the duration of the call: borrowed when it is a
-    /// contiguous float64 array, otherwise widened/gathered once.
-    ///
-    /// # Errors
-    ///
-    /// An integer column holding a value beyond 2**53.
-    pub(crate) fn values(&self, name: &str) -> PyResult<std::borrow::Cow<'_, [f64]>> {
-        match self.as_f64_slice() {
-            Some(slice) => Ok(std::borrow::Cow::Borrowed(slice)),
-            None => Ok(std::borrow::Cow::Owned(self.owned(name)?.0.to_vec())),
-        }
-    }
-
     /// The column's values as an owned float64 vector (one copy; widened when needed).
     ///
     /// # Errors
     ///
     /// An integer column holding a value beyond 2**53.
     pub(crate) fn to_vec(&self, name: &str) -> PyResult<Vec<f64>> {
-        match self.as_f64_slice() {
-            Some(slice) => Ok(slice.to_vec()),
-            None => Ok(self.owned(name)?.0.to_vec()),
+        if let Self::F64(array) = self
+            && let Ok(values) = array.as_slice()
+        {
+            return Ok(values.to_vec());
         }
+        self.collect_range(name, 0, self.len()).map(|(values, _)| values)
     }
 
     /// The column's values as one owned float64 buffer, and whether the source was strided.
@@ -239,29 +266,41 @@ impl<'py> NumericColumn<'py> {
     /// # Errors
     ///
     /// An integer column holding a value beyond 2**53 in the window.
-    #[allow(
-        clippy::cast_precision_loss,
-        reason = "integers are range-checked to 2**53 before they are widened, so the cast is exact"
-    )]
     pub(crate) fn owned_range(
         &self,
         name: &str,
         lo: usize,
         hi: usize,
     ) -> PyResult<(Arc<[f64]>, bool)> {
+        if let Self::F64(array) = self
+            && let Ok(values) = array.as_slice()
+        {
+            return Ok((Arc::from(&values[lo..hi]), false));
+        }
+        self.collect_range(name, lo, hi)
+    }
+
+    #[allow(
+        clippy::cast_precision_loss,
+        reason = "integers are range-checked to 2**53 before they are widened, so the cast is exact"
+    )]
+    fn collect_range<B: FromIterator<f64>>(
+        &self,
+        name: &str,
+        lo: usize,
+        hi: usize,
+    ) -> PyResult<(B, bool)> {
         macro_rules! widen {
             ($array:expr, $convert:expr) => {{
                 let array = $array;
                 let convert = $convert;
                 match array.as_slice() {
-                    Ok(slice) => {
-                        (slice[lo..hi].iter().map(|v| convert(*v)).collect::<Arc<[f64]>>(), false)
-                    }
+                    Ok(slice) => (slice[lo..hi].iter().map(|v| convert(*v)).collect::<B>(), false),
                     // A strided column is gathered by index: the mapped range reports its exact
                     // length, so the shared slice is allocated and filled once.
                     Err(_) => {
                         let view = array.as_array();
-                        ((lo..hi).map(|i| convert(view[i])).collect::<Arc<[f64]>>(), true)
+                        ((lo..hi).map(|i| convert(view[i])).collect::<B>(), true)
                     }
                 }
             }};
@@ -529,7 +568,8 @@ pub(crate) fn load_float64_arrow_c_columns(
 ) -> PyResult<ArrowLoadInfo> {
     catch_ffi(|| {
         let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-        let loaded = antecedent::data::arrow_c::load_columns(cdi_cols).map_err(py_err)?;
+        let loaded =
+            antecedent::data::arrow_c::load_numeric_columns(cdi_cols, false).map_err(py_err)?;
         let column_names: Vec<String> =
             loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
         Ok(ArrowLoadInfo {
@@ -553,7 +593,8 @@ pub(crate) fn tabular_from_arrow_c_objs(
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent::prelude::TabularData, u64)> {
     let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-    let loaded = antecedent::data::arrow_c::load_columns(cdi_cols).map_err(py_err)?;
+    let loaded =
+        antecedent::data::arrow_c::load_numeric_columns(cdi_cols, false).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
 }
 
@@ -603,16 +644,17 @@ pub(crate) fn owned_tabular_from_arrow_c_objs(
     let quoted = if admit { arrow_retention_bytes(&columns) } else { None };
     let mut lease = quoted.map(admit_retention).transpose()?;
     let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-    let frame = antecedent::data::arrow_adapter::ArrowFrameView::from_c_columns(cdi_cols)
-        .map_err(py_err)?;
     if admit && lease.is_none() {
-        // An exporter with no length is quoted from the imported frame, still before the copy.
-        let rows = u64::try_from(frame.row_count().map_err(py_err)?).unwrap_or(u64::MAX);
-        let cells = rows.saturating_mul(u64::try_from(frame.n_columns()).unwrap_or(u64::MAX));
-        lease = Some(admit_retention(cells.saturating_mul(8).saturating_add(cells.div_ceil(8)))?);
+        let bytes = cdi_cols.iter().try_fold(0_u64, |total, column| {
+            let rows = u64::try_from(column.row_count().map_err(py_err)?).unwrap_or(u64::MAX);
+            Ok::<_, PyErr>(
+                total.saturating_add(rows.saturating_mul(8).saturating_add(rows.div_ceil(8))),
+            )
+        })?;
+        lease = Some(admit_retention(bytes)?);
     }
-    let frozen = frame.freeze().map_err(py_err)?;
-    let data = frozen.data().clone();
+    let data =
+        antecedent::data::arrow_c::load_numeric_columns(cdi_cols, true).map_err(py_err)?.data;
     Ok(match lease {
         Some(lease) => antecedent::data::with_retention(data, &lease),
         None => data,

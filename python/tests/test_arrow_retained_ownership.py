@@ -72,6 +72,16 @@ def test_an_explicit_borrow_snapshot_reports_its_borrowed_bytes():
     assert owned.bytes_copied == values.nbytes
 
 
+def test_state_freezes_an_explicitly_borrowed_arrow_column():
+    values = np.arange(8.0)
+    borrowed = antecedent.data.table(pa.table({"x": pa.array(values)}), borrow=True)
+    state = antecedent.state.CausalState()
+    state.append_data(["x"], [borrowed["x"]])
+    del borrowed
+    values[:] = -1.0
+    np.testing.assert_array_equal(state.get_batch("b0")[1][0], np.arange(8.0))
+
+
 def _tight(table):
     # Less than the bytes the owned copy of the table retains: three float64 columns.
     return antecedent.Execution(

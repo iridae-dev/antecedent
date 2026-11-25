@@ -75,6 +75,7 @@ faer = { version = "0.24", default-features = false, features = ["std", "linalg"
 arrow-array = { version = "60", default-features = false }
 arrow-schema = { version = "60", default-features = false }
 arrow-buffer = { version = "60", default-features = false }
+arrow-data = { version = "60", default-features = false }
 arrow-ipc = { version = "60", default-features = false }
 parquet = { version = "60", default-features = false }
 pyo3 = { version = "0.29", features = ["extension-module", "multiple-pymethods"] }

@@ -124,3 +124,50 @@ def test_unknown_columns_and_bad_declarations_are_refused():
         cp.checked_projection(SOURCE, CLOSURE, "yw")
     with pytest.raises(CausalTypeError, match=r"closure must be a ColumnClosure"):
         cp.checked_push_filter(SOURCE, ("y",), "extra", [False] * 6)  # type: ignore[arg-type]
+
+
+def test_file_cohort_scans_validity_and_missing_sentinels_without_a_resident_read(tmp_path):
+    import antecedent as ant
+
+    pa = pytest.importorskip("pyarrow")
+    pq = pytest.importorskip("pyarrow.parquet")
+    path = tmp_path / "cohort.parquet"
+    table = pa.table(
+        {
+            "number": pa.array([1.0, NAN, None, 4.0, 5.0]),
+            "flag": pa.array([True, True, True, None, False]),
+            "time": pa.array([0, 1, 2, 3, -(2**63)], type=pa.timestamp("ns")),
+        }
+    )
+    pq.write_table(table, path, row_group_size=3)
+    source = ant.data.from_parquet(path, chunk_rows=2)
+    closure = cp.ColumnClosure(target=("number",), complete_case=("flag", "time"))
+    assert cp.checked_projection(source, closure, closure.columns).tolist() == [0]
+    assert cp.checked_push_filter(
+        source, closure, "flag", [False, True, True, True, True]
+    ).tolist() == [0]
+    assert source._cache == {}
+
+
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("compression", [None, "zstd", "lz4"])
+def test_ipc_cohort_skips_the_projected_value_buffer(tmp_path, stream, compression):
+    import antecedent as ant
+    from antecedent.errors import CausalResourceError
+    from antecedent.execution import Execution, ResourceLimits
+
+    pa = pytest.importorskip("pyarrow")
+    table = pa.table({"unused": [1.0, 2.0, 3.0], "label": ["x" * 500_000, None, "y"]})
+    path = tmp_path / ("cohort.arrows" if stream else "cohort.arrow")
+    writer = pa.ipc.new_stream if stream else pa.ipc.new_file
+    options = pa.ipc.IpcWriteOptions(compression=compression)
+    with writer(path, table.schema, options=options) as output:
+        output.write_table(table)
+    source = ant.data.from_arrow_ipc(
+        path, execution=Execution(limits=ResourceLimits(memory_bytes=64 * 1024))
+    )
+    with pytest.raises(CausalResourceError):
+        source.read(["label"])
+    closure = cp.ColumnClosure(target=("label",))
+    assert cp.checked_projection(source, closure, closure.columns).tolist() == [0, 2]
+    assert source._cache == {}

@@ -45,6 +45,7 @@ pub mod arrow_adapter {
 /// The FFI structs are the capsule layouts a host moves an exporter's arrays out of; only the
 /// types needed to build an [`ArrowCColumn`] or an [`ArrowCStream`] are published.
 pub mod arrow_c {
+    pub use antecedent_data::arrow_adapter::load_numeric_columns;
     pub use antecedent_data::arrow_ffi::{ArrowCColumn, ArrowCStream, FfiArrowArrayStream};
     pub use antecedent_data::{ArrowLoadResult, FfiArrowArray, FfiArrowSchema};
 

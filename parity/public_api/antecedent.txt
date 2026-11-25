@@ -289,6 +289,9 @@
 #[doc(hidden)] pub fn antecedent::analysis::max_t_critical_value(correlation: &antecedent_estimate::joint_if::JointCovariance, level: f64, seed: u64, draws: u32, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<f64, antecedent::BatchRetargetError>
 #[doc(hidden)] pub fn antecedent::analysis::repeated_measures_posterior_report::seal_report_without_validation(report: &antecedent::analysis::repeated_measures_posterior_report::RepeatedMeasuresPosteriorReport) -> core::result::Result<alloc::string::String, antecedent::AdaptiveInferenceRefusal>
 #[doc(hidden)] pub fn antecedent::analysis::temporal_dependent_interval_candidate(snapshot_id: &str, units: core::option::Option<alloc::vec::Vec<antecedent_estimate::temporal_dependent_interval::UnitHistories>>, sequence: [u32; 2], estimand: antecedent::IntervalEstimand, config: &antecedent_estimate::temporal_dependent_interval::DependentIntervalConfig, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io::temporal_interval_artifact::TemporalIntervalArtifactWire, antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn antecedent::execution::copied_bytes(report: &antecedent_core::execution_attempt::AttemptReport) -> core::option::Option<u64>
+#[doc(hidden)] pub fn antecedent::execution::copies(report: &antecedent_core::execution_attempt::AttemptReport) -> core::option::Option<u64>
+#[doc(hidden)] pub fn antecedent::execution::record_input_copy(bytes: u64)
 #[doc(hidden)] pub struct antecedent::analysis::evidence_ledger::PooledIntervalCandidate
 #[non_exhaustive] pub enum antecedent::AttributionOutcome
 #[non_exhaustive] pub enum antecedent::CausalError
@@ -29507,6 +29510,7 @@ pub use antecedent::data::arrow_c::ArrowLoadResult = antecedent_data::ArrowLoadR
 pub use antecedent::data::arrow_c::FfiArrowArray = antecedent_data::FfiArrowArray
 pub use antecedent::data::arrow_c::FfiArrowArrayStream = antecedent_data::arrow_ffi::FfiArrowArrayStream
 pub use antecedent::data::arrow_c::FfiArrowSchema = antecedent_data::FfiArrowSchema
+pub use antecedent::data::arrow_c::load_numeric_columns = antecedent_data::arrow_adapter::load_numeric_columns
 pub use antecedent::decision_evidence::JointClusterContrast = antecedent_estimate::randomized_joint::JointClusterContrast
 pub use antecedent::design::AdaptivePolicyError = antecedent_design::adaptive_policy::AdaptivePolicyError
 pub use antecedent::design::AdaptivePolicyFamily = antecedent_design::adaptive_policy::AdaptivePolicyFamily
@@ -31290,6 +31294,7 @@ pub use antecedent::query::PopulationDoContrastTarget = antecedent_core::Populat
 pub use antecedent::query::PopulationRegistry = antecedent_core::PopulationRegistry
 pub use antecedent::query::PopulationSelector = antecedent_core::PopulationSelector
 pub use antecedent::query::PredicateExpr = antecedent_core::PredicateExpr
+pub use antecedent::query::ProbabilityRows = antecedent_core::ProbabilityRows
 pub use antecedent::query::QueryError = antecedent_core::QueryError
 pub use antecedent::query::RandomizationDesign = antecedent_core::RandomizationDesign
 pub use antecedent::query::RandomizedEffectQuery = antecedent_core::RandomizedEffectQuery

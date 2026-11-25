@@ -16,7 +16,7 @@ use crate::container::{EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
 use crate::posterior::{
-    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_artifact,
+    CausalPosteriorWire, PosteriorQuantityWire, decode_posterior_meta_from_bytes,
     decode_posterior_meta_from_path,
 };
 
@@ -662,11 +662,7 @@ fn load_posterior_wire(source: &PriorSourceRef) -> Result<Option<CausalPosterior
         return Ok(None);
     };
     match body {
-        PriorArtifactBody::Bytes(bytes) => {
-            let art = EncodedArtifact::read_from(bytes.as_ref())?;
-            let (meta, _) = decode_posterior_artifact(&art)?;
-            Ok(Some(meta))
-        }
+        PriorArtifactBody::Bytes(bytes) => Ok(Some(decode_posterior_meta_from_bytes(bytes)?)),
         PriorArtifactBody::Path(path) => Ok(Some(decode_posterior_meta_from_path(path)?)),
     }
 }

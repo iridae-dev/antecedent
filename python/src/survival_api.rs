@@ -185,6 +185,60 @@ fn validate_ipcw_grid(
     Ok(minimum_g)
 }
 
+#[allow(clippy::float_cmp, reason = "event flags are exactly zero or one")]
+fn binary_values<T>(
+    array: &Bound<'_, PyAny>,
+    name: &str,
+    encode: impl Fn(bool) -> T,
+) -> PyResult<Vec<T>> {
+    let Ok(array) = array.extract::<PyReadonlyArray1<'_, f64>>() else {
+        return Ok(array.extract::<Vec<bool>>()?.into_iter().map(encode).collect());
+    };
+    let mut values = Vec::with_capacity(array.as_array().len());
+    for &value in array.as_array() {
+        if value != 0.0 && value != 1.0 {
+            return Err(crate::value_err(format!("{name} values must be bool or encoded as 0/1")));
+        }
+        values.push(encode(value == 1.0));
+    }
+    crate::ingest::record_input_copy::<T>(values.len());
+    Ok(values)
+}
+
+fn time_grid(times: &Bound<'_, PyAny>) -> PyResult<Vec<f64>> {
+    if let Ok(array) = times.extract::<PyReadonlyArray1<'_, f64>>() {
+        Ok(crate::ingest::snapshot_array(&array))
+    } else {
+        times.extract()
+    }
+}
+
+#[allow(clippy::cast_possible_truncation, reason = "the range and integrality are checked")]
+fn cause_codes(event_cause: &Bound<'_, PyAny>) -> PyResult<Vec<i64>> {
+    if let Ok(array) = event_cause.extract::<PyReadonlyArray1<'_, i64>>() {
+        return Ok(crate::ingest::snapshot_array(&array));
+    }
+    if let Ok(array) = event_cause.extract::<PyReadonlyArray1<'_, f64>>() {
+        let mut values = Vec::with_capacity(array.as_array().len());
+        for &value in array.as_array() {
+            if !value.is_finite() || value.fract() != 0.0 {
+                return Err(crate::value_err(
+                    "event_cause values must be non-negative integer codes; zero denotes censoring",
+                ));
+            }
+            if !(0.0..9_223_372_036_854_775_808.0).contains(&value) {
+                return Err(crate::value_err(
+                    "event_cause values must fit in non-negative 64-bit integer codes",
+                ));
+            }
+            values.push(value as i64);
+        }
+        crate::ingest::record_input_copy::<i64>(values.len());
+        return Ok(values);
+    }
+    event_cause.extract()
+}
+
 /// IPCW weighted product-limit curves using caller supplied censoring survival.
 #[pyfunction]
 #[allow(
@@ -198,17 +252,21 @@ fn validate_ipcw_grid(
 fn randomized_survival_ipcw(
     py: Python<'_>,
     duration: PyReadonlyArray1<'_, f64>,
-    event_observed: Vec<bool>,
-    treated: Vec<bool>,
-    times: Vec<f64>,
+    event_observed: &Bound<'_, PyAny>,
+    treated: &Bound<'_, PyAny>,
+    times: &Bound<'_, PyAny>,
     censoring_survival: PyReadonlyArray2<'_, f64>,
     tau: f64,
     minimum_probability: f64,
 ) -> PyResult<IpcwSurvival> {
-    let duration = duration.as_array();
+    let duration = crate::ingest::snapshot_array(&duration);
+    let times = time_grid(times)?;
+    let treated = binary_values(treated, "treatment", |value| value)?;
+
     let g = censoring_survival.as_array();
+    let event_codes = binary_values(event_observed, "event_observed", i64::from)?;
     let n = duration.len();
-    if n == 0 || event_observed.len() != n || treated.len() != n || g.nrows() != n {
+    if n == 0 || event_codes.len() != n || treated.len() != n || g.nrows() != n {
         return Err(crate::value_err(
             "duration, event_observed, treatment, and censoring survival rows must have equal non-zero length",
         ));
@@ -233,12 +291,11 @@ fn randomized_survival_ipcw(
             "times must be a strictly increasing grid from zero through tau and match censoring_survival columns",
         ));
     }
-    let event_codes = event_observed.iter().map(|event| i64::from(*event)).collect::<Vec<_>>();
-    let duration = duration.to_vec();
     // Copy the Python-owned array before releasing the GIL; all grid validation
     // and estimation below then run on owned data without holding the GIL.
     let (ctx, input_lease) = admit_grid_copy(py, n, times.len())?;
     let survival = g.iter().copied().collect::<Vec<_>>();
+    crate::ingest::record_input_copy::<f64>(survival.len());
     let (summary, kernel_minimum_g) = detach_catch(py, move || {
         // Moved into the closure so the lease outlives the copied buffer on every exit.
         let survival = survival;
@@ -303,15 +360,19 @@ fn randomized_survival_ipcw(
 fn randomized_cumulative_incidence_ipcw(
     py: Python<'_>,
     duration: PyReadonlyArray1<'_, f64>,
-    event_cause: Vec<i64>,
-    treated: Vec<bool>,
-    times: Vec<f64>,
+    event_cause: &Bound<'_, PyAny>,
+    treated: &Bound<'_, PyAny>,
+    times: &Bound<'_, PyAny>,
     censoring_survival: PyReadonlyArray2<'_, f64>,
     tau: f64,
     target_cause: i64,
     minimum_probability: f64,
 ) -> PyResult<IpcwIncidence> {
-    let duration = duration.as_array();
+    let duration = crate::ingest::snapshot_array(&duration);
+    let times = time_grid(times)?;
+    let treated = binary_values(treated, "treatment", |value| value)?;
+
+    let event_cause = cause_codes(event_cause)?;
     let g = censoring_survival.as_array();
     let n = duration.len();
     if n == 0 || event_cause.len() != n || treated.len() != n || g.nrows() != n {
@@ -353,10 +414,10 @@ fn randomized_cumulative_incidence_ipcw(
             "times must be a strictly increasing grid from zero through tau and match censoring_survival columns",
         ));
     }
-    let duration = duration.to_vec();
     // The owned copy lets validation and estimation run outside the GIL.
     let (ctx, input_lease) = admit_grid_copy(py, n, times.len())?;
     let survival = g.iter().copied().collect::<Vec<_>>();
+    crate::ingest::record_input_copy::<f64>(survival.len());
     let (summary, kernel_minimum_g) = detach_catch(py, move || {
         // Moved into the closure so the lease outlives the copied buffer on every exit.
         let survival = survival;

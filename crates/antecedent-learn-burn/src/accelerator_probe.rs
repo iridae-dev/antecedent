@@ -32,8 +32,7 @@ use burn::tensor::{Tensor, TensorData, backend::Backend};
 
 use super::device::{self, LearnerBackend, LossSync};
 use super::{
-    LearnBurnError, colmajor_to_rowmajor_f32, column_standardization, standardized,
-    target_standardization,
+    LearnBurnError, column_standardization, standardized_rowmajor, target_standardization,
 };
 
 type TrainBackend = Autodiff<NdArray<f32>>;
@@ -270,8 +269,7 @@ fn prepare_fold() -> Result<PreparedFold, LearnBurnError> {
     let predict_x = gather_colmajor(&x, FOLD_ROWS, FOLD_COLS, &predict_rows);
     let (x_center, x_scale) = column_standardization(&train_x, TRAIN_ROWS, FOLD_COLS);
     let (y_center, y_scale) = target_standardization(&train_y);
-    let x_std = standardized(&train_x, TRAIN_ROWS, FOLD_COLS, &x_center, &x_scale);
-    let x_rm = colmajor_to_rowmajor_f32(&x_std, TRAIN_ROWS, FOLD_COLS);
+    let x_rm = standardized_rowmajor(&train_x, TRAIN_ROWS, FOLD_COLS, &x_center, &x_scale);
     let y_f = narrow_target(&train_y, y_center, y_scale);
     Ok(PreparedFold { predict_rows, predict_x, x_center, x_scale, y_center, y_scale, x_rm, y_f })
 }
@@ -364,9 +362,13 @@ fn predict_held_out(net: &HostNet, prepared: &PreparedFold) -> Result<Vec<f64>, 
     if prepared.predict_x.len() < nrows.saturating_mul(FOLD_COLS) {
         return Err(LearnBurnError::PredictBuffer);
     }
-    let x_std =
-        standardized(&prepared.predict_x, nrows, FOLD_COLS, &prepared.x_center, &prepared.x_scale);
-    let x_rm = colmajor_to_rowmajor_f32(&x_std, nrows, FOLD_COLS);
+    let x_rm = standardized_rowmajor(
+        &prepared.predict_x,
+        nrows,
+        FOLD_COLS,
+        &prepared.x_center,
+        &prepared.x_scale,
+    );
     let mut h1 = vec![0.0f32; net.l1.dout];
     let mut h2 = vec![0.0f32; net.l2.dout];
     let mut ybuf = vec![0.0f32; net.out.dout];

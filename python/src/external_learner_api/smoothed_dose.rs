@@ -28,7 +28,7 @@ use antecedent::prelude::ExecutionContext;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
-use super::{CallbackState, PythonReceipt, callback_bytes, callback_context, rows};
+use super::{CallbackState, PythonReceipt, callback_bytes, callback_context, fit_columns};
 
 /// A registered Python provider whose fits are portable prediction maps.
 struct PortablePythonFactory {
@@ -62,26 +62,21 @@ impl LearnerFactory for PortablePythonFactory {
         if ctx.cancellation.is_cancelled() {
             return Err(LearnError::Cancelled);
         }
-        let _hold = ctx
-            .acquire_admission(0, callback_bytes(x, 1 + usize::from(weights.is_some()))?)
-            .map_err(LearnError::Admission)?;
-        let matrix = rows(x)?;
-        let target = y.values().to_vec();
-        let weights = weights.map(<[f64]>::to_vec);
+        let bytes = callback_bytes(x, 1 + usize::from(weights.is_some()))?;
+        let _hold = ctx.acquire_admission(0, bytes).map_err(LearnError::Admission)?;
         let id = self.state.next.fetch_add(1, Ordering::Relaxed);
-        let map = Python::attach(|py| -> PyResult<String> {
-            let fitted = self.learner.bind(py).call_method1("fit", (matrix, target, weights))?;
-            let map: String =
-                fitted.getattr("model")?.call_method1("decode", ("utf-8",))?.extract()?;
-            let receipt = fitted.getattr("fit_receipt")?.unbind();
-            self.state.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push((
-                id,
-                receipt,
-                pyo3::types::PyNone::get(py).to_owned().into_any().unbind(),
-            ));
-            Ok(map)
-        })
-        .map_err(|e| self.state.fail(e))?;
+        let map =
+            Python::attach(|py| -> PyResult<String> {
+                let fitted = fit_columns(py, self.learner.bind(py), x, y, weights, bytes)?;
+                let map: String =
+                    fitted.getattr("model")?.call_method1("decode", ("utf-8",))?.extract()?;
+                let receipt = fitted.getattr("fit_receipt")?.unbind();
+                self.state.receipts.lock().unwrap_or_else(std::sync::PoisonError::into_inner).push(
+                    (id, receipt, pyo3::types::PyNone::get(py).to_owned().into_any().unbind()),
+                );
+                Ok(map)
+            })
+            .map_err(|e| self.state.fail(e))?;
         if ctx.cancellation.is_cancelled() {
             return Err(LearnError::Cancelled);
         }

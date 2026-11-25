@@ -114,6 +114,18 @@ impl ArrowCColumn {
         self.parts.len()
     }
 
+    /// Number of rows declared by the exported chunk descriptors.
+    ///
+    /// # Errors
+    ///
+    /// The sum of the chunk lengths overflows.
+    pub fn row_count(&self) -> Result<usize, DataError> {
+        self.parts.iter().try_fold(0usize, |rows, part| {
+            rows.checked_add(part.array.len())
+                .ok_or_else(|| DataError::overflow("Arrow column row count"))
+        })
+    }
+
     /// Import this CDI column into an Arrow array (takes ownership of FFI structs).
     ///
     /// A column with more than one chunk is not concatenated here.

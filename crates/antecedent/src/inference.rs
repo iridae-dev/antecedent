@@ -28,7 +28,7 @@ use antecedent_prob::PosteriorQuantityKind;
 use antecedent_validate::{ConflictPolicy, PriorPredictiveCheck, compose_with_conflict_policy};
 
 use crate::error::CausalError;
-use antecedent_io::decode_causal_posterior_bytes;
+use antecedent_io::decode_posterior_meta_from_bytes;
 
 /// Frequentist vs Bayesian inference mode.
 #[allow(
@@ -884,7 +884,7 @@ pub fn decode_prior_hydrate_source(
     let Some(mapping) = cfg.prior_mapping.as_ref() else {
         return Ok(None);
     };
-    let (wire, _) = decode_causal_posterior_bytes(bytes)?;
+    let wire = decode_posterior_meta_from_bytes(bytes)?;
     Ok(Some(DecodedPriorHydrate {
         mapping: hydrate_mapping_from_io(mapping),
         quantities: wire_quantities_to_kinds(&wire.quantities),

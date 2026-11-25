@@ -186,10 +186,33 @@ fn blake3_digest_hex(data: &[u8]) -> String {
     antecedent::identity::blake3_hex(data)
 }
 
+/// Hash the canonical row-major order of a native-endian float64 view without repacking it.
+#[pyfunction]
+fn _blake3_float64_digest_hex(data: numpy::PyReadonlyArrayDyn<'_, f64>) -> PyResult<String> {
+    let mut hasher = blake3::Hasher::new();
+    let mut scratch = [0_u8; 4096];
+    let mut used = 0;
+    for &value in &data.as_array() {
+        if !value.is_finite() {
+            return Err(crate::value_err("Out of range float values are not JSON compliant"));
+        }
+        let end = used + size_of::<f64>();
+        scratch[used..end].copy_from_slice(&value.to_le_bytes());
+        used = end;
+        if used == scratch.len() {
+            hasher.update(&scratch);
+            used = 0;
+        }
+    }
+    hasher.update(&scratch[..used]);
+    Ok(hasher.finalize().to_hex().to_string())
+}
+
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyProviderVerificationReceipt>()?;
     m.add_function(wrap_pyfunction!(canonical_json_digest_hex, m)?)?;
     m.add_function(wrap_pyfunction!(blake3_digest_hex, m)?)?;
+    m.add_function(wrap_pyfunction!(_blake3_float64_digest_hex, m)?)?;
     m.add_function(wrap_pyfunction!(seal_provider_result, m)?)?;
     m.add_function(wrap_pyfunction!(open_provider_result, m)?)?;
     Ok(())
