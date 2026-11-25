@@ -185,6 +185,7 @@ Architecture pages:
 | Multi-source transport and the retained grid | [transport-meta-grid.md](transport-meta-grid.md) |
 | Smoothed dose-response transport derivation | [smoothed-dose-response-transport.md](smoothed-dose-response-transport.md) |
 | Composition identities | [composition-identities.md](composition-identities.md) |
+| 3.1 coverage, compatibility oracles and the caller sketches | [3.1-baselines.md](3.1-baselines.md) |
 
 Related references:
 
