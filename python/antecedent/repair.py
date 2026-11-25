@@ -1396,10 +1396,12 @@ def obligations(
 class RepairLimits:
     """Declared bounds of the subset search.
 
-    ``max_operations`` bounds the subsets evaluated, ``max_depth`` the largest
-    subset size (at most four). The live-state memory limit belongs to the
-    ``Execution`` the search runs under. A bound that stops the search is reported as ``exhausted`` with every unevaluated
-    subset listed; subsets beyond ``max_depth`` are never examined and say so.
+    ``max_operations`` and ``max_depth`` are the caller's ``SearchLimits``:
+    operations bound the subsets evaluated, and depth is the largest subset
+    size examined. Memory is the minimum of the declared memory and the
+    ``Execution`` pool. A bound that stops the search is reported as
+    ``exhausted`` with every unevaluated subset listed; subsets beyond
+    ``max_depth`` are never examined and say so.
     """
 
     max_operations: int = 4096
@@ -1674,7 +1676,7 @@ def repair(
     *,
     execution: Execution | None = None,
 ) -> RepairResult:
-    """Which candidates, singly or in bounded subsets, repair the failed contract.
+    """Which candidates, singly or in subsets, repair the failed contract.
 
     Each candidate's hypothetical evidence is applied and the contract's own
     theorem checker re-run: a variable-name match never repairs anything, and
@@ -1684,10 +1686,11 @@ def repair(
 
     Refusals carry their reason code: ``design_cost_units_mismatch`` for cost
     ranking over different cost units and ``transport_budget_cancel`` when the
-    budget stops before the search (:class:`RepairBudgetRefusal`). Operation,
-    depth, and memory limits are the caller's; memory is further limited by the
-    execution pool. A stop
-    during the search is a result with ``outcome == "exhausted"``.
+    budget stops before the search (:class:`RepairBudgetRefusal`). The budget
+    is the caller's ``SearchLimits`` (operations and depth from
+    :class:`RepairLimits`); memory is the minimum of the declared memory and
+    the execution pool. A stop during the search is a result with
+    ``outcome == "exhausted"``.
     """
     if isinstance(contract, FailureContract):
         raise CausalTypeError(

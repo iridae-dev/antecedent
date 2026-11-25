@@ -89,11 +89,15 @@ pub const STUDY_PLAN_MAX_REGIMES_PER_CANDIDATE: usize = 8;
 pub const STUDY_PLAN_MAX_SUBSET: usize = 3;
 /// Sufficient proposals one plan retains; evaluation ends after the last one.
 pub const STUDY_PLAN_MAX_PROPOSALS: usize = 32;
-/// Plan limits: operations charged across the base decision and every subset
-/// decision, and depth. They are the defaults and the maxima; the route's own
-/// depth maximum also applies (24 on Mz, 16 on Mixed).
+/// Plan limits used when the caller sets nothing: operations charged across the
+/// base decision and every subset decision, and depth. A larger declaration is
+/// the caller's limit. [`StudyPlanLimits::for_route`] fills the route depth
+/// (24 on Mz, 16 on Mixed) in place of this depth. These values do not refuse
+/// a larger declaration.
 pub const STUDY_PLAN_DEFAULT_LIMITS: SearchLimits = SearchLimits { operations: 200_000, depth: 24 };
-/// Memory cap of the plan budget: the default and the maximum.
+/// Memory the plan uses when the caller sets nothing. The live cap is the
+/// smaller of the declared memory and the execution pool. This constant does
+/// not refuse a larger declaration the pool would admit.
 pub const STUDY_PLAN_MEMORY_BYTES: u64 = DEFAULT_SEARCH_MEMORY_BYTES;
 /// Largest declared cost of one candidate, so a subset's total never overflows.
 pub(crate) const STUDY_PLAN_MAX_COST_UNITS: u64 = u64::MAX / 4;
@@ -274,8 +278,9 @@ impl Default for StudyPlanLimits {
 }
 
 impl StudyPlanLimits {
-    /// The maximal limits a route accepts: [`STUDY_PLAN_DEFAULT_LIMITS`] with
-    /// the depth lowered to the route's own maximum (16 on Mixed).
+    /// The limits a route uses when the caller sets nothing:
+    /// [`STUDY_PLAN_DEFAULT_LIMITS`] operations, the route's depth (24 on Mz,
+    /// 16 on Mixed), and [`STUDY_PLAN_MEMORY_BYTES`].
     #[must_use]
     pub const fn for_route(route: &StudyPlanRoute) -> Self {
         Self {

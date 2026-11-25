@@ -481,14 +481,16 @@ fn compile(
     Ok(out)
 }
 
-/// Compile the declared candidates and plan the cheapest subset of at most
-/// three that would make the failed mz-transport or mixed-source decision identify, under one
-/// shared search budget (see `antecedent_identify::plan_study_additions`).
-/// The result is invariant to candidate and source declaration order.
+/// Compile the declared candidates and plan the cheapest subsets that would make
+/// the failed mz-transport or mixed-source decision identify. The budget is the
+/// caller's [`antecedent_core::SearchLimits`]; memory is the minimum of the
+/// declared memory and the execution pool (see
+/// `antecedent_identify::plan_study_additions`). The result is invariant to
+/// candidate and source declaration order.
 ///
-/// The caller's operation budget is compared with the candidate count before
-/// any candidate is compiled. Memory is that declaration, further limited by
-/// the execution pool.
+/// Before any candidate is compiled, the candidate count is compared with
+/// [`StudyPlanLimits::max_candidates`]. Declared level combinations charge their
+/// preview bytes to that budget.
 ///
 /// # Errors
 /// Every [`StudyPlanRefusal`] of the planner, plus
