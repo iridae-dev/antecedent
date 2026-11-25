@@ -109,11 +109,18 @@ pub(in crate::contract_section) fn verify_linear_fit_moments(
     if !close_replay_value(actual, expected) {
         return Err(ContractReason::BodyEstimate);
     }
-    let actual_se = body.standard_error.ok_or(ContractReason::BodyStandardError)?;
-    if !close_replay_value(actual_se, expected_se) {
-        return Err(ContractReason::BodyStandardError);
+    match body.standard_error {
+        Some(published) if close_replay_value(published, expected_se) => Ok(()),
+        // The scalar result publishes only positive standard errors. An exact
+        // fit can therefore carry its point claim without a published SE.
+        None if expected_se == 0.0
+            && body.interval_lower.is_none()
+            && body.interval_upper.is_none() =>
+        {
+            Ok(())
+        }
+        _ => Err(ContractReason::BodyStandardError),
     }
-    Ok(())
 }
 
 /// Inverse of a row-major `p x p` moment matrix, or `None` when it is singular, non-finite or

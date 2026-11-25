@@ -28,6 +28,10 @@ def test_saved_study_replays_its_estimator_in_a_fresh_process(tmp_path: Path) ->
     ).estimate()
     assert outcome.refusal is None
     assert outcome.answer.value == pytest.approx(3.0)
+    artifact = outcome.export()
+    recorded = ant.load(artifact.data, expected=artifact.expectation)
+    assert recorded.refusal is None
+    assert recorded.value.claim_id == outcome.value.claim_id
     saved = outcome.study.save_compiled_study()
     path = tmp_path / "compiled-study.causal"
     path.write_bytes(saved.data)
@@ -61,3 +65,21 @@ def test_an_opaque_invariant_without_bodies_is_not_resumable() -> None:
     reopened = compiled_study.open_study(saved.data, saved.expected_identity)
     assert not reopened.resumable
     assert reopened.estimate is None
+
+
+def test_exact_fit_keeps_its_point_claim_on_load_and_resume() -> None:
+    outcome = ant.analyze(
+        {"a": [0.0, 0.0, 1.0, 1.0], "y": [0.0, 0.0, 2.0, 2.0]},
+        graph=[("a", "y")],
+        query=ant.AverageEffect("a", "y"),
+        inference=ant.Frequentist(bootstrap=0),
+        refute=False,
+    )
+    artifact = outcome.export()
+    recorded = ant.load(artifact.data, expected=artifact.expectation)
+    assert recorded.refusal is None
+    assert recorded.answer.value == pytest.approx(2.0)
+    saved = outcome.study.save_compiled_study()
+    resumed = compiled_study.open_study(saved.data, saved.expected_identity)
+    assert resumed.resumable
+    assert resumed.estimate == resumed.claim_estimate == recorded.answer.value

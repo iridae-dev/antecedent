@@ -160,6 +160,69 @@ fn source_of_run(
 }
 
 #[test]
+fn a_prepared_effect_supplies_a_decision_a_recorded_claim_and_a_resumable_study() {
+    use antecedent::analysis::decision_result::apply_decision;
+    use antecedent::io::{
+        RetainedArtifactIdentity, compiled_study, load_analysis_result_expecting,
+    };
+    use antecedent::prelude::AverageEffectQuery;
+
+    let data = TabularData::from_f64_columns([
+        ("a", &[0.0, 0.0, 1.0, 1.0][..]),
+        ("y", &[0.0, 0.0, 2.0, 2.0][..]),
+    ])
+    .unwrap();
+    let schema = data.schema().clone();
+    let graph = Dag::from_named_edges(&schema, &[("a", "y")]).unwrap();
+    let query =
+        AverageEffectQuery::binary_ate(schema.id_of("a").unwrap(), schema.id_of("y").unwrap());
+    let ctx = ExecutionContext::for_tests(11);
+    let prepared = Study::tabular(data)
+        .graph(graph)
+        .query(query)
+        .refute(RefuteSuite::None)
+        .bootstrap_replicates(0)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate_retained(&ctx).unwrap();
+    let contrast = ScientificQuantity {
+        functional_id: "mean_difference".into(),
+        regime_id: "contrast:do(a=1)-do(a=0)".into(),
+        ..quantity("1")
+    };
+    let contract = DecisionContract {
+        actions: vec![
+            action("act", contrast.clone(), 0.0),
+            DecisionAction {
+                id: "wait".into(),
+                kind: ActionKind::Intervention,
+                inputs: vec![contrast],
+                utility: UtilityExpr::product(UtilityExpr::Const(0.0), UtilityExpr::Input(0)),
+            },
+        ],
+        ..contract(DecisionCriterion::PosteriorExpectedUtility)
+    };
+    let evaluated = apply_decision(&contract, &result, &schema, &ctx).unwrap();
+    assert_eq!(evaluated.ordinary().unwrap().verdict, Verdict::UniquelyOptimal("act".into()));
+
+    let claim = prepared.encode_contracted_result(&result, "observed-effect", &ctx).unwrap();
+    let retained = RetainedArtifactIdentity::of_bytes(&claim);
+    let recorded = load_analysis_result_expecting(&claim, &retained).unwrap();
+    assert!(recorded.is_intact());
+    assert_eq!(recorded.body.estimate, Some(result.effect()));
+    assert!(recorded.body.standard_error.is_none());
+    assert!(recorded.body.interval_lower.is_none() && recorded.body.interval_upper.is_none());
+
+    let saved = prepared.save_compiled_study(&result, &ctx, None).unwrap();
+    let reopened =
+        compiled_study::open(&saved.bytes, &saved.expected_identity, &|_| None, false).unwrap();
+    assert!(reopened.resumable);
+    assert_eq!(reopened.estimate, recorded.body.estimate);
+}
+
+#[test]
 fn the_plan_names_an_ordinary_contracts_quantities_and_carrier_before_anything_is_fitted() {
     let data = dose_table();
     let study = study(&data, InferenceMode::Frequentist);
