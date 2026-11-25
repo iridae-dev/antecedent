@@ -33,7 +33,8 @@ impl super::super::Study {
         };
         result.stamp_lowered_program(
             physical.require_lowered(crate::analysis::lowering::expected_cell(self))?,
-        );
+            ctx,
+        )?;
         result.executed_input = Some(crate::analysis::target_validation::executed_input_identity(
             &DataInput::Tabular(data.clone()),
             ctx,

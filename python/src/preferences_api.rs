@@ -1885,25 +1885,24 @@ impl PyCompiledPreferenceDecision {
         let measure = measure_opt(measure_json)?;
         let options = options_from(options_json)?;
         let mut held = Vec::with_capacity(results.len());
-        let mut produced = None;
+        let mut first_context = None;
         for result in &results {
             let Some((child, context)) = supplied_response(result)? else {
                 return route_error(supplied_child_missing(), "execute")
                     .map(|refused| (None, Some(refused), None));
             };
-            produced.get_or_insert_with(|| context);
+            first_context.get_or_insert(context);
             held.push(child);
         }
-        let produced = produced.unwrap_or_else(|| {
-            antecedent::prelude::ExecutionContext::production_default(0)
-        });
         let admission = match seed {
             Some(seed) => crate::transport_common::execution_context(seed, memory_bytes, cancel),
-            None => produced.clone(),
+            None => first_context.unwrap_or_else(|| {
+                antecedent::prelude::ExecutionContext::production_default(0)
+            }),
         };
         let compiled = std::sync::Arc::clone(&self.inner);
         crate::detach_catch(py, move || {
-            match compiled.execute_supplied(&held, &produced, measure.as_ref(), options, &admission)
+            match compiled.execute_supplied(&held, &admission, measure.as_ref(), options, &admission)
             {
                 Ok(executed) => {
                     let law = match &executed.source {
@@ -2111,4 +2110,149 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(export_preference_decision, m)?)?;
     m.add_function(wrap_pyfunction!(replay_preference_decision, m)?)?;
     m.add_function(wrap_pyfunction!(table_content_identity, m)?)
+}
+
+#[cfg(test)]
+mod supplied_execution_tests {
+    use antecedent::analysis::preference_decision::OutcomeDependence;
+    use antecedent::graph::{Dag, DenseNodeId};
+    use antecedent::prelude::{CausalQuery, ExecutionContext, TabularData, VariableId};
+    use antecedent::query::{ContinuousDomain, GridSpec, ResponseFunctional, ResponseQuery};
+    use antecedent::scientific::QuantityRole;
+    use antecedent::{RefuteSuite, Study};
+    use pyo3::types::PyList;
+
+    use super::*;
+    use crate::response_api::{NativeResponseAuthority, response_result};
+
+    fn curve(name: &str, slope: f64) -> Study {
+        let t: Vec<_> = (0..80).map(|i| f64::from(i) / 40.0).collect();
+        let y: Vec<_> = t.iter().map(|dose| dose * slope).collect();
+        let data = TabularData::from_f64_columns([("t", t.as_slice()), (name, y.as_slice())])
+            .unwrap();
+        let mut graph = Dag::with_variables(2);
+        graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
+        Study::tabular(data)
+            .graph(graph)
+            .query(CausalQuery::Response(ResponseQuery::new(ResponseFunctional::MeanCurve {
+                outcome: VariableId::from_raw(1),
+                treatment: ContinuousDomain::new(
+                    VariableId::from_raw(0),
+                    GridSpec::Values(Arc::from([0.5, 1.5])),
+                ),
+            })))
+            .refute(RefuteSuite::None)
+            .bootstrap_replicates(0)
+            .build()
+            .unwrap()
+    }
+
+    #[test]
+    fn python_list_checks_the_execution_of_its_second_child() {
+        std::thread::Builder::new()
+            .stack_size(32 * 1024 * 1024)
+            .spawn(|| {
+                let ctx = ExecutionContext::for_tests(11);
+                let other = ExecutionContext::for_tests(99);
+                let [first, second] = [curve("first", 1.0), curve("second", 2.0)];
+                let action = |name: &str| {
+                    let quantity = ScientificQuantityWire::from(&ScientificQuantity {
+                        variable_id: name.into(),
+                        variable_name: name.into(),
+                        role: QuantityRole::Outcome,
+                        units: "units".into(),
+                        population_id: "target".into(),
+                        regime_id: "do(t=0.5)".into(),
+                        horizon: 0,
+                        functional_id: "mean".into(),
+                        conditioning: vec![],
+                        transform_id: "identity".into(),
+                    });
+                    json!({
+                        "id": name,
+                        "kind": "intervention",
+                        "inputs": [quantity],
+                        "utility": {"input": 0},
+                    })
+                };
+                let declaration = json!({
+                    "version": 1,
+                    "actions": [action("first"), action("second")],
+                    "utility_units": "units",
+                    "criterion": "posterior_expected_utility",
+                    "constraints": [],
+                    "target_population": "target",
+                    "horizon": 0,
+                    "structural_policy": "report_only",
+                });
+                let contract = contract_from_json_refusal(&declaration.to_string()).unwrap();
+                let prepared = [first.prepare(&ctx).unwrap(), second.prepare(&ctx).unwrap()];
+                let compiled = compile_contract_decision_across_prepared_studies(
+                    &[&prepared[0], &prepared[1]],
+                    &contract,
+                    (OutcomeDependence::Undeclared, &[]),
+                    &ctx,
+                )
+                .unwrap();
+                let compiled = Arc::new(compiled);
+
+                Python::initialize();
+                Python::attach(|py| {
+                    let make_child = |index: usize, context: &ExecutionContext| {
+                        let prepared = Arc::new(
+                            compiled.structures()[index].prepared().unwrap().clone(),
+                        );
+                        let result = prepared.estimate_retained(context).unwrap();
+                        let response = result.response().unwrap().clone();
+                        let name = contract.actions[index].id.clone();
+                        let names = [String::from("t"), name.clone()];
+                        let schema = prepared.schema().clone();
+                        let mut child = response_result(
+                            response.clone(),
+                            None,
+                            vec![names[0].clone()],
+                            vec![name],
+                            vec![],
+                            &names,
+                            None,
+                        )
+                        .unwrap();
+                        child.authority = Some(Arc::new(NativeResponseAuthority {
+                            response,
+                            prepared,
+                            schema,
+                            result: Arc::new(result),
+                            context: context.clone(),
+                        }));
+                        Py::new(py, child).unwrap()
+                    };
+                    let route = Py::new(
+                        py,
+                        PyCompiledPreferenceDecision { inner: Arc::clone(&compiled) },
+                    )
+                    .unwrap();
+                    let first = make_child(0, &ctx);
+                    let run = |second| {
+                        let supplied = PyList::new(py, [first.clone_ref(py), second]).unwrap();
+                        route
+                            .bind(py)
+                            .call_method1("execute_supplied", (supplied, py.None(), "{}"))
+                            .unwrap()
+                            .get_item(1)
+                            .unwrap()
+                    };
+
+                    assert!(run(make_child(1, &ctx)).is_none());
+                    let refusal: String = run(make_child(1, &other)).extract().unwrap();
+                    let refusal: serde_json::Value = serde_json::from_str(&refusal).unwrap();
+                    assert_eq!(
+                        refusal["detail"],
+                        antecedent::reason::reason_details::preference_compile::EXECUTED_PROGRAM_MISMATCH,
+                    );
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 }

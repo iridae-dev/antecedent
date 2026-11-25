@@ -232,7 +232,7 @@ impl PreparedStudy {
         } else {
             self.estimate_click(data, shared, &scoped, notes)?
         };
-        result.stamp_lowered_program(self.plan.require_lowered(None)?);
+        result.stamp_lowered_program(self.plan.require_lowered(None)?, ctx)?;
         // Every prepared tabular operation executes on these caller-supplied rows, including
         // retained operations that bypass the ordinary dispatch stamping path. Preserve the
         // engine-owned input identity before any whole-target refuter checks the result.

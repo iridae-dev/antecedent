@@ -315,7 +315,6 @@ pub(super) fn admit_supplied_child(
     plan: Option<&PlanView>,
     snapshot: &str,
     result: &crate::StudyResult,
-    produced: &ExecutionContext,
     admission: &ExecutionContext,
 ) -> Result<Option<SemanticDigest>, PreferenceRouteError> {
     let compiled_program = plan.and_then(PlanView::semantic_identity);
@@ -325,7 +324,7 @@ pub(super) fn admit_supplied_child(
         .map(|contract| contract.identities.data_snapshot.to_hex())
         .unwrap_or_else(|| "none".to_owned());
     let compiled_execution = execution_hex(admission)?;
-    let result_execution = execution_hex(produced)?;
+    let result_execution = digest_hex(result.execution_identity);
     let compiled = supplied_child_identity(&digest_hex(compiled_program), snapshot, &compiled_execution);
     let supplied_identity =
         supplied_child_identity(&digest_hex(result_program), &result_snapshot, &result_execution);
@@ -1443,7 +1442,8 @@ impl CompiledPreferenceDecision {
     ///
     /// One result per child that would have been estimated, in that order. A result is
     /// consumed when its lowered program, data snapshot and execution identity match the
-    /// compiled child under `produced` and `ctx`. A mismatch is
+    /// compiled child under `ctx`. The legacy producing-context argument is ignored because
+    /// the result carries its own execution identity. A mismatch is
     /// `preference_compile.executed_program_mismatch` and the number is not adopted.
     ///
     /// # Errors
@@ -1458,6 +1458,7 @@ impl CompiledPreferenceDecision {
         options: PreferenceEvaluationOptions,
         ctx: &ExecutionContext,
     ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
+        let _ = produced;
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: CANCELLED_STAGE }.into());
         }
@@ -1473,10 +1474,10 @@ impl CompiledPreferenceDecision {
                     measure,
                     options,
                     ctx,
-                    Some((supplied, produced)),
+                    Some(supplied),
                 ),
             Sources::Studies { studies, structures, posterior: false, .. } => {
-                self.execute_studies_supplied(studies, structures, supplied, produced, measure, options, ctx)
+                self.execute_studies_supplied(studies, structures, supplied, measure, options, ctx)
             }
             Sources::Design(design) => {
                 if supplied.len() != 1 {
@@ -1555,7 +1556,6 @@ impl CompiledPreferenceDecision {
         studies: &[BoundStudy],
         structures: &[CompiledStructure],
         supplied: &[crate::StudyResult],
-        produced: &ExecutionContext,
         measure: Option<&PreferenceMeasure>,
         options: PreferenceEvaluationOptions,
         ctx: &ExecutionContext,
@@ -1578,7 +1578,6 @@ impl CompiledPreferenceDecision {
                 structure.plan.as_ref(),
                 &study.snapshot,
                 result,
-                produced,
                 ctx,
             )?;
             if let Some(plan) = &structure.plan {

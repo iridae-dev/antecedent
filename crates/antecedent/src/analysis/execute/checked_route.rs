@@ -146,7 +146,7 @@ pub(crate) fn finish_family_result(
         .iter()
         .map(|validator| Arc::<str>::from(validator.name()))
         .collect();
-    result.stamp_lowered_program(lowered);
+    result.stamp_lowered_program(lowered, ctx)?;
     result.executed_input =
         Some(crate::analysis::target_validation::executed_input_identity(input, ctx)?);
     crate::analysis::target_validation::stamp_route_refutations(result);

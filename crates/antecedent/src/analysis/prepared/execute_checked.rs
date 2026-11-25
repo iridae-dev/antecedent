@@ -65,7 +65,7 @@ impl PreparedStudy {
     ) -> Result<(), CausalError> {
         result.executed_input =
             Some(crate::analysis::target_validation::executed_input_identity(data, ctx)?);
-        result.stamp_lowered_program(self.plan.require_lowered(None)?);
+        result.stamp_lowered_program(self.plan.require_lowered(None)?, ctx)?;
         crate::analysis::target_validation::stamp_route_refutations(result);
         if let (DataInput::Tabular(tabular), Some(MissingRoute::Static)) =
             (data, MissingRoute::of(&self.study().query, &self.study().data))

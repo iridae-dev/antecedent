@@ -259,12 +259,10 @@ impl CompiledPreferenceDecision {
         measure: Option<&PreferenceMeasure>,
         options: PreferenceEvaluationOptions,
         ctx: &ExecutionContext,
-        supplied: Option<(&[crate::StudyResult], &ExecutionContext)>,
+        supplied: Option<&[crate::StudyResult]>,
     ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
         let study = studies.first().ok_or_else(no_response)?;
-        let supplied_results = supplied.map(|(results, _)| results);
-        let produced = supplied.map(|(_, produced)| produced);
-        if let Some(results) = supplied_results {
+        if let Some(results) = supplied {
             let runners = structures.iter().filter(|structure| structure.runner.is_some()).count();
             if results.len() != runners {
                 return Err(child_count_mismatch(runners, results.len()));
@@ -286,7 +284,7 @@ impl CompiledPreferenceDecision {
                 atoms.push(structural_atom(graph_key, weight, None));
                 continue;
             };
-            let ran = if let (Some(results), Some(produced)) = (supplied_results, produced) {
+            let ran = if let Some(results) = supplied {
                 let result = &results[cursor];
                 cursor += 1;
                 let snapshot = studies
@@ -297,7 +295,6 @@ impl CompiledPreferenceDecision {
                     structure.plan.as_ref(),
                     snapshot,
                     result,
-                    produced,
                     ctx,
                 )?;
                 if let Some(response) = retained_response(result) {

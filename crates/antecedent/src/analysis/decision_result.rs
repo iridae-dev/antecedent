@@ -621,7 +621,7 @@ mod tests {
 
         let other = ExecutionContext::for_tests(99);
         let mismatched = compiled
-            .execute_supplied(std::slice::from_ref(&child), &ctx, None, options, &other)
+            .execute_supplied(std::slice::from_ref(&child), &other, None, options, &other)
             .unwrap_err();
         let refusal = mismatched.refusal().unwrap();
         assert_eq!(refusal.code, antecedent_core::reason_code!("route_not_lowered"));

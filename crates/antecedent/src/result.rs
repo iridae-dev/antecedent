@@ -1225,6 +1225,8 @@ pub struct StudyResult {
     pub(crate) executed_contract: Option<ExecutedContract>,
     /// Identity of the lowered program whose dispatch produced this result.
     pub(crate) lowered_identity: Option<antecedent_core::SemanticDigest>,
+    /// Execution identity captured by the dispatch that produced this result.
+    pub(crate) execution_identity: Option<antecedent_core::SemanticDigest>,
     /// The producing program's scientific data and uncertainty classification.
     /// Dedicated response posteriors need not occupy the scalar posterior slot.
     pub(crate) lowered_quadrant: Option<antecedent_validate::target_native::TargetQuadrant>,
@@ -1366,9 +1368,16 @@ impl StudyResult {
     pub(crate) fn stamp_lowered_program(
         &mut self,
         program: &crate::planner::lowered::LoweredProgram,
-    ) {
+        ctx: &antecedent_core::ExecutionContext,
+    ) -> Result<(), crate::CausalError> {
+        let execution = antecedent_io::execution_digest(
+            &antecedent_io::execution_identity_from_context(ctx),
+        )
+        .map_err(crate::CausalError::rejected)?;
         self.lowered_identity = program.semantic_identity();
         self.lowered_quadrant = Some(program.refutation_quadrant());
+        self.execution_identity = Some(execution);
+        Ok(())
     }
 
     /// Route-native diagnostic records the result carries, in diagnostic order.
