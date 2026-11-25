@@ -540,6 +540,11 @@ fn a_calibration_input_that_is_gone_withdraws_the_law_and_the_decision() {
     let previous_plan = plan(&previous_ids, &previous_ids);
     assert_eq!(requested.revalidation(Stage::Law), Some(Revalidation::Withdrawn));
     assert_eq!(requested.revalidation(Stage::Decision), Some(Revalidation::Withdrawn));
+    // the stage statuses read as withdrawals too, never as recomputations
+    let observed = stage_effects(&requested, &BINDINGS);
+    for key in ["law", "decision"] {
+        assert!(matches!(observed.get(key), Some(ObservedEffect::Withdrawn { .. })), "{key}");
+    }
     // the plan's class is adapted into the claim graph as an observed effect
     let mut effects = BTreeMap::new();
     for (key, stage) in [("law", Stage::Law), ("decision", Stage::Decision)] {

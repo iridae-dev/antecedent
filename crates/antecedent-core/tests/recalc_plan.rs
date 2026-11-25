@@ -10,9 +10,9 @@ use std::collections::BTreeMap;
 use antecedent_core::reason_code::is_registered;
 use antecedent_core::recalc::{
     Boundary, Branch, CalibrationInput, ChangedDependency, CouplingInput, MissingDependency,
-    ProviderStandingInput, RecalcCapabilities, RecalcPlan, RefusalReason, RepresentationInput,
-    RequestSupport, ResumeContext, RetargetSupport, Revalidation, Stage, StageIdentities,
-    StageIdentity, StageStatus,
+    PlannerRule, ProviderStandingInput, RecalcCapabilities, RecalcPlan, RefusalReason,
+    RepresentationInput, RequestSupport, ResumeContext, RetargetSupport, Revalidation, Stage,
+    StageIdentities, StageIdentity, StageStatus,
 };
 
 type Versions = BTreeMap<Stage, String>;
@@ -824,6 +824,70 @@ fn a_calibration_record_that_is_gone_withdraws_what_rested_on_it() {
     // a numerical change of the same record is not a withdrawal
     let changed = run(&prev, &bump(&prev, Stage::Calibration), &supported());
     assert!(with_class(&changed, Revalidation::Withdrawn).is_empty());
+}
+
+#[test]
+fn a_removed_input_withdraws_its_dependents_beside_an_earlier_numerical_change() {
+    // The law reads the scores before the calibration record: a change to the scores
+    // and a calibration record that is gone must still withdraw the law and the decision,
+    // never read the withdrawal as the scores' recomputation.
+    let prev = standing_versions();
+    let mut req = bump(&prev, Stage::ScoreArtifact);
+    req.remove(&Stage::Calibration);
+    let plan = run(&prev, &req, &supported());
+    assert_eq!(
+        plan.status(Stage::Law).map(ToString::to_string).as_deref(),
+        Some("recomputed(upstream:calibration<-calibration:removed)")
+    );
+    assert_eq!(with_class(&plan, Revalidation::Withdrawn), vec!["decision", "law"]);
+    // Without the removal the first change still names the recomputation.
+    let numerical = run(&prev, &bump(&prev, Stage::ScoreArtifact), &supported());
+    assert!(with_class(&numerical, Revalidation::Withdrawn).is_empty());
+}
+
+#[test]
+fn the_first_change_rule_replays_recorded_plans_and_agrees_without_a_removal() {
+    let prev = standing_versions();
+    let mut req = bump(&prev, Stage::ScoreArtifact);
+    req.remove(&Stage::Calibration);
+    let legacy = RecalcPlan::plan_with_rule(
+        &identities(&prev),
+        &identities(&req),
+        &supported(),
+        PlannerRule::FirstChange,
+    );
+    assert_eq!(
+        legacy.status(Stage::Law).map(ToString::to_string).as_deref(),
+        Some("recomputed(upstream:score_artifact<-score_artifact:modified)")
+    );
+    assert!(with_class(&legacy, Revalidation::Withdrawn).is_empty());
+    assert_eq!(
+        RecalcPlan::plan_with_rule(
+            &identities(&prev),
+            &identities(&req),
+            &supported(),
+            PlannerRule::RemovalFirst
+        ),
+        run(&prev, &req, &supported())
+    );
+    // The rules agree on every plan without a removal and on a removal alone.
+    let mut removed = prev.clone();
+    removed.remove(&Stage::Calibration);
+    for requested in [bump(&prev, Stage::ScoreArtifact), bump(&prev, Stage::Utility), removed] {
+        assert_eq!(
+            RecalcPlan::plan_with_rule(
+                &identities(&prev),
+                &identities(&requested),
+                &supported(),
+                PlannerRule::FirstChange
+            ),
+            run(&prev, &requested, &supported())
+        );
+    }
+    assert_eq!(PlannerRule::default(), PlannerRule::RemovalFirst);
+    for rule in [PlannerRule::FirstChange, PlannerRule::RemovalFirst] {
+        assert_eq!(PlannerRule::from_wire(rule.as_str()), Some(rule));
+    }
 }
 
 #[test]

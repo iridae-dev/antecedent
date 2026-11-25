@@ -493,6 +493,40 @@ mod tests {
     }
 
     #[test]
+    fn site_unknown_tiers_are_graph_dependent_never_identified() {
+        let schema = CausalSchemaBuilder::new()
+            .continuous("era")
+            .finish()
+            .continuous("peer")
+            .finish()
+            .continuous("t")
+            .finish()
+            .continuous("y")
+            .finish()
+            .build()
+            .unwrap();
+        let background = TieredBackground::from_named(
+            &schema,
+            &[vec!["era"], vec!["peer", "t"], vec!["y"]],
+            WithinTier::Unknown,
+        )
+        .unwrap();
+        let q =
+            AverageEffectQuery::binary_ate(schema.id_of("t").unwrap(), schema.id_of("y").unwrap());
+        let id = identify_tiered(&background, &q).unwrap();
+        // Two declared orientation scenarios are an envelope, not one identified set: the
+        // status is graph-dependent, never stronger, whatever the per-scenario sets are.
+        assert_eq!(id.status, IdentificationStatus::GraphDependent);
+        assert!(
+            IdentificationStatus::GraphDependent.strength_rank()
+                < IdentificationStatus::IdentifiedUnderPriorRestrictions.strength_rank()
+        );
+        assert!(
+            id.diagnostics.iter().any(|d| d.code.as_ref() == "tiered.unknown.canonical_scenarios")
+        );
+    }
+
+    #[test]
     fn codetermined_certifies_closure() {
         let (schema, background) = bg();
         let q =

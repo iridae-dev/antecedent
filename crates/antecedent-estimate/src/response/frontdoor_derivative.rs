@@ -374,20 +374,7 @@ impl ContinuousResponseEstimator {
         replicates: usize,
     ) -> CausalResponse {
         let (minimum, maximum) = crate::util::range(&stages.first.treatments);
-        let (status_label, region) = match functional {
-            ResponseFunctional::PointDerivative { at, .. } => (
-                if (minimum..=maximum).contains(at) {
-                    SupportStatus::Supported
-                } else {
-                    SupportStatus::OutsideEmpiricalSupport
-                },
-                SupportRegion { minima: Arc::from([*at]), maxima: Arc::from([*at]) },
-            ),
-            _ => (
-                SupportStatus::Supported,
-                SupportRegion { minima: Arc::from([minimum]), maxima: Arc::from([maximum]) },
-            ),
-        };
+        let (status_label, region) = front_door_support(functional, minimum, maximum);
         let warnings = vec![Diagnostic::new(
             "response.front_door_derivative",
             DiagnosticKind::Scientific,
@@ -437,6 +424,40 @@ impl ContinuousResponseEstimator {
     }
 }
 
+/// Support of a front-door derivative over the observed treatment range `[minimum, maximum]`.
+///
+/// A point derivative is supported where its point lies in the observed range and outside
+/// support elsewhere. An observed-law average derivative averages the derivative over the
+/// observed treatment values only, so it is evaluated nowhere outside the observed range and
+/// is supported by construction there. Any other functional (the estimator refuses them
+/// before fitting) is missing evidence, never supported by default.
+fn front_door_support(
+    functional: &ResponseFunctional,
+    minimum: f64,
+    maximum: f64,
+) -> (SupportStatus, SupportRegion) {
+    match functional {
+        ResponseFunctional::PointDerivative { at, .. } => (
+            if (minimum..=maximum).contains(at) {
+                SupportStatus::Supported
+            } else {
+                SupportStatus::OutsideEmpiricalSupport
+            },
+            SupportRegion { minima: Arc::from([*at]), maxima: Arc::from([*at]) },
+        ),
+        ResponseFunctional::AverageDerivative {
+            weighting: DerivativeWeighting::Observed, ..
+        } => (
+            SupportStatus::Supported,
+            SupportRegion { minima: Arc::from([minimum]), maxima: Arc::from([maximum]) },
+        ),
+        _ => (
+            SupportStatus::MissingEvidence,
+            SupportRegion { minima: Arc::from([minimum]), maxima: Arc::from([maximum]) },
+        ),
+    }
+}
+
 /// Row multiplicities of a circular block bootstrap: `ceil(n / block)` blocks of `block`
 /// consecutive rows (wrapping), started uniformly, rescaled so the multiplicities sum to `n`.
 /// A block of one is the independent-row bootstrap.
@@ -482,4 +503,44 @@ fn block_bayesian_weights(
         *weight *= n as f64 / total;
     }
     weights
+}
+
+#[cfg(test)]
+mod tests {
+    use antecedent_core::DerivativeScale;
+
+    use super::*;
+
+    #[test]
+    fn site_front_door_support_labels_only_what_the_observed_range_covers() {
+        let (y, a) = (VariableId::from_raw(1), VariableId::from_raw(0));
+        let point = |at| ResponseFunctional::PointDerivative {
+            outcome: y,
+            treatment: a,
+            at,
+            order: 1,
+            scale: DerivativeScale::Identity,
+        };
+        assert_eq!(front_door_support(&point(0.5), 0.0, 1.0).0, SupportStatus::Supported);
+        assert_eq!(
+            front_door_support(&point(1.5), 0.0, 1.0).0,
+            SupportStatus::OutsideEmpiricalSupport
+        );
+        // The observed-law average is evaluated at observed treatments only.
+        let observed = ResponseFunctional::AverageDerivative {
+            outcome: y,
+            treatment: a,
+            weighting: DerivativeWeighting::Observed,
+        };
+        let (status, region) = front_door_support(&observed, 0.0, 1.0);
+        assert_eq!(status, SupportStatus::Supported);
+        assert_eq!((region.minima[0], region.maxima[0]), (0.0, 1.0));
+        // A weighting the observed range does not cover is never supported by default.
+        let uniform = ResponseFunctional::AverageDerivative {
+            outcome: y,
+            treatment: a,
+            weighting: DerivativeWeighting::Uniform { lower: -5.0, upper: 5.0 },
+        };
+        assert_eq!(front_door_support(&uniform, 0.0, 1.0).0, SupportStatus::MissingEvidence);
+    }
 }

@@ -373,6 +373,11 @@ fn check_contract(
 }
 
 /// One-row exact law of the surface quantities at a grid point under one scenario.
+///
+/// The law is exact for the scenario the caller declared (an assumption, not a measurement:
+/// its provider stays unverified), and its support is the surface's own label at the point,
+/// stated on every coordinate rather than left to the absent-mask convention: only a point
+/// the producer evaluated and supports reads as supported.
 fn scenario_law(
     artifact: &SensitivityArtifact,
     columns: &[ScientificQuantity],
@@ -393,6 +398,7 @@ fn scenario_law(
         provenance,
     )
     .map_err(|error| from_io(&error))?;
+    let supported = artifact.support()[point] == PointSupport::Supported;
     DistributionArtifact::new(
         DistributionMetadata {
             version: 1,
@@ -400,7 +406,7 @@ fn scenario_law(
             axes: ["draw".into(), "quantity".into()],
             shape: [1, columns.len()],
             weights: None,
-            supported: None,
+            supported: Some(vec![supported; columns.len()]),
             calibration: DistributionCalibration::Exact,
             trust: DistributionTrust::Unverified,
             legacy_posterior: None,
@@ -579,4 +585,96 @@ pub fn evaluate_sensitivity_decision(
         sampling: sampling_report(artifact, &points),
         interpretation: SENSITIVITY_DECISION_INTERPRETATION,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use antecedent_contract::QuantityRole;
+    use antecedent_io_core::quantity_wire::ScientificQuantityWire;
+
+    fn quantity(name: &str) -> ScientificQuantity {
+        ScientificQuantity {
+            variable_id: name.into(),
+            variable_name: name.into(),
+            role: QuantityRole::Outcome,
+            units: "utils".into(),
+            population_id: "target".into(),
+            regime_id: "do(a=1)".into(),
+            horizon: 0,
+            functional_id: "sensitivity_surface".into(),
+            conditioning: vec![],
+            transform_id: "identity".into(),
+        }
+    }
+
+    fn surface(name: &str, values: &[f64]) -> SurfaceQuantity {
+        SurfaceQuantity {
+            quantity: ScientificQuantityWire::from(&quantity(name)),
+            lower: values.to_vec(),
+            upper: values.to_vec(),
+        }
+    }
+
+    fn artifact(support: Vec<PointSupport>) -> SensitivityArtifact {
+        SensitivityArtifact::new(SensitivityParts {
+            coordinate: AssumptionCoordinate {
+                id: "gamma".into(),
+                scale: "sensitivity_parameter".into(),
+                units: "dimensionless".into(),
+                minimum: 0.0,
+                maximum: 2.0,
+            },
+            grid: vec![0.0, 1.0, 2.0],
+            support,
+            quantities: vec![surface("ua", &[2.0, 1.0, 0.0]), surface("ub", &[1.0, 1.0, 1.0])],
+            actions: vec![
+                ActionUtility { id: "A".into(), utility: UtilityTerm::quantity("ua") },
+                ActionUtility { id: "B".into(), utility: UtilityTerm::quantity("ub") },
+            ],
+            uncertainty: UncertaintyRelationship {
+                assumption_range: AssumptionRangeStatement {
+                    kind: "assumption_range".into(),
+                    interpretation: "assumption range; not a probability".into(),
+                },
+                identified_bound: None,
+                sampling: SamplingStatus::Withheld {
+                    reason_code: "uncertainty_representation_insufficient".into(),
+                    detail: antecedent_core::reason_details::joint_sensitivity::NO_INTERVAL_METHOD
+                        .into(),
+                },
+            },
+            provenance: SensitivityProvenance {
+                source_kind: "supplied_surface".into(),
+                query_binding: "sensitivity-test".into(),
+                provider_snapshot: "snapshot-1".into(),
+                source_regime: "regime:1".into(),
+                method: "hand-derived surface".into(),
+                causal_contract_id: "checked-contract".into(),
+                decision_threshold: None,
+                source_tipping: vec![],
+            },
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn site_scenario_law_states_the_point_support_and_never_claims_more() {
+        let artifact = artifact(vec![
+            PointSupport::Supported,
+            PointSupport::Unsupported,
+            PointSupport::Unevaluated,
+        ]);
+        let columns = vec![quantity("ua"), quantity("ub")];
+        let law = |point| scenario_law(&artifact, &columns, point, 0).unwrap();
+        // A supported point states every coordinate supported, explicitly.
+        assert_eq!(law(0).metadata().supported.as_deref(), Some(&[true, true][..]));
+        // Any other point states none supported: the absent-mask convention never applies.
+        for point in [1, 2] {
+            assert_eq!(law(point).metadata().supported.as_deref(), Some(&[false, false][..]));
+        }
+        // The scenario is the caller's assumption: exact for it, never a verified provider.
+        assert_eq!(law(0).metadata().trust, DistributionTrust::Unverified);
+        assert_eq!(law(0).metadata().calibration, DistributionCalibration::Exact);
+    }
 }

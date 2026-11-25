@@ -566,6 +566,20 @@ mod tests {
         assert!(open_provider_envelope(&bytes).is_err());
         let inspected = inspect_provider_envelope(&bytes).unwrap();
         assert_eq!(inspected.header.trust, ExternalProviderTrust::VerifiedExtension);
+        // The declared label is credited only against the host's own evidence.
+        assert!(
+            open_verified_provider_envelope(
+                &bytes,
+                &"a".repeat(64),
+                &"b".repeat(64),
+                &"d".repeat(64)
+            )
+            .is_err()
+        );
+        assert!(
+            open_verified_provider_envelope(&bytes, &"e".repeat(64), &"b".repeat(64), &evidence)
+                .is_err()
+        );
         let opened =
             open_verified_provider_envelope(&bytes, &"a".repeat(64), &"b".repeat(64), &evidence)
                 .unwrap();

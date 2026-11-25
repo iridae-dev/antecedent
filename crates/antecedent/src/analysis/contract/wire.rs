@@ -759,3 +759,20 @@ pub(super) fn structural_response_wire(
         truncated_atoms: u64::try_from(mixture.truncated_atoms).unwrap_or(u64::MAX),
     })
 }
+
+#[cfg(test)]
+mod calibration_gate_tests {
+    use super::reports_calibrated_effect_interval;
+    use crate::result::ResultPayload;
+
+    /// The gate only chooses whether a basis is computed: a scalar effect reports one, and a
+    /// family that reports no calibrated scalar interval gets the slot of no basis, which is
+    /// never calibrated, so a closed gate can only lower the calibration standing.
+    #[test]
+    fn site_a_closed_calibration_gate_never_calibrates() {
+        assert!(reports_calibrated_effect_interval(&ResultPayload::Scalar));
+        let closed = antecedent_io::calibration::calibration_slots(&[]);
+        assert_eq!(closed.status, antecedent_io::CalibrationStatus::NotMeasured);
+        assert_eq!(closed.record_id, None);
+    }
+}

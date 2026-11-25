@@ -479,7 +479,16 @@ fn class_curve_diagnostics(
 }
 
 fn support_report(response: &CausalResponse, published: &[f64]) -> RefutationReport {
-    let supported = matches!(response.support.status, antecedent_core::SupportStatus::Supported);
+    support_report_of(response.support.status, published)
+}
+
+/// The support refutation of a curve whose support summary is `status`: it passes only on a
+/// supported grid, and every other summary, missing evidence included, fails with its name.
+fn support_report_of(
+    status: antecedent_core::SupportStatus,
+    published: &[f64],
+) -> RefutationReport {
+    let supported = matches!(status, antecedent_core::SupportStatus::Supported);
     let sup = published.iter().fold(0.0_f64, |acc, value| acc.max(value.abs()));
     RefutationReport::new(
         "curve.support",
@@ -492,7 +501,7 @@ fn support_report(response: &CausalResponse, published: &[f64]) -> RefutationRep
             Arc::from(format!(
                 "the curve's support report is {:?}: part of the grid is not on observed \
                  treatment support",
-                response.support.status
+                status
             ))
         }),
         0,
@@ -1043,6 +1052,30 @@ mod tests {
     use antecedent_data::{TableView, TabularData, TimeSeriesData};
 
     const GRID: usize = 5;
+
+    #[test]
+    fn site_the_support_refutation_passes_only_a_supported_grid() {
+        use antecedent_core::SupportStatus;
+        let published = [0.5, -2.0, 1.0];
+        let pass = super::support_report_of(SupportStatus::Supported, &published);
+        assert!(pass.passed);
+        assert!(pass.failure_condition.is_none());
+        assert!((pass.original_ate - 2.0).abs() < 1e-15);
+        // Every weaker summary fails and names itself; missing evidence is never read as
+        // support.
+        for status in [
+            SupportStatus::WeakOverlap,
+            SupportStatus::Extrapolative,
+            SupportStatus::OutsideEmpiricalSupport,
+            SupportStatus::MissingEvidence,
+        ] {
+            let report = super::support_report_of(status, &published);
+            assert!(!report.passed, "{status:?}");
+            assert!((report.comparison - 1.0).abs() < 1e-15);
+            let failure = report.failure_condition.expect("a failure names the summary");
+            assert!(failure.contains(&format!("{status:?}")), "{failure}");
+        }
+    }
 
     /// 200 rows: `t`, `y`, `z` and a stale copy `t_stale` of the treatment.
     fn table() -> TabularData {

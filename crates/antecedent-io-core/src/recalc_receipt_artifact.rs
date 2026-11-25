@@ -18,6 +18,13 @@
 //! retained the receipt identity independently refuses a consistently resealed receipt of
 //! another run as well.
 //!
+//! The plan is recomputed under the planner rule the receipt was sealed with, named by its
+//! version word: version 1 replays under [`PlannerRule::FirstChange`], version 2 under
+//! [`PlannerRule::RemovalFirst`]. The two rules agree unless a removed input sits beside an
+//! earlier change, so a new receipt is written as version 1, byte for byte as before, whenever
+//! they agree, and as version 2 only when the removal-first rule changes the table. Receipts
+//! recorded before the removal-first rule keep their identity and still replay.
+//!
 //! A loaded receipt never claims reuse in a fresh process: a derived stage stored as `reused`
 //! under a fresh-process boundary is refused before the plan is compared, because a loaded
 //! result recreates no prepared study, score table or fit. The artifact decides and records;
@@ -29,13 +36,28 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use antecedent_core::recalc::{
-    Boundary, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext, RetargetSupport,
-    Stage, StageIdentities, StageIdentity, StageStatus,
+    Boundary, PlannerRule, RecalcCapabilities, RecalcPlan, RequestSupport, ResumeContext,
+    RetargetSupport, Stage, StageIdentities, StageIdentity, StageStatus,
 };
 use serde::{Deserialize, Serialize};
 
-/// The artifact major version this reader writes and accepts.
+/// The artifact major version this reader writes and accepts for a receipt whose table is the
+/// same under every planner rule; such a receipt replays under [`PlannerRule::FirstChange`],
+/// as every receipt recorded before the removal-first rule does.
 pub const RECALC_RECEIPT_ARTIFACT_VERSION: u16 = 1;
+/// The version of a receipt whose table the removal-first rule changed: a removed input sat
+/// beside an earlier change. It replays under [`PlannerRule::RemovalFirst`].
+pub const RECALC_RECEIPT_REMOVAL_FIRST_VERSION: u16 = 2;
+
+/// The planner rule a receipt of `version` was sealed with, when this reader knows it.
+#[must_use]
+pub const fn planner_rule_of_version(version: u16) -> Option<PlannerRule> {
+    match version {
+        RECALC_RECEIPT_ARTIFACT_VERSION => Some(PlannerRule::FirstChange),
+        RECALC_RECEIPT_REMOVAL_FIRST_VERSION => Some(PlannerRule::RemovalFirst),
+        _ => None,
+    }
+}
 /// The feature marker of the accepted format.
 pub const RECALC_RECEIPT_ARTIFACT_FEATURE: &str = "recalc_receipt_v1";
 /// Most bytes a receipt artifact may occupy, enforced on export and on consumption.
@@ -717,9 +739,9 @@ fn check(
     mut meta: RecalcReceiptMeta,
     expected_identity: Option<&str>,
 ) -> Result<RecalcReceiptArtifact, RecalcReceiptArtifactError> {
-    if meta.version != RECALC_RECEIPT_ARTIFACT_VERSION {
+    let Some(rule) = planner_rule_of_version(meta.version) else {
         return Err(RecalcReceiptArtifactError::UnsupportedVersion { version: meta.version });
-    }
+    };
     crate::artifact_codec::require_semantics::<RecalcReceiptArtifactError>(
         meta.feature == RECALC_RECEIPT_ARTIFACT_FEATURE,
         "feature marker",
@@ -733,7 +755,7 @@ fn check(
     // A loaded receipt recreates no prepared study, score table or fit: it never claims reuse
     // of a derived stage in a fresh process, whatever else it says.
     refuse_fresh_reuse(&meta, &capabilities)?;
-    let plan = RecalcPlan::plan(&previous, &requested, &capabilities);
+    let plan = RecalcPlan::plan_with_rule(&previous, &requested, &capabilities, rule);
 
     let mut by_stage: BTreeMap<Stage, &ReceiptEntryWire> = BTreeMap::new();
     for entry in &meta.entries {
@@ -843,15 +865,15 @@ fn decode_parts_within(
     bytes: &[u8],
     max_bytes: usize,
 ) -> Result<RecalcReceiptMeta, RecalcReceiptArtifactError> {
-    crate::artifact_codec::decode_sectioned(
+    crate::artifact_codec::decode_sectioned_layouts(
         ARTIFACT_KIND,
         max_bytes,
         META_SECTION,
-        &[],
-        RECALC_RECEIPT_ARTIFACT_VERSION,
+        &[&[]],
+        |version| planner_rule_of_version(version).is_some(),
         bytes,
     )
-    .map(|(meta, _)| meta)
+    .map(|(meta, _, _)| meta)
 }
 
 /// A produced or consumed selective-recalculation receipt: the stored table and the plan
@@ -879,6 +901,19 @@ impl RecalcReceiptArtifact {
         counts: &BTreeMap<Stage, CountsWire>,
     ) -> Result<Self, RecalcReceiptArtifactError> {
         let plan = RecalcPlan::plan(previous, requested, capabilities);
+        // Version 1 whenever the legacy rule gives the same table, so such a receipt is
+        // byte-identical to one sealed before the removal-first rule.
+        let version = if plan
+            == RecalcPlan::plan_with_rule(
+                previous,
+                requested,
+                capabilities,
+                PlannerRule::FirstChange,
+            ) {
+            RECALC_RECEIPT_ARTIFACT_VERSION
+        } else {
+            RECALC_RECEIPT_REMOVAL_FIRST_VERSION
+        };
         let mut totals = CountsWire::default();
         let entries: Vec<ReceiptEntryWire> = plan
             .entries()
@@ -899,7 +934,7 @@ impl RecalcReceiptArtifact {
             .collect();
         let receipt_identity = compute_receipt_identity(&entries)?.to_hex();
         let meta = RecalcReceiptMeta {
-            version: RECALC_RECEIPT_ARTIFACT_VERSION,
+            version,
             feature: RECALC_RECEIPT_ARTIFACT_FEATURE.to_owned(),
             capabilities: CapabilitiesWire::from_capabilities(capabilities),
             previous: identities_to_wire(previous),

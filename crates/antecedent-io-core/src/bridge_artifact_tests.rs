@@ -495,6 +495,36 @@ fn a_bridge_of_draws_is_replayed_bit_for_bit_from_its_stored_table() {
 }
 
 #[test]
+fn a_draws_source_recorded_as_evaluated_under_the_earlier_rule_still_replays() {
+    let bridged = bridged_draws(5);
+    let (_, meta, source_bytes) = ScientificBridgeDrawsArtifact::seal(&bridged).expect("seal");
+    // A newly sealed bridge records the table as stating no evaluated domain.
+    assert_eq!(meta.source.evaluated, "unknown");
+    // An artifact sealed before records it as evaluated, and replays under that rule; the
+    // consumer still receives the rebuilt source, whose evaluated status is unknown.
+    let mut legacy = meta.clone();
+    legacy.source.evaluated = "evaluated".to_owned();
+    let consumed =
+        ScientificBridgeDrawsArtifact::from_meta(&reseal_draws(legacy), &source_bytes, None)
+            .expect("an earlier artifact replays");
+    assert_eq!(
+        consumed.bridged().source_envelope().domains.evaluated,
+        antecedent_contract::DomainStatus::Unknown
+    );
+    assert_eq!(
+        consumed.bridged().envelope().domains.evaluated,
+        antecedent_contract::DomainStatus::Unknown
+    );
+    // No other stored status replays.
+    let mut raised = meta;
+    raised.source.evaluated = "identified".to_owned();
+    assert!(matches!(
+        ScientificBridgeDrawsArtifact::from_meta(&reseal_draws(raised), &source_bytes, None),
+        Err(ScientificBridgeArtifactError::ReplayMismatch("source draws summary"))
+    ));
+}
+
+#[test]
 fn a_caller_byte_bound_and_draw_limits_refuse_what_the_defaults_admit() {
     let bridged = bridged_draws(5);
     let bytes = ScientificBridgeDrawsArtifact::to_bytes(&bridged, "draws-bridge").expect("bytes");

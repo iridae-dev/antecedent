@@ -38,7 +38,8 @@ use antecedent_design::decision_transported_source::{
 use antecedent_design::inverse_forward_source::{
     ComposedActionResponse, ComposedFamily, ComposedResponse, DETAIL_COMPOSED_LAW,
     DETAIL_COMPOSED_LEVELS, DETAIL_INTERVAL, DETAIL_POINT_ONLY_LAW,
-    DETAIL_TRANSPORTED_NOT_ACCEPTED, ForwardRepresentation, ForwardSourceKind,
+    DETAIL_TRANSPORTED_NOT_ACCEPTED, FORWARD_ORIGIN_VERSION,
+    FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION, ForwardRepresentation, ForwardSourceKind,
     ForwardSourceRefusal, InverseDemand, cohort_forward_source, composed_forward_source,
     composed_forward_source_accepting, evaluate_inverse_on_source, forward_claim_digest,
     seal_on_source, seal_per_action_on_source, transported_forward_source,
@@ -928,7 +929,25 @@ fn a_composition_with_carried_mechanisms_is_not_native_target_data() {
     // it have another identity.
     let native = composed_forward_source(&gaussian_response([1.0, 2.5, 4.0])).unwrap();
     assert_ne!(native.origin().canonical_identity(), forward.origin().canonical_identity());
-    assert_eq!(native.origin().support, "supported");
+    // A composition of native mechanisms assessed no support at its actions: it is
+    // missing evidence there, never supported by default, under its own origin version.
+    assert_eq!(native.origin().support, "missing_evidence");
+    assert_eq!(native.origin().version, FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION);
+    assert!(native.origin().validate().is_ok());
+    // An origin recorded under version 1 still validates and keeps its identity, and the
+    // new version refuses a native composition that says it is supported.
+    let mut legacy = native.origin().clone();
+    legacy.version = FORWARD_ORIGIN_VERSION;
+    legacy.support = "supported".to_owned();
+    assert!(legacy.validate().is_ok());
+    assert_ne!(legacy.canonical_identity(), native.origin().canonical_identity());
+    let mut inflated = native.origin().clone();
+    inflated.support = "supported".to_owned();
+    assert!(inflated.validate().is_err());
+    // The native-composition version is not available to any other origin.
+    let mut misplaced = forward.origin().clone();
+    misplaced.version = FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION;
+    assert!(misplaced.validate().is_err());
 }
 
 #[test]

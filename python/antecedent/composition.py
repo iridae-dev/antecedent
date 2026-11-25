@@ -283,7 +283,10 @@ class DecisionInput:
 
         The artifact's ``trust`` and ``calibration`` are claims, not evidence: the
         provider kind comes from ``evidence`` only. Coordinate support is the
-        artifact's mask (absent: every coordinate supported). ``requirement``
+        artifact's mask. A coordinate the mask does not state (an artifact with no
+        mask) is supported only when a native execution record backs the law; from
+        any other provider it is ``missing_evidence``, never supported by default.
+        ``requirement``
         ``"native"`` refuses an artifact that merely says it is native.
         """
         from .outcomes import require_success

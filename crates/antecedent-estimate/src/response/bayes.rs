@@ -201,6 +201,28 @@ struct BayesianSupportRequest<'a> {
     scalar: bool,
 }
 
+/// Lower a report to at most extrapolative where the per-treatment or mean-only assessment
+/// cannot certify support: a coordinate already labelled worse (outside the observed range,
+/// missing evidence) keeps its label, so the summary stays the worst label and is never
+/// raised to extrapolative.
+fn weaken_to_extrapolative(support: &mut SupportReport, per_grid: bool, points: usize) {
+    let weaker = |status: SupportStatus| {
+        if status.severity() < SupportStatus::Extrapolative.severity() {
+            SupportStatus::Extrapolative
+        } else {
+            status
+        }
+    };
+    support.status = weaker(support.status);
+    support.point_status = per_grid.then(|| {
+        let labels: Vec<SupportStatus> = match support.point_status.as_deref() {
+            Some(labels) if labels.len() == points => labels.iter().copied().map(weaker).collect(),
+            _ => vec![support.status; points],
+        };
+        labels.into()
+    });
+}
+
 fn bayesian_response_support(request: &BayesianSupportRequest<'_>) -> SupportReport {
     let sample = request.sample;
     let support_points = request.points;
@@ -233,9 +255,7 @@ fn bayesian_response_support(request: &BayesianSupportRequest<'_>) -> SupportRep
         support.point_status = None;
     }
     if request.treatment_count > 1 {
-        support.status = SupportStatus::Extrapolative;
-        support.point_status =
-            per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
+        weaken_to_extrapolative(&mut support, per_grid, support_points.len());
         support.query_region = SupportRegion {
             minima: (0..request.treatment_count)
                 .map(|i| sample.treatment_column_range(i).0)
@@ -250,9 +270,7 @@ fn bayesian_response_support(request: &BayesianSupportRequest<'_>) -> SupportRep
         ));
     }
     if request.stochastic {
-        support.status = SupportStatus::Extrapolative;
-        support.point_status =
-            per_grid.then(|| vec![SupportStatus::Extrapolative; support_points.len()].into());
+        weaken_to_extrapolative(&mut support, per_grid, support_points.len());
         support.warnings.push(Diagnostic::new(
             "response.stochastic_policy_support_unverified", DiagnosticKind::Support, DiagnosticSeverity::Warning,
             "the Gaussian additive model integrates stochastic policies by their exact means; local support at the mean does not certify support over the policy distribution; intervals describe the policy mean, not a predictive draw",
@@ -1359,6 +1377,45 @@ struct DerivativeDraw {
     vector: Vec<f64>,
     /// Effective degrees of freedom of each sample's GAM fit.
     edf: Vec<f64>,
+}
+
+#[cfg(test)]
+mod support_site_tests {
+    use super::*;
+
+    fn report(status: SupportStatus, labels: Option<Vec<SupportStatus>>) -> SupportReport {
+        SupportReport {
+            status,
+            query_region: SupportRegion { minima: Arc::from([0.0]), maxima: Arc::from([1.0]) },
+            diagnostics: Vec::new(),
+            warnings: Vec::new(),
+            point_status: labels.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn site_bayesian_support_is_weakened_never_raised() {
+        use SupportStatus::{Extrapolative, OutsideEmpiricalSupport, Supported, WeakOverlap};
+        // A supported or weakly overlapping grid becomes extrapolative.
+        let mut mild = report(WeakOverlap, Some(vec![Supported, WeakOverlap]));
+        weaken_to_extrapolative(&mut mild, true, 2);
+        assert_eq!(mild.status, Extrapolative);
+        assert_eq!(mild.point_status.as_deref(), Some(&[Extrapolative, Extrapolative][..]));
+        // A coordinate outside the observed range keeps its label and the summary stays worst.
+        let mut outside =
+            report(OutsideEmpiricalSupport, Some(vec![Supported, OutsideEmpiricalSupport]));
+        weaken_to_extrapolative(&mut outside, true, 2);
+        assert_eq!(outside.status, OutsideEmpiricalSupport);
+        assert_eq!(
+            outside.point_status.as_deref(),
+            Some(&[Extrapolative, OutsideEmpiricalSupport][..])
+        );
+        // Without per-grid evidence no per-point label is published.
+        let mut scalar = report(Supported, None);
+        weaken_to_extrapolative(&mut scalar, false, 3);
+        assert_eq!(scalar.status, Extrapolative);
+        assert!(scalar.point_status.is_none());
+    }
 }
 
 #[cfg(test)]

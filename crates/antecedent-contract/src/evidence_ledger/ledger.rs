@@ -325,9 +325,62 @@ impl EvidenceLedger {
     /// support, provider trust, calibration or coupling. Bind it to a claim
     /// node with `composition_verification::ledger_effects` and read the class
     /// from `revalidate`.
+    ///
+    /// Between a combination that replaces a result and the next reclassification, the
+    /// stored statuses of the results resting on the replaced one are not yet updated; this
+    /// reads the class the pending reclassification gives them, never the stale valid one.
     #[must_use]
     pub fn standing(&self, id: ResultId) -> Option<Revalidation> {
-        self.result(id).map(|r| r.status.revalidation())
+        self.result_index.get(&id).map(|&index| self.effective_class(index))
+    }
+
+    /// The class of the result at `index` after any pending reclassification: its stored
+    /// class when the standings are current, otherwise the class
+    /// [`Self::reclassify`] would give it, computed without changing the ledger.
+    fn effective_class(&self, index: usize) -> Revalidation {
+        let record = &self.results[index];
+        let current = record.status.revalidation();
+        if !self.standings_stale
+            || matches!(
+                record.status,
+                ResultStatus::Withdrawn { .. } | ResultStatus::Replaced { .. }
+            )
+        {
+            return current;
+        }
+        let class = match &record.operation {
+            SynthesisOperation::EvidenceReuse { of } => match self.result_index.get(of) {
+                // A parent is registered before its reuse, so this walk ends.
+                Some(&parent) if parent < index => match self.results[parent].status {
+                    ResultStatus::Replaced { .. } => Revalidation::Recompute,
+                    _ => self.effective_class(parent),
+                },
+                _ => Revalidation::Withdrawn,
+            },
+            operation => self.source_loss_class(operation),
+        };
+        match status_step(class, current) {
+            StatusStep::Withdraw => Revalidation::Withdrawn,
+            StatusStep::NeedRecompute => Revalidation::Recompute,
+            StatusStep::Keep => current,
+        }
+    }
+
+    /// The status of a result after any pending reclassification (see [`Self::standing`]);
+    /// a status the pending reclassification would change is attributed to the head
+    /// operation, which left it pending.
+    #[must_use]
+    pub fn effective_status(&self, id: ResultId) -> Option<ResultStatus> {
+        let &index = self.result_index.get(&id)?;
+        let stored = &self.results[index].status;
+        let class = self.effective_class(index);
+        Some(if class == stored.revalidation() {
+            stored.clone()
+        } else if class == Revalidation::Withdrawn {
+            ResultStatus::Withdrawn { cause: self.head }
+        } else {
+            ResultStatus::NeedsRecompute { cause: self.head }
+        })
     }
 
     // -- overlap queries ----------------------------------------------------------------
@@ -1207,13 +1260,16 @@ impl EvidenceLedger {
         let record = self.result(id).ok_or_else(|| {
             invalid!("evidence_ledger.unknown_result", "result {id} is not in the ledger")
         })?;
-        if record.status == ResultStatus::Valid {
+        // The class after any pending reclassification: a reuse of a result a combination
+        // just replaced is not valid even before the standings are walked.
+        let class = self.standing(id).unwrap_or(Revalidation::Withdrawn);
+        if record.status == ResultStatus::Valid && class == Revalidation::StillValid {
             Ok(record)
         } else {
             Err(retired!(
                 "evidence_ledger.result_not_valid",
                 "result {id} is {}: its evidence changed after it was registered",
-                record.status.revalidation().as_str()
+                class.as_str()
             ))
         }
     }
@@ -1340,7 +1396,11 @@ impl EvidenceLedger {
         let mut out: Vec<ResultRevalidation> = self
             .results
             .iter()
-            .map(|r| ResultRevalidation { result: r.id, class: r.status.revalidation() })
+            .enumerate()
+            .map(|(index, r)| ResultRevalidation {
+                result: r.id,
+                class: self.effective_class(index),
+            })
             .collect();
         out.sort_by_key(|r| r.result);
         out

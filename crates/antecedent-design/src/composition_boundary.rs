@@ -357,21 +357,34 @@ fn gate(
     }
 }
 
+/// The calibration an input stands on. A provider that only attests its output (or proves
+/// nothing) backs neither an `exact` claim nor a `measured` one: the exact claim is kept as
+/// `ExactClaimUnverified`, and a measured claim, whose coverage record nobody here verified,
+/// is not measured. A native or exact-request-verified provider keeps its label.
 const fn calibration_status(
     claimed: DistributionCalibration,
     kind: ProviderKind,
 ) -> CalibrationStatus {
+    let unproven = matches!(kind, ProviderKind::ExternalAttested);
     match claimed {
-        DistributionCalibration::Exact => {
-            if matches!(kind, ProviderKind::ExternalAttested) {
-                CalibrationStatus::ExactClaimUnverified
-            } else {
-                CalibrationStatus::Exact
-            }
-        }
+        DistributionCalibration::Exact if unproven => CalibrationStatus::ExactClaimUnverified,
+        DistributionCalibration::Exact => CalibrationStatus::Exact,
         DistributionCalibration::PointOnly => CalibrationStatus::PointOnly,
+        DistributionCalibration::Measured if unproven => CalibrationStatus::NotMeasured,
         DistributionCalibration::Measured => CalibrationStatus::Measured,
         DistributionCalibration::NotMeasured => CalibrationStatus::NotMeasured,
+    }
+}
+
+/// Support of an artifact coordinate the artifact's mask does not state. The io-core
+/// convention reads an absent mask as "every coordinate supported", which is the producer's
+/// statement: it is evidence only when Antecedent itself produced the law (a matching native
+/// execution record). From any other provider an unstated coordinate is missing evidence.
+const fn unstated_support(kind: ProviderKind) -> SupportStatus {
+    if matches!(kind, ProviderKind::Native) {
+        SupportStatus::Supported
+    } else {
+        SupportStatus::MissingEvidence
     }
 }
 
@@ -472,8 +485,11 @@ impl DecisionInput {
     /// attestation, or an exact-request verification receipt for the same
     /// provider and snapshot. An artifact labelled native or exact without that
     /// evidence is stored as `Unverified` with a `not_measured` calibration and its
-    /// `exact` claim is not used. Coordinate support comes from the artifact's
-    /// mask; an absent mask means every coordinate is supported.
+    /// `exact` claim is not used; a `measured` label from a provider that only attests
+    /// is stored as `not_measured`. Coordinate support comes from the artifact's mask.
+    /// A coordinate the mask does not state (an absent mask) is supported only when a
+    /// native execution record backs the law; from any other provider it is missing
+    /// evidence, never supported by default.
     ///
     /// # Errors
     /// A blank id, an invalid coordinate, `MetadataOnlyNativeClaim` or
@@ -486,6 +502,39 @@ impl DecisionInput {
         artifact: &DistributionArtifact,
         evidence: &TrustEvidence,
         requirement: TrustRequirement,
+    ) -> Result<Self, BoundaryError> {
+        Self::from_distribution_artifact_reading(id, artifact, evidence, requirement, None)
+    }
+
+    /// [`Self::from_distribution_artifact`] when the caller holds evidence for the
+    /// coordinates the artifact's mask does not state: `unstated` is their status (a
+    /// transport receipt's label, for a law carried across populations). A coordinate
+    /// the mask marks unsupported stays outside empirical support whatever `unstated` says.
+    ///
+    /// # Errors
+    /// As [`Self::from_distribution_artifact`].
+    pub fn from_distribution_artifact_with_unstated_support(
+        id: &str,
+        artifact: &DistributionArtifact,
+        evidence: &TrustEvidence,
+        requirement: TrustRequirement,
+        unstated: SupportStatus,
+    ) -> Result<Self, BoundaryError> {
+        Self::from_distribution_artifact_reading(
+            id,
+            artifact,
+            evidence,
+            requirement,
+            Some(unstated),
+        )
+    }
+
+    fn from_distribution_artifact_reading(
+        id: &str,
+        artifact: &DistributionArtifact,
+        evidence: &TrustEvidence,
+        requirement: TrustRequirement,
+        unstated: Option<SupportStatus>,
     ) -> Result<Self, BoundaryError> {
         check_id(id)?;
         let meta = artifact.metadata();
@@ -501,17 +550,20 @@ impl DecisionInput {
             );
         }
         let mask = meta.supported.as_deref();
+        let unstated = unstated.unwrap_or_else(|| unstated_support(resolved.kind));
         let statuses: Vec<SupportStatus> = (0..coordinates.len())
-            .map(|index| {
-                if mask.and_then(|m| m.get(index)).copied().unwrap_or(true) {
-                    SupportStatus::Supported
-                } else {
-                    SupportStatus::OutsideEmpiricalSupport
-                }
+            .map(|index| match mask.and_then(|m| m.get(index)).copied() {
+                Some(true) => SupportStatus::Supported,
+                Some(false) => SupportStatus::OutsideEmpiricalSupport,
+                None => unstated,
             })
             .collect();
         let support = SupportMap::new(&coordinates, &statuses)?;
-        let downgraded = calibration == CalibrationStatus::ExactClaimUnverified;
+        let downgraded = matches!(
+            (calibration, meta.calibration),
+            (CalibrationStatus::ExactClaimUnverified, _)
+                | (CalibrationStatus::NotMeasured, DistributionCalibration::Measured)
+        );
         let effective = if downgraded || meta.trust != resolved.trust {
             let mut metadata = meta.clone();
             if downgraded {

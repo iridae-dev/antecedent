@@ -694,7 +694,6 @@ pub(crate) fn preview_transform_report(
     intent: antecedent_contract::TransformIntent,
     handle: &str,
 ) -> Result<antecedent_contract::TransformationReport, IoError> {
-    use antecedent_contract::{TransformIntent, TransformationReport};
     use antecedent_core::{IdentityRef, SemanticDigest};
     let inputs = [
         (IdentityDomain::Target, &ids.target),
@@ -714,26 +713,38 @@ pub(crate) fn preview_transform_report(
         ))
     })
     .collect::<Result<Vec<_>, IoError>>()?;
+    Ok(handle_preview(
+        intent,
+        inputs,
+        format!("transport.reprepare_required: {handle} structural or execution contract changed"),
+    ))
+}
+
+/// The transformation report a prepared handle previews for `intent` over its retained
+/// `inputs`: the intent's own layer effects and no obligation of its own, refused on the
+/// handle (with `refusal`) for any intent beyond display or compatible-data replacement.
+pub(crate) fn handle_preview(
+    intent: antecedent_contract::TransformIntent,
+    inputs: Vec<antecedent_core::IdentityRef>,
+    refusal: String,
+) -> antecedent_contract::TransformationReport {
+    use antecedent_contract::{TransformIntent, TransformationReport};
     let report = TransformationReport::new(
         intent,
         inputs,
         antecedent_contract::intent_effects(intent).iter().cloned(),
         Vec::new(),
     );
-    Ok(
-        if matches!(
-            intent,
-            TransformIntent::DisplayPrecision
-                | TransformIntent::FilterDisplay
-                | TransformIntent::CompatibleDataReplace
-        ) {
-            report
-        } else {
-            report.refused_on_handle(format!(
-                "transport.reprepare_required: {handle} structural or execution contract changed"
-            ))
-        },
-    )
+    if matches!(
+        intent,
+        TransformIntent::DisplayPrecision
+            | TransformIntent::FilterDisplay
+            | TransformIntent::CompatibleDataReplace
+    ) {
+        report
+    } else {
+        report.refused_on_handle(refusal)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -969,6 +980,139 @@ mod tests {
         DistributionAvailability, EvidenceCatalog, EvidenceKind, EvidenceRegime, RegimeId,
         RegimeKind, Value,
     };
+
+    const INTENTS: [antecedent_contract::TransformIntent; 10] = {
+        use antecedent_contract::TransformIntent::{
+            AverageUnweightedClass, ChangeGraph, ChangePhysicalPolicy, ChangePrior,
+            CompatibleDataReplace, DisplayPrecision, FilterDisplay, FilterPopulation,
+            NewConditionalQuery, Retarget,
+        };
+        [
+            DisplayPrecision,
+            CompatibleDataReplace,
+            Retarget,
+            FilterDisplay,
+            FilterPopulation,
+            NewConditionalQuery,
+            ChangeGraph,
+            ChangePrior,
+            ChangePhysicalPolicy,
+            AverageUnweightedClass,
+        ]
+    };
+
+    fn hex(byte: u8) -> String {
+        format!("{byte:02x}").repeat(32)
+    }
+
+    fn identities() -> ExactStudyIdentities {
+        ExactStudyIdentities {
+            target: hex(1),
+            observation: hex(2),
+            inference_binding: hex(3),
+            identification: hex(4),
+            identification_product: hex(5),
+            program: hex(6),
+            snapshot: hex(7),
+            execution: hex(8),
+        }
+    }
+
+    /// The previews of the exact, statistical, learned-trial and transport-grid handles: each
+    /// states exactly the intent's layer effects and no obligation of its own, is refused on
+    /// the handle for every intent beyond display or compatible-data replacement, and, composed
+    /// after a step that left an obligation unresolved, keeps that obligation unresolved.
+    #[test]
+    fn site_a_handle_preview_keeps_obligations_and_refuses_what_it_cannot_apply() {
+        use antecedent_contract::{
+            ObligationKind, ObligationRecord, ObligationScope, TransformIntent,
+            TransformationReport, intent_effects,
+        };
+        let open = TransformationReport::new(
+            TransformIntent::Retarget,
+            Vec::new(),
+            Vec::new(),
+            vec![ObligationRecord::new(
+                "premise",
+                ObligationScope::Program,
+                AssumptionSource::UserDeclared,
+                ObligationKind::CheckNotRun,
+                AssumptionStatus::Declared,
+                "an open premise",
+            )],
+        );
+        let ids = identities();
+        for intent in INTENTS {
+            let applies = matches!(
+                intent,
+                TransformIntent::DisplayPrecision
+                    | TransformIntent::FilterDisplay
+                    | TransformIntent::CompatibleDataReplace
+            );
+            let oracle = TransformationReport::new(
+                intent,
+                Vec::new(),
+                intent_effects(intent).iter().cloned(),
+                Vec::new(),
+            );
+            let reports = [
+                ("exact", preview_transform_report(&ids, intent, "exact").expect("a preview")),
+                (
+                    "statistical",
+                    preview_transform_report(&ids, intent, "statistical").expect("a preview"),
+                ),
+                ("handle", handle_preview(intent, Vec::new(), "handle refused".to_owned())),
+            ];
+            for (handle, report) in reports {
+                assert!(report.obligations.is_empty(), "{intent:?}");
+                if applies {
+                    assert_eq!(report.layer_effects, oracle.layer_effects, "{intent:?}");
+                    assert_eq!(report.refused, oracle.refused, "{intent:?}");
+                    assert!(report.refusal.is_none());
+                } else {
+                    assert!(report.refused, "{intent:?} must be refused on the {handle} handle");
+                    assert!(
+                        report
+                            .refusal
+                            .as_deref()
+                            .is_some_and(|r| r.contains(handle) || handle == "handle")
+                    );
+                }
+                if handle == "exact" {
+                    assert_eq!(report.input_identities.len(), 8);
+                }
+                let chained = open.compose(&report);
+                assert!(
+                    chained.obligations.iter().any(|o| &*o.id == "premise" && o.is_unresolved()),
+                    "{intent:?}: the open premise was lost"
+                );
+                assert!(chained.refused || !report.refused);
+            }
+        }
+    }
+
+    /// The exact study's reasoning: identified (the checked native identification), support
+    /// read from the stage contract (never the matrix's `supported`), the empirical support
+    /// check present only once evaluated, no sampling uncertainty, and the selection-diagram
+    /// premise kept as an uncheckable obligation.
+    #[test]
+    fn site_exact_reasoning_claims_no_more_than_the_route_establishes() {
+        for evaluated in [false, true] {
+            let view = PreparedStudy::<ExactPreparedState>::reasoning(evaluated);
+            let identification = view.identification.as_ref().expect("identification");
+            assert_eq!(identification.status, IdentificationStatus::NonparametricallyIdentified);
+            assert!((identification.identified_mass - 1.0).abs() < 1e-15);
+            assert!(identification.unidentified_mass.abs() < 1e-15);
+            let support = view.support.as_ref().expect("support");
+            assert_eq!(&*support.matrix_status, "stage_contract");
+            assert_ne!(&*support.matrix_status, "supported");
+            assert_eq!(support.empirical.as_ref().is_some(), evaluated);
+            assert!(view.uncertainty.as_ref().is_none());
+            let obligations = &view.assumptions.as_ref().expect("assumptions").obligations;
+            assert!(obligations.iter().any(|o| &*o.id == "transport.selection_diagram"
+                && o.kind == ObligationKind::Uncheckable));
+        }
+    }
     use antecedent_expr::{DiscreteAxis, ExactDiscreteLaw, LawTolerance};
     use antecedent_graph::{Admg, DenseNodeId};
     fn v(i: u32) -> VariableId {

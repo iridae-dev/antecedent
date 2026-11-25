@@ -697,6 +697,13 @@ fn aggregate_dbn_mediation_envelope(
     )?;
     let keep = identified_envelope_keys(&graphs);
     refute_atoms.retain(|atom| keep.contains(&atom.key));
+    // Never stronger than the mixed atoms' own identification.
+    let atom_status = super::super::identified_atom_status(
+        atom_contexts
+            .iter()
+            .filter(|(key, ..)| keep.contains(key))
+            .map(|(_, _, identification, _)| identification.status),
+    );
     let (_, estimand, mut identification, indexer) = atom_contexts
         .into_iter()
         .find(|(key, _, _, _)| keep.contains(key))
@@ -714,6 +721,7 @@ fn aggregate_dbn_mediation_envelope(
         EnvelopeOptions::default(),
     )
     .map_err(CausalError::from)?;
+    super::super::cap_envelope_status(&mut posterior, atom_status);
     report_subsampled_out_mass(&mut posterior, &fitted_graphs, &subsample_drop);
     // `report_subsampled_out_mass` reads `unidentified_mass` off the
     // pre-subsample flags, which still carry every estimation-failure

@@ -984,6 +984,50 @@ impl Default for PosteriorMassSummary {
 /// [`IdentificationStatus::PartiallyIdentified`]. Otherwise the atom status
 /// is kept. This never promotes `base` to
 /// [`IdentificationStatus::NonparametricallyIdentified`].
+/// The weakest identification status among the atoms an envelope mixes as identified,
+/// for [`antecedent_estimate::aggregate_effect_envelope_with_atom_status`]: an envelope
+/// whose identified atoms were identified only under parametric or prior restrictions,
+/// or only partially, never reports nonparametric identification. With no status the
+/// envelope reads its identified flags as the flag documents them (nonparametric), which
+/// is the released reading when every identified atom is nonparametrically identified.
+pub(in crate::analysis) fn identified_atom_status(
+    statuses: impl IntoIterator<Item = antecedent_core::IdentificationStatus>,
+) -> antecedent_core::IdentificationStatus {
+    statuses
+        .into_iter()
+        .min_by_key(|status| status.strength_rank())
+        .unwrap_or(antecedent_core::IdentificationStatus::NonparametricallyIdentified)
+}
+
+/// Lower a mixed posterior's identification to `atom_status` when it states more: the
+/// rule of [`antecedent_estimate::aggregate_effect_envelope_with_atom_status`], for a
+/// posterior built by an aggregator that reads its flags as nonparametric identification.
+pub(in crate::analysis) fn cap_envelope_status(
+    posterior: &mut CausalPosterior,
+    atom_status: antecedent_core::IdentificationStatus,
+) {
+    if atom_status.strength_rank() < posterior.identification.strength_rank() {
+        posterior.identification = atom_status;
+    }
+}
+
+/// [`identified_atom_status`] of the cases an envelope route flags identified: a case the
+/// route can fit ([`identification_status_ok_for_case`]) with at least one estimand.
+pub(in crate::analysis) fn identified_case_status<G>(
+    envelope: &antecedent_identify::IdentificationEnvelope<G>,
+) -> antecedent_core::IdentificationStatus {
+    identified_atom_status(
+        envelope
+            .cases
+            .iter()
+            .filter(|case| {
+                identification_status_ok_for_case(case.result.status)
+                    && !case.result.estimands.is_empty()
+            })
+            .map(|case| case.result.status),
+    )
+}
+
 pub(super) fn resolve_posterior_status(
     base: IdentificationStatus,
     policy: crate::result::StructuralAggregationPolicy,
@@ -1524,4 +1568,68 @@ pub(super) fn mix_atom_refutation_reports(
         mixed.push(report);
     }
     (mixed, diagnostics)
+}
+
+#[cfg(test)]
+mod envelope_atom_status_tests {
+    use super::{
+        Arc, EnvelopeOptions, GraphEffectDraws, GraphIdentFlag, IdentificationStatus,
+        InferenceDiagnostics, WeightedGraphSamples, aggregate_effect_envelope, cap_envelope_status,
+        identified_atom_status,
+    };
+
+    #[test]
+    fn site_an_envelope_never_states_more_than_its_identified_atoms() {
+        assert_eq!(
+            identified_atom_status([]),
+            IdentificationStatus::NonparametricallyIdentified,
+            "no status keeps the flag's released reading"
+        );
+        assert_eq!(
+            identified_atom_status([
+                IdentificationStatus::NonparametricallyIdentified,
+                IdentificationStatus::PartiallyIdentified,
+                IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            ]),
+            IdentificationStatus::PartiallyIdentified
+        );
+        let mixed = |flags: Vec<GraphIdentFlag>| {
+            // Draws only for the atoms flagged identified.
+            let per: Vec<GraphEffectDraws> = flags
+                .iter()
+                .zip([1_u64, 2])
+                .filter(|(flag, _)| **flag == GraphIdentFlag::Identified)
+                .map(|(_, key)| GraphEffectDraws {
+                    graph_key: key,
+                    effect_draws: (0_u8..32)
+                        .map(|i| f64::from(u8::try_from(key).unwrap()) + f64::from(i) / 32.0)
+                        .collect::<Arc<[f64]>>(),
+                })
+                .collect();
+            let graphs = WeightedGraphSamples::new(vec![0.5, 0.5], flags, vec![1, 2]).unwrap();
+            aggregate_effect_envelope(
+                &graphs,
+                &per,
+                InferenceDiagnostics::analytic("status"),
+                EnvelopeOptions::default(),
+            )
+            .unwrap()
+        };
+        for atoms in [
+            IdentificationStatus::NonparametricallyIdentified,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            IdentificationStatus::IdentifiedUnderPriorRestrictions,
+            IdentificationStatus::PartiallyIdentified,
+        ] {
+            let mut posterior = mixed(vec![GraphIdentFlag::Identified, GraphIdentFlag::Identified]);
+            cap_envelope_status(&mut posterior, atoms);
+            assert_eq!(posterior.identification, atoms);
+        }
+        // Retained unidentified mass stays graph dependent: the cap only ever lowers.
+        let mut graph_dependent =
+            mixed(vec![GraphIdentFlag::Identified, GraphIdentFlag::Unidentified]);
+        assert_eq!(graph_dependent.identification, IdentificationStatus::GraphDependent);
+        cap_envelope_status(&mut graph_dependent, IdentificationStatus::PartiallyIdentified);
+        assert_eq!(graph_dependent.identification, IdentificationStatus::GraphDependent);
+    }
 }

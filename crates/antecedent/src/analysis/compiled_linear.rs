@@ -336,14 +336,20 @@ fn world_obligations(
         .collect()
 }
 
-fn identification_claim(
+/// Identified by the graph alone is an identified claim; under a parametric model or a prior
+/// it is evaluated inside that model, as for the design-based lowering. The retained linear
+/// operation is reached only through a back-door adjustment estimand, which the identifier
+/// lists as nonparametric, so every released linear program keeps the identified-claim class.
+const fn identification_claim(
     status: antecedent_core::IdentificationStatus,
 ) -> (IdentificationOutcome, IdentificationClaimClass) {
     match status {
-        antecedent_core::IdentificationStatus::NonparametricallyIdentified
-        | antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions
-        | antecedent_core::IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+        antecedent_core::IdentificationStatus::NonparametricallyIdentified => {
             (IdentificationOutcome::Identified, IdentificationClaimClass::IdentifiedClaim)
+        }
+        antecedent_core::IdentificationStatus::IdentifiedUnderParametricRestrictions
+        | antecedent_core::IdentificationStatus::IdentifiedUnderPriorRestrictions => {
+            (IdentificationOutcome::Identified, IdentificationClaimClass::ModelConditional)
         }
         antecedent_core::IdentificationStatus::PartiallyIdentified
         | antecedent_core::IdentificationStatus::GraphDependent
@@ -411,4 +417,33 @@ pub(crate) fn can_retain(source: &crate::Study, query: &AverageEffectQuery) -> b
         && source.declared.custom_validators.is_empty()
         && matches!(query.outcome_functional, antecedent_core::OutcomeFunctional::Mean)
         && matches!(query.target_population, antecedent_core::TargetPopulation::AllObserved)
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::{IdentificationClaimClass, IdentificationOutcome, identification_claim};
+    use antecedent_core::IdentificationStatus;
+
+    #[test]
+    fn site_only_graph_identification_is_an_identified_linear_claim() {
+        // The retained product's class never says more than the identification result:
+        // a parametric or prior restriction is model-conditional, which retain admits.
+        let identified =
+            (IdentificationOutcome::Identified, IdentificationClaimClass::IdentifiedClaim);
+        let conditional =
+            (IdentificationOutcome::Identified, IdentificationClaimClass::ModelConditional);
+        let unidentified =
+            (IdentificationOutcome::Unidentified, IdentificationClaimClass::ModelConditional);
+        let cases = [
+            (IdentificationStatus::NonparametricallyIdentified, identified),
+            (IdentificationStatus::IdentifiedUnderParametricRestrictions, conditional),
+            (IdentificationStatus::IdentifiedUnderPriorRestrictions, conditional),
+            (IdentificationStatus::PartiallyIdentified, unidentified),
+            (IdentificationStatus::GraphDependent, unidentified),
+            (IdentificationStatus::NotIdentified, unidentified),
+        ];
+        for (status, expected) in cases {
+            assert_eq!(identification_claim(status), expected, "{status:?}");
+        }
+    }
 }

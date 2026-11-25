@@ -2167,6 +2167,40 @@ mod tests {
         assert_eq!(refreshed.identities().identification, result.identities().identification);
     }
 
+    /// The statistical study's reasoning before and after execution: identified (the checked
+    /// classical transport proof), support read from the stage contract (never the matrix's
+    /// `supported`), the empirical support check present only once evaluated, and the
+    /// selection-diagram premise kept as an uncheckable obligation.
+    #[test]
+    fn site_statistical_reasoning_claims_no_more_than_the_route_establishes() {
+        let ctx = ExecutionContext::for_tests(7);
+        let study = prepared("one", [20, 5, 10, 15]);
+        let result = study.estimate(&ctx).unwrap();
+        for (evaluated, view) in
+            [(false, study.reasoning(false, None, None)), (true, result.reasoning().clone())]
+        {
+            let identification = view.identification.as_ref().expect("identification");
+            assert_eq!(identification.status, IdentificationStatus::NonparametricallyIdentified);
+            assert!(identification.unidentified_mass.abs() < 1e-15);
+            let support = view.support.as_ref().expect("support");
+            assert_eq!(&*support.matrix_status, "stage_contract");
+            assert_eq!(support.empirical.as_ref().is_some(), evaluated);
+            let obligations = &view.assumptions.as_ref().expect("assumptions").obligations;
+            assert!(obligations.iter().any(|o| &*o.id == "transport.selection_diagram"
+                && o.kind == ObligationKind::Uncheckable));
+        }
+        // The statistical handle previews through the exact handle's report: refused for a
+        // retarget, applied for a display change, never with an obligation of its own.
+        let retarget =
+            study.preview_transform(antecedent_contract::TransformIntent::Retarget).unwrap();
+        assert!(retarget.refused);
+        assert!(retarget.refusal.as_deref().is_some_and(|r| r.contains("statistical")));
+        let display = study
+            .preview_transform(antecedent_contract::TransformIntent::DisplayPrecision)
+            .unwrap();
+        assert!(!display.refused && display.obligations.is_empty());
+    }
+
     #[test]
     fn statistical_artifact_rejects_claim_and_identity_mutations() {
         let ctx = ExecutionContext::for_tests(7);

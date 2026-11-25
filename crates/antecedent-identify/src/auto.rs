@@ -384,7 +384,12 @@ impl AutoIdentifier {
         acc: AutoRun,
         mut assumptions: AssumptionSet,
     ) -> IdentificationResult {
-        if acc.estimands.is_empty() {
+        // Each listed estimand identifies the query on its own, so the listing is as strong as
+        // its strongest alternative and never stronger than every admitted strategy; each
+        // estimand's own status and assumptions are its claim. The listing-level set is the
+        // union over the alternatives, so it never understates what a listed estimand relies on.
+        let listing = listing_status(&acc.claims).filter(|_| !acc.estimands.is_empty());
+        let Some(status) = listing else {
             let mut out = IdentificationResult::not_identified(
                 query.clone(),
                 acc.derivation,
@@ -394,20 +399,6 @@ impl AutoIdentifier {
             out.hedge = acc.hedge;
             out.diagnostics = acc.diagnostics;
             return out;
-        }
-
-        // The listing is nonparametric when any alternative is; each estimand's own status
-        // and assumptions are its claim. The listing-level set is the union over the
-        // alternatives, so it never understates what a listed estimand relies on.
-        let all_parametric = !acc.claims.is_empty()
-            && acc
-                .claims
-                .iter()
-                .all(|c| c.status == IdentificationStatus::IdentifiedUnderParametricRestrictions);
-        let status = if all_parametric {
-            IdentificationStatus::IdentifiedUnderParametricRestrictions
-        } else {
-            IdentificationStatus::NonparametricallyIdentified
         };
         for claim in &acc.claims {
             assumptions.extend_unique(&claim.required_assumptions.entries);
@@ -745,6 +736,14 @@ impl Identifier<Dag> for AutoIdentifier {
     }
 }
 
+/// The status of a listing of alternative estimands: the strongest status any listed
+/// estimand's own strategy established (each identifies the query alone), and `None` when
+/// nothing is listed. It is never stronger than every admitted strategy, and a status no
+/// strategy established is never reported.
+fn listing_status(claims: &[EstimandClaim]) -> Option<IdentificationStatus> {
+    claims.iter().map(|claim| claim.status).max_by_key(|status| status.strength_rank())
+}
+
 #[cfg(test)]
 mod tests {
     use antecedent_core::{Intervention, MechanismOverride, VariableId};
@@ -752,6 +751,26 @@ mod tests {
     use antecedent_graph::DenseNodeId;
 
     use super::*;
+
+    #[test]
+    fn site_the_listing_status_is_an_admitted_strategy_status() {
+        let claim = |status| EstimandClaim { status, required_assumptions: AssumptionSet::new() };
+        let parametric = IdentificationStatus::IdentifiedUnderParametricRestrictions;
+        let nonparametric = IdentificationStatus::NonparametricallyIdentified;
+        assert_eq!(listing_status(&[]), None);
+        assert_eq!(listing_status(&[claim(parametric), claim(parametric)]), Some(parametric));
+        assert_eq!(listing_status(&[claim(parametric), claim(nonparametric)]), Some(nonparametric));
+        // A weaker status is never lifted to a stronger one no strategy established.
+        let prior = IdentificationStatus::IdentifiedUnderPriorRestrictions;
+        assert_eq!(listing_status(&[claim(prior), claim(parametric)]), Some(parametric));
+        assert_eq!(listing_status(&[claim(prior)]), Some(prior));
+        for statuses in [&[parametric, prior][..], &[nonparametric][..], &[prior][..]] {
+            let claims: Vec<EstimandClaim> = statuses.iter().copied().map(claim).collect();
+            let status = listing_status(&claims).unwrap();
+            assert!(statuses.contains(&status));
+            assert!(statuses.iter().all(|s| s.strength_rank() <= status.strength_rank()));
+        }
+    }
 
     fn context_search_fixture() -> (Dag, CausalQuery) {
         let mut graph = Dag::with_variables(3);

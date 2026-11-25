@@ -124,7 +124,13 @@ fn a_response_node_states_its_support_trust_and_calibration() {
     assert_eq!(node.kind, NodeKind::TransportedResult);
     assert_eq!(node.standing(), standing);
     assert_eq!(node.coordinate, response_coordinate(&carried).unwrap());
-    assert_eq!(node.assumptions, vec!["selection acts on age only".to_owned()]);
+    // An extrapolative response is supported only under its transport premise, and the node
+    // states that premise beside the receipt's assumptions: the graph never presents it as
+    // supported outright.
+    assert_eq!(
+        node.assumptions,
+        vec!["selection acts on age only".to_owned(), "support_label:extrapolative".to_owned()]
+    );
     // The identity moves with the value and is stable otherwise.
     let same =
         transported_claim_node("effect", &carried, CalibrationDeclaration::PointOnly, VERIFIED)

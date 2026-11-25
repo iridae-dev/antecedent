@@ -606,3 +606,46 @@ mod graph_imputation_inference_guard_tests {
         assert!(!requires_composite_producer("Bayesian"));
     }
 }
+
+#[cfg(test)]
+mod identification_key_tests {
+    use super::identification_label;
+    use antecedent_contract::IdentificationSlot;
+    use antecedent_core::IdentificationStatus;
+
+    fn slot(status: IdentificationStatus, unidentified: f64) -> IdentificationSlot {
+        IdentificationSlot::new(
+            status,
+            1.0 - unidentified,
+            unidentified,
+            0.0,
+            0.0,
+            true,
+            None,
+            false,
+        )
+    }
+
+    /// The key is the match key coverage records were measured under, not a standing: a slot
+    /// is `point` only with every structural mass identified under an identifying status, and
+    /// a slot reads as calibrated only from a record measured under the same key (the
+    /// attesting-record rule). Prior restrictions keep the `point` key their records carry.
+    #[test]
+    fn site_identification_key_is_point_only_with_all_mass_identified() {
+        assert_eq!(identification_label(None), ("partial", 1.0));
+        for status in IdentificationStatus::ALL {
+            let (key, rest) = identification_label(Some(&slot(status, 0.0)));
+            let identifying = matches!(
+                status,
+                IdentificationStatus::NonparametricallyIdentified
+                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                    | IdentificationStatus::IdentifiedUnderPriorRestrictions
+            );
+            assert_eq!(key, if identifying { "point" } else { "partial" }, "{status:?}");
+            assert_eq!(rest, 0.0);
+            let (key, rest) = identification_label(Some(&slot(status, 0.25)));
+            assert_eq!(key, "partial", "{status:?} with unidentified mass");
+            assert_eq!(rest, 0.25);
+        }
+    }
+}

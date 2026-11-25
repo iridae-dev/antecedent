@@ -33,6 +33,7 @@ use antecedent_expr::{ExprId, IdentifiedEstimand};
 use antecedent_io::calibration::{
     CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
 };
+use antecedent_io_core::contract_section::CalibrationSlotWire;
 use serde::{Deserialize, Serialize};
 
 use crate::error::CausalError;
@@ -373,6 +374,15 @@ fn publish_interval(
     let levels = spec.levels.as_ref().map_or(0, Vec::len);
     let slot = calibration_slot(&multi_level_interval_basis(spec.target, levels, folds, n_obs));
     let interval = multi_level_normal_interval(estimate.effect.ate, estimate.effect.se_analytic());
+    published_interval(slot, interval)
+}
+
+/// The published interval, its status and the withholding reason, given the slot of the
+/// route's construction and the interval the estimate determines.
+fn published_interval(
+    slot: CalibrationSlotWire,
+    interval: Option<(f64, f64)>,
+) -> (Option<MultiLevelIntervalWire>, &'static str, Option<String>) {
     let status = slot.status.as_str();
     match interval {
         Some((lower, upper)) => {
@@ -386,7 +396,11 @@ fn publish_interval(
             let reason = if slot.status == "calibrated" { None } else { slot.reason };
             (Some(wire), status, reason)
         }
-        None => (None, status, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into())),
+        // No interval is published, so no record can calibrate it: the status is
+        // not_measured whatever record matches the construction.
+        None => {
+            (None, MULTI_LEVEL_INTERVAL_NOT_MEASURED, Some(MULTI_LEVEL_NO_STANDARD_ERROR.into()))
+        }
     }
 }
 
@@ -433,5 +447,73 @@ fn report(
         interval_status: interval_status.into(),
         interval_reason,
         adjustment_basis: MULTI_LEVEL_ADJUSTMENT_BASIS.into(),
+    }
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+    use antecedent_io_core::calibration::rederive_calibration;
+    use antecedent_io_core::contract_section::CalibrationStatus;
+
+    /// A slot as an attesting record would set it.
+    fn calibrated_slot() -> CalibrationSlotWire {
+        let mut slot = CalibrationSlotWire::not_measured("fixture");
+        slot.status = CalibrationStatus::Calibrated;
+        slot.record_id = Some("cov.fixture".into());
+        slot.reason = None;
+        slot
+    }
+
+    #[test]
+    fn site_an_estimate_without_an_interval_is_never_calibrated() {
+        // Even a slot a record calibrates cannot calibrate an interval that is not published.
+        let (interval, status, reason) = published_interval(calibrated_slot(), None);
+        assert!(interval.is_none());
+        assert_eq!(status, MULTI_LEVEL_INTERVAL_NOT_MEASURED);
+        assert_eq!(reason.as_deref(), Some(MULTI_LEVEL_NO_STANDARD_ERROR));
+    }
+
+    #[test]
+    fn site_a_published_interval_carries_its_slot_and_nothing_more() {
+        let (interval, status, reason) = published_interval(calibrated_slot(), Some((0.1, 0.9)));
+        assert_eq!(status, MULTI_LEVEL_INTERVAL_CALIBRATED);
+        assert_eq!(interval.expect("published").coverage_record.as_deref(), Some("cov.fixture"));
+        assert!(reason.is_none());
+        let unmeasured = CalibrationSlotWire::not_measured("no_matching_record");
+        let (interval, status, reason) = published_interval(unmeasured, Some((0.1, 0.9)));
+        assert_eq!(status, MULTI_LEVEL_INTERVAL_NOT_MEASURED);
+        assert_eq!(interval.expect("published").coverage_record, None);
+        assert_eq!(reason.as_deref(), Some("no_matching_record"));
+    }
+
+    #[test]
+    fn site_the_interval_basis_names_the_route_and_rederives() {
+        for (target, levels, folds) in [
+            (MultiLevelTargetWire::FullPopulation, 3, 5),
+            (MultiLevelTargetWire::PairwiseSubpopulation, 0, 0),
+        ] {
+            let basis = multi_level_interval_basis(target, levels, folds, 3000);
+            assert_eq!(basis.key.query, MULTI_LEVEL_QUERY);
+            assert_eq!(basis.key.estimator, MULTI_LEVEL_ESTIMATOR);
+            assert_eq!(basis.key.se_kind, MULTI_LEVEL_SE_KIND);
+            assert_eq!(basis.key.identification, "point");
+            assert_eq!(basis.scope.row_count, 3000);
+            // The route sets no status itself: its slot is what a consumer re-derives from
+            // the basis it carries, and is calibrated only with a record.
+            let slot = calibration_slot(&basis);
+            assert_eq!(slot.basis.as_ref(), Some(&basis));
+            let again = rederive_calibration(&slot);
+            assert_eq!(again.status, slot.status);
+            assert_eq!(again.record_id, slot.record_id);
+            if slot.status == CalibrationStatus::Calibrated {
+                assert!(slot.record_id.is_some());
+            }
+        }
+        // The full-population key binds the level and fold counts it was measured at.
+        assert_ne!(
+            multi_level_interval_basis(MultiLevelTargetWire::FullPopulation, 3, 5, 3000).key,
+            multi_level_interval_basis(MultiLevelTargetWire::FullPopulation, 4, 5, 3000).key
+        );
     }
 }

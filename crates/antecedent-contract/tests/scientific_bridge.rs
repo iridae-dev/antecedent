@@ -23,8 +23,9 @@ use std::sync::Arc;
 
 use antecedent_contract::bridge::{
     AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind, BridgeMapping,
-    BridgeRefusal, BridgeScope, BridgeSource, MappingKind, QuantityClass, TransportabilityPremise,
-    TrialEffectPair, TrialLevelValidation, ValueKind, derive_bridged_claim, fit_trial_level_linear,
+    BridgeRefusal, BridgeScope, BridgeSource, MappingKind, QuantityClass,
+    SOURCE_ASSUMPTIONS_UNAVAILABLE, TransportabilityPremise, TrialEffectPair, TrialLevelValidation,
+    ValueKind, derive_bridged_claim, fit_trial_level_linear,
 };
 use antecedent_contract::{
     ClaimDomains, ClaimEnvelope, ClaimKind, ClaimOperation, DerivedClaimOutcome, DomainStatus,
@@ -252,11 +253,24 @@ fn surrogate_bridge_matches_the_hand_computed_trial_level_regression() {
     assert!(!bridged.claim.reasoning.identification.is_available());
     assert!(!bridged.claim.reasoning.support.is_available());
     assert!(!bridged.claim.reasoning.uncertainty.is_available());
+    // The declared assumption, and one obligation standing for the source's assumptions,
+    // which this fixture source leaves unavailable.
     let obligations = &bridged.claim.reasoning.assumptions.as_ref().unwrap().obligations;
-    assert_eq!(obligations.len(), 1);
-    assert!(obligations[0].is_unresolved());
+    assert_eq!(obligations.len(), 2);
+    assert!(obligations.iter().all(|record| record.is_unresolved()));
+    assert!(obligations.iter().any(|record| &*record.id == SOURCE_ASSUMPTIONS_UNAVAILABLE));
+    assert!(
+        bridged
+            .receipt
+            .unresolved
+            .iter()
+            .any(|item| **item == *format!("source_assumption:{SOURCE_ASSUMPTIONS_UNAVAILABLE}"))
+    );
     assert_eq!(bridged.claim.domains.identification, DomainStatus::Unknown);
     assert_eq!(bridged.claim.domains.support, DomainStatus::Unknown);
+    // The source was evaluated on its own quantity; the target quantity was not.
+    assert_eq!(source_claim.domains.evaluated, DomainStatus::Evaluated);
+    assert_eq!(bridged.claim.domains.evaluated, DomainStatus::Unknown);
 
     // The derived claim's evidence keeps the source's, drops its draw
     // alignment (a mapped point is not an aligned draw), and names the bridge.
@@ -1449,10 +1463,56 @@ fn a_withdrawn_source_makes_the_bridged_claim_inapplicable() {
     let derived = bridged.freshness(&withdrawn);
     assert_eq!(derived.currently_applicable, Some(false));
     assert!(derived.historically_valid, "history is preserved, only applicability changes");
+    // The source's withdrawal is the bridged claim's: a receiver reads a withdrawal, not a
+    // recomputation of the bridge.
+    assert!(derived.withdrawn);
+    assert!(matches!(
+        antecedent_contract::composition_verification::ObservedEffect::from_freshness(&derived),
+        Some(antecedent_contract::composition_verification::ObservedEffect::Withdrawn { .. })
+    ));
 
     let superseded =
         source_claim.freshness(Some(snapshot), Some(snapshot), Some(digest(99)), false, true);
     assert_eq!(bridged.freshness(&superseded).currently_applicable, Some(false));
+}
+
+#[test]
+fn a_bridged_claim_keeps_every_unresolved_obligation_of_its_source() {
+    use antecedent_contract::{AssumptionSlot, ObligationKind, ObligationRecord, ObligationScope};
+    use antecedent_core::assumption::{AssumptionSource, AssumptionStatus};
+    let record = |id: &str, kind, status| {
+        ObligationRecord::new(
+            id,
+            ObligationScope::Program,
+            AssumptionSource::UserDeclared,
+            kind,
+            status,
+            "a source premise",
+        )
+    };
+    let mut source_claim = claim(1, 0.8, "mmol_per_l");
+    source_claim.reasoning.assumptions = SlotAvailability::Available(AssumptionSlot::new([
+        record("unconfoundedness", ObligationKind::UserAssertion, AssumptionStatus::Declared),
+        record("overlap", ObligationKind::EmpiricalDiagnostic, AssumptionStatus::Supported),
+    ]));
+    let source_quantity = surrogate_quantity("adults");
+    let source = BridgeSource { claim: &source_claim, quantity: &source_quantity };
+    let bridged = derive_bridged_claim(&surrogate_contract(4, 0.9), &source).unwrap();
+    let obligations = &bridged.claim.reasoning.assumptions.as_ref().unwrap().obligations;
+    let ids: Vec<&str> = obligations.iter().map(|record| &*record.id).collect();
+    assert!(ids.contains(&"unconfoundedness"), "{ids:?}");
+    assert!(!ids.contains(&"overlap"), "a resolved source obligation is not restated: {ids:?}");
+    assert!(!ids.contains(&SOURCE_ASSUMPTIONS_UNAVAILABLE));
+    let unresolved: Vec<&str> = bridged.receipt.unresolved.iter().map(|item| &**item).collect();
+    assert!(unresolved.contains(&"source_assumption:unconfoundedness"), "{unresolved:?}");
+    // The claim identity binds the contract and the source, not the carried obligations.
+    let plain = claim(1, 0.8, "mmol_per_l");
+    let plain_bridged = derive_bridged_claim(
+        &surrogate_contract(4, 0.9),
+        &BridgeSource { claim: &plain, quantity: &source_quantity },
+    )
+    .unwrap();
+    assert_eq!(bridged.claim.claim_id, plain_bridged.claim.claim_id);
 }
 
 #[test]

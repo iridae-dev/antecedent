@@ -19,7 +19,7 @@
 
 [[records]]
 id = "claim_standing.never_raised"
-proposition = "An accepted claim relay keeps or lowers its parent's identification and domain standing, so no finite chain of relays raises the original claim's standing or creates a positive domain status, and a checked derivation claims no stronger identification than any parent. The production relay domain rule and identification rule compute exactly the specification's rules."
+proposition = "An accepted claim relay keeps or lowers its parent's identification and domain standing, so no finite chain of relays raises the original claim's standing or creates a positive domain status, and a checked derivation claims no stronger identification than any parent. The production relay domain rule and identification rule compute exactly the specification's rules. Every place a claim's standing is set, transformed, composed, carried or restored is listed in formal/standing_sites.toml with the production checks that cover it."
 scope = "The Retarget relay of compose_claims and the identification-status rule of identification_strengthened. The relay's requirement that every other field is unchanged is modeled, not translated; masses, the other departure checks and the compositions compose_claims refuses are outside this record."
 trusted = [
     "the Lean 4 kernel",
@@ -55,7 +55,7 @@ limitations = ["Identified-mass monotonicity is checked in floating point in the
 [[records.checks]]
 kind = "machine_checked_proof"
 tool = "lean"
-files = ["formal/Antecedent/Standing.lean"]
+files = ["formal/Antecedent/Standing.lean", "formal/standing_sites.toml"]
 theorems = [
     "Antecedent.Standing.domainChangeAllowed_le",
     "Antecedent.Standing.domainChangeAllowed_asserts",

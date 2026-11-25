@@ -380,6 +380,46 @@ mod point_status_tests {
     use super::*;
 
     #[test]
+    fn site_support_report_summary_is_the_worst_point_label() {
+        let observed = [0.0, 1.0, 2.0, 3.0];
+        let points = [0.5, 1.5, 4.0];
+        let worst = |report: &SupportReport| {
+            report.point_status.as_deref().unwrap().iter().copied().max_by_key(|s| s.severity())
+        };
+        // Outside the observed range is outside support, and the summary is the worst label.
+        let outside =
+            support_report(&points, &observed, &[50.0, 50.0, 50.0], vec![1.0; 4], 10.0, 0);
+        assert_eq!(
+            outside.point_status.as_deref(),
+            Some(
+                &[
+                    SupportStatus::Supported,
+                    SupportStatus::Supported,
+                    SupportStatus::OutsideEmpiricalSupport
+                ][..]
+            )
+        );
+        assert_eq!(Some(outside.status), worst(&outside));
+        // Low local ESS is weak overlap; a floored density weakens every coordinate.
+        let weak = support_report(&points[..2], &observed, &[50.0, 2.0], vec![1.0; 4], 10.0, 0);
+        assert_eq!(weak.status, SupportStatus::WeakOverlap);
+        assert_eq!(Some(weak.status), worst(&weak));
+        let floored = support_report(&points[..2], &observed, &[50.0, 50.0], vec![1.0; 4], 10.0, 1);
+        assert!(
+            floored
+                .point_status
+                .as_deref()
+                .unwrap()
+                .iter()
+                .all(|s| *s == SupportStatus::WeakOverlap)
+        );
+        assert_eq!(floored.status, SupportStatus::WeakOverlap);
+        // Supported only when every coordinate is inside with enough local mass.
+        let inside = support_report(&points[..2], &observed, &[50.0, 50.0], vec![1.0; 4], 10.0, 0);
+        assert_eq!(inside.status, SupportStatus::Supported);
+    }
+
+    #[test]
     fn joint_derivative_labels_every_value_component_with_the_joint_status() {
         // Two treatments, four rows each (column-major).
         let matrix = [0.0, 1.0, 2.0, 3.0, 0.0, 1.0, 2.0, 3.0];

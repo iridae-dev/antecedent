@@ -1509,6 +1509,32 @@ mod bias_aware_tests {
     }
 
     #[test]
+    fn site_dose_grid_report_is_the_worst_label_and_never_supported_without_points() {
+        let dose = [0.0, 1.0, 2.0, 3.0];
+        let points = [1.0, 2.0, 5.0];
+        let labels = [
+            SupportStatus::Supported,
+            SupportStatus::WeakOverlap,
+            SupportStatus::OutsideEmpiricalSupport,
+        ];
+        let report = build_report(&dose, &points, &labels, vec![20.0, 3.0, 0.0]);
+        assert_eq!(report.status, SupportStatus::OutsideEmpiricalSupport);
+        assert_eq!(report.point_status.as_deref(), Some(&labels[..]));
+        // A report over no labelled point is missing evidence, never supported.
+        let empty = build_report(&dose, &[], &[], Vec::new());
+        assert_eq!(empty.status, SupportStatus::MissingEvidence);
+        // The labels: outside the observed doses is outside support, low local mass weak.
+        let (points_labels, _) = label_points(&dose, &[1.5, 9.0], 0.4, 1e9, None);
+        assert_eq!(
+            points_labels,
+            vec![SupportStatus::WeakOverlap, SupportStatus::OutsideEmpiricalSupport]
+        );
+        // And an unsupported label refuses the estimate.
+        assert!(refuse_unsupported(&points, &labels).is_err());
+        assert!(refuse_unsupported(&points[..1], &labels[..1]).is_ok());
+    }
+
+    #[test]
     fn influence_columns_refuse_cancelled_before_smoothing() {
         let dose = [0.0, 1.0];
         let outcome = [0.0, 1.0];

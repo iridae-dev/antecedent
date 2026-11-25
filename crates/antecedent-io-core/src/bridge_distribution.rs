@@ -161,6 +161,8 @@ impl BridgedDistribution {
     /// The source table as a claim envelope: a mixture of its draws whose value is
     /// their mean, with the identity layers the table's provenance gives it. It is
     /// the source a bridge artifact records, rebuilt identically from the table.
+    /// A table states no domain of its own: identification, support and evaluation are
+    /// all unknown, never asserted for draws the bridge did not see produced.
     #[must_use]
     pub fn source_envelope(&self) -> ClaimEnvelope {
         ClaimEnvelope::new(
@@ -175,11 +177,7 @@ impl BridgedDistribution {
                 SlotAvailability::unavailable("replayed_source"),
                 SlotAvailability::unavailable("replayed_source"),
             ),
-            ClaimDomains::new(
-                DomainStatus::Unknown,
-                DomainStatus::Unknown,
-                DomainStatus::Evaluated,
-            ),
+            ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Unknown),
             None,
             Vec::<Arc<str>>::new(),
         )
@@ -776,7 +774,7 @@ pub fn bridge_draws(
             identities: &table_ids,
             execution: None,
             evidence: &[],
-            evaluated: DomainStatus::Evaluated,
+            evaluated: DomainStatus::Unknown,
             joint: alignment_state,
             alignment_identity: &alignment,
         };

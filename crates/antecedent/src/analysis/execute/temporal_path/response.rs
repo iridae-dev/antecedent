@@ -291,6 +291,47 @@ fn sequence_overlay_support(
     support
 }
 
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+
+    #[test]
+    fn site_a_sequence_overlay_is_never_read_as_supported() {
+        let temporal = antecedent_core::TemporalResponseSpec {
+            horizons: Arc::from(vec![1_u32, 2, 4]),
+            policy: antecedent_core::TemporalPolicy::Pulse { at: -1 },
+            max_history_lag: None,
+            feedback: None,
+        };
+        for complete in [true, false] {
+            let support = sequence_overlay_support(&[], &temporal, complete);
+            // Joint longitudinal positivity is not assessed: the summary and every horizon
+            // are extrapolative, never supported, and the warning says why.
+            assert_eq!(support.status, antecedent_core::SupportStatus::Extrapolative);
+            let points = support.point_status.as_deref().expect("a label per horizon");
+            assert_eq!(points.len(), 3);
+            assert!(points.iter().all(|s| *s == antecedent_core::SupportStatus::Extrapolative));
+            assert!(
+                support
+                    .warnings
+                    .iter()
+                    .any(|w| &*w.code == "response.temporal.sequence_joint_support_unassessed")
+            );
+            assert_eq!(
+                support
+                    .warnings
+                    .iter()
+                    .any(|w| &*w.code == "response.temporal.sequence_uncertainty_unavailable"),
+                !complete
+            );
+            assert_eq!(
+                (&*support.query_region.minima, &*support.query_region.maxima),
+                (&[1.0][..], &[4.0][..])
+            );
+        }
+    }
+}
+
 impl super::super::Study {
     #[allow(
         clippy::too_many_lines,

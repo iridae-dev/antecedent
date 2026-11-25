@@ -239,39 +239,12 @@ impl PreparedLearnedContinuous {
             &ctx,
         )
         .map_err(estimate_err)?;
-        let calibration = if run.interval.is_some() {
-            use antecedent_io_core::calibration::{
-                CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire, calibration_slot,
-            };
-            calibration_slot(&CalibrationBasisWire {
-                key: CalibrationKeyWire {
-                    validation: "not_applicable".into(),
-                    query: "ClassicalTransport".into(),
-                    graph_class: "Admg".into(),
-                    structure: "fixed".into(),
-                    modality: "tabular".into(),
-                    inference: "Frequentist".into(),
-                    estimator: "transport.learned_trial_aipw".into(),
-                    interval_method: "percentile_bootstrap".into(),
-                    se_kind: "percentile".into(),
-                    dependence: "iid".into(),
-                    posterior: String::new(),
-                    functional: "target_mean_contrast".into(),
-                    level: self.options.coverage_level,
-                    identification: "point".into(),
-                },
-                scope: CalibrationScopeWire {
-                    row_count: self.input.outcome.len() as u64,
-                    replicates_ok: Some(u32::try_from(run.replicates.len()).unwrap_or(u32::MAX)),
-                    posterior_draws: None,
-                    unidentified_mass: 0.0,
-                },
-            })
-        } else {
-            antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
-                antecedent_io_core::calibration::NO_INTERVAL_REPORTED,
-            )
-        };
+        let calibration = bootstrap_interval_slot(
+            run.interval.is_some(),
+            self.options.coverage_level,
+            self.input.outcome.len() as u64,
+            run.replicates.len(),
+        );
         Ok(LearnedContinuousBootstrapInterval { run, calibration })
     }
 
@@ -375,5 +348,89 @@ impl PreparedLearnedContinuous {
     #[must_use]
     pub const fn identification(&self) -> &TransportIdentification {
         &self.identification
+    }
+}
+
+/// Calibration match key and scope of the joint outer-refit percentile-bootstrap interval.
+fn bootstrap_interval_basis(
+    level: f64,
+    row_count: u64,
+    replicates: usize,
+) -> antecedent_io_core::calibration::CalibrationBasisWire {
+    use antecedent_io_core::calibration::{
+        CalibrationBasisWire, CalibrationKeyWire, CalibrationScopeWire,
+    };
+    CalibrationBasisWire {
+        key: CalibrationKeyWire {
+            validation: "not_applicable".into(),
+            query: "ClassicalTransport".into(),
+            graph_class: "Admg".into(),
+            structure: "fixed".into(),
+            modality: "tabular".into(),
+            inference: "Frequentist".into(),
+            estimator: "transport.learned_trial_aipw".into(),
+            interval_method: "percentile_bootstrap".into(),
+            se_kind: "percentile".into(),
+            dependence: "iid".into(),
+            posterior: String::new(),
+            functional: "target_mean_contrast".into(),
+            level,
+            identification: "point".into(),
+        },
+        scope: CalibrationScopeWire {
+            row_count,
+            replicates_ok: Some(u32::try_from(replicates).unwrap_or(u32::MAX)),
+            posterior_draws: None,
+            unidentified_mass: 0.0,
+        },
+    }
+}
+
+/// The slot of the bootstrap interval: not measured when no interval was reported, otherwise
+/// what the coverage records give the route's construction.
+fn bootstrap_interval_slot(
+    reported: bool,
+    level: f64,
+    row_count: u64,
+    replicates: usize,
+) -> antecedent_io_core::contract_section::CalibrationSlotWire {
+    if reported {
+        antecedent_io_core::calibration::calibration_slot(&bootstrap_interval_basis(
+            level, row_count, replicates,
+        ))
+    } else {
+        antecedent_io_core::contract_section::CalibrationSlotWire::not_measured(
+            antecedent_io_core::calibration::NO_INTERVAL_REPORTED,
+        )
+    }
+}
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+    use antecedent_io_core::calibration::{NO_INTERVAL_REPORTED, rederive_calibration};
+    use antecedent_io_core::contract_section::CalibrationStatus;
+
+    #[test]
+    fn site_bootstrap_slot_is_keyed_by_the_route_and_set_only_by_records() {
+        let basis = bootstrap_interval_basis(0.95, 800, 499);
+        assert_eq!(basis.key.query, "ClassicalTransport");
+        assert_eq!(basis.key.estimator, "transport.learned_trial_aipw");
+        assert_eq!(basis.key.interval_method, "percentile_bootstrap");
+        assert_eq!(basis.key.identification, "point");
+        assert_eq!((basis.scope.row_count, basis.scope.replicates_ok), (800, Some(499)));
+        let slot = bootstrap_interval_slot(true, 0.95, 800, 499);
+        assert_eq!(slot.basis.as_ref(), Some(&basis));
+        let again = rederive_calibration(&slot);
+        assert_eq!(again.status, slot.status);
+        assert_eq!(again.record_id, slot.record_id);
+        if slot.status == CalibrationStatus::Calibrated {
+            assert!(slot.record_id.is_some());
+        }
+        // No interval: never calibrated, whatever record matches the construction.
+        let none = bootstrap_interval_slot(false, 0.95, 800, 499);
+        assert_eq!(none.status, CalibrationStatus::NotMeasured);
+        assert_eq!(none.reason.as_deref(), Some(NO_INTERVAL_REPORTED));
+        assert_eq!(none.record_id, None);
     }
 }

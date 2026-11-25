@@ -1056,6 +1056,30 @@ fn artifact_findings(rep: &mut Rep) -> Vec<String> {
                 claim.value.map(f64::to_bits) == section.value_bits,
                 "the saved claim value differs from the producer's",
             );
+            // The kind the compiled program demands is the kind its sealed claim carries:
+            // a demand stated at lowering never presents a claim stronger, or other, than
+            // the one the consumer's rule derives from the executed result.
+            match rep.study.plan_view(&context) {
+                Ok(view) => {
+                    if let Some(demanded) = view.uncertainty().claim_kind() {
+                        // One refinement is decided only at execution: a graph-dependent
+                        // class demanded as a mixture is sealed as bounds when its
+                        // completions publish an identified set. Bounds state no more than
+                        // the mixture; nothing else may differ.
+                        let refined = demanded == antecedent_contract::ClaimKind::Mixture
+                            && claim.kind == antecedent_contract::ClaimKind::Bounds;
+                        found.check(
+                            demanded == claim.kind || refined,
+                            format!(
+                                "the program demands a {} claim and seals a {} claim",
+                                demanded.as_str(),
+                                claim.kind.as_str()
+                            ),
+                        );
+                    }
+                }
+                Err(error) => found.refused("plan view", &error),
+            }
             let ids = &produced.identities;
             found.check(*ids.target.as_bytes() == contract.identities.target, "target identity");
             found.check(

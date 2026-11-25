@@ -1303,6 +1303,36 @@ fn a_reuse_of_a_stale_result_is_refused() {
 }
 
 #[test]
+fn a_reuse_of_a_replaced_result_is_never_valid_before_the_downstream_walk() {
+    let mut ledger = EvidenceLedger::new();
+    let a = add(&mut ledger, data("a", 0..30));
+    let b = add(&mut ledger, data("b", 30..50));
+    let pooled =
+        ledger.combine(pooling("pooled", &[a, b], PoolingDependence::Independent)).expect("pooled");
+    let cite = ledger
+        .combine(CombinationRequest {
+            label: "cite".to_owned(),
+            operation: SynthesisOperation::EvidenceReuse { of: pooled },
+            replaces: None,
+        })
+        .expect("cite");
+    let mut again = pooling("pooled_again", &[a, b], PoolingDependence::Independent);
+    again.replaces = Some(pooled);
+    let replacement = ledger.combine(again).expect("replacement");
+    // The replacement is applied, but the downstream walk has not run: the citation of the
+    // replaced result must already read as needing recomputation, never as valid.
+    assert_eq!(ledger.standing(cite), Some(Revalidation::Recompute));
+    assert!(ledger.require_valid(cite).is_err());
+    assert_eq!(ledger.standing(replacement), Some(Revalidation::StillValid));
+    let pending = ledger.classification();
+    assert!(pending.iter().any(|r| r.result == cite && r.class == Revalidation::Recompute));
+    // The walk records exactly what was read before it.
+    let walked = ledger.revalidate_downstream().expect("walk");
+    assert_eq!(walked, pending);
+    assert_eq!(ledger.standing(cite), Some(Revalidation::Recompute));
+}
+
+#[test]
 fn no_interval_or_posterior_is_supported_from_pooled_evidence() {
     let mut ledger = EvidenceLedger::new();
     let a = add(&mut ledger, data("a", 0..10));

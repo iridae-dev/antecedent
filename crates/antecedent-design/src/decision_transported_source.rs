@@ -1276,14 +1276,18 @@ pub fn evaluate_transported_decision(
             )
         }
         // The receipt's label governs every coordinate of a law as it does
-        // for a point; the artifact's mask can only weaken it further.
-        TransportedValue::Law(law) => DecisionInput::from_distribution_artifact(
-            &id,
-            law,
-            &TrustEvidence::None,
-            TrustRequirement::Unrestricted,
-        )
-        .map(|input| input.with_support_floor(supplied)),
+        // for a point, including the coordinates the artifact's mask does not
+        // state; the mask can only weaken it further.
+        TransportedValue::Law(law) => {
+            DecisionInput::from_distribution_artifact_with_unstated_support(
+                &id,
+                law,
+                &TrustEvidence::None,
+                TrustRequirement::Unrestricted,
+                supplied,
+            )
+            .map(|input| input.with_support_floor(supplied))
+        }
     }
     .map_err(TransportedRefusal::Boundary)?;
     let lineage = input.provenance().lineage_digest.clone();

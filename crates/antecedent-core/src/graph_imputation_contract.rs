@@ -542,6 +542,35 @@ impl<'a> Reader<'a> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn site_status_tags_hold_only_the_identified_statuses() {
+        // A decoded contract never carries a status weaker or stronger than the one encoded,
+        // and no tag decodes to a status the encoder refuses.
+        let statuses = [
+            IdentificationStatus::NonparametricallyIdentified,
+            IdentificationStatus::IdentifiedUnderParametricRestrictions,
+            IdentificationStatus::IdentifiedUnderPriorRestrictions,
+            IdentificationStatus::PartiallyIdentified,
+            IdentificationStatus::GraphDependent,
+            IdentificationStatus::NotIdentified,
+        ];
+        for status in statuses {
+            match status_tag(status) {
+                Some(tag) => assert_eq!(status_from_tag(tag), Some(status)),
+                None => assert!(!matches!(
+                    status,
+                    IdentificationStatus::NonparametricallyIdentified
+                        | IdentificationStatus::IdentifiedUnderParametricRestrictions
+                )),
+            }
+        }
+        for tag in 0..=u8::MAX {
+            if let Some(status) = status_from_tag(tag) {
+                assert_eq!(status_tag(status), Some(tag));
+            }
+        }
+    }
+
     fn parts() -> GraphImputationParts {
         GraphImputationParts {
             names: vec!["t".into(), "y".into(), "x".into()],

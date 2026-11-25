@@ -314,13 +314,8 @@ fn claims_of_structures(
     (schema, context): (&CausalSchema, &NativeResponseContext),
     policy: StructuralPolicy,
 ) -> Result<AdaptedClaims, DecisionFacadeRefusal> {
-    let identified = |status: IdentificationStatus| {
-        matches!(
-            status,
-            IdentificationStatus::NonparametricallyIdentified
-                | IdentificationStatus::IdentifiedUnderParametricRestrictions
-        )
-    };
+    // The shared "point identified" rule: a structure is evaluated only under it.
+    let identified = antecedent_io_core::contract_section::status_identifies_a_point;
     for (index, (key, _)) in per_structure.iter().enumerate() {
         let repeated = per_structure[..index].iter().any(|(other, _)| other == key);
         let known = mixture.atoms.iter().any(|a| a.graph_key == *key && identified(a.status));

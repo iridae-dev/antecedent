@@ -136,7 +136,6 @@ impl PreparedStudy<LearnedTrialState> {
         &self,
         intent: antecedent_contract::TransformIntent,
     ) -> Result<antecedent_contract::TransformationReport, IoError> {
-        use antecedent_contract::{TransformIntent, TransformationReport};
         use antecedent_core::{IdentityDomain, IdentityRef};
         let identity = antecedent_io::identity::digest_wire(
             IdentityDomain::Execution,
@@ -149,26 +148,11 @@ impl PreparedStudy<LearnedTrialState> {
                 self.state.seed,
             ),
         )?;
-        let report = TransformationReport::new(
+        Ok(super::exact::handle_preview(
             intent,
             vec![IdentityRef::new(IdentityDomain::Execution, identity)],
-            antecedent_contract::intent_effects(intent).iter().cloned(),
-            vec![],
-        );
-        Ok(
-            if matches!(
-                intent,
-                TransformIntent::DisplayPrecision
-                    | TransformIntent::FilterDisplay
-                    | TransformIntent::CompatibleDataReplace
-            ) {
-                report
-            } else {
-                report.refused_on_handle(
-                    "transport.reprepare_required: structural or evidence contract changed",
-                )
-            },
-        )
+            "transport.reprepare_required: structural or evidence contract changed".to_owned(),
+        ))
     }
     /// Reconfigure the physical policy and stream without fitting or copying rows.
     /// # Errors

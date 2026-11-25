@@ -139,6 +139,7 @@ impl super::super::Study {
         fits: &mut PanelSequentialFits,
         class_masses_supplied: bool,
         truncated_completions: usize,
+        atom_status: IdentificationStatus,
         diagnostics: &mut Vec<Diagnostic>,
     ) -> Result<
         (EffectEstimate, Option<CausalPosterior>, crate::result::StructuralWeightBasis),
@@ -161,6 +162,7 @@ impl super::super::Study {
                         per_graph: &fits.per_graph,
                         conflict: None,
                         label: "panel_temporal_class_sequential",
+                        atom_status,
                     },
                     std::iter::empty(),
                     diagnostics,
@@ -268,6 +270,7 @@ impl super::super::Study {
             &mut fits,
             class_masses.is_some(),
             envelope.truncated_completions,
+            super::super::identified_case_status(envelope),
             &mut diagnostics,
         )?;
         let PanelSequentialFits { atoms, atom_values, unevaluable_weight, .. } = fits;

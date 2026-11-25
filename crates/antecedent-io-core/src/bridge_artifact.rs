@@ -1236,6 +1236,23 @@ pub struct ScientificBridgeDrawsArtifact {
     identity: String,
 }
 
+/// Evaluated status a bridge of draws recorded for its source table before a table stated
+/// no domain of its own. Artifacts sealed under that rule keep it and still replay; newly
+/// sealed artifacts record `unknown`. Either way the consumer receives the rebuilt source,
+/// whose evaluated status is unknown, never the stored word.
+const LEGACY_DRAWS_SOURCE_EVALUATED: &str = "evaluated";
+
+/// Whether the stored source summary of a bridge of draws is the rebuilt one, under the
+/// current rule or under the rule it was sealed with.
+fn source_summary_replays(rebuilt: &SourceWire, stored: &SourceWire) -> bool {
+    if rebuilt == stored {
+        return true;
+    }
+    let mut legacy = rebuilt.clone();
+    legacy.evaluated = LEGACY_DRAWS_SOURCE_EVALUATED.to_owned();
+    legacy == *stored
+}
+
 fn check_draws(
     meta: &ScientificBridgeMeta,
     source_draws: &[u8],
@@ -1291,7 +1308,7 @@ fn check_draws(
     if claim.draws_digest.to_hex() != draws.draws_digest {
         return Err(mismatch("mapped draws"));
     }
-    if source_to_wire(&bridged.source_envelope())? != meta.source {
+    if !source_summary_replays(&source_to_wire(&bridged.source_envelope())?, &meta.source) {
         return Err(mismatch("source draws summary"));
     }
     let identity = compute_identity(meta)?;

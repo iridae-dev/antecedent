@@ -636,15 +636,69 @@ fn identification_status(caches: &[IdentificationCache]) -> Option<Identificatio
     })
 }
 
-/// The claim an identification status supports, as the claim reader classifies it.
-const fn claim_kind(status: IdentificationStatus) -> ClaimKind {
-    match status {
-        IdentificationStatus::NonparametricallyIdentified
-        | IdentificationStatus::IdentifiedUnderParametricRestrictions
-        | IdentificationStatus::IdentifiedUnderPriorRestrictions => ClaimKind::Point,
-        IdentificationStatus::PartiallyIdentified => ClaimKind::Bounds,
-        IdentificationStatus::GraphDependent => ClaimKind::Mixture,
-        IdentificationStatus::NotIdentified => ClaimKind::Incomplete,
+/// The claim an identification status supports, read by the claim reader's own slot rule
+/// ([`antecedent_io_core::contract_section::slot_claim_kind`]): a single identified atom has
+/// all of its mass identified, and a graph-dependent class is published with its structural
+/// weights, so it is a mixture.
+fn claim_kind(status: IdentificationStatus) -> ClaimKind {
+    antecedent_io_core::contract_section::slot_claim_kind(
+        Some(status),
+        1.0,
+        status == IdentificationStatus::GraphDependent,
+    )
+}
+
+#[cfg(test)]
+mod claim_kind_tests {
+    use super::{ClaimKind, IdentificationStatus, claim_kind};
+
+    #[test]
+    fn site_static_effect_demand_is_the_claim_readers_kind() {
+        // The kinds the demand stated before it read the shared rule: program identities that
+        // bind the demand are unchanged.
+        let expected = |status| match status {
+            IdentificationStatus::NonparametricallyIdentified
+            | IdentificationStatus::IdentifiedUnderParametricRestrictions
+            | IdentificationStatus::IdentifiedUnderPriorRestrictions => ClaimKind::Point,
+            IdentificationStatus::PartiallyIdentified => ClaimKind::Bounds,
+            IdentificationStatus::GraphDependent => ClaimKind::Mixture,
+            IdentificationStatus::NotIdentified => ClaimKind::Incomplete,
+        };
+        for status in IdentificationStatus::ALL {
+            assert_eq!(claim_kind(status), expected(status), "{status:?}");
+            // Never a point for a status that identifies a set, a class or nothing.
+            if matches!(
+                status,
+                IdentificationStatus::PartiallyIdentified
+                    | IdentificationStatus::GraphDependent
+                    | IdentificationStatus::NotIdentified
+            ) {
+                assert_ne!(claim_kind(status), ClaimKind::Point);
+            }
+        }
+    }
+
+    #[test]
+    fn site_a_graph_dependent_demand_is_the_kind_its_claim_seals() {
+        // A graph-dependent class seals either a weighted mixture slot or, without one, the
+        // singleton slot (no identified mass): the consumer's rule reads both as a mixture,
+        // the demand's kind. Only a full-mass unweighted slot would read as a point, and no
+        // graph-dependent result seals one.
+        use antecedent_contract::IdentificationSlot;
+        let singleton =
+            IdentificationSlot::identified_singleton(IdentificationStatus::GraphDependent);
+        let sealed = antecedent_io_core::contract_section::slot_claim_kind(
+            Some(singleton.status),
+            singleton.identified_mass,
+            singleton.weight_basis.is_some(),
+        );
+        assert_eq!(sealed, claim_kind(IdentificationStatus::GraphDependent));
+        let weighted = antecedent_io_core::contract_section::slot_claim_kind(
+            Some(IdentificationStatus::GraphDependent),
+            0.6,
+            true,
+        );
+        assert_eq!(weighted, claim_kind(IdentificationStatus::GraphDependent));
     }
 }
 

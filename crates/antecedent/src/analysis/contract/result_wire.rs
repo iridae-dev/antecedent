@@ -689,3 +689,22 @@ pub(crate) fn association_wire(
         is_intervention_effect: false,
     }
 }
+
+#[cfg(test)]
+mod support_label_tests {
+    use super::{CellStatus, support_label};
+
+    /// The support label is the cell status spelled one to one: no status is written as a
+    /// stronger one, and an unclassified result writes none.
+    #[test]
+    fn site_support_label_spells_the_cell_status_and_nothing_stronger() {
+        assert_eq!(support_label(None), None);
+        for (status, spelling) in [
+            (CellStatus::Supported, "supported"),
+            (CellStatus::NotApplicable { reason: "rule" }, "not_applicable"),
+            (CellStatus::NotSupported, "not_supported"),
+        ] {
+            assert_eq!(support_label(Some(status)).as_deref(), Some(spelling));
+        }
+    }
+}

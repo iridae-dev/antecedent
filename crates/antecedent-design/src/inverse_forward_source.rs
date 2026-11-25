@@ -103,6 +103,12 @@ use crate::signal::RefusalBuilder;
 /// Version of the origin record and its identity encoding.
 pub const FORWARD_ORIGIN_VERSION: u16 = 1;
 
+/// Version of the origin of a composition whose every mechanism is native. Version 1
+/// labelled such a composition `supported` although the composition assesses no support at
+/// the queried actions; from this version it is labelled `missing_evidence`. A version-1
+/// origin still validates and keeps its identity (the version is part of it).
+pub const FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION: u16 = 2;
+
 const STAGE: &str = "inverse_forward_source";
 const TAG_CLAIM: &str = "antecedent.inverse_forward_source.claim";
 const TAG_ORIGIN: &str = "antecedent.inverse_forward_source.origin";
@@ -239,8 +245,20 @@ impl ForwardOrigin {
     /// # Errors
     /// The reason it is not, as a static description.
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.version != FORWARD_ORIGIN_VERSION {
-            return Err("origin version is not this reader's");
+        let native_composition =
+            self.kind == ForwardSourceKind::ComposedMechanism && self.transport.is_none();
+        match self.version {
+            FORWARD_ORIGIN_VERSION => {}
+            FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION if native_composition => {
+                // The composition assessed no support: this version never says supported.
+                if self.support == SupportStatus::Supported.as_str() {
+                    return Err("a native composition does not assess its support");
+                }
+            }
+            FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION => {
+                return Err("only a native composition's origin has this version");
+            }
+            _ => return Err("origin version is not this reader's"),
         }
         if self.source_identity.trim().is_empty() || self.claim_digest.trim().is_empty() {
             return Err("origin names no source or claim");
@@ -953,16 +971,21 @@ pub fn composed_forward_source_accepting(
             writer.finish_hex()
         }
     };
-    // A composition with carried mechanisms is as strong as its transport:
-    // the receipt's label governs, never `supported`.
-    let support = response
-        .transport
-        .as_ref()
-        .map_or_else(|| SupportStatus::Supported.as_str().to_owned(), |t| t.support.clone());
+    // A composition with carried mechanisms is as strong as its transport: the
+    // receipt's label governs, never `supported`. A composition of native mechanisms
+    // assesses no support at the queried actions, so it is missing evidence there,
+    // never `supported` by default (origin version 2).
+    let (version, support) = match &response.transport {
+        Some(receipt) => (FORWARD_ORIGIN_VERSION, receipt.support.clone()),
+        None => (
+            FORWARD_ORIGIN_VERSION_NATIVE_COMPOSITION,
+            SupportStatus::MissingEvidence.as_str().to_owned(),
+        ),
+    };
     Ok(SupportedForwardSource {
         claims,
         origin: ForwardOrigin {
-            version: FORWARD_ORIGIN_VERSION,
+            version,
             kind: ForwardSourceKind::ComposedMechanism,
             source_identity: identity,
             representation,

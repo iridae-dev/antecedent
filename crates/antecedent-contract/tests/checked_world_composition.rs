@@ -130,6 +130,9 @@ fn checked_world_points_compute_the_declared_target_and_refuse_forgery() {
         result.parent_ids().contains(&p0.claim_id) && result.parent_ids().contains(&p1.claim_id)
     );
     assert!(result.evidence().iter().any(|v| &**v == "data:study"));
+    // The arithmetic establishes no standing: identification, uncertainty and calibration
+    // all stay owed.
+    assert!(result.limitations().contains(&"identification_not_established"));
     assert!(result.limitations().contains(&"uncertainty_not_propagated"));
     assert!(result.limitations().contains(&"calibration_not_transferred"));
     let mut too_small = limits();

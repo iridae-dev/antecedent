@@ -268,7 +268,6 @@ pub fn compose_checked_study_claims(
     limits: &CheckedWorldPointLimits,
     ctx: &antecedent_core::ExecutionContext,
 ) -> Result<CheckedStudyClaim, CheckedWorldPointError> {
-    use antecedent_core::IdentificationStatus;
     use std::collections::BTreeMap;
     let lease = admit_checked_claim_composition(target, parents, operation, limits, ctx)?;
     let first = parents[0].claim;
@@ -310,11 +309,7 @@ pub fn compose_checked_study_claims(
             .ok_or(CheckedWorldPointError::IncompatibleParents)?;
         if claim.kind != ClaimKind::Point
             || claim.value.is_none_or(|v| !v.is_finite())
-            || !matches!(
-                slot.status,
-                IdentificationStatus::NonparametricallyIdentified
-                    | IdentificationStatus::IdentifiedUnderParametricRestrictions
-            )
+            || !antecedent_io_core::contract_section::status_identifies_a_point(slot.status)
             || !slot.masses_are_valid()
             || slot.identified_mass.to_bits() != 1.0_f64.to_bits()
             || slot.unidentified_mass != 0.0

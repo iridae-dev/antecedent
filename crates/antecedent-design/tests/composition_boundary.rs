@@ -181,12 +181,14 @@ fn joint_input(
 ) -> DecisionInput {
     DecisionInput::from_distribution_artifact(
         id,
+        // The provider states every coordinate supported: an unstated mask would be
+        // missing evidence for any provider but a native one.
         &joint(
             provider,
             snapshot,
             DistributionTrust::Unverified,
             DistributionCalibration::NotMeasured,
-            None,
+            Some(vec![true, true, true]),
         ),
         evidence,
         TrustRequirement::Unrestricted,
@@ -353,6 +355,86 @@ fn boundary_exact_request_verification_needs_a_matching_receipt() {
     )
     .unwrap_err();
     assert!(matches!(native_needed, BoundaryError::NativeRequired { .. }));
+}
+
+#[test]
+fn boundary_an_unstated_mask_is_supported_only_for_a_native_law() {
+    let unmasked = |trust, calibration| joint("lab", "snap-x", trust, calibration, None);
+    // Unproven and attested providers: an unstated coordinate is missing evidence.
+    for evidence in [TrustEvidence::None, attested()] {
+        let input = DecisionInput::from_distribution_artifact(
+            "ext",
+            &unmasked(DistributionTrust::Unverified, DistributionCalibration::NotMeasured),
+            &evidence,
+            TrustRequirement::Unrestricted,
+        )
+        .unwrap();
+        assert!(
+            input.support().entries().iter().all(|(_, s)| *s == SupportStatus::MissingEvidence)
+        );
+        // A measured label from a provider that only attests is not measured here.
+        let measured = DecisionInput::from_distribution_artifact(
+            "ext",
+            &unmasked(DistributionTrust::ExternalAttested, DistributionCalibration::Measured),
+            &evidence,
+            TrustRequirement::Unrestricted,
+        )
+        .unwrap();
+        assert_eq!(measured.provenance().calibration, CalibrationStatus::NotMeasured);
+        let InputSource::JointLaw(stored) = measured.source() else { panic!("a joint law") };
+        assert_eq!(stored.metadata().calibration, DistributionCalibration::NotMeasured);
+    }
+    // A verified provider keeps its measured label; its unstated coordinates are still
+    // missing evidence, since verification of the request is not a support assessment.
+    let verified_input = DecisionInput::from_distribution_artifact(
+        "ext",
+        &unmasked(DistributionTrust::VerifiedExtension, DistributionCalibration::Measured),
+        &verified("snap-x"),
+        TrustRequirement::Unrestricted,
+    )
+    .unwrap();
+    assert_eq!(verified_input.provenance().calibration, CalibrationStatus::Measured);
+    assert!(
+        verified_input
+            .support()
+            .entries()
+            .iter()
+            .all(|(_, s)| *s == SupportStatus::MissingEvidence)
+    );
+    // A native record backs the producer's convention: every coordinate supported.
+    let native = DecisionInput::from_distribution_artifact(
+        "native",
+        &labelled_native(),
+        &native_record("engine", "snap-n"),
+        TrustRequirement::Native,
+    )
+    .unwrap();
+    assert!(native.support().entries().iter().all(|(_, s)| *s == SupportStatus::Supported));
+    // An explicit mask is read as stated, and the caller-stated form never overrides a
+    // coordinate the mask marks unsupported.
+    let stated = DecisionInput::from_distribution_artifact_with_unstated_support(
+        "ext",
+        &joint(
+            "lab",
+            "snap-x",
+            DistributionTrust::Unverified,
+            DistributionCalibration::NotMeasured,
+            Some(vec![true, false, true]),
+        ),
+        &TrustEvidence::None,
+        TrustRequirement::Unrestricted,
+        SupportStatus::Supported,
+    )
+    .unwrap();
+    let statuses: Vec<SupportStatus> = stated.support().entries().iter().map(|(_, s)| *s).collect();
+    assert_eq!(
+        statuses,
+        vec![
+            SupportStatus::Supported,
+            SupportStatus::OutsideEmpiricalSupport,
+            SupportStatus::Supported
+        ]
+    );
 }
 
 // ----------------------------------------------------------- per-action support
@@ -647,11 +729,13 @@ fn boundary_an_aligned_joint_law_answers_the_probability_a_mean_cannot() {
         action("wait", "do(a=0)", "outcome", UtilityExpr::Input(0)),
         action("treat", "do(a=1)", "outcome", UtilityExpr::Input(0)),
     ]);
-    let unbacked = DecisionInput::from_distribution_artifact(
+    // The caller states the coordinates supported; only the exact label is unbacked.
+    let unbacked = DecisionInput::from_distribution_artifact_with_unstated_support(
         "law",
         &labelled_native(),
         &TrustEvidence::None,
         TrustRequirement::Unrestricted,
+        SupportStatus::Supported,
     )
     .unwrap();
     // P(x1 >= 2) over [4, 0, 2, 6] is 3 / 4. The unbacked exact label is not used.

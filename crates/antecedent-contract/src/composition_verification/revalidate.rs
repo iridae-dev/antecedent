@@ -73,12 +73,18 @@ pub enum ObservedEffect {
 
 impl ObservedEffect {
     /// The effect of one stage's status in a recalculation plan: reuse is no
-    /// effect, recomputation is a numerical effect, a refused stage cannot be
-    /// executed.
+    /// effect, recomputation is a numerical effect unless the input it rests on is
+    /// gone, which is a withdrawal (the stage status's own class), and a refused
+    /// stage cannot be executed.
     #[must_use]
     pub fn from_stage_status(status: &StageStatus) -> Option<Self> {
         match status {
             StageStatus::Reused { .. } => None,
+            StageStatus::Recomputed { because }
+                if status.revalidation() == Revalidation::Withdrawn =>
+            {
+                Some(Self::Withdrawn { cause: format!("stage_status:{because}") })
+            }
             StageStatus::Recomputed { because } => {
                 Some(Self::Recomputed { cause: format!("stage_status:{because}") })
             }
@@ -197,10 +203,12 @@ pub fn ledger_effects(
 ) -> Result<BTreeMap<String, ObservedEffect>, GraphError> {
     let mut out = BTreeMap::new();
     for (key, id) in bindings {
-        let Some(record) = ledger.result(*id) else {
+        // The status after any reclassification the ledger has pending, so a result resting
+        // on one a combination just replaced is never read as valid.
+        let Some(status) = ledger.effective_status(*id) else {
             return Err(GraphError::UnknownNode(format!("ledger result {id}")));
         };
-        if let Some(effect) = ObservedEffect::from_result_status(&record.status) {
+        if let Some(effect) = ObservedEffect::from_result_status(&status) {
             out.insert((*key).to_owned(), effect);
         }
     }

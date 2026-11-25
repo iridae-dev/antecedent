@@ -214,6 +214,15 @@ pub fn provenance_trust(
 /// a label stronger than `extrapolative` names the response's coordinates as
 /// unsupported. The label itself (`extrapolative`) travels in the receipt and in
 /// the claim's identity.
+///
+/// A transported response is never `supported` outright (its receipt refuses that
+/// label); `extrapolative` coordinates are inside the support only under the
+/// transport premise. The facet has no state between supported and outside support,
+/// so the premise is carried where the claim rests on it: a scene claim's structure
+/// (its selection diagrams) and sources never let it keep its authority when the
+/// premise moves, and a
+/// graph node ([`transported_claim_node`]) also states `support_label:<label>` as an
+/// assumption ([`super::composition_verification::support_label_premise`]).
 #[must_use]
 pub fn response_support(response: &TransportedResponse) -> SupportStanding {
     let receipt = response.receipt();
@@ -320,7 +329,10 @@ pub fn transported_claim_node(
         .with_structure(digest_of(&structure))
         .with_coordinate(response_coordinate(response)?)
         .with_standing(standing)
-        .with_assumptions(receipt.assumptions.clone())
+        .with_assumptions(super::composition_verification::with_support_premise(
+            receipt.assumptions.clone(),
+            &receipt.support,
+        ))
         .with_transformation(receipt.route.as_str()))
 }
 

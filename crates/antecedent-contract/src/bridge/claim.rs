@@ -259,12 +259,10 @@ pub fn derive_bridged_claim_propagating(
         }
     };
     let identities = bridged_identities(contract, contract_identity, &source.claim.identities);
-    let reasoning = bridged_reasoning(contract, propagation.as_ref());
-    let domains = ClaimDomains::new(
-        DomainStatus::Unknown,
-        DomainStatus::Unknown,
-        source.claim.domains.evaluated,
-    );
+    let reasoning = bridged_reasoning(contract, propagation.as_ref(), source.claim);
+    // Nothing about the target quantity was identified, supported or evaluated on data:
+    // the source's evaluated status is the source's own and stays on the source claim.
+    let domains = bridged_domains();
     let mut evidence: Vec<Arc<str>> =
         source.claim.evidence.iter().filter(|item| !is_alignment_evidence(item)).cloned().collect();
     evidence.push(Arc::from(format!("bridge:{}", contract_identity.to_hex())));
@@ -316,8 +314,9 @@ pub fn derive_bridged_claim_propagating(
         .try_push(node(claim_id, &operation, std::slice::from_ref(&source_hex)))
         .map_err(record_failed)?;
 
-    let receipt =
+    let mut receipt =
         bridge_receipt(contract, source_claim_id, claim_id, operation, propagation.is_some());
+    receipt.unresolved = with_source_assumptions(&receipt.unresolved, source.claim);
     Ok(BridgedClaim {
         claim: envelope,
         contract: contract.clone(),
@@ -417,11 +416,62 @@ pub(super) fn bridged_identities(
     )
 }
 
+/// The domains of a bridged claim: nothing is identified, supported or evaluated for the
+/// target quantity. A source's evaluated status is about the source quantity and stays on the
+/// source claim, which a bridged claim names but does not restate.
+pub(super) const fn bridged_domains() -> ClaimDomains {
+    ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Unknown)
+}
+
+/// Identifier of the obligation that stands for a source claim whose assumptions the bridge
+/// could not read (an unavailable slot): the bridged claim rests on them unseen.
+pub const SOURCE_ASSUMPTIONS_UNAVAILABLE: &str = "bridge_source_assumptions_unavailable";
+
+/// The unresolved obligations of the source claim, which the bridged claim rests on as well,
+/// or one obligation standing for them when the source's assumption slot is unavailable.
+pub(super) fn source_obligations(source: &ClaimEnvelope) -> Vec<ObligationRecord> {
+    match &source.reasoning.assumptions {
+        SlotAvailability::Available(slot) => {
+            slot.obligations.iter().filter(|record| record.is_unresolved()).cloned().collect()
+        }
+        SlotAvailability::Unavailable { .. } => vec![source_assumptions_unavailable()],
+    }
+}
+
+/// The obligation that stands for source assumptions the bridge cannot read.
+pub(super) fn source_assumptions_unavailable() -> ObligationRecord {
+    ObligationRecord::new(
+        SOURCE_ASSUMPTIONS_UNAVAILABLE,
+        ObligationScope::Program,
+        AssumptionSource::UserDeclared,
+        ObligationKind::CheckNotRun,
+        AssumptionStatus::Declared,
+        "the source claim's assumptions were not available to the bridge",
+    )
+}
+
+/// `unresolved` followed by each unresolved source obligation, as `source_assumption:<id>`.
+pub(super) fn with_source_assumptions(
+    unresolved: &[Arc<str>],
+    source: &ClaimEnvelope,
+) -> Arc<[Arc<str>]> {
+    let mut out = unresolved.to_vec();
+    for record in source_obligations(source) {
+        let item: Arc<str> = Arc::from(format!("source_assumption:{}", record.id));
+        if !out.contains(&item) {
+            out.push(item);
+        }
+    }
+    out.into()
+}
+
 /// Reasoning slots of a bridged claim: nothing is established for the target
-/// quantity beyond the declared assumptions, which are listed as unresolved.
+/// quantity beyond the declared assumptions, which are listed as unresolved, and
+/// the source's own unresolved obligations, which the bridged claim rests on too.
 fn bridged_reasoning(
     contract: &BridgeContract,
     propagation: Option<&PointPropagation>,
+    source: &ClaimEnvelope,
 ) -> ReasoningView {
     let mut obligations: Vec<ObligationRecord> =
         contract.assumptions.iter().map(obligation).collect();
@@ -437,6 +487,7 @@ fn bridged_reasoning(
         record.evidence = premise.evidence.as_deref().map(Arc::from);
         obligations.push(record);
     }
+    obligations.extend(source_obligations(source));
     ReasoningView::new(
         SlotAvailability::unavailable("bridge_assumptions_declared"),
         SlotAvailability::unavailable("bridge_support_not_established"),
@@ -537,6 +588,9 @@ impl BridgedClaim {
     /// makes it inapplicable, and the receiver's snapshot is the source's.
     /// The bridged claim was valid for its snapshot exactly when its source was
     /// (`historically_valid` is the source's); retirement only changes applicability.
+    /// A withdrawn source withdraws the bridged claim, so a receiver reads a
+    /// withdrawal, never a recomputation; a superseded source names no successor
+    /// for the bridged claim, which must be derived again.
     #[must_use]
     pub fn freshness(&self, source: &ClaimFreshness) -> ClaimFreshness {
         let retired = source.withdrawn || source.superseded_by.is_some();
@@ -545,7 +599,7 @@ impl BridgedClaim {
             currently_applicable: if retired { Some(false) } else { source.currently_applicable },
             locally_ready: source.locally_ready,
             superseded_by: None,
-            withdrawn: false,
+            withdrawn: source.withdrawn,
             as_of_snapshot: source.as_of_snapshot,
         }
     }

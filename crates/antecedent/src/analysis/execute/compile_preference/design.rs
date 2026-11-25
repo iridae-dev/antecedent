@@ -282,9 +282,9 @@ impl DesignSource {
                 axes: ["draw".to_owned(), "quantity".to_owned()],
                 shape: [realizations.len(), width],
                 weights: None,
-                supported: None,
-                calibration: DistributionCalibration::NotMeasured,
-                trust: DistributionTrust::Unverified,
+                supported: Some(refit_support(&rows, width)),
+                calibration: REFIT_LAW_CALIBRATION,
+                trust: REFIT_LAW_TRUST,
                 legacy_posterior: None,
                 legacy_bindings: None,
             },
@@ -717,5 +717,48 @@ fn arm_coordinate(
         functional_id: MEAN_FUNCTIONAL.to_owned(),
         conditioning: Vec::new(),
         transform_id: IDENTITY_TRANSFORM.to_owned(),
+    }
+}
+
+/// The support a refitted design law states for each arm coordinate, from the refits
+/// themselves: an arm is supported only when every refit of the study's own data produced a
+/// finite estimate for it. Failed refits are refused before the law is built, so the mask is
+/// the evidence the refits hold, never a default: a law without a stated mask would read as
+/// missing evidence wherever a decision input reads it.
+fn refit_support(rows: &[f64], width: usize) -> Vec<bool> {
+    (0..width)
+        .map(|column| {
+            !rows.is_empty() && rows.chunks_exact(width).all(|row| row[column].is_finite())
+        })
+        .collect()
+}
+
+/// A refitted design law states no coverage record: its draws are realizations of the
+/// compiled design, not a measured interval construction.
+const REFIT_LAW_CALIBRATION: DistributionCalibration = DistributionCalibration::NotMeasured;
+/// A refitted design law is the library's own computation, asserted by no verified provider.
+const REFIT_LAW_TRUST: DistributionTrust = DistributionTrust::Unverified;
+
+#[cfg(test)]
+mod standing_tests {
+    use super::*;
+
+    #[test]
+    fn site_a_refitted_design_law_claims_no_calibration_or_verified_trust() {
+        assert_eq!(REFIT_LAW_CALIBRATION, DistributionCalibration::NotMeasured);
+        assert_ne!(REFIT_LAW_CALIBRATION, DistributionCalibration::Measured);
+        assert_ne!(REFIT_LAW_CALIBRATION, DistributionCalibration::Exact);
+        assert_eq!(REFIT_LAW_TRUST, DistributionTrust::Unverified);
+    }
+
+    #[test]
+    fn site_a_refitted_design_law_states_support_from_its_refits() {
+        // Every refit estimated both arms: both are supported, stated, not defaulted.
+        assert_eq!(refit_support(&[1.0, 2.0, 1.5, 2.5], 2), vec![true, true]);
+        // An arm some refit could not estimate is not supported; the other arm keeps its own.
+        assert_eq!(refit_support(&[1.0, f64::NAN, 1.5, 2.5], 2), vec![true, false]);
+        assert_eq!(refit_support(&[1.0, 2.0, f64::INFINITY, 2.5], 2), vec![false, true]);
+        // No refit is no evidence.
+        assert_eq!(refit_support(&[], 2), vec![false, false]);
     }
 }

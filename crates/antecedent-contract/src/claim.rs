@@ -2068,6 +2068,23 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_new_envelope_claims_no_calibration_or_attestation() {
+        // Whatever kind and domains the producer states, a new envelope is calibrated by
+        // nothing and attested by nothing: both are set only by a later projection.
+        let claim = sample_claim(1, 1.0);
+        assert_eq!(claim.calibration, CalibrationView::default());
+        assert_eq!(&*claim.calibration.status, "not_measured");
+        assert_eq!(claim.calibration.record_id, None);
+        assert_eq!(claim.calibration.interval_counts, None);
+        assert_eq!(claim.calibration.observed, None);
+        assert!(claim.calibration.reason.is_some());
+        assert!(claim.calibration.secondary.is_empty());
+        assert!(claim.attested.is_empty());
+        assert_eq!(claim.kind, ClaimKind::Point);
+        assert_eq!(claim.domains.identification, DomainStatus::Identified);
+    }
+
     fn sample_claim(byte: u8, identified_mass: f64) -> ClaimEnvelope {
         use crate::reasoning::{
             AssumptionSlot, IdentificationSlot, ReasoningView, SlotAvailability, SupportSlot,

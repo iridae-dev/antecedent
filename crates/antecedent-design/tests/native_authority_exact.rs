@@ -39,7 +39,12 @@ fn quantity(variable: &str, regime: &str) -> ScientificQuantity {
     ScientificQuantity { regime_id: regime.into(), ..common::quantity(variable) }
 }
 
-fn artifact(provider: &str, snapshot: &str, rows: [(f64, f64); 4]) -> DistributionArtifact {
+fn artifact(
+    provider: &str,
+    snapshot: &str,
+    rows: [(f64, f64); 4],
+    supported: Option<Vec<bool>>,
+) -> DistributionArtifact {
     let columns = [quantity("p", "do(a=1)"), quantity("s", "do(a=0)")];
     let identity = DistributionIdentity::new(
         DistributionMeaningWire::InterventionalPredictive,
@@ -61,7 +66,7 @@ fn artifact(provider: &str, snapshot: &str, rows: [(f64, f64); 4]) -> Distributi
             axes: ["draw".into(), "quantity".into()],
             shape: [4, 2],
             weights: None,
-            supported: None,
+            supported,
             calibration: DistributionCalibration::Exact,
             trust: DistributionTrust::NativeSupported,
             legacy_posterior: None,
@@ -73,11 +78,18 @@ fn artifact(provider: &str, snapshot: &str, rows: [(f64, f64); 4]) -> Distributi
 }
 
 fn source_n() -> DistributionArtifact {
-    artifact("native-prov", "snapN", [(1.0, 3.0), (3.0, 5.0), (2.0, 3.0), (2.0, 5.0)])
+    artifact("native-prov", "snapN", [(1.0, 3.0), (3.0, 5.0), (2.0, 3.0), (2.0, 5.0)], None)
 }
 
 fn source_e() -> DistributionArtifact {
-    artifact("ext-prov", "snapE", [(9.0, 3.0), (11.0, 5.0), (10.0, 3.0), (10.0, 5.0)])
+    // The external provider states its support: an unstated mask is missing evidence
+    // for any provider but a native one.
+    artifact(
+        "ext-prov",
+        "snapE",
+        [(9.0, 3.0), (11.0, 5.0), (10.0, 3.0), (10.0, 5.0)],
+        Some(vec![true, true]),
+    )
 }
 
 fn record(provider: &str, snapshot: &str, execution: &str) -> TrustEvidence {
@@ -188,6 +200,13 @@ fn only_a_matching_nonblank_record_grants_native_standing_and_keeps_the_exact_cl
             BoundaryError::MetadataOnlyNativeClaim { input: "N".into() }
         );
     }
-    // Every coordinate of an unmasked law is supported regardless of trust.
+    // An unmasked law is supported where a native record backs it, and missing evidence
+    // where nothing does.
     assert_eq!(n.support().status_of(&quantity("p", "do(a=1)")), Some(SupportStatus::Supported));
+    let unproven =
+        build("N", &source_n(), &TrustEvidence::None, TrustRequirement::Unrestricted).unwrap();
+    assert_eq!(
+        unproven.support().status_of(&quantity("p", "do(a=1)")),
+        Some(SupportStatus::MissingEvidence)
+    );
 }

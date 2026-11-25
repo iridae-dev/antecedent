@@ -1269,11 +1269,10 @@ fn source_claim(value: f64) -> ClaimEnvelope {
             SlotAvailability::unavailable("cluster-trial"),
             SlotAvailability::unavailable("cluster-trial"),
         ),
-        ClaimDomains::new(
-            DomainStatus::Identified,
-            DomainStatus::Supported,
-            DomainStatus::Evaluated,
-        ),
+        // The cluster trial's value is evaluated; its slots are unavailable, so the envelope
+        // asserts no identification or support domain it has no slot for. Only the bridged
+        // value is read from it, and nothing about it is exported.
+        ClaimDomains::new(DomainStatus::Unknown, DomainStatus::Unknown, DomainStatus::Evaluated),
         None,
         vec![Arc::<str>::from("cluster-trial")],
     )
@@ -1551,6 +1550,17 @@ pub fn load_decision(
 #[cfg(test)]
 mod authority_tests {
     use super::*;
+
+    #[test]
+    fn site_the_cluster_source_asserts_no_domain_it_has_no_slot_for() {
+        let claim = source_claim(0.5);
+        assert!(matches!(claim.reasoning.identification, SlotAvailability::Unavailable { .. }));
+        assert!(matches!(claim.reasoning.support, SlotAvailability::Unavailable { .. }));
+        assert_eq!(claim.domains.identification, DomainStatus::Unknown);
+        assert_eq!(claim.domains.support, DomainStatus::Unknown);
+        assert_eq!(claim.domains.evaluated, DomainStatus::Evaluated);
+        assert_eq!(claim.value, Some(0.5));
+    }
 
     #[test]
     fn withdrawn_source_cannot_authorize_access_export_recompute_or_consumption() {
