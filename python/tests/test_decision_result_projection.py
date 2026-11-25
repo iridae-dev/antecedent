@@ -96,8 +96,9 @@ def test_changed_effect_quantile_and_declaration_refuse() -> None:
     assert quantile.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
 
     for units, population in (("", "target"), ("mmHg", "other")):
-        with pytest.raises(CausalValueError, match=UNITS):
+        with pytest.raises(CausalValueError) as declaration:
             result._raw.effect_source_json(units, population, result.as_point())
+        assert str(declaration.value) == UNITS
 
 
 def test_response_uses_the_native_mean_or_refuses_a_law() -> None:

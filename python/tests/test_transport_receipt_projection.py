@@ -1,10 +1,4 @@
-"""A transport result projects to a TransportedResponse only when its receipt is already there.
-
-The success path, including the receipt identity, is the Rust test
-``a_transport_receipt_projects_only_when_the_result_already_carries_it``: Python cannot attach
-the ``receipt.*`` diagnostic fields. Here the binding refuses a bare analysis result and a
-transport result that does not carry them, and ``evaluate_transported`` rejects the bare result.
-"""
+"""Only a transport result carrying its native execution receipt can be projected."""
 
 from __future__ import annotations
 
@@ -50,7 +44,7 @@ def _ate():
     )
 
 
-def _transport():
+def _transport(*, graph_posterior: bool = False):
     names = ["a", "y", "trial", "s", "e"]
     data = {
         "a": np.array([1.0, 0.0, 0.0, 0.0]),
@@ -67,14 +61,13 @@ def _transport():
         selection_probability="s",
         treatment_probability="e",
     )
-    return require_success(
-        ant.analyze(
-            data,
-            graph=ant.Admg.from_edges(names, [("a", "y")]),
-            query=query,
-            refute="none",
-        )
+    graph = ant.Admg.from_edges(names, [("a", "y")])
+    structure = (
+        {"discovery": ant.discovery.GraphPosterior.from_graphs(names, [1.0], [graph])}
+        if graph_posterior
+        else {"graph": graph}
     )
+    return require_success(ant.analyze(data, query=query, refute="none", **structure))
 
 
 def test_a_bare_analysis_result_is_not_a_transported_response() -> None:
@@ -87,9 +80,21 @@ def test_a_bare_analysis_result_is_not_a_transported_response() -> None:
         tr.evaluate_transported(_contract(), result, analysis=result)
 
 
-def test_a_transport_result_without_receipt_fields_refuses() -> None:
+def test_direct_trial_transport_projects_its_execution_receipt() -> None:
+    projected = tr.project_transported_response(_transport())
+    assert projected.means == pytest.approx((2.0,))
+    assert projected.coordinates[0].regime_id == "contrast:do(a=1)-do(a=0)"
+    assert projected.receipt.source_populations == ("trial",)
+    assert projected.receipt.target_population == "target"
+    assert projected.receipt.support == "extrapolative"
+    assert projected.receipt.representation == "point_only"
+
+
+def test_graph_posterior_transport_without_trial_receipt_refuses() -> None:
+    result = _transport(graph_posterior=True)
     with pytest.raises(tr.TransportedResponseRefusal) as caught:
-        tr.project_transported_response(_transport())
+        tr.project_transported_response(result)
+    assert caught.value.reason_code == "transport_missing_evidence"
     assert (
         caught.value.detail == reason_details.transported_decision.TRANSPORT_IDENTITY_INCOMPLETE
     )
