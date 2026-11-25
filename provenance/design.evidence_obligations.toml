@@ -17,7 +17,7 @@ implementation_deviations = [
   "addressed_by is a screen on population, regime and joint law, not an identification theorem: a study that passes it repairs a contract only when the theorem-specific checker that owns the contract accepts the hypothetical evidence.",
   "EstablishAssumption is never satisfiable by a study; a proposed study does not prove an assumption.",
   "Identifiers eo1:<kind>:<hash> are the first 128 bits (32 hex digits) of the BLAKE3 digest of the canonical content, independent of variable order and sensitive to provenance; they are fingerprints for equality, not security tokens. The canonical content is unframed text, made injective on accepted inputs by refusing a population, slot, family, source or proof step that contains ';' followed by the key of a later field, a slot containing '|', and a repeated slot. validate() re-checks a hand-built or decoded obligation and refuses a stored id that differs from the one derived from its content.",
-  "An unresolved assumption record that cannot form an obligation (an id containing a reserved identity separator) is refused by try_unresolved_assumption_obligations, never dropped; the infallible unresolved_assumption_obligations skips such a record and is kept for compatibility.",
+  "An unresolved assumption record that cannot form an obligation (an id containing a reserved identity separator) is refused by try_unresolved_assumption_obligations, never dropped; the infallible unresolved_assumption_obligations never drops it either: it keeps the assumption owed as an EstablishAssumption obligation keyed by the BLAKE3 digest of the record id (provenance family unrepresentable_assumption_record), so two such records stay distinct.",
   "The z-transport adapter preserves checked expression leaves and binding failures and is consumed by ZTransportRepairFamily through the public generic repair facade; it emits no factor request for a failure without a checked formula.",
   "Scientific quantities can be explicitly bound to every requested variable, retaining units, population, regime identity, horizon, functional, conditioning and transform in the canonical obligation ID. Display-name changes do not change identity. A declared coordinate requires a compatible offered coordinate in the necessary-condition screen. Structural obligations with no measurement declaration retain their original IDs and never infer units.",
   "Repair obligation wire records preserve the full shared ScientificQuantityWire descriptors, refuse duplicate variables and reject descriptor tampering against the stored obligation ID.",
@@ -41,13 +41,13 @@ status = "justified_non_algorithm"
 kind = "contract"
 rationale = "Machine-readable evidence obligations a failed causal contract owes: which quantities, populations and regimes would let it identify."
 no_independent_algorithm = "Typed records with canonical identity; no estimator or numeric routine."
-record_sha256 = "2be80a0cdea283e3ba8487fc59893e0293e8f4ba46b5ac076d60da11ae680a58"
+record_sha256 = "7b686d334411cfc6638a9532a9e8348a26c5f4a86ce5694d209edc2f08d61b32"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/evidence_obligation.rs"
 items = ["const FIELD_KEYS", "const FIELD_SEPARATOR", "const KEY_FAMILY", "const KEY_POPULATION", "const KEY_SLOTS", "const KEY_SOURCE", "const KEY_STEP", "const SLOT_JOIN", "enum EvidenceObligationKind", "fn addressed_by", "fn canonical", "fn canonical_content", "fn derive_id", "fn distinct", "fn from_unmet_factor", "fn from_unresolved_record", "fn id_list", "fn invalid", "fn observational", "fn same_set", "fn satisfiable_by_study", "fn scope_label", "fn sorted_ids", "fn to_spec", "fn try_new", "fn try_unresolved_assumption_obligations", "fn unresolved_assumption_obligations", "fn validate", "fn validate_spec", "fn with_quantities", "fn wrong_contract", "struct EvidenceObligation", "struct EvidenceObligationError", "struct EvidenceObligationSpec", "struct EvidenceOffer", "struct ObligationProvenance", "struct ObligationRegime"]
-sha256 = "37819108b2940dcf79554ead9bf9e2a2d3077e6f4296b57f4da129bcdb7d8517"
+sha256 = "fb482657b443ee9ba87d4cf9a4f26f772be1df7170e80346427dab2c0c220881"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

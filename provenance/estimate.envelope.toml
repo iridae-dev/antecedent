@@ -79,7 +79,7 @@ record_sha256 = "a46aee4107e9fb42007cb2b4319f0ea7c1594fc12a2cc277adadc0921c1ad23
 role = "implementation"
 path = "crates/antecedent-estimate/src/envelope.rs"
 items = ["const PSD_TOLERANCE", "fn aggregate_effect_envelope", "fn aggregate_mixture_functional_envelope", "fn couple_mixture_functional_draws", "fn moment_matched", "struct EnvelopeOptions", "struct GraphEffectDraws"]
-sha256 = "a75503c59293d17e3c9e4db218e0053bfd5997ac8c8e84be89597f9289271efb"
+sha256 = "096e882d0f47faf4b3d453524d411a3513a29525cfc228df5e9945c2bd089dd6"
 
 [[method_review.artifacts]]
 role = "assertion"

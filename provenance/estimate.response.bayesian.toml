@@ -25,7 +25,7 @@ record_sha256 = "1249531d5ff4f0f17b2b6f7138db73a56913c1e714542c7744aac45c119e189
 role = "implementation"
 path = "crates/antecedent-estimate/src/response/bayes.rs"
 items = ["const RESPONSE_ROWS_PER_CHUNK", "fn admit_bayesian_response", "fn aligned_coefficient_draws", "fn average_derivative_posterior", "fn bayesian_response_support", "fn credible_scalar_uncertainty", "fn derivative_baseline", "fn derivative_draws", "fn derivative_inputs", "fn estimate_bayesian", "fn estimate_bayesian_derivative", "fn from_columns", "fn inflate_draws_by_edf", "fn into_response", "fn non_derivative_functional", "fn non_gaussian_row_features", "fn posterior_coefficient_columns", "fn prepare_bayesian_response_design", "fn refit_derivative_posterior", "fn stream_response_grid", "fn summarize_gam_derivative_draws", "fn summarize_point_derivative_draws", "fn summarize_scalar_draws", "struct BayesianResponseAdmission", "struct BayesianResponseSummary", "struct BayesianSupportRequest", "struct DerivativeDraw", "struct DerivativeInputs", "struct DerivativePosterior", "struct ResponseGrid"]
-sha256 = "4700b82e6900c57bb79983e8190ab41e4032814d78ba408c68300f74d78caf06"
+sha256 = "60b2c08793b1dededcd53cdc0486ba05e94098e71b88d6e4bae0bd5e0b2b5e2f"
 
 [[method_review.artifacts]]
 role = "implementation"

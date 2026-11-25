@@ -2329,13 +2329,14 @@
    "deviations": [
     "The Python direct native-claim adapter consumes opaque actual checked producer state and original aligned functional rows through the existing Mean/Joint input constructors. Copied values or metadata cannot issue native trust; original uncertainty remains point_only/not_measured. Coordinate diagnostic vectors and the full queryable native provenance chain remain separate propagation obligations.",
     "Trust never comes from artifact metadata. A native label without a native execution record for the same provider and snapshot is a metadata-only claim and refuses; a requirement for native or verified inputs refuses an unbacked label; an exact label counts only with an exact-request verification receipt that matches the object. An unbacked label is stored as unverified and its exact claim is not used.",
-    "Support is evaluated per action. An action that reads a missing or too weakly supported coordinate, or that its source cannot answer (a nonlinear utility or outcome-law input on a mean source), is reported unsupported or unevaluated with a reason while the supported actions are still compared, unless the policy requires every action; when no action is supported the result is a state, not an error. Actions answered by different inputs compare by value only. Support labels and coordinates are caller-supplied; the evaluator does not verify them.",
+    "Support is evaluated per action. An action that reads a missing or too weakly supported coordinate, or that its source cannot answer (a nonlinear utility or outcome-law input on a mean source), is reported unsupported or unevaluated with a reason while the supported actions are still compared, unless the policy requires every action; when no action is supported the result is a state, not an error. Actions answered by different inputs compare by value only. Support labels and coordinates are caller-supplied; the evaluator does not verify them. A coordinate that an artifact's mask does not state (an absent mask) is supported only when a native execution record backs the law: from any other provider it is missing evidence, unless the caller holds evidence for those coordinates and states their status (from_distribution_artifact_with_unstated_support).",
+    "A calibration claim is carried only as far as the provider is proven: an exact label from a provider that only attests is kept as an unverified exact claim, and a measured label from such a provider is stored as not_measured, because nobody here verified its coverage record. A native or exact-request-verified provider keeps its label.",
     "A mean is never an outcome distribution: a probability, quantile or nonlinear functional asked of a mean source refuses, and paired draws require every input to be an aligned joint law. Evaluation reuses the decision evaluator and passes its own refusals through; this record does not change its arithmetic.",
     "Independent pooling and paired draws are refused when two inputs share data, a prior or a fitted model, or when their dependence is unknown or undeclared, unless a covariance or joint-law route is declared that names one of the pair as an aligned joint law. Two inputs declared independent but carrying the same snapshot identity are treated as sharing data. A relation or route is a declaration the check reads, not a derivation of the dependence; no covariance is estimated and no pooling is performed.",
     "Statistical pooling, Bayesian borrowing, causal transport and evidence reuse are separate declared operations and none implies another; an undeclared operation refuses. Conflicting structural atoms are never averaged silently: a weighted combination needs a declared probability on every atom, probabilities must be finite, non-negative and sum to at most one, missing mass is retained and never renormalized, and completion counts are not probabilities.",
     "The Python bridge delegates every identity, trust rule and refusal to the Rust core and cannot assert a native or verified provider by passing a string."
    ],
-   "digest": "21b457ba44ef5720b3bc1049ec6f8a80a7b0c4a4f228a219ed4011cc67eb04bd",
+   "digest": "c632f3960c4eacf94502ec9b6bed5ba4b3c9d8fe42ac2897bf984c52fc191c85",
    "id": "composition.boundary",
    "review": "none",
    "scope_limits": [],
@@ -2393,7 +2394,7 @@
     "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
     "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence."
    ],
-   "digest": "1baeb1d85d0eee4356674c5537402b4f78958603b0ba31e14249871fe4a24464",
+   "digest": "47220e7baef7a44971125ff6d2df16a91a67ba29c18ed4bfa865732984acb88d",
    "id": "composition.multi_source",
    "review": "none",
    "scope_limits": [],
@@ -2403,7 +2404,7 @@
    "deviations": [
     "Native execution authority is minted only by a native producer; generic constructors and metadata-only artifacts are stored unverified and refuse native use."
    ],
-   "digest": "687d8a782ab1b77900364731b74f9323b43d2547b9daa93d0b7bc0c786872a02",
+   "digest": "1388b101b36c769bf1afb93b62303360dd3276bed5dc7e5295eb601d17c49cdd",
    "id": "composition.native_authority",
    "review": "none",
    "scope_limits": [],
@@ -2662,7 +2663,7 @@
     "Stage reuse never proves a claim supported. The graph layers support, provider trust and calibration standing on the planner's reuse decision and withdraws support even when every number is reusable.",
     "No interval, posterior or calibration record is produced or measured: a calibration declaration names a record identity and a coordinate, and the classification only checks that the record held at the claim's own coordinate is the one the claim states. A held record that differs from the earlier snapshot, including one that appears where none was held (point-only or required before), forces recomputation of its owner as a calibration change, so calibration never rises across reused numbers; lowering a held record to point-only or required raises no calibration change: the numbers stand and the interval is simply no longer held."
    ],
-   "digest": "a605df7f9eb3f390754e52e5a5a819a1c1ec9373bcaa1acbce682caf2635f2f0",
+   "digest": "d7cdb2e9a1dbfab32ec908dcc360f97125e275a58a01a734da4f4fb0bdd1bb88",
    "id": "composition_verification.claim_revalidation",
    "review": "none",
    "scope_limits": [],
@@ -2672,7 +2673,7 @@
    "deviations": [
     "Intentionally implements no interval, posterior or coverage statement for a revalidated or composed claim, and no inheritance of a calibration record by a claim about another target. A calibration record that no longer holds at the claim's coordinate is carried as a calibration withdrawal on the claim (its interval is annotated, the point value stands); it is never refused and never silently kept. A held record that replaces another or appears where none was held is not attached to reused numbers either: its owner is recomputed."
    ],
-   "digest": "b0eee8838dedc7ec8bc079e67bd6bce46ff1827d5718be0fd2a1ccfe9bf9614a",
+   "digest": "9fdec25054d7b453ec8a281b3591951baf6b6f9bd735ce53203963ca92b80bd2",
    "id": "composition_verification.revalidated_interval",
    "review": "none",
    "scope_limits": [],
@@ -3006,7 +3007,7 @@
     "The bounded route applies the logistic transform to each real-valued fitted predictive draw after fitting; it does not change the structural ports or the Gaussian disturbances, which stay real-valued, and it is not a bounded-outcome model.",
     "Reliability is not measured: results label calibration not_measured, and the reliability scope depends on the design but not on the training replicate."
    ],
-   "digest": "3012ce9029a48a993b9891e0f9ef44f865d00969452369ea3e9bf23482db42d2",
+   "digest": "c5fc269d8d87b0db24c31c7db41208043da0435285db05168842bae984f4459e",
    "id": "cyclic.component_posterior_decisions",
    "review": "none",
    "scope_limits": [],
@@ -3387,9 +3388,10 @@
     "An assumption range is a declared input and is never a probability: weights are declared for point surfaces and are never inferred from a range, and a robust verdict over a range is a worst-case or invariance statement, not a probability-weighted one.",
     "A sampling interval is retained beside the decision and never composed with the assumption range: the supported composition list is empty, so a request or a stored claim of composition is refused (composition_not_supported) and the decision is unchanged by the interval. This record grants no coverage claim.",
     "A JointMechanismSensitivityResult is adapted only when its range can be filled exactly into a surface; otherwise the adaptation is refused. The existing result's own scope and guarantees are inherited unchanged and not widened.",
+    "The one-row law of the surface quantities at a grid point states its support on every coordinate from the surface's own label at that point: a point the producer evaluated and supports reads as supported, any other point as unsupported on every coordinate. The law is exact for the declared scenario, an assumption rather than a measurement, and its provider stays unverified; the absent-mask convention never applies to it.",
     "Unsupported coordinates inside the evaluated range refuse, a sub-range that avoids them is the only supported way forward, and an unevaluated grid point leaves the decision unresolved. Declaration order does not change identity or decision."
    ],
-   "digest": "f2609e1814b8d5cea10bb63944266576b51e1c883d7798329d759968b0bda3b4",
+   "digest": "7b34e8a8f003ce9177aa33e9e0899f8d6f2d56b7bf97b9d6547980123916d928",
    "id": "decision.sensitivity_composition",
    "review": "none",
    "scope_limits": [],
@@ -3430,7 +3432,7 @@
    "deviations": [
     "Point-only export: the consumer re-evaluates the decision and compares identity and action values; a law is not exportable."
    ],
-   "digest": "d5c2a43afd363e7b458cac14a40cf561c113210a3ee928d72a4b9a9b2590a34e",
+   "digest": "aad6464d151058dc78e90ff00bef10c0954a674094907300ab7664e4361fc67f",
    "id": "decision.transported_decision_artifact",
    "review": "none",
    "scope_limits": [],
@@ -3443,10 +3445,11 @@
    ],
    "deviations": [
     "A transported mean supplies only the expectation of an affine utility; a request that needs a law is refused (law_not_supplied), never widened by an assumed spread.",
+    "A transported law's coordinates that its artifact's mask does not state take the transport receipt's support label, and the mask can only weaken that label; an unstated coordinate is never read as supported by default.",
     "Labelled at best extrapolative; the default support policy admits only supported coordinates, so a consumer must name the weaker status. No interval is supported from the transport step.",
     "The source model's standard error is retained as an uncalibrated diagnostic and never becomes a decision, interval or feasibility statement. The inverse origin is a declaration; replay re-checks that the embedded numbers match it, not that the producing route re-executes."
    ],
-   "digest": "fb0781b673fe269bf96d5f0b4e1ae7c481b0debdf4644e1bf3c7bce4a960ec97",
+   "digest": "2bf1d166164006212808da09456119d725c01a989ea029b782b03395bd3bc34f",
    "id": "decision.transported_source",
    "review": "none",
    "scope_limits": [],
@@ -3897,13 +3900,13 @@
     "addressed_by is a screen on population, regime and joint law, not an identification theorem: a study that passes it repairs a contract only when the theorem-specific checker that owns the contract accepts the hypothetical evidence.",
     "EstablishAssumption is never satisfiable by a study; a proposed study does not prove an assumption.",
     "Identifiers eo1:<kind>:<hash> are the first 128 bits (32 hex digits) of the BLAKE3 digest of the canonical content, independent of variable order and sensitive to provenance; they are fingerprints for equality, not security tokens. The canonical content is unframed text, made injective on accepted inputs by refusing a population, slot, family, source or proof step that contains ';' followed by the key of a later field, a slot containing '|', and a repeated slot. validate() re-checks a hand-built or decoded obligation and refuses a stored id that differs from the one derived from its content.",
-    "An unresolved assumption record that cannot form an obligation (an id containing a reserved identity separator) is refused by try_unresolved_assumption_obligations, never dropped; the infallible unresolved_assumption_obligations skips such a record and is kept for compatibility.",
+    "An unresolved assumption record that cannot form an obligation (an id containing a reserved identity separator) is refused by try_unresolved_assumption_obligations, never dropped; the infallible unresolved_assumption_obligations never drops it either: it keeps the assumption owed as an EstablishAssumption obligation keyed by the BLAKE3 digest of the record id (provenance family unrepresentable_assumption_record), so two such records stay distinct.",
     "The z-transport adapter preserves checked expression leaves and binding failures and is consumed by ZTransportRepairFamily through the public generic repair facade; it emits no factor request for a failure without a checked formula.",
     "Scientific quantities can be explicitly bound to every requested variable, retaining units, population, regime identity, horizon, functional, conditioning and transform in the canonical obligation ID. Display-name changes do not change identity. A declared coordinate requires a compatible offered coordinate in the necessary-condition screen. Structural obligations with no measurement declaration retain their original IDs and never infer units.",
     "Repair obligation wire records preserve the full shared ScientificQuantityWire descriptors, refuse duplicate variables and reject descriptor tampering against the stored obligation ID.",
     "No causal, interval or calibration claim is made."
    ],
-   "digest": "a2a4048142a63c2933b1ff4469a367756a5d8cceaf5063b494318080ca5c3641",
+   "digest": "6de659e861d1dd6c05cb0ad37860ed8cc90f9f4afe9ca065fb2ba710d9a9c424",
    "id": "design.evidence_obligations",
    "review": "none",
    "scope_limits": [],
@@ -4020,7 +4023,7 @@
     "The repair_search_receipt_v1 artifact replays each stored verdict by re-running the family's checker on the stored hypothetical delta; it requires graphs over dense static variables 0..n, and its digests are content fingerprints, not cryptographic guarantees against a producer that fabricates a consistent contract.",
     "No causal, interval or calibration claim is made."
    ],
-   "digest": "dace749dd2e0f6b263db545b7d5f76164af1f0666104982449d16b66c5e4838f",
+   "digest": "c032587dfff7df4d0ae62485ec5313e4ea4554b4001b9a532d16a7994062f985",
    "id": "design.identification_repair",
    "review": "none",
    "scope_limits": [],
@@ -9533,7 +9536,7 @@
    "deviations": [
     "Reuse reports the cited result's mass; it does not re-derive the cited result's numerical value."
    ],
-   "digest": "4c7203ad21189498863c903f1c9ae835157bda4b55e460e7ef77dd540340164f",
+   "digest": "cfd32e13c74d45f5eeca4ecd33611693d3686310f883618ad59d695f71363a94",
    "id": "evidence_ledger.evidence_reuse",
    "review": "none",
    "scope_limits": [],
@@ -9583,7 +9586,7 @@
     "Overlap is computed over producer-declared row identities; the ledger cannot verify that two distinct identities are not the same physical observation, and undeclared observations are unknown, never independent.",
     "Statistical dependence between disjoint observations (clusters, shared units under a different identity) is not represented; a producer who knows of it declares a covariance or an assumption range."
    ],
-   "digest": "5e064313a00ea1ffc858ed719b6364b26e90932f49edd33203e2dfe54589e5a6",
+   "digest": "407e915b8699766624664cfe9ace132a7ad442351c59808dc3ce6de247889d20",
    "id": "evidence_ledger.overlap_accounting",
    "review": "none",
    "scope_limits": [],
@@ -9674,7 +9677,7 @@
    "deviations": [
     "The ledger takes the producer's declaration that observations are used again; it does not detect adaptive reuse on its own."
    ],
-   "digest": "d3b6b7668bf325d4add09cd539dea44051cf8127ad76b116fa7e2c73bc400593",
+   "digest": "99484cd4d66db8ec3c924662a60121a9dc1b0f2f024c56021f7a416a62d0b2c4",
    "id": "evidence_ledger.repeated_observation_use",
    "review": "none",
    "scope_limits": [],
@@ -9685,7 +9688,7 @@
     "Dependence is the declared lineage and result structure; a dependent claim that did not declare its inputs cannot be classified.",
     "Classification rules (pools need two members, borrowing needs a likelihood, transport needs a transported claim) are the ledger's own policy, not a theorem."
    ],
-   "digest": "47b0dcb139afe77407cf6a0899dd6992aa82aa2e7dd3a783619b121560239ff2",
+   "digest": "f8cae808a23681dbdb98e14b81c27535efa53836bf33cc13f92109579d00970e",
    "id": "evidence_ledger.revision",
    "review": "none",
    "scope_limits": [],
@@ -9738,7 +9741,7 @@
    "deviations": [
     "Records and checks transport identity only; it does not identify, estimate or validate a transported effect, and the selection diagram is carried as a digest, not interpreted."
    ],
-   "digest": "f1c5c1b54de69542388722b3a8e8454128201e12db2b089efbc1c89db72e20bd",
+   "digest": "4bbf34d7bae581e0a6853288908d8fcfeca12eada37b8e470c904eed46211354",
    "id": "evidence_ledger.transport_provenance",
    "review": "none",
    "scope_limits": [],
@@ -13078,9 +13081,10 @@
     "A loaded receipt never claims reuse in a fresh process: ANY derived stage stored as reused under a fresh-process boundary is refused before the plan is compared, even in a configuration where the planner would allow portable scores to be reused, because a loaded result recreates no prepared study, score table or fit. The artifact therefore cannot be used to certify cache reuse across processes; it records what was decided and counted in the producing run.",
     "A consumer that holds no independently retained receipt identity checks only internal consistency: a consistently resealed receipt of another run passes against its own recomputed identity. Supplying the retained identity refuses it.",
     "Identities are BLAKE3 (the core stage-identity construction). Counts are the producer's counts; the consumer checks that they are consistent with the status (a reused or refused stage did no work, a recomputed computation did its work) and that the totals equal their sum, but cannot re-observe the work.",
+    "The consumer recomputes the plan under the planner rule the receipt was sealed with, named by its version word: version 1 replays under the first-change rule, version 2 under the removal-first rule, which names a removed input anywhere among a stage's own change and its dependencies. The two rules agree unless a removed input sits beside an earlier change, so a receipt is written as version 1, byte for byte as before, whenever they agree, and as version 2 only when the removal-first rule changes the table; receipts recorded earlier keep their identity and still replay.",
     "Decode is bounded (container bytes, stage declarations and entries, route-label bytes) and refused before decoding when oversized; an unsupported major version or feature marker is refused before the payload is interpreted."
    ],
-   "digest": "81340cd3c7ff7c89f1d4fd89367b134ce7ac45e556323d5128970100b9f1f5f5",
+   "digest": "9d3907f165e4b82ba84124bee5c430c0ed9fb635c5190c31467521656828bbb9",
    "id": "recalculation.receipt",
    "review": "none",
    "scope_limits": [],
@@ -13097,7 +13101,7 @@
     "Provider requests and priors depend on the full causal request (graph, query, regime, evidence, populations and treatment grid) and the individual external-study input. An unsupported treatment grid blocks their computation. Both executors share the same decision rule and reject non-finite utilities or net-benefit overflow before publishing a decision.",
     "Stage identities are BLAKE3 (derive-key mode, length-prefixed parts) over the caller's declared own-input bytes. The caller is responsible for the declared bytes representing the input; the planner cannot detect a change a caller did not declare."
    ],
-   "digest": "c36f50e3d686112996b94764ea493301649f86327cca4cb12991eded43f71af9",
+   "digest": "12b04071d2b93b63aa5d6e131c7d684cb42785ac8fa2394a99ed821fc02bf70a",
    "id": "recalculation.selective",
    "review": "none",
    "scope_limits": [],
@@ -13327,7 +13331,7 @@
     "Spread is uncalibrated: the bridged draws carry the declared mapping uncertainty and dependence but no interval without a measured coverage record.",
     "Delta-method agreement is exact only to first order for a nonlinear map."
    ],
-   "digest": "5870366ba16f5190c2e48da7354c781dce57a5995697b280ef268147c258a481",
+   "digest": "c14933e69a2272f271abaa778b98bce778dcdac3565c126cd813c77503612353",
    "id": "scientific_bridge.distribution_bridges",
    "review": "none",
    "scope_limits": [],
@@ -13364,7 +13368,7 @@
     "No estimator and no transformation: the record refuses a request for one kind of object when only another is held, and names the route that would supply it.",
     "The rule is the decision contract's own: a mean is not a predictive law, a posterior over a mean is not an outcome law, an identified set is not a point, and marginal laws do not determine a joint law. No bridge relaxes it."
    ],
-   "digest": "d617ce43296ac5b3dc8113b18a6f0961e89e9473faff3e49b75a1f3a99e6e329",
+   "digest": "1f54a2cfba5f7aad7980866bf0601ede04a320739d85cf52f3b4bed7fdefd691",
    "id": "scientific_bridge.law_substitution",
    "review": "none",
    "scope_limits": [],

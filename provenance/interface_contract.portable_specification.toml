@@ -50,7 +50,7 @@ record_sha256 = "193b215c0250a58c6f1e9eb07ecd0823854f8f17c6e50f1062b8cf509184ee9
 role = "implementation"
 path = "crates/antecedent-core/src/identity.rs"
 items = ["const FNV1A_64_OFFSET", "const FNV1A_64_PRIME", "const HEX", "fn as_str", "fn byte", "fn bytes", "fn default", "fn from_bytes", "fn new", "fn text", "fn to_hex", "struct CanonicalWriter", "struct SemanticDigest"]
-sha256 = "149df9518a7666d0076b6d05aa261bda37029881f8dabcebcbe016ad29ba2d44"
+sha256 = "6c337d4a22ea3348deed3d76957291164f5f50d35330321c32e7ab8e3f3d1e54"
 
 [[method_review.artifacts]]
 role = "implementation"

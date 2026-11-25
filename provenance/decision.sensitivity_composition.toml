@@ -22,6 +22,7 @@ implementation_deviations = [
   "An assumption range is a declared input and is never a probability: weights are declared for point surfaces and are never inferred from a range, and a robust verdict over a range is a worst-case or invariance statement, not a probability-weighted one.",
   "A sampling interval is retained beside the decision and never composed with the assumption range: the supported composition list is empty, so a request or a stored claim of composition is refused (composition_not_supported) and the decision is unchanged by the interval. This record grants no coverage claim.",
   "A JointMechanismSensitivityResult is adapted only when its range can be filled exactly into a surface; otherwise the adaptation is refused. The existing result's own scope and guarantees are inherited unchanged and not widened.",
+  "The one-row law of the surface quantities at a grid point states its support on every coordinate from the surface's own label at that point: a point the producer evaluated and supports reads as supported, any other point as unsupported on every coordinate. The law is exact for the declared scenario, an assumption rather than a measurement, and its provider stays unverified; the absent-mask convention never applies to it.",
   "Unsupported coordinates inside the evaluated range refuse, a sub-range that avoids them is the only supported way forward, and an unevaluated grid point leaves the decision unresolved. Declaration order does not change identity or decision.",
 ]
 
@@ -39,13 +40,13 @@ kind = "wrapper"
 rationale = "Consumes an assumption-sensitivity surface in a durable decision: the surface's quantities become decision sources over a declared assumption coordinate."
 no_independent_algorithm = "Adapter from a sensitivity artifact to decision inputs and a call to the evaluator; the sensitivity surface itself is produced elsewhere."
 covered_by = ["decision.contract", "decision.functionals"]
-record_sha256 = "fe2c0ba50653451a2945446e0e6153f8acd2716a356f01fca56592a1dbc3e26d"
+record_sha256 = "7e6762ff0fdc2bb61e503cad3641a2187eb5bed2895deb0028dcc7d0c61ec2ba"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/sensitivity_decision.rs"
 items = ["const SENSITIVITY_DECISION_INTERPRETATION", "enum SamplingReport", "enum ScenarioCoverage", "fn build_atoms", "fn check_contract", "fn contract_from_artifact", "fn coverage_of", "fn detail", "fn evaluate_sensitivity_decision", "fn expr_multilinear", "fn expr_of", "fn from_io", "fn from_structural", "fn invalid_surface", "fn leaders_by_point", "fn leaders_of_verdict", "fn not_supported", "fn point_probabilities", "fn reason_code", "fn sampling_report", "fn scenario_law", "fn wrong_contract", "struct SensitivityDecisionError", "struct SensitivityDecisionResult", "struct SensitivityDecisionSpec"]
-sha256 = "a1b07fa210c28dbe0c1689c9527e8c4f5f0de14f0421b0534fb00f5dba1f36a1"
+sha256 = "8b4080e2be5d8040d991a7ef9710fc621f350c072b5267701ded89553019eae5"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

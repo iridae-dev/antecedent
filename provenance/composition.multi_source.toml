@@ -42,10 +42,10 @@ record_sha256 = "e0e3b3489f34977fd69607ecf6a83a92a22964985ecf29c85ed49287dddee31
 role = "implementation"
 path = "crates/antecedent/src/analysis/composition.rs"
 items = ["module"]
-sha256 = "412cbe92e85b40a033f64311546452921ecada6257841f82b89c6a28a63a6ce6"
+sha256 = "d9dfe1e5a2bf2874215bc6aba4c5024b0f269769f8eac76e7f07481fc20f657d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/multi_source_acceptance.rs"
 items = ["const CONTRACT", "const IDS", "const LAW_ROWS", "const NATIVE_DIGEST", "const NATIVE_SNAPSHOT", "fn acceptance_all_actions_unsupported_is_a_state_not_an_error", "fn acceptance_an_unsupported_action_is_reported_and_the_rest_are_compared", "fn acceptance_another_source_answers_the_action_the_native_claim_cannot", "fn acceptance_native_claim_is_native_and_withholds_the_unsupported_dose", "fn acceptance_overlapping_evidence_fails_the_declared_independence", "fn acceptance_probability_and_quantile_come_only_from_the_joint_law", "fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it", "fn acceptance_the_composed_bundle_is_consumed_independently_with_the_hand_values", "fn acceptance_the_joint_law_decision_matches_the_hand_derived_values", "fn acceptance_the_point_only_decision_is_an_attested_result_with_the_hand_values", "fn acceptance_the_ranking_matches_the_hand_derived_evsi_and_net_values", "fn action", "fn add", "fn attested", "fn candidates_json", "fn claim", "fn close", "fn compare", "fn composed_builder", "fn consumed", "fn contract", "fn contract_of", "fn failed_stage", "fn independent", "fn lab_one_claim", "fn lab_one_input", "fn lab_two_claim", "fn lab_two_law_input", "fn lab_two_mean_input", "fn law", "fn law_columns", "fn law_contract", "fn mean_input", "fn mean_source", "fn native_context", "fn native_input", "fn native_response", "fn observation_quantity", "fn program", "fn quantity", "fn quantity_json", "fn ranking_request", "fn rollout_contract", "fn schema", "fn shared", "fn signal_json", "fn state_quantity", "struct ClaimSpec"]
-sha256 = "3c6f5aa172d1694fa575fa89b35eb489c1c94002f69be541665f8743d991a812"
+sha256 = "455068c5129491ac0014e85513ab8b06d8b441e0c37267c2c8dec56677a78efc"
