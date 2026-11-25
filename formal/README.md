@@ -39,9 +39,28 @@ The full adversarial campaign, including every deliberate defect:
 AENEAS_DIR=/path/to/aeneas python3 scripts/adversarial.py run --mutations
 ```
 
+## Operation records
+
+Every operation an assurance record lists in `operations` is described once, in
+[`parity/operation_records.toml`](../parity/operation_records.toml), with the fields
+inputs, output, premises, transformation, justification, implementation, obligations and
+limitations ([ADR 0029](../adr/0029-operation-records.md)). A record is keyed by the
+operation's defining Rust path and attached to its code by `file` and `item`.
+`justification` and `implementation` are generated from the assurance records, identity
+sites, public-API snapshots, compiled-path classification and route registry; the other
+fields are written by hand, and each premise names the refusal token the checker finds in
+the code.
+
+```bash
+python3 scripts/operation_records.py --write   # regenerate; add a skeleton for a new operation
+python3 scripts/operation_records.py check     # static gate
+```
+
 ## Adding a translated kernel
 
 Keep the kernel a named function over enumerations, integers or fixed-size arrays, and
 have the larger function call it. Add an `extract` line to [`rust/extract.sh`](rust/extract.sh),
 run it, write the equality proof in `rust/AntecedentRust/`, and add a
-`verified_implementation` check, naming the Rust items it covers, to the record.
+`verified_implementation` check, naming the Rust items it covers, to the record. List the
+kernel in the record's `operations`, run `python3 scripts/operation_records.py --write`, and
+fill in the hand-written fields of its new operation record.
