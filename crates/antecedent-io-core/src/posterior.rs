@@ -511,6 +511,19 @@ pub fn decode_posterior_meta_from_bytes(bytes: &[u8]) -> Result<CausalPosteriorW
     Ok(meta)
 }
 
+/// As [`decode_posterior_meta_from_bytes`], admitting only the artifact the consumer retained.
+///
+/// # Errors
+///
+/// As [`decode_posterior_meta_from_bytes`], and `external_binding_mismatch` when the bytes
+/// differ from the retained artifact.
+pub fn decode_posterior_meta_from_bytes_expecting(
+    bytes: &[u8],
+    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+) -> Result<CausalPosteriorWire, IoError> {
+    crate::retained_artifact::load_expecting(bytes, retained, decode_posterior_meta_from_bytes)
+}
+
 fn read_selective_posterior_meta(r: impl std::io::Read) -> Result<CausalPosteriorWire, IoError> {
     let mut artifact =
         EncodedArtifact::read_selective(r, &std::collections::HashSet::from(["posterior.meta"]))?;
@@ -708,6 +721,26 @@ mod tests {
         let refused =
             decode_posterior_meta_from_seek_expecting(std::io::Cursor::new(buf.clone()), &other)
                 .unwrap_err();
+        assert!(refused.to_string().contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+
+        let prefix = b"prefix";
+        let mut prefixed = prefix.to_vec();
+        prefixed.extend_from_slice(&buf);
+        let mut positioned = std::io::Cursor::new(prefixed);
+        positioned.set_position(prefix.len() as u64);
+        assert_eq!(
+            decode_posterior_meta_from_seek_expecting(positioned, &retained).unwrap(),
+            plain
+        );
+
+        let mut extended = buf.clone();
+        extended.extend_from_slice(b"tail");
+        let refused =
+            decode_posterior_meta_from_seek_expecting(std::io::Cursor::new(&extended), &retained)
+                .unwrap_err();
+        assert!(refused.to_string().contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
+        assert_eq!(decode_posterior_meta_from_bytes_expecting(&buf, &retained).unwrap(), plain);
+        let refused = decode_posterior_meta_from_bytes_expecting(&extended, &retained).unwrap_err();
         assert!(refused.to_string().contains(RETAINED_ARTIFACT_REFUSAL), "{refused}");
 
         let path = std::env::temp_dir()

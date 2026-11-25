@@ -10,7 +10,10 @@ takes a `RetainedArtifactIdentity` and whose body binds the bytes before it read
 `load_expecting(...)`, or it calls `bind_retained_artifact(...)` before it calls the loader, or it
 delegates to another bound form. `load_expecting` and `bind_retained_artifact` go through
 `antecedent_io_core::bound_identity::bind`, the comparison the `acceptance.retained_artifact`
-assurance record proves.
+assurance record proves. Compiled study open binds the invariant section before decoding the
+catalog or claim, resolving bodies, or replaying an estimator. Readers that hash their entire
+input as a bounded stream bind the computed digest with `bind_retained_digest` before returning
+the decoded result.
 
 The entries in EXEMPT are not artifact loaders; each names why.
 
@@ -32,7 +35,11 @@ CRATES = [
     "crates/antecedent-io/src",
     "crates/antecedent-design/src",
 ]
-FACADE_FILES = ["crates/antecedent/src/analysis/surface/io.rs"]
+FACADE_FILES = [
+    "crates/antecedent/src/analysis/surface/io.rs",
+    # The compiled study binds the invariant bytes before opening the catalog or replaying.
+    "crates/antecedent/src/analysis/compiled_study.rs",
+]
 
 # Public functions that take artifact bytes but do not admit an artifact, by name.
 EXEMPT = {
@@ -131,7 +138,7 @@ BYTES_OR_PATH = re.compile(
     r":\s*&\[u8\]|:\s*Arc<\[u8\]>|:\s*Vec<u8>|:\s*Arc<Mmap>|&(?:std::path::)?Path\b|"
     r"AsRef<(?:std::path::)?Path>|:\s*(?:&mut )?R\b|impl (?:std::io::)?Read\b"
 )
-BINDS = ("load_expecting(", "bind_retained_artifact(")
+BINDS = ("load_expecting(", "bind_retained_artifact(", "bind_retained_digest(")
 
 
 def _split_args(args: str) -> list[str]:
@@ -269,6 +276,13 @@ def self_test() -> int:
         "pub fn consume_expecting(bytes: &[u8], retained: &RetainedArtifactIdentity) -> Result<X, E> {\n"
         "    let out = consume(bytes);\n    bind_retained_artifact(bytes, retained).map_err(E::from)?;\n    out\n}\n"
     )
+    streamed = (
+        "pub fn consume<R: Read>(r: R) -> Result<X, IoError> { todo!() }\n"
+        "pub fn consume_expecting<R: Read>(r: R, retained: &RetainedArtifactIdentity)"
+        " -> Result<X, IoError> {\n"
+        "    let (out, digest) = read_bounded_hashed_input(r)?;\n"
+        "    bind_retained_digest(digest, retained)?;\n    Ok(out)\n}\n"
+    )
     unbound = (
         "pub fn consume(bytes: &[u8]) -> Result<X, E> { todo!() }\n"
         "pub fn consume_expecting(bytes: &[u8], retained: &RetainedArtifactIdentity) -> Result<X, E> {\n"
@@ -282,7 +296,7 @@ def self_test() -> int:
     )
     cases = [
         (good, True), (missing, False), (late, False), (unbound, False), (hidden, True),
-        (nested, False),
+        (nested, False), (streamed, True),
     ]
     failed = 0
     for src, ok in cases:
