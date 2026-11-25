@@ -16473,6 +16473,7 @@ pub fn antecedent_io_core::decode_external_estimate_claim(bytes: &[u8]) -> core:
 pub fn antecedent_io_core::decode_external_estimate_claim_expecting(bytes: &[u8], retained: &antecedent_io_core::RetainedArtifactIdentity) -> core::result::Result<(antecedent_io_core::AnalysisResultWire, antecedent_io_core::AnalysisResultContractWire, antecedent_io_core::ClaimSectionWire), antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_method_provenance_section(artifact: &antecedent_io_core::EncodedArtifact, identifier: core::option::Option<&str>, estimator: core::option::Option<&str>) -> core::result::Result<core::option::Option<antecedent_io_core::MethodProvenanceWire>, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_artifact(artifact: &antecedent_io_core::EncodedArtifact) -> core::result::Result<(antecedent_io_core::CausalPosteriorWire, alloc::vec::Vec<f64>), antecedent_io_core::IoError>
+pub fn antecedent_io_core::decode_posterior_meta_from_bytes(bytes: &[u8]) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_meta_from_path(path: impl core::convert::AsRef<std::path::Path>) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_meta_from_path_expecting(path: impl core::convert::AsRef<std::path::Path>, retained: &antecedent_io_core::RetainedArtifactIdentity) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
 pub fn antecedent_io_core::decode_posterior_meta_from_seek<R: std::io::Read + std::io::Seek>(r: R) -> core::result::Result<antecedent_io_core::CausalPosteriorWire, antecedent_io_core::IoError>
@@ -18019,6 +18020,7 @@ pub use antecedent_io_core::posterior::PosteriorQuantityWire = antecedent_io_cor
 pub use antecedent_io_core::posterior::decode_causal_posterior_bytes = antecedent_io_core::decode_causal_posterior_bytes
 pub use antecedent_io_core::posterior::decode_causal_posterior_bytes_expecting = antecedent_io_core::decode_causal_posterior_bytes_expecting
 pub use antecedent_io_core::posterior::decode_posterior_artifact = antecedent_io_core::decode_posterior_artifact
+pub use antecedent_io_core::posterior::decode_posterior_meta_from_bytes = antecedent_io_core::decode_posterior_meta_from_bytes
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_path = antecedent_io_core::decode_posterior_meta_from_path
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_path_expecting = antecedent_io_core::decode_posterior_meta_from_path_expecting
 pub use antecedent_io_core::posterior::decode_posterior_meta_from_seek = antecedent_io_core::decode_posterior_meta_from_seek

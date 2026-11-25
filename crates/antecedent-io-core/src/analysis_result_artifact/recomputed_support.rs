@@ -101,7 +101,7 @@ fn design_posterior_draws_hold(result: &AnalysisResultWire) -> Result<bool, IoEr
     let Some(bytes) = &result.posterior_artifact else {
         return Ok(false);
     };
-    let (posterior, _) = crate::decode_causal_posterior_bytes(bytes)?;
+    let posterior = crate::decode_posterior_meta_from_bytes(bytes)?;
     let stored = u64::from(posterior.n_draws);
     Ok(posterior.n_draws >= DESIGN_POSTERIOR_ROW_DRAWS
         && result
