@@ -9,30 +9,24 @@ use antecedent_io_core::catalog_role::{
     self, COMPOSED_MODEL, DISCOVERY, LEDGER, MEASUREMENT, PROPAGATION, RELIABILITY,
 };
 use antecedent_io_core::convert::from_cbor;
-use antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerMeta;
+use antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifact;
 use antecedent_io_core::joint_law_propagation_artifact::{
     JointLawPropagationArtifactWire, joint_law_propagation_identity,
 };
-use antecedent_io_core::measurement_model_wire::MeasurementIdentityWire;
+use antecedent_io_core::measurement_model_wire::MeasurementModelArtifact;
 use antecedent_io_core::mechanism_composition_artifact::{
     MechanismCompositionArtifactWire, mechanism_composition_identity,
 };
 use antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact;
 use antecedent_io_core::{
-    ArtifactKind, EncodedArtifact, PropagationChainRecordWire, propagation_chain_identity,
-    PROPAGATION_CHAIN_SECTION,
+    EncodedArtifact, PROPAGATION_CHAIN_SECTION, PropagationChainRecordWire,
+    propagation_chain_identity,
 };
-use serde::Deserialize;
 
 use super::{BundleError, BundleNode, BundleStage, NodeKind, ProviderOrData};
 
 /// Fact that names the catalog role of a producer reference.
 pub const CATALOG_ROLE_FACT: &str = "catalog_role";
-
-const LEDGER_KIND: &str = "evidence_ledger_v1";
-const LEDGER_SECTION: &str = "evidence_ledger_meta";
-const MEASUREMENT_KIND: &str = "measurement_model_v1";
-const MEASUREMENT_SECTION: &str = "measurement_model_meta";
 
 /// What comparing a reference digest with a producer artifact found.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,9 +62,7 @@ pub fn node_kind_for_role(role: &str) -> Option<NodeKind> {
 ///
 /// # Errors
 ///
-/// `role` is not a producer role, or `bytes` are not that artifact. A stored
-/// digest that differs from the producer's identity function is an error for
-/// joint-law propagation, mechanism composition, and decision reliability.
+/// `role` is not a producer role, or the bytes fail the producer's identity checks.
 pub fn producer_identity(role: &str, bytes: &[u8]) -> Result<String, String> {
     if !catalog_role::is_producer(role) {
         return Err(format!("unknown catalog role `{role}`"));
@@ -108,8 +100,10 @@ pub fn check_producer(role: &str, expected: &str, bytes: Option<&[u8]>) -> Produ
 ///
 /// `role` is not a producer role, or `bytes` do not carry that identity.
 pub fn producer_reference(id: &str, role: &str, bytes: &[u8]) -> Result<BundleNode, BundleError> {
-    let identity = producer_identity(role, bytes).map_err(|reason| {
-        BundleError::Refused { stage: BundleStage::SwappedEvidence, reason, offending: None }
+    let identity = producer_identity(role, bytes).map_err(|reason| BundleError::Refused {
+        stage: BundleStage::SwappedEvidence,
+        reason,
+        offending: None,
     })?;
     let kind = node_kind_for_role(role).ok_or_else(|| BundleError::Refused {
         stage: BundleStage::SwappedEvidence,
@@ -162,16 +156,14 @@ fn chain_record(bytes: &[u8]) -> Result<PropagationChainRecordWire, String> {
 }
 
 fn ledger_identity(bytes: &[u8]) -> Result<String, String> {
-    let payload = section(bytes, LEDGER_KIND, LEDGER_SECTION)?;
-    let meta: EvidenceLedgerMeta = from_cbor(&payload).map_err(|error| error.to_string())?;
-    if meta.identity.is_empty() {
-        return Err("ledger identity is empty".into());
-    }
-    Ok(meta.identity)
+    EvidenceLedgerArtifact::from_bytes(bytes, None)
+        .map(|artifact| artifact.identity().to_owned())
+        .map_err(|error| error.to_string())
 }
 
 fn composed_identity(bytes: &[u8]) -> Result<String, String> {
-    let wire = MechanismCompositionArtifactWire::decode(bytes).map_err(|error| error.to_string())?;
+    let wire =
+        MechanismCompositionArtifactWire::decode(bytes).map_err(|error| error.to_string())?;
     let identity = mechanism_composition_identity(&wire.premises, &wire.query)
         .map_err(|error| error.to_string())?;
     if identity != wire.premises_digest {
@@ -181,24 +173,13 @@ fn composed_identity(bytes: &[u8]) -> Result<String, String> {
 }
 
 fn measurement_identity(bytes: &[u8]) -> Result<String, String> {
-    #[derive(Deserialize)]
-    struct Read {
-        identities: MeasurementIdentityWire,
-    }
-    let payload = section(bytes, MEASUREMENT_KIND, MEASUREMENT_SECTION)?;
-    let read: Read = from_cbor(&payload).map_err(|error| error.to_string())?;
-    if read.identities.model.is_empty() {
-        return Err("measurement identity is empty".into());
-    }
-    Ok(read.identities.model)
+    MeasurementModelArtifact::validate_model_identity(bytes).map_err(|error| error.to_string())
 }
 
 fn discovery_identity(bytes: &[u8]) -> Result<String, String> {
-    let meta = SelectiveDiscoveryArtifact::inspect(bytes).map_err(|error| error.to_string())?;
-    if meta.identity.is_empty() {
-        return Err("discovery identity is empty".into());
-    }
-    Ok(meta.identity)
+    SelectiveDiscoveryArtifact::from_bytes(bytes, None)
+        .map(|artifact| artifact.identity().to_owned())
+        .map_err(|error| error.to_string())
 }
 
 fn reliability_identity(bytes: &[u8]) -> Result<String, String> {
@@ -211,49 +192,36 @@ fn reliability_identity(bytes: &[u8]) -> Result<String, String> {
     Ok(digest)
 }
 
-fn section(bytes: &[u8], kind: &str, id: &str) -> Result<Vec<u8>, String> {
-    let artifact = EncodedArtifact::read_from(std::io::Cursor::new(bytes))
-        .map_err(|error| error.to_string())?;
-    match &artifact.manifest.artifact_kind {
-        ArtifactKind::Other(found) if found == kind => {}
-        _ => return Err(format!("producer kind is not {kind}")),
-    }
-    artifact
-        .sections
-        .iter()
-        .find(|item| item.id == id)
-        .map(|item| item.data.as_ref().to_vec())
-        .ok_or_else(|| format!("missing section {id}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::{
-        CATALOG_ROLE_FACT, LEDGER_KIND, LEDGER_SECTION, MEASUREMENT_KIND, MEASUREMENT_SECTION,
-        ProducerCheck, check_producer, producer_identity, producer_reference,
+        CATALOG_ROLE_FACT, ProducerCheck, check_producer, producer_identity, producer_reference,
     };
     use crate::composition_bundle::{
         BundleConsumer, BundleLimits, BundleNode, BundleStage, CompositionBundle, NodeKind,
         NodeStatus, ProviderOrData, SuppliedSources,
     };
+    use antecedent_contract::evidence_ledger::EvidenceLedger;
     use antecedent_contract::{
         InputAlignment, InputRole, PropagationDependence, PropagationInput, PropagationOperation,
         PropagationRequest, RequestedReading,
     };
     use antecedent_core::ExecutionContext;
+    use antecedent_core::measurement_model::{
+        ArmBinding, BinaryArmRates, ErrorStructure, MeasurementBinding, MeasurementKind,
+        MeasurementModel, MeasurementParameters, MeasurementRoute, MeasurementVariable,
+        ParameterEvidence, RepresentationVersion,
+    };
     use antecedent_io_core::artifact_codec::{ArtifactContainer, encode_sectioned_io};
     use antecedent_io_core::catalog_role::{
         COMPOSED_MODEL, DISCOVERY, LEDGER, MEASUREMENT, PROPAGATION, RELIABILITY,
     };
-    use antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerMeta;
+    use antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifact;
     use antecedent_io_core::joint_law_propagation_artifact::{
         JointLawPropagationArtifactWire, PropagationRequestWire, float_bits,
     };
-    use antecedent_io_core::measurement_model_wire::MeasurementIdentityWire;
-    use antecedent_io_core::selective_discovery_artifact::{
-        SELECTIVE_DISCOVERY_ARTIFACT_FEATURE, SELECTIVE_DISCOVERY_ARTIFACT_VERSION,
-        SelectiveDiscoveryMeta, StructureWire, WorkWire,
-    };
+    use antecedent_io_core::measurement_model_wire::MeasurementModelArtifact;
+    use antecedent_io_core::selective_discovery_artifact::SelectiveDiscoveryArtifact;
     use serde::Serialize;
 
     fn contrast_bytes() -> (Vec<u8>, String) {
@@ -346,100 +314,100 @@ mod tests {
         let consumed = BundleConsumer::new()
             .consume(&exported, &limits, bundle.identity(), &SuppliedSources::default())
             .unwrap();
-        assert!(matches!(
-            consumed.nodes()[0].status,
-            NodeStatus::ReferenceUnresolved { .. }
-        ));
+        assert!(matches!(consumed.nodes()[0].status, NodeStatus::ReferenceUnresolved { .. }));
     }
 
     #[test]
-    fn ledger_measurement_and_discovery_identities_bind_and_a_foreign_role_does_not() {
-        let ledger = container(
-            LEDGER_KIND,
-            LEDGER_SECTION,
-            &EvidenceLedgerMeta {
+    fn ledger_measurement_and_discovery_references_validate_the_producer_body() {
+        let ledger = EvidenceLedger::new();
+        let ledger_bytes = EvidenceLedgerArtifact::to_bytes(&ledger, &[], "ledger").unwrap();
+        let (_, mut ledger_meta) = EvidenceLedgerArtifact::seal(&ledger, &[]).unwrap();
+        ledger_meta.state_digest = "00".repeat(32);
+        let edited_ledger = container("evidence_ledger_v1", "evidence_ledger_meta", &ledger_meta);
+
+        let mut model = MeasurementModel {
+            model_id: "screen".into(),
+            route: MeasurementRoute::BinaryMisclassification,
+            indicator: MeasurementVariable {
+                id: "indicator".into(),
+                kind: MeasurementKind::NoisyMisclassified,
+                units: "binary".into(),
+            },
+            construct: MeasurementVariable {
+                id: "construct".into(),
+                kind: MeasurementKind::LatentScientific,
+                units: "binary".into(),
+            },
+            binding: MeasurementBinding {
+                population_id: "population".into(),
+                regime_id: "observational".into(),
+                arm: ArmBinding::AllArms,
+            },
+            structure: ErrorStructure::NonDifferential,
+            parameters: MeasurementParameters::Binary {
+                rates: vec![BinaryArmRates {
+                    arm_id: None,
+                    sensitivity: 0.9,
+                    specificity: 0.8,
+                    sensitivity_variance: 0.0004,
+                    specificity_variance: 0.0009,
+                }],
+                min_youden: 0.1,
+            },
+            representation: RepresentationVersion {
+                coordinate_system_id: "scalar".into(),
                 version: 1,
-                feature: LEDGER_KIND.into(),
-                operations: Vec::new(),
-                syntheses: Vec::new(),
-                head: "head".into(),
-                state_digest: "state".into(),
-                identity: "ledger-identity".into(),
             },
-        );
-        assert_eq!(producer_identity(LEDGER, &ledger).unwrap(), "ledger-identity");
-        assert!(matches!(
-            check_producer(LEDGER, "other", Some(&ledger)),
-            ProducerCheck::Refused { stage: BundleStage::TamperedQuantity, .. }
-        ));
+            evidence: ParameterEvidence::ValidationSample { sample_id: "val".into(), units: 400 },
+        };
+        let measurement = MeasurementModelArtifact::new(&model, None).unwrap();
+        let measurement_bytes = measurement.to_bytes("measurement").unwrap();
+        let mut measurement_meta = measurement.metadata().clone();
+        model.binding.population_id = "different_population".into();
+        measurement_meta.model =
+            MeasurementModelArtifact::new(&model, None).unwrap().metadata().model.clone();
+        let edited_measurement =
+            container("measurement_model_v1", "measurement_model_meta", &measurement_meta);
 
-        let measurement = container(
-            MEASUREMENT_KIND,
-            MEASUREMENT_SECTION,
-            &MeasurementWrap {
-                identities: MeasurementIdentityWire {
-                    measurement: "m".into(),
-                    population: "p".into(),
-                    regime: "r".into(),
-                    arm: "a".into(),
-                    representation: "rep".into(),
-                    evidence: "e".into(),
-                    model: "measurement-identity".into(),
-                },
-            },
-        );
-        assert_eq!(
-            producer_identity(MEASUREMENT, &measurement).unwrap(),
-            "measurement-identity"
-        );
+        let discovery_bytes =
+            include_bytes!("../../../antecedent-io-core/tests/fixtures/selective_discovery_v1.bin");
+        let mut discovery_meta = SelectiveDiscoveryArtifact::inspect(discovery_bytes).unwrap();
+        discovery_meta.work.algorithm_executions += 1;
+        let edited_discovery =
+            SelectiveDiscoveryArtifact::meta_to_bytes(&discovery_meta, "edited").unwrap();
 
-        let discovery = container(
-            "selective_discovery_v1",
-            "selective_discovery_meta",
-            &SelectiveDiscoveryMeta {
-                version: SELECTIVE_DISCOVERY_ARTIFACT_VERSION,
-                feature: SELECTIVE_DISCOVERY_ARTIFACT_FEATURE.into(),
-                required_features: Vec::new(),
-                inference: "algorithmic_match_only".into(),
-                route: "route".into(),
-                components: Vec::new(),
-                contract_identity: "c".into(),
-                data_identity: "d".into(),
-                rows: 0,
-                variables: Vec::new(),
-                receipts: Vec::new(),
-                receipts_identity: "r".into(),
-                structure: StructureWire { class: "cpdag".into(), nodes: Vec::new(), edges: Vec::new() },
-                graph_identity: "g".into(),
-                result_identity: "result".into(),
-                search_incomplete: false,
-                orientation_conflict: false,
-                bounded_search_receipts: Vec::new(),
-                work: WorkWire {
-                    ci_tests_attempted: 0,
-                    ci_tests_completed: 0,
-                    ci_tests_reused: 0,
-                    ci_tests_consumed: 0,
-                    search_passes: 0,
-                    orientation_runs: 0,
-                    orientation_rounds: 0,
-                    orientations_applied: 0,
-                    score_evaluations: 0,
-                    algorithm_executions: 0,
-                },
-                identity: "discovery-identity".into(),
-            },
-        );
-        assert_eq!(producer_identity(DISCOVERY, &discovery).unwrap(), "discovery-identity");
+        for (role, bytes, edited) in [
+            (LEDGER, ledger_bytes.as_slice(), &edited_ledger),
+            (MEASUREMENT, measurement_bytes.as_slice(), &edited_measurement),
+            (DISCOVERY, discovery_bytes.as_slice(), &edited_discovery),
+        ] {
+            let node = producer_reference("producer", role, bytes).unwrap();
+            let limits = BundleLimits::default();
+            let bundle = CompositionBundle::new(vec![node], &[], &limits).unwrap();
+            let exported = bundle.to_bytes("producer-ref", &limits).unwrap();
+            let consume = |bytes: &[u8]| {
+                let supplied = SuppliedSources::default().with_producer(role, bytes.to_vec());
+                BundleConsumer::new()
+                    .consume(&exported, &limits, bundle.identity(), &supplied)
+                    .unwrap()
+            };
+            assert_eq!(consume(bytes).nodes()[0].status, NodeStatus::Verified, "{role}");
+            assert!(
+                matches!(
+                    consume(edited).nodes()[0].status,
+                    NodeStatus::Failed { stage: BundleStage::SwappedEvidence, .. }
+                ),
+                "{role}"
+            );
+        }
 
         let (propagation, _) = contrast_bytes();
         assert!(matches!(
-            check_producer(LEDGER, "ledger-identity", Some(&propagation)),
+            check_producer(LEDGER, &ledger_meta.identity, Some(&propagation)),
             ProducerCheck::Refused { stage: BundleStage::SwappedEvidence, .. }
         ));
         assert!(producer_identity(COMPOSED_MODEL, b"not a model").is_err());
-        assert!(producer_identity(RELIABILITY, b"not a reliability artifact").is_err());
-        assert!(producer_identity(RELIABILITY, &ledger).is_err());
+        assert!(producer_identity(RELIABILITY, &ledger_bytes).is_err());
     }
 
     #[test]
@@ -460,10 +428,5 @@ mod tests {
         assert_eq!(consumed.nodes()[0].status, NodeStatus::Verified);
         assert!(consumed.nodes()[0].facts.get(CATALOG_ROLE_FACT).is_none());
         assert_eq!(consumed.nodes()[0].kind, NodeKind::CausalContract);
-    }
-
-    #[derive(Serialize)]
-    struct MeasurementWrap {
-        identities: MeasurementIdentityWire,
     }
 }

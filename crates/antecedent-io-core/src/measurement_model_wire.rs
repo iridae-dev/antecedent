@@ -1365,10 +1365,27 @@ impl MeasurementModelArtifact {
         expected_model_identity: &str,
         max_bytes: usize,
     ) -> Result<Self, IoError> {
+        digest_from_hex(expected_model_identity)?;
+        Self::validate_bytes_within(bytes, Some(expected_model_identity), max_bytes)
+    }
+
+    /// Recompute the producer's model identity after validating the model and any result.
+    ///
+    /// # Errors
+    /// Malformed, oversized or inconsistent artifacts refuse.
+    pub fn validate_model_identity(bytes: &[u8]) -> Result<String, IoError> {
+        Self::validate_bytes_within(bytes, None, MAX_MEASUREMENT_MODEL_ARTIFACT_BYTES)
+            .map(|artifact| artifact.metadata.identities.model)
+    }
+
+    fn validate_bytes_within(
+        bytes: &[u8],
+        expected_model_identity: Option<&str>,
+        max_bytes: usize,
+    ) -> Result<Self, IoError> {
         if bytes.len() > max_bytes {
             return Err(IoError::TooLarge);
         }
-        digest_from_hex(expected_model_identity)?;
         let (metadata, []): (MeasurementModelMetadata, _) =
             crate::artifact_codec::decode_sectioned_io(
                 ARTIFACT_KIND,
@@ -1378,7 +1395,7 @@ impl MeasurementModelArtifact {
                 "unsupported measurement model layout",
                 bytes,
             )?;
-        if metadata.identities.model != expected_model_identity {
+        if expected_model_identity.is_some_and(|expected| metadata.identities.model != expected) {
             return Err(refused(
                 "the artifact's model identity differs from the identity the consumer retained",
             ));
