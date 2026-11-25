@@ -578,7 +578,7 @@ mod tests {
         }
     }
 
-    fn encoded(value: &(impl Canonical + ?Sized)) -> [u8; 32] {
+    fn encoded_value(value: &(impl Canonical + ?Sized)) -> [u8; 32] {
         digest(|d| {
             d.field("value", value);
         })
@@ -642,29 +642,33 @@ mod tests {
 
     #[test]
     fn site_supplied_identity_set_of_sorts_and_deduplicates_framed_items() {
-        set_laws(&[3_u64, 1, 2], |items| Some(encoded(&SetOf(items))));
+        set_laws(&[3_u64, 1, 2], |items| Some(encoded_value(&SetOf(items))));
         set_laws(&["b".to_owned(), "a".to_owned(), "c".to_owned()], |items| {
-            Some(encoded(&SetOf(items)))
+            Some(encoded_value(&SetOf(items)))
         });
         // Each item is its own framed sub-digest, so two different items never merge.
-        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&SetOf(&[(*a, *b)]))));
-        bit_exact(|x| Some(encoded(&SetOf(&[x, 1.0]))));
+        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded_value(&SetOf(&[(*a, *b)]))));
+        bit_exact(|x| Some(encoded_value(&SetOf(&[x, 1.0]))));
         // A set is not the list of the same items.
-        all_distinct(&[encoded(&SetOf(&[1_u64, 2])), encoded(&[1_u64, 2][..])]);
+        all_distinct(&[encoded_value(&SetOf(&[1_u64, 2])), encoded_value(&[1_u64, 2][..])]);
     }
 
     #[test]
     fn site_supplied_identity_list_is_counted_and_ordered() {
-        ordered_laws(&[1_u64, 2, 3], |items| Some(encoded(items)));
-        ordered_laws(&["a".to_owned(), "b".to_owned()], |items| Some(encoded(items)));
+        ordered_laws(&[1_u64, 2, 3], |items| Some(encoded_value(items)));
+        ordered_laws(&["a".to_owned(), "b".to_owned()], |items| Some(encoded_value(items)));
         // The count word frames nested lists: [[1], [2, 3]] is not [[1, 2], [3]].
         let nested =
             [vec![vec![1_u64], vec![2, 3]], vec![vec![1, 2], vec![3]], vec![vec![1, 2, 3]]];
-        injective(&nested, Clone::clone, |lists| Some(encoded(lists)));
-        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&[*a, *b][..])));
-        bit_exact(|x| Some(encoded(&[x][..])));
+        injective(&nested, Clone::clone, |lists| Some(encoded_value(lists)));
+        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded_value(&[*a, *b][..])));
+        bit_exact(|x| Some(encoded_value(&[x][..])));
         // An option's presence word frames it.
-        all_distinct(&[encoded(&None::<u64>), encoded(&Some(0_u64)), encoded(&Some(1_u64))]);
+        all_distinct(&[
+            encoded_value(&None::<u64>),
+            encoded_value(&Some(0_u64)),
+            encoded_value(&Some(1_u64)),
+        ]);
     }
 
     #[test]
@@ -698,18 +702,22 @@ mod tests {
         let constraints = ["c1", "c2", "c3"];
         // Results are reported in declaration order, so the ids are ordered after the
         // contract's own set identity.
-        ordered_laws(&actions, |items| Some(encoded(&contract_of(items, &constraints))));
-        ordered_laws(&constraints, |items| Some(encoded(&contract_of(&actions, items))));
-        ordered_laws(&actions, |items| Some(encoded(&admissible_of(items, &constraints))));
-        ordered_laws(&constraints, |items| Some(encoded(&admissible_of(&actions, items))));
-        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&contract_of(&[*a, *b], &[]))));
+        ordered_laws(&actions, |items| Some(encoded_value(&contract_of(items, &constraints))));
+        ordered_laws(&constraints, |items| Some(encoded_value(&contract_of(&actions, items))));
+        ordered_laws(&actions, |items| Some(encoded_value(&admissible_of(items, &constraints))));
+        ordered_laws(&constraints, |items| Some(encoded_value(&admissible_of(&actions, items))));
+        injective(
+            &ADVERSARIAL_TEXT,
+            |p| *p,
+            |(a, b)| Some(encoded_value(&contract_of(&[*a, *b], &[]))),
+        );
         let mut changed = contract_of(&actions, &constraints);
         changed.constraints[0].bound = 2.0;
         all_distinct(&[
-            encoded(&contract_of(&actions, &constraints)),
-            encoded(&changed),
-            encoded(&contract_of(&actions[..2], &constraints)),
-            encoded(&contract_of(&actions, &constraints[..2])),
+            encoded_value(&contract_of(&actions, &constraints)),
+            encoded_value(&changed),
+            encoded_value(&contract_of(&actions[..2], &constraints)),
+            encoded_value(&contract_of(&actions, &constraints[..2])),
         ]);
     }
 
@@ -731,12 +739,12 @@ mod tests {
             overall: SupportStatus::Supported,
             per_input: per_input.to_vec(),
         };
-        ordered_laws(&entries, |items| Some(encoded(&support(items))));
+        ordered_laws(&entries, |items| Some(encoded_value(&support(items))));
         injective(
             &ADVERSARIAL_TEXT,
             |p| *p,
             |(a, b)| {
-                Some(encoded(&support(&[
+                Some(encoded_value(&support(&[
                     entry(a, 0, SupportStatus::Supported),
                     entry(b, 0, SupportStatus::Supported),
                 ])))
@@ -749,12 +757,12 @@ mod tests {
             support: AtomSupport::supported(),
         };
         // Ordered: the exclusions are reported with the action in the order supplied.
-        ordered_laws(&["c1", "c2", "c3"], |items| Some(encoded(&utility(items, 1.0))));
-        bit_exact(|lower| Some(encoded(&utility(&[], lower))));
+        ordered_laws(&["c1", "c2", "c3"], |items| Some(encoded_value(&utility(items, 1.0))));
+        bit_exact(|lower| Some(encoded_value(&utility(&[], lower))));
         all_distinct(&[
-            encoded(&AtomSupport::supported()),
-            encoded(&AtomSupport::unassessed()),
-            encoded(&support(&entries[..1])),
+            encoded_value(&AtomSupport::supported()),
+            encoded_value(&AtomSupport::unassessed()),
+            encoded_value(&support(&entries[..1])),
         ]);
     }
 
@@ -770,7 +778,7 @@ mod tests {
                 admg.insert_directed(DenseNodeId::from_raw(from), DenseNodeId::from_raw(to))
                     .ok()?;
             }
-            Some(encoded(&admg))
+            Some(encoded_value(&admg))
         };
         let labels = [0_u32, 1, 2, 3];
         set_laws(&[(0_u32, 1_u32), (1, 2), (2, 3)], |edges| graph(&labels, edges));
@@ -783,22 +791,25 @@ mod tests {
         use antecedent_core::{EnvironmentId, Lag};
         let variable = VariableId::from_raw(1);
         all_distinct(&[
-            encoded(&NodeRef::Static(variable)),
-            encoded(&NodeRef::Static(VariableId::from_raw(2))),
-            encoded(&NodeRef::Lagged { variable, lag: Lag::from_raw(0) }),
-            encoded(&NodeRef::Lagged { variable, lag: Lag::from_raw(1) }),
-            encoded(&NodeRef::Unfolded { variable, offset: 1 }),
-            encoded(&NodeRef::Unfolded { variable, offset: -1 }),
-            encoded(&NodeRef::Unfolded { variable, offset: 0 }),
-            encoded(&NodeRef::Context { variable, environment: None }),
-            encoded(&NodeRef::Context { variable, environment: Some(EnvironmentId::from_raw(0)) }),
+            encoded_value(&NodeRef::Static(variable)),
+            encoded_value(&NodeRef::Static(VariableId::from_raw(2))),
+            encoded_value(&NodeRef::Lagged { variable, lag: Lag::from_raw(0) }),
+            encoded_value(&NodeRef::Lagged { variable, lag: Lag::from_raw(1) }),
+            encoded_value(&NodeRef::Unfolded { variable, offset: 1 }),
+            encoded_value(&NodeRef::Unfolded { variable, offset: -1 }),
+            encoded_value(&NodeRef::Unfolded { variable, offset: 0 }),
+            encoded_value(&NodeRef::Context { variable, environment: None }),
+            encoded_value(&NodeRef::Context {
+                variable,
+                environment: Some(EnvironmentId::from_raw(0)),
+            }),
         ]);
     }
 
     #[test]
     fn site_supplied_identity_wire_lists_keep_their_order() {
-        ordered_laws(&[1_u64, 2, 3], |items| Some(encoded(&Wire(&items.to_vec()))));
-        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded(&Wire(&(*a, *b)))));
+        ordered_laws(&[1_u64, 2, 3], |items| Some(encoded_value(&Wire(&items.to_vec()))));
+        injective(&ADVERSARIAL_TEXT, |p| *p, |(a, b)| Some(encoded_value(&Wire(&(*a, *b)))));
     }
 
     #[test]
