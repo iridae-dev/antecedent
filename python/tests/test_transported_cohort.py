@@ -302,7 +302,7 @@ def test_the_transported_value_is_a_composition_node_that_follows_its_identity(m
     assert node.trust == "not_applicable" and node.unsupported == ()
     assert node.calibration == cv.Calibration.point_only()
     assert node.transformation == base.receipt.route
-    assert node.assumptions == tuple(base.receipt.assumptions)
+    assert node.assumptions == (*base.receipt.assumptions, "support_label:extrapolative")
     # a changed weight moves the value, so the node's identity; the target is unchanged, so the
     # coordinate a calibration record would be checked at is not
     reweighted = transport(model, cohort_=cohort(w=[0.5, 0.25, 0.25])).composition_node(

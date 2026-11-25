@@ -445,7 +445,7 @@ impl PyPreparedJointPanel {
     }
     fn inspect(&self) -> String {
         let inspection = self.inner.inspect();
-        serde_json::json!({"fits_performed":inspection.fits_performed,"identified":inspection.identification.is_identified_claim(),"source_identity":inspection.source_identity.to_hex(),"lowered_program_identity":self.inner.program_identity().to_hex(),"attempts":inspection.design_attempts.iter().map(|attempt|serde_json::json!({"id":attempt.id,"outcome":format!("{:?}",attempt.outcome),"detail":attempt.detail,"next_attempt":attempt.next_attempt})).collect::<Vec<_>>(),"indicators":self.indicators.iter().map(|indicator|serde_json::json!({"name":indicator.name,"source":indicator.source,"level":indicator.level})).collect::<Vec<_>>(),"gaussian_restriction_declared":self.gaussian_restriction}).to_string()
+        serde_json::json!({"fits_performed":inspection.fits_performed,"identified":inspection.identification.identifies_within_model(),"source_identity":inspection.source_identity.to_hex(),"lowered_program_identity":self.inner.program_identity().to_hex(),"attempts":inspection.design_attempts.iter().map(|attempt|serde_json::json!({"id":attempt.id,"outcome":format!("{:?}",attempt.outcome),"detail":attempt.detail,"next_attempt":attempt.next_attempt})).collect::<Vec<_>>(),"indicators":self.indicators.iter().map(|indicator|serde_json::json!({"name":indicator.name,"source":indicator.source,"level":indicator.level})).collect::<Vec<_>>(),"gaussian_restriction_declared":self.gaussian_restriction}).to_string()
     }
     #[pyo3(signature=(*,seed=0,threads=1,max_bytes=None,cancel=None))]
     fn estimate(
@@ -736,7 +736,7 @@ impl PyJointPanelResult {
                 JointPanelFit::Varying(fit) => serde_json::to_value(&fit.point),
             }
             .map_err(|error| crate::serialization_err(error.to_string()))?;
-            Ok(serde_json::json!({"point_parameters":point_parameters,"point":self.inner.point,"draws":self.inner.draws,"identified":self.inner.identification().is_identified_claim(),"diagnostics":diagnostics,"dependency":self.inner.dependency_identity().to_hex(),"fits_performed":self.inner.prepared().fits_performed()}).to_string())
+            Ok(serde_json::json!({"point_parameters":point_parameters,"point":self.inner.point,"draws":self.inner.draws,"identified":self.inner.identification().identifies_within_model(),"diagnostics":diagnostics,"dependency":self.inner.dependency_identity().to_hex(),"fits_performed":self.inner.prepared().fits_performed()}).to_string())
         })
     }
     /// The target's one assembled contrast of scheduled programs, evaluated on every shared

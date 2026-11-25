@@ -181,7 +181,10 @@ def test_the_surrogate_bridge_is_the_numpy_trial_level_regression():
     # Nothing is established for the target quantity beyond the declared assumptions.
     assert not claim.identification_available and not claim.uncertainty_available
     assert claim.domains["identification"] == "unknown"
-    assert claim.unresolved == ("assumption:validation",)
+    assert claim.unresolved == (
+        "assumption:validation",
+        "source_assumption:bridge_source_assumptions_unavailable",
+    )
     assert {"interval", "posterior", "joint_law"} <= set(claim.unavailable)
     assert [node["operation"] for node in claim.provenance] == [
         "source_claim",

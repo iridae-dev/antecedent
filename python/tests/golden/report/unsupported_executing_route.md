@@ -179,7 +179,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **design.source:** not\_design\_based
 - **estimator:** policy.triangular\_kernel\_inverse\_density
 - **identifier:** policy.continuous\_dose\_exchangeability
-- **identity:** 7d5363a9c0b7da6450f447ae1ca99274fbe976e15421f7d6fabb0359389b5b10
+- **identity:** 2f12b576f02ffe9a88239c102ca418bed7f83c99ba1ec59ae5f3471770735bbb
 - **models\[0\].family:** supplied\_conditional\_dose\_density
 - **models\[0\].inputs:** dose
 - **models\[0\].output:** density

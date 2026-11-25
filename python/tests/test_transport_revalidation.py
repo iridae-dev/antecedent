@@ -380,7 +380,8 @@ def test_a_standalone_response_states_its_coordinate_standing_and_composition_no
     assert node.kind == "transported_result" and node.key == "effect"
     assert node.coordinate == coordinate
     assert node.trust == "held" and node.transformation == "declared"
-    assert node.assumptions == ("selection acts on age only",)
+    # The transported node states the premise of its support label beside the declared ones.
+    assert node.assumptions == ("selection acts on age only", "support_label:extrapolative")
     assert node.calibration == cv.Calibration.held(digest(77), coordinate)
     other = rv.response_claim_node(
         "effect", response("effect", "trial", "clinic_b", 3.0), provider_trust="verified_extension"

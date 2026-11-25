@@ -196,7 +196,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **design.source:** quoted
 - **estimator:** bayesian.gcomp
 - **identifier:** backdoor.adjustment
-- **identity:** 606f5ee87708fd8390f3257afd8c34bd31c5381fb336edb9bd762e4ee5ed144c
+- **identity:** 05284b1842a7a55c15a6ef21be0ab1b6893d6d0cc59529d21716a4c43ebe376f
 - **models\[0\].family:** ols.faer
 - **models\[0\].inputs:** t, z
 - **models\[0\].output:** y

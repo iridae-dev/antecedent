@@ -191,7 +191,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **design.source:** not\_design\_based
 - **estimator:** temporal.linear.adjustment
 - **identifier:** temporal.backdoor.unfolded
-- **identity:** c5aba24acb3b7d5883d94c1979ceabbf352e25a5b52594256068431943a12b90
+- **identity:** a9bb80cf019268c0e1230d2e95ae0d1897e17e2da9c4f7a037fcc0922ad64286
 - **models\[0\].family:** temporal.linear.adjustment
 - **models\[0\].inputs:** pressure
 - **models\[0\].output:** defect

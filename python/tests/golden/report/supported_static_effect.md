@@ -203,7 +203,7 @@ This report restates the contract. It computes no estimate, grants no support, a
 - **design.source:** quoted
 - **estimator:** linear.adjustment.ate
 - **identifier:** backdoor.adjustment
-- **identity:** d16c7aff1c83dc4c178095ea67494564b4e0bf2d5c0cae9c1f0d3807c80e7734
+- **identity:** 10b98223eb144c0017b978f90e4433b121cabaee4d6772455a02415ef206ae04
 - **models\[0\].family:** ols.faer
 - **models\[0\].inputs:** t, z
 - **models\[0\].output:** y

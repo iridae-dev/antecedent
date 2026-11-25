@@ -98,7 +98,8 @@ def test_inverse_outcome_retains_finite_grid_feasibility_and_actual_consumer():
 
 
 def test_composed_functional_outcome_keeps_native_scalar_and_dependency_source():
-    source = joint_input("enumerated")
+    # A law from a provider that states no support mask is missing evidence: this one states it.
+    source = joint_input("enumerated", supported=(True, True, True))
     outcome = composition.evaluate_functional(
         joint_contract(), "wait", composition.Functional.expectation(), source
     )
@@ -106,7 +107,7 @@ def test_composed_functional_outcome_keeps_native_scalar_and_dependency_source()
     result = require_success(outcome)
     assert result.value == pytest.approx(2.0)
     assert outcome.answer.kind == "point" and outcome.answer.value == pytest.approx(2.0)
-    other = joint_input("other", snapshot="different-snapshot")
+    other = joint_input("other", snapshot="different-snapshot", supported=(True, True, True))
     relation = composition.PairRelation(
         "enumerated", "other", composition.EvidenceRelation.unknown()
     )
