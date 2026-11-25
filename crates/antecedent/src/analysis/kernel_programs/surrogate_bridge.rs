@@ -544,6 +544,7 @@ mod site_tests {
         let bridge = bridge_of(&[pair(0.0, 0.1)], &[], &[]);
         let compiled = Study::compile_surrogate_bridge(&bridge, &plain(), "bridge", &ctx).unwrap();
         assert_eq!(compiled.lowered().route(), "SurrogateBridge");
+        crate::planner::lowered::round_trip(compiled.lowered()).unwrap();
     }
 
     /// The compiled cell and the kernel derive the same bridged claim.

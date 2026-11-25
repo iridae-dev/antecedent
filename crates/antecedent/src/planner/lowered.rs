@@ -15,6 +15,9 @@
 
 mod chain;
 mod decision;
+
+#[cfg(test)]
+pub(crate) use decision::child_codec::round_trip;
 mod linear_gaussian;
 mod planning;
 #[cfg(test)]

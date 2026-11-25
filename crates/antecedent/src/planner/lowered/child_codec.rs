@@ -139,6 +139,19 @@ pub(crate) enum ReidentifyKind {
     Deferred,
 }
 
+/// Encode `program`'s layers and decode them against the live program.
+///
+/// The identity is the program's own digest. A mismatch is a child that does not
+/// reproduce the layer that digest was taken from.
+///
+/// # Errors
+///
+/// A layer's bytes are not the preimage of its digest, or a decoded field differs.
+pub(crate) fn round_trip(program: &LoweredProgram) -> Result<(), ChildCodecError> {
+    let children = resolve_children(program)?;
+    check_children(program, &children)
+}
+
 /// Encode every child of `program`.
 ///
 /// # Errors

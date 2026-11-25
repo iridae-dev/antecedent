@@ -373,6 +373,7 @@ mod site_tests {
         )
         .unwrap();
         assert_eq!(pooled.lowered().route(), "SynthesisPooling");
+        crate::planner::lowered::round_trip(pooled.lowered()).unwrap();
         let borrow = TransportedSynthesisMethod::Borrow {
             mean_prior: MeanPrior::Flat,
             tau_prior: TauPrior { support: vec![0.0], probabilities: vec![1.0] },
@@ -389,6 +390,7 @@ mod site_tests {
         )
         .unwrap();
         assert_eq!(borrowed.lowered().route(), "SynthesisBorrowing");
+        crate::planner::lowered::round_trip(borrowed.lowered()).unwrap();
         let prior = TransportedSynthesisMethod::TransportedPrior { prior: source(3) };
         let updated = Study::compile_transported_synthesis(
             &ledger,
@@ -402,6 +404,7 @@ mod site_tests {
         )
         .unwrap();
         assert_eq!(updated.lowered().route(), "SynthesisTransportedPrior");
+        crate::planner::lowered::round_trip(updated.lowered()).unwrap();
     }
 
     fn rows(start: u64, end: u64) -> Vec<antecedent_contract::evidence_ledger::ObservationId> {

@@ -168,7 +168,9 @@ fn compile(study: &Study) -> PhysicalExecutionPlan {
 }
 
 fn lowered(plan: &PhysicalExecutionPlan) -> &LoweredProgram {
-    plan.lowered().expect("compile attaches a lowered program")
+    let program = plan.lowered().expect("compile attaches a lowered program");
+    crate::planner::lowered::round_trip(program).expect("layers decode to the live program");
+    program
 }
 
 /// One study per cell of the family.

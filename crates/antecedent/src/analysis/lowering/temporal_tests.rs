@@ -349,6 +349,7 @@ fn every_temporal_cell_lowers_completely() {
         let study = builder.build().unwrap_or_else(|error| panic!("{name}: {error}"));
         let plan = study.compile(&ctx()).unwrap_or_else(|error| panic!("{name}: {error}"));
         let program = plan.lowered().expect("compile attaches a lowered program");
+        crate::planner::lowered::round_trip(program).expect("layers decode to the live program");
         crate::planner::plan_view::checks::assert_view_agrees(name, &plan);
         assert_eq!(program.route(), name);
         assert_eq!(program.depth(), LoweringDepth::Complete, "{name}");
@@ -656,6 +657,7 @@ fn window_mediation_identifies_once_at_compile_and_retains_the_components() {
         let study = point(builder).build().unwrap();
         let plan = compile(&study);
         let program = plan.lowered().expect("compile attaches a lowered program");
+        crate::planner::lowered::round_trip(program).expect("layers decode to the live program");
         assert!(program.identification_retained(), "{name}: the window identifies at compile");
         let retained = program.retained_identification().unwrap();
         // The three components (total, direct, indirect) ride the program.

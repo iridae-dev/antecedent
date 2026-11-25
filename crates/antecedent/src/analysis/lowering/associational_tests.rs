@@ -27,7 +27,9 @@ fn v(raw: u32) -> VariableId {
 fn compiled(study: &Study) -> LoweredProgram {
     let plan = study.compile(&ExecutionContext::for_tests(9)).unwrap();
     crate::planner::plan_view::checks::assert_view_agrees("association", &plan);
-    plan.lowered().expect("compile attaches a lowered program").clone()
+    let lowered = plan.lowered().expect("compile attaches a lowered program").clone();
+    crate::planner::lowered::round_trip(&lowered).expect("layers decode to the live program");
+    lowered
 }
 
 fn table() -> TabularData {

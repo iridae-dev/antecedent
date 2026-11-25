@@ -67,6 +67,8 @@ fn panel_did_refuses_a_forged_plan_or_structure_source() {
     let ctx = ExecutionContext::for_tests(1);
     let (data, study) = panel_did();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    crate::planner::lowered::round_trip(physical.lowered().expect("panel DiD lowers"))
+        .expect("panel DiD layers decode to the live program");
     let view = crate::planner::plan_view::checks::assert_view_agrees("PanelDid", &physical);
     assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedPanelDidOperation::checked(&study, &data, &physical).is_ok());
@@ -113,6 +115,8 @@ fn synthetic_control_refuses_a_forged_plan() {
     );
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    crate::planner::lowered::round_trip(physical.lowered().expect("synthetic control lowers"))
+        .expect("synthetic control layers decode to the live program");
     let view = crate::planner::plan_view::checks::assert_view_agrees("SyntheticControl", &physical);
     assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);
     assert!(CheckedSyntheticControlOperation::checked(&study, &data, &physical).is_ok());
@@ -158,6 +162,8 @@ fn local_polynomial_ratio_refuses_a_forged_plan() {
     };
     let study = Study::tabular(data.clone()).query(query).build().unwrap();
     let physical = Arc::new(study.plan(&ctx).unwrap());
+    crate::planner::lowered::round_trip(physical.lowered().expect("local ratio lowers"))
+        .expect("local ratio layers decode to the live program");
     let view =
         crate::planner::plan_view::checks::assert_view_agrees("LocalPolynomialRatio", &physical);
     assert_eq!(view.family(), crate::planner::RouteFamily::DesignBased);

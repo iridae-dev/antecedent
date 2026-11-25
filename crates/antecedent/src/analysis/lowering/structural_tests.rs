@@ -29,7 +29,9 @@ fn v(raw: u32) -> VariableId {
 fn lowered(study: &Study) -> LoweredProgram {
     let plan = study.compile(&ExecutionContext::for_tests(5)).unwrap();
     crate::planner::plan_view::checks::assert_view_agrees("structural", &plan);
-    plan.lowered().cloned().expect("compile attaches a lowered program")
+    let lowered = plan.lowered().cloned().expect("compile attaches a lowered program");
+    crate::planner::lowered::round_trip(&lowered).expect("layers decode to the live program");
+    lowered
 }
 
 fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {

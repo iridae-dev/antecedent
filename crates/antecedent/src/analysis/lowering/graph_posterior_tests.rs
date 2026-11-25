@@ -491,7 +491,10 @@ fn representatives() -> Vec<(GraphPosteriorCell, Study)> {
 }
 
 fn compiled(study: &Study, ctx: &ExecutionContext) -> LoweredProgram {
-    study.compile(ctx).unwrap().lowered().expect("compile attaches a lowered program").clone()
+    let lowered =
+        study.compile(ctx).unwrap().lowered().expect("compile attaches a lowered program").clone();
+    crate::planner::lowered::round_trip(&lowered).expect("layers decode to the live program");
+    lowered
 }
 
 fn identity(study: &Study, ctx: &ExecutionContext) -> SemanticDigest {
@@ -507,6 +510,8 @@ fn every_graph_posterior_cell_lowers_a_complete_program_that_execution_stamps() 
             let name = RouteCell::GraphPosterior(cell).as_str();
             let plan = study.compile(&ctx).unwrap();
             let lowered = plan.lowered().expect("compile attaches a lowered program");
+            crate::planner::lowered::round_trip(lowered)
+                .expect("layers decode to the live program");
             let view = crate::planner::plan_view::checks::assert_view_agrees(name, &plan);
             assert!(view.mixture().is_some(), "{name}: a graph-posterior view states its mixture");
             let with_study = study.plan_view(&ctx).unwrap();

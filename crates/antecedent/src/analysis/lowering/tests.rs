@@ -147,6 +147,9 @@ fn compile_attaches_a_lowered_program_and_execution_stamps_it() {
     let study = linear_study();
     let plan = study.compile(&ctx).unwrap();
     let lowered = plan.lowered().expect("compile attaches a lowered program");
+    let identity = lowered.identity();
+    crate::planner::lowered::round_trip(lowered).expect("layers decode to the live program");
+    assert_eq!(lowered.identity(), identity);
     assert_eq!(lowered.route(), "StaticAteDag");
     assert_eq!(lowered.depth(), LoweringDepth::Complete);
     let result = study.execute(&plan, &ctx).unwrap();

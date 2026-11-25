@@ -34,6 +34,9 @@ pub(crate) mod model_operation;
 pub(crate) mod program_families;
 mod query_digest;
 mod registry;
+#[cfg(test)]
+#[path = "remaining_cells_tests.rs"]
+mod remaining_cells_tests;
 pub(crate) mod scan;
 mod static_effect;
 mod static_response;
