@@ -13,8 +13,8 @@
 //! An external row keeps the caller’s URI and has no body section. Opening
 //! accepts bytes the caller’s resolver supplies for that URI. The expected
 //! program identity is the retained digest of the invariant and is never read
-//! out of the container. [`open_expecting`] binds that digest before [`open`]
-//! reads the study; a digest of the container bytes does not bind. Each resolved
+//! out of the container. [`open_expecting`] binds that digest before reading
+//! the catalog or sealed claim; a digest of the container bytes does not bind. Each resolved
 //! body must have the catalog’s length and
 //! BLAKE3 digest. Source rows must also rebuild to the content digest the
 //! catalog declares.
@@ -35,7 +35,9 @@ use crate::catalog_role::{self, RETAINED_SUMMARY, SOURCE_ROWS};
 use crate::container::{ArtifactManifest, EncodedArtifact, SectionBytes, section_descriptor};
 use crate::convert::{from_cbor, to_cbor};
 use crate::error::IoError;
-use crate::retained_artifact::artifact_identity;
+use crate::retained_artifact::{
+    RetainedArtifactIdentity, artifact_identity, bind_retained_artifact,
+};
 use crate::source_witness::{SourceWitnessLimits, SourceWitnessWire};
 use crate::wire::{ArtifactKind, FormatVersion, ProvenanceWire, SemanticVersion};
 
@@ -246,7 +248,14 @@ pub fn layer5_quote(rows: u64, columns: u64) -> Result<u64, IoError> {
 ///
 /// The bytes are not a witness, or they do not rebuild under `names`.
 pub fn source_content_digest(bytes: &[u8], names: &[String]) -> Result<[u8; 32], IoError> {
-    let witness: SourceWitnessWire = from_cbor(bytes)?;
+    let witness = from_cbor(bytes)?;
+    witness_content_digest(&witness, names)
+}
+
+fn witness_content_digest(
+    witness: &SourceWitnessWire,
+    names: &[String],
+) -> Result<[u8; 32], IoError> {
     let storage = witness.to_storage(names, &SourceWitnessLimits::default())?;
     Ok(storage.content_digest())
 }
@@ -261,15 +270,17 @@ pub fn accept_source_body(
     names: &[String],
     declared: &[u8; 32],
 ) -> Result<[u8; 32], IoError> {
-    let got = source_content_digest(bytes, names)?;
+    check_content_digest(source_content_digest(bytes, names)?, declared)
+}
+
+fn check_content_digest(got: [u8; 32], declared: &[u8; 32]) -> Result<[u8; 32], IoError> {
     if got != *declared {
         return Err(refused("source content digest does not match the catalog"));
     }
     Ok(got)
 }
 
-fn source_shape(bytes: &[u8]) -> Result<(u64, u64), IoError> {
-    let witness: SourceWitnessWire = from_cbor(bytes)?;
+fn source_shape(witness: &SourceWitnessWire) -> Result<(u64, u64), IoError> {
     let columns = u64::try_from(witness.columns.len()).map_err(|_| IoError::TooLarge)?;
     if columns == 0 || witness.row_count == 0 {
         return Err(refused("source rows need a nonempty table"));
@@ -283,6 +294,16 @@ fn section(id: &str, bytes: &[u8]) -> (crate::wire::SectionDescriptor, SectionBy
     (descriptor, stored)
 }
 
+fn admit_catalog_role<'a>(roles: &mut BTreeSet<&'a str>, role: &'a str) -> Result<(), IoError> {
+    if !catalog_role::is_role(role) {
+        return Err(refused(format!("unknown catalog role `{role}`")));
+    }
+    if !roles.insert(role) {
+        return Err(refused(format!("catalog role `{role}` is repeated")));
+    }
+    Ok(())
+}
+
 /// Write a compiled study.
 ///
 /// # Errors
@@ -294,15 +315,10 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
         return Err(refused("a compiled study needs its writer output"));
     }
     let mut entries = Vec::with_capacity(parts.bodies.len());
-    let mut inline: Vec<(String, Vec<u8>)> = Vec::new();
-    let mut seen = BTreeMap::<String, ()>::new();
+    let mut inline = Vec::new();
+    let mut roles = BTreeSet::new();
     for body in parts.bodies {
-        if !catalog_role::is_role(&body.role) {
-            return Err(refused(format!("unknown catalog role `{}`", body.role)));
-        }
-        if seen.insert(body.role.clone(), ()).is_some() {
-            return Err(refused(format!("catalog role `{}` is repeated", body.role)));
-        }
+        admit_catalog_role(&mut roles, &body.role)?;
         if body.summary_only && body.role != RETAINED_SUMMARY {
             return Err(refused("summary-only retention is the retained summary"));
         }
@@ -317,8 +333,9 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
             if body.names.is_empty() {
                 return Err(refused("source rows need their variable names"));
             }
-            let digest = source_content_digest(&body.bytes, &body.names)?;
-            let (row_count, column_count) = source_shape(&body.bytes)?;
+            let witness = from_cbor(&body.bytes)?;
+            let digest = witness_content_digest(&witness, &body.names)?;
+            let (row_count, column_count) = source_shape(&witness)?;
             (Some(antecedent_core::to_hex(&digest)), Some(row_count), Some(column_count))
         } else if !body.names.is_empty() {
             return Err(refused("variable names belong to source rows"));
@@ -326,7 +343,7 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
             (None, None, None)
         };
         if matches!(placement, PlacementWire::Inline) {
-            inline.push((body.role.clone(), body.bytes.clone()));
+            inline.push((body.role.as_str(), body.bytes.as_slice()));
         }
         entries.push(EntryWire {
             role: body.role.clone(),
@@ -342,7 +359,7 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
         });
     }
     entries.sort_by(|left, right| left.role.cmp(&right.role));
-    inline.sort_by(|left, right| left.0.cmp(&right.0));
+    inline.sort_by_key(|&(role, _)| role);
     let catalog = to_cbor(&CatalogWire { version: CATALOG_VERSION, entries, estimate_bits: None })?;
     let mut descriptors = Vec::new();
     let mut sections = Vec::new();
@@ -357,7 +374,7 @@ pub fn write(parts: StudyParts<'_>) -> Result<WrittenStudy, IoError> {
         descriptors.push(descriptor);
         sections.push(stored);
     }
-    for (role, bytes) in &inline {
+    for (role, bytes) in inline {
         let (descriptor, stored) = section(&body_section(role), bytes);
         descriptors.push(descriptor);
         sections.push(stored);
@@ -387,11 +404,11 @@ fn entry_bytes(
     artifact: &EncodedArtifact,
     entry: &EntryWire,
     resolve: &dyn Fn(&str) -> Option<Vec<u8>>,
-) -> Result<Result<Vec<u8>, UnresolvedBody>, IoError> {
+) -> Result<Option<Vec<u8>>, IoError> {
     let inline = body_section(&entry.role);
     match &entry.placement {
         PlacementWire::Inline => match section_data(artifact, &inline) {
-            Some(bytes) => Ok(Ok(bytes.to_vec())),
+            Some(bytes) => Ok(Some(bytes.to_vec())),
             None => Err(refused(format!("inline role `{}` has no body section", entry.role))),
         },
         PlacementWire::External { uri } => {
@@ -404,18 +421,12 @@ fn entry_bytes(
                     entry.role
                 )));
             }
-            match resolve(uri) {
-                Some(bytes) => Ok(Ok(bytes)),
-                None if entry.required => {
-                    Ok(Err(UnresolvedBody { role: entry.role.clone(), uri: Some(uri.clone()) }))
-                }
-                None => Ok(Err(UnresolvedBody { role: String::new(), uri: None })),
-            }
+            Ok(resolve(uri))
         }
     }
 }
 
-fn accept_bytes(entry: &EntryWire, bytes: &[u8]) -> Result<(), IoError> {
+fn accept_bytes(entry: &EntryWire, bytes: &[u8]) -> Result<Option<(u64, u64)>, IoError> {
     let length = u64::try_from(bytes.len()).map_err(|_| IoError::TooLarge)?;
     if length != entry.length || antecedent_core::blake3_hex(bytes) != entry.digest {
         return Err(refused(format!("corrupt body for role `{}`", entry.role)));
@@ -427,15 +438,18 @@ fn accept_bytes(entry: &EntryWire, bytes: &[u8]) -> Result<(), IoError> {
         let Some(digest) = antecedent_core::digest_from_hex(declared) else {
             return Err(refused("source content digest is not 32 bytes"));
         };
-        accept_source_body(bytes, &entry.names, &digest)?;
-        let (rows, columns) = source_shape(bytes)?;
+        let witness = from_cbor(bytes)?;
+        check_content_digest(witness_content_digest(&witness, &entry.names)?, &digest)?;
+        let (rows, columns) = source_shape(&witness)?;
         if entry.rows != Some(rows) || entry.columns != Some(columns) {
             return Err(refused("source shape does not match the catalog"));
         }
-    } else if entry.content_digest.is_some() {
+        return Ok(Some((rows, columns)));
+    }
+    if entry.content_digest.is_some() {
         return Err(refused(format!("role `{}` declares a source content digest", entry.role)));
     }
-    Ok(())
+    Ok(None)
 }
 
 fn load_bound_claim(bytes: &[u8], invariant: &[u8]) -> Result<crate::AnalysisResultLoad, IoError> {
@@ -458,10 +472,109 @@ fn load_bound_claim(bytes: &[u8], invariant: &[u8]) -> Result<crate::AnalysisRes
     Ok(claim)
 }
 
+fn validate_container(artifact: &EncodedArtifact) -> Result<(), IoError> {
+    if artifact.manifest.artifact_kind != ArtifactKind::Other(KIND.into()) {
+        return Err(IoError::Convert("not a compiled study".into()));
+    }
+    if artifact.manifest.format_version != FORMAT {
+        return Err(IoError::UnsupportedFormat {
+            major: artifact.manifest.format_version.major,
+            minor: artifact.manifest.format_version.minor,
+        });
+    }
+    let minimum = artifact.manifest.minimum_reader_version;
+    if minimum.major > FORMAT.major
+        || (minimum.major == FORMAT.major && minimum.minor > FORMAT.minor)
+    {
+        return Err(IoError::UnsupportedFormat { major: minimum.major, minor: minimum.minor });
+    }
+    Ok(())
+}
+
+fn invariant_section(artifact: &EncodedArtifact) -> Result<&[u8], IoError> {
+    section_data(artifact, INVARIANT_SECTION)
+        .ok_or_else(|| refused("compiled study has no invariant"))
+}
+
+fn invariant_identity_refusal(_: IoError) -> IoError {
+    refused("expected identity does not match the program invariant")
+}
+
+fn open_bound_study(
+    artifact: &EncodedArtifact,
+    invariant: &[u8],
+    resolve: &dyn Fn(&str) -> Option<Vec<u8>>,
+    caller_supplied: bool,
+) -> Result<OpenedStudy, IoError> {
+    let catalog_bytes = section_data(artifact, CATALOG_SECTION)
+        .ok_or_else(|| refused("compiled study has no catalog"))?;
+    let catalog: CatalogWire = from_cbor(catalog_bytes)?;
+    if catalog.version != CATALOG_VERSION {
+        return Err(IoError::UnsupportedVersion { version: u32::from(catalog.version) });
+    }
+    let mut roles = BTreeSet::new();
+    let mut source_names = None;
+    for entry in &catalog.entries {
+        admit_catalog_role(&mut roles, &entry.role)?;
+        if entry.role == SOURCE_ROWS {
+            source_names = Some(entry.names.clone());
+        }
+    }
+    let claim = match section_data(artifact, CLAIM_SECTION) {
+        None => None,
+        Some(claim) => Some(load_bound_claim(claim, invariant)?),
+    };
+    let mut unresolved = Vec::new();
+    let mut bodies = BTreeMap::new();
+    let mut summary_only = false;
+    let mut callback = false;
+    let mut source_dimensions = None;
+    for entry in &catalog.entries {
+        if entry.summary_only {
+            summary_only = true;
+        }
+        if entry.role == catalog_role::CALLBACK_DECLARATION
+            || entry.role == catalog_role::CALLBACK_OUTPUT
+        {
+            callback = true;
+        }
+        if let Some(resolved) = entry_bytes(artifact, entry, resolve)? {
+            if let Some(dimensions) = accept_bytes(entry, &resolved)? {
+                source_dimensions = Some(dimensions);
+            }
+            bodies.insert(entry.role.clone(), resolved);
+        } else if entry.required
+            && let PlacementWire::External { uri } = &entry.placement
+        {
+            unresolved.push(UnresolvedBody { role: entry.role.clone(), uri: Some(uri.clone()) });
+        }
+    }
+    let refit_refused = summary_only.then(|| "summary-only".to_owned());
+    let callback_live = callback && caller_supplied;
+    let layer5_bytes = if unresolved.is_empty() {
+        source_dimensions.map(|(rows, columns)| layer5_quote(rows, columns)).transpose()?
+    } else {
+        None
+    };
+    Ok(OpenedStudy {
+        resumable: false,
+        unresolved,
+        layer5_bytes,
+        estimate: None,
+        claim,
+        refit_refused,
+        callback_requires_caller: callback,
+        callback_live,
+        invariant: invariant.to_vec(),
+        source_names,
+        bodies,
+    })
+}
+
 /// Admit `bytes` only when `retained` is the invariant's artifact identity.
 ///
 /// The container's own digest is a different value. This binds the invariant
-/// before [`open`] reads the study. Binding the container digest refuses.
+/// before decoding the catalog or claim or resolving bodies.
 ///
 /// # Errors
 ///
@@ -469,16 +582,15 @@ fn load_bound_claim(bytes: &[u8], invariant: &[u8]) -> Result<crate::AnalysisRes
 /// `expected identity does not match the program invariant`.
 pub fn open_expecting(
     bytes: &[u8],
-    retained: &crate::retained_artifact::RetainedArtifactIdentity,
+    retained: &RetainedArtifactIdentity,
     resolve: &dyn Fn(&str) -> Option<Vec<u8>>,
     caller_supplied: bool,
 ) -> Result<OpenedStudy, IoError> {
     let artifact = EncodedArtifact::read_from(bytes)?;
-    let invariant = section_data(&artifact, INVARIANT_SECTION)
-        .ok_or_else(|| refused("compiled study has no invariant"))?;
-    crate::retained_artifact::bind_retained_artifact(invariant, retained)
-        .map_err(|_| refused("expected identity does not match the program invariant"))?;
-    open(bytes, &retained.to_hex(), resolve, caller_supplied)
+    let invariant = invariant_section(&artifact)?;
+    bind_retained_artifact(invariant, retained).map_err(invariant_identity_refusal)?;
+    validate_container(&artifact)?;
+    open_bound_study(&artifact, invariant, resolve, caller_supplied)
 }
 
 /// Open a compiled study.
@@ -499,100 +611,12 @@ pub fn open(
     caller_supplied: bool,
 ) -> Result<OpenedStudy, IoError> {
     let artifact = EncodedArtifact::read_from(bytes)?;
-    if artifact.manifest.artifact_kind != ArtifactKind::Other(KIND.into()) {
-        return Err(IoError::Convert("not a compiled study".into()));
-    }
-    if artifact.manifest.format_version != FORMAT {
-        return Err(IoError::UnsupportedFormat {
-            major: artifact.manifest.format_version.major,
-            minor: artifact.manifest.format_version.minor,
-        });
-    }
-    let minimum = artifact.manifest.minimum_reader_version;
-    if minimum.major > FORMAT.major
-        || (minimum.major == FORMAT.major && minimum.minor > FORMAT.minor)
-    {
-        return Err(IoError::UnsupportedFormat { major: minimum.major, minor: minimum.minor });
-    }
-    let invariant = section_data(&artifact, INVARIANT_SECTION)
-        .ok_or_else(|| refused("compiled study has no invariant"))?
-        .to_vec();
-    // The expected identity is the invariant's artifact digest, not the container's.
-    let retained = crate::retained_artifact::RetainedArtifactIdentity::from_hex(expected_identity)
-        .map_err(|_| refused("expected identity does not match the program invariant"))?;
-    crate::retained_artifact::bind_retained_artifact(&invariant, &retained)
-        .map_err(|_| refused("expected identity does not match the program invariant"))?;
-    let catalog_bytes = section_data(&artifact, CATALOG_SECTION)
-        .ok_or_else(|| refused("compiled study has no catalog"))?;
-    let catalog: CatalogWire = from_cbor(catalog_bytes)?;
-    if catalog.version != CATALOG_VERSION {
-        return Err(IoError::UnsupportedVersion { version: u32::from(catalog.version) });
-    }
-    let mut roles = BTreeSet::new();
-    let mut source_names = None;
-    for entry in &catalog.entries {
-        if !catalog_role::is_role(&entry.role) {
-            return Err(refused(format!("unknown catalog role `{}`", entry.role)));
-        }
-        if entry.role == SOURCE_ROWS {
-            source_names = Some(entry.names.clone());
-        }
-        if !roles.insert(entry.role.as_str()) {
-            return Err(refused(format!("catalog role `{}` is repeated", entry.role)));
-        }
-    }
-    let claim = match section_data(&artifact, CLAIM_SECTION) {
-        None => None,
-        Some(claim) => Some(load_bound_claim(claim, &invariant)?),
-    };
-    let mut unresolved = Vec::new();
-    let mut bodies = BTreeMap::new();
-    let mut summary_only = false;
-    let mut callback = false;
-    for entry in &catalog.entries {
-        if entry.summary_only {
-            summary_only = true;
-        }
-        if entry.role == catalog_role::CALLBACK_DECLARATION
-            || entry.role == catalog_role::CALLBACK_OUTPUT
-        {
-            callback = true;
-        }
-        match entry_bytes(&artifact, entry, resolve)? {
-            Ok(resolved) => {
-                accept_bytes(entry, &resolved)?;
-                bodies.insert(entry.role.clone(), resolved);
-            }
-            Err(missing) if missing.role.is_empty() => {}
-            Err(missing) => unresolved.push(missing),
-        }
-    }
-    let refit_refused = summary_only.then(|| "summary-only".to_owned());
-    let callback_live = callback && caller_supplied;
-    let layer5_bytes = if unresolved.is_empty() {
-        bodies
-            .get(SOURCE_ROWS)
-            .map(|source| {
-                let (rows, columns) = source_shape(source)?;
-                layer5_quote(rows, columns)
-            })
-            .transpose()?
-    } else {
-        None
-    };
-    Ok(OpenedStudy {
-        resumable: false,
-        unresolved,
-        layer5_bytes,
-        estimate: None,
-        claim,
-        refit_refused,
-        callback_requires_caller: callback,
-        callback_live,
-        invariant,
-        source_names,
-        bodies,
-    })
+    validate_container(&artifact)?;
+    let invariant = invariant_section(&artifact)?;
+    let retained = RetainedArtifactIdentity::from_hex(expected_identity)
+        .map_err(invariant_identity_refusal)?;
+    bind_retained_artifact(invariant, &retained).map_err(invariant_identity_refusal)?;
+    open_bound_study(&artifact, invariant, resolve, caller_supplied)
 }
 
 #[cfg(test)]
@@ -678,7 +702,8 @@ mod tests {
         body.external_uri = Some("memory://source".into());
         let invariant = b"invariant".to_vec();
         let written =
-            write(StudyParts { invariant: &invariant, bodies: &[body], claim: None }).unwrap();
+            write(StudyParts { invariant: &invariant, bodies: &[body.clone()], claim: None })
+                .unwrap();
         let opened = open(&written.bytes, &written.expected_identity, &none, false).unwrap();
         assert!(!opened.resumable);
         assert_eq!(opened.unresolved.len(), 1);
@@ -689,6 +714,14 @@ mod tests {
         let resumed = open(&written.bytes, &written.expected_identity, &resolve, false).unwrap();
         assert!(!resumed.resumable);
         assert_eq!(resumed.estimate, None);
+
+        body.required = false;
+        let optional =
+            write(StudyParts { invariant: &invariant, bodies: &[body], claim: None }).unwrap();
+        let unopened = open(&optional.bytes, &optional.expected_identity, &none, false).unwrap();
+        assert!(unopened.unresolved.is_empty());
+        assert!(unopened.bodies.is_empty());
+        assert!(unopened.layer5_bytes.is_none());
     }
 
     #[test]

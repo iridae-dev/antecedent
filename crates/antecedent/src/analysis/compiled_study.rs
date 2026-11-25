@@ -459,7 +459,17 @@ mod tests {
         let source_bytes =
             to_cbor(&SourceWitnessWire::from_storage(source.storage()).unwrap()).unwrap();
         let resolved = |uri: &str| (uri == "study://source").then(|| source_bytes.clone());
-        assert!(open(&saved.bytes, &saved.expected_identity, &resolved, false).unwrap().resumable);
+        let retained = RetainedArtifactIdentity::from_hex(&saved.expected_identity).unwrap();
+        let reopened = open(&saved.bytes, &saved.expected_identity, &resolved, false).unwrap();
+        let bound = open_expecting(&saved.bytes, &retained, &resolved, false).unwrap();
+        assert!(bound.resumable && reopened.resumable);
+        assert_eq!(bound.estimate.map(f64::to_bits), reopened.estimate.map(f64::to_bits));
+        assert_eq!(bound.layer5_bytes, reopened.layer5_bytes);
+        let wrong = RetainedArtifactIdentity::of_bytes(&saved.bytes);
+        let unexpected_resolve = |_: &str| panic!("an unbound invariant must refuse resolution");
+        let mismatch =
+            open_expecting(&saved.bytes, &wrong, &unexpected_resolve, false).unwrap_err();
+        assert!(mismatch.to_string().contains("expected identity"), "{mismatch}");
 
         let claim = prepared.encode_contracted_result(&different_result, "claim", &ctx).unwrap();
         let substitute = |bytes, names: &[&str]| {

@@ -366,6 +366,7 @@ fn node_digest(node: &BundleNode, legacy: bool) -> String {
 struct Derived {
     order: Vec<usize>,
     parents: Vec<Vec<usize>>,
+    node_digests: Vec<String>,
     digests: Vec<String>,
     edges: Vec<BundleEdge>,
 }
@@ -452,11 +453,12 @@ fn derive(
     {
         return Err(graph_error("an edge is repeated", None));
     }
+    let node_digests: Vec<_> = nodes.iter().map(|node| node_digest(node, legacy)).collect();
     let mut link_ids = vec![String::new(); nodes.len()];
     let mut links = Vec::with_capacity(nodes.len());
     for &position in &order {
         let node = &nodes[position];
-        let link_id = format!("{}@{}", node.id, node_digest(node, legacy));
+        let link_id = format!("{}@{}", node.id, node_digests[position]);
         let parent_links: Vec<String> =
             parents[position].iter().map(|p| link_ids[*p].clone()).collect();
         let declared_parent_digests = match &declared_digests {
@@ -492,30 +494,27 @@ fn derive(
     let edges = deps
         .iter()
         .map(|(from, to)| {
-            let position = index.get(from.as_str()).copied().unwrap_or(0);
+            let position = index[from.as_str()];
             BundleEdge {
                 from: from.clone(),
                 to: to.clone(),
-                upstream_digest: digests.get(position).cloned().unwrap_or_default(),
+                upstream_digest: digests[position].clone(),
             }
         })
         .collect();
-    Ok(Derived { order, parents, digests, edges })
+    Ok(Derived { order, parents, node_digests, digests, edges })
 }
 
-fn bundle_identity(
-    nodes: &[BundleNode],
-    digests: &[String],
-    edges: &[BundleEdge],
-    legacy: bool,
-) -> String {
+fn bundle_identity(nodes: &[BundleNode], derived: &Derived) -> String {
     let mut hasher = CanonicalWriter::new("antecedent.composition_bundle.v1");
     hasher.word(nodes.len() as u64);
-    for (node, digest) in nodes.iter().zip(digests) {
-        hasher.text(&node.id).text(&node_digest(node, legacy)).text(digest);
+    for ((node, node_digest), chain_digest) in
+        nodes.iter().zip(&derived.node_digests).zip(&derived.digests)
+    {
+        hasher.text(&node.id).text(node_digest).text(chain_digest);
     }
-    hasher.word(edges.len() as u64);
-    for edge in edges {
+    hasher.word(derived.edges.len() as u64);
+    for edge in &derived.edges {
         hasher.text(&edge.from).text(&edge.to).text(&edge.upstream_digest);
     }
     hasher.finish_hex()
@@ -623,7 +622,7 @@ impl CompositionBundle {
             return Err(graph_error("an edge is repeated", None));
         }
         let derived = derive(&nodes, &deps, None, false)?;
-        let identity = bundle_identity(&nodes, &derived.digests, &derived.edges, false);
+        let identity = bundle_identity(&nodes, &derived);
         Ok(Self { nodes, edges: derived.edges, digests: derived.digests, identity })
     }
 
@@ -1380,8 +1379,7 @@ impl BundleConsumer {
             decoded.edges.iter().map(|e| (e.from.clone(), e.to.clone())).collect();
         let attempt = |legacy: bool| {
             derive(&decoded.nodes, &deps, Some(&decoded.edges), legacy).map(|derived| {
-                let identity =
-                    bundle_identity(&decoded.nodes, &derived.digests, &derived.edges, legacy);
+                let identity = bundle_identity(&decoded.nodes, &derived);
                 (derived, identity)
             })
         };

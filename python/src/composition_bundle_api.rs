@@ -11,9 +11,9 @@ use std::collections::BTreeMap;
 
 use crate::bridge::{check_declared_size, external_refusal_json};
 use antecedent::analysis::composition::{
-    BundleBuilder, BundleError, BundleLimits, BundleStage, ClaimLabel, CompositionBundle,
-    ConsumedBundle, ConsumedNode, EvidenceRelationship, NodeKind, NodeSource, NodeStatus,
-    ProviderOrData, SuppliedSources, consume, consume_with_limits, describe_artifact,
+    BundleBuilder, BundleEdge, BundleError, BundleLimits, BundleStage, ClaimLabel,
+    CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship, NodeKind, NodeSource,
+    NodeStatus, ProviderOrData, SuppliedSources, consume_with_limits, describe_artifact,
     detect_node_kind, export_bundle, mean_decision_bytes, producer_identity,
 };
 use antecedent::contract::ExternalRefusal;
@@ -118,17 +118,28 @@ fn consumed_node_json(node: &ConsumedNode, replayed: bool) -> Value {
     })
 }
 
+fn edges_json(edges: &[BundleEdge]) -> Value {
+    Value::Array(
+        edges
+            .iter()
+            .map(|edge| {
+                json!({
+                    "from": edge.from,
+                    "to": edge.to,
+                    "upstream_digest": edge.upstream_digest,
+                })
+            })
+            .collect(),
+    )
+}
+
 pub(crate) fn consumed_json(consumed: &ConsumedBundle) -> String {
     json!({
         "identity": consumed.identity(),
         "all_verified": consumed.all_verified(),
         "all_replayed": consumed.all_replayed(),
         "nodes": consumed.nodes().iter().map(|node| consumed_node_json(node, consumed.node_replayed(&node.id))).collect::<Vec<_>>(),
-        "edges": consumed
-            .edges()
-            .iter()
-            .map(|e| json!({ "from": e.from, "to": e.to, "upstream_digest": e.upstream_digest }))
-            .collect::<Vec<_>>(),
+        "edges": edges_json(consumed.edges()),
     })
     .to_string()
 }
@@ -261,12 +272,7 @@ impl PyBundleBuilder {
 
     /// Add a reference whose digest is the producer identity of `data`.
     /// `role` is a catalog role shared with a compiled study.
-    fn add_producer_reference(
-        &mut self,
-        node_id: &str,
-        role: &str,
-        data: &[u8],
-    ) -> Refusal {
+    fn add_producer_reference(&mut self, node_id: &str, role: &str, data: &[u8]) -> Refusal {
         self.inner
             .add_producer_reference(node_id, role, data)
             .err()
@@ -345,13 +351,7 @@ impl PyCompositionBundle {
     /// Edges with their upstream Merkle digests, as JSON.
     #[getter]
     fn edges_json(&self) -> String {
-        let edges: Vec<Value> = self
-            .bundle
-            .edges()
-            .iter()
-            .map(|e| json!({ "from": e.from, "to": e.to, "upstream_digest": e.upstream_digest }))
-            .collect();
-        Value::Array(edges).to_string()
+        edges_json(self.bundle.edges()).to_string()
     }
 
     /// Serialize through the checksummed container. Returns `(bytes, refusal)`.
@@ -399,24 +399,15 @@ fn consume_composition_bundle(
                 ));
             }
         }
-        let consumed = py.detach(|| {
-            if max_bundle_bytes.is_none()
-                && max_nodes.is_none()
-                && max_edges.is_none()
-                && max_embedded_bytes.is_none()
-            {
-                consume(data, expected_identity, &supplied)
-            } else {
-                let defaults = BundleLimits::default();
-                let limits = BundleLimits {
-                    max_bundle_bytes: max_bundle_bytes.unwrap_or(defaults.max_bundle_bytes),
-                    max_nodes: max_nodes.unwrap_or(defaults.max_nodes),
-                    max_edges: max_edges.unwrap_or(defaults.max_edges),
-                    max_embedded_bytes: max_embedded_bytes.unwrap_or(defaults.max_embedded_bytes),
-                };
-                consume_with_limits(data, &limits, expected_identity, &supplied)
-            }
-        });
+        let defaults = BundleLimits::default();
+        let limits = BundleLimits {
+            max_bundle_bytes: max_bundle_bytes.unwrap_or(defaults.max_bundle_bytes),
+            max_nodes: max_nodes.unwrap_or(defaults.max_nodes),
+            max_edges: max_edges.unwrap_or(defaults.max_edges),
+            max_embedded_bytes: max_embedded_bytes.unwrap_or(defaults.max_embedded_bytes),
+        };
+        let consumed =
+            py.detach(|| consume_with_limits(data, &limits, expected_identity, &supplied));
         Ok(match consumed {
             Ok(consumed) => (Some(consumed_json(&consumed)), None),
             Err(error) => (None, Some(error_refusal(&error))),
