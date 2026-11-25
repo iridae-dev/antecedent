@@ -1647,3 +1647,19 @@ path = "tests/factorial_ipw_known_truth.rs"
 [[test]]
 name = "compiled_twins_net_ipw_constraints"
 path = "tests/compiled_twins_net_ipw_constraints.rs"
+
+[[test]]
+name = "standing_claim_attested"
+path = "tests/standing_claim_attested.rs"
+
+[[test]]
+name = "standing_demand"
+path = "tests/standing_demand.rs"
+
+[[test]]
+name = "standing_route_calibration"
+path = "tests/standing_route_calibration.rs"
+
+[[test]]
+name = "standing_support_transport"
+path = "tests/standing_support_transport.rs"
