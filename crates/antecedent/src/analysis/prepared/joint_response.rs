@@ -1376,7 +1376,7 @@ mod tests {
     #[test]
     fn joint_gaussian_artifact_replays_independently_and_requires_matching_current_authority() {
         use antecedent_io::joint_response_artifact::{
-            JointResponseArtifactError, consume_joint_response,
+            JointResponseArtifactError, MAX_JOINT_RESPONSE_ARTIFACT_BYTES, consume_joint_response,
         };
         let ctx = ExecutionContext::for_tests(47);
         let program = prepared(
@@ -1388,6 +1388,50 @@ mod tests {
         .unwrap();
         let result = program.execute(&ctx).unwrap();
         let bytes = result.export(&ctx).unwrap();
+        let sections = antecedent_io::decode_container(
+            "joint_response",
+            MAX_JOINT_RESPONSE_ARTIFACT_BYTES,
+            &["joint_response_v2", "posterior.draws"],
+            &bytes,
+        )
+        .unwrap();
+        let mut legacy: serde_json::Value = serde_json::from_slice(&sections[0]).unwrap();
+        let record = legacy["result"].as_object_mut().unwrap();
+        assert!(!record.contains_key("draws") && !record.contains_key("contrast_draws"));
+        let evaluation = result.evaluation();
+        let posterior = evaluation.posterior_draws.as_deref().unwrap();
+        let contrast = evaluation.contrast_draws.as_deref().unwrap();
+        let (words, tail) = sections[1].as_chunks::<8>();
+        assert!(tail.is_empty());
+        assert!(
+            words
+                .iter()
+                .copied()
+                .eq(posterior.iter().chain(contrast).map(|draw| draw.to_le_bytes()))
+        );
+        record.remove("draw_lengths");
+        let bits = |draws: &[f64]| draws.iter().map(|draw| draw.to_bits()).collect::<Vec<_>>();
+        record.insert("draws".into(), serde_json::json!(bits(posterior)));
+        record.insert("contrast_draws".into(), serde_json::json!(bits(contrast)));
+        legacy["version"] = serde_json::json!(1);
+        let legacy = antecedent_io::encode_container(
+            &antecedent_io::ArtifactContainer {
+                kind: "joint_response",
+                note: "legacy_replay_test",
+                max_bytes: MAX_JOINT_RESPONSE_ARTIFACT_BYTES,
+                artifact_id: "joint_response",
+                library_version: env!("CARGO_PKG_VERSION"),
+            },
+            &[antecedent_io::OutSection {
+                id: "joint_response_v1",
+                content_type: antecedent_io::CONTENT_BYTES,
+                bytes: &serde_json::to_vec(&legacy).unwrap(),
+            }],
+        )
+        .unwrap();
+        let legacy_replay = consume_joint_response(&legacy, &ctx).unwrap();
+        assert_eq!(legacy_replay.evaluation().posterior_draws.as_deref(), Some(posterior));
+        drop(legacy_replay);
         let contract = verify_gaussian_decision_ports(&result, &ctx);
 
         let path = std::env::temp_dir()
@@ -1480,7 +1524,7 @@ mod tests {
         let sections = antecedent_io::decode_container(
             "joint_response",
             MAX_JOINT_RESPONSE_ARTIFACT_BYTES,
-            &["joint_response_v1"],
+            &["joint_response_v2", "posterior.draws"],
             &bytes,
         )
         .unwrap();
@@ -1501,11 +1545,18 @@ mod tests {
                     artifact_id: "joint_response",
                     library_version: env!("CARGO_PKG_VERSION"),
                 },
-                &[antecedent_io::OutSection {
-                    id: "joint_response_v1",
-                    content_type: antecedent_io::CONTENT_BYTES,
-                    bytes: &payload,
-                }],
+                &[
+                    antecedent_io::OutSection {
+                        id: "joint_response_v2",
+                        content_type: antecedent_io::CONTENT_BYTES,
+                        bytes: &payload,
+                    },
+                    antecedent_io::OutSection {
+                        id: "posterior.draws",
+                        content_type: antecedent_io::CONTENT_BYTES,
+                        bytes: &sections[1],
+                    },
+                ],
             )
             .unwrap();
             assert!(consume_joint_response(&tampered, &ctx).is_err(), "accepted changed {field}");

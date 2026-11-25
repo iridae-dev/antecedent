@@ -27,9 +27,12 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 /// Current joint-response artifact feature version.
-pub const JOINT_RESPONSE_ARTIFACT_VERSION: u16 = 1;
+pub const JOINT_RESPONSE_ARTIFACT_VERSION: u16 = 2;
 /// Maximum decoded or encoded artifact bytes.
 pub const MAX_JOINT_RESPONSE_ARTIFACT_BYTES: usize = 64_000_000;
+const RETURN_SECTION: &str = "joint_response_v2";
+const LEGACY_SECTION: &str = "joint_response_v1";
+const DRAWS_SECTION: &str = "posterior.draws";
 
 /// Borrowed compiled source whose original engine and scientific declarations are encoded.
 #[derive(Clone, Copy)]
@@ -200,8 +203,12 @@ struct ResultWire {
     means: Vec<u64>,
     covariance: Vec<u64>,
     contrast: Option<[u64; 2]>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     draws: Option<Vec<u64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     contrast_draws: Option<Vec<u64>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    draw_lengths: Option<[Option<usize>; 2]>,
     count: usize,
     failed: Vec<bool>,
 }
@@ -232,11 +239,19 @@ pub fn encode_joint_response(
         .matrix
         .len()
         .checked_add(problem.design.outcome.len())
-        .and_then(|n| n.checked_add(evaluation.posterior_draws.as_ref().map_or(0, |v| v.len())))
         .and_then(|n| n.checked_add(source.world_weights.iter().map(Vec::len).sum::<usize>()))
         .ok_or_else(|| invalid("encoding quote overflow"))?;
+    let draw_bytes = draw_size(evaluation)?;
+    let result_bytes = evaluation
+        .means
+        .len()
+        .checked_add(evaluation.covariance.values.len())
+        .and_then(|n| n.checked_mul(size_of::<f64>()))
+        .and_then(|n| n.checked_add(evaluation.failed_draws.len()))
+        .ok_or_else(|| invalid("result metadata size overflow"))?;
     let bytes = numbers
         .checked_mul(96)
+        .and_then(|n| n.checked_add(result_bytes))
         .and_then(|n| n.checked_add(1_000_000))
         .and_then(|n| u64::try_from(n).ok())
         .ok_or_else(|| invalid("encoding quote overflow"))?;
@@ -250,16 +265,19 @@ pub fn encode_joint_response(
     };
     let mut counter = ByteCounter(0);
     serde_json::to_writer(&mut counter, &record).map_err(invalid)?;
-    if counter.0 > MAX_JOINT_RESPONSE_ARTIFACT_BYTES {
+    let logical =
+        counter.0.checked_add(draw_bytes).ok_or_else(|| invalid("payload size overflow"))?;
+    if logical > MAX_JOINT_RESPONSE_ARTIFACT_BYTES {
         return Err(invalid("payload exceeds byte ceiling"));
     }
     let _serialized = admit(
         ctx,
-        (counter.0 as u64).checked_mul(3).ok_or_else(|| invalid("serialization quote overflow"))?,
+        (logical as u64).checked_mul(4).ok_or_else(|| invalid("serialization quote overflow"))?,
     )?;
     let bytes = serde_json::to_vec(&record).map_err(invalid)?;
-    if bytes.len() > MAX_JOINT_RESPONSE_ARTIFACT_BYTES {
-        return Err(invalid("payload exceeds byte ceiling"));
+    let mut draws = Vec::with_capacity(draw_bytes);
+    for value in posterior_coordinates(evaluation).into_iter().flatten().flatten() {
+        draws.extend_from_slice(&value.to_le_bytes());
     }
     cancelled(ctx)?;
     crate::encode_container(
@@ -270,11 +288,18 @@ pub fn encode_joint_response(
             artifact_id: "joint_response",
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: "joint_response_v1",
-            content_type: crate::CONTENT_BYTES,
-            bytes: &bytes,
-        }],
+        &[
+            crate::OutSection {
+                id: RETURN_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &bytes,
+            },
+            crate::OutSection {
+                id: DRAWS_SECTION,
+                content_type: crate::CONTENT_BYTES,
+                bytes: &draws,
+            },
+        ],
     )
     .map_err(|error| JointResponseArtifactError::Io(error.into_io("joint response encoding")))
 }
@@ -310,18 +335,18 @@ pub fn consume_joint_response(
         .and_then(|n| n.checked_add(65536))
         .ok_or_else(|| invalid("decode quote overflow"))?;
     let retention = Arc::new(admit(ctx, quote)?);
+    let current = reader.manifest().sections.first().is_some_and(|s| s.id == RETURN_SECTION);
+    let section_ids: &[&str] =
+        if current { &[RETURN_SECTION, DRAWS_SECTION] } else { &[LEGACY_SECTION] };
     let sections = crate::decode_container(
         "joint_response",
         MAX_JOINT_RESPONSE_ARTIFACT_BYTES,
-        &["joint_response_v1"],
+        section_ids,
         bytes,
     )
     .map_err(|error| JointResponseArtifactError::Io(error.into_io("joint response decoding")))?;
-    let record: Record = serde_json::from_slice(
-        sections.first().ok_or_else(|| invalid("missing joint response feature"))?,
-    )
-    .map_err(invalid)?;
-    if record.version != JOINT_RESPONSE_ARTIFACT_VERSION {
+    let record: Record = serde_json::from_slice(&sections[0]).map_err(invalid)?;
+    if record.version != if current { JOINT_RESPONSE_ARTIFACT_VERSION } else { 1 } {
         return Err(invalid("unsupported feature version"));
     }
     if record.identity != request_identity(&record.request)? {
@@ -338,7 +363,7 @@ pub fn consume_joint_response(
     let mut context = ctx.clone();
     context.kernel_policy = kernel;
     let evaluation = program.execute(&weights, contrast.as_deref(), &context)?;
-    if result_wire(&evaluation) != record.result {
+    if !verify_result(record.result, &evaluation, sections.get(1).map(Vec::as_slice)) {
         return Err(JointResponseArtifactError::Mismatch);
     }
     cancelled(ctx)?;
@@ -656,11 +681,52 @@ fn result_wire(result: &JointLinearEvaluation) -> ResultWire {
         means: bits(&result.means),
         covariance: bits(&result.covariance.values),
         contrast: result.contrast.map(|c| [c.value.to_bits(), c.se.to_bits()]),
-        draws: result.posterior_draws.as_deref().map(bits),
-        contrast_draws: result.contrast_draws.as_deref().map(bits),
+        draws: None,
+        contrast_draws: None,
+        draw_lengths: Some(posterior_coordinates(result).map(|values| values.map(<[f64]>::len))),
         count: result.draw_count,
         failed: result.failed_draws.to_vec(),
     }
+}
+
+fn posterior_coordinates(result: &JointLinearEvaluation) -> [Option<&[f64]>; 2] {
+    [result.posterior_draws.as_deref(), result.contrast_draws.as_deref()]
+}
+
+fn draw_size(result: &JointLinearEvaluation) -> Result<usize, JointResponseArtifactError> {
+    posterior_coordinates(result)
+        .into_iter()
+        .flatten()
+        .try_fold(0_usize, |total, values| total.checked_add(values.len()))
+        .and_then(|words| words.checked_mul(size_of::<f64>()))
+        .ok_or_else(|| invalid("posterior draw section size overflow"))
+}
+
+fn verify_result(
+    mut stored: ResultWire,
+    result: &JointLinearEvaluation,
+    draw_bytes: Option<&[u8]>,
+) -> bool {
+    let mut expected = result_wire(result);
+    if let Some(bytes) = draw_bytes {
+        let (words, remainder) = bytes.as_chunks::<8>();
+        let values = posterior_coordinates(result).into_iter().flatten().flatten();
+        return stored == expected
+            && remainder.is_empty()
+            && words.iter().copied().map(u64::from_le_bytes).eq(values.map(|v| v.to_bits()));
+    }
+    expected.draw_lengths = None;
+    let legacy = [stored.draws.take(), stored.contrast_draws.take()];
+    stored == expected
+        && legacy.into_iter().zip(posterior_coordinates(result)).all(|(bits, values)| {
+            match (bits, values) {
+                (Some(bits), Some(values)) => {
+                    bits.into_iter().eq(values.iter().map(|v| v.to_bits()))
+                }
+                (None, None) => true,
+                _ => false,
+            }
+        })
 }
 fn kernel_from_wire(wire: [bool; 3]) -> KernelPolicy {
     KernelPolicy {

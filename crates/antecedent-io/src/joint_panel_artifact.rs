@@ -2,7 +2,10 @@
 //! Historical numerical replay is not current scientific authorization.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use crate::compiled_identification_wire::CompiledIdentificationWire;
-use crate::joint_panel_artifact_support::{Counter, admit, cancelled, invalid};
+use crate::joint_panel_artifact_support::{
+    Counter, admit, cancelled, canonical_json_digest, invalid, matches_draw_bytes, read_sections,
+    write_sections,
+};
 use crate::scientific_target_wire::ScientificTargetWire;
 use antecedent_core::execution::AdmissionLease;
 use antecedent_core::{
@@ -334,14 +337,7 @@ impl PanelExecutionProgram {
         if let Some(cached) = self.inner.canonical.get() {
             return Ok(*cached);
         }
-        let bytes = serde_json::to_vec(self).map_err(invalid)?;
-        let value = (
-            antecedent_core::CanonicalWriter::digest_bytes(
-                "antecedent.joint_panel.frozen_program.v1",
-                &bytes,
-            ),
-            bytes.len(),
-        );
+        let value = canonical_json_digest("antecedent.joint_panel.frozen_program.v1", self)?;
         Ok(*self.inner.canonical.get_or_init(|| value))
     }
     /// Complete stored scientific target, without current permission.
@@ -562,53 +558,17 @@ pub fn encode_panel_execution(
 ) -> Result<Vec<u8>, PanelArtifactError> {
     cancelled(ctx)?;
     program.validate()?;
-    let identity = program.identity()?;
-    encode_record(
-        &EncodingRecord { version: program.inner.version, identity, program, point, draws },
-        ctx,
-    )
-}
-/// Own the consumed program while borrowing its executed outputs. The wire
-/// layout matches `Record` without copying the retained draw law.
-#[derive(Serialize)]
-struct EncodingRecord<'a> {
-    version: u16,
-    identity: [u8; 32],
-    program: PanelExecutionProgram,
-    point: &'a [PanelResponse],
-    draws: &'a [Option<Vec<PanelResponse>>],
-}
-fn encode_record(
-    record: &EncodingRecord<'_>,
-    ctx: &ExecutionContext,
-) -> Result<Vec<u8>, PanelArtifactError> {
-    // One serialization pass: the quote is 4x the payload, so a payload larger than a
-    // quarter of the memory limit is refused as soon as the writer reaches it.
-    let limit = ctx.memory_limit_bytes().map_or(MAX_JOINT_PANEL_ARTIFACT_BYTES, |bytes| {
-        usize::try_from(bytes / 4).unwrap_or(usize::MAX).min(MAX_JOINT_PANEL_ARTIFACT_BYTES)
-    });
-    let mut payload = Vec::new();
-    serde_json::to_writer(&mut Limited { bytes: &mut payload, limit }, record).map_err(
-        |error| {
-            if error.is_io() {
-                if limit < MAX_JOINT_PANEL_ARTIFACT_BYTES {
-                    PanelArtifactError::Resource("configured memory limit".into())
-                } else {
-                    invalid("panel payload exceeds byte ceiling")
-                }
-            } else {
-                invalid(error)
-            }
-        },
-    )?;
-    let _lease = admit(
-        ctx,
-        (payload.len() as u64)
-            .checked_mul(4)
-            .ok_or_else(|| invalid("panel serialization quote overflow"))?,
-    )?;
-    cancelled(ctx)?;
-    crate::encode_container(
+    validate_response_shape(point, draws)?;
+    let metadata = PanelResultMetadata {
+        version: program.inner.version,
+        identity: program.identity()?,
+        point: std::borrow::Cow::Borrowed(point),
+        present: draws.iter().map(Option::is_some).collect(),
+    };
+    let draw_count = draws.iter().flatten().flatten().try_fold(0_usize, |total, response| {
+        total.checked_add(response.means.len()).ok_or_else(|| invalid("panel draw count overflow"))
+    })?;
+    let bytes = write_sections(
         &crate::ArtifactContainer {
             kind: "joint_panel_execution",
             note: "historical_frozen_joint_panel",
@@ -616,30 +576,48 @@ fn encode_record(
             artifact_id: "joint_panel_execution",
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[crate::OutSection {
-            id: "joint_panel_execution_v1",
-            content_type: crate::CONTENT_BYTES,
-            bytes: &payload,
-        }],
-    )
-    .map_err(|error| PanelArtifactError::Io(error.into_io("panel encoding")))
+        PANEL_METADATA_SECTION,
+        &metadata,
+        &program,
+        response_draw_values(draws),
+        draw_count,
+        ctx,
+    );
+    drop(program);
+    bytes
 }
-struct Limited<'a> {
-    bytes: &'a mut Vec<u8>,
-    limit: usize,
+
+const PANEL_METADATA_SECTION: &str = "joint_panel_execution_v2";
+const PANEL_LEGACY_SECTION: &str = "joint_panel_execution_v1";
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PanelResultMetadata<'a> {
+    version: u16,
+    identity: [u8; 32],
+    point: std::borrow::Cow<'a, [PanelResponse]>,
+    present: Vec<bool>,
 }
-impl std::io::Write for Limited<'_> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if self.bytes.len().saturating_add(buf.len()) > self.limit {
-            return Err(std::io::Error::other("payload exceeds limit"));
-        }
-        self.bytes.extend_from_slice(buf);
-        Ok(buf.len())
+
+fn validate_response_shape(
+    point: &[PanelResponse],
+    draws: &[Option<Vec<PanelResponse>>],
+) -> Result<(), PanelArtifactError> {
+    if draws.iter().flatten().any(|responses| {
+        responses.len() != point.len()
+            || responses.iter().zip(point).any(|(draw, point)| {
+                draw.program != point.program || draw.means.len() != point.means.len()
+            })
+    }) {
+        return Err(invalid("response draw coordinates differ from the point response"));
     }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
+    Ok(())
 }
+
+fn response_draw_values(draws: &[Option<Vec<PanelResponse>>]) -> impl Iterator<Item = &f64> {
+    draws.iter().flatten().flatten().flat_map(|response| &response.means)
+}
+
 /// Independently replay the same engine and verify every original response/draw slot.
 /// # Errors
 /// Corrupt/unsupported request, changed result, admission or cancellation failure.
@@ -647,19 +625,53 @@ pub fn consume_panel_execution(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<HistoricalPanelExecution, PanelArtifactError> {
-    let (_lease, payload) = decode_payload(bytes, ctx)?;
-    let record: Record = serde_json::from_slice(&payload).map_err(invalid)?;
-    if record.version != record.program.inner.version {
+    let (_lease, sections) = read_sections(
+        "joint_panel_execution",
+        PANEL_LEGACY_SECTION,
+        PANEL_METADATA_SECTION,
+        bytes,
+        ctx,
+    )?;
+    match sections.as_slice() {
+        [payload] => {
+            let record: Record = serde_json::from_slice(payload).map_err(invalid)?;
+            let replay = replay_record(record.program, record.version, record.identity, ctx)?;
+            if replay.point != record.point || replay.draws != record.draws {
+                return Err(PanelArtifactError::Mismatch);
+            }
+            Ok(replay)
+        }
+        [metadata, program, draws] => {
+            let record: PanelResultMetadata<'_> =
+                serde_json::from_slice(metadata).map_err(invalid)?;
+            let program = antecedent_io_core::from_cbor(program)?;
+            let replay = replay_record(program, record.version, record.identity, ctx)?;
+            validate_response_shape(&record.point, &replay.draws)?;
+            if replay.point != *record.point
+                || !record.present.into_iter().eq(replay.draws.iter().map(Option::is_some))
+                || !matches_draw_bytes(draws, response_draw_values(&replay.draws))
+            {
+                return Err(PanelArtifactError::Mismatch);
+            }
+            Ok(replay)
+        }
+        _ => Err(invalid("missing panel sections")),
+    }
+}
+
+fn replay_record(
+    program: PanelExecutionProgram,
+    version: u16,
+    identity: [u8; 32],
+    ctx: &ExecutionContext,
+) -> Result<HistoricalPanelExecution, PanelArtifactError> {
+    if version != program.inner.version {
         return Err(invalid("unsupported panel feature version"));
     }
-    if record.identity != record.program.identity()? {
+    if identity != program.identity()? {
         return Err(PanelArtifactError::Mismatch);
     }
-    let replay = record.program.replay(ctx)?;
-    if replay.point != record.point || replay.draws != record.draws {
-        return Err(PanelArtifactError::Mismatch);
-    }
-    Ok(replay)
+    program.replay(ctx)
 }
 
 /// [`consume_panel_execution`], admitting only the artifact the consumer retained: the bytes bind
@@ -676,34 +688,6 @@ pub fn consume_panel_execution_expecting(
 ) -> Result<HistoricalPanelExecution, PanelArtifactError> {
     antecedent_io_core::load_expecting(bytes, retained, |bytes| consume_panel_execution(bytes, ctx))
 }
-fn decode_payload(
-    bytes: &[u8],
-    ctx: &ExecutionContext,
-) -> Result<(AdmissionLease, Vec<u8>), PanelArtifactError> {
-    cancelled(ctx)?;
-    if bytes.len() > MAX_JOINT_PANEL_ARTIFACT_BYTES {
-        return Err(invalid("panel input exceeds byte ceiling"));
-    }
-    let reader = crate::ArtifactReader::open_seek(std::io::Cursor::new(bytes))?;
-    let logical = reader.manifest().sections.iter().try_fold(0u64, |sum, section| {
-        sum.checked_add(section.uncompressed_size)
-            .ok_or_else(|| invalid("panel decode quote overflow"))
-    })?;
-    if logical > MAX_JOINT_PANEL_ARTIFACT_BYTES as u64 {
-        return Err(invalid("panel decoded payload exceeds ceiling"));
-    }
-    let lease =
-        admit(ctx, logical.checked_mul(8).ok_or_else(|| invalid("panel decode quote overflow"))?)?;
-    let mut sections = crate::decode_container(
-        "joint_panel_execution",
-        MAX_JOINT_PANEL_ARTIFACT_BYTES,
-        &["joint_panel_execution_v1"],
-        bytes,
-    )
-    .map_err(|error| PanelArtifactError::Io(error.into_io("panel decoding")))?;
-    Ok((lease, sections.pop().ok_or_else(|| invalid("missing panel feature"))?))
-}
-
 #[cfg(test)]
 mod retained_tests {
     use super::*;
