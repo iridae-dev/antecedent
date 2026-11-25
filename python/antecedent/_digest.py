@@ -47,6 +47,16 @@ def _array_form(array: np.ndarray) -> dict[str, Any]:
     arrays share a form only when they hold the same values at the same dtype
     and shape. Object arrays are canonical only when every element is.
     """
+    from . import _native
+
+    if array.ndim and array.flags.aligned and array.dtype == np.dtype(np.float64):
+        return {
+            _ARRAY_KEY: {
+                "dtype": array.dtype.newbyteorder("<").str,
+                "shape": list(array.shape),
+                "blake3": _native._blake3_float64_digest_hex(array),
+            }
+        }
     if array.dtype.kind in "fc" and array.size and not np.isfinite(array).all():
         raise ValueError(_NON_FINITE)
     if array.dtype.kind == "O":
@@ -59,8 +69,6 @@ def _array_form(array: np.ndarray) -> dict[str, Any]:
         }
     if array.dtype.kind == "V":
         raise TypeError("a structured array has no canonical form; pass its columns")
-    from . import _native
-
     ordered = np.ascontiguousarray(array.astype(array.dtype.newbyteorder("<"), copy=False))
     return {
         _ARRAY_KEY: {

@@ -139,7 +139,7 @@ type DeclaredAte = (
 pub(super) fn declared_learner_ate(
     py: Python<'_>,
     names: Vec<String>,
-    columns: Vec<Vec<f64>>,
+    columns: Vec<numpy::PyReadonlyArray1<'_, f64>>,
     edges: Vec<(String, String)>,
     treatment_name: String,
     outcome_name: String,
@@ -147,7 +147,7 @@ pub(super) fn declared_learner_ate(
     treatment: Py<PyAny>,
     identity: String,
     folds: usize,
-    weights: Option<Vec<f64>>,
+    weights: Option<numpy::PyReadonlyArray1<'_, f64>>,
     seed: u64,
     cancel: Option<crate::PyCancellationToken>,
     method: &str,
@@ -174,23 +174,18 @@ pub(super) fn declared_learner_ate(
         next: AtomicU64::new(0),
     });
     let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
+    let _input_hold = ctx
+        .acquire_admission(0, super::input_bytes(&columns, weights.as_ref())?)
+        .map_err(|e| admission_error(e, &ctx))?;
+    let data = super::learner_table(&names, &columns)?;
     let sampling = weights
+        .as_ref()
+        .map(super::copy_numeric_array)
         .map(antecedent::estimate::SamplingWeights::new)
         .transpose()
         .map_err(crate::py_err)?;
     let configured = Configured::new(method, score, folds, sampling)?;
     let result: PyResult<_> = py.detach(|| {
-        let bytes = columns
-            .iter()
-            .try_fold(0usize, |sum, column| sum.checked_add(column.len()))
-            .and_then(|n| n.checked_mul(16))
-            .and_then(|n| u64::try_from(n).ok())
-            .ok_or_else(|| crate::value_err("input size overflow"))?;
-        let _input_hold = ctx.acquire_admission(0, bytes).map_err(|e| admission_error(e, &ctx))?;
-        let data = antecedent::prelude::TabularData::from_f64_columns(
-            names.iter().zip(&columns).map(|(name, column)| (name.as_str(), column.as_slice())),
-        )
-        .map_err(crate::py_err)?;
         let t = data.schema().id_of(&treatment_name).map_err(crate::py_err)?;
         let y = data.schema().id_of(&outcome_name).map_err(crate::py_err)?;
         let dag = crate::dag_from_named_edges(data.schema(), &edges)?;

@@ -514,6 +514,8 @@ class ProviderResult:
     uncertainty_semantics: str
     artifact: bytes | None = None
     host_artifact: bytes | None = None
+    #: Numeric buffer bytes charged by the native fold adapter, when applicable.
+    callback_bytes: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

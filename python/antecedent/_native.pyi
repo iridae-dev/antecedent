@@ -30,19 +30,19 @@ __build_optimized__: bool
 def external_aipw_crossfit(
     outcome: Any,
     treatment: Any,
-    design: Sequence[Sequence[float]],
-    y: Sequence[float],
-    t: Sequence[float],
-    fold_ids: Sequence[int],
+    design: NDArray[np.float64],
+    y: NDArray[np.float64],
+    t: NDArray[np.float64],
+    fold_ids: NDArray[np.uint16],
     *,
-    weights: Sequence[float] | None = None,
+    weights: NDArray[np.float64] | None = None,
     seed: int = 1,
     cancel: Any | None = None,
     memory_limit_bytes: int | None = None,
 ) -> tuple[list[float], list[float], list[float], list[list[str]], list[tuple[int, Any, Any]]]: ...
 def external_dml_ate(
     names: Sequence[str],
-    columns: Sequence[Sequence[float]],
+    columns: Sequence[NDArray[np.float64]],
     edges: Sequence[tuple[str, str]],
     treatment_name: str,
     outcome_name: str,
@@ -50,7 +50,7 @@ def external_dml_ate(
     treatment: Any,
     *,
     folds: int = 5,
-    weights: Sequence[float] | None = None,
+    weights: NDArray[np.float64] | None = None,
     seed: int = 1,
     cancel: Any | None = None,
     method: str = "dml",
@@ -84,7 +84,7 @@ def smoothed_dose_learner_transport(
 ) -> tuple[str, list[tuple[int, Any, Any]]]: ...
 def declared_learner_ate(
     names: Sequence[str],
-    columns: Sequence[Sequence[float]],
+    columns: Sequence[NDArray[np.float64]],
     edges: Sequence[tuple[str, str]],
     treatment_name: str,
     outcome_name: str,
@@ -93,7 +93,7 @@ def declared_learner_ate(
     *,
     identity: str,
     folds: int = 5,
-    weights: Sequence[float] | None = None,
+    weights: NDArray[np.float64] | None = None,
     seed: int = 1,
     cancel: Any | None = None,
     method: str = "dml",
@@ -7916,6 +7916,7 @@ class ProviderVerificationReceipt:
 
 def canonical_json_digest_hex(domain: str, json: str) -> str: ...
 def blake3_digest_hex(data: bytes) -> str: ...
+def _blake3_float64_digest_hex(data: NDArray[np.float64]) -> str: ...
 def seal_provider_result(header_json: str, external_artifact: bytes | None) -> bytes: ...
 def open_provider_result(
     bytes: bytes,
