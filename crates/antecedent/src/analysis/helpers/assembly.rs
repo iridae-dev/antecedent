@@ -119,6 +119,7 @@ pub(crate) fn assemble_result(mut args: AssembleArgs<'_>) -> StudyResult {
         lowered_identity: None,
         execution_identity: None,
         lowered_quadrant: None,
+        trial_transport_receipt: None,
     };
     result.rebind_interval(args.bayesian);
     result

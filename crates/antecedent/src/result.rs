@@ -1230,6 +1230,8 @@ pub struct StudyResult {
     /// The producing program's scientific data and uncertainty classification.
     /// Dedicated response posteriors need not occupy the scalar posterior slot.
     pub(crate) lowered_quadrant: Option<antecedent_validate::target_native::TargetQuadrant>,
+    pub(crate) trial_transport_receipt:
+        Option<crate::analysis::transport_receipt_projection::TrialTransportReceipt>,
     /// The optional report layers of this result.
     pub(crate) extras: ResultExtras,
 }

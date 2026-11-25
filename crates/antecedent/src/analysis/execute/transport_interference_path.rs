@@ -332,6 +332,17 @@ impl super::Study {
             .wall_time_ns(elapsed_ns(started))
             .cancelled(ctx.cancellation.is_cancelled()),
         );
+        if let Some(diagram) = &self.selection_diagram {
+            result.trial_transport_receipt = Some(
+                crate::analysis::transport_receipt_projection::TrialTransportReceipt::from_execution(
+                    data.schema(),
+                    (treatment, outcome),
+                    query,
+                    (diagram, trial_spec),
+                    transport_id,
+                )?,
+            );
+        }
         result.payload = crate::result::ResultPayload::Transport(transported);
         result.posterior = posterior;
         Ok(result)
