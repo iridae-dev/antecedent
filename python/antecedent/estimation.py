@@ -648,7 +648,7 @@ def _prepared_columns(data: Any) -> tuple[list[str], list[Any], bool]:
     if isinstance(data, Table):
         names, columns = data._native_columns()
         return names, columns, False
-    arrow = try_as_arrow_c_columns(data)
+    arrow = try_as_arrow_c_columns(data, native_dtypes=True)
     if arrow is not None:
         names, columns = arrow
         return names, columns, True

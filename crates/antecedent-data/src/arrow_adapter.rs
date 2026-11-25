@@ -46,6 +46,7 @@ use crate::table::TableView;
 
 mod chunks;
 mod convert;
+mod numeric;
 mod schema;
 #[cfg(test)]
 mod tests;
@@ -55,6 +56,7 @@ pub(crate) use self::convert::finish_load;
 pub(crate) use self::convert::level_text;
 pub use self::convert::tabular_from_arrow_c_columns;
 pub use self::convert::tabular_from_record_batch;
+pub use self::numeric::load_numeric_columns;
 
 use self::chunks::{
     align_chunks, checked_row_total, concat_chunks, empty_column, owned_payload_bytes,

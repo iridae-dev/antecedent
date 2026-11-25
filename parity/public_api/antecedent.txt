@@ -29501,6 +29501,7 @@ pub use antecedent::data::arrow_c::ArrowLoadResult = antecedent_data::ArrowLoadR
 pub use antecedent::data::arrow_c::FfiArrowArray = antecedent_data::FfiArrowArray
 pub use antecedent::data::arrow_c::FfiArrowArrayStream = antecedent_data::arrow_ffi::FfiArrowArrayStream
 pub use antecedent::data::arrow_c::FfiArrowSchema = antecedent_data::FfiArrowSchema
+pub use antecedent::data::arrow_c::load_numeric_columns = antecedent_data::arrow_adapter::load_numeric_columns
 pub use antecedent::decision_evidence::JointClusterContrast = antecedent_estimate::randomized_joint::JointClusterContrast
 pub use antecedent::design::AdaptivePolicyError = antecedent_design::adaptive_policy::AdaptivePolicyError
 pub use antecedent::design::AdaptivePolicyFamily = antecedent_design::adaptive_policy::AdaptivePolicyFamily

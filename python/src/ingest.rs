@@ -540,7 +540,8 @@ pub(crate) fn load_float64_arrow_c_columns(
 ) -> PyResult<ArrowLoadInfo> {
     catch_ffi(|| {
         let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-        let loaded = antecedent::data::arrow_c::load_columns(cdi_cols).map_err(py_err)?;
+        let loaded =
+            antecedent::data::arrow_c::load_numeric_columns(cdi_cols, false).map_err(py_err)?;
         let column_names: Vec<String> =
             loaded.data.schema().variables().iter().map(|v| v.name.to_string()).collect();
         Ok(ArrowLoadInfo {
@@ -564,7 +565,8 @@ pub(crate) fn tabular_from_arrow_c_objs(
     columns: Vec<Bound<'_, PyAny>>,
 ) -> PyResult<(antecedent::prelude::TabularData, u64)> {
     let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-    let loaded = antecedent::data::arrow_c::load_columns(cdi_cols).map_err(py_err)?;
+    let loaded =
+        antecedent::data::arrow_c::load_numeric_columns(cdi_cols, false).map_err(py_err)?;
     Ok((loaded.data, loaded.bytes_borrowed))
 }
 
@@ -614,16 +616,17 @@ pub(crate) fn owned_tabular_from_arrow_c_objs(
     let quoted = if admit { arrow_retention_bytes(&columns) } else { None };
     let mut lease = quoted.map(admit_retention).transpose()?;
     let cdi_cols = ffi::arrow_c_columns(names, columns)?;
-    let frame = antecedent::data::arrow_adapter::ArrowFrameView::from_c_columns(cdi_cols)
-        .map_err(py_err)?;
     if admit && lease.is_none() {
-        // An exporter with no length is quoted from the imported frame, still before the copy.
-        let rows = u64::try_from(frame.row_count().map_err(py_err)?).unwrap_or(u64::MAX);
-        let cells = rows.saturating_mul(u64::try_from(frame.n_columns()).unwrap_or(u64::MAX));
-        lease = Some(admit_retention(cells.saturating_mul(8).saturating_add(cells.div_ceil(8)))?);
+        let bytes = cdi_cols.iter().try_fold(0_u64, |total, column| {
+            let rows = u64::try_from(column.row_count().map_err(py_err)?).unwrap_or(u64::MAX);
+            Ok::<_, PyErr>(
+                total.saturating_add(rows.saturating_mul(8).saturating_add(rows.div_ceil(8))),
+            )
+        })?;
+        lease = Some(admit_retention(bytes)?);
     }
-    let frozen = frame.freeze().map_err(py_err)?;
-    let data = frozen.data().clone();
+    let data =
+        antecedent::data::arrow_c::load_numeric_columns(cdi_cols, true).map_err(py_err)?.data;
     Ok(match lease {
         Some(lease) => antecedent::data::with_retention(data, &lease),
         None => data,

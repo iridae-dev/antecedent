@@ -198,14 +198,20 @@ def test_arrow_float64_table_is_borrowed_with_no_copy_at_all():
     assert receipt.bytes_borrowed == COLUMN_BYTES
 
 
-def test_arrow_integer_column_is_cast_once_then_borrowed():
+def test_arrow_integer_column_is_widened_directly_into_one_owned_buffer():
     pa = pytest.importorskip("pyarrow")
     table = pa.table({"a": pa.array(np.arange(ROWS, dtype=np.int64))})
     receipt = antecedent.data.ingestion_receipt(table)
-    assert _kinds(receipt) == ["arrow_cast"]
-    assert receipt.python_bytes_copied == COLUMN_BYTES
-    assert receipt.bytes_borrowed == COLUMN_BYTES
-    assert receipt.ownership_bytes_copied == 0
+    assert receipt.python_copy_count == 0
+    assert receipt.ownership_bytes_copied == COLUMN_BYTES
+    assert receipt.bytes_borrowed == 0
+    assert receipt.native.diagnostic_count == 1
+    retained = antecedent.data.table(table)
+    assert retained.bytes_copied == COLUMN_BYTES
+    assert retained.bytes_borrowed == 0
+    np.testing.assert_array_equal(retained["a"], np.arange(ROWS))
+    with pytest.raises(Exception, match=r"beyond 2\*\*53"):
+        antecedent.data.table(pa.table({"a": pa.array([2**53 + 1])}))
 
 
 def test_arrow_chunks_are_joined_once_by_the_native_loader_not_in_python():

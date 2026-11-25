@@ -2045,6 +2045,7 @@ pub fn <antecedent_data::ArrowCColumn>::fn from_arrow_array(name: impl core::con
 pub fn <antecedent_data::ArrowCColumn>::fn into_array(self) -> core::result::Result<arrow_array::array::ArrayRef, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn into_chunk_arrays(self) -> core::result::Result<alloc::vec::Vec<arrow_array::array::ArrayRef>, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::fn n_chunks(&self) -> usize
+pub fn <antecedent_data::ArrowCColumn>::fn row_count(&self) -> core::result::Result<usize, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi(name: impl core::convert::Into<alloc::string::String>, array: arrow_data::ffi::FFI_ArrowArray, schema: arrow_schema::ffi::FFI_ArrowSchema) -> Self
 pub fn <antecedent_data::ArrowCColumn>::unsafe fn from_ffi_chunks(name: impl core::convert::Into<alloc::string::String>, chunks: alloc::vec::Vec<(arrow_data::ffi::FFI_ArrowArray, arrow_schema::ffi::FFI_ArrowSchema)>) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::ArrowFrameView>::fn column_chunks(&self, index: usize) -> core::result::Result<&[antecedent_data::OwnedColumn], antecedent_data::DataError>
@@ -2574,6 +2575,7 @@ pub fn <antecedent_data::source::SegmentedSource>::fn rows(&self) -> usize
 pub fn <antecedent_data::source::SegmentedSource>::fn unit_id(&self, index: usize) -> core::option::Option<u32>
 pub fn <antecedent_data::source::SegmentedSource>::fn with_part(self, index: usize, part: antecedent_data::source::OwnedSource) -> core::result::Result<Self, antecedent_data::DataError>
 pub fn <antecedent_data::source::SnapshotContract>::fn full_digest(&self) -> core::option::Option<[u8; 32]>
+pub fn antecedent_data::arrow_adapter::load_numeric_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>, retain: bool) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_arrow_c_columns(columns: alloc::vec::Vec<antecedent_data::ArrowCColumn>) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::arrow_adapter::tabular_from_record_batch(batch: &arrow_array::record_batch::RecordBatch) -> core::result::Result<antecedent_data::ArrowLoadResult, antecedent_data::DataError>
 pub fn antecedent_data::categorical::compile_contrast_matrix(domain: &antecedent_data::CategoryDomain, contrast: &antecedent_data::Contrast) -> core::result::Result<antecedent_data::ContrastMatrix, antecedent_data::DataError>

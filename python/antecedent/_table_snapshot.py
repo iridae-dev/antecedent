@@ -143,7 +143,7 @@ def table(data: Any, *, borrow: bool = False) -> Table:
             if numeric and hasattr(data, "column_names") and hasattr(data, "select")
             else numeric
         )
-    arrow = try_as_arrow_c_columns(data)
+    arrow = try_as_arrow_c_columns(data, native_dtypes=True)
     if arrow is None:
         numeric_names, columns = as_columns(data, native_dtypes=True)
     else:
