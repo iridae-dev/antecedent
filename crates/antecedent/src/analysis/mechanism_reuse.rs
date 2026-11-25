@@ -130,7 +130,7 @@ pub fn evaluate_retained_mechanism(
             detail: "fitted mechanism was retained on another graph",
         });
     }
-    if mechanism_program(query).label() != retained.program.label() {
+    if !retained.program.permits_fit_reuse(&mechanism_program(query)) {
         return Err(CausalError::Conflict {
             what: "mechanism_program",
             detail: "fitted mechanism was retained under another mechanism program",
@@ -243,6 +243,101 @@ mod tests {
             RuntimeRefutationAuthority::Sealed { origin, .. } => (1, Some(*origin)),
             RuntimeRefutationAuthority::Invalidated => (2, None),
         }
+    }
+
+    #[test]
+    fn a_wrapped_mechanism_reuses_only_the_same_fit() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        use antecedent_core::CausalRng;
+        use antecedent_model::batch::{MechanismWorkspace, ParentBatch};
+        use antecedent_model::{DynamicMechanism, MechanismSlot, ModelError};
+
+        struct WrappedSlope {
+            slope: f64,
+            calls: Arc<AtomicUsize>,
+        }
+
+        impl DynamicMechanism for WrappedSlope {
+            fn sample_noise_column(
+                &self,
+                n_rows: usize,
+                _rng: &mut CausalRng,
+                output: &mut [f64],
+            ) -> Result<(), ModelError> {
+                output[..n_rows].fill(0.0);
+                Ok(())
+            }
+
+            fn evaluate_column(
+                &self,
+                parents: ParentBatch<'_>,
+                noise: &[f64],
+                output: &mut [f64],
+                _workspace: &mut MechanismWorkspace,
+            ) -> Result<(), ModelError> {
+                self.calls.fetch_add(1, Ordering::Relaxed);
+                for ((out, &parent), &noise) in output.iter_mut().zip(parents.column(0)?).zip(noise) {
+                    *out = self.slope * parent + noise;
+                }
+                Ok(())
+            }
+        }
+
+        on_large_stack(|| {
+            let (data, graph) = chain(40);
+            let ctx = ExecutionContext::for_tests(1);
+            let fitted = crate::gcm::fit_gcm(graph.clone(), &data).unwrap();
+            let wrap = |slope, calls| {
+                let mut fitted = fitted.clone();
+                let mechanisms = fitted
+                    .model
+                    .mechanisms
+                    .with_replaced(
+                        DenseNodeId::from_raw(1),
+                        MechanismSlot::Dynamic {
+                            id: Arc::from("y"),
+                            mechanism: Arc::new(WrappedSlope { slope, calls }),
+                        },
+                    )
+                    .unwrap();
+                fitted.model = fitted.model.with_mechanisms(mechanisms);
+                crate::MechanismProgram::standard().with_wrapped_prefit(
+                    Arc::new(fitted),
+                    &data,
+                    &["y"],
+                )
+            };
+            let build = |active, program| {
+                Study::tabular(data.clone())
+                    .graph(graph.clone())
+                    .query(unit_effects(active))
+                    .refute(RefuteSuite::None)
+                    .mechanisms(program)
+                    .build()
+                    .unwrap()
+            };
+            let first_calls = Arc::new(AtomicUsize::new(0));
+            let second_calls = Arc::new(AtomicUsize::new(0));
+            let first = wrap(2.0, Arc::clone(&first_calls));
+            let second = wrap(3.0, Arc::clone(&second_calls));
+            assert_eq!(first.label(), second.label());
+
+            let source = build(1.0, first.clone()).prepare(&ctx).unwrap();
+            let retained = retain_fitted_mechanism(&source).unwrap();
+            let reused = evaluate_retained_mechanism(&retained, &build(2.0, first), &ctx).unwrap();
+            assert!(first_calls.load(Ordering::Relaxed) > 0);
+            let before = first_calls.load(Ordering::Relaxed);
+
+            let different = build(2.0, second);
+            let refused = evaluate_retained_mechanism(&retained, &different, &ctx).unwrap_err();
+            assert!(matches!(refused, CausalError::Conflict { what: "mechanism_program", .. }));
+            assert_eq!(first_calls.load(Ordering::Relaxed), before);
+            let fresh = different.run(&ctx).unwrap();
+            assert!(second_calls.load(Ordering::Relaxed) > 0);
+            assert!((fresh.effect() - reused.effect()).abs() > 1.0);
+        });
     }
 
     #[test]

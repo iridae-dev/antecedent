@@ -863,6 +863,22 @@ impl MechanismProgram {
         format!("gcm.registry.declared.{}", &writer.finish_hex()[..16])
     }
 
+    /// Whether the retained fit implements the destination's mechanism declaration.
+    pub(super) fn permits_fit_reuse(&self, destination: &Self) -> bool {
+        if self.label() != destination.label() {
+            return false;
+        }
+        if self.wrapped.is_none() && destination.wrapped.is_none() {
+            return true;
+        }
+        match (&self.prefit, &destination.prefit) {
+            (Some((source, source_rows)), Some((target, target_rows))) => {
+                source_rows == target_rows && Arc::ptr_eq(source, target)
+            }
+            _ => false,
+        }
+    }
+
     /// Fit the program's mechanisms to `data` on `graph`, reusing the supplied
     /// fit on the rows it was made on.
     pub(crate) fn fit(
