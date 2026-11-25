@@ -43,7 +43,9 @@ use antecedent_prob::{
     PosteriorQuantityKind, PosteriorSchema, PosteriorSummary, PriorSet, PriorSpec,
     fit_conjugate_gaussian, mcmc_summary,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
+
+type ModelColumns<'a> = BTreeMap<VariableId, Cow<'a, [f64]>>;
 
 #[derive(Clone, Copy, Debug)]
 enum Observation {
@@ -67,7 +69,7 @@ struct Mechanism {
     workspace: LaplaceWorkspace,
 }
 impl Mechanism {
-    fn mean(&self, data: &BTreeMap<VariableId, Vec<f64>>, row: usize) -> f64 {
+    fn mean(&self, data: &ModelColumns<'_>, row: usize) -> f64 {
         self.beta[0]
             + self
                 .parents
@@ -78,7 +80,7 @@ impl Mechanism {
     }
     fn draw(
         &mut self,
-        data: &BTreeMap<VariableId, Vec<f64>>,
+        data: &ModelColumns<'_>,
         rng: &mut CausalRng,
     ) -> Result<(), EstimationError> {
         let n = self.y.len();
@@ -116,15 +118,11 @@ impl Mechanism {
     }
 }
 
-fn read_column(data: &TimeSeriesData, variable: VariableId) -> Result<Vec<f64>, EstimationError> {
-    let mut values = data.float64_values(variable)?;
-    let column = data.column(variable)?;
-    for (i, value) in values.iter_mut().enumerate() {
-        if !column.validity().is_valid(i) {
-            *value = f64::NAN;
-        }
-    }
-    Ok(values)
+fn read_column(
+    data: &TimeSeriesData,
+    variable: VariableId,
+) -> Result<Cow<'_, [f64]>, EstimationError> {
+    Ok(data.float64_cow(variable)?)
 }
 
 fn observations(
@@ -370,7 +368,7 @@ fn mechanisms(
 }
 
 fn sweep(
-    data: &mut BTreeMap<VariableId, Vec<f64>>,
+    data: &mut ModelColumns<'_>,
     outcome: VariableId,
     observations: &[Observation],
     models: &[Mechanism],
@@ -407,7 +405,7 @@ fn sweep(
         let column = data
             .get_mut(&outcome)
             .ok_or_else(|| EstimationError::data_msg("latent outcome column is missing"))?;
-        column[row] = value;
+        column.to_mut()[row] = value;
     }
     Ok(())
 }
@@ -636,11 +634,11 @@ struct ResponseTarget {
 type Horizons<'a> = &'a [(&'a IdentifiedEstimand, &'a TemporalIndexer)];
 
 /// What the data augmentation starts from: the outcome's observation states, the observed
-/// non-outcome columns (with the outcome column at its start path) and the moments of the
+/// non-outcome columns and the moments of the
 /// exact outcomes that disperse each chain's latent start.
-struct ObservedInputs {
+struct ObservedInputs<'a> {
     observations: Vec<Observation>,
-    base: BTreeMap<VariableId, Vec<f64>>,
+    base: ModelColumns<'a>,
     center: f64,
     spread: f64,
 }
@@ -697,7 +695,7 @@ pub fn estimate_observed_temporal_response(
     )?;
     let target = response_target(query)?;
     require_observation_containment(data, query, identifications, &target)?;
-    let inputs = observed_inputs(data, graph, query, target.outcome)?;
+    let mut inputs = observed_inputs(data, graph, query, target.outcome)?;
     let planned = plan_from_response_query(query, &mut temporal_budget, ctx)?;
     if planned
         .as_ref()
@@ -715,7 +713,7 @@ pub fn estimate_observed_temporal_response(
         &mut temporal_budget,
         ctx,
     )?;
-    let sweeps = run_chains(data, graph, estimator, ctx, &target, &inputs, &evaluations)?;
+    let sweeps = run_chains(data, graph, estimator, ctx, &target, &mut inputs, &evaluations)?;
     let (diagnostics, summary) = gibbs_diagnostics(&sweeps)?;
     assumptions.push(observation_assumption(query));
     let cells = evaluations.len();
@@ -867,12 +865,12 @@ fn require_observation_containment(
     clippy::cast_possible_truncation,
     reason = "dense node ids are u32 by construction, so every index below the graph's node count fits"
 )]
-fn observed_inputs(
-    data: &TimeSeriesData,
+fn observed_inputs<'a>(
+    data: &'a TimeSeriesData,
     graph: &TemporalDag,
     query: &ResponseQuery,
     outcome: VariableId,
-) -> Result<ObservedInputs, EstimationError> {
+) -> Result<ObservedInputs<'a>, EstimationError> {
     let observations = observations(data, query, outcome)?;
     let mut base = BTreeMap::new();
     for node in 0..graph.node_count() {
@@ -906,18 +904,6 @@ fn observed_inputs(
         sd if sd.is_finite() && sd > 0.0 => sd,
         _ => 1.0,
     };
-    base.insert(
-        outcome,
-        observations
-            .iter()
-            .map(|o| match *o {
-                Observation::Exact(y) => y,
-                Observation::Lower(y) => center.max(y),
-                Observation::Upper(y) => center.min(y),
-                Observation::Missing => center,
-            })
-            .collect(),
-    );
     Ok(ObservedInputs { observations, base, center, spread })
 }
 
@@ -1012,7 +998,7 @@ fn run_chains(
     estimator: &BayesianGComputationAte,
     ctx: &ExecutionContext,
     target: &ResponseTarget,
-    inputs: &ObservedInputs,
+    inputs: &mut ObservedInputs<'_>,
     evaluations: &[Evaluation],
 ) -> Result<ChainDraws, EstimationError> {
     let outcome = target.outcome;
@@ -1032,7 +1018,7 @@ fn run_chains(
         })
         .collect::<Vec<_>>();
     let (n_parameters, bytes) =
-        posterior_buffer_budget(&dimensions, data.row_count(), base.len(), count, cells)?;
+        posterior_buffer_budget(&dimensions, data.row_count(), base.len() + 1, count, cells)?;
     if ctx.memory_limit_bytes().is_some_and(|limit| bytes as u128 > u128::from(limit)) {
         return Err(EstimationError::data_msg("observed temporal posterior exceeds memory budget"));
     }
@@ -1051,17 +1037,19 @@ fn run_chains(
         // its latent outcomes from its own over-dispersed start (its own stream, so the
         // sampling stream is unchanged).
         let mut start_rng = CausalRng::from_seed(chain_seed ^ CHAIN_START_STREAM);
-        let mut values = base.clone();
-        values.insert(outcome, dispersed_latent_start(obs, *center, *spread, &mut start_rng));
+        base.insert(
+            outcome,
+            Cow::Owned(dispersed_latent_start(obs, *center, *spread, &mut start_rng)),
+        );
         let mut models = mechanisms(data, graph, outcome, estimator.prior_scale)?;
         for iteration in 0..warmup + per_chain {
             if ctx.cancellation.is_cancelled() {
                 return Err(EstimationError::data_msg("observed temporal posterior cancelled"));
             }
             for model in &mut models {
-                model.draw(&values, &mut rng)?;
+                model.draw(base, &mut rng)?;
             }
-            sweep(&mut values, outcome, obs, &models, estimator.prior_scale.powi(2), &mut rng)?;
+            sweep(base, outcome, obs, &models, estimator.prior_scale.powi(2), &mut rng)?;
             if iteration < warmup {
                 continue;
             }
@@ -1070,7 +1058,7 @@ fn run_chains(
                 parameters.push(model.variance);
             }
             let means =
-                values.iter().map(|(&v, x)| (v, x.iter().sum::<f64>() / x.len() as f64)).collect();
+                base.iter().map(|(&v, x)| (v, x.iter().sum::<f64>() / x.len() as f64)).collect();
             for (cell, evaluation) in evaluations.iter().enumerate() {
                 let value = evaluation.value(&models, &means);
                 draws[cell * count + chain * per_chain + iteration - warmup] = value;
@@ -1458,7 +1446,7 @@ mod sampler_tests {
             workspace: LaplaceWorkspace::default(),
         };
         let obs = [Observation::Exact(1.0), Observation::Missing, Observation::Exact(3.0)];
-        let mut data = BTreeMap::from([(outcome, vec![1.0, 0.0, 3.0])]);
+        let mut data = BTreeMap::from([(outcome, Cow::Owned(vec![1.0, 0.0, 3.0]))]);
         let mut rng = CausalRng::from_seed(94);
         let mut sum = 0.0;
         let mut second = 0.0;
@@ -1535,9 +1523,16 @@ mod design_cache_tests {
         let mut fresh = mechanisms(&data, &graph, id(1), 2.0).unwrap();
         assert!(!cached[0].design_varies);
         assert!(cached[1].design_varies);
-        let mut values = BTreeMap::from([(id(0), x), (id(1), y), (id(2), z)]);
+        let observed_x = read_column(&data, id(0)).unwrap();
+        assert!(matches!(observed_x, Cow::Borrowed(_)));
+        assert_eq!(observed_x.as_ptr(), data.float64_slice(id(0)).unwrap().as_ptr());
+        let mut values = BTreeMap::from([
+            (id(0), observed_x),
+            (id(1), Cow::Owned(y)),
+            (id(2), read_column(&data, id(2)).unwrap()),
+        ]);
         for iteration in 0..3 {
-            for value in values.get_mut(&id(1)).unwrap() {
+            for value in values.get_mut(&id(1)).unwrap().to_mut() {
                 *value += 0.75;
             }
             for (cached, fresh) in cached.iter_mut().zip(&mut fresh) {

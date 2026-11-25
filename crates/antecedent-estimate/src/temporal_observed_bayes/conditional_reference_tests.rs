@@ -55,7 +55,7 @@ fn observation(side: &str, bound: f64) -> Observation {
 /// five-standard-error half-widths of both (second moment: from the sample sd of y^2).
 fn sampled(
     models: &[Mechanism],
-    data: &mut BTreeMap<VariableId, Vec<f64>>,
+    data: &mut ModelColumns<'_>,
     observations: &[Observation],
     row: usize,
     initial_variance: f64,
@@ -101,13 +101,13 @@ fn latent_conditionals_match_the_closed_form_markov_blanket() {
         // Own equation: y ~ N(prior_mean, prior_var), no parents. Child k is a variable z_k
         // with z_k ~ N(a + b y, w) observed at the same row.
         let mut models = vec![mechanism(outcome, vec![], vec![f("prior_mean")], f("prior_var"))];
-        let mut data = BTreeMap::from([(outcome, vec![0.0])]);
+        let mut data = BTreeMap::from([(outcome, Cow::Owned(vec![0.0]))]);
         for (k, child) in case["children"].as_array().unwrap().iter().enumerate() {
             let c: Vec<f64> =
                 child.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
             let z = VariableId::from_raw(10 + k as u32);
             models.push(mechanism(z, vec![(outcome, 0)], vec![c[1], c[2]], c[3]));
-            data.insert(z, vec![c[0]]);
+            data.insert(z, Cow::Owned(vec![c[0]]));
         }
         let obs = [observation(case["side"].as_str().unwrap(), f("bound"))];
         let [(m1, b1), (m2, b2)] = sampled(&models, &mut data, &obs, 0, 1.0e9, 7);
@@ -136,7 +136,7 @@ fn latent_initial_history_uses_the_declared_prior_and_the_first_child() {
     let child: Vec<f64> =
         case["children"][0].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
     let model = mechanism(outcome, vec![(outcome, 1)], vec![child[1], child[2]], child[3]);
-    let mut data = BTreeMap::from([(outcome, vec![0.0, child[0]])]);
+    let mut data = BTreeMap::from([(outcome, Cow::Owned(vec![0.0, child[0]]))]);
     let obs = [Observation::Lower(f("bound")), Observation::Exact(child[0])];
     let [(m1, b1), (m2, b2)] =
         sampled(std::slice::from_ref(&model), &mut data, &obs, 0, f("prior_var"), 11);
@@ -157,7 +157,10 @@ fn coefficient_and_variance_draws_match_the_normal_inverse_gamma_conditional() {
     let lagged = ensure_lagged(&mut graph, id(0), Lag::from_raw(1)).unwrap();
     let out = ensure_lagged(&mut graph, id(1), Lag::CONTEMPORANEOUS).unwrap();
     graph.insert_directed(lagged, out).unwrap();
-    let values = BTreeMap::from([(id(0), x), (id(1), y)]);
+    let values = BTreeMap::from([
+        (id(0), Cow::Borrowed(x.as_slice())),
+        (id(1), Cow::Borrowed(y.as_slice())),
+    ]);
     for scale in [10.0, 0.5] {
         let want = &reference["conjugate"][format!("scale_{scale:?}")];
         let mut models = mechanisms(&data, &graph, id(1), scale).unwrap();

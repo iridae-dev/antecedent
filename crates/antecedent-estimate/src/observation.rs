@@ -955,7 +955,7 @@ impl ObservationMechanismEstimator {
         let mut values = Vec::with_capacity(rows.len() * keys.len());
         for key in &keys {
             let lag = key.offset.unsigned_abs() as usize;
-            let full = data.float64_values(key.variable)?;
+            let full = data.float64_cow(key.variable)?;
             for &row in rows {
                 values.push(if row >= lag { full[row - lag] } else { f64::NAN });
             }
@@ -1546,7 +1546,7 @@ fn gather_anchor_column(
     anchors: &[usize],
     shift: usize,
 ) -> Result<Vec<f64>, EstimationError> {
-    let full = data.float64_values(id)?;
+    let full = data.float64_cow(id)?;
     Ok(anchors.iter().map(|&anchor| full[anchor - shift]).collect())
 }
 
@@ -1558,7 +1558,7 @@ fn gather_anchor_columns(
 ) -> Result<Vec<f64>, EstimationError> {
     let mut values = Vec::with_capacity(anchors.len() * ids.len());
     for &id in ids {
-        let full = data.float64_values(id)?;
+        let full = data.float64_cow(id)?;
         for &anchor in anchors {
             let value = full[anchor - shift];
             if !value.is_finite() {

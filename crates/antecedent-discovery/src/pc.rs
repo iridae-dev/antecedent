@@ -14,6 +14,7 @@
     )
 )]
 
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -378,7 +379,7 @@ pub(crate) fn adjacent_vars(
 }
 
 /// Column vectors with the corresponding original-variable index.
-pub(crate) type StaticColumns = (Vec<Arc<[f64]>>, HashMap<VariableId, usize>);
+pub(crate) type StaticColumns<'a> = (Vec<Cow<'a, [f64]>>, HashMap<VariableId, usize>);
 
 /// What [`prepare_static_columns`] needs from the algorithm besides the table.
 #[derive(Clone, Copy)]
@@ -405,13 +406,13 @@ pub(crate) struct StaticColumnRequest<'a> {
 /// # Errors
 ///
 /// Empty variable list, short or ragged columns, or a CI prepare failure.
-pub(crate) fn prepare_static_columns(
+pub(crate) fn prepare_static_columns<'a>(
     request: StaticColumnRequest<'_>,
-    data: &TabularData,
+    data: &'a TabularData,
     variables: &[VariableId],
     workspace: &mut DiscoveryWorkspace,
     ctx: &ExecutionContext,
-) -> Result<StaticColumns, DiscoveryError> {
+) -> Result<StaticColumns<'a>, DiscoveryError> {
     let StaticColumnRequest { ci, significance, alpha, fdr, empty_variables, insufficient_rows } =
         request;
     if variables.is_empty() {
@@ -462,17 +463,11 @@ pub(crate) fn map_sepset(
     sep.iter().map(|(v, _)| dense_of(*v)).collect()
 }
 
-pub(crate) fn collect_float_columns(
-    data: &TabularData,
+pub(crate) fn collect_float_columns<'a>(
+    data: &'a TabularData,
     variables: &[VariableId],
-) -> Result<Vec<Arc<[f64]>>, DiscoveryError> {
-    // Uses `TableView::float64_values`, which coerces Int64/Boolean to f64.
-    let mut out = Vec::with_capacity(variables.len());
-    for &v in variables {
-        let vals = data.float64_values(v).map_err(DiscoveryError::from)?;
-        out.push(Arc::from(vals));
-    }
-    Ok(out)
+) -> Result<Vec<Cow<'a, [f64]>>, DiscoveryError> {
+    variables.iter().map(|&v| data.float64_cow(v).map_err(DiscoveryError::from)).collect()
 }
 
 #[cfg(test)]
@@ -493,6 +488,20 @@ mod tests {
     use super::*;
     use crate::result::LaggedLink;
     use crate::test_tables::tabular_n;
+
+    #[test]
+    fn discovery_borrows_complete_columns_and_preserves_missing_cells() {
+        let data = TabularData::from_f64_columns([
+            ("complete", &[1.0, 2.0, 3.0][..]),
+            ("missing", &[1.0, f64::NAN, 3.0][..]),
+        ])
+        .unwrap();
+        let variables = [VariableId::from_raw(0), VariableId::from_raw(1)];
+        let columns = collect_float_columns(&data, &variables).unwrap();
+        assert!(matches!(columns[0], Cow::Borrowed(_)));
+        assert_eq!(columns[0].as_ptr(), data.float64_slice(variables[0]).unwrap().as_ptr());
+        assert!(columns[1][1].is_nan());
+    }
 
     #[test]
     fn covariance_search_preserves_graphs_and_corrected_decisions() {

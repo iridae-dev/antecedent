@@ -113,8 +113,8 @@ impl DirectLingam {
             });
         }
 
-        let PreparedColumns { centered, sd, standardized: cols } =
-            prepare_columns(data, variables)?;
+        let raw = collect_float_columns(data, variables)?;
+        let (mut cols, sd) = prepare_columns(&raw, variables)?;
         let p = variables.len();
 
         // Required contemporaneous edges as index pairs `(parent, child)`.
@@ -132,16 +132,22 @@ impl DirectLingam {
             })
             .collect();
 
-        let order = causal_order(cols, &required_pairs, ctx)?;
+        let order = causal_order(&mut cols, &required_pairs, ctx)?;
+        // The ordering search overwrites its columns. Refill the same buffers for the
+        // coefficient and residual fits, in the original units.
+        for (col, original) in cols.iter_mut().zip(&raw) {
+            col.copy_from_slice(original);
+            center_inplace(col);
+        }
 
-        let diagnostics = residual_diagnostics(data, variables, &centered, &sd, &order)?;
+        let diagnostics = residual_diagnostics(data, variables, &cols, &sd, &order)?;
 
         let mut dag = Dag::empty();
         for &v in variables {
             dag.add_node(NodeRef::Static(v))?;
         }
 
-        let edge_coefs = self.fit_edges(&centered, &sd, &order, &required_pairs, variables)?;
+        let edge_coefs = self.fit_edges(&cols, &sd, &order, &required_pairs, variables)?;
 
         // Every coefficient edge runs from a predecessor in the causal order (the regressors of
         // `child` are `order[..pos]`), so each is a forward edge.
@@ -255,58 +261,45 @@ fn residual_diagnostics(
     Ok(diagnostics)
 }
 
-struct PreparedColumns {
-    centered: Vec<Vec<f64>>,
-    sd: Vec<f64>,
-    standardized: Vec<Vec<f64>>,
-}
-
 fn prepare_columns(
-    data: &TabularData,
+    raw: &[std::borrow::Cow<'_, [f64]>],
     variables: &[VariableId],
-) -> Result<PreparedColumns, DiscoveryError> {
-    let col_owned = collect_float_columns(data, variables)?;
-    let n = col_owned[0].len();
+) -> Result<(Vec<Vec<f64>>, Vec<f64>), DiscoveryError> {
+    let n = raw[0].len();
     if n < 3 {
         return Err(DiscoveryError::stats_msg("insufficient rows for DirectLiNGAM"));
     }
-    for c in &col_owned {
+    for c in raw {
         if c.len() != n {
             return Err(DiscoveryError::data_msg("column length mismatch"));
         }
         require_finite_column(c)?;
     }
 
-    // Centred columns (kept for the coefficient fits) and their standard deviations.
-    let centered: Vec<Vec<f64>> = col_owned
-        .iter()
-        .map(|c| {
-            let mut v = c.to_vec();
-            center_inplace(&mut v);
-            v
-        })
-        .collect();
-    let sd: Vec<f64> =
-        centered.iter().map(|c| (c.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt()).collect();
-    for (i, raw) in col_owned.iter().enumerate() {
+    let mut columns = Vec::with_capacity(raw.len());
+    let mut sd = Vec::with_capacity(raw.len());
+    for (i, raw) in raw.iter().enumerate() {
+        let mut col = raw.to_vec();
+        center_inplace(&mut col);
+        let spread = (col.iter().map(|v| v * v).sum::<f64>() / n as f64).sqrt();
         // A column is constant when its spread is rounding noise on its own magnitude.
         let magnitude = raw.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
-        if sd[i].partial_cmp(&(64.0 * f64::EPSILON * magnitude))
+        if spread.partial_cmp(&(64.0 * f64::EPSILON * magnitude))
             != Some(std::cmp::Ordering::Greater)
         {
             return Err(DiscoveryError::data_msg(format!(
-                "DirectLiNGAM refuses constant variable {}: a constant has no causal \
-                 order",
+                "DirectLiNGAM refuses constant variable {}: a constant has no causal order",
                 variables[i].raw()
             )));
         }
+        // Relative scaling keeps degeneracy tests independent of the variable's units.
+        for value in &mut col {
+            *value /= spread;
+        }
+        columns.push(col);
+        sd.push(spread);
     }
-    // Working residual matrix, standardised so the degeneracy tests below are relative to
-    // each variable's own scale: rescaling a column cannot make it look degenerate.
-    let cols: Vec<Vec<f64>> =
-        centered.iter().zip(&sd).map(|(c, &s)| c.iter().map(|v| v / s).collect()).collect();
-
-    Ok(PreparedColumns { centered, sd, standardized: cols })
+    Ok((columns, sd))
 }
 
 /// Insert a forward edge of a causal order. A directed cycle is refused and is
@@ -399,7 +392,7 @@ impl DirectLingam {
 ///
 /// Cancellation, required edges that form a cycle, or a non-finite independence score.
 fn causal_order(
-    mut cols: Vec<Vec<f64>>,
+    cols: &mut [Vec<f64>],
     required_pairs: &[(usize, usize)],
     ctx: &ExecutionContext,
 ) -> Result<Vec<usize>, DiscoveryError> {
@@ -418,7 +411,7 @@ fn causal_order(
         if ctx.cancellation.is_cancelled() {
             return Err(DiscoveryError::Cancelled);
         }
-        fill_gram(&mut gram, &cols, &remaining);
+        fill_gram(&mut gram, cols, &remaining);
         let mut best_j = remaining[0];
         let mut best_score = f64::INFINITY;
         // A variable whose required parent is still unplaced cannot be exogenous yet:
@@ -476,6 +469,7 @@ fn causal_order(
                 }
             }
         }
+        cols[best_j] = exogenous;
         remaining.retain(|&i| i != best_j);
         in_remaining[best_j] = false;
         order.push(best_j);

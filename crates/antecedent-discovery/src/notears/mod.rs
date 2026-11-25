@@ -29,6 +29,7 @@
 mod acyclicity;
 mod solver;
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, Lag, VariableId};
@@ -232,7 +233,8 @@ impl Notears {
                             .zip(&keep)
                             .filter(|(_, kept)| **kept)
                             .map(|(value, _)| *value)
-                            .collect::<Arc<[f64]>>()
+                            .collect::<Vec<f64>>()
+                            .into()
                     })
                     .collect();
             }
@@ -525,7 +527,7 @@ fn dense_edge_ids(edges: &[(usize, usize, f64)]) -> Vec<(u32, u32)> {
 }
 
 fn pairwise_factor(
-    columns: &[Arc<[f64]>],
+    columns: &[Cow<'_, [f64]>],
     valid: &[Vec<bool>],
     standardize: bool,
 ) -> Result<PairwiseFactor, DiscoveryError> {
