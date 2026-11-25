@@ -21,18 +21,32 @@ pub struct CyclicGraphSpec {
     pub bidirected: Vec<(u32, u32)>,
 }
 impl CyclicGraphSpec {
+    /// Build a graph within the released limits of 32 nodes, 1,024 directed edges and
+    /// 512 bidirected edges.
+    ///
+    /// # Errors
+    /// An invalid edge or a specification outside those limits.
+    #[deprecated(since = "3.1.0", note = "use graph_in with an execution context")]
+    pub fn graph(&self) -> Result<CyclicMixedGraph, CyclicArtifactError> {
+        if self.nodes == 0 || !self.within_historical_bounds() {
+            return Err(invalid("cyclic graph bounds"));
+        }
+        self.build_graph()
+    }
+
     /// Build a validated graph, refusing unknown, self, and duplicate edges.
     ///
     /// A specification within 32 nodes, 1,024 directed edges and 512 bidirected edges is built
     /// directly. Past those integers the execution pool admits the byte quote or returns its
     /// receipt. Zero nodes stay `cyclic graph bounds`.
-    pub fn graph(&self, ctx: &ExecutionContext) -> Result<CyclicMixedGraph, CyclicArtifactError> {
+    pub fn graph_in(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<CyclicMixedGraph, CyclicArtifactError> {
         if self.nodes == 0 {
             return Err(invalid("cyclic graph bounds"));
         }
-        let historical =
-            self.nodes <= 32 && self.directed.len() <= 1024 && self.bidirected.len() <= 512;
-        if !historical {
+        if !self.within_historical_bounds() {
             let bytes = cyclic_spec_bytes(self);
             let budget = SearchBudget::with_memory(
                 SearchLimits { operations: usize::MAX, depth: 1 },
@@ -46,6 +60,14 @@ impl CyclicGraphSpec {
                 ));
             }
         }
+        self.build_graph()
+    }
+
+    fn within_historical_bounds(&self) -> bool {
+        self.nodes <= 32 && self.directed.len() <= 1024 && self.bidirected.len() <= 512
+    }
+
+    fn build_graph(&self) -> Result<CyclicMixedGraph, CyclicArtifactError> {
         let mut graph = CyclicMixedGraph::with_variables(self.nodes);
         for &(a, b) in &self.directed {
             graph
@@ -377,7 +399,7 @@ impl CyclicGraphRequest {
             }
             engine = engine.with_ci(std::sync::Arc::new(
                 SigmaCiOracle::new(
-                    graph.graph(ctx)?,
+                    graph.graph_in(ctx)?,
                     (0..graph.nodes).map(DenseNodeId::from_raw).collect(),
                 )
                 .map_err(invalid)?,
@@ -452,7 +474,7 @@ impl CyclicGraphRequest {
                     CyclicCalculusStatus, apply_cyclic_calculus,
                 };
                 let answer = apply_cyclic_calculus(
-                    &graph.graph(ctx)?,
+                    &graph.graph_in(ctx)?,
                     *rule,
                     x,
                     y,
@@ -495,7 +517,7 @@ impl CyclicGraphRequest {
                     ));
                 }
                 let program = antecedent_identify::cyclic_calculus::identify_cyclic_adjustment(
-                    &graph.graph(ctx)?,
+                    &graph.graph_in(ctx)?,
                     outcomes,
                     treatments,
                     adjustment,
@@ -562,7 +584,7 @@ impl CyclicGraphRequest {
                 io_scm,
                 scc_product_density,
             } => {
-                let graph = graph.graph(ctx)?;
+                let graph = graph.graph_in(ctx)?;
                 let answer = identify_cyclic(
                     &graph,
                     outcomes,
@@ -599,7 +621,7 @@ impl CyclicGraphRequest {
                 io_scm,
                 scc_product_density,
             } => {
-                let graph = graph.graph(ctx)?;
+                let graph = graph.graph_in(ctx)?;
                 let valid = cyclic_backdoor_valid(
                     &graph,
                     outcomes,
@@ -706,35 +728,37 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated, reason = "verify the released graph constructor alongside graph_in")]
     fn a_cyclic_spec_inside_the_historical_shape_ignores_a_small_pool() {
         let mut ctx = ExecutionContext::for_tests(1);
         ctx.set_memory_limit(Some(1));
         let inside = CyclicGraphSpec { nodes: 32, directed: Vec::new(), bidirected: Vec::new() };
-        assert_eq!(inside.graph(&ctx).unwrap().node_count(), 32);
+        assert_eq!(inside.graph().unwrap().node_count(), 32);
+        assert_eq!(inside.graph_in(&ctx).unwrap().node_count(), 32);
         let empty = CyclicGraphSpec { nodes: 0, directed: Vec::new(), bidirected: Vec::new() };
-        assert!(empty.graph(&ctx).unwrap_err().to_string().contains("cyclic graph bounds"));
+        assert!(empty.graph_in(&ctx).unwrap_err().to_string().contains("cyclic graph bounds"));
     }
 
     #[test]
+    #[allow(deprecated, reason = "verify the released graph caps alongside graph_in")]
     fn a_cyclic_spec_past_the_historical_integers_is_admitted_by_the_pool() {
         let wide = CyclicGraphSpec { nodes: 33, directed: Vec::new(), bidirected: Vec::new() };
+        assert!(wide.graph().unwrap_err().to_string().contains("cyclic graph bounds"));
         let bytes = 33u64 * 64;
         let mut ctx = ExecutionContext::for_tests(1);
         ctx.set_memory_limit(Some(bytes));
-        assert_eq!(wide.graph(&ctx).unwrap().node_count(), 33);
+        assert_eq!(wide.graph_in(&ctx).unwrap().node_count(), 33);
 
         ctx.set_memory_limit(Some(8));
-        let text = wide.graph(&ctx).unwrap_err().to_string();
+        let text = wide.graph_in(&ctx).unwrap_err().to_string();
         assert!(text.contains("search.memory"), "{text}");
         assert!(text.contains("cyclic graph"), "{text}");
         assert!(!text.contains("at most"), "{text}");
 
-        let many_edges = CyclicGraphSpec {
-            nodes: 2,
-            directed: vec![(0, 1); 1025],
-            bidirected: Vec::new(),
-        };
-        let refused = many_edges.graph(&ctx).unwrap_err().to_string();
+        let many_edges =
+            CyclicGraphSpec { nodes: 2, directed: vec![(0, 1); 1025], bidirected: Vec::new() };
+        let refused = many_edges.graph_in(&ctx).unwrap_err().to_string();
         assert!(refused.contains("search.memory"), "{refused}");
+        assert!(many_edges.graph().unwrap_err().to_string().contains("cyclic graph bounds"));
     }
 }

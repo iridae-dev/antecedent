@@ -25,8 +25,8 @@ pub use antecedent_design::composition_bundle::{
     EvidenceRelationship, FACT_EVIDENCE_DIGEST, FACT_LAW, FACT_QUANTITY_DIGEST, FACT_REQUEST,
     FACT_REQUIRES_LAW, FACT_SNAPSHOT, FACT_TRUST, LAW_JOINT, LAW_MEAN_ONLY, NodeFailure, NodeKind,
     NodeSource, NodeStatus, NodeVerifier, ProducerCheck, ProviderOrData, SuppliedData,
-    SuppliedProducer, SuppliedSources, UpstreamNode, VerifiedNode, check_producer,
-    node_kind_for_role, producer_identity, producer_reference,
+    SuppliedProducer, SuppliedProvider, SuppliedSources, UpstreamNode, VerifiedNode,
+    check_producer, node_kind_for_role, producer_identity, producer_reference,
 };
 pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
