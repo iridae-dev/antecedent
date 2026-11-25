@@ -75,8 +75,9 @@ def _preparation_declarations(**values: Any) -> Mapping[str, Any]:
         {
             name: value
             for name, value in bound.arguments.items()
-            # A measurement declaration is dispatched before preparation (prepare_measured).
+            # Measurement and learner declarations have their own preparation routes.
             if name not in {"data", "execution", "measurement", "measurement_draws", "imputations"}
+            and not (name == "learners" and value is None)
         }
     )
 
@@ -1057,7 +1058,8 @@ def prepare(
     else:
         from ._owned_input import project_prepared_input
 
-        projected = project_prepared_input(
+        projected = policy._call(
+            project_prepared_input,
             data,
             query=query,
             graph=graph,

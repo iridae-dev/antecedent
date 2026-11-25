@@ -6,16 +6,20 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::collections::HashSet;
 use std::fmt::Write as _;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use antecedent::analysis::file_table::{
     CapacityControl, CapacityOptions, FileColumnKind, FileSourceError, FileSourceErrorKind,
     FileTableError, GaussianSummarySpec, ReadOptions, ReadPlan, SummaryMissing, TableFile,
     TableFileFormat, WeightedCapacityError, WeightedCapacityOutput, summarize_weighted_gaussian,
 };
-use antecedent::data::OwnedColumn;
+use antecedent::data::{Float64Column, OwnedColumn, OwnedColumnarStorage};
 use antecedent::execution::execution_facts::OutputRetention;
+use antecedent::prelude::{CausalSchemaBuilder, TabularData, VariableId};
+use antecedent::schema::{MeasurementSpec, RoleHint, SmallRoleSet, ValueType};
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
@@ -80,7 +84,9 @@ type ColumnInfo = (String, String, bool, String, Option<String>, bool);
 /// Values of one read column, held without the GIL.
 enum Values {
     Float(Vec<f64>),
+    RetainedFloat(VariableId),
     Int(Vec<i64>),
+    RetainedInt(Arc<[i64]>),
     Bool(Vec<bool>),
     Time(Vec<i64>, Option<String>),
     Codes(Vec<u32>, Vec<String>, bool),
@@ -99,6 +105,8 @@ struct ReadResult {
     snapshot_digest: String,
     peak_chunk_bytes: u64,
     columns: Vec<ReadColumn>,
+    retained: Option<Arc<TabularData>>,
+    retained_int: Option<Arc<antecedent::execution::Retention>>,
 }
 
 fn plan(
@@ -113,21 +121,66 @@ fn plan(
     }
 }
 
+fn admit_file_retention(
+    ctx: &antecedent::prelude::ExecutionContext,
+    bytes: u64,
+) -> PyResult<Arc<antecedent::execution::Retention>> {
+    antecedent::execution::retain_bounded(ctx, bytes, std::time::Duration::ZERO)
+        .map(Arc::new)
+        .map_err(|error| match error {
+            antecedent::execution::AdmissionRefusal::Cancelled => {
+                crate::CausalCancelledError::new_err(error.to_string())
+            }
+            error => crate::CausalResourceError::new_err(error.to_string()),
+        })
+}
+
 fn read_columns(
     table: &TableFile,
     plan: &ReadPlan,
     ctx: &antecedent::prelude::ExecutionContext,
-) -> Result<ReadResult, FileSourceError> {
-    let materialized = table.materialize(plan, ctx)?;
+    for_ingest: bool,
+    numeric_columns: &HashSet<String>,
+) -> PyResult<ReadResult> {
+    let materialized = table.materialize(plan, ctx).map_err(|error| source_err(&error))?;
     let receipt = materialized.receipt().clone();
     let storage = materialized.data().storage();
     let mut columns = Vec::with_capacity(plan.columns().len());
+    let mut retained_columns = Vec::new();
+    let mut retained_bytes = 0_u64;
+    let mut int_bytes = 0_u64;
     for (column, file_column) in storage.columns().iter().zip(plan.columns()) {
         let validity = column.as_view().validity();
+        let name = &file_column.name;
+        if for_ingest
+            && (matches!(column, OwnedColumn::Float64(_))
+                || (numeric_columns.contains(name.as_ref()) && can_widen(column)))
+        {
+            let position = u32::try_from(retained_columns.len())
+                .map_err(|_| crate::value_err("too many file float64 columns"))?;
+            retained_columns.push((Arc::clone(name), column.clone()));
+            let rows = validity.len() as u64;
+            retained_bytes = retained_bytes
+                .saturating_add(rows.saturating_mul(8))
+                .saturating_add(rows.div_ceil(8));
+            columns.push(ReadColumn {
+                name: name.to_string(),
+                values: Values::RetainedFloat(VariableId::from_raw(position)),
+                valid: None,
+            });
+            continue;
+        }
         let valid = (!validity.is_all_valid())
             .then(|| (0..validity.len()).map(|row| validity.is_valid(row)).collect());
         let values = match column {
             OwnedColumn::Float64(column) => Values::Float(column.values.as_slice().to_vec()),
+            OwnedColumn::Int64(column)
+                if for_ingest && valid.is_none() && !column.values.is_empty() =>
+            {
+                int_bytes =
+                    int_bytes.saturating_add(std::mem::size_of_val(column.values.as_ref()) as u64);
+                Values::RetainedInt(Arc::clone(&column.values))
+            }
             OwnedColumn::Int64(column) => Values::Int(column.values.to_vec()),
             OwnedColumn::Boolean(column) => {
                 Values::Bool(column.values.iter().map(|&value| value != 0).collect())
@@ -142,21 +195,99 @@ fn read_columns(
                 column.domain.ordered,
             ),
             OwnedColumn::FixedVector(_) => {
-                return Err(FileSourceError::InvalidOptions {
-                    detail: format!("column '{}' is a vector", file_column.name),
-                });
+                return Err(crate::value_err(format!("column '{}' is a vector", file_column.name)));
             }
         };
         columns.push(ReadColumn { name: file_column.name.to_string(), values, valid });
     }
+    let snapshot_digest = hex(&materialized.snapshot_digest());
+    drop(materialized);
+    let retained_int =
+        (int_bytes != 0).then(|| admit_file_retention(ctx, int_bytes)).transpose()?;
+    let retained = if retained_columns.is_empty() {
+        None
+    } else {
+        let lease = admit_file_retention(ctx, retained_bytes)?;
+        Some(Arc::new(numeric_snapshot(retained_columns, &lease)?))
+    };
     Ok(ReadResult {
         rows: receipt.rows().get(),
         chunks: receipt.chunks(),
         identity: receipt.identity().to_hex(),
-        snapshot_digest: hex(&materialized.snapshot_digest()),
+        snapshot_digest,
         peak_chunk_bytes: receipt.peak_chunk_bytes(),
         columns,
+        retained,
+        retained_int,
     })
+}
+
+fn can_widen(column: &OwnedColumn) -> bool {
+    match column {
+        OwnedColumn::Boolean(_) => true,
+        OwnedColumn::Int64(column) => column.values.iter().enumerate().all(|(row, value)| {
+            !column.validity.is_valid(row)
+                || (-crate::EXACT_INT_LIMIT..=crate::EXACT_INT_LIMIT).contains(value)
+        }),
+        _ => false,
+    }
+}
+
+fn numeric_snapshot(
+    columns: Vec<(Arc<str>, OwnedColumn)>,
+    lease: &antecedent::execution::Retention,
+) -> PyResult<TabularData> {
+    let mut schema = CausalSchemaBuilder::new();
+    let mut float_columns = Vec::with_capacity(columns.len());
+    for (position, (name, column)) in columns.into_iter().enumerate() {
+        schema
+            .add_variable(
+                name,
+                ValueType::Continuous,
+                SmallRoleSet::from_hint(RoleHint::Context),
+                None,
+                None,
+                MeasurementSpec::default(),
+            )
+            .map_err(|error| crate::py_err(antecedent::data::DataError::from(error)))?;
+        let id = VariableId::from_raw(
+            u32::try_from(position)
+                .map_err(|_| crate::value_err("too many file numeric columns"))?,
+        );
+        let mut float = widen_column(id, column)?;
+        float.values = antecedent::data::buffer_with_retention(float.values, lease);
+        float_columns.push(OwnedColumn::Float64(float));
+    }
+    let schema =
+        schema.build().map_err(|error| crate::py_err(antecedent::data::DataError::from(error)))?;
+    let storage =
+        OwnedColumnarStorage::try_new(schema, float_columns, None, None).map_err(crate::py_err)?;
+    Ok(antecedent::data::with_retention(TabularData::new(storage), lease))
+}
+
+fn widen_column(id: VariableId, column: OwnedColumn) -> PyResult<Float64Column> {
+    macro_rules! convert {
+        ($column:expr, $widen:expr) => {{
+            let column = $column;
+            let widen = $widen;
+            let values = (0..column.values.len())
+                .map(|row| {
+                    if column.validity.is_valid(row) { widen(column.values[row]) } else { f64::NAN }
+                })
+                .collect::<Arc<[f64]>>();
+            Float64Column::new(id, values, column.validity).map_err(crate::py_err)
+        }};
+    }
+    match column {
+        OwnedColumn::Float64(mut column) => {
+            column.id = id;
+            Ok(column)
+        }
+        // `can_widen` checked the integer values before adding this column to the snapshot.
+        OwnedColumn::Int64(column) => convert!(column, |value| value as f64),
+        OwnedColumn::Boolean(column) => convert!(column, f64::from),
+        _ => Err(crate::value_err("file snapshot column is not numeric")),
+    }
 }
 
 /// A Parquet file, a directory of Parquet files, or an Arrow IPC file or stream.
@@ -260,7 +391,7 @@ impl PyTableFile {
     /// `kind`, `values` (float64, int64, bool, int64 nanoseconds, or uint32
     /// codes), `valid` (bool mask or `None` when every cell is valid), and for
     /// categories `labels` and `ordered`, for timestamps `timezone`.
-    #[pyo3(signature = (columns=None, *, chunk_rows=None, memory_limit_bytes=None, cancel=None))]
+    #[pyo3(signature = (columns=None, *, chunk_rows=None, memory_limit_bytes=None, cancel=None, for_ingest=false, numeric_columns=None))]
     fn read(
         &self,
         py: Python<'_>,
@@ -268,12 +399,15 @@ impl PyTableFile {
         chunk_rows: Option<usize>,
         memory_limit_bytes: Option<u64>,
         cancel: Option<crate::PyCancellationToken>,
+        for_ingest: bool,
+        numeric_columns: Option<HashSet<String>>,
     ) -> PyResult<Py<PyDict>> {
         let plan = plan(&self.inner, columns, chunk_rows).map_err(|error| source_err(&error))?;
         let ctx = execution_context(0, memory_limit_bytes, cancel);
         let table = &self.inner;
+        let numeric = numeric_columns.unwrap_or_default();
         let read = crate::detach_catch(py, move || {
-            read_columns(table, &plan, &ctx).map_err(|error| source_err(&error))
+            read_columns(table, &plan, &ctx, for_ingest, &numeric)
         })?;
         let out = PyDict::new(py);
         out.set_item("rows", read.rows)?;
@@ -290,9 +424,32 @@ impl PyTableFile {
                     entry.set_item("kind", "float64")?;
                     entry.set_item("values", PyArray1::from_vec(py, values))?;
                 }
+                Values::RetainedFloat(id) => {
+                    let table = read.retained.as_ref().ok_or_else(|| {
+                        crate::CausalDataError::new_err("missing retained file column owner")
+                    })?;
+                    entry.set_item("kind", "float64")?;
+                    entry.set_item(
+                        "values",
+                        crate::data_snapshot::SnapshotColumn { table: Arc::clone(table), id },
+                    )?;
+                }
                 Values::Int(values) => {
                     entry.set_item("kind", "int64")?;
                     entry.set_item("values", PyArray1::from_vec(py, values))?;
+                }
+                Values::RetainedInt(values) => {
+                    let retention = read.retained_int.as_ref().ok_or_else(|| {
+                        crate::CausalDataError::new_err("missing retained file column owner")
+                    })?;
+                    entry.set_item("kind", "int64")?;
+                    entry.set_item(
+                        "values",
+                        crate::data_snapshot::IndexSnapshot {
+                            values,
+                            retention: Arc::clone(retention),
+                        },
+                    )?;
                 }
                 Values::Bool(values) => {
                     entry.set_item("kind", "boolean")?;

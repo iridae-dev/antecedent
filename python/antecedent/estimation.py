@@ -786,7 +786,11 @@ def _frame_payload(
         return names, [], {"kind": "multi_env", "env_columns": env_columns}
     if columns is not None:
         data = project_columns(
-            data, columns.names, subset=not columns.ordered, what="graph or query"
+            data,
+            columns.names,
+            subset=not columns.ordered,
+            what="graph or query",
+            numeric_file_columns=columns.names,
         )
     names, arrays = ingest_columns(data, native_dtypes=True)
     return names, arrays, None
@@ -2387,7 +2391,12 @@ class _PreparedEngine(Generic[ResultT]):
         data = drop_columns(data, self._named_design_columns)
         if self._column_names is None:
             return data
-        return project_columns(data, self._column_names, what="prepared")
+        return project_columns(
+            data,
+            self._column_names,
+            what="prepared",
+            numeric_file_columns=() if self._design_columns else self._column_names,
+        )
 
     def _click_payload(self, data: Any) -> tuple[list[str], list[Any], dict[str, Any] | None]:
         guard_design(self, data)
@@ -2771,7 +2780,10 @@ class _PreparedEngine(Generic[ResultT]):
             # added or missing column is reported and a mere reordering of the frame is not.
             prepared = [name for name in self._column_names if name in present]
             data = project_columns(
-                data, prepared + [name for name in present if name not in prepared], what="new"
+                data,
+                prepared + [name for name in present if name not in prepared],
+                what="new",
+                numeric_file_columns=present,
             )
         return ingest_columns(data, native_dtypes=True)
 

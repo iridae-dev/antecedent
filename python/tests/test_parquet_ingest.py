@@ -69,19 +69,86 @@ def test_analyze_over_parquet_equals_the_same_analysis_in_memory(tmp_path):
     assert abs(in_memory.effect - 2.0) < 0.08
 
 
-def test_prepare_estimate_and_refresh_accept_files(tmp_path):
+def test_prepare_estimate_and_refresh_accept_files(tmp_path, monkeypatch):
     data = _sample()
     first = _write(tmp_path / "first.parquet", data)
     shifted = {**data, "y": data["y"] + data["t"]}
     second = _write(tmp_path / "second.parquet", shifted)
+    handle = ant.data.from_parquet(first, chunk_rows=64)
+    handle.read()
+    assert set(handle._cache) == set(data)
+    sources = []
+    read = handle._read_for_ingest
+
+    def capture(names=None, **options):
+        columns = read(names, **options)
+        sources.append(columns)
+        return columns
+
+    monkeypatch.setattr(handle, "_read_for_ingest", capture)
     study = ant.prepare(
-        first, query=QUERY, graph=GRAPH, inference=ant.Frequentist(bootstrap=0), refute="none"
+        handle, query=QUERY, graph=GRAPH, inference=ant.Frequentist(bootstrap=0), refute="none"
     )
+    assert handle._cache == {}
+    assert study._data.bytes_copied == 0
+    assert study._data.bytes_borrowed == 0
+    assert ant.data.ingestion_receipt(study._data).ownership_bytes_copied == 0
+    assert not study._data["t"].flags.writeable
+    assert len(sources) == 1
+    assert np.shares_memory(study._data["t"], sources[0]["t"])
     baseline = require_success(ant.estimate(study))
     refreshed = require_success(ant.estimate(ant.rebind(study, data=second)))
     assert refreshed.effect == pytest.approx(baseline.effect + 1.0)
     other = require_success(ant.estimate(ant.rebind(study, data=ant.data.from_parquet(second))))
     assert other.effect == pytest.approx(refreshed.effect)
+
+
+def test_prepared_file_widens_numeric_types_in_the_native_snapshot(tmp_path, monkeypatch):
+    data = _sample()
+    treatments = [int(value) for value in data["t"]]
+    treatments[2] = None
+    flags = [value > 0.0 for value in data["z"]]
+    flags[3] = None
+    outcomes = data["y"].tolist()
+    outcomes[4] = None
+    groups = [2**60 + row % 20 for row in range(len(treatments))]
+    path = _write(
+        tmp_path / "numeric.parquet",
+        {"t": treatments, "y": outcomes, "z": flags, "group": groups},
+    )
+    handle = ant.data.from_parquet(path)
+    public = handle.read()
+    assert public["t"][2] is None and public["z"][3] is None
+    assert np.isnan(public["y"][4])
+    assert public["group"].dtype == np.int64
+    original = handle._read_for_ingest
+    seen = []
+
+    def capture(names=None, **options):
+        columns = original(names, **options)
+        seen.append(columns)
+        return columns
+
+    monkeypatch.setattr(handle, "_read_for_ingest", capture)
+    study = ant.prepare(
+        handle,
+        query=QUERY,
+        graph=GRAPH,
+        estimator_config={"cluster": "group"},
+        inference=ant.Frequentist(bootstrap=0),
+        missing="complete_case",
+        refute="none",
+    )
+    require_success(ant.estimate(study))
+    assert handle._cache == {}
+    assert study._data["group"][0] == 2**60
+    assert study._data["group"][1] == 2**60 + 1
+    assert seen[0]["group"].dtype == np.int64
+    for name, missing_row in (("t", 2), ("z", 3), ("y", 4)):
+        values = study._data[name]
+        assert values.dtype == np.float64 and not values.flags.writeable
+        assert np.isnan(values[missing_row])
+        assert np.shares_memory(values, seen[0][name])
 
 
 def test_schema_types_are_kept_and_nulls_are_masks(tmp_path):

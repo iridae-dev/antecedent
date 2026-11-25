@@ -280,6 +280,24 @@ class TableFile(Mapping[str, NDArray[Any]]):
         raw = self._run(self._native.read, names, **self._controls())
         return {str(entry["name"]): _to_numpy(entry) for entry in raw["columns"]}
 
+    def _read_for_ingest(
+        self, names: Sequence[str] | None = None, *, numeric: Sequence[str] = ()
+    ) -> dict[str, NDArray[Any]]:
+        wanted = self._visible_readable() if names is None else list(names)
+        if not wanted:
+            return {}
+        raw = self._run(
+            self._native.read,
+            wanted,
+            for_ingest=True,
+            numeric_columns=set(numeric),
+            **self._controls(),
+        )
+        columns = {str(entry["name"]): _to_numpy(entry) for entry in raw["columns"]}
+        for name in columns:
+            self._cache.pop(name, None)
+        return columns
+
     def _visible_readable(self) -> list[str]:
         return [column.name for column in self._schema if column.kind != "unsupported"]
 
@@ -387,7 +405,7 @@ def _to_numpy(entry: Mapping[str, Any]) -> NDArray[Any]:
         return out
     if kind in ("int64", "boolean"):
         if mask is None:
-            return values.astype(np.int64 if kind == "int64" else bool)
+            return values.astype(np.int64 if kind == "int64" else bool, copy=False)
         out = values.astype(object)
         out[~mask] = None
         return out

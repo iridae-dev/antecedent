@@ -101,6 +101,7 @@ def project_columns(
     *,
     subset: bool = False,
     what: str = "analysis",
+    numeric_file_columns: Sequence[str] = (),
 ) -> Any:
     """``data`` restricted to the named columns, before any column is converted.
 
@@ -137,7 +138,7 @@ def project_columns(
         )
     if isinstance(data, TableFile):
         # One planned read of exactly these columns; the rest of the file is never decoded.
-        return data.read(chosen)
+        return data._read_for_ingest(chosen, numeric=numeric_file_columns)  # noqa: SLF001
     if chosen == available:
         return data
     positions = [available.index(name) for name in chosen]
@@ -232,7 +233,7 @@ def ingest_columns_with_receipt(
     """
     ledger = _CopyLedger()
     if isinstance(data, TableFile):
-        data = data.read()
+        data = data._read_for_ingest(numeric=data.names)  # noqa: SLF001
     arrow = try_as_arrow_c_columns(data, receipt=ledger)
     if arrow is not None:
         return arrow[0], arrow[1], tuple(ledger.copies)
@@ -315,7 +316,7 @@ def as_columns(
 ) -> tuple[list[str], list[NDArray[np.float64]]]:
     """Normalize a mapping or pandas DataFrame to ``(names, float64 columns)``."""
     if isinstance(data, TableFile):
-        data = data.read()
+        data = data._read_for_ingest()  # noqa: SLF001
     if isinstance(data, Mapping):
         names = list(data.keys())
         cols = [

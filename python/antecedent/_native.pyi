@@ -277,6 +277,8 @@ class NativeTableFile:
         chunk_rows: int | None = None,
         memory_limit_bytes: int | None = None,
         cancel: CancellationToken | None = None,
+        for_ingest: bool = False,
+        numeric_columns: set[str] | None = None,
     ) -> dict[str, Any]: ...
     def content_identity(
         self,
