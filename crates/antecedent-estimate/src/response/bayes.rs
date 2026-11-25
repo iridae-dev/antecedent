@@ -1467,10 +1467,13 @@ mod tests {
             stochastic: true,
             scalar: true,
         });
-        assert_eq!(report.status, super::SupportStatus::Extrapolative);
+        // The shifted point lies outside the observed treatment range, so its support is
+        // OutsideEmpiricalSupport; the scalar summary keeps that label rather than raising it
+        // to Extrapolative.
+        assert_eq!(report.status, super::SupportStatus::OutsideEmpiricalSupport);
         assert_eq!(
             report.point_status.as_deref(),
-            Some(&[super::SupportStatus::Extrapolative][..])
+            Some(&[super::SupportStatus::OutsideEmpiricalSupport][..])
         );
         assert_eq!(report.query_region.minima.len(), 2);
         assert_eq!(report.query_region.maxima.len(), 2);
