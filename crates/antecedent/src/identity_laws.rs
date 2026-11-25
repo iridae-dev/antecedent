@@ -1,4 +1,4 @@
-//! Category laws for the identity sites of the compiled surface (formal/identity_sites.toml),
+//! Category laws for the identity sites of the compiled surface (`formal/identity_sites.toml`),
 //! shared by the in-crate site tests. The facade's program identities and question digests are
 //! private to the crate, so their checks are unit tests here; this is the deterministic
 //! counterpart of the proptest harness in formal/adversarial/tests/common/mod.rs (proptest never

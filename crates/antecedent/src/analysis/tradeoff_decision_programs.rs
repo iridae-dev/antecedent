@@ -914,11 +914,11 @@ mod site_tests {
         declaration.finish()
     }
 
-    fn with_measure(edit: impl Fn(&mut PreferenceMeasure)) -> Option<[u8; 32]> {
+    fn with_measure(edit: impl Fn(&mut PreferenceMeasure)) -> [u8; 32] {
         let mut measure = fixture_measure();
         edit(&mut measure);
         let options = PreferenceEvaluationOptions::default();
-        Some(declared(&fixture_contract(), "contract", Some(&measure), &options, None))
+        declared(&fixture_contract(), "contract", Some(&measure), &options, None)
     }
 
     /// `declare`: the measure's unresolved indices are a set; its points, weights and labels
@@ -926,15 +926,17 @@ mod site_tests {
     /// identity and the accepted identity are framed; reals enter by their bits.
     #[test]
     fn site_tradeoff_decision_programs_declare_sets_orders_and_frames() {
-        set_laws(&[0_usize, 2, 1], |items| with_measure(|m| m.unresolved = items.to_vec()));
+        set_laws(&[0_usize, 2, 1], |items| Some(with_measure(|m| m.unresolved = items.to_vec())));
         ordered_laws(&fixture_measure().points, |items| {
-            with_measure(|m| m.points = items.to_vec())
+            Some(with_measure(|m| m.points = items.to_vec()))
         });
-        ordered_laws(&[3.0, 1.0, 2.0], |items| with_measure(|m| m.weights = Some(items.to_vec())));
+        ordered_laws(&[3.0, 1.0, 2.0], |items| {
+            Some(with_measure(|m| m.weights = Some(items.to_vec())))
+        });
         ordered_laws(&fixture_measure().labels.unwrap_or_default(), |items| {
-            with_measure(|m| m.labels = Some(items.to_vec()))
+            Some(with_measure(|m| m.labels = Some(items.to_vec())))
         });
-        bit_exact(|x| with_measure(|m| m.weights = Some(vec![x, 1.0, 2.0])));
+        bit_exact(|x| Some(with_measure(|m| m.weights = Some(vec![x, 1.0, 2.0]))));
 
         let base = fixture_contract();
         let options = PreferenceEvaluationOptions::default();

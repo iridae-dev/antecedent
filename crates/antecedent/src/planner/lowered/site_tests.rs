@@ -1,4 +1,4 @@
-//! Identity-site laws of the lowered program (formal/identity_sites.toml): the scientific
+//! Identity-site laws of the lowered program (`formal/identity_sites.toml`): the scientific
 //! problem, the identification layer, the non-graphical identification of a feedback program,
 //! every program builder's `finish`, and the decision-free identity.
 //!

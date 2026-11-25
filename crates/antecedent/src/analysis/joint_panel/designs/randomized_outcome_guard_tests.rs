@@ -217,7 +217,7 @@ fn site_joint_panel_designs_retained_law_binds_source_inference_and_ordered_law(
     let frequentist = JointDesignInference::Frequentist;
     let law = |values: &[f64]| retained_law_identity(source, &frequentist, &values.to_vec()).ok();
     // The fitted law is read slot by slot.
-    ordered_laws(&[0.5, 1.5, 2.5], &law);
+    ordered_laws(&[0.5, 1.5, 2.5], law);
     all_distinct(&[
         law(&[0.5, 1.5]).unwrap(),
         retained_law_identity(SemanticDigest::from_bytes([2; 32]), &frequentist, &[0.5, 1.5])

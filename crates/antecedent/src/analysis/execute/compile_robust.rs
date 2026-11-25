@@ -455,7 +455,7 @@ mod site_tests {
             .sources()
             .iter()
             .filter(|source| source.role() == EvidenceRole::JointScenarios)
-            .filter_map(|source| source.digest())
+            .filter_map(crate::planner::lowered::EvidenceSourceRef::digest)
             .collect();
         assert_eq!(joint.len(), 1, "the anchor reads one joint scenario source");
         let question = match compiled.parent.program().non_graphical_identification() {

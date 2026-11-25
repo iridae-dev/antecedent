@@ -1,4 +1,4 @@
-//! Identity-site laws of the compiled programs over declared inputs (formal/identity_sites.toml):
+//! Identity-site laws of the compiled programs over declared inputs (`formal/identity_sites.toml`):
 //! each test compiles the production entry and reads the program identity, so the laws run on
 //! the question digest every family writes.
 //!

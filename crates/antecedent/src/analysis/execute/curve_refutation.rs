@@ -499,9 +499,8 @@ fn support_report_of(
         supported,
         (!supported).then(|| {
             Arc::from(format!(
-                "the curve's support report is {:?}: part of the grid is not on observed \
-                 treatment support",
-                status
+                "the curve's support report is {status:?}: part of the grid is not on observed \
+                 treatment support"
             ))
         }),
         0,

@@ -477,9 +477,8 @@ fn expression(text: &[u8], mut i: usize) -> String {
         }
         match byte {
             b'(' | b'[' | b'{' => depth += 1,
-            b')' | b']' | b'}' if depth == 0 => break,
+            b')' | b']' | b'}' | b',' if depth == 0 => break,
             b')' | b']' | b'}' => depth -= 1,
-            b',' if depth == 0 => break,
             _ => {}
         }
         if !byte.is_ascii_whitespace() {

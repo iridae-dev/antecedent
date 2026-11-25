@@ -1,5 +1,5 @@
 //! Category laws on the identity sites of the planning and ranking families
-//! (formal/identity_sites.toml): each test calls the production compile entry or digest and
+//! (`formal/identity_sites.toml`): each test calls the production compile entry or digest and
 //! checks the class of the collections it writes.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
@@ -463,7 +463,7 @@ fn site_design_planning_programs_choice_ranking_lists_are_ordered_and_reals_bits
 fn sample(key: u64) -> GraphPosteriorSample {
     let mut graph = Admg::with_variables(2);
     graph.insert_directed(DenseNodeId::from_raw(T), DenseNodeId::from_raw(Y)).unwrap();
-    if key % 2 == 0 {
+    if key.is_multiple_of(2) {
         graph.insert_bidirected(DenseNodeId::from_raw(T), DenseNodeId::from_raw(Y)).unwrap();
     }
     GraphPosteriorSample { weight: 1.0, key, graph }

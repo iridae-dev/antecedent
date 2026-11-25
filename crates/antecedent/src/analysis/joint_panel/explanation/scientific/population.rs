@@ -530,7 +530,7 @@ mod site_tests {
     }
 
     fn basis(offset: u32) -> [ScientificWorldId; 16] {
-        std::array::from_fn(|i| ScientificWorldId::from_raw(offset + i as u32))
+        std::array::from_fn(|i| ScientificWorldId::from_raw(offset + u32::try_from(i).unwrap()))
     }
 
     fn bindings(strata: &[f64]) -> PopulationReferenceBindings {
@@ -538,7 +538,7 @@ mod site_tests {
         PopulationReferenceBindings {
             baseline: VariableId::from_raw(0),
             strata: strata.to_vec(),
-            stratum_worlds: (0..n).map(|j| basis(16 * j as u32)).collect(),
+            stratum_worlds: (0..n).map(|j| basis(16 * u32::try_from(j).unwrap())).collect(),
             before_weights: vec![1.0 / n as f64; n],
             after_weights: (0..n).map(|j| if j == 0 { 1.0 } else { 0.0 }).collect(),
             components: ReferenceComponentBindings {

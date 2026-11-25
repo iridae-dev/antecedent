@@ -1,4 +1,4 @@
-//! Site tests of the bundle recomputation question digests (formal/identity_sites.toml): a
+//! Site tests of the bundle recomputation question digests (`formal/identity_sites.toml`): a
 //! changed part of each question (graph, terminal or producer name, producer program, producer
 //! artifact, chain, contract, source law, seed) changes the compiled program identity.
 //! Compilation reads a fit node's declaration but never refits it, so the fit nodes here are

@@ -903,8 +903,8 @@ fn site_joint_panel_native_design_dependency_is_the_ordered_recipe() {
     };
     let unit = |i: usize| LocalInstrumentUnit {
         id: format!("unit{i}"),
-        assigned: i % 2 == 0,
-        received: i % 4 == 0,
+        assigned: i.is_multiple_of(2),
+        received: i.is_multiple_of(4),
         probability: 0.5,
         outcome: i as f64,
     };

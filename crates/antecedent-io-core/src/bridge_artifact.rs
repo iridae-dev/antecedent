@@ -1249,7 +1249,7 @@ fn source_summary_replays(rebuilt: &SourceWire, stored: &SourceWire) -> bool {
         return true;
     }
     let mut legacy = rebuilt.clone();
-    legacy.evaluated = LEGACY_DRAWS_SOURCE_EVALUATED.to_owned();
+    LEGACY_DRAWS_SOURCE_EVALUATED.clone_into(&mut legacy.evaluated);
     legacy == *stored
 }
 

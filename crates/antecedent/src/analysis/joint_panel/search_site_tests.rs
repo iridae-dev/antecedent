@@ -1,5 +1,5 @@
 //! Identity-site tests of a joint-panel program search's declaration, source and domain
-//! digests (formal/identity_sites.toml).
+//! digests (`formal/identity_sites.toml`).
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use super::*;
 use crate::identity_laws::{all_distinct, bit_exact, ordered_laws};

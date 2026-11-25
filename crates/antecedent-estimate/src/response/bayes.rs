@@ -206,13 +206,13 @@ struct BayesianSupportRequest<'a> {
 /// missing evidence) keeps its label, so the summary stays the worst label and is never
 /// raised to extrapolative.
 fn weaken_to_extrapolative(support: &mut SupportReport, per_grid: bool, points: usize) {
-    let weaker = |status: SupportStatus| {
+    fn weaker(status: SupportStatus) -> SupportStatus {
         if status.severity() < SupportStatus::Extrapolative.severity() {
             SupportStatus::Extrapolative
         } else {
             status
         }
-    };
+    }
     support.status = weaker(support.status);
     support.point_status = per_grid.then(|| {
         let labels: Vec<SupportStatus> = match support.point_status.as_deref() {

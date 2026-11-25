@@ -345,7 +345,7 @@ mod standing_tests {
         exogenous: usize,
     ) -> FiniteVariable {
         let table = match parents.len() {
-            0 => (0..levels as u8).collect(),
+            0 => (0..u8::try_from(levels).expect("a few levels")).collect(),
             _ => vec![0, 0, 0, 1, 1, 0, 1, 1],
         };
         FiniteVariable { name: name.to_owned(), levels, parents, exogenous, table }

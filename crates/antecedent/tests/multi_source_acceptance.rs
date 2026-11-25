@@ -363,8 +363,8 @@ fn law(provider: &str, snapshot: &str, mask: Option<Vec<bool>>) -> DistributionA
 
 /// The lab's stated support: every column of its law is supported. A lab law that states no
 /// mask states no support, and is missing evidence on every coordinate.
-fn stated() -> Option<Vec<bool>> {
-    Some(vec![true; 4])
+fn stated() -> Vec<bool> {
+    vec![true; 4]
 }
 
 fn lab_two_law_input(mask: Option<Vec<bool>>) -> DecisionInput {
@@ -499,7 +499,7 @@ fn acceptance_the_joint_law_decision_matches_the_hand_derived_values() {
     close(result.actions[1].expected_regret.unwrap(), 2.0);
     close(result.actions[2].expected_regret.unwrap(), 2.5);
 
-    let composed = compare(&law_contract(), &[lab_two_law_input(stated())]);
+    let composed = compare(&law_contract(), &[lab_two_law_input(Some(stated()))]);
     close(composed.evpi.unwrap(), 2.0);
     assert_eq!(composed.results.len(), 1);
 
@@ -534,7 +534,7 @@ fn acceptance_the_joint_law_decision_matches_the_hand_derived_values() {
 
 #[test]
 fn acceptance_probability_and_quantile_come_only_from_the_joint_law() {
-    let law = lab_two_law_input(stated());
+    let law = lab_two_law_input(Some(stated()));
     let value_of = |action: &str, which: DecisionFunctional| {
         evaluate_functional_on_input(&law_contract(), action, which, &law, SupportStatus::Supported)
             .unwrap()
@@ -596,7 +596,7 @@ fn independent(left: &str, right: &str) -> PairRelation {
 
 #[test]
 fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it() {
-    let inputs = [native_input(), lab_one_input(), lab_two_law_input(stated())];
+    let inputs = [native_input(), lab_one_input(), lab_two_law_input(Some(stated()))];
     let relations =
         [independent("native", "e1"), independent("e1", "e2law"), shared("native", "e2law", None)];
     let pooled =
@@ -609,7 +609,7 @@ fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it() {
             right: "e2law".into(),
         }
     );
-    let pair = [lab_one_input(), lab_two_law_input(stated())];
+    let pair = [lab_one_input(), lab_two_law_input(Some(stated()))];
     let receipt = check_composition(
         &pair,
         &[independent("e1", "e2law")],
@@ -629,7 +629,7 @@ fn acceptance_shared_data_refuses_pooling_and_a_supported_route_lifts_it() {
         id: "jl-1".into(),
         source_input: "e2law".into(),
     };
-    let supported = [native_input(), lab_two_law_input(stated())];
+    let supported = [native_input(), lab_two_law_input(Some(stated()))];
     let receipt = check_composition(
         &supported,
         &[shared("native", "e2law", Some(route))],

@@ -257,7 +257,7 @@ fn surrogate_bridge_matches_the_hand_computed_trial_level_regression() {
     // which this fixture source leaves unavailable.
     let obligations = &bridged.claim.reasoning.assumptions.as_ref().unwrap().obligations;
     assert_eq!(obligations.len(), 2);
-    assert!(obligations.iter().all(|record| record.is_unresolved()));
+    assert!(obligations.iter().all(antecedent_contract::ObligationRecord::is_unresolved));
     assert!(obligations.iter().any(|record| &*record.id == SOURCE_ASSUMPTIONS_UNAVAILABLE));
     assert!(
         bridged

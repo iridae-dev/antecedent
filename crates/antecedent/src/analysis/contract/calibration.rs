@@ -642,10 +642,10 @@ mod identification_key_tests {
                     | IdentificationStatus::IdentifiedUnderPriorRestrictions
             );
             assert_eq!(key, if identifying { "point" } else { "partial" }, "{status:?}");
-            assert_eq!(rest, 0.0);
+            assert_eq!(rest.to_bits(), 0.0_f64.to_bits());
             let (key, rest) = identification_label(Some(&slot(status, 0.25)));
             assert_eq!(key, "partial", "{status:?} with unidentified mass");
-            assert_eq!(rest, 0.25);
+            assert_eq!(rest.to_bits(), 0.25_f64.to_bits());
         }
     }
 }

@@ -133,6 +133,7 @@ pub(crate) fn frame_u32_multiset<S: FrameSink>(sink: &mut S, mut values: Vec<u32
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CanonicalWriter;
 
     impl FrameSink for Vec<u8> {
         fn put(&mut self, bytes: &[u8]) {
@@ -226,9 +227,160 @@ mod tests {
         *blake3::hash(&seed.to_le_bytes()).as_bytes()
     }
 
+    fn simple_step(
+        kind: usize,
+        case: u64,
+        rng: &mut Lcg,
+        new: &mut crate::CanonicalWriter,
+        old: &mut Legacy,
+        reals: &[f64],
+    ) {
+        match kind {
+            0 => {
+                let w = rng.next() ^ (case << 50);
+                new.word(w);
+                old.word(w);
+            }
+            1 => {
+                let text = "x".repeat(rng.below(40));
+                new.text(&text);
+                old.text(&text);
+            }
+            2 => {
+                let bytes: Vec<u8> =
+                    (0..rng.below(9000)).map(|i| u8::try_from(i % 256).unwrap()).collect();
+                new.bytes(&bytes);
+                old.bytes(&bytes);
+                let mut checked = CanonicalWriter::new("t");
+                checked.try_bytes(&bytes, || Ok::<(), ()>(())).unwrap();
+                assert_eq!(checked.finish(), CanonicalWriter::new("t").bytes(&bytes).finish());
+            }
+            3 => {
+                let value = reals[rng.below(reals.len())];
+                new.real(value);
+                old.real(value);
+            }
+            4 => {
+                let values: Vec<f64> = (0..rng.below(5)).map(|i| reals[i]).collect();
+                new.reals(&values);
+                old.word(values.len() as u64);
+                for &v in &values {
+                    old.real(v);
+                }
+            }
+            5 => {
+                let values: Vec<u32> =
+                    (0..rng.below(6)).map(|_| u32::try_from(rng.next() >> 21).unwrap()).collect();
+                new.u32s(&values);
+                old.word(values.len() as u64);
+                for &v in &values {
+                    old.word(u64::from(v));
+                }
+            }
+            6 => {
+                let values: Vec<u64> = (0..rng.below(6)).map(|_| rng.next()).collect();
+                new.words(&values);
+                old.word(values.len() as u64);
+                for &v in &values {
+                    old.word(v);
+                }
+            }
+            7 => {
+                let values: Vec<String> = (0..rng.below(4)).map(|i| "ab".repeat(i)).collect();
+                new.texts(&values);
+                old.word(values.len() as u64);
+                for v in &values {
+                    old.text(v);
+                }
+            }
+            _ => unreachable!("a simple step"),
+        }
+    }
+
+    fn structured_step(
+        kind: usize,
+        rng: &mut Lcg,
+        new: &mut crate::CanonicalWriter,
+        old: &mut Legacy,
+        reals: &[f64],
+    ) {
+        match kind {
+            8 => {
+                let value = (rng.below(2) == 0).then_some("opt");
+                new.opt_text(value);
+                match value {
+                    Some(text) => {
+                        old.word(1);
+                        old.text(text);
+                    }
+                    None => old.word(0),
+                }
+            }
+            9 => {
+                let value = (rng.below(2) == 0).then(|| rng.next());
+                new.opt_word(value);
+                match value {
+                    Some(w) => {
+                        old.word(1);
+                        old.word(w);
+                    }
+                    None => old.word(0),
+                }
+            }
+            10 => {
+                let value = (rng.below(2) == 0).then(|| reals[rng.below(6)]);
+                new.opt_real(value);
+                match value {
+                    Some(v) => {
+                        old.word(1);
+                        old.real(v);
+                    }
+                    None => old.word(0),
+                }
+            }
+            11 => {
+                // A set of item digests (SetOf): sorted, then deduplicated.
+                let items: Vec<[u8; 32]> =
+                    (0..rng.below(7)).map(|_| digest(rng.below(4))).collect();
+                let mut sorted = items.clone();
+                sorted.sort_unstable();
+                sorted.dedup();
+                new.digest_set(items);
+                old.word(sorted.len() as u64);
+                for d in &sorted {
+                    old.bytes(d);
+                }
+            }
+            12 => {
+                // A multiset of item digests (encode_set): sorted, repeats kept.
+                let items: Vec<[u8; 32]> =
+                    (0..rng.below(7)).map(|_| digest(rng.below(4))).collect();
+                let mut sorted = items.clone();
+                sorted.sort_unstable();
+                new.digest_multiset(items);
+                old.word(sorted.len() as u64);
+                for d in &sorted {
+                    old.bytes(d);
+                }
+            }
+            _ => {
+                // A variable multiset (encode_variable_set): ids sorted, repeats kept.
+                let ids: Vec<crate::ids::VariableId> = (0..rng.below(7))
+                    .map(|_| crate::ids::VariableId::from_raw(u32::try_from(rng.below(5)).unwrap()))
+                    .collect();
+                let mut sorted = ids.clone();
+                sorted.sort_unstable();
+                crate::canonical_encode::encode_variable_set(new, &ids);
+                old.word(sorted.len() as u64);
+                for id in &sorted {
+                    old.word(u64::from(id.raw()));
+                }
+            }
+        }
+    }
+
     #[test]
     fn the_writer_hashes_the_same_bytes_as_before_the_kernels() {
-        use crate::CanonicalWriter;
         let reals =
             [0.0, -0.0, 1.5, f64::NAN, f64::from_bits(0x7ff8_0000_0000_0001), f64::INFINITY];
         let mut rng = Lcg(7);
@@ -236,130 +388,11 @@ mod tests {
             let mut new = CanonicalWriter::new("antecedent.framing.equality");
             let mut old = Legacy::new("antecedent.framing.equality");
             for _ in 0..rng.below(12) {
-                match rng.below(14) {
-                    0 => {
-                        let w = rng.next() ^ (case << 50);
-                        new.word(w);
-                        old.word(w);
-                    }
-                    1 => {
-                        let text = "x".repeat(rng.below(40));
-                        new.text(&text);
-                        old.text(&text);
-                    }
-                    2 => {
-                        let bytes: Vec<u8> =
-                            (0..rng.below(9000)).map(|i| u8::try_from(i % 256).unwrap()).collect();
-                        new.bytes(&bytes);
-                        old.bytes(&bytes);
-                        let mut checked = CanonicalWriter::new("t");
-                        checked.try_bytes(&bytes, || Ok::<(), ()>(())).unwrap();
-                        assert_eq!(
-                            checked.finish(),
-                            CanonicalWriter::new("t").bytes(&bytes).finish()
-                        );
-                    }
-                    3 => {
-                        let value = reals[rng.below(reals.len())];
-                        new.real(value);
-                        old.real(value);
-                    }
-                    4 => {
-                        let values: Vec<f64> = (0..rng.below(5)).map(|i| reals[i]).collect();
-                        new.reals(&values);
-                        old.word(values.len() as u64);
-                        values.iter().for_each(|&v| old.real(v));
-                    }
-                    5 => {
-                        let values: Vec<u32> = (0..rng.below(6))
-                            .map(|_| u32::try_from(rng.next() >> 21).unwrap())
-                            .collect();
-                        new.u32s(&values);
-                        old.word(values.len() as u64);
-                        values.iter().for_each(|&v| old.word(u64::from(v)));
-                    }
-                    6 => {
-                        let values: Vec<u64> = (0..rng.below(6)).map(|_| rng.next()).collect();
-                        new.words(&values);
-                        old.word(values.len() as u64);
-                        values.iter().for_each(|&v| old.word(v));
-                    }
-                    7 => {
-                        let values: Vec<String> =
-                            (0..rng.below(4)).map(|i| "ab".repeat(i)).collect();
-                        new.texts(&values);
-                        old.word(values.len() as u64);
-                        values.iter().for_each(|v| old.text(v));
-                    }
-                    8 => {
-                        let value = (rng.below(2) == 0).then_some("opt");
-                        new.opt_text(value);
-                        match value {
-                            Some(text) => {
-                                old.word(1);
-                                old.text(text);
-                            }
-                            None => old.word(0),
-                        }
-                    }
-                    9 => {
-                        let value = (rng.below(2) == 0).then(|| rng.next());
-                        new.opt_word(value);
-                        match value {
-                            Some(w) => {
-                                old.word(1);
-                                old.word(w);
-                            }
-                            None => old.word(0),
-                        }
-                    }
-                    10 => {
-                        let value = (rng.below(2) == 0).then(|| reals[rng.below(6)]);
-                        new.opt_real(value);
-                        match value {
-                            Some(v) => {
-                                old.word(1);
-                                old.real(v);
-                            }
-                            None => old.word(0),
-                        }
-                    }
-                    11 => {
-                        // A set of item digests (SetOf): sorted, then deduplicated.
-                        let items: Vec<[u8; 32]> =
-                            (0..rng.below(7)).map(|_| digest(rng.below(4))).collect();
-                        let mut sorted = items.clone();
-                        sorted.sort_unstable();
-                        sorted.dedup();
-                        new.digest_set(items);
-                        old.word(sorted.len() as u64);
-                        sorted.iter().for_each(|d| old.bytes(d));
-                    }
-                    12 => {
-                        // A multiset of item digests (encode_set): sorted, repeats kept.
-                        let items: Vec<[u8; 32]> =
-                            (0..rng.below(7)).map(|_| digest(rng.below(4))).collect();
-                        let mut sorted = items.clone();
-                        sorted.sort_unstable();
-                        new.digest_multiset(items);
-                        old.word(sorted.len() as u64);
-                        sorted.iter().for_each(|d| old.bytes(d));
-                    }
-                    _ => {
-                        // A variable multiset (encode_variable_set): ids sorted, repeats kept.
-                        let ids: Vec<crate::ids::VariableId> = (0..rng.below(7))
-                            .map(|_| {
-                                crate::ids::VariableId::from_raw(
-                                    u32::try_from(rng.below(5)).unwrap(),
-                                )
-                            })
-                            .collect();
-                        let mut sorted = ids.clone();
-                        sorted.sort_unstable();
-                        crate::canonical_encode::encode_variable_set(&mut new, &ids);
-                        old.word(sorted.len() as u64);
-                        sorted.iter().for_each(|id| old.word(u64::from(id.raw())));
-                    }
+                let kind = rng.below(14);
+                if kind < 8 {
+                    simple_step(kind, case, &mut rng, &mut new, &mut old, &reals);
+                } else {
+                    structured_step(kind, &mut rng, &mut new, &mut old, &reals);
                 }
             }
             assert_eq!(new.finish(), old.finish(), "case {case}");

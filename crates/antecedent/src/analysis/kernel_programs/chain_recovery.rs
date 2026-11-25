@@ -197,7 +197,7 @@ mod site_tests {
             plan.premises = premises.iter().map(|premise| (*premise).to_owned()).collect();
             Some(digest(&plan, observed))
         };
-        ordered_laws(&["p1", "p2", "p3"], &with);
+        ordered_laws(&["p1", "p2", "p3"], with);
         injective(&ADVERSARIAL_TEXT, |parts| *parts, |&(a, b)| with(&[a, b]));
         bit_exact(|first| law(first).map(|observed| digest(&base, observed)));
         let mut flipped = base.clone();
