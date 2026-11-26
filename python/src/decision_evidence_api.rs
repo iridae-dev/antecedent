@@ -101,6 +101,9 @@ fn adjustments(map: &Map<String, Json>) -> PyResult<Vec<ComponentAdjustment>> {
                     covariate: text(m, "covariate")?,
                     coefficient: real(m, "coefficient")?,
                 },
+                "cluster_total_slope" => {
+                    AdjustmentKind::ClusterTotalSlope { covariate: text(m, "covariate")? }
+                }
                 other => {
                     return Err(crate::value_err(format!("unknown adjustment kind `{other}`")));
                 }

@@ -144,6 +144,7 @@ fn compiled_centered_adjustment_reproduces_the_direct_centered_totals_bit_for_bi
         pretreatment_totals: fixture.pretreatment.clone(),
         centered: true,
         preassignment: "coefficient and covariate fixed before assignment".into(),
+        estimate_slope: false,
     };
     assert_compiled_equals(recipe(&fixture, vec![adjustment]), &direct);
     // The fixture's pretreatment totals vary by cluster, so the adjustment moves the treated

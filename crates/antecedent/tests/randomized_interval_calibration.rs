@@ -695,6 +695,7 @@ fn measure_decision_margin(test: &'static str, centered: bool) {
                 pretreatment_totals: pre.clone(),
                 centered: true,
                 preassignment: "fixed_before_assignment".into(),
+                estimate_slope: false,
             }]
         } else {
             vec![]

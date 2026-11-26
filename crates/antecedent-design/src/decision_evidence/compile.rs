@@ -88,10 +88,19 @@ pub fn adjustment_verdicts(design: &str) -> Vec<AdjustmentVerdict> {
             strategy: "learned_regression",
             coefficient: "learned from the experiment's observations",
             admissible: Err(if design == "cluster" {
-                "a coefficient fitted on rows treats rows as independent and would change the unit of analysis; no cluster-level learned adjustment is implemented"
+                "a coefficient fitted on rows treats rows as independent and would change the unit of analysis"
             } else {
                 "a learned coefficient needs its own variance construction, which the joint route does not provide"
             }),
+        },
+        AdjustmentVerdict {
+            strategy: "cluster_total_slope",
+            coefficient: "ordinary least-squares slope of cluster outcome totals on cluster prediction totals",
+            admissible: if design == "cluster" {
+                Ok("estimated from the cluster totals; the cluster stays the unit of analysis and the Neyman variance treats the slope as fixed")
+            } else {
+                Err("a slope estimated from cluster totals is the cluster design's adjustment")
+            },
         },
     ]
 }
@@ -143,6 +152,21 @@ pub fn compile_joint_experiment(
                 "fixed CUPED needs a covariate and a finite coefficient".into(),
             ));
         }
+        if let AdjustmentKind::ClusterTotalSlope { covariate } = &adjustment.kind {
+            if spec.assignment_design != "cluster" {
+                return Err(EvidenceRefusal::AdjustmentNotAdmissible {
+                    strategy: "cluster_total_slope".into(),
+                    design: spec.assignment_design.clone(),
+                    reason: "a slope estimated from cluster totals is the cluster design's adjustment"
+                        .into(),
+                });
+            }
+            if covariate.trim().is_empty() {
+                return Err(EvidenceRefusal::Invalid(
+                    "cluster-total slope needs a prediction covariate".into(),
+                ));
+            }
+        }
     }
     let design = spec.assignment_design.clone();
     let mut obligations = vec![
@@ -162,11 +186,28 @@ pub fn compile_joint_experiment(
             statement: "dependence between the outcomes is estimated from the same assigned units, not assumed",
         },
     ];
-    if spec.adjustments.iter().any(|a| a.kind != AdjustmentKind::None) {
+    let fixed_coefficient = spec.adjustments.iter().any(|a| {
+        matches!(
+            a.kind,
+            AdjustmentKind::FixedCuped { .. } | AdjustmentKind::CenteredFixedCuped { .. }
+        )
+    });
+    let cluster_slope = spec
+        .adjustments
+        .iter()
+        .any(|a| matches!(a.kind, AdjustmentKind::ClusterTotalSlope { .. }));
+    if fixed_coefficient {
         obligations.push(CompiledObligation {
             id: "fixed_pre_assignment_coefficient",
             kind: antecedent_contract::EvidenceObligationKind::EstablishAssumption,
             statement: "each adjustment covariate was measured before assignment and its coefficient was fixed independently of these outcomes",
+        });
+    }
+    if cluster_slope {
+        obligations.push(CompiledObligation {
+            id: "cluster_total_prediction_slope",
+            kind: antecedent_contract::EvidenceObligationKind::EstablishAssumption,
+            statement: "each prediction was fixed from pre-assignment information; its slope is estimated from these cluster totals and the Neyman variance does not propagate that estimation",
         });
     }
     let unit_of_analysis = if design == "cluster" { "assignment cluster" } else { "assigned unit" };
@@ -194,6 +235,9 @@ pub fn compile_joint_experiment(
             }
             AdjustmentKind::CenteredFixedCuped { covariate, coefficient } => {
                 adj.word(2).text(covariate).real(*coefficient);
+            }
+            AdjustmentKind::ClusterTotalSlope { covariate } => {
+                adj.word(3).text(covariate);
             }
         }
     }

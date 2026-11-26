@@ -19,6 +19,9 @@ pub struct FixedClusterAdjustment {
     pub centered: bool,
     /// Declaration that coefficient and covariate precede assignment/outcomes.
     pub preassignment: String,
+    /// Estimate the slope from these cluster totals instead of using [`Self::coefficient`].
+    #[serde(default)]
+    pub estimate_slope: bool,
 }
 
 /// Complete cluster-randomized source with outcome and assignment provenance.
@@ -153,7 +156,19 @@ pub fn joint_cluster(
         {
             return Err("invalid or repeated fixed pretreatment adjustment".into());
         }
-        adjusted[index] = if a.centered {
+        adjusted[index] = if a.estimate_slope {
+            let theta = crate::randomized_neyman::cluster_total_ols_slope(
+                &adjusted[index],
+                &a.pretreatment_totals,
+            )
+            .ok_or("cluster-total slope needs a prediction that varies")?;
+            crate::randomized_neyman::cluster_totals_adjusted_by_slope(
+                &adjusted[index],
+                &a.pretreatment_totals,
+                theta,
+            )
+            .ok_or("invalid cluster-total slope adjustment")?
+        } else if a.centered {
             crate::randomized_joint::centered_fixed_cuped_totals(
                 &adjusted[index],
                 &a.pretreatment_totals,

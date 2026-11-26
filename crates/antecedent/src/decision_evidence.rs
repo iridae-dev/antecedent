@@ -1040,7 +1040,9 @@ pub fn evidence_from_compiled_cluster(
         .iter()
         .map(|a| ComponentAdjustment {
             component: a.component_name.clone(),
-            kind: if a.centered {
+            kind: if a.estimate_slope {
+                AdjustmentKind::ClusterTotalSlope { covariate: a.covariate.clone() }
+            } else if a.centered {
                 AdjustmentKind::CenteredFixedCuped {
                     covariate: a.covariate.clone(),
                     coefficient: a.coefficient,

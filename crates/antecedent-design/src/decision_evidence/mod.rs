@@ -290,6 +290,15 @@ pub enum AdjustmentKind {
         /// Coefficient, fixed before the outcomes were observed.
         coefficient: f64,
     },
+    /// Slope of cluster outcome totals on cluster prediction totals.
+    ///
+    /// The prediction was fixed from pre-assignment information. The slope is estimated from
+    /// these clusters, and the Neyman variance treats it as fixed. A coefficient learned from
+    /// rows is still refused.
+    ClusterTotalSlope {
+        /// Prediction column, already summed to each cluster.
+        covariate: String,
+    },
 }
 
 /// The adjustment of one component.
@@ -718,6 +727,11 @@ impl JointExperimentEvidence {
             {
                 return invalid("fixed CUPED needs a covariate and a finite coefficient");
             }
+            if let AdjustmentKind::ClusterTotalSlope { covariate } = &a.kind
+                && covariate.trim().is_empty()
+            {
+                return invalid("cluster-total slope needs a prediction covariate");
+            }
         }
         if let Exposure::BoundedSpillover { bias_bounds, .. } = &exposure
             && (bias_bounds.len() != k || bias_bounds.iter().any(|b| !b.is_finite() || *b < 0.0))
@@ -1143,6 +1157,9 @@ impl JointExperimentEvidence {
                 AdjustmentKind::CenteredFixedCuped { covariate, coefficient } => {
                     w.word(2).text(covariate).real(*coefficient);
                 }
+                AdjustmentKind::ClusterTotalSlope { covariate } => {
+                    w.word(3).text(covariate);
+                }
             }
         }
         w.finish_hex()
@@ -1250,6 +1267,24 @@ mod tests {
                 .unwrap()
                 .admissible
                 .is_ok()
+        );
+        assert!(
+            c.adjustment_verdicts
+                .iter()
+                .find(|v| v.strategy == "cluster_total_slope")
+                .unwrap()
+                .admissible
+                .is_ok()
+        );
+        assert!(
+            compile_joint_experiment(spec(
+                "complete",
+                vec![ComponentAdjustment {
+                    component: "margin".into(),
+                    kind: AdjustmentKind::ClusterTotalSlope { covariate: "pre".into() },
+                }],
+            ))
+            .is_err()
         );
         assert!(c.obligations.iter().any(|o| o.id == "fixed_pre_assignment_coefficient"));
         assert!(

@@ -318,8 +318,9 @@ class JointEvidence:
             kind = adjustment.get("kind")
             if kind == "none":
                 continue
-            if kind not in {"fixed_cuped", "centered_fixed_cuped"}:
+            if kind not in {"fixed_cuped", "centered_fixed_cuped", "cluster_total_slope"}:
                 raise CausalValueError("unsupported cluster adjustment")
+            estimate_slope = kind == "cluster_total_slope"
             covariate = str(adjustment["covariate"])
             if (
                 pretreatment_totals is None
@@ -327,16 +328,17 @@ class JointEvidence:
                 or not adjustment_preassignment_id
             ):
                 raise CausalValueError(
-                    "fixed CUPED needs pretreatment totals and a preassignment assumption"
+                    "a cluster adjustment needs pretreatment totals and a preassignment assumption"
                 )
             source_adjustments.append(
                 {
                     "component_name": str(adjustment["component"]),
                     "covariate": covariate,
-                    "coefficient": float(adjustment["coefficient"]),
+                    "coefficient": 0.0 if estimate_slope else float(adjustment["coefficient"]),
                     "pretreatment_totals": list(pretreatment_totals[covariate]),
                     "centered": kind == "centered_fixed_cuped",
                     "preassignment": adjustment_preassignment_id,
+                    "estimate_slope": estimate_slope,
                 }
             )
         exposure_wire = _exposure(exposure, exposure_assumption_id, spillover_bias_bounds)

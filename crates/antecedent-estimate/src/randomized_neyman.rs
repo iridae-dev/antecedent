@@ -310,6 +310,114 @@ pub fn complete_cluster_itt(
     Some(ClusterItt { effect, variance_upper_bound, interval_95 })
 }
 
+/// Cluster-total CUPED: the slope fit on these clusters, and the Neyman contrast of the adjusted totals.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EstimatedClusterCuped {
+    /// Per-row contrast of the slope-adjusted cluster totals.
+    pub effect: f64,
+    /// Neyman variance of those adjusted totals. The slope is treated as fixed.
+    pub variance_upper_bound: f64,
+    /// Ordinary least-squares slope of the outcome totals on the prediction totals.
+    pub theta: f64,
+    /// Normal interval of [`Self::variance_upper_bound`] when both arms have at least
+    /// [`MIN_CLUSTERS_PER_ARM_FOR_INTERVAL`] clusters.
+    pub interval_95: Option<[f64; 2]>,
+}
+
+/// Ordinary least-squares slope of cluster outcome totals on cluster prediction totals.
+///
+/// Both series are centered at their unweighted cluster means, so the slope is the
+/// with-intercept regression of the totals. Returns `None` when a total is non-finite
+/// or the prediction totals do not vary.
+#[must_use]
+pub fn cluster_total_ols_slope(outcome_totals: &[f64], prediction_totals: &[f64]) -> Option<f64> {
+    let n = outcome_totals.len();
+    if n < 2
+        || prediction_totals.len() != n
+        || outcome_totals.iter().chain(prediction_totals).any(|value| !value.is_finite())
+    {
+        return None;
+    }
+    let mean = |values: &[f64]| values.iter().sum::<f64>() / n as f64;
+    let (y_mean, x_mean) = (mean(outcome_totals), mean(prediction_totals));
+    let (covariance, prediction_variance) = outcome_totals.iter().zip(prediction_totals).fold(
+        (0.0, 0.0),
+        |(covariance, variance), (y, x)| {
+            (covariance + (y - y_mean) * (x - x_mean), variance + (x - x_mean).powi(2))
+        },
+    );
+    (prediction_variance > 0.0 && covariance.is_finite() && prediction_variance.is_finite())
+        .then_some(covariance / prediction_variance)
+}
+
+/// Cluster totals after subtracting `theta` times the centered prediction total.
+///
+/// Centering keeps a constant prediction from moving the outcome scale. Returns `None`
+/// when `theta` or a total is non-finite.
+#[must_use]
+pub fn cluster_totals_adjusted_by_slope(
+    outcome_totals: &[f64],
+    prediction_totals: &[f64],
+    theta: f64,
+) -> Option<Vec<f64>> {
+    let n = outcome_totals.len();
+    if n == 0
+        || prediction_totals.len() != n
+        || !theta.is_finite()
+        || outcome_totals.iter().chain(prediction_totals).any(|value| !value.is_finite())
+    {
+        return None;
+    }
+    let prediction_mean = prediction_totals.iter().sum::<f64>() / n as f64;
+    let adjusted = outcome_totals
+        .iter()
+        .zip(prediction_totals)
+        .map(|(outcome, prediction)| outcome - theta * (prediction - prediction_mean))
+        .collect::<Vec<_>>();
+    adjusted.iter().all(|value| value.is_finite()).then_some(adjusted)
+}
+
+/// Estimate the per-row cluster ITT after a slope fit on the cluster totals.
+///
+/// `outcome_totals[c]` and `prediction_totals[c]` are sums over the rows of cluster `c`,
+/// and `assigned[c]` is that cluster's arm. The slope is [`cluster_total_ols_slope`]; each
+/// total is then [`cluster_totals_adjusted_by_slope`], and the contrast and variance are
+/// [`complete_cluster_itt`] of those adjusted totals. The variance does not propagate the
+/// estimation of the slope. A slope fixed outside the experiment is a different function:
+/// this one is a function of the observed outcomes, so its expectation is not the
+/// unadjusted per-row contrast.
+#[must_use]
+pub fn estimated_cluster_cuped_itt(
+    outcome_totals: &[f64],
+    prediction_totals: &[f64],
+    assigned: &[bool],
+    outcome_rows: usize,
+) -> Option<EstimatedClusterCuped> {
+    if assigned.len() != outcome_totals.len() {
+        return None;
+    }
+    let theta = cluster_total_ols_slope(outcome_totals, prediction_totals)?;
+    let adjusted =
+        cluster_totals_adjusted_by_slope(outcome_totals, prediction_totals, theta)?;
+    let treated = adjusted
+        .iter()
+        .zip(assigned)
+        .filter_map(|(total, arm)| arm.then_some(*total))
+        .collect::<Vec<_>>();
+    let control = adjusted
+        .iter()
+        .zip(assigned)
+        .filter_map(|(total, arm)| (!arm).then_some(*total))
+        .collect::<Vec<_>>();
+    let fit = complete_cluster_itt(&treated, &control, outcome_rows)?;
+    Some(EstimatedClusterCuped {
+        effect: fit.effect,
+        variance_upper_bound: fit.variance_upper_bound,
+        theta,
+        interval_95: fit.interval_95,
+    })
+}
+
 /// Block-weighted complete-randomization contrast with its Neyman variance.
 ///
 /// Distinct from [`blocked_unit_itt`]: this reports the variance and the
@@ -701,6 +809,72 @@ mod tests {
         }
         assert!(widths[0] < 0.5 * widths[1], "a good fixed coefficient must narrow the interval");
         assert!(widths[2] > widths[1], "a misspecified fixed coefficient widens it, never biases");
+    }
+
+    #[test]
+    fn estimated_cluster_total_slope_is_not_the_fixed_coefficient_identity() {
+        // Six clusters, three treated. The prediction is fixed before assignment. Unit
+        // effects grow with the prediction, so the slope fit on the observed totals moves
+        // with the assignment. A coefficient fixed outside the experiment keeps the
+        // unadjusted per-row contrast; the estimated slope does not.
+        let prediction = [0.0, 0.0, 1.0, 1.0, 5.0, 5.0];
+        let control = [1.0, 1.2, 1.1, 0.9, 2.0, 2.4];
+        let treated = [1.0, 1.2, 3.1, 2.9, 12.0, 12.4];
+        let rows = prediction.len();
+        let truth = treated.iter().zip(&control).map(|(y1, y0)| y1 - y0).sum::<f64>() / rows as f64;
+        let mut estimated = 0.0;
+        let mut fixed = 0.0;
+        let mut assignments = 0usize;
+        for mask in 0u32..64 {
+            if mask.count_ones() != 3 {
+                continue;
+            }
+            let assigned = (0..rows).map(|i| (mask >> i) & 1 == 1).collect::<Vec<_>>();
+            let observed = (0..rows)
+                .map(|i| if assigned[i] { treated[i] } else { control[i] })
+                .collect::<Vec<_>>();
+            let fit = estimated_cluster_cuped_itt(&observed, &prediction, &assigned, rows).unwrap();
+            let theta = cluster_total_ols_slope(&observed, &prediction).unwrap();
+            let adjusted =
+                cluster_totals_adjusted_by_slope(&observed, &prediction, theta).unwrap();
+            let treated_totals = adjusted
+                .iter()
+                .zip(&assigned)
+                .filter_map(|(total, arm)| arm.then_some(*total))
+                .collect::<Vec<_>>();
+            let control_totals = adjusted
+                .iter()
+                .zip(&assigned)
+                .filter_map(|(total, arm)| (!arm).then_some(*total))
+                .collect::<Vec<_>>();
+            let neyman = complete_cluster_itt(&treated_totals, &control_totals, rows).unwrap();
+            assert!((fit.effect - neyman.effect).abs() < 1e-12);
+            assert!((fit.variance_upper_bound - neyman.variance_upper_bound).abs() < 1e-12);
+            assert!(fit.interval_95.is_none(), "three clusters per arm publish no interval");
+            let locked = 2.0;
+            let locked_treated = (0..rows)
+                .filter(|&i| assigned[i])
+                .map(|i| treated[i] - locked * prediction[i])
+                .collect::<Vec<_>>();
+            let locked_control = (0..rows)
+                .filter(|&i| !assigned[i])
+                .map(|i| control[i] - locked * prediction[i])
+                .collect::<Vec<_>>();
+            fixed += complete_cluster_itt(&locked_treated, &locked_control, rows).unwrap().effect;
+            estimated += fit.effect;
+            assignments += 1;
+        }
+        assert_eq!(assignments, 20);
+        let estimated_mean = estimated / assignments as f64;
+        let fixed_mean = fixed / assignments as f64;
+        assert!(
+            (fixed_mean - truth).abs() < 1e-12,
+            "a coefficient fixed outside the experiment stays unbiased: {fixed_mean} vs {truth}"
+        );
+        assert!(
+            (estimated_mean - truth).abs() > 1e-6,
+            "a slope fit on these clusters is not the unadjusted contrast: {estimated_mean} vs {truth}"
+        );
     }
 
     #[test]
