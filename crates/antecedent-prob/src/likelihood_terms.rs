@@ -48,6 +48,19 @@ pub fn poisson_terms(y: f64, eta: f64, weight: f64) -> Result<LikelihoodTerms, P
 /// Bernoulli logit terms.
 #[must_use]
 pub fn logit_terms(y: f64, eta: f64, weight: f64) -> LikelihoodTerms {
+    let (score_eta, neg_hessian_eta) = logit_derivatives(y, eta, weight);
+    LikelihoodTerms {
+        log_value: -weight * (y * softplus(-eta) + (1.0 - y) * softplus(eta)),
+        score_eta,
+        neg_hessian_eta,
+    }
+}
+
+/// Score and observed curvature of one Bernoulli-logit row.
+///
+/// The log-density's two `softplus` evaluations are not part of either derivative.
+/// A gradient-only sweep uses this and leaves the log-density uncomputed.
+fn logit_derivatives(y: f64, eta: f64, weight: f64) -> (f64, f64) {
     let tail = (-eta.abs()).exp();
     let denominator = 1.0 + tail;
     let (mu, complement) = if eta >= 0.0 {
@@ -55,11 +68,7 @@ pub fn logit_terms(y: f64, eta: f64, weight: f64) -> LikelihoodTerms {
     } else {
         (tail / denominator, 1.0 / denominator)
     };
-    LikelihoodTerms {
-        log_value: -weight * (y * softplus(-eta) + (1.0 - y) * softplus(eta)),
-        score_eta: weight * (y * complement - (1.0 - y) * mu),
-        neg_hessian_eta: weight * (tail / denominator / denominator),
-    }
+    (weight * (y * complement - (1.0 - y) * mu), weight * (tail / denominator / denominator))
 }
 
 /// Gaussian identity-link terms with residual precision `inv_sigma2`.
@@ -240,10 +249,12 @@ pub(crate) struct LikelihoodScratch<'a> {
 /// (leaving `neg_hess` zeroed); the gradient is bit-identical either way. HMC
 /// leapfrog steps read only the gradient, so they use the cheap form.
 ///
-/// Rows are visited in panels of [`LIKELIHOOD_PANEL_ROWS`]. Each panel is copied
-/// once into the tail of `work_w`; the linear predictor still adds columns from
-/// `0` to `ncols - 1`, and each coefficient then adds that panel's rows in
-/// order. On return, `eta` and `work_w` hold the same per-row results.
+/// Rows are visited in panels of [`LIKELIHOOD_PANEL_ROWS`]. The linear predictor
+/// adds columns from `0` to `ncols - 1`, and each coefficient then adds that
+/// panel's rows in order. A curvature pass copies the panel into the tail of
+/// `work_w`. A gradient-only pass reads each column of the panel in place and
+/// does not evaluate the log-density. On return, `eta` and `work_w` hold the
+/// same per-row predictor and curvature.
 #[allow(
     clippy::needless_range_loop,
     reason = "index-based loop over parallel arrays; the subscript also names the matrix coordinate"
@@ -278,8 +289,8 @@ pub(crate) fn accumulate_likelihood(
     for g in pass.grad.iter() {
         ginf = ginf.max(g.abs());
     }
-    let separation = pass.total_weight > 0.0
-        && pass.certain_weight >= SEPARATION_ROW_SHARE * pass.total_weight;
+    let separation =
+        pass.total_weight > 0.0 && pass.certain_weight >= SEPARATION_ROW_SHARE * pass.total_weight;
     Ok((ginf, separation))
 }
 
@@ -296,7 +307,11 @@ const fn panel_height(remaining: usize, ncols: usize) -> usize {
         return 0;
     }
     let fit = remaining / (ncols + 1);
-    if fit < LIKELIHOOD_PANEL_ROWS { fit } else { LIKELIHOOD_PANEL_ROWS }
+    if fit < LIKELIHOOD_PANEL_ROWS {
+        fit
+    } else {
+        LIKELIHOOD_PANEL_ROWS
+    }
 }
 
 struct LikelihoodPass<'a> {
@@ -319,12 +334,18 @@ impl LikelihoodPass<'_> {
         let ncols = self.design.ncols;
         let mut row = 0;
         while row < nrows {
-            let height = panel_height(nrows - row, ncols);
-            if height == 0 {
-                return self.direct_from(row);
+            if self.want_hessian {
+                let height = panel_height(nrows - row, ncols);
+                if height == 0 {
+                    return self.direct_from(row);
+                }
+                self.panel(row, height)?;
+                row += height;
+            } else {
+                let height = (nrows - row).min(LIKELIHOOD_PANEL_ROWS);
+                self.panel_gradient(row, height)?;
+                row += height;
             }
-            self.panel(row, height)?;
-            row += height;
         }
         Ok(())
     }
@@ -402,6 +423,53 @@ impl LikelihoodPass<'_> {
         Ok(())
     }
 
+    /// Gradient-only panel. Columns are already contiguous, so the coefficient
+    /// pass reads them in place. Scores stay in a panel-sized buffer.
+    fn panel_gradient(&mut self, row: usize, height: usize) -> Result<(), ProbError> {
+        let nrows = self.design.nrows;
+        let ncols = self.design.ncols;
+        let mut scores = [0.0; LIKELIHOOD_PANEL_ROWS];
+        let mut active = [false; LIKELIHOOD_PANEL_ROWS];
+        for local in 0..height {
+            let r = row + local;
+            let offset = self.design.offsets.map_or(0.0, |o| o[r]);
+            let mut e = offset;
+            for c in 0..ncols {
+                e += self.design.x_colmajor[c * nrows + r] * self.beta[c];
+            }
+            match self.commit(r, e, self.design.weights.map_or(1.0, |w| w[r])) {
+                Ok(Some(score)) => {
+                    active[local] = true;
+                    scores[local] = score;
+                }
+                Ok(None) => {}
+                Err(err) => {
+                    self.add_gradient(row, local, &scores, &active);
+                    return Err(err);
+                }
+            }
+        }
+        self.add_gradient(row, height, &scores, &active);
+        Ok(())
+    }
+
+    /// One running sum per coefficient across a gradient panel, in row order.
+    fn add_gradient(&mut self, row: usize, apply: usize, scores: &[f64], active: &[bool]) {
+        let nrows = self.design.nrows;
+        let ncols = self.design.ncols;
+        for c in 0..ncols {
+            let mut g = self.grad[c];
+            let column = c * nrows + row;
+            for local in 0..apply {
+                if active[local] {
+                    let x = self.design.x_colmajor[column + local];
+                    g += x * scores[local];
+                }
+            }
+            self.grad[c] = g;
+        }
+    }
+
     /// `eta` and `work_w` for one row. `None` is a zero weight: no score, no curvature term.
     fn commit(&mut self, row: usize, eta_value: f64, w_obs: f64) -> Result<Option<f64>, ProbError> {
         self.eta[row] = eta_value;
@@ -410,6 +478,11 @@ impl LikelihoodPass<'_> {
             return Ok(None);
         }
         let y = self.design.y[row];
+        if !self.want_hessian && self.likelihood == BayesLikelihood::BernoulliLogit {
+            let (score, curvature) = logit_derivatives(y, eta_value, w_obs);
+            self.work_w[row] = curvature;
+            return Ok(Some(score));
+        }
         let terms = glm_observation_terms(self.likelihood, y, eta_value, w_obs, self.inv_sigma2)?;
         // The separation flag is read only where curvature is (the mode fit);
         // gradient-only leapfrog evaluations discard it, so skip its exp/erfc.
@@ -786,6 +859,57 @@ mod tests {
         let lambda1 = (log_norm_pdf(eta) - log_norm_cdf(eta)).exp();
         let obs_ref = lambda1 * (lambda1 + eta);
         assert!((t.neg_hessian_eta - obs_ref).abs() < 1e-10);
+    }
+
+    #[test]
+    fn gradient_only_logit_matches_the_curvature_sweep() {
+        let n = 300;
+        let mut x = vec![0.0; 3 * n];
+        let mut y = vec![0.0; n];
+        let mut weights = vec![1.0; n];
+        weights[17] = 0.0;
+        for r in 0..n {
+            x[r] = 1.0;
+            x[n + r] = (r % 2) as f64;
+            x[2 * n + r] = (r as f64) * 0.01 - 1.0;
+            y[r] = f64::from(r % 3 == 0);
+        }
+        let design = BayesDesignRef {
+            x_colmajor: &x,
+            nrows: n,
+            ncols: 3,
+            y: &y,
+            weights: Some(&weights),
+            offsets: None,
+        };
+        let beta = [-0.4, 1.1, 0.7];
+        let mut grad_g = [0.0; 3];
+        let mut grad_h = [0.0; 3];
+        let mut hess = [0.0; 9];
+        let mut eta_g = vec![0.0; n];
+        let mut eta_h = vec![0.0; n];
+        let mut work_g = vec![0.0; n];
+        let mut work_h = vec![0.0; n];
+        let sweep = |want_hessian: bool,
+                     grad: &mut [f64],
+                     hess: &mut [f64],
+                     eta: &mut [f64],
+                     work: &mut [f64]| {
+            accumulate_likelihood(
+                BayesLikelihood::BernoulliLogit,
+                design,
+                &beta,
+                LikelihoodScratch { grad, neg_hess: hess, eta, work_w: work },
+                1.0,
+                want_hessian,
+            )
+            .unwrap();
+        };
+        sweep(false, &mut grad_g, &mut hess, &mut eta_g, &mut work_g);
+        sweep(true, &mut grad_h, &mut hess, &mut eta_h, &mut work_h);
+        assert_eq!(grad_g, grad_h);
+        assert_eq!(eta_g, eta_h);
+        assert_eq!(work_g, work_h);
     }
 
     #[test]
