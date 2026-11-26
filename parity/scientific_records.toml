@@ -3895,6 +3895,16 @@ recorded_at = "2026-11-09T13:02:24Z"
 dependency_manifest = "467aa778373d41babb8eb4fd7c3ec1627ae23a375e05c68fe31617c11a7f094c"
 
 [[record]]
+test = "antecedent-identify::lib::principal_surrogate::independent_exhaustive_monotone_surrogate_couplings"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "b43bb698b07550d15fbcd1501c9d2b03b8428667cad710c6f4b71b9fe3573005"
+recorded_at = "2026-11-26T05:25:43Z"
+dependency_manifest = "81fd5951c138f70698f6ecf34b031d7c6b3ba878e16e43d7e19ead7c8d4bacc7"
+
+[[record]]
 test = "antecedent-identify::lib::sid::mixed_source::search::tests::every_accepted_rule_instance_holds_in_the_enumerated_model"
 roles = ["scientific"]
 passed = true
