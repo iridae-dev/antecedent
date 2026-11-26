@@ -66,6 +66,22 @@ class SmoothedDoseLearnersEstimate:
         """Always ``None``: caller learners run no bootstrap."""
         return None
 
+    def as_mean_source(self, *, quantity: Any) -> Any:
+        """One point-only mean per grid dose.
+
+        ``quantity`` supplies the outcome, units, population and base regime. Each dose
+        appends ``:dose=<value>`` to that regime. Influence standard errors stay off the source.
+        """
+        from ..results.sources import dose_grid_mean_source
+
+        return dose_grid_mean_source(
+            self.program_identity,
+            self.grid,
+            quantity,
+            producer="SmoothedDoseLearnersEstimate",
+            operation=self.route,
+        )
+
     def __getitem__(self, dose: float) -> SmoothedDoseGridPoint:
         for point in self.grid:
             if point.dose == dose:

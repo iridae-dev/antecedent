@@ -287,6 +287,35 @@ class SmoothedDoseEstimate(ScientificResult):
     def interval(self) -> None:
         return None
 
+    def as_mean_source(
+        self,
+        *,
+        quantity: Any | None = None,
+        field: str | None = None,
+        contrast: Any = None,
+    ) -> Any:
+        """One point-only mean per grid dose.
+
+        ``quantity`` supplies the outcome, units, population and base regime. Each dose
+        appends ``:dose=<value>`` to that regime. The influence standard error stays a
+        diagnostic.
+        """
+        from ..results.sources import dose_grid_mean_source
+
+        if field is not None or contrast is not None:
+            raise CausalValueError("a dose grid is one mean per dose")
+        if quantity is None:
+            raise CausalValueError(
+                "a dose grid needs quantity=ScientificQuantity.of(...) for the outcome"
+            )
+        return dose_grid_mean_source(
+            self.evidence_digest,
+            self.grid,
+            quantity,
+            producer="SmoothedDoseEstimate",
+            operation="smoothed_dose",
+        )
+
     def __getitem__(self, dose: float) -> SmoothedDoseGridPoint:
         for point in self.grid:
             if point.dose == dose:

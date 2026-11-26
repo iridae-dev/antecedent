@@ -51,6 +51,22 @@ class TrialAipwLearnersEstimate:
     calibration: str
     receipts: tuple[tuple[int, Any], ...] = field(repr=False, compare=False)
 
+    def as_mean_source(self, *, quantity: Any) -> Any:
+        """The target contrast as one point-only mean.
+
+        ``quantity`` names the units, population and regime. The program identity is the
+        contract id. Nuisance fits stay unverified, and no interval is carried.
+        """
+        from ..results.sources import point_mean_source
+
+        return point_mean_source(
+            self.program_identity,
+            quantity,
+            self.estimate,
+            producer="TrialAipwLearnersEstimate",
+            operation=self.route,
+        )
+
 
 def analyze_trial_aipw(
     query: TrialAipwQuery,

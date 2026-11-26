@@ -374,3 +374,76 @@ def adapt_mean_source(
         ),
         trust=getattr(source, "provider_trust", None) or "externally_attested",
     )
+
+
+def _mean_lineage(identity: str, producer: str, operation: str) -> tuple[dict[str, Any], ...]:
+    return (
+        {
+            "id": identity,
+            "stage": "claim",
+            "parents": (),
+            "producer": producer,
+            "identity": identity,
+            "operation": operation,
+            "evidence": (),
+        },
+    )
+
+
+def point_mean_source(
+    identity: str, quantity: ScientificQuantity, value: float, *, producer: str, operation: str
+) -> MeanSource:
+    """One point-only mean. The quantity is the caller's; the identity is the program's.
+
+    The nuisance fit is not verified, and no interval is carried.
+    """
+    if not isinstance(quantity, ScientificQuantity):
+        raise CausalTypeError("quantity must be a ScientificQuantity")
+    if quantity.functional_id not in ("mean", "mean_difference"):
+        raise CausalValueError(
+            "this point is a mean; the quantity functional must be mean or mean_difference"
+        )
+    if not isinstance(identity, str) or not identity:
+        raise CausalValueError("a mean source needs the producing program identity")
+    return MeanSource(
+        coordinates=(quantity,),
+        means=(value,),
+        provider_id=identity,
+        snapshot_id=identity,
+        causal_contract_id=identity,
+        lineage=_mean_lineage(identity, producer, operation),
+        trust="externally_attested",
+    )
+
+
+def dose_grid_mean_source(
+    identity: str,
+    grid: tuple[Any, ...],
+    quantity: ScientificQuantity,
+    *,
+    producer: str,
+    operation: str,
+) -> MeanSource:
+    """One point-only mean per grid dose. Influence standard errors stay off the source."""
+    if not isinstance(quantity, ScientificQuantity):
+        raise CausalTypeError("quantity must be a ScientificQuantity")
+    if quantity.functional_id != "mean":
+        raise CausalValueError("a dose grid is a mean at each dose")
+    if not grid:
+        raise CausalValueError("a dose grid mean source needs at least one dose")
+    from dataclasses import replace
+
+    coordinates = tuple(
+        replace(quantity, regime_id=f"{quantity.regime_id}:dose={point.dose}") for point in grid
+    )
+    if len({item.regime_id for item in coordinates}) != len(coordinates):
+        raise CausalValueError("each dose needs its own regime")
+    return MeanSource(
+        coordinates=coordinates,
+        means=tuple(point.estimate for point in grid),
+        provider_id=identity,
+        snapshot_id=identity,
+        causal_contract_id=identity,
+        lineage=_mean_lineage(identity, producer, operation),
+        trust="externally_attested",
+    )
