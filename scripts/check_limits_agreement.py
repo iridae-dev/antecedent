@@ -217,7 +217,7 @@ MAPPING: tuple[Bound, ...] = (
     # ---- mz-transportability
     Bound(
         "transport.multi_source_limited_experiment",
-        "max_search_states",
+        "default_operations",
         rust=(
             L(
                 MZ,
@@ -231,7 +231,7 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "transport.multi_source_limited_experiment",
-        "max_depth",
+        "default_depth",
         rust=(
             L(
                 MZ,
@@ -298,19 +298,7 @@ MAPPING: tuple[Bound, ...] = (
     # ---- mixed-source proof search
     Bound(
         "identify.mixed_source_proof_search",
-        "max_observed",
-        rust=(C(MIX, "MIXED_SOURCE_MAX_OBSERVED"),),
-        note="no Python statement of the observed-variable cap",
-    ),
-    Bound(
-        "identify.mixed_source_proof_search",
-        "max_distributions",
-        rust=(C(MIX, "MIXED_SOURCE_MAX_DISTRIBUTIONS"),),
-        note="no Python statement of the distribution cap",
-    ),
-    Bound(
-        "identify.mixed_source_proof_search",
-        "max_search_states",
+        "default_operations",
         rust=(
             L(
                 MIX,
@@ -324,7 +312,7 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "identify.mixed_source_proof_search",
-        "max_depth",
+        "default_depth",
         rust=(
             L(
                 MIX,
@@ -341,18 +329,13 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "identify.mixed_source_proof_search",
-        "max_move",
+        "initial_move_width",
         rust=(C(MIX, "MIXED_SOURCE_MAX_MOVE"),),
     ),
     Bound(
         "identify.mixed_source_proof_search",
-        "max_intervention_set",
+        "initial_intervention_width",
         rust=(C(MIX, "MIXED_SOURCE_MAX_DO"),),
-    ),
-    Bound(
-        "identify.mixed_source_proof_search",
-        "max_sources",
-        rust=(C(MZ, "MZ_TRANSPORT_MAX_SOURCES"),),
     ),
     # ---- ADMG conditional transport
     Bound(
@@ -604,6 +587,16 @@ MAPPING: tuple[Bound, ...] = (
     # ---- ADMG counterfactual identification
     Bound(
         "counterfactual.admg_identification",
+        "default_depth",
+        rust=(L(CFID, r"COUNTERFACTUAL_ID_DEFAULT_LIMITS: SearchLimits =\s*SearchLimits \{ operations: [\d_]+, depth: ([\d_]+)"),),
+    ),
+    Bound(
+        "counterfactual.admg_identification",
+        "default_operations",
+        rust=(L(CFID, r"COUNTERFACTUAL_ID_DEFAULT_LIMITS: SearchLimits =\s*SearchLimits \{ operations: ([\d_]+),"),),
+    ),
+    Bound(
+        "counterfactual.admg_identification",
         "artifact_max_variables",
         rust=(C(CFID, "COUNTERFACTUAL_ID_MAX_VARIABLES"),),
     ),
@@ -614,12 +607,12 @@ MAPPING: tuple[Bound, ...] = (
     ),
     Bound(
         "counterfactual.admg_identification",
-        "max_search_operations",
+        "artifact_default_max_operations",
         rust=(C(CFID, "COUNTERFACTUAL_ID_MAX_OPERATIONS"),),
     ),
     Bound(
         "counterfactual.admg_identification",
-        "max_search_depth",
+        "artifact_default_max_depth",
         rust=(C(CFID, "COUNTERFACTUAL_ID_MAX_DEPTH"),),
     ),
 )

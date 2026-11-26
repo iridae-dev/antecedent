@@ -449,20 +449,21 @@ fn one_budget_is_shared_by_every_stage() {
 }
 
 #[test]
-fn limits_above_the_old_ceiling_are_the_callers() {
+fn limits_above_the_defaults_identify_the_complementary_query() {
     let q = query(vec![source_a(), source_b()]);
     for limits in [
         SearchLimits { operations: MZ_TRANSPORT_DEFAULT_LIMITS.operations + 1, depth: 24 },
         SearchLimits { operations: 4096, depth: MZ_TRANSPORT_DEFAULT_LIMITS.depth + 1 },
     ] {
-        decide_mz_transport(
+        let decision = decide_mz_transport(
             &figure_1_graph(),
             &q,
             &complementary_catalog(),
             limits,
             &ExecutionContext::for_tests(1),
         )
-        .expect("a declaration above the old ceiling is admitted");
+        .unwrap();
+        assert!(matches!(decision, MzTransportDecision::Identified { .. }));
     }
 }
 
@@ -737,7 +738,10 @@ fn a_checked_replay_reproduces_the_stored_search_receipt_and_refuses_any_edit() 
     // A stored limit above the consumer's own maximum refuses, never replays.
     let mut wide = record.clone();
     wide.search.memory_limit_bytes += 1;
-    assert_eq!(replay(&wide, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap_err(), bounds);
+    let consumer =
+        ExecutionContext::for_tests(1).with_memory_limit(Some(record.search.memory_limit_bytes));
+    assert_eq!(replay(&wide, MZ_TRANSPORT_DEFAULT_LIMITS, &consumer).unwrap_err(), bounds);
+    replay(&wide, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx).unwrap();
     let tight = SearchLimits { operations: record.search.operations_limit - 1, depth: 24 };
     assert_eq!(replay(&record, tight, &ctx).unwrap_err(), bounds);
     let mut limited = ExecutionContext::for_tests(1);
@@ -752,12 +756,19 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
     let (graph, q, full) =
         (figure_1_graph(), query(vec![source_a(), source_b()]), complementary_catalog());
     let pair = |error: &IdentificationError| mz_transport_refusal(error).unwrap();
-    // A bound: `route_not_supported`.
-    let bound = decide_mz_transport(
+    // A retained proof whose declared operation allowance exceeds the consumer's.
+    let derivation = identified(decide(&q, &full));
+    let mut record = derivation.to_record();
+    let bound = antecedent_identify::MzTransportDerivation::from_record_checked(
         &graph,
         &q,
         &full,
-        SearchLimits { operations: MZ_TRANSPORT_DEFAULT_LIMITS.operations + 1, depth: 24 },
+        &record,
+        derivation.arena(),
+        SearchLimits {
+            operations: record.search.operations_limit - 1,
+            ..MZ_TRANSPORT_DEFAULT_LIMITS
+        },
         &ctx,
     )
     .unwrap_err();
@@ -801,8 +812,6 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
         )
     );
     // A derivation that does not replay: `transport_not_certified`.
-    let derivation = identified(decide(&q, &full));
-    let mut record = derivation.to_record();
     record.search.operations_consumed += 1;
     let invalid_derivation = antecedent_identify::MzTransportDerivation::from_record_checked(
         &graph,
