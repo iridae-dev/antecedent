@@ -80,18 +80,42 @@ async def investigate(data, graph):
 
 Use `await aio.prepare(data, graph=graph, query=query)` to prepare without fitting.
 Pass the returned study to `await aio.estimate(study)` to run it. Async estimation
-also accepts prepared batches and measured-exposure studies. Each call has its own
-cancellation token and shares the memory admission pool of the supplied or retained
-`Execution`. Cancelling an explicitly supplied token cancels all calls linked to it.
-Cancelling an asyncio task signals its own token and waits for the worker to exit
-before propagating cancellation. This also applies to `asyncio.timeout()`. The
-total wait depends on when the route reaches a cancellation check and how long
-synchronous user callbacks take to return.
+also accepts prepared batches, measured-exposure studies and prepared cyclic systems
+and families.
+
+For specialized Python operations that accept `execution=`, pass the callable and its
+arguments to `aio.run`. This also works for bound methods and returns the operation's
+own result type.
+
+```python
+from antecedent import Execution, aio, preflight
+
+
+async def review(study, contract, source):
+    diagnostics = await aio.run(preflight.diagnose, study, execution=study.execution)
+    decision = await aio.run(contract.evaluate, source, execution=Execution(threads=2))
+    return diagnostics, decision
+```
+
+Each call has its own cancellation token and shares the memory admission pool of the
+supplied or retained `Execution`. `aio.run` uses the policy you pass or `Execution()`.
+The underlying operation determines which controls it supports. For a synchronous
+operation without an `execution` keyword, `asyncio.to_thread()` can move the call
+off the event loop.
+
+Cancelling an asyncio task skips an operation that is still waiting for an executor slot.
+For a running job, cancellation signals its token and waits for the worker to exit.
+Cancelling a caller-supplied token signals every async job linked to it.
+`asyncio.timeout()` follows the same task cancellation behavior. A running call can
+outlast the deadline while it reaches a cancellation check or waits for a synchronous
+callback to return. A hard stop requires a separately managed process.
 
 Use `aio.stream` to receive progress and optionally scientific stage events from a
 prepared study. Progress updates may be coalesced when the consumer is busy.
 The final `aio.Result` contains the outcome. Operational errors are raised during
-iteration. Stage streaming follows the route's usual support rules. Observers
+iteration. Stage streaming follows the route's usual support rules. Prepared cyclic
+studies can be streamed for their outcome. A request for scientific stages on a cyclic
+study raises `stage_stream_unavailable`. Observers
 already configured on the study's `Execution` still run synchronously on worker
 threads.
 
@@ -125,7 +149,7 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `accepted_graph` | Versioned accepted-graph session handle for artifact-first interactive UX | [selective-discovery.md](selective-discovery.md) |
 | `adaptive_inference` | Inference from adaptive experiments | [adaptive-inference.md](adaptive-inference.md) |
 | `adaptive_policy` | Optimise bounded history-dependent intervention policies | [adaptive-policies.md](adaptive-policies.md) |
-| `aio` | Awaitable analysis, preparation, estimation and event streaming | [Async analysis and streaming](#async-analysis-and-streaming) |
+| `aio` | Awaitable analysis, specialized operations and event streaming | [Async analysis and streaming](#async-analysis-and-streaming) |
 | `artifacts` | Durable format-0.5 artifacts for causal queries and results | [artifacts.md](artifacts.md) |
 | `attribution` | Attribution helpers | [guides/intrinsic-influence.md](guides/intrinsic-influence.md) |
 | `categorical_treatment` | Categorical treatments: ordered and unordered regimes with a declared reference | [guides/treatment-levels.md](guides/treatment-levels.md) |
