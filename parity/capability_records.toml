@@ -26987,7 +26987,7 @@ wire_changes = ["Versioned longitudinal_joint_sensitivity result container carri
 compatibility = "Additive bounded scientific route."
 coverage_records = ["cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners", "cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema"]
 search = false
-bounds = { cancellation = true, max_rows = 100000, max_refits = 2000, max_artifact_bytes = 16777216 }
+bounds = { cancellation = true, max_artifact_bytes = 16777216 }
 surface = ["python/antecedent/longitudinal_joint_sensitivity.py"]
 surface_pyo3 = ["python/src/longitudinal_joint_sensitivity_api.rs"]
 surface_rust = ["crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", "crates/antecedent/src/analysis/longitudinal_joint_sensitivity/kernel.rs", "crates/antecedent/src/analysis/composition_longitudinal_joint_sensitivity.rs"]
@@ -27157,7 +27157,7 @@ identity_inputs = ["complete source rows and column schema in source order", "RP
 wire_changes = ["Version 2 retains the continuous context-column schema. Version 1 replays with the historical role-free schema and framing."]
 compatibility = "Versioned decoding preserves the original data identity. Consumers must retain the artifact identity outside the supplied bytes."
 search = false
-bounds = { cancellation = true, max_bytes = 16777216, max_cells = 1000000 }
+bounds = { cancellation = true, max_bytes = 16777216 }
 surface_exports = ["python/antecedent/rpcmci_portable.py"]
 owned_exports = ["LearnedRpcmciArtifact", "LearnedRpcmciRefusal", "LearnedRpcmciRegimeScope", "consume_learned_rpcmci"]
 surface_rust = ["crates/antecedent/src/analysis/rpcmci_portable.rs"]

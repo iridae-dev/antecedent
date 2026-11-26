@@ -31,7 +31,6 @@ use crate::{
 const LEGACY_MAGIC: &[u8] = b"ANTE-RPCMCI-LEARNED-1\0";
 const SCHEMA_MAGIC: &[u8] = b"ANTE-RPCMCI-LEARNED-2\0";
 const MAX_BYTES: usize = 16 * 1024 * 1024;
-const MAX_CELLS: usize = 1_000_000;
 
 /// Retained native, unweighted partial-correlation RPCMCI declaration and complete series.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -176,19 +175,17 @@ impl LearnedRpcmciRequest {
     fn validate(&self) -> Result<(), RpcmciReplayError> {
         let width = self.names.len();
         let rows = self.columns.first().map_or(0, Vec::len);
-        if !(1..=64).contains(&width)
+        if width == 0
             || self.names.iter().any(|name| name.trim().is_empty() || name.len() > 256)
             || self.names.iter().collect::<BTreeSet<_>>().len() != width
             || self.columns.len() != width
             || rows < 10
-            || rows.saturating_mul(width) > MAX_CELLS
             || self
                 .columns
                 .iter()
                 .any(|column| column.len() != rows || column.iter().any(|x| !x.is_finite()))
             || self.interval_ns == 0
-            || !(1..=8).contains(&self.max_lag)
-            || self.max_cond_size > 8
+            || self.max_lag == 0
             || !self.alpha.is_finite()
             || !(0.0..1.0).contains(&self.alpha)
             || self.alpha == 0.0
@@ -243,9 +240,7 @@ impl LearnedRpcmciRequest {
         ctx: &ExecutionContext,
     ) -> Result<LearnedRpcmciArtifact, RpcmciReplayError> {
         self.validate()?;
-        let bytes = (self.columns[0].len() as u64)
-            .saturating_mul(self.columns.len() as u64)
-            .saturating_mul(16);
+        let bytes = series_bytes(self.columns[0].len(), self.columns.len())?;
         let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
             if ctx.cancellation.is_cancelled() {
                 RpcmciReplayError::Cancelled
@@ -347,6 +342,18 @@ impl LearnedRpcmciRequest {
         let identity = wire_identity(&wire, source_schema)?;
         Ok(LearnedRpcmciArtifact { wire, source_schema, identity, result: result.clone(), plan })
     }
+}
+
+fn series_bytes(rows: usize, width: usize) -> Result<u64, RpcmciReplayError> {
+    let rows = u64::try_from(rows).map_err(|_| {
+        RpcmciReplayError::Resource("learned RPCMCI series quote overflowed".into())
+    })?;
+    let width = u64::try_from(width).map_err(|_| {
+        RpcmciReplayError::Resource("learned RPCMCI series quote overflowed".into())
+    })?;
+    rows.checked_mul(width)
+        .and_then(|cells| cells.checked_mul(16))
+        .ok_or_else(|| RpcmciReplayError::Resource("learned RPCMCI series quote overflowed".into()))
 }
 
 fn encode_wire(wire: &Wire, source_schema: Option<SourceSchema>) -> Result<Vec<u8>, IoError> {

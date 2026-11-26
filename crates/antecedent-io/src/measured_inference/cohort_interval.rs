@@ -14,10 +14,11 @@ use super::{
 };
 use super::{invalid, refused};
 use crate::IoError;
+use antecedent_core::execution::AdmissionError;
 use antecedent_core::{ExecutionContext, IdentityDomain};
 use antecedent_estimate::cohort_linear_effect::{
-    CohortIntervalRefusal, FUNCTIONAL_ID, INTERVAL_METHOD, INTERVAL_SCOPE, MAX_FIT_FEATURES,
-    MAX_FIT_ROWS, NativeCohortFit, NativeFitRows, calibration_basis, native_cohort_interval,
+    CohortIntervalRefusal, FUNCTIONAL_ID, INTERVAL_METHOD, INTERVAL_SCOPE, NativeCohortFit,
+    NativeFitRows, calibration_basis, native_cohort_interval, native_fit_working_bytes,
 };
 use antecedent_io_core::cohort_decision::{CohortDecisionSource, CohortExpectation};
 use antecedent_io_core::compact_export::{CompactExport, ExportLimits};
@@ -25,6 +26,19 @@ use serde::{Deserialize, Serialize};
 
 /// Route name the measured envelope is consumed under.
 pub const ROUTE: &str = "cohort_interval";
+
+fn fit_admission(error: AdmissionError) -> IoError {
+    match error {
+        AdmissionError::Cancelled => IoError::Refused {
+            code: antecedent_core::reason_code!("cancelled_no_claim"),
+            message: "cohort interval replay was cancelled".to_owned(),
+        },
+        other => IoError::Refused {
+            code: antecedent_core::reason_code!("execution_resource_limit"),
+            message: format!("cohort interval replay exceeds the execution pool: {other}"),
+        },
+    }
+}
 
 fn from_interval(error: &CohortIntervalRefusal) -> IoError {
     IoError::Refused {
@@ -130,15 +144,17 @@ impl CohortIntervalArtifactWire {
                     &e.to_string(),
                 )
             })?;
-        if wire.fit_rows.outcome.len() > MAX_FIT_ROWS
-            || wire.fit_rows.features.len() > MAX_FIT_FEATURES
-        {
-            return Err(refused(
-                antecedent_core::reason_code!("route_not_supported"),
-                antecedent_core::reason_details::measured_inference::BOUNDS_EXCEEDED,
-                "fit rows exceed bounds",
-            ));
+        let mut values = u64::try_from(wire.fit_rows.outcome.len()).ok().and_then(|count| {
+            count.checked_add(u64::try_from(wire.fit_rows.treatment.len()).ok()?)
+        });
+        for column in &wire.fit_rows.features {
+            values = values.and_then(|count| count.checked_add(u64::try_from(column.len()).ok()?));
         }
+        let working = values
+            .ok_or(AdmissionError::Overflow)
+            .and_then(native_fit_working_bytes)
+            .map_err(fit_admission)?;
+        let _lease = ctx.acquire_admission(0, working).map_err(fit_admission)?;
         // The native-fit marker is never trusted: refit from the retained rows and
         // require the stored export to be exactly what the fit produces.
         let native = NativeCohortFit::replay(

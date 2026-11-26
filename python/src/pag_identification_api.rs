@@ -219,12 +219,18 @@ fn locate(names: &[String], name: &str) -> PyResult<VariableId> {
 }
 
 #[pyfunction]
+#[pyo3(signature = (pag, actions, outcomes, given, population, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+#[allow(clippy::too_many_arguments, reason = "the declared query plus the execution controls")]
 fn direct_pag_compile(
     pag: PyRef<'_, Pag>,
     actions: Vec<String>,
     outcomes: Vec<String>,
     given: Vec<String>,
     population: String,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<PyCancellationToken>,
+    memory_bytes: Option<u64>,
 ) -> PyResult<Refused<PyDirectPagPlan>> {
     // PagWire carries endpoint marks only. Check the source before encoding it.
     for index in 0..pag.pag.node_count() {
@@ -260,7 +266,8 @@ fn direct_pag_compile(
         given: ids(given)?,
         population,
     };
-    Ok(match compile_pag_identification(problem) {
+    let ctx = context(seed, threads, cancel, memory_bytes);
+    Ok(match compile_pag_identification(problem, &ctx) {
         Ok(plan) => (Some(PyDirectPagPlan { plan }), None),
         Err(error) => (None, Some(fail(&error))),
     })

@@ -20,7 +20,7 @@ from numpy.typing import ArrayLike, NDArray
 from . import _deprecation, _direct_status, _native
 from ._columns import coerce_fields, hold_unresolved, resolved
 from .errors import CausalValueError
-from .execution import Execution, resolve_execution
+from .execution import Execution, native_controls, resolve_execution
 
 HistoryPolicy: TypeAlias = Callable[[int, tuple[bool, ...], tuple[tuple[float, ...], ...]], bool]
 Regime: TypeAlias = Sequence[bool] | HistoryPolicy
@@ -46,9 +46,9 @@ class FittedRegimeQ:
             raise CausalValueError("fitted Q needs a named binary baseline column")
         if (
             type(self.bootstrap_replicates) is not int
-            or not 99 <= self.bootstrap_replicates <= 100_000
+            or self.bootstrap_replicates < 99
         ):
-            raise CausalValueError("fitted Q needs 99 to 100000 whole-subject bootstrap replicates")
+            raise CausalValueError("fitted Q needs at least 99 whole-subject bootstrap replicates")
         if self.external_training_fold is not None and (
             type(self.external_training_fold) is not int
             or not 0 <= self.external_training_fold < 2**32
@@ -270,9 +270,9 @@ class LongitudinalRegime:
                 )
             if (
                 type(self.schedule_family.draws) is not int
-                or not 199 <= self.schedule_family.draws <= 100_000
+                or self.schedule_family.draws < 199
             ):
-                raise CausalValueError("schedule inference needs 199 to 100000 whole-subject draws")
+                raise CausalValueError("schedule inference needs at least 199 whole-subject draws")
             self.schedule_family._wire()
         elif self.schedule_family is not None:
             raise CausalValueError("schedule_family requires compare_schedules or learn_schedule")
@@ -1472,12 +1472,14 @@ def trajectory_survival_bootstrap(
     data = _trajectories(
         treatment, event, at_risk, treatment_probability, censoring_weight, minimum_probability
     )
-    low, high, rmst_low, rmst_high, requested, ok = _native.trajectory_bootstrap_native(
+    low, high, rmst_low, rmst_high, requested, ok = execution._call(
+        _native.trajectory_bootstrap_native,
         *data.args(),
         [bool(a) for a in active],
         [bool(c) for c in control],
         int(replicates),
         int(execution.seed),
+        **native_controls(execution, threads="threads", cancel="cancel", memory="memory_bytes"),
     )
     return TrajectorySurvivalIntervals((low, high), (rmst_low, rmst_high), requested, ok)
 

@@ -276,8 +276,8 @@ impl Standardization<'_> {
         minimum_horizon_risk: usize,
         cancelled: &impl Fn() -> bool,
     ) -> Result<SurvivalDifferenceBand, &'static str> {
-        if !(399..=100_000).contains(&draws) {
-            return Err("conditional survival band requires 399 to 100000 full-refit replicates");
+        if draws < 399 {
+            return Err("conditional survival band requires at least 399 full-refit replicates");
         }
         let difference =
             summary.treated.iter().zip(&summary.control).map(|(a, b)| a - b).collect::<Vec<_>>();

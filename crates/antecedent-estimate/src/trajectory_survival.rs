@@ -209,8 +209,8 @@ pub struct TrajectoryBootstrapIntervals {
 /// # Errors
 ///
 /// Returns every error of [`trajectory_survival_contrast`] on the observed rows, an error
-/// when the replicate count is outside `199..=100000`, and an error when too many
-/// replicates fail their support checks.
+/// when fewer than 199 replicates are requested, when the working set does not fit the
+/// execution pool, and an error when too many replicates fail their support checks.
 #[must_use = "the interval conditions on the supplied weights"]
 pub fn trajectory_survival_bootstrap(
     rows: &TrajectoryRows<'_>,
@@ -218,16 +218,26 @@ pub fn trajectory_survival_bootstrap(
     control: &[bool],
     replicates: u32,
     seed: u64,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<TrajectoryBootstrapIntervals, &'static str> {
-    if !(199..=100_000).contains(&replicates) {
-        return Err("trajectory bootstrap requires 199 to 100000 replicates");
+    if replicates < 199 {
+        return Err("trajectory bootstrap requires at least 199 replicates");
+    }
+    if ctx.cancellation.is_cancelled() {
+        return Err("trajectory bootstrap was cancelled");
     }
     trajectory_survival_contrast(rows, active, control)?;
     let TrajectoryRows { subjects, periods, .. } = *rows;
+    let _lease = ctx
+        .acquire_serial_numerical_admission(trajectory_work_bytes(subjects, periods, replicates)?)
+        .map_err(|_| "trajectory bootstrap exceeds the execution pool")?;
     let mut stream = seed ^ 0x5CA1_AB1E_7A11_0B5E;
     let mut survival = Vec::new();
     let mut restricted = Vec::new();
     for _ in 0..replicates {
+        if ctx.cancellation.is_cancelled() {
+            return Err("trajectory bootstrap was cancelled");
+        }
         let picks: Vec<usize> = (0..subjects)
             .map(|_| {
                 let draw = splitmix64(&mut stream) % u64::try_from(subjects).unwrap_or(u64::MAX);
@@ -278,6 +288,29 @@ pub fn trajectory_survival_bootstrap(
         replicates_requested: replicates,
         replicates_ok: ok,
     })
+}
+
+fn trajectory_work_bytes(
+    subjects: usize,
+    periods: usize,
+    replicates: u32,
+) -> Result<u64, &'static str> {
+    let subjects =
+        u64::try_from(subjects).map_err(|_| "trajectory bootstrap exceeds the execution pool")?;
+    let periods =
+        u64::try_from(periods).map_err(|_| "trajectory bootstrap exceeds the execution pool")?;
+    let cells =
+        subjects.checked_mul(periods).ok_or("trajectory bootstrap exceeds the execution pool")?;
+    // One replicate's picks, three boolean columns and two weight columns, plus the retained draws.
+    let scratch = subjects
+        .checked_mul(8)
+        .and_then(|picks| cells.checked_mul(3).and_then(|flags| picks.checked_add(flags)))
+        .and_then(|body| cells.checked_mul(16).and_then(|weights| body.checked_add(weights)))
+        .ok_or("trajectory bootstrap exceeds the execution pool")?;
+    let draws = u64::from(replicates)
+        .checked_mul(16)
+        .ok_or("trajectory bootstrap exceeds the execution pool")?;
+    scratch.checked_add(draws).ok_or("trajectory bootstrap exceeds the execution pool")
 }
 
 /// Credible interval for the trajectory survival contrast: refused.
@@ -629,7 +662,15 @@ mod tests {
             censoring_weight: &censoring,
             minimum_probability: 0.2,
         };
-        let intervals = trajectory_survival_bootstrap(&data, &[true], &[false], 999, 17).unwrap();
+        let intervals = trajectory_survival_bootstrap(
+            &data,
+            &[true],
+            &[false],
+            999,
+            17,
+            &antecedent_core::ExecutionContext::for_tests(0),
+        )
+        .unwrap();
         let share = |arm: bool| {
             let members = treatment.iter().filter(|value| **value == arm).count() as f64;
             let events =
@@ -653,9 +694,14 @@ mod tests {
     #[test]
     fn bootstrap_and_credible_interval_refusals_name_what_is_missing() {
         let data = fixture();
-        let few =
-            trajectory_survival_bootstrap(&rows(&data), &ACTIVE, &CONTROL, 10, 1).unwrap_err();
-        assert_eq!(few, "trajectory bootstrap requires 199 to 100000 replicates");
+        let open = antecedent_core::ExecutionContext::for_tests(0);
+        let few = trajectory_survival_bootstrap(&rows(&data), &ACTIVE, &CONTROL, 10, 1, &open)
+            .unwrap_err();
+        assert_eq!(few, "trajectory bootstrap requires at least 199 replicates");
+        let tight = open.with_admission(antecedent_core::execution::AdmissionPool::fixed(1, 1));
+        let pooled = trajectory_survival_bootstrap(&rows(&data), &ACTIVE, &CONTROL, 199, 1, &tight)
+            .unwrap_err();
+        assert_eq!(pooled, "trajectory bootstrap exceeds the execution pool");
         let invalid = trajectory_hazard_credible_interval(&rows(&data), &[false, true], &CONTROL)
             .unwrap_err();
         assert_eq!(invalid, "a trajectory risk set has no positive weight");

@@ -12211,6 +12211,10 @@ def trajectory_bootstrap_native(
     control: list[bool],
     replicates: int,
     seed: int,
+    *,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[float, float, float, float, int, int]: ...
 def trajectory_credible_interval_native(
     subjects: int,
@@ -14599,7 +14603,16 @@ class DirectPagResultHandle:
     ) -> tuple[str | None, str | None]: ...
 
 def direct_pag_compile(
-    pag: Pag, actions: list[str], outcomes: list[str], given: list[str], population: str
+    pag: Pag,
+    actions: list[str],
+    outcomes: list[str],
+    given: list[str],
+    population: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[DirectPagPlanHandle | None, str | None]: ...
 def direct_pag_consume(
     data: bytes,

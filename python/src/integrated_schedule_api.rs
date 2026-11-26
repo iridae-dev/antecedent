@@ -173,7 +173,7 @@ fn integrated_schedule_decision_compile(
             Ok(value) => value,
             Err(error) => return Ok((None, Some(invalid(error)))),
         };
-        match compile_integrated_schedule_decision(source, target, declaration) {
+        match compile_integrated_schedule_decision(source, target, declaration, &ctx) {
             Ok(plan) => Ok((Some(PyIntegratedSchedulePlan { plan }), None)),
             Err(error) => refused(error),
         }

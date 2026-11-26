@@ -3,11 +3,11 @@
 use std::sync::Arc;
 
 use antecedent::analysis::composition::{
-    BundleBuilder, NodeKind, SuppliedSources, consume, detect_node_kind, export_bundle,
+    consume, detect_node_kind, export_bundle, BundleBuilder, NodeKind, SuppliedSources,
 };
 use antecedent::analysis::pag_identification::{
-    PagIdError, PagIdentificationProblem, PagIdentificationProof, PagReplayError,
-    compile_pag_identification, consume_pag_identification,
+    compile_pag_identification, consume_pag_identification, PagIdError, PagIdentificationProblem,
+    PagIdentificationProof, PagReplayError,
 };
 use antecedent_core::{ExecutionContext, RegimeId, Value, VariableId};
 use antecedent_expr::{
@@ -136,7 +136,8 @@ fn shared_budget_preserves_persisted_work_and_result_identities() {
     ];
     for (case, limit, expected_work, retained_identity) in cases {
         let ctx = ExecutionContext::for_tests(1).with_id_work_limit(limit);
-        let plan = compile_pag_identification(fixture(case)).unwrap();
+        let plan =
+            compile_pag_identification(fixture(case), &ExecutionContext::for_tests(0)).unwrap();
         let result = plan.execute_retaining_stop(&ctx).unwrap();
         assert_eq!(result.work(), expected_work, "{case} with limit {limit}");
         assert_eq!(result.identity(), retained_identity, "{case} with limit {limit}");
@@ -152,7 +153,7 @@ fn shared_budget_preserves_persisted_work_and_result_identities() {
 fn published_beyond_adjustment_formula_replays_and_executes() {
     let ctx = ExecutionContext::for_tests(7);
     let problem = fixture("marginal_beyond_adjustment");
-    let plan = compile_pag_identification(problem).unwrap();
+    let plan = compile_pag_identification(problem, &ExecutionContext::for_tests(0)).unwrap();
     assert_eq!(plan.plan_view().route().as_str(), "DirectPagIdentification");
     let artifact = plan.execute(&ctx).unwrap();
     assert!(matches!(artifact.proof(), PagIdentificationProof::Identified { .. }));
@@ -182,22 +183,21 @@ fn published_beyond_adjustment_formula_replays_and_executes() {
     let mut bundle = BundleBuilder::new();
     bundle.add_detected_artifact(Some("pag"), &bytes).unwrap();
     let graph = bundle.build().unwrap();
-    assert!(
-        consume(
-            &export_bundle(&graph, "direct-pag").unwrap(),
-            graph.identity(),
-            &SuppliedSources::default()
-        )
-        .unwrap()
-        .all_replayed()
-    );
+    assert!(consume(
+        &export_bundle(&graph, "direct-pag").unwrap(),
+        graph.identity(),
+        &SuppliedSources::default()
+    )
+    .unwrap()
+    .all_replayed());
 }
 
 #[test]
 fn published_conditional_exchange_and_obstruction_are_distinct_from_resource_stop() {
     let ctx = ExecutionContext::for_tests(9);
     let problem = fixture("conditional_exchange");
-    let plan = compile_pag_identification(problem.clone()).unwrap();
+    let plan =
+        compile_pag_identification(problem.clone(), &ExecutionContext::for_tests(0)).unwrap();
     let artifact = plan.execute(&ctx).unwrap();
     let obs = law(4, |a| {
         binary_mass(a[0], 0.35)
@@ -213,15 +213,27 @@ fn published_conditional_exchange_and_obstruction_are_distinct_from_resource_sto
     marginal.outcomes = vec![1, 2, 3];
     marginal.given.clear();
     assert!(matches!(
-        compile_pag_identification(marginal).unwrap().execute(&ctx).unwrap().proof(),
+        compile_pag_identification(marginal, &ExecutionContext::for_tests(0))
+            .unwrap()
+            .execute(&ctx)
+            .unwrap()
+            .proof(),
         PagIdentificationProof::MarginalObstruction { .. }
     ));
-    let reverse = compile_pag_identification(fixture("conditional_reverse_exchange")).unwrap();
+    let reverse = compile_pag_identification(
+        fixture("conditional_reverse_exchange"),
+        &ExecutionContext::for_tests(0),
+    )
+    .unwrap();
     assert!(matches!(
         reverse.execute(&ctx).unwrap().proof(),
         PagIdentificationProof::Identified { .. }
     ));
-    let failed = compile_pag_identification(fixture("conditional_obstruction")).unwrap();
+    let failed = compile_pag_identification(
+        fixture("conditional_obstruction"),
+        &ExecutionContext::for_tests(0),
+    )
+    .unwrap();
     let evidence = failed.execute(&ctx).unwrap();
     assert!(
         matches!(evidence.proof(), PagIdentificationProof::ConditionalObstruction { path, .. } if path == &[0, 3, 2])
@@ -262,7 +274,10 @@ fn all_two_vertex_pag_classes_match_the_semantic_definition() {
                 given: vec![],
                 population: "observed".into(),
             };
-            let artifact = compile_pag_identification(problem).unwrap().execute(&ctx).unwrap();
+            let artifact = compile_pag_identification(problem, &ExecutionContext::for_tests(0))
+                .unwrap()
+                .execute(&ctx)
+                .unwrap();
             if adjacency {
                 // X -> Y with uniform X and independent 0.1 flip and its reverse
                 // both give table [0.45, 0.05, 0.05, 0.45]. Their P(Y=1 | do(X=1))
@@ -308,7 +323,11 @@ fn all_three_vertex_pag_classes_match_the_path_and_collider_reference() {
             let mut graph = Pag::with_variables(3);
             for &(a, b) in &present {
                 let mark = |node| {
-                    if collider == Some(node) { Endpoint::Arrow } else { Endpoint::Circle }
+                    if collider == Some(node) {
+                        Endpoint::Arrow
+                    } else {
+                        Endpoint::Circle
+                    }
                 };
                 graph
                     .insert_marked(MarkedEdge {
@@ -340,7 +359,10 @@ fn all_three_vertex_pag_classes_match_the_path_and_collider_reference() {
                             population: "observed".into(),
                         };
                         let direct =
-                            compile_pag_identification(problem).unwrap().execute(&ctx).unwrap();
+                            compile_pag_identification(problem, &ExecutionContext::for_tests(0))
+                                .unwrap()
+                                .execute(&ctx)
+                                .unwrap();
                         assert_eq!(
                             matches!(direct.proof(), PagIdentificationProof::Identified { .. }),
                             expected,
@@ -377,14 +399,17 @@ fn direct_and_completion_values_agree_on_their_shared_identified_scope() {
     use antecedent_data::TabularData;
 
     let graph = Pag::with_variables(2);
-    let direct = compile_pag_identification(PagIdentificationProblem {
-        graph: antecedent_io::pag_to_wire(&graph).unwrap(),
-        names: vec!["X".into(), "Y".into()],
-        actions: vec![0],
-        outcomes: vec![1],
-        given: vec![],
-        population: "observed".into(),
-    })
+    let direct = compile_pag_identification(
+        PagIdentificationProblem {
+            graph: antecedent_io::pag_to_wire(&graph).unwrap(),
+            names: vec!["X".into(), "Y".into()],
+            actions: vec![0],
+            outcomes: vec![1],
+            given: vec![],
+            population: "observed".into(),
+        },
+        &ExecutionContext::for_tests(0),
+    )
     .unwrap();
     let ctx = ExecutionContext::for_tests(2913);
     let joint = |atom: &[usize]| binary_mass(atom[0], 0.5) * binary_mass(atom[1], 0.625);
@@ -429,7 +454,10 @@ fn visible_nonnull_effect_matches_the_completion_route_and_shared_oracle() {
     let problem = fixture("visible_collider_parent");
     let graph = antecedent_io::pag_from_wire(&problem.graph).unwrap();
     let ctx = ExecutionContext::for_tests(93);
-    let direct = compile_pag_identification(problem).unwrap().execute(&ctx).unwrap();
+    let direct = compile_pag_identification(problem, &ExecutionContext::for_tests(0))
+        .unwrap()
+        .execute(&ctx)
+        .unwrap();
     let joint = |a: &[usize]| {
         0.25 * binary_mass(a[1], 0.25 + 0.25 * (a[0] + a[2]) as f64)
             * binary_mass(a[3], [0.125, 0.875][a[1]])
@@ -475,7 +503,11 @@ fn visible_nonnull_effect_matches_the_completion_route_and_shared_oracle() {
 fn retained_search_stop_replays_under_its_original_budget() {
     use antecedent::analysis::pag_identification::PagResourceStop;
     use antecedent_core::{SearchBudget, SearchLimits, SearchStop};
-    let plan = compile_pag_identification(fixture("conditional_obstruction")).unwrap();
+    let plan = compile_pag_identification(
+        fixture("conditional_obstruction"),
+        &ExecutionContext::for_tests(0),
+    )
+    .unwrap();
     let ctx = ExecutionContext::for_tests(90);
     let short = ctx.clone().with_id_work_limit(2);
     let stopped = plan.execute_retaining_stop(&short).unwrap();
@@ -510,15 +542,13 @@ fn retained_search_stop_replays_under_its_original_budget() {
         consume_pag_identification(&bytes, stopped.identity(), plan.lowered().identity(), &ctx)
             .unwrap();
     assert_eq!(replayed.proof(), stopped.proof());
-    assert!(
-        consume_pag_identification(
-            &bytes,
-            stopped.identity(),
-            plan.lowered().identity(),
-            &ctx.clone().with_id_work_limit(1)
-        )
-        .is_err()
-    );
+    assert!(consume_pag_identification(
+        &bytes,
+        stopped.identity(),
+        plan.lowered().identity(),
+        &ctx.clone().with_id_work_limit(1)
+    )
+    .is_err());
     let completed = plan.execute_retaining_stop(&ctx).unwrap();
     assert!(matches!(completed.proof(), PagIdentificationProof::ConditionalObstruction { .. }));
     assert_ne!(completed.identity(), stopped.identity());
@@ -526,9 +556,9 @@ fn retained_search_stop_replays_under_its_original_budget() {
     builder.add_detected_artifact(Some("stopped"), &bytes).unwrap();
     let bundle = builder.build().unwrap();
     let encoded = export_bundle(&bundle, "retained-PAG-stop").unwrap();
-    assert!(
-        consume(&encoded, bundle.identity(), &SuppliedSources::default()).unwrap().all_replayed()
-    );
+    assert!(consume(&encoded, bundle.identity(), &SuppliedSources::default())
+        .unwrap()
+        .all_replayed());
 }
 
 /// Both SCMs use an independent uniform binary root and the same 10% flip noise.
@@ -570,14 +600,17 @@ fn observationally_equal_two_vertex_models_have_different_do_laws() {
             middle: MiddleMark::Empty,
         })
         .unwrap();
-    let identified = compile_pag_identification(PagIdentificationProblem {
-        graph: antecedent_io::pag_to_wire(&graph).unwrap(),
-        names: vec!["X".into(), "Y".into()],
-        actions: vec![0],
-        outcomes: vec![1],
-        given: vec![],
-        population: "observed".into(),
-    })
+    let identified = compile_pag_identification(
+        PagIdentificationProblem {
+            graph: antecedent_io::pag_to_wire(&graph).unwrap(),
+            names: vec!["X".into(), "Y".into()],
+            actions: vec![0],
+            outcomes: vec![1],
+            given: vec![],
+            population: "observed".into(),
+        },
+        &ExecutionContext::for_tests(0),
+    )
     .unwrap()
     .execute(&ExecutionContext::for_tests(1))
     .unwrap();
@@ -586,7 +619,11 @@ fn observationally_equal_two_vertex_models_have_different_do_laws() {
 
 #[test]
 fn portable_intake_honors_cancellation_and_memory_before_symbolic_search() {
-    let plan = compile_pag_identification(fixture("marginal_beyond_adjustment")).unwrap();
+    let plan = compile_pag_identification(
+        fixture("marginal_beyond_adjustment"),
+        &ExecutionContext::for_tests(0),
+    )
+    .unwrap();
     let ctx = ExecutionContext::for_tests(8);
     let result = plan.execute(&ctx).unwrap();
     let bytes = result.to_bytes().unwrap();
@@ -627,14 +664,17 @@ fn retained_depth_stop_is_distinct_from_the_work_budget_and_replays() {
     let count = u32::try_from(depth_limit + 2).unwrap();
     let graph = Pag::with_variables(count);
     let ctx = ExecutionContext::for_tests(8).with_id_work_limit(1_048_576);
-    let plan = compile_pag_identification(PagIdentificationProblem {
-        graph: antecedent_io::pag_to_wire(&graph).unwrap(),
-        names: (0..count).map(|id| format!("variable-{id}")).collect(),
-        actions: vec![0],
-        outcomes: vec![count - 1],
-        given: vec![],
-        population: "observed".into(),
-    })
+    let plan = compile_pag_identification(
+        PagIdentificationProblem {
+            graph: antecedent_io::pag_to_wire(&graph).unwrap(),
+            names: (0..count).map(|id| format!("variable-{id}")).collect(),
+            actions: vec![0],
+            outcomes: vec![count - 1],
+            given: vec![],
+            population: "observed".into(),
+        },
+        &ExecutionContext::for_tests(0),
+    )
     .unwrap();
     let stopped = plan.execute_retaining_stop(&ctx).unwrap();
     assert!(matches!(stopped.proof(), PagIdentificationProof::ResourceStop {
@@ -648,4 +688,27 @@ fn retained_depth_stop_is_distinct_from_the_work_budget_and_replays() {
     )
     .unwrap();
     assert_eq!(replay.proof(), stopped.proof());
+}
+
+#[test]
+fn compile_refuses_reentry_and_cancellation_without_changing_a_successful_program() {
+    use antecedent_core::identity::SemanticDigest;
+
+    let problem = fixture("marginal_beyond_adjustment");
+    let open = ExecutionContext::for_tests(0);
+    let compiled = compile_pag_identification(problem.clone(), &open).unwrap();
+    let again = compile_pag_identification(problem.clone(), &open).unwrap();
+    assert_eq!(compiled.lowered().identity(), again.lowered().identity());
+
+    let scoped = open.enter_lowered_dispatch(SemanticDigest::from_bytes([1; 32]));
+    assert!(matches!(
+        compile_pag_identification(problem.clone(), &scoped),
+        Err(PagReplayError::Invalid(_))
+    ));
+
+    open.cancellation.cancel();
+    assert!(matches!(
+        compile_pag_identification(problem, &open),
+        Err(PagReplayError::Identification(PagIdError::Cancelled))
+    ));
 }

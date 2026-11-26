@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{QuantileRule, StatsError, equal_tail_interval_sorted};
+use crate::{equal_tail_interval_sorted, QuantileRule, StatsError};
 use antecedent_core::{ExecutionContext, StreamDomain};
 
 const SUBJECT_BOOTSTRAP_STREAM: u64 = 0x5126_7740_0000_0000;
@@ -143,20 +143,26 @@ pub fn estimate_fitted_regime_q(
         || rows.actions.len() != subjects.saturating_mul(2)
         || rows.baseline.iter().any(|&x| x != 0.0 && x != 1.0)
         || rows.outcomes.iter().any(|y| !y.is_finite())
-        || !(99..=100_000).contains(&replicates)
-        || subjects.saturating_mul(replicates) > 100_000_000
     {
         return Err(StatsError::Shape {
-            message: "fitted Q needs aligned binary-baseline histories and a bounded whole-subject bootstrap",
+            message: "fitted Q needs aligned binary-baseline histories",
         });
     }
-    let _lease = ctx
-        .acquire_serial_numerical_admission(
-            (subjects as u64)
-                .saturating_mul(128)
-                .saturating_add((replicates as u64).saturating_mul(8)),
-        )
-        .map_err(StatsError::Admission)?;
+    if replicates < 99 {
+        return Err(StatsError::Shape {
+            message: "fitted Q needs at least 99 whole-subject bootstrap replicates",
+        });
+    }
+    let quoted_subjects = u64::try_from(subjects).map_err(|_| fitted_quote_overflow(ctx))?;
+    let quoted_replicates = u64::try_from(replicates).map_err(|_| fitted_quote_overflow(ctx))?;
+    let bytes = quoted_subjects
+        .checked_mul(128)
+        .and_then(|body| quoted_replicates.checked_mul(8).and_then(|draws| body.checked_add(draws)))
+        .ok_or_else(|| fitted_quote_overflow(ctx))?;
+    let _lease = ctx.acquire_serial_numerical_admission(bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => StatsError::Cancelled,
+        other => StatsError::Admission(other),
+    })?;
     let mut by_fold: BTreeMap<u32, Vec<usize>> = BTreeMap::new();
     for (i, &fold) in rows.folds.iter().enumerate() {
         by_fold.entry(fold).or_default().push(i);
@@ -174,9 +180,12 @@ pub fn estimate_fitted_regime_q(
     let evaluation_subjects = training_fold.map_or(subjects, |fold| subjects - folds[fold].len());
     let mut cells = vec![[Cell::default(); 2]; folds.len()];
     let mut weights = vec![1.0; subjects];
-    let value = estimate(rows, &folds, &weights, actions, training_fold, &mut cells).ok_or_else(|| {
-        StatsError::Unsupported { message: "the training split has no observed regime match for an evaluated baseline stratum" }
-    })?;
+    let value = estimate(rows, &folds, &weights, actions, training_fold, &mut cells).ok_or_else(
+        || StatsError::Unsupported {
+            message:
+                "the training split has no observed regime match for an evaluated baseline stratum",
+        },
+    )?;
     let mut fitted_values = Vec::with_capacity(replicates);
     for replicate in 0..replicates {
         if ctx.cancellation.is_cancelled() {
@@ -211,4 +220,12 @@ pub fn estimate_fitted_regime_q(
         evaluation_subjects,
         replicates_ok: fitted_values.len(),
     })
+}
+
+fn fitted_quote_overflow(ctx: &ExecutionContext) -> StatsError {
+    StatsError::ResourceLimit {
+        message: "fitted Q work quote overflowed",
+        required_bytes: u64::MAX,
+        limit_bytes: ctx.memory_limit_bytes().unwrap_or(u64::MAX),
+    }
 }

@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::temporal_curve_posterior_meaning::{
-    SerialErrorModel, TemporalCurvePosteriorMeaning, temporal_curve_posterior_meaning,
+    temporal_curve_posterior_meaning, SerialErrorModel, TemporalCurvePosteriorMeaning,
 };
 pub use antecedent_estimate::trajectory_survival::{
     TrajectoryBootstrapIntervals, TrajectoryRows, TrajectorySurvivalContrast,
@@ -47,19 +47,29 @@ pub fn trajectory_survival_contrast(
 /// conditional on the supplied treatment probabilities and censoring weights.
 ///
 /// # Errors
-/// Every error of [`trajectory_survival_contrast`], a replicate count outside
-/// `199..=100000`, or more than a tenth of the replicates lost to empty risk sets.
+/// Every error of [`trajectory_survival_contrast`], fewer than 199 replicates, a working
+/// set the execution pool cannot fund, cancellation, or more than a tenth of the
+/// replicates lost to empty risk sets.
 pub fn trajectory_survival_bootstrap(
     rows: &TrajectoryRows<'_>,
     active: &[bool],
     control: &[bool],
     replicates: u32,
     seed: u64,
+    ctx: &antecedent_core::ExecutionContext,
 ) -> Result<TrajectoryBootstrapIntervals, CausalError> {
     antecedent_estimate::trajectory_survival::trajectory_survival_bootstrap(
-        rows, active, control, replicates, seed,
+        rows, active, control, replicates, seed, ctx,
     )
-    .map_err(data_error)
+    .map_err(|message| match message {
+        "trajectory bootstrap exceeds the execution pool" => {
+            CausalError::Resource { message: message.into() }
+        }
+        "trajectory bootstrap was cancelled" => {
+            CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT }
+        }
+        other => data_error(other),
+    })
 }
 
 /// Credible interval of the trajectory survival contrast: always refused.

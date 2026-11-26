@@ -17,7 +17,6 @@ pub use artifact::{
     inspect_program_schedule_bundle_expecting,
 };
 
-const MAX_SUBJECTS: usize = 1_000_000;
 const PRIMITIVES: f64 = 13.0; // eight observed endpoint means, four second-action probabilities, one target prevalence
 const ALPHA: f64 = 0.05;
 
@@ -145,9 +144,6 @@ impl ScheduleSourceFit {
         if rows.is_empty() {
             return Err(ScheduleDecisionError::MissingJointEvidence);
         }
-        if rows.len() > MAX_SUBJECTS {
-            return Err(ScheduleDecisionError::InvalidDeclaration);
-        }
         let mut cells = [[Cell::default(); 4]; 2];
         let mut binary_observed_endpoints = true;
         for row in rows {
@@ -170,12 +166,10 @@ impl ScheduleSourceFit {
 
     fn check(&self) -> Result<(), ScheduleDecisionError> {
         if self.cells.iter().flatten().any(|cell| {
-            cell.assigned > MAX_SUBJECTS
-                || cell.observed > cell.assigned
+            cell.observed > cell.assigned
                 || !cell.endpoint_sum.is_finite()
                 || !(0.0..=cell.observed as f64).contains(&cell.endpoint_sum)
-        }) || self.cells.iter().flatten().map(|cell| cell.assigned).sum::<usize>() > MAX_SUBJECTS
-        {
+        }) {
             return Err(ScheduleDecisionError::InvalidDeclaration);
         }
         if self.cells.iter().flatten().any(|cell| cell.observed < 10) {
@@ -206,7 +200,7 @@ impl ScheduleTargetCohort {
     }
 
     fn check(self) -> Result<(), ScheduleDecisionError> {
-        if self.subjects > MAX_SUBJECTS || self.positive > self.subjects {
+        if self.positive > self.subjects {
             return Err(ScheduleDecisionError::InvalidDeclaration);
         }
         if self.subjects < 20 {

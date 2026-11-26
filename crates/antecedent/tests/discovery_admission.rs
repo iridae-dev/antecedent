@@ -132,11 +132,8 @@ fn a_finished_discovery_admits_as_accept_discovered() {
         assert_ne!(admitted_contract.identities.program, Some(program(&on_bare, &ctx())));
 
         let other = chain_table(200, 9);
-        let refused = Study::tabular(other).query(paths()).admit_finished_discovery(
-            &execution,
-            true,
-            &ctx(),
-        );
+        let refused =
+            Study::tabular(other).query(paths()).admit_finished_discovery(&execution, true, &ctx());
         let message = refused.expect_err("a different table is not this discovery").to_string();
         assert!(message.contains("different table"), "{message}");
         assert_eq!(execution.lowered_identity(), identity);
@@ -167,10 +164,26 @@ fn learned_rpcmci_checks_cells_and_artifact_bytes_before_resource_admission() {
         fdr: false,
         max_cond_size: 1,
     };
-    // At the declared maximum the request reaches the caller's smaller allocation budget.
+    // One million cells, and one more, are both the caller's allocation. Neither is a fixed cell cap.
     assert!(matches!(request.clone().run(&limited), Err(RpcmciReplayError::Resource(_))));
     request.columns[0].push(0.0);
-    assert!(matches!(request.run(&limited), Err(RpcmciReplayError::Invalid(_))));
+    assert!(matches!(request.run(&limited), Err(RpcmciReplayError::Resource(_))));
+    let wide = LearnedRpcmciRequest {
+        names: (0..65).map(|index| format!("v{index}")).collect(),
+        columns: vec![vec![0.0; 10]; 65],
+        interval_ns: 1,
+        count: 2,
+        select_count: false,
+        starts: 1,
+        max_iterations: 2,
+        switch_penalty: 1.0,
+        min_regime_len: Some(2),
+        max_lag: 9,
+        alpha: 0.05,
+        fdr: false,
+        max_cond_size: 9,
+    };
+    assert!(matches!(wide.run(&limited), Err(RpcmciReplayError::Resource(_))));
 
     let bytes = vec![0; (16 << 20) + 1];
     assert!(matches!(
