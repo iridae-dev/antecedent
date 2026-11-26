@@ -20,7 +20,7 @@
 # An unclassified candidate and a row no candidate matches both fail.
 
 [result_types]
-seed = ["EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport", "EventLaw", "ExcitationOffspring", "MarkedOffspring", "MarkedFit", "ExcitationReading", "ExcitationSubject", "ReleaseComparison", "AcceptedExcitation", "LagCountQuery", "ReleaseQuestionOutcome", "MemberReleaseStudy", "PreferenceEvaluation", "StructuralPreferenceEvaluation", "SampledStructuralEvaluation", "PreferenceDecisionResult", "CertifiedPreferenceResult", "SetLearningResult", "ChoiceModelResult", "CompiledPreferenceEvaluation"]
+seed = ["NativeCohortFit", "EffectEstimate", "InterferenceEstimate", "TransportEffectEstimate", "MeasuredInference", "ZTransportResult", "StaticCpdagDiscoveryResult", "StaticDagDiscoveryResult", "StaticPagDiscoveryResult", "PagDiscoveryResult", "CpdagDiscoveryResult", "NotearsDiscoveryResult", "RpcmciDiscoveryResult", "CyclicFciResult", "GraphPosterior", "ExactDagMarginals", "TemporalIntervalArtifactWire", "PooledIntervalCandidate", "GraphFalsificationReport", "EventLaw", "ExcitationOffspring", "MarkedOffspring", "MarkedFit", "ExcitationReading", "ExcitationSubject", "ReleaseComparison", "AcceptedExcitation", "LagCountQuery", "ReleaseQuestionOutcome", "MemberReleaseStudy", "PreferenceEvaluation", "StructuralPreferenceEvaluation", "SampledStructuralEvaluation", "PreferenceDecisionResult", "CertifiedPreferenceResult", "SetLearningResult", "ChoiceModelResult", "CompiledPreferenceEvaluation"]
 
 [[row]]
 path = "antecedent::AcceptedPosterior::posterior"
@@ -5777,13 +5777,20 @@ reason = "Hashes the study design and supplied patient evidence."
 
 [[row]]
 path = "antecedent::analysis::composition::refit_compact_model"
-disposition = "consume"
+disposition = "compiled"
+route = "CompactModelRefit"
 
 [[row]]
 path = "antecedent::analysis::composition::refit_compact_bundle_model"
-disposition = "consume"
+disposition = "compiled"
+route = "CompactModelRefit"
 
 [[row]]
-path = "antecedent_estimate::cohort_linear_effect::NativeCohortFit::replay_controlled"
-disposition = "kernel"
-reason = "Runs the existing native conditional-effect fitting kernel under the compact refit consumer after it resolves the artifact, training source and learner."
+path = "antecedent::analysis::cohort_decision::fit_cohort_effect"
+disposition = "compiled"
+route = "NativeCohortFit"
+
+[[row]]
+path = "antecedent::analysis::compiled_cohort_interval::CompiledCohortInterval::native"
+disposition = "not_scientific"
+reason = "Borrows the native fit already retained by the compiled interval."

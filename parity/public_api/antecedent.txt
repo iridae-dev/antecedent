@@ -24450,6 +24450,8 @@ pub fn antecedent::analysis::composition::graph_imputation_transport_bundle_cons
 pub fn antecedent::analysis::composition::joint_transport_effect_bundle_consumer(ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::composition_bundle::BundleConsumer
 pub fn antecedent::analysis::composition::mean_decision_bytes(contract: &antecedent_design::decision_contract::DecisionContract, source: &[u8], artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::composition_bundle::NodeFailure>
 pub fn antecedent::analysis::composition::native_fit_bundle_consumer(ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::composition_bundle::BundleConsumer
+pub fn antecedent::analysis::composition::refit_compact_bundle_model(bundle_bytes: &[u8], expected_identity: &str, model_node: &str, training: antecedent_estimate::cohort_linear_effect::NativeFitRows, learner: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::cohort_linear_effect::NativeCohortFit, antecedent_design::composition_bundle::BundleError>
+pub fn antecedent::analysis::composition::refit_compact_model(model: &[u8], expected_identity: &str, training: antecedent_estimate::cohort_linear_effect::NativeFitRows, learner: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_estimate::cohort_linear_effect::NativeCohortFit, antecedent_design::composition_bundle::BundleError>
 pub fn antecedent::analysis::composition::standard_consumer() -> antecedent_design::composition_bundle::BundleConsumer
 pub fn antecedent::analysis::composition::trial_ipw_bundle_consumer(ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::composition_bundle::BundleConsumer
 pub fn antecedent::analysis::composition_cohort_decision::cohort_decision_bytes(contract: &antecedent_design::decision_contract::DecisionContract, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
@@ -31905,6 +31907,7 @@ pub use antecedent::query::LawOrigin = antecedent_core::LawOrigin
 pub use antecedent::query::LocalBandwidthRule = antecedent_core::LocalBandwidthRule
 pub use antecedent::query::LocalPolynomialRatioQuery = antecedent_core::LocalPolynomialRatioQuery
 pub use antecedent::query::LocalRatioOptions = antecedent_core::LocalRatioOptions
+pub use antecedent::query::LongitudinalCalibrationDesign = antecedent_core::LongitudinalCalibrationDesign
 pub use antecedent::query::LongitudinalRegimeMethod = antecedent_core::LongitudinalRegimeMethod
 pub use antecedent::query::LongitudinalRegimeQuery = antecedent_core::LongitudinalRegimeQuery
 pub use antecedent::query::LongitudinalScheduleFamily = antecedent_core::LongitudinalScheduleFamily

@@ -13281,6 +13281,7 @@ pub const antecedent_estimate::cohort_linear_effect::FIT_DIGEST_VARIABLE: &str
 pub const antecedent_estimate::cohort_linear_effect::FIT_PROCEDURE_ID: &str
 pub const antecedent_estimate::cohort_linear_effect::FIT_PROCEDURE_VARIABLE: &str
 pub const antecedent_estimate::cohort_linear_effect::FIT_ROWS_VARIABLE: &str
+pub const antecedent_estimate::cohort_linear_effect::FIT_TRAINING_VARIABLE: &str
 pub const antecedent_estimate::cohort_linear_effect::FIT_WIDTH_VARIABLE: &str
 pub const antecedent_estimate::cohort_linear_effect::FUNCTIONAL_ID: &str
 pub const antecedent_estimate::cohort_linear_effect::INTERVAL_METHOD: &str
@@ -19216,6 +19217,8 @@ pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn ro
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::const fn size(&self) -> antecedent_estimate::cohort_linear_effect::NativeFitSize
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::fn fit(outcome: &[f64], treatment: &[f64], features: &[&[f64]], response: &antecedent_io_core::quantity_wire::ScientificQuantityWire, feature_quantities: &[antecedent_io_core::quantity_wire::ScientificQuantityWire]) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::fn replay(rows: antecedent_estimate::cohort_linear_effect::NativeFitRows, like: &antecedent_io_core::compact_export::CompactExport) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::cohort_linear_effect::NativeCohortFit>::fn replay_controlled(rows: antecedent_estimate::cohort_linear_effect::NativeFitRows, like: &antecedent_io_core::compact_export::CompactExport, cancelled: impl core::ops::function::Fn() -> bool) -> core::result::Result<Self, antecedent_estimate::EstimationError>
+pub fn <antecedent_estimate::cohort_linear_effect::NativeFitRows>::fn training_identity(&self) -> alloc::string::String
 pub fn <antecedent_estimate::count_fitted_posterior::CountFittedModel>::const fn rows(&self) -> u64
 pub fn <antecedent_estimate::count_fitted_posterior::CountFittedModel>::fn new(nodes: alloc::vec::Vec<antecedent_estimate::count_fitted_posterior::CountNode>, rows: u64) -> core::result::Result<Self, antecedent_estimate::EstimationError>
 pub fn <antecedent_estimate::count_fitted_posterior::CountFittedModel>::fn nodes(&self) -> &[antecedent_estimate::count_fitted_posterior::CountNode]

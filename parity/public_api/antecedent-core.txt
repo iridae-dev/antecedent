@@ -511,6 +511,7 @@ impl core::clone::Clone for antecedent_core::LocalPolynomialRatioFault
 impl core::clone::Clone for antecedent_core::LocalPolynomialRatioQuery
 impl core::clone::Clone for antecedent_core::LocalRatioOptions
 impl core::clone::Clone for antecedent_core::LogicOp
+impl core::clone::Clone for antecedent_core::LongitudinalCalibrationDesign
 impl core::clone::Clone for antecedent_core::LongitudinalRegimeFault
 impl core::clone::Clone for antecedent_core::LongitudinalRegimeMethod
 impl core::clone::Clone for antecedent_core::LongitudinalRegimeQuery
@@ -1046,6 +1047,7 @@ impl core::cmp::Eq for antecedent_core::LocalBandwidthRule
 impl core::cmp::Eq for antecedent_core::LocalPolynomialRatioFault
 impl core::cmp::Eq for antecedent_core::LocalRatioOptions
 impl core::cmp::Eq for antecedent_core::LogicOp
+impl core::cmp::Eq for antecedent_core::LongitudinalCalibrationDesign
 impl core::cmp::Eq for antecedent_core::LongitudinalRegimeFault
 impl core::cmp::Eq for antecedent_core::LongitudinalRegimeMethod
 impl core::cmp::Eq for antecedent_core::LongitudinalScheduleFamily
@@ -1595,6 +1597,7 @@ impl core::cmp::PartialEq for antecedent_core::LocalPolynomialRatioFault
 impl core::cmp::PartialEq for antecedent_core::LocalPolynomialRatioQuery
 impl core::cmp::PartialEq for antecedent_core::LocalRatioOptions
 impl core::cmp::PartialEq for antecedent_core::LogicOp
+impl core::cmp::PartialEq for antecedent_core::LongitudinalCalibrationDesign
 impl core::cmp::PartialEq for antecedent_core::LongitudinalRegimeFault
 impl core::cmp::PartialEq for antecedent_core::LongitudinalRegimeMethod
 impl core::cmp::PartialEq for antecedent_core::LongitudinalRegimeQuery
@@ -2369,6 +2372,7 @@ impl core::fmt::Debug for antecedent_core::LocalPolynomialRatioFault
 impl core::fmt::Debug for antecedent_core::LocalPolynomialRatioQuery
 impl core::fmt::Debug for antecedent_core::LocalRatioOptions
 impl core::fmt::Debug for antecedent_core::LogicOp
+impl core::fmt::Debug for antecedent_core::LongitudinalCalibrationDesign
 impl core::fmt::Debug for antecedent_core::LongitudinalRegimeFault
 impl core::fmt::Debug for antecedent_core::LongitudinalRegimeMethod
 impl core::fmt::Debug for antecedent_core::LongitudinalRegimeQuery
@@ -3331,6 +3335,7 @@ impl core::marker::Copy for antecedent_core::Lag
 impl core::marker::Copy for antecedent_core::LearningRate
 impl core::marker::Copy for antecedent_core::LocalBandwidthRule
 impl core::marker::Copy for antecedent_core::LogicOp
+impl core::marker::Copy for antecedent_core::LongitudinalCalibrationDesign
 impl core::marker::Copy for antecedent_core::LongitudinalRegimeMethod
 impl core::marker::Copy for antecedent_core::LongitudinalScheduleFamily
 impl core::marker::Copy for antecedent_core::LongitudinalScheduleTarget
@@ -3722,6 +3727,7 @@ impl core::marker::Freeze for antecedent_core::LocalPolynomialRatioFault [auto]
 impl core::marker::Freeze for antecedent_core::LocalPolynomialRatioQuery [auto]
 impl core::marker::Freeze for antecedent_core::LocalRatioOptions [auto]
 impl core::marker::Freeze for antecedent_core::LogicOp [auto]
+impl core::marker::Freeze for antecedent_core::LongitudinalCalibrationDesign [auto]
 impl core::marker::Freeze for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Freeze for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Freeze for antecedent_core::LongitudinalRegimeQuery [auto]
@@ -4304,6 +4310,7 @@ impl core::marker::Send for antecedent_core::LocalPolynomialRatioFault [auto]
 impl core::marker::Send for antecedent_core::LocalPolynomialRatioQuery [auto]
 impl core::marker::Send for antecedent_core::LocalRatioOptions [auto]
 impl core::marker::Send for antecedent_core::LogicOp [auto]
+impl core::marker::Send for antecedent_core::LongitudinalCalibrationDesign [auto]
 impl core::marker::Send for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Send for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Send for antecedent_core::LongitudinalRegimeQuery [auto]
@@ -4882,6 +4889,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::LocalPolynomialRatio
 impl core::marker::StructuralPartialEq for antecedent_core::LocalPolynomialRatioQuery
 impl core::marker::StructuralPartialEq for antecedent_core::LocalRatioOptions
 impl core::marker::StructuralPartialEq for antecedent_core::LogicOp
+impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalCalibrationDesign
 impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeFault
 impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeMethod
 impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeQuery
@@ -5445,6 +5453,7 @@ impl core::marker::Sync for antecedent_core::LocalPolynomialRatioFault [auto]
 impl core::marker::Sync for antecedent_core::LocalPolynomialRatioQuery [auto]
 impl core::marker::Sync for antecedent_core::LocalRatioOptions [auto]
 impl core::marker::Sync for antecedent_core::LogicOp [auto]
+impl core::marker::Sync for antecedent_core::LongitudinalCalibrationDesign [auto]
 impl core::marker::Sync for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Sync for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Sync for antecedent_core::LongitudinalRegimeQuery [auto]
@@ -6032,6 +6041,7 @@ impl core::marker::Unpin for antecedent_core::LocalPolynomialRatioFault [auto]
 impl core::marker::Unpin for antecedent_core::LocalPolynomialRatioQuery [auto]
 impl core::marker::Unpin for antecedent_core::LocalRatioOptions [auto]
 impl core::marker::Unpin for antecedent_core::LogicOp [auto]
+impl core::marker::Unpin for antecedent_core::LongitudinalCalibrationDesign [auto]
 impl core::marker::Unpin for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Unpin for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Unpin for antecedent_core::LongitudinalRegimeQuery [auto]
@@ -6624,6 +6634,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LocalPolynomia
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LocalPolynomialRatioQuery [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LocalRatioOptions [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LogicOp [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalCalibrationDesign [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalRegimeQuery [auto]
@@ -7210,6 +7221,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LocalPolynomialRa
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LocalPolynomialRatioQuery [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LocalRatioOptions [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LogicOp [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalCalibrationDesign [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalRegimeQuery [auto]
@@ -11026,6 +11038,7 @@ pub enum antecedent_core::InterferenceFunctional
 pub enum antecedent_core::IntervalInterpretation
 pub enum antecedent_core::LawOrigin
 pub enum antecedent_core::LocalBandwidthRule
+pub enum antecedent_core::LongitudinalCalibrationDesign
 pub enum antecedent_core::LongitudinalRegimeMethod
 pub enum antecedent_core::LongitudinalScheduleTarget
 pub enum antecedent_core::MechanismChangeTest
@@ -11377,6 +11390,7 @@ pub field antecedent_core::LocalRatioOptions::balance_covariates: alloc::sync::A
 pub field antecedent_core::LocalRatioOptions::bandwidth_rule: antecedent_core::LocalBandwidthRule
 pub field antecedent_core::LocalRatioOptions::density_test: bool
 pub field antecedent_core::LocalRatioOptions::temporal_replicates: core::option::Option<u32>
+pub field antecedent_core::LongitudinalRegimeQuery::calibration_design: core::option::Option<antecedent_core::LongitudinalCalibrationDesign>
 pub field antecedent_core::LongitudinalRegimeQuery::censoring_probabilities: alloc::sync::Arc<[f64]>
 pub field antecedent_core::LongitudinalRegimeQuery::excluded_fold_predictions: bool
 pub field antecedent_core::LongitudinalRegimeQuery::fold_ids: alloc::sync::Arc<[u32]>
@@ -12423,6 +12437,8 @@ pub fn <antecedent_core::LearningRate>::const fn try_new(value: f64) -> core::op
 pub fn <antecedent_core::LikelihoodModel>::fn name(&self) -> &str
 pub fn <antecedent_core::LikelihoodModel>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::DeclarationError>
 pub fn <antecedent_core::LocalPolynomialRatioQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
+pub fn <antecedent_core::LongitudinalCalibrationDesign>::const fn as_str(self) -> &'static str
+pub fn <antecedent_core::LongitudinalCalibrationDesign>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_core::LongitudinalRegimeQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::LossModel>::fn name(&self) -> &str
 pub fn <antecedent_core::LossModel>::fn new(name: impl core::convert::Into<alloc::sync::Arc<str>>) -> core::result::Result<Self, antecedent_core::DeclarationError>
@@ -14644,6 +14660,7 @@ pub use antecedent_core::query::LocalBandwidthRule = antecedent_core::LocalBandw
 pub use antecedent_core::query::LocalPolynomialRatioFault = antecedent_core::LocalPolynomialRatioFault
 pub use antecedent_core::query::LocalPolynomialRatioQuery = antecedent_core::LocalPolynomialRatioQuery
 pub use antecedent_core::query::LocalRatioOptions = antecedent_core::LocalRatioOptions
+pub use antecedent_core::query::LongitudinalCalibrationDesign = antecedent_core::LongitudinalCalibrationDesign
 pub use antecedent_core::query::LongitudinalRegimeFault = antecedent_core::LongitudinalRegimeFault
 pub use antecedent_core::query::LongitudinalRegimeMethod = antecedent_core::LongitudinalRegimeMethod
 pub use antecedent_core::query::LongitudinalRegimeQuery = antecedent_core::LongitudinalRegimeQuery
@@ -15357,6 +15374,12 @@ pub variant antecedent_core::LocalPolynomialRatioFault::CutoffOrBandwidth
 pub variant antecedent_core::LocalPolynomialRatioFault::VariablesNotDistinct
 pub variant antecedent_core::LogicOp::And
 pub variant antecedent_core::LogicOp::Or
+pub variant antecedent_core::LongitudinalCalibrationDesign::FittedQExternalSplit
+pub variant antecedent_core::LongitudinalCalibrationDesign::FittedQInternalCrossfit
+pub variant antecedent_core::LongitudinalCalibrationDesign::FixedScheduleFamily
+pub variant antecedent_core::LongitudinalCalibrationDesign::FourPeriodSequentialDr
+pub variant antecedent_core::LongitudinalCalibrationDesign::LearnedScheduleTiedOptima
+pub variant antecedent_core::LongitudinalCalibrationDesign::LearnedScheduleUniqueOptimum
 pub variant antecedent_core::LongitudinalRegimeFault::Alignment
 pub variant antecedent_core::LongitudinalRegimeFault::DimensionsOverflow
 pub variant antecedent_core::LongitudinalRegimeFault::DynamicRuleIdentity

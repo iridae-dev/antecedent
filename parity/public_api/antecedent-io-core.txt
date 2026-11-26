@@ -15218,6 +15218,7 @@ pub field antecedent_io_core::query_wire::LocalPolynomialRatioQueryWire::options
 pub field antecedent_io_core::query_wire::LocalPolynomialRatioQueryWire::outcome: u32
 pub field antecedent_io_core::query_wire::LocalPolynomialRatioQueryWire::running: u32
 pub field antecedent_io_core::query_wire::LocalPolynomialRatioQueryWire::treatment: u32
+pub field antecedent_io_core::query_wire::LongitudinalRegimeQueryWire::calibration_design: core::option::Option<alloc::string::String>
 pub field antecedent_io_core::query_wire::LongitudinalRegimeQueryWire::censoring_probabilities: alloc::vec::Vec<f64>
 pub field antecedent_io_core::query_wire::LongitudinalRegimeQueryWire::excluded_fold_predictions: bool
 pub field antecedent_io_core::query_wire::LongitudinalRegimeQueryWire::fitted_q: core::option::Option<antecedent_io_core::query_wire::FittedRegimeQWire>

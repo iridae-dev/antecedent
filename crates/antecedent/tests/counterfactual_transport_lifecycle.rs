@@ -315,7 +315,7 @@ fn counterfactual_bundle_replays_exact_and_sampled_affine_decisions() {
         let mut contract = DecisionContract {
             actions: vec![
                 action("include", UtilityExpr::Input(0)),
-                action("hold", UtilityExpr::Const(0.0)),
+                action("hold", UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0))),
             ],
             utility_units: "utility".into(),
             criterion: DecisionCriterion::PosteriorExpectedUtility,
