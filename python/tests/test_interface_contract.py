@@ -352,6 +352,29 @@ def rich_contract():
     )
 
 
+def test_identified_set_bridge_fixture_preserves_its_contract_and_rejects_posterior_meaning():
+    fixtures = VALIDATOR.parents[1] / "conformance"
+    stem = "interface_contract__identified_set_bridge"
+    meta = json.loads((fixtures / f"{stem}.meta.json").read_bytes())
+    data = (fixtures / f"{stem}.artifact").read_bytes()
+    checked = ic.consume_interface_contract_artifact(data, meta["identity"])
+    assert checked.identity == meta["identity"]
+    assert ic.contract_identity(checked.contract) == meta["contract_identity"]
+    for ports in (checked.contract.consumes, checked.contract.produces):
+        assert [port.operations for port in ports] == [("identified_set",)]
+    exported = checked.contract.export("interface-contract-fixture")
+    assert exported.expectation.identity == checked.identity
+    replayed = ic.consume_interface_contract_artifact(exported.data, checked.identity)
+    assert replayed.contract == checked.contract
+
+    invalid_path = fixtures / "interface_contract__identified_set_with_posterior_meaning.artifact"
+    malformed = invalid_path.read_bytes()
+    refusal = refusal_of(
+        lambda: ic.consume_interface_contract_artifact(malformed, checked.identity)
+    )
+    assert refusal.detail == reason_details.interface_contract.UNCERTAINTY_MEANING_UNUSED
+
+
 def test_an_exported_contract_round_trips_and_is_inspectable():
     contract = rich_contract()
     exported = contract.export("estimator-contract")
