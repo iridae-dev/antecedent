@@ -1213,12 +1213,14 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
 
     let n = 800;
     let replicates = 199;
-    let baseline: Vec<_> = (0..n).map(|i| ((i / 4) % 2) as f64).collect();
-    let outcomes: Vec<_> = (0..n)
-        .map(|i| {
+    let original_index: Vec<_> = (0..n).map(|i| (i / 16) * 16 + (i % 2) * 8 + (i / 2 % 8)).collect();
+    let baseline: Vec<_> = original_index.iter().map(|&i| ((i / 4) % 2) as f64).collect();
+    let outcomes: Vec<_> = original_index
+        .iter().zip(&baseline)
+        .map(|(&i, &baseline)| {
             1.0 + (i & 1) as f64
                 + 2.0 * f64::from(i & 2 != 0)
-                + 3.0 * baseline[i]
+                + 3.0 * baseline
                 + 2.0 * ((i / 16 % 11) as f64 - 5.0)
         })
         .collect();
@@ -1228,13 +1230,13 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
     ])
     .unwrap();
     let mut q = query();
-    q.treatment_history = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0]).collect();
+    q.treatment_history = original_index.iter().flat_map(|&i| [i & 1 != 0, i & 2 != 0]).collect();
     q.regime_actions = vec![true; n * 2].into();
     q.treatment_probabilities = vec![0.5; n * 2].into();
     q.censoring_probabilities = vec![1.0; n * 2].into();
     q.outcome_observed = vec![true; n].into();
     q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("fitted-{i}"))).collect();
-    q.fold_ids = (0..n).map(|i| ((i / 8) % 2) as u32).collect();
+    q.fold_ids = (0..n).map(|i| (i % 2) as u32).collect();
     let members: [Vec<_>; 2] =
         std::array::from_fn(|fold| (0..n).filter(|&i| q.fold_ids[i] == fold as u32).collect());
     let ctx = ExecutionContext::for_tests(195);
@@ -1245,7 +1247,7 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
             let training = &groups[1 - eval_fold];
             for &i in &groups[eval_fold] {
                 let matching =
-                    training.iter().copied().filter(|&j| j % 4 == 3 && baseline[j] == baseline[i]);
+                    training.iter().copied().filter(|&j| original_index[j] % 4 == 3 && baseline[j] == baseline[i]);
                 let (sum, count) =
                     matching.fold((0.0, 0), |(sum, count), j| (sum + outcomes[j], count + 1));
                 assert!(count > 0);
@@ -1274,6 +1276,14 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
             .prepare(&ctx)
             .unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
+        let bases = result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
+        assert_eq!(bases.len(), 1);
+        assert_eq!(bases[0].key.functional, if external {
+            "fitted_q_binary_baseline_h2_external_split"
+        } else {
+            "fitted_q_binary_baseline_h2_internal_crossfit"
+        });
+        assert_eq!(bases[0].scope.row_count, n as u64);
         let fit = result.longitudinal_regime().unwrap();
         assert_close(fit.value, reference(&members, external), 1e-12, "full-refit point");
         assert_eq!(fit.fitted_q_bootstrap_replicates_ok, Some(replicates as usize));

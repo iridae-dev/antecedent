@@ -189,6 +189,35 @@ class CalibrationInfo:
             covered_intervals=_as_optional_int(counts.get("covered", pick("covered_intervals"))),
         )
 
+    @property
+    def functional(self) -> str | None:
+        """The precise measured-design functional this statement would match."""
+        basis = dict(self.extra).get("basis")
+        if isinstance(basis, Mapping):
+            key = basis.get("key")
+            if isinstance(key, Mapping):
+                value = key.get("functional")
+                if isinstance(value, str):
+                    return value
+        return None
+
+    @property
+    def scope_n_max(self) -> int | None:
+        """Largest measured sample size in the governing coverage record."""
+        return _as_optional_int(dict(self.extra).get("scope_n_max"))
+
+    @property
+    def secondary(self) -> tuple[CalibrationInfo, ...]:
+        """Independent calibration readings for the remaining reported statements, in order."""
+        slots = dict(self.extra).get("secondary")
+        if not isinstance(slots, (list, tuple)):
+            return ()
+        return tuple(
+            CalibrationInfo.from_contract({"claim": {"calibration": slot}})
+            for slot in slots
+            if isinstance(slot, Mapping)
+        )
+
     def describe(self) -> str:
         """One line: status, then reason code, record id, and measured fields when present.
 

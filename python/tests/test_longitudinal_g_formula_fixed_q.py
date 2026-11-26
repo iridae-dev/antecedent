@@ -56,12 +56,13 @@ def test_fixed_known_q_interval_withholds_thin_subjects() -> None:
 @pytest.mark.parametrize("external", [False, True])
 def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bool) -> None:
     n = 800
-    treatment = [[bool(i & 1), bool(i & 2)] for i in range(n)]
-    baseline = [float(i // 4 % 2) for i in range(n)]
-    folds = [i // 8 % 2 for i in range(n)]
+    original_index = [i // 16 * 16 + (i % 2) * 8 + i // 2 % 8 for i in range(n)]
+    treatment = [[bool(i & 1), bool(i & 2)] for i in original_index]
+    baseline = [float(i // 4 % 2) for i in original_index]
+    folds = [i % 2 for i in range(n)]
     outcomes = [
-        1.0 + row[0] + 2.0 * row[1] + 3.0 * baseline[i] + 2.0 * (i // 16 % 11 - 5)
-        for i, row in enumerate(treatment)
+        1.0 + row[0] + 2.0 * row[1] + 3.0 * x + 2.0 * (i // 16 % 11 - 5)
+        for i, row, x in zip(original_index, treatment, baseline, strict=True)
     ]
     data = {"outcome": outcomes, "baseline": baseline}
     query = LongitudinalRegime(
@@ -88,6 +89,13 @@ def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bo
     assert value.effective_sample_size == len(predictions)
     assert value.fitted_q_bootstrap_replicates_ok == 199
     assert value.uncertainty == "pointwise_whole_subject_refit_percentile_95"
+    expected_scope = (
+        "fitted_q_binary_baseline_h2_external_split"
+        if external else "fitted_q_binary_baseline_h2_internal_crossfit"
+    )
+    assert result.calibration.functional == expected_scope
+    if result.calibration.status == "calibrated":
+        assert result.calibration.scope_n <= n <= result.calibration.scope_n_max
     sourced = bytes(result.export(source_data=data))
     artifact = require_success(ant.load(sourced)).replay()
     assert artifact.acceptance.replayed
@@ -106,3 +114,19 @@ def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bo
         assert revised.value_interval_95 == value.value_interval_95
     else:
         assert revised.value > value.value + 400.0
+
+    changed_data = {
+        "outcome": [y + 5.0 * (fold == 0) for y, fold in zip(outcomes, folds, strict=True)],
+        "baseline": baseline,
+    }
+    changed = require_success(ant.analyze(changed_data, query=query))
+    changed_bundle = cb.BundleBuilder().add_artifact(
+        bytes(changed.export(source_data=changed_data)), node_id="regime",
+    ).build()
+    assert changed_bundle.identity != bundle.identity
+    changed_bytes = bytes(changed_bundle.export())
+    with pytest.raises(cb.ExpectedIdentityMismatchRefusal):
+        require_success(cb.consume_bundle(changed_bytes, expected_identity=bundle.identity))
+    verified = require_success(cb.consume_bundle(changed_bytes, expected_identity=changed_bundle.identity))
+    assert verified.value("regime", "regime_value") > value.value
+    assert verified.value("regime", "upper_95") == changed.longitudinal_regime.value_interval_95[1]

@@ -366,10 +366,10 @@ impl StudyResult {
             }];
         }
         if matches!(&contract.body.query, antecedent_io::CausalQueryWire::LongitudinalRegime(query)
-            if query.periods == 4 && query.method == "sequential_dr")
+            if (query.periods == 4 && query.method == "sequential_dr") || query.method == "fitted_g_formula")
         {
-            // The graphless support row defines publication. The narrower coverage study
-            // defines calibration, so an otherwise admissible interval has no fallback key.
+            // Publication and empirical calibration have distinct scopes. An otherwise
+            // admissible interval outside these measured constructions has no fallback key.
             return Vec::new();
         }
         self.reported_interval_bindings(bayesian)
