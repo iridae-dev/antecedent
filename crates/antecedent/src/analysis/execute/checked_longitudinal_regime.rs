@@ -15,7 +15,8 @@ use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
 use antecedent_estimate::longitudinal_regime::{
-    RegimeKernelError, RegimeValueSummary, evaluate_g_formula_value, evaluate_regime_value,
+    RegimeKernelError, RegimeValueSummary, common_regime_schedule, evaluate_g_formula_value,
+    evaluate_regime_value,
     evaluate_sequential_dr_value_with_subject_scores, g_formula_fixed_q_pointwise_interval_95,
     sequential_dr_pointwise_interval_95,
 };
@@ -349,6 +350,13 @@ impl CheckedLongitudinalRegimeOperation {
             antecedent_estimate::marginal_structural_model::pointwise_intervals_95(fit, self.rows)
         });
         let dr = estimation.dr_scores.as_ref().and_then(|scores| {
+            if self.query.periods == 4
+                && (self.query.rule_id.is_some()
+                    || !common_regime_schedule(&self.query.regime_actions, self.query.periods))
+            {
+                return None;
+            }
+
             let matched = (0..self.rows)
                 .filter(|&i| {
                     self.query.outcome_observed[i]
@@ -402,39 +410,32 @@ impl CheckedLongitudinalRegimeOperation {
     ) -> bool {
         // The sequential-DR interval only publishes after its narrowed,
         // calibrated subject support holds, so the graphless support is a
-        // function of that published interval plus the exact two- or
-        // three-period row. Observed-outcome, matching-history, and censoring
+        // function of that published interval plus the exact horizon row.
+        // Observed-outcome, matching-history, and censoring
         // floors are enforced upstream by the interval and stated in the row's
         // limitations; classify_graphless checks the coarse published-interval
         // support so the support cannot exist without a matching matrix row.
-        let graphless_dr_supported = self.query.method
-            == LongitudinalRegimeMethod::SequentialDoublyRobust
-            && intervals.dr.is_some()
-            && matches!(self.query.periods, 2 | 3)
-            && crate::support::support_if_graphless(
-                crate::support::GraphlessSupportKey {
-                    family: "longitudinal_regime",
-                    design: if self.query.periods == 2 {
-                        "known_sequential_randomized_two_period"
-                    } else {
-                        "known_sequential_randomized_three_period"
-                    },
-                    method: "subject_excluded_q_sequential_dr_scores",
-                    inference_claim: "conditional_q_pointwise_95_normal_interval",
-                },
-                crate::support::GraphlessAssignmentSupport {
-                    assignment_unit: "unit",
-                    rows: self.rows,
-                    interval_95_published: true,
-                    reported_intervals: 1,
-                    min_probability: summary.minimum_action_probability,
-                    disjoint_nuisance_training: self.query.excluded_fold_predictions
-                        && self.query.prediction_fold_ids.as_deref()
-                            == Some(self.query.fold_ids.as_ref()),
-                    ..Default::default()
-                },
-            )
-            .is_some();
+        let graphless_dr_supported =
+            self.query.method == LongitudinalRegimeMethod::SequentialDoublyRobust
+                && intervals.dr.is_some()
+                && antecedent_io::graphless_support::sequential_dr_key(self.query.periods)
+                    .is_some_and(|key| {
+                        crate::support::support_if_graphless(
+                            key,
+                            crate::support::GraphlessAssignmentSupport {
+                                assignment_unit: "unit",
+                                rows: self.rows,
+                                interval_95_published: true,
+                                reported_intervals: 1,
+                                min_probability: summary.minimum_action_probability,
+                                disjoint_nuisance_training: self.query.excluded_fold_predictions
+                                    && self.query.prediction_fold_ids.as_deref()
+                                        == Some(self.query.fold_ids.as_ref()),
+                                ..Default::default()
+                            },
+                        )
+                        .is_some()
+                    });
         // The two-period fixed-known-Q g-formula interval only publishes after
         // its own subject, positivity, and censoring floors hold, so its
         // graphless support is a function of that published interval plus the

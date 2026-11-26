@@ -543,6 +543,284 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fixture follows the score through support, replay and revision"
+)]
+fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays() {
+    use antecedent::analysis::composition::{BundleBuilder, consume, export_bundle};
+    use antecedent_estimate::longitudinal_regime::{
+        SequentialDrInputs, SubjectHistories, evaluate_sequential_dr_value_with_subject_scores,
+    };
+
+    let n = 2_400;
+    let mut q = query();
+    q.method = antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust;
+    q.periods = 4;
+    q.treatment_history = (0..n).flat_map(|i| (0..4).map(move |t| i & (1 << t) != 0)).collect();
+    q.regime_actions = vec![true; n * 4].into();
+    q.treatment_probabilities = vec![0.5; n * 4].into();
+    q.censoring_probabilities = vec![0.95; n * 4].into();
+    let observation: Arc<[bool]> =
+        (0..n).flat_map(|i| (0..4).map(move |t| i / 16 % 25 >= 4 || t < i / 16 % 25)).collect();
+    q.outcome_observed = observation.chunks_exact(4).map(|row| row[3]).collect();
+    q.observation_history = Some(observation.clone());
+    let predictions: Arc<[f64]> = (0..n)
+        .flat_map(|i| {
+            [-3.0 / 64.0, -1.0 / 64.0, 1.0 / 64.0, 3.0 / 64.0]
+                .map(|offset| 6.0 + ((i % 5) as f64 - 2.0) / 16.0 + offset)
+        })
+        .collect();
+    q.q_predictions = Some(predictions.clone());
+    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("four-{i}"))).collect();
+    q.fold_ids = (0..n).map(|i| (i % 5) as u32).collect();
+    q.prediction_fold_ids = Some(q.fold_ids.clone());
+    q.excluded_fold_predictions = true;
+    let outcomes: Vec<_> = q
+        .treatment_history
+        .chunks_exact(4)
+        .enumerate()
+        .map(|(i, row)| {
+            2.0 + row.iter().filter(|&&treated| treated).count() as f64 + (i % 11) as f64 / 8.0
+                - 0.625
+        })
+        .collect();
+
+    // Expand the recursion as Q₁ plus a sum of weighted increments along
+    // the matching, still-observed prefix. This uses no backwards recursion.
+    let expected_scores: Vec<_> = outcomes
+        .iter()
+        .enumerate()
+        .map(|(i, &outcome)| {
+            let start = i * 4;
+            let mut score = predictions[start];
+            for (t, weight) in [1_i32, 2, 3, 4].map(|t| 0.475_f64.powi(-t)).into_iter().enumerate()
+            {
+                let j = start + t;
+                if !(q.treatment_history[j] && observation[j]) {
+                    break;
+                }
+                let next = if t == 3 { outcome } else { predictions[j + 1] };
+                score += weight * (next - predictions[j]);
+            }
+            score
+        })
+        .collect();
+    let (_, scores) = evaluate_sequential_dr_value_with_subject_scores(
+        &outcomes,
+        &SubjectHistories {
+            treatment: &q.treatment_history,
+            treatment_probability: &q.treatment_probabilities,
+            outcome_observed: &q.outcome_observed,
+            censoring_probability: &q.censoring_probabilities,
+            periods: 4,
+            minimum_probability: q.minimum_probability,
+        },
+        &SequentialDrInputs {
+            actions: &q.regime_actions,
+            observation_history: &observation,
+            q_predictions: &predictions,
+        },
+    )
+    .unwrap();
+    for (&actual, &expected) in scores.iter().zip(&expected_scores) {
+        assert_close(actual, expected, 1e-12, "independent forward score");
+    }
+    let mean = expected_scores.iter().sum::<f64>() / n as f64;
+    let sample_variance =
+        expected_scores.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+    let se = (sample_variance / n as f64).sqrt();
+    let ctx = ExecutionContext::for_tests(194);
+    let data = TabularData::from_f64_columns([("outcome", outcomes.as_slice())]).unwrap();
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q.clone()))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let fit = result.longitudinal_regime().unwrap();
+    let contract = prepared.contract_for_result(&result).unwrap();
+    let bases = result.calibration_bases(&contract).unwrap();
+    assert_eq!(bases.len(), 1);
+    assert_eq!(
+        bases[0].key.functional,
+        "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q"
+    );
+    let unit = antecedent_io::graphless_support::sequential_dr_key(4).unwrap();
+    let row_earned = antecedent_io::graphless_support::graphless_admits(
+        unit,
+        antecedent_io::graphless_support::GraphlessAssignmentSupport {
+            assignment_unit: "unit",
+            rows: n,
+            interval_95_published: true,
+            reported_intervals: 1,
+            min_probability: 0.5,
+            disjoint_nuisance_training: true,
+            ..Default::default()
+        },
+    );
+    assert_eq!(
+        fit.graphless_support_status,
+        row_earned.then_some(antecedent::support::CellStatus::Supported)
+    );
+    assert_close(fit.value, mean, 1e-12, "value");
+    assert_close(fit.value_standard_error.unwrap(), se, 1e-12, "standard error");
+    let interval = fit.value_interval_95.unwrap();
+    assert_close(interval[0], mean - Z95 * se, 1e-12, "lower endpoint");
+    assert_close(interval[1], mean + Z95 * se, 1e-12, "upper endpoint");
+    retained_graphless::assert_retained_graphless_program(
+        "four-period-dr",
+        &prepared,
+        &result,
+        &ctx,
+    );
+    let bytes = prepared.encode_contracted_result(&result, "four-period-dr", &ctx).unwrap();
+    let compact = antecedent_io::replay_analysis_result(&bytes).unwrap();
+    assert!(
+        compact.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_longitudinal_regime_operation"
+        })
+    );
+    let sourced = prepared
+        .encode_contracted_result_with_source(&result, &data, "four-period-dr-source", &ctx)
+        .unwrap();
+    let consumed = antecedent_io::replay_analysis_result(&sourced).unwrap();
+    assert_eq!(
+        consumed.body.longitudinal_regime.as_ref().unwrap().value_interval_95,
+        Some(interval)
+    );
+    assert!(
+        !consumed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_longitudinal_regime_operation"
+        })
+    );
+    assert_eq!(
+        consumed.contract.as_ref().unwrap().identities,
+        compact.contract.as_ref().unwrap().identities
+    );
+    let rebuild_bundle = |source: &[u8]| {
+        let mut builder = BundleBuilder::new();
+        builder.add_detected_artifact(Some("regime"), source).unwrap();
+        let bundle = builder.build().unwrap();
+        let bytes = export_bundle(&bundle, "longitudinal-bundle").unwrap();
+        (bundle.identity().to_owned(), bytes)
+    };
+    let (bundle_identity, bundle_bytes) = rebuild_bundle(&sourced);
+    let bundle_replay = consume(&bundle_bytes, &bundle_identity, &Default::default()).unwrap();
+    assert!(bundle_replay.all_verified());
+    assert_eq!(bundle_replay.value("regime", "regime_value"), Some(fit.value));
+    assert_eq!(bundle_replay.value("regime", "lower_95"), Some(interval[0]));
+    let mut compact_bundle = BundleBuilder::new();
+    assert!(compact_bundle.add_detected_artifact(Some("regime"), &bytes).is_err());
+    let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&bytes).unwrap();
+    assert_eq!(body.longitudinal_regime.as_ref().unwrap().value_interval_95, Some(interval));
+    body.longitudinal_regime.as_mut().unwrap().value_interval_95 = Some([0.0, 0.0]);
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &body,
+            header.variable_names,
+            "forged-four-period-dr"
+        )
+        .is_err()
+    );
+
+    let revised_placeholders: Vec<_> = outcomes
+        .iter()
+        .zip(&*q.outcome_observed)
+        .map(|(&y, &observed)| if observed { y } else { y + 1_000_000.0 })
+        .collect();
+    let placeholder_table =
+        TabularData::from_f64_columns([("outcome", revised_placeholders.as_slice())]).unwrap();
+    assert!(
+        prepared
+            .encode_contracted_result_with_source(
+                &result,
+                &placeholder_table,
+                "swapped-source",
+                &ctx
+            )
+            .is_err()
+    );
+    let (mut swapped, _, _) = antecedent_io::decode_analysis_result_artifact(&sourced).unwrap();
+    let replacement =
+        antecedent_io_core::SourceWitnessWire::from_storage(placeholder_table.storage()).unwrap();
+    let source_id = antecedent_io_core::SOURCE_WITNESS_SECTION;
+    let (descriptor, section) = antecedent_io_core::pack_section_shared(
+        source_id,
+        "application/cbor",
+        antecedent_io_core::to_cbor(&replacement).unwrap().into(),
+        antecedent_io_core::CompressPolicy::Auto,
+    );
+    let index = swapped.sections.iter().position(|section| section.id == source_id).unwrap();
+    swapped.manifest.sections[index] = descriptor;
+    swapped.sections[index] = section;
+    let mut swapped_bytes = Vec::new();
+    swapped.write_to(&mut swapped_bytes).unwrap();
+    let refused = antecedent_io::replay_analysis_result(&swapped_bytes).unwrap();
+    assert!(
+        refused
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "longitudinal_regime_replay.source")
+    );
+    let mut prepared = prepared;
+    let placeholder_fit = rebind_estimate(&mut prepared, placeholder_table, &ctx).unwrap();
+    assert_eq!(placeholder_fit.longitudinal_regime().unwrap().value, fit.value);
+    assert_eq!(placeholder_fit.longitudinal_regime().unwrap().value_interval_95, Some(interval));
+
+    let revised: Vec<_> = outcomes.iter().map(|y| y + 1.0).collect();
+    let data_revised = TabularData::from_f64_columns([("outcome", revised.as_slice())]).unwrap();
+    let revised_fit = rebind_estimate(&mut prepared, data_revised.clone(), &ctx).unwrap();
+    assert!(revised_fit.longitudinal_regime().unwrap().value > mean);
+    assert!(prepared.encode_contracted_result(&result, "old-parent", &ctx).is_err());
+    let revised_sourced = prepared
+        .encode_contracted_result_with_source(&revised_fit, &data_revised, "revised-source", &ctx)
+        .unwrap();
+    let (revised_identity, revised_bundle_bytes) = rebuild_bundle(&revised_sourced);
+    assert_ne!(revised_identity, bundle_identity);
+    assert!(consume(&revised_bundle_bytes, &bundle_identity, &Default::default()).is_err());
+    let replay = consume(&revised_bundle_bytes, &revised_identity, &Default::default()).unwrap();
+    assert!(replay.all_verified());
+    assert_eq!(
+        replay.value("regime", "regime_value"),
+        Some(revised_fit.longitudinal_regime().unwrap().value)
+    );
+
+    // Each case crosses a separate support boundary while retaining a point value.
+    let mut low_overlap = q.clone();
+    Arc::make_mut(&mut low_overlap.treatment_probabilities)[0] = 0.44;
+    let mut heavy_censoring = q.clone();
+    Arc::make_mut(&mut heavy_censoring.censoring_probabilities)[0] = 0.94;
+    let mut few_matches = q.clone();
+    for i in (15..n).step_by(16).take(100) {
+        Arc::make_mut(&mut few_matches.treatment_history)[i * 4 + 3] = false;
+    }
+    Arc::make_mut(&mut q.regime_actions)[0] = false;
+    for outside in [low_overlap, heavy_censoring, few_matches, q] {
+        let result = Study::tabular(data.clone())
+            .query(CausalQuery::LongitudinalRegime(outside))
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&data, &ctx)
+            .unwrap();
+        let fit = result.longitudinal_regime().unwrap();
+        assert!(fit.value.is_finite());
+        assert!(fit.value_interval_95.is_none());
+        assert_eq!(fit.graphless_support_status, None);
+        assert_eq!(
+            fit.interval_reason.as_deref(),
+            Some(
+                "insufficient_calibrated_horizon_or_trajectory_support_for_sequential_dr_interval"
+            )
+        );
+    }
+}
+
+#[test]
 fn sequential_dr_refuses_interval_below_fitted_q_subject_floor_and_binds_subject_folds() {
     let n = 300;
     let treatment = (0..n)

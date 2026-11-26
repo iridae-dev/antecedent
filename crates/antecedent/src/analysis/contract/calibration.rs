@@ -44,6 +44,17 @@ fn requires_composite_producer(label: &str) -> bool {
     label.to_ascii_lowercase().starts_with("graphimputationcomposite")
 }
 
+pub(super) fn four_period_dr_design(
+    result: &StudyResult,
+    contract: &CausalContract,
+) -> Option<&'static str> {
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query) = &contract.body.query else {
+        return None;
+    };
+    result.longitudinal_regime()?.value_interval_95?;
+    query.four_period_dr_calibration_design()
+}
+
 impl StudyResult {
     /// Calibration match bases of every interval this execution reported
     /// ([`StudyResult::reported_interval_bindings`]), primary first: the keys
@@ -119,6 +130,12 @@ impl StudyResult {
                     && matches!((&self.payload, &contract.body.query),
                         (ResultPayload::SequentialContrast(_), antecedent_io::CausalQueryWire::SequentialContrast(q))
                             if q.matches_wide_overlap_study()) => "not_applicable",
+            (Some(executed), None)
+                if executed_from(&executed)
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
+                    && four_period_dr_design(self, contract).is_some() => "not_applicable",
             // These checked graphless routes refuse a validation suite at
             // preparation. Only an exact execution stamp and the supported,
             // result-bound route coordinate establish that fact; a detached or
@@ -220,6 +237,7 @@ impl StudyResult {
         let (query, structure) = if validation == "not_applicable" {
             let query = match &self.payload {
                 _ if synthetic_average.is_some() => "SyntheticControl",
+                ResultPayload::LongitudinalRegime(_) => "LongitudinalRegime",
                 ResultPayload::SequentialContrast(_) => "SequentialContrast",
                 ResultPayload::PanelDid(_) => "PanelDid",
                 ResultPayload::Survival(_) => "Survival",
@@ -255,6 +273,24 @@ impl StudyResult {
             }
             _ => None,
         };
+        if let Some(design) = four_period_dr_design(self, contract).filter(|_| validation == "not_applicable") {
+            return vec![CalibrationBasisWire {
+                key: CalibrationKeyWire {
+                    interval_method: IntervalMethod::AnalyticSe.as_str().to_owned(),
+                    se_kind: "subject_score".to_owned(),
+                    dependence: "iid".to_owned(),
+                    functional: design.to_owned(),
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    ..shared
+                },
+                scope: CalibrationScopeWire {
+                    row_count,
+                    replicates_ok: None,
+                    posterior_draws: None,
+                    unidentified_mass,
+                },
+            }];
+        }
         self.reported_interval_bindings(bayesian)
             .into_iter()
             .map(|binding| {

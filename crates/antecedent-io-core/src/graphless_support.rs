@@ -27,6 +27,23 @@ pub struct GraphlessSupportKey<'a> {
     pub inference_claim: &'a str,
 }
 
+/// Graphless key for a sequential-DR interval at a declared decision horizon.
+#[must_use]
+pub const fn sequential_dr_key(periods: usize) -> Option<GraphlessSupportKey<'static>> {
+    let design = match periods {
+        2 => "known_sequential_randomized_two_period",
+        3 => "known_sequential_randomized_three_period",
+        4 => "known_sequential_randomized_four_period",
+        _ => return None,
+    };
+    Some(GraphlessSupportKey {
+        family: "longitudinal_regime",
+        design,
+        method: "subject_excluded_q_sequential_dr_scores",
+        inference_claim: "conditional_q_pointwise_95_normal_interval",
+    })
+}
+
 /// Observed design and inference support for an exact graphless support.
 #[allow(
     clippy::struct_excessive_bools,

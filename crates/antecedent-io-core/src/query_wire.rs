@@ -1156,6 +1156,37 @@ pub struct LongitudinalRegimeQueryWire {
     pub rule_provenance: Option<String>,
 }
 
+impl LongitudinalRegimeQueryWire {
+    /// Four-decision assignment and observation laws in the calibration study.
+    #[must_use]
+    pub fn four_period_dr_calibration_design(&self) -> Option<&'static str> {
+        let cells = self.subject_ids.len().checked_mul(4)?;
+        (self.periods == 4
+            && self.method == "sequential_dr"
+            && self.probabilities_known_by_design
+            && self.excluded_fold_predictions
+            && self.fold_ids == self.prediction_fold_ids
+            && self.fold_ids.len() == self.subject_ids.len()
+            && self.fold_ids.iter().enumerate().all(|(i, &fold)| i % 5 == fold as usize)
+            && self.rule_id.is_none()
+            && cells > 0
+            && self.regime_actions.len() == cells
+            && self.regime_actions.iter().all(|&action| action)
+            && self.treatment_probabilities.len() == cells
+            && self.treatment_probabilities.iter().all(|p| p.to_bits() == 0.5_f64.to_bits())
+            && self.censoring_probabilities.len() == cells
+            && self.censoring_probabilities.iter().all(|p| p.to_bits() == 0.95_f64.to_bits())
+            && self.q_predictions.len() == cells
+            && self.q_predictions.chunks_exact(4).zip(&self.fold_ids).all(|(row, &fold)| {
+                let center = 6.0 + (f64::from(fold) - 2.0) / 16.0;
+                row.iter()
+                    .zip([-3.0 / 64.0, -1.0 / 64.0, 1.0 / 64.0, 3.0 / 64.0])
+                    .all(|(&supplied, offset)| supplied.to_bits() == (center + offset).to_bits())
+            }))
+        .then_some("fixed_all_treated_h4_fair_coin_censor_survival_095_external_q")
+    }
+}
+
 fn default_longitudinal_method() -> String {
     "ipw".into()
 }

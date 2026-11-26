@@ -2786,3 +2786,50 @@ status = "REFUSED"
 detail = "Compact exports name the missing source data and changed subject rows cannot satisfy an earlier contract."
 evidence_test = "crates/antecedent/tests/survival_route.rs"
 evidence_assertion = "supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery"
+
+[[rust_producer]]
+key = "four_period_sequential_dr"
+object = "a four-period fixed-regime value with a pointwise interval and declared subject-excluded Q predictions"
+built_from = "`Study::tabular(...).query(CausalQuery::LongitudinalRegime(...)).prepare(...)`, `PreparedStudy::estimate`, and `PreparedStudy::encode_contracted_result_with_source`"
+
+[[rust_consumer]]
+key = "longitudinal_interval_replay"
+entry = "`antecedent_io::replay_analysis_result`"
+note = "The source witness binds the endpoint table to the original snapshot. The consumer reuses the subject-score kernel to check the reported value and interval."
+
+[[rust_consumer]]
+key = "longitudinal_interval_bundle"
+entry = "`BundleBuilder::add_detected_artifact` and `antecedent::analysis::composition::consume`; Python `BundleBuilder.add_artifact` and `consume_bundle`"
+note = "A source-bearing four-decision interval becomes a verified longitudinal result node. Consumption replays its original endpoint table and reports the value and interval under the retained bundle identity."
+
+[[rust_cell]]
+producer = "four_period_sequential_dr"
+consumer = "longitudinal_interval_replay"
+status = "DIRECT"
+detail = "The source-bearing artifact reproduces the four-decision regime value, independent-subject standard error and pointwise interval. The original query declares the assignment and censoring laws, observation history, subject-excluded Q law and fixed schedule."
+evidence_test = "crates/antecedent/tests/longitudinal_regime_route.rs"
+evidence_assertion = "four_period_sequential_dr_interval_matches_the_forward_score_and_replays"
+
+[[rust_cell]]
+producer = "four_period_sequential_dr"
+consumer = "longitudinal_interval_replay"
+status = "REFUSED"
+detail = "A compact artifact names the missing endpoint witness, a table from a revised snapshot is refused, and forged interval endpoints fail validation."
+evidence_test = "crates/antecedent/tests/longitudinal_regime_route.rs"
+evidence_assertion = "four_period_sequential_dr_interval_matches_the_forward_score_and_replays"
+
+[[rust_cell]]
+producer = "four_period_sequential_dr"
+consumer = "longitudinal_interval_bundle"
+status = "DIRECT"
+detail = "A verified source-bearing result recomputes the bundle's regime value and endpoints. Revised endpoint data recompute the node readout and bind a replacement bundle identity."
+evidence_test = "crates/antecedent/tests/longitudinal_regime_route.rs"
+evidence_assertion = "four_period_sequential_dr_interval_matches_the_forward_score_and_replays"
+
+[[rust_cell]]
+producer = "four_period_sequential_dr"
+consumer = "longitudinal_interval_bundle"
+status = "REFUSED"
+detail = "The embedded result needs its endpoint witness, and a replacement bundle refuses a consumer that retained the previous identity."
+evidence_test = "crates/antecedent/tests/longitudinal_regime_route.rs"
+evidence_assertion = "four_period_sequential_dr_interval_matches_the_forward_score_and_replays"

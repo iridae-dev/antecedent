@@ -2,6 +2,7 @@
 
 import antecedent
 import pytest
+from antecedent import composition_bundle as cb
 from antecedent.errors import CausalUnsupportedError
 from antecedent.outcomes import require_success
 from antecedent.regimes import LongitudinalRegime
@@ -459,6 +460,124 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
     assert unsupported.value_interval_95 is None
     assert unsupported.uncertainty == "point_only_no_interval"
     assert unsupported.support_status == "unsupported_point_utility"
+
+
+def test_four_period_sequential_dr_matches_forward_interval_and_replays(tmp_path):
+    import json
+    import math
+    import statistics
+    import subprocess
+    import sys
+
+    n = 2400
+    treatment = [[bool(i & (1 << t)) for t in range(4)] for i in range(n)]
+    observation = [[i // 16 % 25 >= 4 or t < i // 16 % 25 for t in range(4)] for i in range(n)]
+    q_predictions = [
+        [6.0 + (i % 5 - 2.0) / 16.0 + offset / 64.0 for offset in (-3, -1, 1, 3)]
+        for i in range(n)
+    ]
+    outcomes = [2.0 + sum(row) + (i % 11) / 8 - 0.625 for i, row in enumerate(treatment)]
+    folds = [i % 5 for i in range(n)]
+    query = LongitudinalRegime(
+        outcome="outcome",
+        method="sequential_dr",
+        treatment_history=treatment,
+        actions=[True] * 4,
+        treatment_probabilities=[[0.5] * 4] * n,
+        censoring_probabilities=[[0.95] * 4] * n,
+        outcome_observed=[row[-1] for row in observation],
+        observation_history=observation,
+        q_predictions=q_predictions,
+        subject_ids=[f"four-{i}" for i in range(n)],
+        fold_ids=folds,
+        prediction_fold_ids=folds,
+        excluded_fold_predictions=True,
+    )
+    scores = []
+    for actions, observed, q, y in zip(treatment, observation, q_predictions, outcomes, strict=True):
+        score = q[0]
+        for t in range(4):
+            if not (actions[t] and observed[t]):
+                break
+            next_value = y if t == 3 else q[t + 1]
+            score += (next_value - q[t]) * 0.475 ** -(t + 1)
+        scores.append(score)
+    mean = statistics.mean(scores)
+    se = statistics.stdev(scores) / math.sqrt(n)
+    half_width = 1.959963984540054 * se
+    prepared = antecedent.prepare({"outcome": outcomes}, query=query)
+    plan = prepared.plan_view()
+    assert plan.operation is not None
+    assert plan.operation["kind"] == "longitudinal_regime"
+    result = require_success(prepared.estimate())
+    fit = result.longitudinal_regime
+    assert fit.value == pytest.approx(mean)
+    assert fit.value_standard_error == pytest.approx(se)
+    assert fit.value_interval_95 == pytest.approx([mean - half_width, mean + half_width])
+    assert fit.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
+    assert "sequential_q_validity" in " ".join(result.assumptions or [])
+    source = {"outcome": [y if row[-1] else 0.0 for y, row in zip(outcomes, observation, strict=True)]}
+    artifact_bytes = bytes(result.export(artifact_id="four-period-dr", source_data=source))
+    artifact = require_success(antecedent.load(artifact_bytes))
+    payload = artifact.decoded_artifact.to_dict()["payload"]
+    assert payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(fit.value_interval_95)
+    assert payload["query"]["longitudinal_regime"]["prediction_fold_ids"] == folds
+    assert artifact.program_id == result.program_id
+    assert artifact.claim_id == result.claim_id
+    assert artifact.calibration.status == result.calibration.status
+    basis = artifact.decoded_artifact.contract["claim"]["calibration"]["basis"]["key"]
+    assert basis["functional"] == "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q"
+    path = tmp_path / "four-period-dr.bin"
+    path.write_bytes(artifact_bytes)
+    bundle = cb.BundleBuilder().add_artifact(artifact_bytes, node_id="regime").build()
+    bundle_path = tmp_path / "four-period-dr-bundle.bin"
+    bundle_path.write_bytes(bytes(bundle.export()))
+    reopened = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import json
+from pathlib import Path
+import sys
+import antecedent
+from antecedent import composition_bundle as cb
+from antecedent.outcomes import require_success
+
+artifact = require_success(antecedent.load(Path(sys.argv[1]).read_bytes()))
+replayed = artifact.replay()
+assert "dependencies.checked_longitudinal_regime_operation" not in replayed.acceptance.not_replayable
+assert not replayed.acceptance.mismatches
+bundle = require_success(cb.consume_bundle(Path(sys.argv[2]).read_bytes(), expected_identity=sys.argv[3]))
+bundle.require_verified()
+print(json.dumps([replayed.decoded_artifact.to_dict()["payload"]["longitudinal_regime"],
+                  bundle.value("regime", "regime_value"), bundle.value("regime", "lower_95")]))
+""",
+            str(path),
+            str(bundle_path),
+            bundle.identity,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert json.loads(reopened.stdout) == [
+        payload["longitudinal_regime"], fit.value, fit.value_interval_95[0],
+    ]
+    revised_data = {"outcome": [y + 1.0 for y in outcomes]}
+    revised = require_success(antecedent.analyze(revised_data, query=query))
+    revised_source = {"outcome": [y + 1.0 if row[-1] else 0.0 for y, row in zip(outcomes, observation, strict=True)]}
+    revised_bytes = bytes(revised.export(source_data=revised_source))
+    revised_bundle = cb.BundleBuilder().add_artifact(revised_bytes, node_id="regime").build()
+    replayed_bundle = require_success(
+        cb.consume_bundle(bytes(revised_bundle.export()), expected_identity=revised_bundle.identity)
+    )
+    assert replayed_bundle.value("regime", "regime_value") == revised.longitudinal_regime.value
+    assert replayed_bundle.value("regime", "regime_value") > fit.value
+    with pytest.raises(cb.ExpectedIdentityMismatchRefusal):
+        require_success(
+            cb.consume_bundle(bytes(revised_bundle.export()), expected_identity=bundle.identity)
+        )
 
 
 def test_two_period_sequential_dr_graphless_support_requires_calibrated_subject_support():

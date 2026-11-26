@@ -1706,3 +1706,7 @@ path = "tests/standing_support_transport.rs"
 [[test]]
 name = "patient_surrogate"
 path = "tests/patient_surrogate.rs"
+
+[[test]]
+name = "longitudinal_regime_calibration"
+path = "tests/longitudinal_regime_calibration.rs"

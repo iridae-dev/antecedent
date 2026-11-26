@@ -269,15 +269,11 @@ fn graphless_coordinate(
         use antecedent_core::LongitudinalRegimeMethod as Method;
         let CausalQuery::LongitudinalRegime(query) = query else { return Err(MISMATCH) };
         let (design, method, claim) = match query.method {
-            Method::SequentialDoublyRobust => (
-                if query.periods == 2 {
-                    "known_sequential_randomized_two_period"
-                } else {
-                    "known_sequential_randomized_three_period"
-                },
-                "subject_excluded_q_sequential_dr_scores",
-                "conditional_q_pointwise_95_normal_interval",
-            ),
+            Method::SequentialDoublyRobust => {
+                let key = antecedent_io::graphless_support::sequential_dr_key(query.periods)
+                    .ok_or(MISMATCH)?;
+                (key.design, key.method, key.inference_claim)
+            }
             Method::GFormula => (
                 "known_sequential_randomized_two_period",
                 "fixed_known_q_g_formula_scores",

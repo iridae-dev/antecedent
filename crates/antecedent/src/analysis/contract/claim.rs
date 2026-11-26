@@ -186,6 +186,7 @@ impl StudyResult {
                 if query.delayed_entry.is_some() || query.stratified_censoring.is_some())
                 && self.survival().is_some_and(|curve| curve.difference_band.is_some()
                     || (curve.target_cause.is_some() && curve.difference_at_tau_interval.is_some())))
+            || super::calibration::four_period_dr_design(self, contract).is_some()
         {
             antecedent_io::calibration::calibration_slots(
                 &self.calibration_bases_with(contract, reasoning.identification.as_ref()),

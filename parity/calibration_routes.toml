@@ -791,3 +791,12 @@ routes = [
 groups = [
   "preference_choice_model_calibration: choice_model_trade_off_one_parameter_l95",
 ]
+
+[[route]]
+record = "estimate.longitudinal.sequential_dr_regime"
+routes = [
+  "graphless.longitudinal_regime.known_sequential_randomized_four_period.subject_excluded_q_sequential_dr_scores",
+]
+groups = [
+  "longitudinal_regime_calibration: four_period_sequential_dr_coverage",
+]

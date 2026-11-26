@@ -1125,12 +1125,14 @@ class ResultAPI:
         *,
         artifact_id: str | None = None,
         quantity: Literal["result", "posterior", "record", "query"] = "result",
+        source_data: Any = None,
     ) -> ExportedArtifact[LoadedResult]:
         """Export this exact execution, even after another estimate or refresh.
 
         ``"posterior"`` is a transferable single-estimand prior (scalar draws only);
         ``"record"`` is the full retained posterior or response record of the execution,
         including response surfaces and structural mixtures, which are not priors.
+        ``source_data`` embeds the original tabular snapshot for independent replay.
         """
         execution = getattr(self, "_execution", None)
         if execution is None:
@@ -1144,6 +1146,23 @@ class ResultAPI:
             from ..errors import CausalValueError
 
             raise CausalValueError("quantity must be result, posterior, record or query")
+        if source_data is not None:
+            from ..estimation import _prepared_columns
+
+            if quantity != "result" or getattr(self, "quantities", None) is not None:
+                raise CausalUnsupportedError(
+                    "Source export requires a result without labelled scientific quantities.",
+                    reason_code="option_not_applicable",
+                )
+            names, columns, _ = _prepared_columns(source_data)
+            return artifact_from_receipt(
+                self,
+                execution.export_contracted_artifact_with_source(
+                    names,
+                    columns,
+                    artifact_id="analysis-result" if artifact_id is None else artifact_id,
+                ),
+            )
         if quantity == "posterior":
             if (
                 getattr(self, "posterior", None) is None

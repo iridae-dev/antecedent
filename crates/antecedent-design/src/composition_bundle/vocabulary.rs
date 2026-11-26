@@ -71,6 +71,8 @@ pub enum NodeKind {
     EvidenceLedger,
     /// A declared point quantity selected from a still-valid ledger pool.
     LedgerPooledResult,
+    /// A four-decision regime value replayed from its source table.
+    LongitudinalRegimeResult,
     /// A named transformation.
     Transformation,
     /// A decision contract.
@@ -133,6 +135,7 @@ named_variants! {
         CohortDecisionSource => "cohort_decision_source",
         EvidenceLedger => "evidence_ledger",
         LedgerPooledResult => "ledger_pooled_result",
+        LongitudinalRegimeResult => "longitudinal_regime_result",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
         DecisionResult => "decision_result",
@@ -175,6 +178,7 @@ impl NodeKind {
             | Self::CompactFittedEffectModel
             | Self::CohortDecisionSource
             | Self::LedgerPooledResult
+            | Self::LongitudinalRegimeResult
             | Self::FrozenScores => CompositionStage::DistributionArtifact,
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
             Self::EvidenceRelationship
@@ -207,6 +211,7 @@ impl NodeKind {
             | Self::PatientSurrogateIdentification
             | Self::CounterfactualTransportResult
             | Self::LedgerPooledResult
+            | Self::LongitudinalRegimeResult
             | Self::DecisionResult
             | Self::Sensitivity
             | Self::StudyRanking

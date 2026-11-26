@@ -482,6 +482,7 @@ mod cross_moments;
 pub mod cyclic;
 mod dr_replay;
 mod survival_replay;
+mod longitudinal_replay;
 mod replay;
 mod verify;
 

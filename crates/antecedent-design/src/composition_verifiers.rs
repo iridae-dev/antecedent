@@ -149,7 +149,7 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 25] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 26] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
@@ -161,6 +161,7 @@ pub const VERIFIABLE_KINDS: [NodeKind; 25] = [
     NodeKind::CohortDecisionSource,
     NodeKind::EvidenceLedger,
     NodeKind::LedgerPooledResult,
+    NodeKind::LongitudinalRegimeResult,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
     NodeKind::DecisionResult,
@@ -205,6 +206,7 @@ const fn default_stage(kind: NodeKind) -> BundleStage {
         NodeKind::QuantityCoordinates
         | NodeKind::DelayedEntryIncidenceResult
         | NodeKind::DelayedEntrySurvivalBandResult
+        | NodeKind::LongitudinalRegimeResult
         | NodeKind::DecisionResult
         | NodeKind::Sensitivity
         | NodeKind::StudyRanking
@@ -437,6 +439,7 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         }
         NodeKind::EvidenceLedger => inspect_ledger(bytes, &ExecutionContext::production_default(0)),
         NodeKind::LedgerPooledResult => inspect_selected(bytes),
+        NodeKind::LongitudinalRegimeResult => inspect_longitudinal_regime(bytes),
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
         NodeKind::DecisionResult => inspect_result(bytes),
@@ -456,6 +459,62 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             format!("no verifier is registered for kind `{}`", other.as_str()),
         )),
     }
+}
+
+fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
+    let kind = NodeKind::LongitudinalRegimeResult;
+    if bytes.len() > MAX_SNIFF_BYTES {
+        return Err(failure(
+            BundleStage::Oversized,
+            "longitudinal regime artifact exceeds size bound",
+        ));
+    }
+    let consumed = antecedent_io_core::replay_analysis_result(bytes)
+        .map_err(|error| io_failure(kind, &error))?;
+    if !consumed.acceptance.accepts_as_claim() {
+        let missing_source =
+            consumed.acceptance.unresolved.iter().any(|reason| {
+                reason.as_ref() == "dependencies.checked_longitudinal_regime_operation"
+            });
+        return Err(failure(
+            if missing_source {
+                BundleStage::CallbackUnavailable
+            } else {
+                BundleStage::TamperedQuantity
+            },
+            format!("longitudinal regime replay: {:?}", consumed.acceptance.unresolved),
+        ));
+    }
+    let (antecedent_io_core::CausalQueryWire::LongitudinalRegime(query), Some(fit), Some(contract)) =
+        (&consumed.body.query, &consumed.body.longitudinal_regime, &consumed.contract)
+    else {
+        return Err(failure(
+            BundleStage::SwappedEvidence,
+            "the artifact is not a longitudinal regime result",
+        ));
+    };
+    let Some(claim) = contract.claim.as_ref() else {
+        return Err(failure(
+            BundleStage::SwappedEvidence,
+            "a replayed longitudinal interval is required",
+        ));
+    };
+    if query.periods != 4 || query.method != "sequential_dr" || fit.value_interval_95.is_none() {
+        return Err(failure(BundleStage::SwappedEvidence, "a source-backed four-decision DR interval is required"));
+    }
+    let digest = |bytes| antecedent_core::SemanticDigest::from_bytes(bytes).to_hex();
+    let mut inspected = Inspected { identity: digest(claim.claim_id), ..Inspected::default() };
+    publish(&mut inspected.facts, FACT_SNAPSHOT, digest(contract.identities.data_snapshot));
+    publish(&mut inspected.facts, FACT_REQUEST, digest(contract.identities.target));
+    publish(&mut inspected.facts, "program_identity", digest(contract.identities.program));
+    publish(&mut inspected.facts, "calibration", claim.calibration.status.as_str());
+    publish(&mut inspected.facts, "inference_scope", fit.uncertainty.clone());
+    push_value(&mut inspected.values, "regime_value".into(), fit.value);
+    if let Some([lo, hi]) = fit.value_interval_95 {
+        push_value(&mut inspected.values, "lower_95".into(), lo);
+        push_value(&mut inspected.values, "upper_95".into(), hi);
+    }
+    Ok(inspected)
 }
 
 /// Reconstruct a projection's portable binding facts and cross-check its original source.
@@ -858,6 +917,9 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
             } else {
                 incidence_source_inspection::is_delayed_entry_incidence(&body)
                     .then_some(NodeKind::DelayedEntryIncidenceResult)
+                    .or_else(|| matches!(&body.query, antecedent_io_core::CausalQueryWire::LongitudinalRegime(query)
+                        if query.periods == 4 && query.method == "sequential_dr")
+                        .then_some(NodeKind::LongitudinalRegimeResult))
             }
         }
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
@@ -1027,6 +1089,12 @@ kind_verifier!(
     NodeKind::DelayedEntrySurvivalBandResult
 );
 
+kind_verifier!(
+    /// Verifies a source-bearing four-decision sequential DR regime interval.
+    LongitudinalRegimeResultVerifier,
+    NodeKind::LongitudinalRegimeResult
+);
+
 /// The verifier of one node kind, when it has one.
 #[must_use]
 pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
@@ -1044,6 +1112,7 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         }
         NodeKind::EvidenceLedger => Box::new(EvidenceLedgerVerifier::new(&ExecutionContext::production_default(0))),
         NodeKind::LedgerPooledResult => Box::new(LedgerPooledResultVerifier),
+        NodeKind::LongitudinalRegimeResult => Box::new(LongitudinalRegimeResultVerifier),
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),

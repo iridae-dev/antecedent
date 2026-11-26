@@ -8,6 +8,8 @@ use super::{
     graphless_status_ok, interval_bound_replay,
 };
 
+use antecedent_stats::longitudinal_regime::{common_regime_schedule, four_period_sequential_dr_support};
+
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(
     clippy::too_many_lines,
@@ -41,7 +43,7 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
         && regime.standard_errors.iter().all(|se| se.is_finite() && *se > 0.0);
     let n = query.subject_ids.len();
     let dr_cells = n.checked_mul(query.periods);
-    let dr_matching_subjects = if matches!(query.periods, 2 | 3)
+    let dr_matching_subjects = if matches!(query.periods, 2..=4)
         && dr_cells.is_some_and(|cells| {
             query.treatment_history.len() == cells && query.regime_actions.len() == cells
         })
@@ -66,22 +68,35 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
         .map(|(action, p)| if *action { *p } else { 1.0 - p })
         .fold(1.0_f64, f64::min);
     let dr_min_censor = query.censoring_probabilities.iter().copied().fold(1.0_f64, f64::min);
+    let dr_observed_subjects = query.outcome_observed.iter().filter(|&&observed| observed).count();
     let eligible_dr = query.method == "sequential_dr"
         && query.probabilities_known_by_design
         && query.excluded_fold_predictions
         && query.prediction_fold_ids == query.fold_ids
         && (query.periods == 2
             && n >= 300
-            && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 200
+            && dr_observed_subjects >= 200
             && dr_matching_subjects >= 50
             && dr_min_action >= 0.4
             && dr_min_censor >= 0.85
             || query.periods == 3
                 && n >= 800
-                && query.outcome_observed.iter().filter(|&&observed| observed).count() >= 600
+                && dr_observed_subjects >= 600
                 && dr_matching_subjects >= 60
                 && dr_min_action >= 0.5
-                && dr_min_censor >= 0.9)
+                && dr_min_censor >= 0.9
+            || query.periods == 4
+                && query.rule_id.is_none()
+                && common_regime_schedule(&query.regime_actions, query.periods)
+                && four_period_sequential_dr_support(
+                    n,
+                    dr_observed_subjects,
+                    dr_matching_subjects,
+                    dr_min_action,
+                    dr_min_censor,
+                )
+                && REPLAY_ABSOLUTE.close(regime.minimum_action_probability, dr_min_action)
+                && REPLAY_ABSOLUTE.close(regime.minimum_censoring_probability, dr_min_censor))
         && dr_cells.is_some_and(|cells| query.q_predictions.len() == cells)
         && regime.value_standard_error.is_some_and(|se| se.is_finite() && se > 0.0);
     let g_formula_expected = if query.method == "g_formula"
@@ -225,19 +240,10 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
             )
         };
     let graphless_dr_supported = query.method == "sequential_dr"
-        && matches!(query.periods, 2 | 3)
         && eligible_dr
         && regime.value_interval_95.is_some()
-        && has_support(
-            if query.periods == 2 {
-                "known_sequential_randomized_two_period"
-            } else {
-                "known_sequential_randomized_three_period"
-            },
-            "subject_excluded_q_sequential_dr_scores",
-            "conditional_q_pointwise_95_normal_interval",
-            regime_support,
-        );
+        && crate::graphless_support::sequential_dr_key(query.periods)
+            .is_some_and(|key| graphless_admits(key, regime_support));
     // Two-period fixed-known-Q g-formula: io recomputes the calibrated
     // interval in `g_formula_expected`, so the support requires that exact
     // interval to be published against the two-period fixed-Q row.

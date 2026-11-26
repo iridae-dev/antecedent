@@ -3605,3 +3605,10 @@ evidence_assertion = "a_risk_attitude_and_a_harm_weight_are_recovered_from_noisy
 kind = "known_truth"
 fixtures = []
 why = "A planted risk attitude and harm weight are recovered from simulated noisy choices, the risk attitude with a profile likelihood-ratio interval."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/longitudinal_regime_calibration.rs"
+evidence_assertion = "four_period_sequential_dr_coverage_and_publication"
+kind = "known_truth"
+fixtures = []
+why = "The public estimator's publication matches the trajectory gate across five fixed combinations of sequential overlap and censoring, with a full-history match-count boundary that varies across draws. It prints conditional-on-publication coverage against the population value of six. The formal coverage record scores the measured fair-coin censoring design at its declared sample-size grid."

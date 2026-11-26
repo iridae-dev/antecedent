@@ -166,6 +166,9 @@ prospective = [
 "survival / delayed_entry_two_arm_individual_randomized / arm_stratified_subject_bootstrap_ipcw_product_limit / cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval" = [
   "delayed_entry_incidence_calibration: delayed_entry_fixed_known_incidence_percentile_coverage",
 ]
+"longitudinal_regime / known_sequential_randomized_four_period / subject_excluded_q_sequential_dr_scores" = [
+  "longitudinal_regime_calibration: four_period_sequential_dr_coverage",
+]
 "association / cross_section_linear_slope / bootstrap_row" = [
   "graphless_wider_range_calibration: association_static_bootstrap_spread_slope_interval_upper_rows",
 ]

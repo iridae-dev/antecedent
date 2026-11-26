@@ -11,7 +11,7 @@ papers = [
 
 implementation_deviations = [
  "Both the sequential probabilities and the Q predictions are caller-supplied. Subject-excluded fold ownership is a caller declaration; training of Q is not verified.",
- "The pointwise normal interval is conditional on that declared Q law. It is supported only for the two- and three-period support rows, not for longer histories.",
+ "The pointwise normal interval is conditional on that declared Q law. Two-, three-, and four-period intervals have separate support rows. The four-period row requires a common action schedule and larger observed and matching cohorts.",
  "The g-formula route and the marginal structural model do not share this variance.",
 ]
 
@@ -20,6 +20,7 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/longitudinal_regime.rs",
  "crates/antecedent/tests/longitudinal_regime_route.rs",
+ "crates/antecedent/tests/longitudinal_regime_calibration.rs (public four-decision coverage and publication)",
   "crates/antecedent-stats/tests/longitudinal_regime_reference.rs (exact rational IPW, g-formula and telescoped sequential doubly robust values on five histories)",
 ]
 

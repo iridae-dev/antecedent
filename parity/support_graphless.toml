@@ -2037,3 +2037,18 @@ disposition = "counterpart"
 routes = ["quasi.synthetic_control_conformal", "quasi.multi_unit_synthetic_placebo"]
 reason = "The donor panel is the time axis: the conformal sets permute the treated unit's residual series over time and the staggered rollout adopts at calendar periods. Both have rows for their measured designs."
 exit_by = "2027-03-31"
+
+[[support]]
+family = "longitudinal_regime"
+design = "known_sequential_randomized_four_period"
+method = "subject_excluded_q_sequential_dr_scores"
+inference_claim = "conditional_q_pointwise_95_normal_interval"
+assignment_unit = "unit"
+min_rows = 2400
+min_reported_intervals = 1
+min_probability = 0.45
+requires_disjoint_nuisance_training = true
+known_truth_test = "crates/antecedent/tests/longitudinal_regime_route.rs::four_period_sequential_dr_interval_matches_the_forward_score_and_replays"
+independent_check = "crates/antecedent/tests/longitudinal_regime_route.rs::four_period_sequential_dr_interval_matches_the_forward_score_and_replays"
+retained_route_test = "crates/antecedent/tests/longitudinal_regime_route.rs::four_period_sequential_dr_interval_matches_the_forward_score_and_replays"
+limitations = "Known sequential randomization and conditional censoring survival over four decisions with independent subjects, the same prespecified action schedule for each subject, and caller-declared subject-excluded Q predictions on disjoint folds. Publication requires at least 2400 subjects, 1800 observed terminal outcomes, and 75 terminal-observed subjects whose actions match the entire schedule, with per-decision regime-action probabilities of at least 0.45 and conditional censoring survival of at least 0.95. The single pointwise 95% normal interval uses independent-subject score variance, conditional on the declared Q law. The registered coverage study uses an additive Gaussian terminal outcome, an always-treat regime, fair coins, 0.95 conditional survival, and frozen external Q predictions at each of five fold indices. Publication and conditional-on-publication coverage are also examined at the support thresholds. Q fitting and uncertainty from policy selection are outside this claim."

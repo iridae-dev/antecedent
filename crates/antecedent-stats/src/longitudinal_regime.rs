@@ -299,11 +299,35 @@ pub fn evaluate_sequential_dr_value_with_subject_scores(
     .map_err(RegimeKernelError::from_message)
 }
 
-/// Calibrated two- or three-period pointwise interval for a prespecified regime under
+/// Whether every subject is evaluated under the same prespecified action schedule.
+#[must_use]
+pub fn common_regime_schedule(actions: &[bool], periods: usize) -> bool {
+    let Some(schedule) = actions.get(..periods).filter(|schedule| !schedule.is_empty()) else {
+        return false;
+    };
+    actions.chunks(periods).all(|subject| subject == schedule)
+}
+
+/// Trajectory support required to publish the four-period sequential DR interval.
+#[must_use]
+pub fn four_period_sequential_dr_support(
+    subjects: usize,
+    observed_subjects: usize,
+    observed_matching_subjects: usize,
+    minimum_action_probability: f64,
+    minimum_censoring_probability: f64,
+) -> bool {
+    subjects >= 2_400
+        && observed_subjects >= 1_800
+        && observed_matching_subjects >= 75
+        && minimum_action_probability >= 0.45
+        && minimum_censoring_probability >= 0.95
+}
+
+/// Pointwise interval for a prespecified regime under
 /// known randomization and genuinely subject-excluded Q predictions. The
-/// caller must establish those ownership conditions; this kernel can check
-/// only the score and support inputs. The support floor is deliberately
-/// limited to the randomized designs tested in repeated samples.
+/// caller must establish those ownership conditions, and for four periods
+/// must establish that the action schedule is common to all subjects.
 #[must_use]
 pub fn sequential_dr_pointwise_interval_95(
     summary: &RegimeValueSummary,
@@ -328,6 +352,13 @@ pub fn sequential_dr_pointwise_interval_95(
                 && summary.minimum_action_probability >= 0.5
                 && summary.minimum_censoring_probability >= 0.95
         }
+        4 => four_period_sequential_dr_support(
+            n,
+            observed_subjects,
+            observed_matching_subjects,
+            summary.minimum_action_probability,
+            summary.minimum_censoring_probability,
+        ),
         _ => false,
     };
     if !supported || scores.iter().any(|score| !score.is_finite()) {

@@ -237,8 +237,17 @@ fn unresolved_after(
             false
         }
     };
+    let longitudinal_replayed = match super::longitudinal_replay::replay_longitudinal_interval(
+        header, body, contract, source,
+    ) {
+        Ok(replayed) => replayed,
+        Err(refusal) => {
+            unresolved.push(refusal);
+            false
+        }
+    };
     note_checked_estimator_operation(
-        contract, body, &mut unresolved, replayed, survival_replayed,
+        contract, body, &mut unresolved, replayed, survival_replayed, longitudinal_replayed,
     );
     unresolved
 }
@@ -252,6 +261,7 @@ fn note_checked_estimator_operation(
     unresolved: &mut Vec<ContractReason>,
     dr_replayed: bool,
     survival_replayed: bool,
+    longitudinal_replayed: bool,
 ) {
     let supported = contract.program.as_ref().is_some_and(|program| {
         let resolved = program.commitments.resolved_estimator.as_deref();
@@ -304,6 +314,7 @@ fn note_checked_estimator_operation(
             (Some("randomized.survival_product_limit"), CausalQueryWire::Survival(_)) => {
                 survival_replayed
             }
+            (Some("longitudinal.sequential_dr_regime"), CausalQueryWire::LongitudinalRegime(_)) => longitudinal_replayed,
             (Some("functional.effect"), CausalQueryWire::Response(_)) => {
                 program.checked_functional_response_grid.is_some()
                     && contract
@@ -1391,6 +1402,27 @@ pub(in crate::contract_section) fn note_published_claim(
         {
             unresolved.push(ContractReason::ClaimCalibrationBasis);
         }
+        if let CausalQueryWire::LongitudinalRegime(query) = &body.query
+            && query.periods == 4
+            && query.method == "sequential_dr"
+        {
+            let fit = body.longitudinal_regime.as_ref();
+            let design = query.four_period_dr_calibration_design().filter(|_| {
+                fit.is_some_and(|fit| fit.value_interval_95.is_some())
+            });
+            if claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str()) != design {
+                unresolved.push(ContractReason::ClaimCalibrationBasis);
+            }
+            if let (Some(slot), Some(key)) = (support, crate::graphless_support::sequential_dr_key(4)) {
+                let coordinate = format!("graphless:{}/{}/{}/{}", key.family, key.design, key.method, key.inference_claim);
+                let carried = fit.is_some_and(|fit| fit.graphless_support_status.as_deref() == Some("supported"));
+                if carried != (slot.matrix_status == "supported")
+                    || carried != (slot.matrix_coordinate.as_deref() == Some(coordinate.as_str()))
+                {
+                    unresolved.push(ContractReason::ReasoningSupport);
+                }
+            }
+        }
     }
 }
 
@@ -1655,6 +1687,18 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                 && ((key.interval_method == "analytic_se" && key.inference == "Frequentist" && key.se_kind == "crossfit_score" && key.estimator == "sequential.crossfit_contrast.wald")
                     || (matches!(key.interval_method.as_str(), "posterior_quantile" | "posterior_absolute_deviation") && key.inference == "Bayesian" && key.estimator == "bayesian.sequential_crossfit_contrast"))
                 && key.functional.is_empty()
+        })
+        || contract.reasoning.support.value.as_ref().is_some_and(|_| {
+            matches!(&contract.target.query, crate::CausalQueryWire::LongitudinalRegime(q)
+                if q.four_period_dr_calibration_design() == Some(key.functional.as_str())
+                    && u64::try_from(q.subject_ids.len()) == Ok(basis.scope.row_count))
+                && graphless_validation_ok && key.validation == "not_applicable"
+                && key.query == "LongitudinalRegime" && key.structure == "design"
+                && key.graph_class == "RandomizedTrial" && contract.graph_class == key.graph_class
+                && contract.structure_source == "randomized_trial"
+                && key.interval_method == "analytic_se" && key.inference == "Frequentist"
+                && key.se_kind == "subject_score" && key.estimator == "longitudinal.sequential_dr_regime"
+                && key.level.to_bits() == 0.95_f64.to_bits()
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Exact graphless DiD supports are bound to the executed result.

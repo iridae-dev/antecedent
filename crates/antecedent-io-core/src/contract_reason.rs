@@ -10,6 +10,14 @@ use std::sync::Arc;
 /// One independent reason [`crate::verify_contract_against_body`] can report.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ContractReason {
+    /// `longitudinal_regime_replay.resource`: the source replay exceeded its resource limits.
+    LongitudinalRegimeReplayResource,
+    /// `longitudinal_regime_replay.source`: the witness does not match the declared source.
+    LongitudinalRegimeReplaySource,
+    /// `dependencies.checked_longitudinal_regime_operation`: provide the endpoint table witness.
+    DependenciesCheckedLongitudinalRegimeOperation,
+    /// `body.longitudinal_regime`: durable source replay disagreed with the result.
+    BodyLongitudinalRegime,
     /// `body.estimate`.
     BodyEstimate,
     /// `body.frontdoor_assumption`.
@@ -478,6 +486,12 @@ impl ContractReason {
     )]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::BodyLongitudinalRegime => "body.longitudinal_regime",
+            Self::DependenciesCheckedLongitudinalRegimeOperation => {
+                "dependencies.checked_longitudinal_regime_operation"
+            }
+            Self::LongitudinalRegimeReplaySource => "longitudinal_regime_replay.source",
+            Self::LongitudinalRegimeReplayResource => "longitudinal_regime_replay.resource",
             Self::BodyEstimate => "body.estimate",
             Self::BodyFrontdoorAssumption => "body.frontdoor_assumption",
             Self::BodyIdentificationQuery => "body.identification.query",
@@ -906,6 +920,7 @@ impl ContractReason {
                 | Self::DependenciesCheckedSurvivalIncidenceOperation
                 | Self::DependenciesCheckedSurvivalBandOperation
                 | Self::DependenciesCheckedSurvivalConditionalTraining
+                | Self::DependenciesCheckedLongitudinalRegimeOperation
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -977,6 +992,10 @@ pub(crate) fn publish_reasons(reasons: impl IntoIterator<Item = ContractReason>)
 /// Every ledger code, in spelling order. The test locks the historical strings.
 #[cfg(test)]
 pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
+    ContractReason::LongitudinalRegimeReplayResource,
+    ContractReason::LongitudinalRegimeReplaySource,
+    ContractReason::DependenciesCheckedLongitudinalRegimeOperation,
+    ContractReason::BodyLongitudinalRegime,
     ContractReason::BodyEstimate,
     ContractReason::BodyFrontdoorAssumption,
     ContractReason::BodyIdentificationQuery,
@@ -1212,6 +1231,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "body.identification.query",
     "body.identification_product",
     "body.interventional_distribution",
+    "body.longitudinal_regime",
     "body.nested_counterfactual_estimate",
     "body.query",
     "body.response",
@@ -1267,6 +1287,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_graph_posterior_response_operation",
     "dependencies.checked_interference_operation",
     "dependencies.checked_intervention_response_operation",
+    "dependencies.checked_longitudinal_regime_operation",
     "dependencies.checked_mediation_operation",
     "dependencies.checked_propensity_operation",
     "dependencies.checked_rd_operation",
@@ -1371,6 +1392,8 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "inference_binding.bayesian",
     "inference_binding.inference",
     "inference_binding.validation_suite",
+    "longitudinal_regime_replay.resource",
+    "longitudinal_regime_replay.source",
     "observation.schema",
     "program.checked_aipw_binding",
     "program.checked_aipw_lowering",

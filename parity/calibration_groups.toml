@@ -15397,3 +15397,11 @@ tests = ["graph_posterior_calibration::observed_marginals_validation::observed_s
 ignored = true
 grid = false
 whole = true
+
+[[group]]
+label = "longitudinal_regime_calibration: four_period_sequential_dr_coverage"
+package = "antecedent"
+target = "longitudinal_regime_calibration"
+tests = ["four_period_sequential_dr_coverage"]
+ignored = true
+grid = true
