@@ -58,6 +58,62 @@
     },
     {
       "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_product_limit",
+      "inference_claim": "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_ipcw_product_limit",
+      "inference_claim": "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_supremum_band",
+      "inference_claim": "simultaneous_95_survival_difference_band",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_supremum_band",
+      "inference_claim": "simultaneous_95_cumulative_incidence_difference_band",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_ipcw_supremum_band",
+      "inference_claim": "simultaneous_95_survival_difference_band",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "delayed_entry_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_ipcw_supremum_band",
+      "inference_claim": "simultaneous_95_cumulative_incidence_difference_band",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
+      "design": "binary_entry_and_censoring_strata_two_arm_individual_randomized",
+      "method": "arm_stratified_subject_bootstrap_stratified_censoring_refit",
+      "inference_claim": "simultaneous_95_standardized_survival_difference_band",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "survival",
       "design": "two_arm_individual_randomized",
       "method": "arm_stratified_subject_bootstrap_supremum_band",
       "inference_claim": "simultaneous_95_survival_difference_band",
@@ -877,6 +933,14 @@
       "design": "single_treated_unit",
       "method": "simplex_dirichlet_posterior_predictive_path",
       "inference_claim": "per_period_and_average_95_posterior_predictive_intervals",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "longitudinal_regime",
+      "design": "known_sequential_randomized_four_period",
+      "method": "subject_excluded_q_sequential_dr_scores",
+      "inference_claim": "conditional_q_pointwise_95_normal_interval",
       "status": "supported",
       "missing_evidence": []
     }
@@ -2489,6 +2553,21 @@
     },
     {
       "id": "preference_learning.choice_model",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "identify.patient_surrogate",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "identify.pag_direct",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "sensitivity.longitudinal_joint",
       "status": "supported",
       "missing_evidence": []
     },

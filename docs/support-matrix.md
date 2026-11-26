@@ -11,7 +11,7 @@ Do not edit this page by hand.
 
 This page is the public **support**. `docs/capabilities.md` is an inventory
 of what exists in the codebase; it does not support a cell.
-See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/v3.0.0/adr/0020-support-matrix-and-prepared-workflow.md).
+See [ADR 0020](https://github.com/iridae-dev/antecedent/blob/v3.1.0/adr/0020-support-matrix-and-prepared-workflow.md).
 
 The Cartesian product (query × graph class × structure source × inference ×
 validation) is **4320** cells. That denominator is not a feature count.
@@ -20,7 +20,7 @@ Of those cells, **1434** are typed impossibilities and
 
 ## Supported units
 
-**Supported units: 3208 (matrix cells 2776, graphless rows 110, capabilities outside the matrix 322); not supported: 0 (owed records only 0, other 0).**
+**Supported units: 3220 (matrix cells 2776, graphless rows 118, capabilities outside the matrix 326); not supported: 0 (owed records only 0, other 0).**
 
 A *supported unit* is one scientific combination, and one rule decides it: a
 provenance record plus an executed independent scientific check (known truth, an
@@ -37,10 +37,10 @@ evidence as `owed: <selector>`, and the embedded support data marks the unit
 
 - a **matrix cell** (this page, 2776 supported of 2776 listed),
 - a **graphless row** in `parity/support_graphless.toml` (a design-family method
-  with no graph axes, 110 supported), or
+  with no graph axes, 118 supported), or
 - a **capability outside the matrix** described by a capability record in
   `parity/capability_records.toml` (transport stages, adaptive procedures,
-  decisions, bridges; 322 supported). A record that
+  decisions, bridges; 326 supported). A record that
   describes a matrix cell or graphless row names it and is not counted again.
 
 API and stage routes listed under a capability record are **entry points**. They
