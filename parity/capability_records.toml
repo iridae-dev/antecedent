@@ -27101,4 +27101,3 @@ activation_disposition = "runtime_scope_checked_against_current_covering_record"
 allocation_status = "source_fixed_new_coverage_record"
 measurement_design_status = "complete_measurement_pending"
 truth_grid_allocation = "2048, 4096 and 8192 source subjects, with one independent target row per three source subjects, rounded down."
-
