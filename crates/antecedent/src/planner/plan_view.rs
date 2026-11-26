@@ -1965,6 +1965,12 @@ impl PlanView {
         self.identification.assumptions()
     }
 
+    /// Method records for the lowered program.
+    #[must_use]
+    pub fn method_provenance(&self) -> antecedent_io::method_provenance::MethodProvenanceWire {
+        self.program.method_provenance()
+    }
+
     /// The statistical, evidence and decision, and physical operations of the route,
     /// in layer order. Each is derived from the program: its operators, models,
     /// folds, resampling and posterior, its evidence sources, composition, decision,

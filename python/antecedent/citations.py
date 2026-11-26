@@ -219,6 +219,9 @@ def provenance_of(result: Any) -> MethodProvenance:
     if isinstance(result, LoadedResult):
         return result.method_provenance
     plan = getattr(result, "plan", None)
+    carried = getattr(plan, "_method_provenance_json", None)
+    if carried is not None:
+        return MethodProvenance._parse(carried)
     identifier = getattr(plan, "identifier", None) if plan is not None else None
     estimator = getattr(plan, "estimator", None) if plan is not None else None
     return method_provenance(identifier or None, estimator or None)

@@ -116,6 +116,7 @@ pub(crate) fn assemble_result(mut args: AssembleArgs<'_>) -> StudyResult {
             would_refuse: Vec::new(),
         },
         executed_contract: None,
+        compiled_method_provenance: None,
         lowered_identity: None,
         execution_identity: None,
         lowered_quadrant: None,

@@ -135,7 +135,7 @@ def _predictive_replicates_from_raw(raw: Any) -> Any:
 
 
 def _plan_from_raw(raw: Any) -> PlanView:
-    return PlanView(
+    view = PlanView(
         plan_id=str(getattr(raw, "plan_id", "") or ""),
         modality=getattr(raw, "modality", None),
         discovery_algorithm=getattr(raw, "discovery_algorithm", None),
@@ -146,6 +146,10 @@ def _plan_from_raw(raw: Any) -> PlanView:
         or (getattr(raw, "estimator_id", None) or None),
         validation_suite=getattr(raw, "validation_suite", None),
     )
+    view._method_provenance_json = getattr(
+        getattr(raw, "performance", None), "method_provenance_json", None
+    )
+    return view
 
 
 def _sampling_weights_view(raw: Any) -> SamplingWeightsView | None:

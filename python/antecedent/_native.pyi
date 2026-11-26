@@ -1187,6 +1187,7 @@ class PerformanceSection:
     temporal execution path currently records them, so they read `None`/empty on
     the temporal DTO."""
 
+    method_provenance_json: str
     native_execution: ExecutionFacts | None
     plan_id: str
     modality: str
