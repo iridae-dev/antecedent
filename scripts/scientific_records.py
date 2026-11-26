@@ -196,7 +196,7 @@ def capture_env(root: Path) -> dict[str, str]:
 def build_command(root: Path, crate: str, target: tuple[str, ...]) -> list[str]:
     """`cargo test --no-run` for one crate target, reporting its test executable as JSON."""
     features = scientific_target_feature_args(root / "crates" / crate / "Cargo.toml", list(target))
-    return ["cargo", "test", "--no-run", "--message-format=json", "-p", crate, *target, *features]
+    return ["cargo", "test", "--no-run", "--message-format=json-render-diagnostics", "-p", crate, *target, *features]
 
 
 def built_executable(stdout: str) -> str | None:
@@ -323,7 +323,7 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
         built = run(build_command(root, crate, target), cwd=root, env=env, text=True, capture_output=True)
         binary = built_executable(built.stdout or "") if built.returncode == 0 else None
         if binary is None:
-            print(f"FAIL: {crate} {' '.join(target)}: instrumented build failed\n{(built.stderr or '')[-400:]}")
+            print(f"FAIL: {crate} {' '.join(target)}: instrumented build failed\n{built.stderr or ''}")
             failed += len(todo)
             continue
         earned = []
