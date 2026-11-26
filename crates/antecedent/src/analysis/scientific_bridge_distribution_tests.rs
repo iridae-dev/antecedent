@@ -920,3 +920,109 @@ fn compiled_identified_set_bridge_reopens_the_sharp_target_interval() {
         consume_bridge_image(&bytes, program, SemanticDigest::from_bytes([0; 32]), &ctx).is_err()
     );
 }
+
+#[test]
+fn stored_trial_images_replay_numerically_without_current_coverage_and_preserve_resource_stops() {
+    use crate::Study;
+    use crate::analysis::composition::{
+        BundleLimits, BundleStage, NodeStatus, SuppliedSources, export_bundle,
+        standard_consumer_with_context,
+    };
+    use crate::analysis::kernel_programs::bridge_images::{
+        BridgeImageRequest, BridgeImageResult, TrialBridgeExperiment, TrialBridgeReleaseDesign,
+        TrialMeanStudy, consume_bridge_image,
+    };
+    use antecedent_io::bridge_interval_decision::BridgeIntervalReading;
+
+    let mut bridge = contract(
+        BridgeMapping::TrialLevelLinear(TrialLevelValidation {
+            trials: (0..24)
+                .map(|i| {
+                    let x = (f64::from(i) - 11.5) / 12.0;
+                    TrialEffectPair {
+                        surrogate_effect: x,
+                        terminal_effect: 0.1 + 0.9 * x + 0.1 * x * x,
+                    }
+                })
+                .collect(),
+            min_trials: 3,
+            min_r_squared: 0.0,
+        }),
+        None,
+        Some(SourceMappingDependence::SharedTrialMean {
+            evidence: "meta-analysis:ckd-2024".into(),
+        }),
+    );
+    bridge.source_value = ValueKind::Bootstrap;
+    bridge.target_value = ValueKind::Bootstrap;
+    let quantity = bridge.target.quantity.clone();
+    let interval = BridgeImageRequest::TrialConfidence(Box::new(TrialBridgeExperiment {
+        contract: bridge,
+        study: TrialMeanStudy::Shared,
+        level: 0.95,
+        seed: 323,
+        replicates: 399,
+        release_design: Some(TrialBridgeReleaseDesign::SharedUniformGaussianV1),
+    }));
+    let threshold = BridgeImageRequest::IntervalThreshold {
+        interval: Box::new(interval.clone()),
+        quantity,
+        threshold: 0.0,
+    };
+    let ctx = ExecutionContext::for_tests(31);
+    let mut builder = BundleBuilder::new();
+    for (id, request) in [("interval", interval), ("threshold", threshold)] {
+        let plan = Study::compile_bridge_image(request.clone(), &ctx).unwrap();
+        let program = plan.lowered().identity();
+        // This size is outside the registered release grid. Construct a historical seal
+        // with exactly the original numeric carrier shape to simulate loss of its receipt.
+        assert!(plan.execute(&ctx).is_err());
+        let numerical = request.replay_image(&ctx).unwrap();
+        let expected = numerical.identity();
+        let bytes = request.export(&numerical, program, id).unwrap();
+        let live = consume_bridge_image(&bytes, program, expected, &ctx).unwrap();
+        assert_eq!(live.identity(), expected);
+        match live {
+            BridgeImageResult::TrialConfidence(value) => assert!(!value.is_calibrated()),
+            BridgeImageResult::IntervalThreshold(value) => {
+                assert!(matches!(value.reading, BridgeIntervalReading::SamplingNominal));
+                assert!(value.interval_coverage_record.is_none());
+            }
+            _ => panic!("unexpected historical result"),
+        }
+        let limited = ExecutionContext::for_tests(31).with_memory_limit(Some(1));
+        let err = consume_bridge_image(&bytes, program, expected, &limited).unwrap_err();
+        assert!(err.is_resource_refusal());
+        builder.add_detected_artifact(Some(id), &bytes).unwrap();
+    }
+    builder.connect("interval", "threshold").unwrap();
+    let bundle = builder.build().unwrap();
+    let bytes = export_bundle(&bundle, "historical-trial-bridge").unwrap();
+    let consume = |ctx: &ExecutionContext| {
+        standard_consumer_with_context(ctx)
+            .consume(
+                &bytes,
+                &BundleLimits::default(),
+                bundle.identity(),
+                &SuppliedSources::default(),
+            )
+            .unwrap()
+    };
+    let replayed = consume(&ctx);
+    assert!(replayed.all_replayed());
+    for id in ["interval", "threshold"] {
+        assert_eq!(replayed.node(id).unwrap().facts["interval_reading"], "sampling_nominal");
+    }
+    let cancelled = ExecutionContext::for_tests(31);
+    cancelled.cancellation.cancel();
+    let limited = ExecutionContext::for_tests(31).with_memory_limit(Some(1));
+    for (controls, wanted) in
+        [(cancelled, BundleStage::ExecutionCancelled), (limited, BundleStage::ResourceRefused)]
+    {
+        let refused = consume(&controls);
+        assert!(matches!(
+            refused.node("interval").unwrap().status,
+            NodeStatus::Failed { stage, .. } if stage == wanted
+        ));
+    }
+}

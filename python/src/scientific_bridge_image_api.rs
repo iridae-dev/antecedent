@@ -29,12 +29,10 @@ fn outcome<T>(value: Result<T, ExactImageError>) -> Outcome<T> {
                 .json(),
             ),
         )),
-        Err(ExactImageError::Image(
-            BridgeImageError::Artifact(antecedent::io::IoError::Admission(r))
-            | BridgeImageError::Mapping(JointOutcomeBridgeError::Artifact(
-                antecedent::io::IoError::Admission(r),
-            )),
-        )) => Err(crate::CausalResourceError::new_err(r.to_string())),
+        Err(e) if e.is_cancelled() => Err(crate::CausalCancelledError::new_err(e.to_string())),
+        Err(e) if e.is_resource_refusal() => {
+            Err(crate::CausalResourceError::new_err(e.to_string()))
+        }
         Err(ExactImageError::Image(e)) => Err(crate::serialization_err(e.to_string())),
         Err(ExactImageError::Compile(e)) => Err(crate::value_err(e.to_string())),
     }
@@ -71,12 +69,18 @@ impl ImageResult {
 
     fn confidence_interval_json(&self) -> PyResult<Option<String>> {
         match &self.inner {
-            BridgeImageResult::TrialConfidence(v) => Ok(Some(json!({
-                "lower":v.interval.endpoints[0], "upper":v.interval.endpoints[1],"estimate":v.interval.point,
-                "level":v.interval.basis.key.level,"coverage_record":v.calibration.record_id,
-                "calibration_sha":v.calibration.calibration_sha, "design":v.interval.basis.key.dependence,
-            }).to_string())),
-            _ => Ok(None)
+            BridgeImageResult::TrialConfidence(v) => {
+                let current = v.is_calibrated();
+                Ok(Some(json!({
+                    "lower":v.interval.endpoints[0], "upper":v.interval.endpoints[1],"estimate":v.interval.point,
+                    "level":v.interval.basis.key.level, "design":v.interval.basis.key.dependence,
+                    "reading":if current { "sampling_confidence" } else { "sampling_nominal" },
+                    "calibration_status":v.calibration.status.as_str(),
+                    "coverage_record":v.calibration.record_id.as_ref().filter(|_| current),
+                    "calibration_sha":v.calibration.calibration_sha.as_ref().filter(|_| current),
+                }).to_string()))
+            }
+            _ => Ok(None),
         }
     }
     fn interval_quantity_json(&self) -> Option<String> {

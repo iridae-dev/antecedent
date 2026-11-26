@@ -1,10 +1,13 @@
 //! Replayable exact images of identified sets and finite joint outcome laws.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use std::io::Cursor;
+
 use antecedent_contract::ScientificQuantity;
 use antecedent_contract::bridge::{
     BridgeContract, BridgedIdentifiedSet, FixedBridgeDomain, IdentifiedSetSource, ValueInterval,
 };
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{CanonicalWriter, ExecutionContext, IdentifiedSet, SemanticDigest};
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +26,7 @@ use crate::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, MAX_DISTRIBUTION_ARTIFACT_BYTES,
 };
 use crate::quantity_wire::ScientificQuantityWire;
-use crate::{ArtifactContainer, IoError, OutSection};
+use crate::{ArtifactContainer, ArtifactReader, IoError, OutSection};
 
 /// The artifact feature used by the compiled exact-image routes.
 pub const BRIDGE_IMAGE_ARTIFACT: &str = "scientific_bridge_exact_image_v1";
@@ -98,6 +101,25 @@ impl BridgeImageResult {
             Self::JointOutcomes(v) => v.identity,
         }
     }
+    /// Reserve the simultaneously held result and its temporary encoding during replay.
+    #[doc(hidden)]
+    pub fn admit_readout(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<AdmissionLease, BridgeImageError> {
+        let artifact = match self {
+            Self::TrialConfidence(v) => Some(&v.interval.bootstrap),
+            Self::JointPosterior(v) => Some(&v.posterior),
+            Self::JointOutcomes(v) => Some(&v.distribution),
+            _ => None,
+        };
+        let bytes = artifact.map_or(0, |artifact| {
+            let weights = artifact.metadata().weights.as_ref().map_or(0, Vec::len);
+            (artifact.draws().len().saturating_add(weights) as u64).saturating_mul(8)
+        });
+        Ok(admit_bytes(bytes, ctx)?)
+    }
+
     fn readout(&self) -> Result<[u8; 32], IoError> {
         let mut key = CanonicalWriter::new("antecedent.bridge.image.readout.v1");
         key.bytes(self.identity().as_bytes());
@@ -108,6 +130,15 @@ impl BridgeImageResult {
                 let mut scientific = v.clone();
                 scientific.interval_coverage_record = None;
                 scientific.interval_calibration_sha = None;
+                if matches!(
+                    scientific.reading,
+                    crate::bridge_interval_decision::BridgeIntervalReading::SamplingNominal
+                ) {
+                    // The v1 seal describes the original sampling construction, independent
+                    // of whether its historical coverage is still current for the consumer.
+                    scientific.reading =
+                        crate::bridge_interval_decision::BridgeIntervalReading::SamplingConfidence;
+                }
                 key.bytes(&crate::to_cbor(&scientific)?);
             }
             Self::TrialConfidence(v) => {
@@ -146,6 +177,39 @@ pub enum BridgeImageError {
     /// Container, resource or numerical source failure.
     #[error(transparent)]
     Artifact(#[from] IoError),
+}
+
+impl BridgeImageError {
+    fn io_error(&self) -> Option<&IoError> {
+        match self {
+            Self::Artifact(error) | Self::Mapping(JointOutcomeBridgeError::Artifact(error)) => {
+                Some(error)
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether the caller cancelled before or during replay.
+    pub fn is_cancelled(&self) -> bool {
+        matches!(
+            self.io_error(),
+            Some(IoError::Admission(AdmissionError::Cancelled) | IoError::StreamCancelled)
+        )
+    }
+
+    /// Whether the image exceeded its structural or caller execution budget.
+    pub fn is_resource_refusal(&self) -> bool {
+        !self.is_cancelled()
+            && (matches!(
+                self.io_error(),
+                Some(
+                    IoError::Admission(_) | IoError::TooLarge | IoError::StreamBudgetRefused { .. }
+                )
+            ) || matches!(
+                self,
+                Self::Declaration(ScientificBridgeArtifactError::LimitsExceeded(_))
+            ))
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -317,16 +381,39 @@ impl BridgeImageRequest {
     }
     /// Execute the mapping under the caller's admission and cancellation controls.
     pub fn evaluate(&self, ctx: &ExecutionContext) -> Result<BridgeImageResult, BridgeImageError> {
+        self.evaluate_image(ctx, false)
+    }
+
+    /// Recompute a stored image. Trial bounds without a current coverage receipt have a
+    /// nominal reading after comparison to the retained numerical seal.
+    #[doc(hidden)]
+    pub fn replay_image(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<BridgeImageResult, BridgeImageError> {
+        self.evaluate_image(ctx, true)
+    }
+
+    fn evaluate_image(
+        &self,
+        ctx: &ExecutionContext,
+        historical_replay: bool,
+    ) -> Result<BridgeImageResult, BridgeImageError> {
         match self {
             Self::IntervalThreshold { interval, quantity, threshold } => {
                 interval.require_interval()?;
-                let value = interval.evaluate(ctx)?;
+                let value = interval.evaluate_image(ctx, historical_replay)?;
                 Ok(BridgeImageResult::IntervalThreshold(BridgeIntervalDecision::evaluate(
                     &value, quantity, *threshold,
                 )?))
             }
             Self::TrialConfidence(experiment) => {
-                Ok(BridgeImageResult::TrialConfidence(experiment.interval(ctx)?))
+                let interval = if historical_replay && experiment.release_design.is_some() {
+                    experiment.reconstruct_interval(ctx)?
+                } else {
+                    experiment.interval(ctx)?
+                };
+                Ok(BridgeImageResult::TrialConfidence(interval))
             }
             Self::JointPosterior { map, source, level } => {
                 Ok(BridgeImageResult::JointPosterior(map.interval(source, *level, ctx)?))
@@ -379,31 +466,61 @@ impl BridgeImageRequest {
 pub struct StoredBridgeImage {
     /// Inputs reconstructed from the container.
     pub request: BridgeImageRequest,
+    binding: BridgeImageReplayBinding,
+}
+
+/// Retained expectations and the working-set lease of an opened image.
+pub struct BridgeImageReplayBinding {
     program: SemanticDigest,
     result: SemanticDigest,
     readout: [u8; 32],
+    _workspace: AdmissionLease,
+    _source_expansion: Option<AdmissionLease>,
 }
 
 impl StoredBridgeImage {
-    /// Check container bounds, version and independent expectations before reconstructing inputs.
+    /// Open under the default execution limits and check the independent expectations.
     pub fn open(
         bytes: &[u8],
         program: SemanticDigest,
         result: SemanticDigest,
     ) -> Result<Self, BridgeImageError> {
-        let stored = Self::decode(bytes)?;
-        if stored.program != program || stored.result != result {
-            return Err(ScientificBridgeArtifactError::IdentityMismatch {
-                field: "retained image program or result",
-            }
-            .into());
-        }
-        Ok(stored)
+        Self::open_with_context(bytes, program, result, &ExecutionContext::production_default(0))
     }
 
-    /// Open an embedded node before replay. A caller must check the result with
-    /// [`Self::verify`] against a program compiled from its retained declaration.
+    /// Check the independently held identities under the caller's admission and cancellation policy.
+    pub fn open_with_context(
+        bytes: &[u8],
+        program: SemanticDigest,
+        result: SemanticDigest,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, BridgeImageError> {
+        Self::decode_admitted(bytes, Some((program, result)), ctx)
+    }
+
+    /// Open an embedded node under the default execution limits before numerical verification.
     pub fn decode(bytes: &[u8]) -> Result<Self, BridgeImageError> {
+        Self::decode_with_context(bytes, &ExecutionContext::production_default(0))
+    }
+
+    /// Admit and decode an embedded node before numerical verification.
+    pub fn decode_with_context(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+    ) -> Result<Self, BridgeImageError> {
+        Self::decode_admitted(bytes, None, ctx)
+    }
+
+    fn decode_admitted(
+        bytes: &[u8],
+        expected: Option<(SemanticDigest, SemanticDigest)>,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, BridgeImageError> {
+        let manifest_lease = admit_bytes(bytes.len() as u64, ctx)?;
+        let decoded_bytes = decoded_size(bytes, LIMIT)?;
+        drop(manifest_lease);
+        // Account for the section buffers, restored inputs and their compilation encoding.
+        let workspace = admit_bytes(decoded_bytes.max(bytes.len() as u64), ctx)?;
         let (meta, [source_bytes]): (Meta, _) =
             crate::artifact_codec::decode_sectioned_io_versioned(
                 BRIDGE_IMAGE_ARTIFACT,
@@ -414,15 +531,54 @@ impl StoredBridgeImage {
                 1,
                 bytes,
             )?;
-        let request = meta.input.restore(&source_bytes)?;
+        let program = SemanticDigest::from_bytes(meta.program);
+        let result = SemanticDigest::from_bytes(meta.result);
+        if expected.is_some_and(|expected| expected != (program, result)) {
+            return Err(ScientificBridgeArtifactError::IdentityMismatch {
+                field: "retained image program or result",
+            }
+            .into());
+        }
+        let input = meta.input.unbox_threshold()?;
+        let payload_size = source_bytes.len() as u64;
+        let source_expansion = if input.has_distribution_payload() {
+            let decoded_source = decoded_size(&source_bytes, MAX_DISTRIBUTION_ARTIFACT_BYTES)?;
+            let expansion = decoded_source.saturating_sub(payload_size);
+            (expansion != 0).then(|| admit_bytes(expansion, ctx)).transpose()?
+        } else {
+            None
+        };
+        check_replay_cancellation(ctx)?;
+        let request = input.restore(&source_bytes)?;
+        check_replay_cancellation(ctx)?;
         Ok(Self {
             request,
-            program: SemanticDigest::from_bytes(meta.program),
-            result: SemanticDigest::from_bytes(meta.result),
-            readout: meta.readout,
+            binding: BridgeImageReplayBinding {
+                program,
+                result,
+                readout: meta.readout,
+                _workspace: workspace,
+                _source_expansion: source_expansion,
+            },
         })
     }
 
+    /// Move the admitted input into the compiler while retaining its replay binding and lease.
+    pub fn into_parts(self) -> (BridgeImageRequest, BridgeImageReplayBinding) {
+        (self.request, self.binding)
+    }
+
+    /// Compare compiler and result identities, and independently regenerated numerical bits.
+    pub fn verify(
+        &self,
+        program: SemanticDigest,
+        result: &BridgeImageResult,
+    ) -> Result<(), BridgeImageError> {
+        self.binding.verify(program, result)
+    }
+}
+
+impl BridgeImageReplayBinding {
     /// Compare compiler and result identities, and independently regenerated numerical bits.
     pub fn verify(
         &self,
@@ -441,27 +597,84 @@ impl StoredBridgeImage {
     }
 }
 
-impl InputWire {
+fn admit_bytes(bytes: u64, ctx: &ExecutionContext) -> Result<AdmissionLease, IoError> {
+    ctx.acquire_admission(0, bytes.saturating_mul(8).max(1)).map_err(IoError::from)
+}
+
+fn decoded_size(bytes: &[u8], limit: usize) -> Result<u64, IoError> {
+    if bytes.len() > limit {
+        return Err(IoError::TooLarge);
+    }
+    let reader = ArtifactReader::open_seek(Cursor::new(bytes))?;
+    reader
+        .manifest()
+        .sections
+        .iter()
+        .try_fold(0_u64, |sum, section| sum.checked_add(section.uncompressed_size))
+        .filter(|size| *size <= limit as u64)
+        .ok_or(IoError::TooLarge)
+}
+
+fn check_replay_cancellation(ctx: &ExecutionContext) -> Result<(), IoError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(AdmissionError::Cancelled.into());
+    }
+    Ok(())
+}
+
+enum RestoreInput {
+    Image(InputWire),
+    Threshold { interval: InputWire, quantity: ScientificQuantityWire, threshold: u64 },
+}
+
+impl RestoreInput {
+    fn has_distribution_payload(&self) -> bool {
+        let wire = match self {
+            Self::Image(wire) | Self::Threshold { interval: wire, .. } => wire,
+        };
+        matches!(wire, InputWire::JointPosterior { .. } | InputWire::JointOutcomes { .. })
+    }
+
     fn restore(self, source_bytes: &[u8]) -> Result<BridgeImageRequest, BridgeImageError> {
-        Ok(match self {
-            InputWire::IntervalThreshold { interval_declaration, quantity, threshold } => {
-                let parent: InputWire = crate::from_cbor(&interval_declaration)?;
-                if !matches!(
-                    parent,
-                    InputWire::JointPosterior { .. } | InputWire::TrialConfidence { .. }
-                ) {
+        match self {
+            Self::Image(wire) => wire.restore(source_bytes),
+            Self::Threshold { interval, quantity, threshold } => {
+                Ok(BridgeImageRequest::IntervalThreshold {
+                    interval: Box::new(interval.restore(source_bytes)?),
+                    quantity: ScientificQuantity::try_from(quantity).map_err(|_| {
+                        ScientificBridgeArtifactError::ReplayMismatch("threshold coordinate")
+                    })?,
+                    threshold: f64::from_bits(threshold),
+                })
+            }
+        }
+    }
+}
+
+impl InputWire {
+    fn unbox_threshold(self) -> Result<RestoreInput, BridgeImageError> {
+        match self {
+            Self::IntervalThreshold { interval_declaration, quantity, threshold } => {
+                let interval = crate::from_cbor(&interval_declaration)?;
+                if !matches!(interval, Self::JointPosterior { .. } | Self::TrialConfidence { .. }) {
                     return Err(ScientificBridgeArtifactError::ReplayMismatch(
                         "threshold requires a single interval declaration",
                     )
                     .into());
                 }
-                BridgeImageRequest::IntervalThreshold {
-                    interval: Box::new(parent.restore(source_bytes)?),
-                    quantity: ScientificQuantity::try_from(quantity).map_err(|_| {
-                        ScientificBridgeArtifactError::ReplayMismatch("threshold coordinate")
-                    })?,
-                    threshold: f64::from_bits(threshold),
-                }
+                Ok(RestoreInput::Threshold { interval, quantity, threshold })
+            }
+            wire => Ok(RestoreInput::Image(wire)),
+        }
+    }
+
+    fn restore(self, source_bytes: &[u8]) -> Result<BridgeImageRequest, BridgeImageError> {
+        Ok(match self {
+            InputWire::IntervalThreshold { .. } => {
+                return Err(ScientificBridgeArtifactError::ReplayMismatch(
+                    "unexpected nested threshold",
+                )
+                .into());
             }
             InputWire::TrialConfidence {
                 contract,
@@ -592,6 +805,10 @@ mod numerical_replay_tests {
         let mut updated = raw;
         updated.interval_coverage_record = Some("record-v2".into());
         updated.interval_calibration_sha = Some("revision-2".into());
+        assert_eq!(first, BridgeImageResult::IntervalThreshold(updated.clone()).readout().unwrap());
+        updated.reading = BridgeIntervalReading::SamplingNominal;
+        updated.interval_coverage_record = None;
+        updated.interval_calibration_sha = None;
         assert_eq!(first, BridgeImageResult::IntervalThreshold(updated.clone()).readout().unwrap());
         updated.endpoints[0] = 0.52;
         assert_ne!(first, BridgeImageResult::IntervalThreshold(updated).readout().unwrap());

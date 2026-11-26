@@ -4,7 +4,8 @@
 use antecedent_contract::DataClassification;
 use antecedent_core::{ExecutionContext, SemanticDigest};
 pub use antecedent_io::bridge_image_artifact::{
-    BridgeImageError, BridgeImageRequest, BridgeImageResult, StoredBridgeImage,
+    BridgeImageError, BridgeImageReplayBinding, BridgeImageRequest, BridgeImageResult,
+    StoredBridgeImage,
 };
 pub use antecedent_io::bridge_joint_outcomes::{
     JointOutcomeBridgeError, JointOutcomeMap, JointOutcomeTerm,
@@ -37,6 +38,26 @@ pub enum ExactImageError {
     /// The release gate refused the route.
     #[error(transparent)]
     Support(#[from] antecedent_core::NotSupported),
+}
+
+impl ExactImageError {
+    /// Whether the caller stopped this operation.
+    pub fn is_cancelled(&self) -> bool {
+        match self {
+            Self::Image(error) => error.is_cancelled(),
+            Self::Compile(crate::CausalError::Cancelled { .. }) => true,
+            _ => false,
+        }
+    }
+
+    /// Whether the bridge image exceeded a caller or structural resource limit.
+    pub fn is_resource_refusal(&self) -> bool {
+        match self {
+            Self::Image(error) => error.is_resource_refusal(),
+            Self::Compile(crate::CausalError::Resource { .. }) => true,
+            _ => false,
+        }
+    }
 }
 
 /// The complete source and mapping retained by an exact-image program.
@@ -209,9 +230,24 @@ pub fn consume_bridge_image(
     result: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<BridgeImageResult, ExactImageError> {
-    let stored = StoredBridgeImage::open(bytes, program, result)?;
-    let plan = Study::compile_bridge_image(stored.request.clone(), ctx)?;
-    let live = plan.execute(ctx)?;
-    stored.verify(plan.lowered().identity(), &live)?;
-    Ok(live)
+    let (request, binding) =
+        StoredBridgeImage::open_with_context(bytes, program, result, ctx)?.into_parts();
+    Ok(replay_stored_image(request, &binding, ctx)?.1)
+}
+
+pub(crate) fn replay_stored_image(
+    request: BridgeImageRequest,
+    binding: &BridgeImageReplayBinding,
+    ctx: &ExecutionContext,
+) -> Result<(SemanticDigest, BridgeImageResult), ExactImageError> {
+    let plan = Study::compile_bridge_image(request, ctx)?;
+    plan.0.gate(ctx)?;
+    let program = plan.lowered().identity();
+    let live = plan.0.input().replay_image(ctx)?;
+    let _readout = live.admit_readout(ctx)?;
+    binding.verify(program, &live)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(BridgeImageError::from(antecedent_io::IoError::StreamCancelled).into());
+    }
+    Ok((program, live))
 }

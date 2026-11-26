@@ -51,6 +51,8 @@ pub enum ThresholdVerdict {
 pub enum BridgeIntervalReading {
     PosteriorCredible,
     SamplingConfidence,
+    /// Numerically verified trial bounds without current coverage evidence.
+    SamplingNominal,
 }
 
 impl BridgeIntervalDecision {
@@ -76,15 +78,26 @@ impl BridgeIntervalDecision {
                     None,
                     None,
                 ),
-                BridgeImageResult::TrialConfidence(v) => (
-                    &v.interval.quantity,
-                    v.interval.endpoints,
-                    BridgeIntervalReading::SamplingConfidence,
-                    v.interval.basis.key.level,
-                    None,
-                    v.calibration.record_id.clone(),
-                    v.calibration.calibration_sha.clone(),
-                ),
+                BridgeImageResult::TrialConfidence(v) => {
+                    let (reading, record, sha) = if v.is_calibrated() {
+                        (
+                            BridgeIntervalReading::SamplingConfidence,
+                            v.calibration.record_id.clone(),
+                            v.calibration.calibration_sha.clone(),
+                        )
+                    } else {
+                        (BridgeIntervalReading::SamplingNominal, None, None)
+                    };
+                    (
+                        &v.interval.quantity,
+                        v.interval.endpoints,
+                        reading,
+                        v.interval.basis.key.level,
+                        None,
+                        record,
+                        sha,
+                    )
+                }
                 _ => return Err(JointOutcomeBridgeError::from(draws_unusable(
                     "threshold source",
                     "supply a posterior credible interval or a measured trial confidence interval",

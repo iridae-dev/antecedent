@@ -2079,18 +2079,24 @@ class IndependentTrialStudy:
 
 @dataclass(frozen=True, slots=True)
 class TrialBridgeConfidenceInterval(ScientificResult):
-    """Percentile confidence interval for an estimated map of the source mean."""
+    """Trial-refit percentile interval with its current coverage reading.
+
+    A numerically verified historical result can have a nominal reading if its
+    current calibration record is unavailable.
+    """
 
     estimate: float
     lower: float
     upper: float
     level: float
     design: str
-    coverage_record: str
-    calibration_sha: str
+    coverage_record: str | None
+    calibration_sha: str | None
     quantity: ScientificQuantity
     bootstrap: JointDistributionArtifact
     identity: str
+    reading: Literal["sampling_confidence", "sampling_nominal"]
+    calibration_status: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -2101,7 +2107,7 @@ class BridgeIntervalDecision(ScientificResult):
     threshold: float
     verdict: Literal["above", "below", "unresolved"]
     endpoints: tuple[float, float]
-    reading: Literal["posterior_credible", "sampling_confidence"]
+    reading: Literal["posterior_credible", "sampling_confidence", "sampling_nominal"]
     level: float
     attained_mass: float | None
     interval_coverage_record: str | None

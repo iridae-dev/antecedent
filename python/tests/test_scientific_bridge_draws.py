@@ -704,6 +704,24 @@ def test_identified_image_bounds_flow_into_the_decision_and_replay(tmp_path):
     assert exported.expectation is not None
     restored = require_success(load(exported, expected=exported.expectation))
     assert (restored.identity, restored.lower, restored.upper) == (result.identity, -5.0, 5.0)
+
+    from antecedent import CancellationToken, Execution, ResourceLimits
+    from antecedent.errors import CausalCancelledError, CausalResourceError
+
+    with pytest.raises(CausalResourceError):
+        require_success(
+            load(
+                exported,
+                expected=exported.expectation,
+                execution=Execution(limits=ResourceLimits(memory_bytes=1)),
+            )
+        )
+    cancellation = CancellationToken()
+    cancellation.cancel()
+    with pytest.raises(CausalCancelledError):
+        require_success(
+            load(exported, expected=exported.expectation, execution=Execution(cancel=cancellation))
+        )
     artifact.write_bytes(bytes(exported))
     script = """
 import pathlib, sys

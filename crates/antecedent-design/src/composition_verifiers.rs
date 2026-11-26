@@ -47,6 +47,8 @@ mod incidence_source_inspection;
 mod ledger_pool_inspection;
 mod replay_inspection;
 
+#[doc(hidden)]
+pub use artifact_inspection::describe_checked_distribution;
 pub use artifact_inspection::{evidence_relationship_bytes, mean_decision_bytes, mean_source_of};
 use artifact_inspection::{
     inspect_contract, inspect_distribution, inspect_external_claim, inspect_inverse,

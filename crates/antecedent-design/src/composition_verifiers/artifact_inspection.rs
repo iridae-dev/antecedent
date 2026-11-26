@@ -28,9 +28,14 @@ pub(super) fn inspect_distribution(bytes: &[u8]) -> Result<Inspected, NodeFailur
         first_section(bytes, MAX_DISTRIBUTION_ARTIFACT_BYTES).map_err(|e| io_failure(kind, &e))?;
     let artifact = DistributionArtifact::from_bytes(bytes, &meta.identity)
         .map_err(|e| io_failure(kind, &e))?;
+    inspect_checked_distribution(&artifact)
+}
+
+fn inspect_checked_distribution(artifact: &DistributionArtifact) -> Result<Inspected, NodeFailure> {
+    let kind = NodeKind::Distribution;
     let metadata = artifact.metadata();
     let identity = &metadata.identity;
-    let draws = source_digest(&artifact);
+    let draws = source_digest(artifact);
     let metadata_bytes = to_cbor(metadata).map_err(|e| io_failure(kind, &e))?;
     let metadata_digest = blake3_hex(&metadata_bytes);
     let mut facts = BTreeMap::new();
@@ -59,6 +64,20 @@ pub(super) fn inspect_distribution(bytes: &[u8]) -> Result<Inspected, NodeFailur
         facts,
         values,
         ..Inspected::default()
+    })
+}
+
+/// Describe a distribution after its own artifact reader or constructor has verified it.
+#[doc(hidden)]
+pub fn describe_checked_distribution(
+    artifact: &DistributionArtifact,
+) -> Result<super::ArtifactDescription, NodeFailure> {
+    let result = inspect_checked_distribution(artifact)?;
+    Ok(super::ArtifactDescription {
+        kind: NodeKind::Distribution,
+        identity: result.identity,
+        facts: result.facts,
+        values: result.values,
     })
 }
 

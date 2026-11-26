@@ -42,7 +42,8 @@ sources = ["https://doi.org/10.1214/aos/1176344552", "https://robjhyndman.com/pu
 findings_resolved = [
   "Checked decreasing and constant scalar maps, weighted multivariate row mapping with same-row covariance, exact posterior atom mass, and independent and shared source bootstrap formulas against the existing numerical references.",
   "Added cancellation checkpoints during the original generation or regeneration of the shared trial source. Scoped confidence publication to the explicit measured design, including the source declaration and observed support, instead of matching only a generic array shape.",
-  "Removed live calibration metadata from the numerical readout. Re-evaluation still derives the current interval calibration from the independently reconstructed release design and trial data. Numerical changes and changes to the requested coordinate or threshold still fail the retained binding.",
+  "The numerical readout binds the independently reconstructed endpoints, mapped refits and threshold decision. When current coverage is unavailable, a historical carrier reports the verified numerical result with a nominal sampling reading. New publication and export still require a current receipt.",
+  "Retained bytes are admitted before manifest, section and source parsing. The continued lease covers restored inputs and their compiler encoding, and the numerical result's readout has a separate quote. Standalone and bundle replay preserve resource and cancellation stops.",
 ]
 record_sha256 = "6e0df8a9bbf9e8f6ab6d3dadeada68b1d4b67947b5db4f17421d18199d78d301"
 
@@ -73,20 +74,20 @@ sha256 = "49dcc0444195a056b5e220ed856d7fb7f1de3fe68d0b4c026a802e550f90e639"
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/bridge_trial_interval.rs"
-items = ["enum TrialBridgeReleaseDesign", "impl TrialBridgeReleaseDesign", "impl TrialBridgeExperiment"]
-sha256 = "f159dc5258961ad1f72d4a79f19500b9abe60ea68dfaa8fd543658578c27369a"
+items = ["enum TrialBridgeReleaseDesign", "impl TrialBridgeReleaseDesign", "impl TrialBridgeConfidenceInterval", "impl TrialBridgeExperiment"]
+sha256 = "30b11e2e9cc64f10ba61e524e35f6a6504f14e4ef0d34a4d8d8241aa0c5014e7"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/bridge_image_artifact.rs"
-items = ["impl BridgeImageResult", "impl BridgeImageRequest", "impl InputWire", "impl StoredBridgeImage", "fn decision_numerical_receipt_does_not_depend_on_current_coverage_registry"]
-sha256 = "86dfad3a26691d6cadbe7e7b51d9de000a28ef63e9df51f403c531fc4de2932f"
+items = ["impl BridgeImageResult", "impl BridgeImageRequest", "impl RestoreInput", "impl InputWire", "impl StoredBridgeImage", "impl BridgeImageReplayBinding", "fn decoded_size", "fn decision_numerical_receipt_does_not_depend_on_current_coverage_registry"]
+sha256 = "06aa83cadcbd4d96222898114b38b0af79caea04ea8d46fb09127a8ade2a8273"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/bridge_interval_decision.rs"
 items = ["impl BridgeIntervalDecision"]
-sha256 = "5e486cf814e33595cabbc80fba1a7a03f00d41f2d0b42e3a81346f2c4ea3e1d4"
+sha256 = "63d7a34fd1293201b2546b0e04effcf4fabeb9f0d5ad3ae341512911fb3b5af4"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -105,3 +106,10 @@ role = "assertion"
 path = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs"
 items = ["fn score_trial_bootstrap", "fn shared_evidence_trial_bridge_percentile_interval_l95", "fn independent_studies_trial_bridge_percentile_interval_l95"]
 sha256 = "9ad0b577925e6d17946a0db6221678adbec120e72e790e163a2ad9048f5b1022"
+
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+items = ["fn stored_trial_images_replay_numerically_without_current_coverage_and_preserve_resource_stops"]
+sha256 = "773400658a0c6e6b715ad05c7a52b9d926940938c725bc4b537c570d09c470c3"

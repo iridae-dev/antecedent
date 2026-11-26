@@ -107,6 +107,15 @@ pub struct TrialBridgeConfidenceInterval {
     pub calibration: CalibrationSlotWire,
 }
 
+impl TrialBridgeConfidenceInterval {
+    /// Whether the current registry corroborates the original confidence claim.
+    pub fn is_calibrated(&self) -> bool {
+        self.calibration.status == CalibrationStatus::Calibrated
+            && self.calibration.record_id.is_some()
+            && self.calibration.calibration_sha.is_some()
+    }
+}
+
 impl TrialBridgeExperiment {
     /// Construct the statistic and its bootstrap endpoints for measurement against known truth.
     /// # Errors
@@ -299,13 +308,8 @@ impl TrialBridgeExperiment {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<TrialBridgeConfidenceInterval, JointOutcomeBridgeError> {
-        let interval = self.construct(ctx)?;
-        let calibration = calibration_slot(&interval.basis);
-        if self.release_design.is_none()
-            || calibration.status != CalibrationStatus::Calibrated
-            || calibration.record_id.is_none()
-            || calibration.calibration_sha.is_none()
-        {
+        let interval = self.reconstruct_interval(ctx)?;
+        if self.release_design.is_none() || !interval.is_calibrated() {
             return Err(antecedent_contract::ExternalRefusal::new(
                 antecedent_core::reason_code!("route_not_supported"),
                 "bind",
@@ -316,6 +320,15 @@ impl TrialBridgeExperiment {
             )
             .into());
         }
+        Ok(interval)
+    }
+
+    pub(crate) fn reconstruct_interval(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<TrialBridgeConfidenceInterval, JointOutcomeBridgeError> {
+        let interval = self.construct(ctx)?;
+        let calibration = calibration_slot(&interval.basis);
         Ok(TrialBridgeConfidenceInterval { interval, calibration })
     }
 }

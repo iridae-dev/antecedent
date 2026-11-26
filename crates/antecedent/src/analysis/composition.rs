@@ -168,7 +168,7 @@ pub fn standard_consumer() -> BundleConsumer {
     standard_consumer_with_context(&ExecutionContext::production_default(0))
 }
 
-fn standard_consumer_with_context(ctx: &ExecutionContext) -> BundleConsumer {
+pub(crate) fn standard_consumer_with_context(ctx: &ExecutionContext) -> BundleConsumer {
     antecedent_design::composition_verifiers::standard_consumer()
         .register(Box::new(counterfactual_bundle::CounterfactualTransportVerifier(ctx.clone())))
         .register(Box::new(bridge_image::BridgeImageVerifier(ctx.clone())))
