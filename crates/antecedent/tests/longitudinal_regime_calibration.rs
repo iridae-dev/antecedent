@@ -27,7 +27,7 @@ fn draw(
 ) -> (TabularData, LongitudinalRegimeQuery, usize) {
     let mut action_draw = uniform(seed, 101);
     let mut censor_draw = uniform(seed, 102);
-    let mut noise_draw = gaussian(seed, 103);
+    let mut noise_draw = gaussian(seed ^ 103);
     let cells = subjects * PERIODS;
     let mut outcomes = Vec::with_capacity(subjects);
     let mut treatment = Vec::with_capacity(cells);
@@ -191,7 +191,7 @@ fn fitted_q_coverage(test: &'static str, external_training_fold: Option<u32>) {
         let seed = seed ^ 0x4913_0000;
         let mut assignment = uniform(seed, 121);
         let mut baseline_draw = uniform(seed, 122);
-        let mut noise = gaussian(seed, 123);
+        let mut noise = gaussian(seed ^ 123);
         let mut baseline = Vec::with_capacity(subjects);
         let mut actions = Vec::with_capacity(subjects * 2);
         let mut outcomes = Vec::with_capacity(subjects);

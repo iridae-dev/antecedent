@@ -28,7 +28,7 @@ fn evaluate(
     seed: u64,
 ) -> Option<(antecedent::PreparedStudy, antecedent::StudyResult)> {
     let mut assigned = uniform(seed, 211);
-    let mut noise = gaussian(seed, 212);
+    let mut noise = gaussian(seed ^ 212);
     let mut histories = Vec::with_capacity(subjects * 2);
     let mut endpoint = Vec::with_capacity(subjects);
     for _ in 0..subjects {
