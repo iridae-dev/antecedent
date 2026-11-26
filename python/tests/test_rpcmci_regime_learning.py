@@ -110,6 +110,23 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     assert require_success(fit.accept_regime(int(second))).algorithm_id == "rpcmci"
     with pytest.raises(LearnedRpcmciRefusal, match="choose a regime"):
         require_success(fit.accept_regime(42))
+    with pytest.raises(LearnedRpcmciRefusal, match="choose a regime"):
+        require_success(fit.regime_scope(42))
+    for regime in (int(first), int(second)):
+        scope = require_success(fit.regime_scope(regime))
+        graph_index = next(i for i, (value, _) in enumerate(report["graphs"]) if value == regime)
+        assert scope.artifact_identity == fit.identity
+        assert scope.data_identity == report["data_identity"]
+        assert scope.graph_identity == report["graphs"][graph_index][1]
+        assert scope.graph_agreement == report["graph_agreement"][graph_index]
+        assert scope.assignment_agreement == report["assignment_agreement"]
+        assert scope.lookback == 2
+        assert scope.assigned_rows == tuple(i for i, value in enumerate(labels) if value == regime)
+        assert scope.window_end_rows == tuple(
+            i for i in range(2, len(labels))
+            if labels[i] == labels[i - 1] == labels[i - 2] == regime
+        )
+        assert len(scope.window_end_rows) < len(scope.assigned_rows)
 
     bundle = cb.Bundle.builder().add_artifact(fit).build()
     verified = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
@@ -121,6 +138,9 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     assert artifact.expectation is not None
     restored = require_success(load(artifact, expected=artifact.expectation))
     assert restored.identity == fit.identity
+    assert require_success(restored.regime_scope(int(first))) == require_success(
+        fit.regime_scope(int(first))
+    )
     path.write_bytes(bytes(artifact))
     fresh = subprocess.run(
         [

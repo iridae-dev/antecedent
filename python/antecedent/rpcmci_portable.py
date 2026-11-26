@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from . import _native
@@ -40,6 +41,21 @@ def _checked(pair: tuple[T | None, str | None]) -> T:
     return result
 
 
+@dataclass(frozen=True, slots=True)
+class LearnedRpcmciRegimeScope:
+    """Source rows, contiguous original lag windows and stability for one graph."""
+
+    artifact_identity: str
+    data_identity: str
+    regime: int
+    graph_identity: str
+    assigned_rows: tuple[int, ...]
+    window_end_rows: tuple[int, ...]
+    lookback: int
+    graph_agreement: float | None
+    assignment_agreement: float | None
+
+
 class LearnedRpcmciArtifact(ScientificResult):
     """The original data-driven labels, graphs and stability report as replayable evidence."""
 
@@ -69,8 +85,18 @@ class LearnedRpcmciArtifact(ScientificResult):
         )
 
     @outcome_operation
+    def regime_scope(self, regime: int) -> LearnedRpcmciRegimeScope:
+        """Read the original lag-window endpoints for a verified regime graph."""
+        payload = json.loads(
+            _checked(self._handle.regime_scope_json(count(regime, "regime", minimum=0)))
+        )
+        payload["assigned_rows"] = tuple(payload["assigned_rows"])
+        payload["window_end_rows"] = tuple(payload["window_end_rows"])
+        return LearnedRpcmciRegimeScope(**payload)
+
+    @outcome_operation
     def accept_regime(self, regime: int) -> AcceptedGraph:
-        """Explicitly choose and review one learned regime for downstream analysis."""
+        """Choose one learned graph. Read regime_scope for its original data windows."""
         graph = _checked(self._handle.accept_regime(count(regime, "regime", minimum=0)))
         return AcceptedGraph.from_graph(graph, algorithm_id="rpcmci")
 

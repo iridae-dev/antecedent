@@ -115,6 +115,30 @@ pub struct LearnedRpcmciReport {
     pub diagnostics: Vec<(String, String)>,
 }
 
+/// Evidence scope of one graph selected from the replayed regime collection.
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LearnedRpcmciRegimeScope {
+    /// Source artifact identity, binding the whole assignment and stability report.
+    pub artifact_identity: String,
+    /// Original time-series snapshot read by the compiled search.
+    pub data_identity: String,
+    /// The selected regime id in the original assignment.
+    pub regime: u32,
+    /// Identity of the exact regime graph.
+    pub graph_identity: String,
+    /// Zero-based source rows labeled with the selected regime.
+    pub assigned_rows: Vec<usize>,
+    /// Zero-based endpoints of complete original windows used for graph discovery.
+    pub window_end_rows: Vec<usize>,
+    /// Largest required lookback of each retained window, twice the declared lag.
+    pub lookback: usize,
+    /// Exact graph stability among successful initializations after label alignment.
+    pub graph_agreement: Option<f64>,
+    /// Agreement of all source assignments across successful initializations.
+    pub assignment_agreement: Option<f64>,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Wire {
@@ -135,7 +159,10 @@ impl LearnedRpcmciRequest {
         let width = self.names.len();
         let rows = self.columns.first().map_or(0, Vec::len);
         if !(1..=64).contains(&width)
-            || self.names.iter().any(|name| name.trim().is_empty() || name.len() > 256)
+            || self
+                .names
+                .iter()
+                .any(|name| name.trim().is_empty() || name.len() > 256)
             || self.names.iter().collect::<BTreeSet<_>>().len() != width
             || self.columns.len() != width
             || rows < 10
@@ -188,7 +215,9 @@ impl LearnedRpcmciRequest {
         };
         let options = RpcmciLearning {
             count: if self.select_count {
-                RegimeCountPolicy::Bic { max_regimes: self.count }
+                RegimeCountPolicy::Bic {
+                    max_regimes: self.count,
+                }
             } else {
                 RegimeCountPolicy::Fixed(self.count)
             },
@@ -198,11 +227,16 @@ impl LearnedRpcmciRequest {
         };
         let spec = DiscoverySpec::rpcmci_learn(params, self.min_regime_len, options, "parcorr")?;
         let data = TimeSeriesData::from_f64_columns(
-            self.names.iter().map(String::as_str).zip(self.columns.iter().map(Vec::as_slice)),
+            self.names
+                .iter()
+                .map(String::as_str)
+                .zip(self.columns.iter().map(Vec::as_slice)),
             self.interval_ns,
         )
         .map_err(CausalError::rejected)?;
-        let variables = (0..self.names.len() as u32).map(VariableId::from_raw).collect::<Vec<_>>();
+        let variables = (0..self.names.len() as u32)
+            .map(VariableId::from_raw)
+            .collect::<Vec<_>>();
         let study = Study::series(data).discovery(spec, variables).build()?;
         let execution = CompiledExecution::run(&study, &portable).map_err(|error| match error {
             CausalError::Cancelled { .. } => RpcmciReplayError::Cancelled,
@@ -214,16 +248,22 @@ impl LearnedRpcmciRequest {
         })?;
         let program_identity = execution
             .lowered_identity()
-            .ok_or(RpcmciReplayError::Invalid("compiled discovery identity is absent"))?
+            .ok_or(RpcmciReplayError::Invalid(
+                "compiled discovery identity is absent",
+            ))?
             .to_hex();
         let data_identity = execution
             .result()
             .executed_contract()
-            .ok_or(RpcmciReplayError::Invalid("compiled discovery snapshot is absent"))?
+            .ok_or(RpcmciReplayError::Invalid(
+                "compiled discovery snapshot is absent",
+            ))?
             .inspection_data_snapshot
             .to_hex();
         let Some(discovery) = execution.result().discovery() else {
-            return Err(RpcmciReplayError::Invalid("compiled discovery produced no structure"));
+            return Err(RpcmciReplayError::Invalid(
+                "compiled discovery produced no structure",
+            ));
         };
         let DiscoveredStructure::Regimes(result) = &discovery.structure else {
             return Err(RpcmciReplayError::Invalid(
@@ -251,7 +291,12 @@ impl LearnedRpcmciRequest {
             program_identity,
             data_identity,
             seed: learning.seed,
-            assignments: result.assignments.regimes.iter().map(|regime| regime.raw()).collect(),
+            assignments: result
+                .assignments
+                .regimes
+                .iter()
+                .map(|regime| regime.raw())
+                .collect(),
             graphs,
             selected_count: learning.selected_count,
             candidate_scores: learning.candidate_scores.clone(),
@@ -268,9 +313,17 @@ impl LearnedRpcmciRequest {
                 .collect(),
         };
         let plan = execution.prepared().plan_view()?;
-        let wire = Wire { request: self, report };
+        let wire = Wire {
+            request: self,
+            report,
+        };
         let identity = wire_identity(&wire)?;
-        Ok(LearnedRpcmciArtifact { wire, identity, result: result.clone(), plan })
+        Ok(LearnedRpcmciArtifact {
+            wire,
+            identity,
+            result: result.clone(),
+            plan,
+        })
     }
 }
 
@@ -311,15 +364,68 @@ impl LearnedRpcmciArtifact {
         &self.result
     }
 
+    /// Read the original row and lag-window scope for one verified regime graph.
+    ///
+    /// The rows index the recorded series. Use its original lag windows to avoid
+    /// combining observations from opposite sides of a transition.
+    ///
+    /// # Errors
+    /// The chosen id is absent from the original regime report.
+    pub fn regime_scope(&self, regime: u32) -> Result<LearnedRpcmciRegimeScope, RpcmciReplayError> {
+        let report = self.report();
+        let (index, (_, graph_identity)) = report
+            .graphs
+            .iter()
+            .enumerate()
+            .find(|(_, (id, _))| *id == regime)
+            .ok_or(RpcmciReplayError::Invalid(
+                "choose a regime id from the retained report",
+            ))?;
+        let lookback = 2 * self.wire.request.max_lag as usize;
+        let assigned_rows = report
+            .assignments
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &id)| (id == regime).then_some(index))
+            .collect();
+        let window_end_rows = report
+            .assignments
+            .windows(lookback + 1)
+            .enumerate()
+            .filter_map(|(start, window)| {
+                window
+                    .iter()
+                    .all(|&id| id == regime)
+                    .then_some(start + lookback)
+            })
+            .collect();
+        Ok(LearnedRpcmciRegimeScope {
+            artifact_identity: self.identity.clone(),
+            data_identity: report.data_identity.clone(),
+            regime,
+            graph_identity: graph_identity.clone(),
+            assigned_rows,
+            window_end_rows,
+            lookback,
+            graph_agreement: report.graph_agreement[index],
+            assignment_agreement: report.assignment_agreement,
+        })
+    }
+
     /// Review one explicitly chosen regime for a subsequent single-graph consumer.
+    ///
+    /// Use [the regime scope](Self::regime_scope) for the original lag windows
+    /// and the graph's stability across initializations.
     ///
     /// # Errors
     /// Unknown regime or unresolved conflict marks in its graph.
     pub fn accept_regime(&self, regime: u32) -> Result<AcceptedGraph, RpcmciReplayError> {
         let Some(graph) = self.result.graphs.get(RegimeId::from_raw(regime)) else {
-            return Err(RpcmciReplayError::Invalid("choose a regime id from the retained report"));
+            return Err(RpcmciReplayError::Invalid(
+                "choose a regime id from the retained report",
+            ));
         };
-        Ok(AcceptedGraph::temporal_cpdag(graph.clone())?)
+        Ok(AcceptedGraph::temporal_cpdag(graph.clone())?.with_discovery_algorithm("rpcmci"))
     }
 
     /// Export the source and exact diagnostics for a fresh compiler.
@@ -360,8 +466,9 @@ fn replay(
     if bytes.len() > MAX_BYTES {
         return Err(IoError::TooLarge.into());
     }
-    let _lease =
-        ctx.acquire_admission(0, (bytes.len() as u64).saturating_mul(4)).map_err(|error| {
+    let _lease = ctx
+        .acquire_admission(0, (bytes.len() as u64).saturating_mul(4))
+        .map_err(|error| {
             if ctx.cancellation.is_cancelled() {
                 RpcmciReplayError::Cancelled
             } else {
@@ -369,7 +476,9 @@ fn replay(
             }
         })?;
     let wire: Wire = from_cbor(
-        bytes.strip_prefix(MAGIC).ok_or(RpcmciReplayError::Invalid("unknown artifact version"))?,
+        bytes
+            .strip_prefix(MAGIC)
+            .ok_or(RpcmciReplayError::Invalid("unknown artifact version"))?,
     )?;
     let identity = wire_identity(&wire)?;
     if expected.is_some_and(|retained| retained != identity) {
@@ -404,7 +513,10 @@ pub(super) fn describe(
             RpcmciReplayError::Io(IoError::TooLarge) => BundleStage::Oversized,
             _ => BundleStage::SwappedEvidence,
         };
-        NodeFailure { stage, reason: error.to_string() }
+        NodeFailure {
+            stage,
+            reason: error.to_string(),
+        }
     })?;
     let report = artifact.report();
     let mut values = vec![("regime_count".into(), f64::from(report.selected_count))];

@@ -3674,7 +3674,7 @@ evidence_test = "crates/antecedent/tests/rpcmci_regime_learning.rs"
 evidence_assertion = "portable_shared_series_replays_and_accepts_explicit_regimes"
 kind = "known_truth"
 fixtures = ["conformance/discovery/rpcmci_shared_portable.json"]
-why = "Two known regimes have opposite directed lag effects. Compare the estimated assignments up to label permutation and check both graph directions after portable replay and explicit regime selection."
+why = "A fixed simulated series with known opposite lag directions tests recovery up to label permutation, exact original row and lag-window scope, portable diagnostics, and single-regime graph acceptance."
 
 [[test]]
 evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs"
