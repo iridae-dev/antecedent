@@ -193,6 +193,7 @@ nav:
   - Comparison: comparison.md
   - Producer and consumer matrix: producer-consumer-matrix.md
 - Migrate to 3.0: migration.md
+- Migrate to 3.1: migration-3.1.md
 - Release notes: release-notes/v3.0.0.md
 - Development:
   - Development: development.md

@@ -44,7 +44,10 @@ covariance of the finite draw law, not an estimate of a population covariance).
 reinterpret the `CausalPosterior` wire. The metadata section records
 the distribution meaning, ordered scientific quantities, alignment, source,
 provider, RNG, snapshot, causal contract, support mask, weights, calibration
-state and provider trust. Each quantity records stable variable ID, name, role,
+state and provider trust. An absent support mask states no coordinate.
+`DecisionInput.from_distribution` reads a coordinate the mask does not state as
+`missing_evidence`, unless a native execution record backs the law. State
+`supported=` for the coordinates the provider supports. Each quantity records stable variable ID, name, role,
 units, population, regime, horizon, functional, conditioning and transform.
 The numeric section is little-endian f64 in draw-major order, with named axes
 `[draw, quantity]` and shape `[n_draws, n_quantities]`. Row `i` is one joint

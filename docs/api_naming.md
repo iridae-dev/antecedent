@@ -46,13 +46,12 @@ row-level assignment probabilities through retained `RandomizedEffect`
 analysis. The result reports all action contrasts to the reference arm with
 covariance-free variance bounds, observed arm support, and no interval or
 support-matrix support.
-`estimate_ancova_effect` complements
+`RandomizedEffect(..., ancova_covariates=("x1", "x2"))` complements
 one-covariate CUPED with multiple pre-treatment covariates for independent
-Bernoulli assignment, reporting the OLS treatment coefficient, adjustment
-coefficients, support counts, and an HC0 standard error without an interval.
-The same native fit is available through retained `prepare` / `analyze` via
-`RandomizedEffect(..., ancova_covariates=("x1", "x2"))`; its query and
-artifact retain the covariate identities and report point-only HC0 uncertainty.
+Bernoulli assignment. The query and artifact retain the covariate identities
+and report point-only HC0 uncertainty. `estimate_ancova_effect` is the
+deprecated direct form of that fit. Same-sample CUPED is
+`estimated_cuped=EstimatedCUPED(...)` on the same query.
 The supported trial-IPW cell is
 `antecedent.transport.advanced.TransportQuery`; the structural transport compiler is
 `antecedent.transport.Transport` and is not a root export.

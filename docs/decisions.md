@@ -21,7 +21,10 @@ dives on [trade-off ranges](preference-decisions.md) and on
 
 ## Decide from an analysis result
 
-`Contract.evaluate` takes a supported analysis result. Declare outcome units once
+`Contract.evaluate` takes a supported analysis result. When you still hold the
+prepared study, `Contract.compile(prepared)` states the quantities and the source
+before anything is fitted, and `CompiledDecision.execute` runs that plan.
+Declare outcome units once
 in its scientific coordinates or in `analyze(outcome_units=..., dose_units=...)`;
 the contract supplies an unambiguous matching outcome, unit and population when no
 binding was retained. Undeclared dose units mean `native_numeric_scale`: the

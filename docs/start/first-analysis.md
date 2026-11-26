@@ -99,7 +99,7 @@ print("Acceptance:", loaded.acceptance.status)
 print(loaded.answer)
 ```
 
-The loaded result keeps the same answer. Keep `artifact.expectation` on the producing side and pass it as `expected=` when loading, so the consumer checks the identity it expects. `acceptance.status` is `loaded` when the artifact is intact and its recorded answer is kept; nothing is recomputed. For a result that came from someone else, `ant.load(..., replay=True)` recomputes the published numbers and the status becomes `replayed` when each agrees. Acceptance checks the saved result's contract, not whether its causal assumptions are true. Loading restores the report, not the dataset or a live study for new estimates.
+The loaded result keeps the same answer. Keep `artifact.expectation` on the producing side and pass it as `expected=` when loading, so the consumer checks the identity it expects. A loader also takes `retained_identity=` (`antecedent.artifacts.artifact_identity` of the bytes, computed when they are stored). Calling a loader with neither identity warns. `acceptance.status` is `loaded` when the artifact is intact and its recorded answer is kept; nothing is recomputed. For a result that came from someone else, `ant.load(..., replay=True)` recomputes the published numbers and the status becomes `replayed` when each agrees. Acceptance checks the saved result's contract, not whether its causal assumptions are true. Loading restores the report, not the dataset or a live study for new estimates.
 
 ## When an analysis is refused
 

@@ -12,7 +12,7 @@ transporting this response?* ::
     from antecedent.transport import discovered
 
     contract = sd.StaticContract(variables=("x", "m", "y"), algorithm="pc", seed=0)
-    result = discovered.discover_and_transport(
+    result = discovered.analyze_discovered_transport(
         contract,
         {"x": x, "m": m, "y": y},
         outcome="y",

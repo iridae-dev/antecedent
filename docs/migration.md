@@ -1,5 +1,7 @@
 # Migrate from 2.4 to 3.0
 
+Already on 3.0? [Migrate from 3.0 to 3.1](migration-3.1.md) covers the compiled declarations, study resume, and the refusals a 3.1 caller reads. This page is the 2.4 to 3.0 move.
+
 Antecedent 3.0 separates preparing an analysis from executing it. A prepared study is immutable: you branch it with `rebind` (new observations) or `reconfigure` (new declarations) and execute each branch with `estimate`. Every execution returns an `Outcome` that holds the answer or a typed scientific refusal. Seeds, threads, cancellation and resource limits belong to one `Execution` object, and statistical budgets belong to an inference declaration.
 
 ## Who needs to act
@@ -419,4 +421,4 @@ The container format is unchanged, and readers that migrate container sources 0.
 
 Existing version-one posterior, dose-grid and cyclic artifacts keep their numerical replay and digest checks. A stored artifact never carries a current claim by being loaded: historical replay does not grant current decision authority.
 
-For the Rust and Python naming of each of these, see the [naming dictionary](api_naming.md); for the artifact families and their loaders, see [artifacts](artifacts.md).
+For the Rust and Python naming of each of these, see the [naming dictionary](api_naming.md); for the artifact families and their loaders, see [artifacts](artifacts.md). Calls that change between 3.0 and 3.1 are in [Migrate from 3.0 to 3.1](migration-3.1.md).

@@ -186,7 +186,12 @@ The keys a finding names are the declared inputs of the recalculation stage
 model (`antecedent_core::recalc`). The report's `invalidated` stages are what
 the recalculation planner recomputes when those inputs change, so a
 recommendation always agrees with selective recalculation: a refresh never
-invalidates identification, and a re-identification always does. The report
+invalidates identification, and a re-identification always does. The planner
+withdraws a stage that rests on a removed input even when another input changed
+earlier in that stage's dependencies. A receipt records which rule it used:
+version 1 when the first-change and removal-first rules give the same table,
+version 2 otherwise. A reader from before this release refuses a version 2
+receipt. See [Migrate from 3.0 to 3.1](../migration-3.1.md). The report
 also names the semantic dependency classes of the changed inputs
 (`changed_classes`) and the reusable products whose keys read them
 (`invalidated_products`).

@@ -1,6 +1,6 @@
 # Use your own outcome and treatment models
 
-You have a model that predicts the outcome, and one that predicts who is treated. You want the average effect of the treatment, with those models making the predictions. Antecedent still decides the question, the adjustment set, and which rows each fit may see.
+You have a model that predicts the outcome, and one that predicts who is treated. You want the average effect of the treatment, with those models making the predictions. Antecedent still decides the question, the adjustment set, and which rows each fit may see. A slope the trial itself estimates is declared on the query; see [Migrate from 3.0 to 3.1](../migration-3.1.md).
 
 The example uses a simulated table of 200 people. Each row has a covariate `z`. Treatment is assigned independently of `z`, to half the rows. The outcome is `1 + 2 * treatment`, so the average effect in the table is 2.
 

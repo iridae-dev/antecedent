@@ -82,4 +82,4 @@ The concept pages explain what a result means and where its limits come from.
 
 ## Release and migration
 
-[Release notes for 3.0.0](release-notes/v3.0.0.md) describe what is new. The [migration guide](migration.md) gives the exact old and new forms.
+[Release notes for 3.0.0](release-notes/v3.0.0.md) describe what is new. The [migration guide](migration.md) gives the exact old and new forms from 2.4 to 3.0. [Migrate from 3.0 to 3.1](migration-3.1.md) covers the compiled declarations, study resume, and the refusals a 3.1 caller reads.

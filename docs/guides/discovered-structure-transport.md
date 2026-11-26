@@ -8,14 +8,14 @@ Use this page when discovery produced the structure. With a graph you declare yo
 
 ## Ask what every member of the class says
 
-`discover_and_transport` runs discovery under a declared contract and returns the transport verdict of every member of the discovered class. Here `x`, `m` and `y` are columns of one table, and `m` is the variable whose mechanism may differ between the trial and the clinic:
+`analyze_discovered_transport` runs discovery under a declared contract and returns the transport verdict of every member of the discovered class, through the compiled `DiscoveredClassTransport` program. `discover_and_transport` is the deprecated direct form and returns the same envelope. Here `x`, `m` and `y` are columns of one table, and `m` is the variable whose mechanism may differ between the trial and the clinic:
 
 ```python
 from antecedent import selective_discovery as sd
 from antecedent.transport import discovered
 
 contract = sd.StaticContract(variables=("x", "m", "y"), algorithm="pc", seed=0)
-result = discovered.discover_and_transport(
+result = discovered.analyze_discovered_transport(
     contract,
     {"x": x, "m": m, "y": y},
     outcome="y",
@@ -39,7 +39,7 @@ The query is the target mean of `outcome` under `do(treatment = a)` at each grid
 
 | You hold | Python entry (`antecedent.transport.discovered` unless noted) | You get |
 | --- | --- | --- |
-| A CPDAG or PAG from discovery | `transport_across_class`, `discover_and_transport` | A structural envelope over the class's members, or a typed refusal |
+| A CPDAG or PAG from discovery | `transport_across_class`, `analyze_discovered_transport` | A structural envelope over the class's members, or a typed refusal |
 | A temporal class (lagged DAG, temporal CPDAG or PAG) and a horizon | `transport_across_temporal_class`, `transport_temporal_graph` | A temporal envelope at that horizon |
 | A class plus a source trial and a target sample | `estimate_discovered_transport`, `verify_discovered_transport_estimate`, `estimate_discovered_temporal_transport` | A point, a structural range or a refusal, with a replayable artifact |
 | A maximally oriented CPDAG and supplied exact laws | `antecedent.transport.advanced.cpdag_completion_scenarios` | Every DAG completion decided with its own evidence |

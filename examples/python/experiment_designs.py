@@ -35,12 +35,11 @@ from antecedent.design_models import SwitchbackModel
 from antecedent.errors import CausalError
 from antecedent.experiment import (
     ComplierEffect,
+    EstimatedCUPED,
     ExperimentDesign,
     RandomizedEffect,
     SwitchbackDesign,
     SwitchbackEffect,
-    estimate_cuped_effect,
-    exact_randomization_test,
 )
 from antecedent.interference import BernoulliAssignment
 from antecedent.outcomes import require_success
@@ -164,7 +163,15 @@ data = {"y": outcome, "assigned": assigned, "unit": unit, "pre": pre}
 raw = require_success(
     ant.analyze(data, query=RandomizedEffect("y", bernoulli_design(n)), refute="none")
 ).randomized_effect
-cuped = estimate_cuped_effect(outcome, pre, assigned.tolist(), 0.5)
+cuped = require_success(
+    ant.analyze(
+        data,
+        query=RandomizedEffect(
+            "y", bernoulli_design(n), estimated_cuped=EstimatedCUPED("pre")
+        ),
+        refute="none",
+    )
+).randomized_effect
 print(f"unadjusted effect={raw.effect:.3f} se={raw.standard_error:.3f}")
 print(
     f"CUPED effect={cuped.effect:.3f} se={cuped.standard_error:.3f} "
@@ -175,9 +182,10 @@ print("CUPED uncertainty:", cuped.uncertainty, "| support:", cuped.support_statu
 assert abs(cuped.effect - 2.0) < 4.0 * cuped.standard_error
 assert abs(cuped.adjustment_coefficient - 3.0) < 0.2
 assert cuped.standard_error < 0.5 * raw.standard_error
+assert "estimated_cuped" in cuped.uncertainty
 
-# Through `analyze`, CUPED takes a coefficient fixed in advance (here the simulation's 3.0), not
-# one estimated from this trial's outcomes.
+# A coefficient locked before these outcomes is a different declaration. Here it is the
+# simulation's 3.0, not a slope estimated from this trial.
 fixed = require_success(
     ant.analyze(
         data,
@@ -194,7 +202,7 @@ assert abs(fixed.effect - 2.0) < 4.0 * np.sqrt(fixed.variance_upper_bound)
 # %% [markdown]
 # ## Exact randomization test
 #
-# With 12 units and a fair coin there are 4096 possible assignments. The function enumerates all of
+# With 12 units and a fair coin there are 4096 possible assignments. The query enumerates all of
 # them and reports the two-sided p-value of the sharp null (no effect for any unit). Here the same
 # enumeration is written out with numpy and compared.
 
@@ -204,22 +212,47 @@ small_assigned = np.array([True] * 8 + [False] * 4)
 rng.shuffle(small_assigned)
 small_y = 1.5 * small_assigned + rng.normal(0.0, 1.0, size=m)
 
-test = exact_randomization_test(small_y, small_assigned.tolist(), 0.5)
-print(f"observed={test.observed_effect:.4f} p={test.exact_two_sided_p_value:.5f}")
-print("null:", test.null, "| enumerated:", test.assignments_enumerated)
+test = require_success(
+    ant.analyze(
+        {
+            "y": small_y,
+            "assigned": small_assigned,
+            "unit": np.array([f"u{i}" for i in range(m)]),
+        },
+        query=RandomizedEffect(
+            "y", bernoulli_design(m), exact_randomization_test=True
+        ),
+        refute="none",
+    )
+).randomized_effect
+print(f"observed={test.effect:.4f} p={test.randomization_p_value:.5f}")
+print("enumerated:", test.randomization_allocations)
 
 # Independent enumeration: Horvitz-Thompson contrast under p = 0.5 for every assignment.
 all_z = np.array(list(itertools.product([0.0, 1.0], repeat=m)))
 contrast = (all_z * small_y / 0.5 - (1.0 - all_z) * small_y / 0.5).mean(axis=1)
 observed = (small_assigned * small_y / 0.5 - (~small_assigned) * small_y / 0.5).mean()
 reference_p = np.mean(np.abs(contrast) >= abs(observed) - 1e-9)
-assert test.assignments_enumerated == 2**m == len(all_z)
-assert abs(test.observed_effect - observed) < 1e-9
-assert abs(test.exact_two_sided_p_value - reference_p) < 1e-12
+assert test.randomization_allocations == 2**m == len(all_z)
+assert abs(test.effect - observed) < 1e-9
+assert abs(test.randomization_p_value - reference_p) < 1e-12
 
 try:
-    exact_randomization_test([1.0] * 21, [True] * 21, 0.5)
-except ValueError as refusal:
+    wide = np.ones(21)
+    require_success(
+        ant.analyze(
+            {
+                "y": wide,
+                "assigned": np.ones(21, dtype=bool),
+                "unit": np.array([f"u{i}" for i in range(21)]),
+            },
+            query=RandomizedEffect(
+                "y", bernoulli_design(21), exact_randomization_test=True
+            ),
+            refute="none",
+        )
+    )
+except CausalError as refusal:
     print("refused (21 units):", refusal)
 
 # %% [markdown]

@@ -131,14 +131,15 @@ remain native. A score other than `"aipw"` is accepted only with
 forest route does not support weights. The result's `propensity` holds the held-out
 propensities of an AIPW score fit on the fold plan in `fold_ids`.
 
-The Rust learner interface also supports caller factories for the certified trial-to-target
-AIPW point through `estimate_trial_aipw_with_factories`; that route requires zero
-bootstrap replicates and marks its external nuisances unverified. Rust callers may also use
-`estimate_smoothed_dose_with_factories` when both factories export portable predictors; it
-refuses serial folds and bootstrap refits. The Python callback adapter does not export a
-portable predictor and is not accepted by that route.
-Rust callers may use `fit_factorized_joint_cells_with_factories` for joint-cell scores;
-that path marks caller factories unverified and is point-only.
+Caller learners for the certified trial-to-target AIPW point are declared on the study and
+fit through `analyze_trial_aipw` (Rust `Study::compile_trial_aipw_learners`). That route
+requires zero bootstrap replicates and marks its external nuisances unverified. Smoothed-dose
+transport accepts factories only when both export portable predictors; it refuses serial
+folds and bootstrap refits. The Python callback adapter does not export a portable predictor
+and is not accepted by that route. Joint-cell scores with caller learners go through
+`analyze_joint_cells` (Rust `Study::compile_joint_cells_learners`); that path marks caller
+factories unverified and is point-only. `estimate_trial_aipw_with_factories` and
+`fit_factorized_joint_cells_with_factories` are the deprecated direct forms.
 
 Separately installed packages can register a zero-argument factory under the
 `antecedent.providers` entry-point group. Call `registry.load_entry_point(name)` explicitly.

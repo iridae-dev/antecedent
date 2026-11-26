@@ -7,6 +7,9 @@ cluster, :class:`StratifiedRandomization` or :class:`FactorialRandomization` ass
 complier average causal effect from encouragement and receipt), :class:`TreatmentOnTreated`
 or :class:`SwitchbackEffect`. Pass the query to :func:`antecedent.analyze` or
 :func:`antecedent.prepare`; the declared randomization is what identifies the effect.
+Same-sample CUPED is ``estimated_cuped=EstimatedCUPED(column)`` on
+:class:`RandomizedEffect`. An exact randomization test is
+``exact_randomization_test=True`` on that query.
 
 The ``estimate`` methods and the functions :func:`estimate_cuped_effect`,
 :func:`estimate_ancova_effect` and :func:`exact_randomization_test` are direct estimator
@@ -644,8 +647,10 @@ class RandomizedEffect:
 
     ``estimated_cuped=EstimatedCUPED(...)`` adjusts a Bernoulli design by the pooled slope of a
     pre-assignment covariate estimated from the rows themselves (same-sample CUPED). It is the
-    compiled route of :func:`estimate_cuped_effect` and returns the same effect and standard
-    error, with a pointwise 95% interval where the Bernoulli score interval is supported.
+    compiled route of :func:`estimate_cuped_effect` (estimator
+    ``randomized.estimated_cuped_ht_itt``) and returns the same effect and standard error, with
+    a pointwise 95% interval where the Bernoulli score interval is supported. The result's
+    ``adjustment_coefficient`` is that pooled slope.
 
     ``cupac=CUPAC(...)`` is that adjustment when the column is a prediction fixed from
     pre-assignment information. A locked coefficient uses the fixed-CUPED route. An omitted

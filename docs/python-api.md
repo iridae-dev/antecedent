@@ -33,6 +33,7 @@ python -m pdoc antecedent -o site/python
 | Correct measurement | <a href="../python/antecedent/measurement_models.html">measurement_models</a> |
 | Track evidence overlap | <a href="../python/antecedent/evidence_ledger.html">evidence_ledger</a> |
 | Decide across trade-offs, fixed or ranges | <a href="../python/antecedent/decision.html">decision</a>, <a href="../python/antecedent/decision_learning.html">decision_learning</a>, <a href="../python/antecedent.html#UnitKey">UnitKey</a>, <a href="../python/antecedent/inference.html#ClassPrior">ClassPrior</a> |
+| Move a 3.0 call to its 3.1 form | [Migrate from 3.0 to 3.1](migration-3.1.md) |
 | Ask a derivative or cross-world question over time | [TemporalQuery](causal-responses.md#ask-a-derivative-or-cross-world-question-over-time) |
 | Declare adaptive procedures | <a href="../python/antecedent/adaptive_inference.html">adaptive_inference</a> |
 | Bind a callback contract | <a href="../python/antecedent/provider_callbacks.html">provider_callbacks</a> |
@@ -43,6 +44,7 @@ The Python surface is documented by task in these guides:
 
 - [Notebook to system](guides/notebook-to-system.md): retained identification, guarded design updates, explicit repreparation, checked mean composition and independent artifact consumption.
 - [Migrate from 2.4 to 3.0](migration.md): immutable preparation, explicit execution controls, outcomes, typed artifacts and cyclic exploration.
+- [Migrate from 3.0 to 3.1](migration-3.1.md): compiled CUPED and exact tests, compiled decisions, study resume against a claim-only load, resource refusals and a law with no support mask.
 - [Evaluate actions with a decision contract](decisions.md): decide with `Contract.evaluate(result)` or on a bound external claim.
 - [Population, time and uncertainty](population-time-uncertainty.md): exact measured adapter scopes and `inference.MeasuredInference.load` with retained source identity; every scalar needs its own current record.
 - [Design ranking](design-ranking.md): the shared `design.rank_designs` entry point for identification, structural sufficiency, information objectives and decision value; `DesignDecision.from_contract`, `design.adapt_prior_to_signal` and `design.consume`.

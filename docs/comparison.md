@@ -84,7 +84,8 @@ exports its result.
 
 Use [supported analyses](supported-analyses.md) to find a starting point and
 [capabilities](capabilities.md) for the methods behind each path. The
-[release notes](release-notes/v3.0.0.md) describe what changed in the claims.
+[release notes](release-notes/v3.0.0.md) describe what changed in the 3.0 claims.
+[Migrate from 3.0 to 3.1](migration-3.1.md) is the caller guide for this release.
 
 <!-- generated:query-inventory:begin -->
 Generated from `parity/support_axes.toml`, `parity/support_cells.toml`,

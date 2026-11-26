@@ -183,10 +183,10 @@ the request. Three decisions are recorded:
 3. **Multi-population discovery is out.** A pooled or per-population search carries its
    own invariance and identification assumptions, which belong to the transport
    contract and are not inferable from data. The contract refuses a second population or
-   multi-dataset constraints with `route_not_supported`. `PerPopulationDiscovery` runs one
+   multi-dataset constraints with `route_not_supported`. `PerPopulationDiscovery.compiled_run` runs one
    declared static contract separately on each population's rows, with one retained store
    per population and no row or statistic crossing populations; its report of differing
-   edges is descriptive and is not a selection diagram.
+   edges is descriptive and is not a selection diagram. `run` is the deprecated direct form.
 
 ## Hold an accepted graph and estimate from it repeatedly
 

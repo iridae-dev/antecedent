@@ -50,7 +50,7 @@ and preserve point-only standing. `export()` returns a typed `ExportedArtifact` 
 expectations and export metadata, `artifacts.inspect()` reads metadata, and shared
 `load(..., expected=..., context=...)` delegates to existing scientific consumers.
 These conventions add no laws, intervals, calibration evidence or analysis-grid supports.
-See [the migration guide](migration.md).
+See [the migration guide](migration.md) for the 3.0 forms, and [Migrate from 3.0 to 3.1](migration-3.1.md) for compiled declarations, study resume, and the refusals a 3.1 caller reads.
 
 ## How to read capability claims
 
@@ -959,8 +959,10 @@ and `ChangeAttribution` run on every static and temporal graph class (see
   provides a randomized
   noncompliance ITT and Wald CACE/LATE point estimate with an
   influence-function variance;
-  `experiment.estimate_cuped_effect` provides one-covariate CUPED precision
-  adjustment with a standard error. `RandomizedEffect(...,
+  `RandomizedEffect(..., estimated_cuped=EstimatedCUPED(...))` provides
+  one-covariate CUPED precision adjustment through `analyze`, with a standard
+  error and the pooled slope on `adjustment_coefficient`. The direct
+  `experiment.estimate_cuped_effect` is the deprecated form of that route. `RandomizedEffect(...,
   ancova_covariates=("baseline_a", "baseline_b", "baseline_c"))` carries ANCOVA
   with three or more pre-assignment covariates through the retained Rust Study
   and Python `prepare` / `analyze`
