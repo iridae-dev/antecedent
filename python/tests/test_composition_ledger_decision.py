@@ -155,7 +155,8 @@ def test_revised_pool_refuses_old_decision_and_reuses_the_unrelated_branch() -> 
     first, independent = select(original, point), select(original, other)
     before = _bundle(original, decision=first, other=independent)
     assert _consume(before).value("decision", "treat.expected_utility") == pytest.approx(0.15)
-    revised = ledger.revise_source(el.SourceRevision.update(a, _study("updated", 0, 4)))
+    revised = require_success(ledger.revise_source(el.SourceRevision.update(a, _study("updated", 0, 4))))
+    assert revised.created_source is not None
     fresh = require_success(
         ledger.pool_summaries(
             "replacement",
