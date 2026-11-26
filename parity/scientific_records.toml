@@ -5905,6 +5905,16 @@ recorded_at = "2026-11-15T05:42:32Z"
 dependency_manifest = "a00c47b754e3e71657fdc30a7e54677a732a8bf59cba66ccb8572159b08747dc"
 
 [[record]]
+test = "antecedent::counterfactual_transport_lifecycle::counterfactual_bundle_replays_exact_and_sampled_affine_decisions"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "eac8275133a5631df0b0360f92b5cfc7c6286d7cb44900c77f585ff4e703b431"
+recorded_at = "2026-11-26T05:08:15Z"
+dependency_manifest = "817d6700731ddfd2ef16898edeb92ec2f2d78b4f26ece79d1a0cc1c59b6c288a"
+
+[[record]]
 test = "antecedent::counterfactual_transport_lifecycle::prepare_once_then_refresh_rebuilds_the_numbers_and_a_refused_refresh_keeps_state"
 roles = ["scientific"]
 passed = true
@@ -6755,6 +6765,26 @@ recorded_at = "2026-11-14T23:59:15Z"
 dependency_manifest = "56f91037c0c6ba23637bec3b412513a47f32461e598497cab7b2728bffec1f67"
 
 [[record]]
+test = "antecedent::integrated_schedule_decision::empirical_schedule_scope_requires_verified_binary_endpoints"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f7cb5f0c1db09a6840631a8a40b0a01b7162f7678de7aa8e180c51854c935953"
+recorded_at = "2026-11-26T05:09:13Z"
+dependency_manifest = "f3db071e4e7c32b19bbc06a6e7d20077c411edbf0f6e258e742616ecc9827504"
+
+[[record]]
+test = "antecedent::integrated_schedule_decision::point_oracle_replays_and_changed_parent_invalidates_terminal"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f7cb5f0c1db09a6840631a8a40b0a01b7162f7678de7aa8e180c51854c935953"
+recorded_at = "2026-11-26T05:09:13Z"
+dependency_manifest = "c9ae0d445518da631794358759a22e6a29e1c72a311511054e1ea4cf29b5da7e"
+
+[[record]]
 test = "antecedent::interference_estimators_known_truth::cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_every_coordinate"
 roles = ["scientific"]
 passed = true
@@ -7593,6 +7623,16 @@ dirty = false
 fingerprint = "e6fab0abeed01adeb84415e9b7c207643780cb52403f96a3a1226e7bb0b806e1"
 recorded_at = "2026-11-21T08:39:14Z"
 dependency_manifest = "aa3f0b708db87e03ec36dc7fed8f284861a0fd8c83c82c20185514841613f7c8"
+
+[[record]]
+test = "antecedent::longitudinal_joint_sensitivity::two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "8e07e817f2fee764ee10a7b110eaa6e6556ec9c9f3db5af826203bd00d297c9d"
+recorded_at = "2026-11-26T05:09:43Z"
+dependency_manifest = "2d5d2262cace57286c68ee23ddd558dee8c4e55ff710e558f1e80c4c025c5e35"
 
 [[record]]
 test = "antecedent::measured_exposure_known_truth::covariate_dependent_detection_recovers_the_planted_effect"
