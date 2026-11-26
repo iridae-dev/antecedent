@@ -2372,6 +2372,21 @@ def _check_transport_inverse(o: Objs) -> None:
     _check_raw_rejected(*_transport_objects(o), feeders=_INVERSE_FEEDERS)
 
 
+def _consume_transport_decision(source: object, contract: decision.Contract, terminal: object) -> cb.ConsumedBundle:
+    bundle = (
+        cb.Bundle.builder()
+        .add_artifact(source, node_id="transport")
+        .add_artifact(contract, node_id="contract")
+        .add_artifact(terminal, node_id="decision")
+        .connect("transport", "decision")
+        .connect("contract", "decision")
+        .build()
+    )
+    return require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
+
+
 def _check_transport_bundle(o: Objs) -> None:
     revised = _transported("revised-target")
     for result, replacement, construction in (
@@ -2394,25 +2409,11 @@ def _check_transport_bundle(o: Objs) -> None:
         )
         terminal = cb.mean_decision(contract, result)
 
-        def consume(source: object) -> cb.ConsumedBundle:
-            bundle = (
-                cb.Bundle.builder()
-                .add_artifact(source, node_id="transport")
-                .add_artifact(contract, node_id="contract")
-                .add_artifact(terminal, node_id="decision")
-                .connect("transport", "decision")
-                .connect("contract", "decision")
-                .build()
-            )
-            return require_success(
-                cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
-            )
-
-        consumed = consume(result)
+        consumed = _consume_transport_decision(result, contract, terminal)
         consumed.require_verified()
         assert consumed.value("transport", "probability") == pytest.approx(0.75)
         assert consumed.value("decision", "act.expected_utility") == pytest.approx(2.0)
-        changed = consume(replacement)
+        changed = _consume_transport_decision(replacement, contract, terminal)
         assert changed.node("transport").facts["target_population"] == "revised-target"
         assert isinstance(changed.node("decision").status, cb.Failed)
         with pytest.raises(cb.CompositionBundleRefusal) as refusal:

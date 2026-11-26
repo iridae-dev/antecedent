@@ -143,6 +143,8 @@ def test_installed_entry_point_provider_analyze_needs_no_rebuild(monkeypatch):
     )
     assert analyzed.provider_result.artifact == b"external:2.0"
     assert bytes(analyzed.export()) == b"external:2.0"
+    with pytest.raises(antecedent.errors.CausalUnsupportedError, match="provider owns"):
+        analyzed.export(quantity="host", source_data={"y": [0.0, 1.0]})
     host = bytes(analyzed.export(quantity="host"))
     assert (
         json.loads(antecedent._native.open_provider_result(host)[0])["provenance"]["entry_point"]

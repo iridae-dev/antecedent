@@ -1366,8 +1366,11 @@ def consume_bundle(
         if value is not None
     }
     if actual_claims is None:
-        roles = None if producers is None else list(producers)
-        payloads = None if producers is None else [bytes(producers[role]) for role in roles]
+        if producers is None:
+            roles = payloads = None
+        else:
+            roles = list(producers)
+            payloads = [bytes(producers[role]) for role in roles]
         wire, refusal = _native.consume_composition_bundle(
             bytes(data),
             expected_identity,

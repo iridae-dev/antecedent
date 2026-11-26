@@ -223,6 +223,8 @@ def test_load_verified_execution_and_forward_uncontracted_body():
         == result.inspect().uncertainty.payload["components"]
     )
     assert bytes(loaded.export()) == encoded
+    with pytest.raises(ant.errors.CausalUnsupportedError, match="original execution"):
+        loaded.export(source_data=sample())
     json.dumps(loaded.inspect().to_dict(), allow_nan=False)
     with pytest.raises(ant.errors.CausalUnsupportedError, match="not_executed"):
         _ = loaded.study

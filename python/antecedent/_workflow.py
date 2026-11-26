@@ -280,7 +280,15 @@ class LoadedResult(ResultAPI):
         *,
         artifact_id: str | None = None,
         quantity: Literal["result", "posterior", "record", "query"] = "result",
+        source_data: Any = None,
     ) -> ExportedArtifact[LoadedResult]:
+        if source_data is not None:
+            from .errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "Embed the source table when exporting the original execution.",
+                reason_code="not_executed",
+            )
         if quantity != "result":
             from .errors import CausalUnsupportedError
 

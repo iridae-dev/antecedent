@@ -139,7 +139,15 @@ class ProviderAnalysisResult(ResultModel, ResultAPI):
             "result", "posterior", "record", "query", "provider", "host"
         ] = "provider",
         artifact_id: str | None = None,
+        source_data: Any = None,
     ) -> ExportedArtifact:
+        if source_data is not None:
+            from ..errors import CausalUnsupportedError
+
+            raise CausalUnsupportedError(
+                "The provider owns the execution inputs. Export its original receipt or host envelope.",
+                reason_code="option_not_applicable",
+            )
         if quantity == "host":
             return artifact_from_receipt(self, self._host_bytes())
         if quantity not in ("provider", "result"):
