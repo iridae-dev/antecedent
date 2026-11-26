@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
+
 import antecedent
 import numpy as np
 import pytest
 from antecedent.accepted_graph import AcceptedGraph
-from antecedent.discovery import LiNGAM, PC
+from antecedent.discovery import PC, LiNGAM
 from antecedent.estimation import _PreparedEngine
 
 
@@ -91,7 +93,7 @@ def test_a_live_config_still_searches(monkeypatch):
         return original(*args, **kwargs)
 
     monkeypatch.setattr(antecedent.discovery, "_discover_pc", wrapped)
-    try:
+    with suppress(Exception):
         _PreparedEngine.prepare(
             _chain(n=40),
             query=antecedent.AverageEffect("t", "y"),
@@ -101,6 +103,4 @@ def test_a_live_config_still_searches(monkeypatch):
             accept_discovered=True,
             seed=1,
         )
-    except Exception:
-        pass
     assert calls["n"] == 1

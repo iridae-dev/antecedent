@@ -1453,7 +1453,7 @@ def _produced(component: str, quantity: Any, operations: tuple[str, ...], semant
 
 
 def _consumed(component: str, quantity: Any, operations: tuple[str, ...], semantic: str):
-    from .interface_contract import InterfaceContract, ConsumedPort, SupportDomain
+    from .interface_contract import ConsumedPort, InterfaceContract, SupportDomain
 
     return InterfaceContract(
         component,

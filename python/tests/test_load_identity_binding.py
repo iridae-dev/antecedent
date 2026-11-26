@@ -3,6 +3,7 @@
 import antecedent as ant
 import pytest
 from antecedent.outcomes import require_success
+
 from test_sequential_evaluation import sealed
 
 

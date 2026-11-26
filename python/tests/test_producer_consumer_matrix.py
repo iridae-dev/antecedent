@@ -52,8 +52,6 @@ from typing import Any
 import antecedent as ac
 import numpy as np
 import pytest
-from _refusal import assert_registered_refusal
-from _repo_text import REPO_ROOT
 from antecedent import (
     Admg,
     Dag,
@@ -118,6 +116,9 @@ from antecedent.results.response import (
 )
 from antecedent.transport import advanced as transport
 from antecedent.transport import sensitivity as transport_sensitivity
+
+from _refusal import assert_registered_refusal
+from _repo_text import REPO_ROOT
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate_cross_surface_fixtures as gen  # noqa: E402

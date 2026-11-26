@@ -41,11 +41,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from _repo import REPO_ROOT, load_toml
-
 import identity_sites
 import rust_items
 import standing_sites
+from _repo import REPO_ROOT, load_toml
 
 RECORDS = Path("parity/assurance_records.toml")
 TOOLCHAIN = Path("formal/toolchain.toml")

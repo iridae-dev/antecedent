@@ -28,6 +28,7 @@ import pytest
 from antecedent import bridge_transport_decision as btd
 from antecedent import decision
 from antecedent.execution import Execution
+
 from test_bridge_transport_decision import (
     PREMISE,
     ROWS,

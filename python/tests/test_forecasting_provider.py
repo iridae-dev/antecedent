@@ -1,8 +1,7 @@
 from dataclasses import replace
 
-import pytest
-
 import antecedent as ant
+import pytest
 from antecedent import forecasting as fc
 from antecedent import predictive_assessment as pa
 from antecedent.extensibility import (

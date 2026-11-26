@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any, Literal
 
 from . import predictive_assessment as pa
@@ -412,7 +413,7 @@ def fit_at_origins(
     """Fit one origin at a time. Each origin predicts every row strictly after it."""
     clock = [int(time) for time in times]
     cuts = [int(origin) for origin in origins]
-    if any(left >= right for left, right in zip(cuts, cuts[1:])):
+    if any(left >= right for left, right in pairwise(cuts)):
         raise CausalValueError("origins must be strictly increasing")
     fits = []
     for origin in cuts:

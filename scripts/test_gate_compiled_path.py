@@ -15,6 +15,7 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
+from _repo import load_toml
 from gate_compiled_path import (
     BOUND_REPLACEMENT_PREFIX,
     MANIFEST,
@@ -23,7 +24,6 @@ from gate_compiled_path import (
     bound_form_files,
     compiled_path_problems,
 )
-from _repo import load_toml
 
 CTX = "&antecedent_core::execution::context::ExecutionContext"
 EFFECT = "antecedent_estimate::effect_estimate::EffectEstimate"

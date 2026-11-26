@@ -326,9 +326,8 @@ def rust_candidates(snaps: Snapshots, results: set[str]) -> dict[str, Fn]:
                     elif target in fn_keys:
                         canonical.add(target)
     for key in list(fn_keys):
-        if any(key.startswith(module + "::") for module in modules):
-            if fn_keys[key].owner is None:
-                canonical.add(key)
+        if fn_keys[key].owner is None and any(key.startswith(module + "::") for module in modules):
+            canonical.add(key)
     for kind_path, kind in snaps.kinds.items():
         if kind in ("struct", "enum", "type", "union") and any(
             kind_path.startswith(module + "::") for module in modules
@@ -594,9 +593,8 @@ def _function_info(node: ast.AST, aliases: dict[str, str], modules: set[str]) ->
         ):
             # A method of a native class reached through the module: `_native.Class.method`.
             natives.add(f"{child.value.attr}.{child.attr}")
-        if isinstance(child, ast.Call):
-            if isinstance(child.func, ast.Name):
-                called.add(child.func.id)
+        if isinstance(child, ast.Call) and isinstance(child.func, ast.Name):
+            called.add(child.func.id)
     body = list(node.body)
     if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant):
         body = body[1:]
@@ -604,6 +602,25 @@ def _function_info(node: ast.AST, aliases: dict[str, str], modules: set[str]) ->
 
 
 def python_functions(root: Path) -> list[PyFunction]:
+    def natives_of(
+        infos: dict[str, tuple[set[str], set[str], bool]],
+        qualname: str,
+        cls: str | None,
+        seen: set[str],
+    ) -> set[str]:
+        if qualname in seen or qualname not in infos:
+            return set()
+        seen.add(qualname)
+        natives, called, _ = infos[qualname]
+        result = set(natives)
+        for callee in called:
+            private = callee.startswith("_")
+            if cls and f"{cls}.{callee}" in infos and private:
+                result |= natives_of(infos, f"{cls}.{callee}", cls, seen)
+            elif callee in infos and private:
+                result |= natives_of(infos, callee, None, seen)
+        return result
+
     out: list[PyFunction] = []
     package = root / "python" / "antecedent"
     if not package.is_dir():
@@ -631,25 +648,11 @@ def python_functions(root: Path) -> list[PyFunction]:
         for name, cls, node in scopes:
             infos[f"{cls}.{name}" if cls else name] = _function_info(node, aliases, modules)
 
-        def natives_of(qualname: str, cls: str | None, seen: set[str]) -> set[str]:
-            if qualname in seen or qualname not in infos:
-                return set()
-            seen.add(qualname)
-            natives, called, _ = infos[qualname]
-            result = set(natives)
-            for callee in called:
-                private = callee.startswith("_")
-                if cls and f"{cls}.{callee}" in infos and private:
-                    result |= natives_of(f"{cls}.{callee}", cls, seen)
-                elif callee in infos and private:
-                    result |= natives_of(callee, None, seen)
-            return result
-
         for name, cls, _node in scopes:
             if name.startswith("_") or (cls and cls.startswith("_")):
                 continue
             qualname = f"{cls}.{name}" if cls else name
-            natives = natives_of(qualname, cls, set())
+            natives = natives_of(infos, qualname, cls, set())
             if natives:
                 out.append(PyFunction(f"{rel}::{qualname}", natives, infos[qualname][2]))
     return out
@@ -749,9 +752,8 @@ def _row_problems(
         return problems
     if disposition == "compiled" and not re.search(rf"\b{re.escape(row['route'])}\b", registry):
         problems.append(f"{where}: route {row['route']!r} is not in the lowering registry")
-    if disposition == "deprecated" and require_snapshot:
-        if line is None or "#[deprecated" not in line:
-            problems.append(f"{where}: classified deprecated, but the snapshot shows no #[deprecated]")
+    if disposition == "deprecated" and require_snapshot and (line is None or "#[deprecated" not in line):
+        problems.append(f"{where}: classified deprecated, but the snapshot shows no #[deprecated]")
     if disposition == "deprecated":
         replacement = row["replacement"]
         if replacement.startswith(ROUTE_REPLACEMENT_PREFIX):
