@@ -205,7 +205,13 @@ fn a_prepared_effect_supplies_a_decision_a_recorded_claim_and_a_resumable_study(
         ..contract(DecisionCriterion::PosteriorExpectedUtility)
     };
     let evaluated = apply_decision(&contract, &result, &schema, &ctx).unwrap();
-    assert_eq!(evaluated.ordinary().unwrap().verdict, Verdict::UniquelyOptimal("act".into()));
+    let decision = evaluated.ordinary().unwrap();
+    assert_eq!(decision.verdict, Verdict::UniquelyOptimal("act".into()));
+    let methods = decision.method_provenance().unwrap();
+    for record in &result.method_provenance().records {
+        assert_eq!(methods.record(&record.id), Some(record));
+    }
+    assert!(methods.record("decision.contract").is_some());
 
     let claim = prepared.encode_contracted_result(&result, "observed-effect", &ctx).unwrap();
     let retained = RetainedArtifactIdentity::of_bytes(&claim);

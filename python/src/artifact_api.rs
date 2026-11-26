@@ -463,16 +463,7 @@ fn analysis_result_method_provenance_json(bytes: &[u8]) -> PyResult<Option<Strin
     })
 }
 
-/// Section id of the provenance records an analysis-result export carries.
-const METHOD_PROVENANCE_SECTION: &str = "analysis_result.method_provenance";
-
-/// The provenance records the producer cited for the executed route, as the artifact carries
-/// them.
-///
-/// `None` when the artifact has no readable contract, or the section is absent, duplicated,
-/// unreadable, in another format, or does not name the identifier and estimator the contract
-/// declares (at most one id per role, and each declared id for its role). This is the check
-/// `decode_method_provenance_section` applies on the Rust replay path.
+/// Read the producer's method snapshot using the same binding check as Rust replay.
 fn carried_method_provenance(
     bytes: &[u8],
 ) -> Option<antecedent::io::method_provenance::MethodProvenanceWire> {
@@ -482,39 +473,13 @@ fn carried_method_provenance(
     let decoded = antecedent::io::decode_analysis_result_artifact(bytes);
     let (artifact, _, _) = decoded.ok()?;
     let contract = antecedent::io::decode_analysis_result_contract(&artifact).ok()??;
-    let (identifier, estimator) = (contract.identifier.as_deref(), contract.estimator.as_deref());
-    let mut sections =
-        artifact.sections.iter().filter(|section| section.id == METHOD_PROVENANCE_SECTION);
-    let section = sections.next()?;
-    if sections.next().is_some() {
-        return None;
-    }
-    let provenance: antecedent::io::method_provenance::MethodProvenanceWire =
-        antecedent::io::convert::from_cbor(&section.data).ok()?;
-    let format = antecedent::io::method_provenance::method_provenance(None, None).format;
-    if provenance.format != format {
-        return None;
-    }
-    for (role, declared) in [("identifier", identifier), ("estimator", estimator)] {
-        let mut keys: Vec<&str> = provenance
-            .records
-            .iter()
-            .flat_map(|record| record.cited_for.iter())
-            .chain(&provenance.unlinked)
-            .filter(|cited| cited.role.as_str() == role)
-            .map(|cited| cited.key.as_str())
-            .collect();
-        keys.sort_unstable();
-        keys.dedup();
-        let agrees = match declared {
-            Some(declared) => keys == [declared],
-            None => keys.len() <= 1,
-        };
-        if !agrees {
-            return None;
-        }
-    }
-    Some(provenance)
+    antecedent::io::method_provenance::decode_method_provenance_section(
+        &artifact,
+        contract.identifier.as_deref(),
+        contract.estimator.as_deref(),
+    )
+    .ok()
+    .flatten()
 }
 
 #[pyfunction(name = "encode_external_estimate_claim")]

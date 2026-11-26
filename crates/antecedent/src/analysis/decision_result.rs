@@ -14,11 +14,10 @@ use antecedent_core::{
 use antecedent_design::decision_contract::{
     DecisionContract, DecisionContractError, SourceRepresentation, SourceRequirement,
 };
-use antecedent_design::decision_eval::{
-    DecisionEvalError, DecisionResult, evaluate_contract, evaluate_contract_on_means,
-};
+use antecedent_design::decision_eval::DecisionEvalError;
 use antecedent_io::distribution_artifact::DistributionCalibration;
 
+use super::claim_decision_programs::{ContractSource, TerminalError, compile_contract_decision};
 use super::execute::CompiledPreferenceEvaluation;
 use super::native_claims::{NativeDecisionSource, NativeResponseClaim, NativeResponseContext};
 use crate::result::{ExecutedContract, ResultPayload, StudyResult};
@@ -43,6 +42,8 @@ pub enum DecisionProjectionError {
     Declaration(&'static str),
     /// The authority check or an evaluator refused.
     Refusal(ExternalRefusal),
+    /// The compiled decision refused.
+    Compiler(crate::CausalError),
 }
 
 impl DecisionProjectionError {
@@ -51,7 +52,7 @@ impl DecisionProjectionError {
     pub fn refusal(&self) -> Option<&ExternalRefusal> {
         match self {
             Self::Refusal(refusal) => Some(refusal),
-            Self::Declaration(_) => None,
+            Self::Declaration(_) | Self::Compiler(_) => None,
         }
     }
 }
@@ -61,6 +62,7 @@ impl std::fmt::Display for DecisionProjectionError {
         match self {
             Self::Declaration(message) => formatter.write_str(message),
             Self::Refusal(refusal) => write!(formatter, "{}: {}", refusal.code, refusal.detail),
+            Self::Compiler(error) => error.fmt(formatter),
         }
     }
 }
@@ -119,8 +121,8 @@ pub fn apply_decision(
     schema: &CausalSchema,
     execution: &ExecutionContext,
 ) -> Result<CompiledPreferenceEvaluation, DecisionProjectionError> {
-    let decided = if result.response().is_some() {
-        evaluate_response(contract, result, schema, execution)?
+    let source = if result.response().is_some() {
+        response_source(contract, result, schema, execution)?
     } else if matches!(result.payload(), ResultPayload::Scalar)
         && result.identification.average_effect().is_some()
     {
@@ -130,13 +132,22 @@ pub fn apply_decision(
             project_static_effect(authority.as_ref(), units, population, result.effect(), |id| {
                 schema.get(id).ok().map(|variable| variable.name.to_string())
             })?;
-        evaluate_contract_on_means(contract, &projected.source)?
+        ContractSource::Means(projected.source)
     } else {
         return Err(static_refusal(
             antecedent_core::reason_details::native_claims::UNSUPPORTED_ESTIMAND,
         )
         .into());
     };
+    let compiled = compile_contract_decision(contract.clone(), source, execution)
+        .map_err(DecisionProjectionError::Compiler)?;
+    let provenance = result.method_provenance();
+    let decided = compiled.execute_with_evidence(execution, Some(&provenance)).map_err(
+        |error| match error {
+            TerminalError::Refused(error) => DecisionProjectionError::Compiler(error),
+            TerminalError::Kernel(error) => DecisionProjectionError::from(error),
+        },
+    )?;
     Ok(CompiledPreferenceEvaluation::Ordinary(Box::new(decided)))
 }
 
@@ -166,12 +177,12 @@ pub(super) fn mean_contrast_quantity(
     }
 }
 
-fn evaluate_response(
+fn response_source(
     contract: &DecisionContract,
     result: &StudyResult,
     schema: &CausalSchema,
     execution: &ExecutionContext,
-) -> Result<DecisionResult, DecisionProjectionError> {
+) -> Result<ContractSource, DecisionProjectionError> {
     let response = result.response().expect("the caller checked for a response");
     let context = response_context(contract, result, response, schema, execution)?;
     let claim = NativeResponseClaim::from_response(response, schema, &context)?;
@@ -181,8 +192,8 @@ fn evaluate_response(
     });
     let source = claim.decision_source(&requirement)?.source;
     Ok(match source {
-        NativeDecisionSource::Mean(means) => evaluate_contract_on_means(contract, &means)?,
-        NativeDecisionSource::JointLaw(law) => evaluate_contract(contract, &law)?,
+        NativeDecisionSource::Mean(means) => ContractSource::Means(means),
+        NativeDecisionSource::JointLaw(law) => ContractSource::Law(*law),
     })
 }
 

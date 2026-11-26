@@ -1794,6 +1794,7 @@ fn executed_json(
             ordinary_json(result, executed.source.as_ref())?
         }
     };
+    body["method_provenance"] = json!(executed.method_provenance);
     let receipt = &executed.receipt;
     body["compiled"] = json!({
         "bound_identity": receipt.bound_identity,

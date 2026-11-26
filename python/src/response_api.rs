@@ -184,6 +184,17 @@ type CoordinateSkeleton = Result<
 
 #[pymethods]
 impl ResponseAnalysisResult {
+    #[getter]
+    fn method_provenance_json(&self) -> PyResult<Option<String>> {
+        self.authority
+            .as_ref()
+            .map(|authority| {
+                serde_json::to_string(&authority.result.method_provenance())
+                    .map_err(|error| crate::value_err(error.to_string()))
+            })
+            .transpose()
+    }
+
     /// Refuter reports the study's validation stage produced for this response, one
     /// `(refuter, passed, informative, original, refuted, failure)` per report; empty
     /// when no suite ran or the result carries no study authority.

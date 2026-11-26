@@ -13,6 +13,7 @@
 use std::sync::Arc;
 
 use antecedent_core::{ExecutionContext, NotSupported};
+use antecedent_io::method_provenance::MethodProvenanceWire;
 
 use crate::planner::lowered::LoweredProgram;
 use crate::planner::{PlanStage, PlanView};
@@ -30,6 +31,16 @@ pub(crate) trait CompiledProgramHandle {
     /// Every layer of the retained program.
     fn lowered(&self) -> &LoweredProgram {
         self.program()
+    }
+
+    /// Resolve the operation's own methods and inherit the snapshots on the evidence it read.
+    fn result_method_provenance<'a>(
+        &self,
+        inputs: impl IntoIterator<Item = &'a MethodProvenanceWire>,
+    ) -> MethodProvenanceWire {
+        let mut provenance = self.lowered().method_provenance();
+        provenance.inherit(inputs);
+        provenance
     }
 
     /// The plan view of the retained program, as compiled.

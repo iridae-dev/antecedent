@@ -11,8 +11,11 @@ from __future__ import annotations
 
 import antecedent as ant
 import numpy as np
+from antecedent import decision
 from antecedent.citations import bibliography, capability_provenance, method_provenance
 from antecedent.estimators import Aipw
+from antecedent.joint_distribution import ScientificQuantity
+from antecedent.outcomes import require_success
 
 QUERY = ant.AverageEffect("t", "y")
 GRAPH = [("z", "t"), ("z", "y"), ("t", "y")]
@@ -81,3 +84,25 @@ def test_unknown_ids_are_unlinked_and_capabilities_resolve() -> None:
         "capability",
         "adaptive_inference.group_sequential",
     )
+
+
+def test_aipw_method_records_follow_the_evidence_into_an_affine_decision() -> None:
+    study = ant.analyze(confounded(), graph=GRAPH, query=QUERY, estimator=Aipw(bootstrap=0))
+    effect = ScientificQuantity.from_effect(study, outcome_units="units")
+    contract = decision.Contract(
+        actions=(
+            decision.Action("act", (effect,), decision.x(0)),
+            decision.Action("wait", (effect,), decision.x(0) * 0.0),
+        ),
+        utility_units="units",
+        criterion=decision.Criterion.expected_utility(),
+        target_population="target",
+    )
+    evaluated = contract.evaluate(study)
+    result = require_success(evaluated)
+    assert result.selected == ("act",)
+    assert evaluated.method_provenance == result.method_provenance
+    for record in study.method_provenance.records:
+        assert result.method_provenance.record(record.id) == record
+    assert result.method_provenance.record("decision.contract") is not None
+    assert len(bibliography(study, evaluated)) == len(evaluated.citations())

@@ -1,6 +1,6 @@
 # Cite the methods behind a study
 
-When you write up a study, cite the methods that produced each number and say where the implementation departs from the published method. Every executed Antecedent result carries that information. It names the provenance records behind the route it ran: one for the identification strategy and one for the estimator. Capability-specific routes have their own records, read with `antecedent.citations.capability_provenance(capability_id)`. Each record gives the published sources, the documented deviations from the published method, what its review did not cover, and the record id and digest.
+When you write up a study, cite the methods that produced each number and say where the implementation departs from the published method. The compiler resolves method provenance from the identification strategy, estimator, and capability associated with the lowered program. Each record gives the published sources, documented deviations, review limits, and the record id and digest. Use `method_provenance` to inspect records or `citations()` to read a bibliography. A compiled program plan shows its own method records before execution.
 
 This page shows how to read that information from a result, how to build one de-duplicated bibliography for a whole study, and what to put in your methods section. The digests shown are those of the records at this release; read your own from the result.
 
@@ -46,6 +46,12 @@ for citation in bibliography([primary, sensitivity, subgroup]):
 
 Sources are the same when their DOIs agree. Sources without a DOI are matched by title, ignoring case and punctuation. A merged entry keeps every record that cites the source, with the record's digest, and every caveat those records document. `citation.reference` is a one-line reference in the form `Authors (year). Title. https://doi.org/…`. In Rust, use `antecedent::bibliography(results)` or `CompletedBatch::bibliography()`.
 
+## Citations in a decision
+
+A decision evaluated on a checked study result inherits the producer's method records and caveats. A compiled contract decision over a joint law also inherits the law's method records when its producer carried them forward. You can collect a bibliography from the decision alone, or combine it with the study results using `bibliography(...)`. A source that supplied values without method records is shown under `unlinked`.
+
+An exported joint-law decision keeps a snapshot of the records behind its execution. Reopening it reads that snapshot, including the producer's record digests. Previously exported decisions and distributions can be read without the optional method section.
+
 ## What to write
 
 Cite each source in the bibliography. For each caveat, say which part of the published method was not implemented as published. For example:
@@ -78,7 +84,7 @@ for citation in loaded.citations():
 
 ## Where the table comes from
 
-`scripts/generate_method_provenance.py` builds the table from the existing links: the provenance pointer on each identifier and estimator row in `crates/antecedent/src/strategy_table/ids.rs` (resolved through `scripts/provenance_links.py`), the admitted methods in `parity/method_specs/specs.toml`, the capability records in `parity/capability_records.toml`, and the records in `provenance/`. It writes `crates/antecedent-io-core/data/method_provenance.json`. `scripts/gate_provenance_schema.sh` fails when that file is stale. After editing a provenance record, regenerate it:
+`scripts/generate_method_provenance.py` builds the table from the existing links: the provenance pointer on each identifier and estimator row in `crates/antecedent/src/strategy_table/ids.rs` (resolved through `scripts/provenance_links.py`), the admitted methods in `parity/method_specs/specs.toml`, the capability records in `parity/capability_records.toml`, and the records in `provenance/`. The compiled unit registry supplies explicit links and records gaps for units whose method records cannot be resolved from those declarations. It writes `crates/antecedent-io-core/data/method_provenance.json`. `scripts/gate_provenance_schema.sh` fails when that file is stale. After editing a provenance record, regenerate it:
 
 ```bash
 python3 scripts/generate_method_provenance.py

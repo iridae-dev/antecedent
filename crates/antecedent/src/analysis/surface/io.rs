@@ -550,7 +550,8 @@ pub mod measurement_model_wire {
 /// Items of `antecedent-io::method_provenance`.
 pub mod method_provenance {
     pub use antecedent_io::method_provenance::{
-        MethodProvenanceWire, bibliography, capability_provenance, method_provenance,
+        MethodProvenanceWire, bibliography, capability_provenance, decode_method_provenance_section,
+        method_provenance,
     };
 }
 /// Independent point-result artifacts for mixed-source proof search.

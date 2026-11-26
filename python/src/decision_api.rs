@@ -83,10 +83,11 @@ fn decision_context() -> ExecutionContext {
 fn evaluate_compiled_contract(
     contract: antecedent::analysis::inverse_query::DecisionContract,
     source: ContractSource,
+    evidence: Option<&antecedent::io::method_provenance::MethodProvenanceWire>,
 ) -> PyResult<Result<DecisionResult, DecisionEvalError>> {
     let ctx = decision_context();
     let program = compile_contract_decision(contract, source, &ctx).map_err(crate::py_err)?;
-    match program.execute(&ctx) {
+    match program.execute_with_evidence(&ctx, evidence) {
         Ok(result) => Ok(Ok(result)),
         Err(TerminalError::Kernel(error)) => Ok(Err(error)),
         Err(TerminalError::Refused(error)) => Err(crate::py_err(error)),
@@ -126,7 +127,11 @@ fn evaluate_decision(
             Ok(contract) => contract,
             Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
         };
-        match evaluate_compiled_contract(contract, ContractSource::Law(source.inner().clone()))? {
+        match evaluate_compiled_contract(
+            contract,
+            ContractSource::Law(source.inner().clone()),
+            None,
+        )? {
             Ok(result) => {
                 let json = result_to_json(&result, source.inner()).map_err(serialization)?;
                 Ok((Some(with_outcome(&json, &result)?), None))
@@ -140,6 +145,7 @@ fn evaluate_decision(
 /// external response grid); returns the result JSON or a refusal. The result's
 /// `lineage` is empty: the caller supplies the derivation of the means.
 #[pyfunction]
+#[pyo3(signature = (contract_json, coordinates_json, means, provider_id, snapshot_id, causal_contract_id, original_effect=None, original_response=None))]
 fn evaluate_decision_means(
     contract_json: &str,
     coordinates_json: &str,
@@ -147,6 +153,8 @@ fn evaluate_decision_means(
     provider_id: &str,
     snapshot_id: &str,
     causal_contract_id: &str,
+    original_effect: Option<(PyRef<'_, crate::AteAnalysisResult>, f64, String, String)>,
+    original_response: Option<PyRef<'_, crate::program_claims_api::PyNativeResponseClaim>>,
 ) -> PyResult<(Option<String>, Option<String>)> {
     crate::catch_ffi(|| {
         check_size(contract_json)?;
@@ -172,7 +180,57 @@ fn evaluate_decision_means(
             rng_id: "none:mean_grid".to_owned(),
             estimate: MeanEstimate::Frequentist,
         };
-        match evaluate_compiled_contract(contract, ContractSource::Means(source.clone()))? {
+        let evidence = if let Some((result, value, units, population)) = &original_effect {
+            use antecedent::analysis::decision_result::DecisionProjectionError;
+
+            let projected = match result.project_effect(units, population, *value) {
+                Ok(projected) => projected,
+                Err(DecisionProjectionError::Refusal(refusal)) => {
+                    return Ok((None, Some(external_refusal_json(&refusal))));
+                }
+                Err(DecisionProjectionError::Declaration(message)) => {
+                    return Err(crate::value_err(message));
+                }
+                Err(DecisionProjectionError::Compiler(error)) => {
+                    return Err(crate::py_err(error));
+                }
+            };
+            if projected.source != source {
+                return Err(crate::value_err("mean source differs from its retained effect"));
+            }
+            Some(result.performance.method_provenance.clone())
+        } else if let Some(response) = original_response {
+            use antecedent::analysis::native_claims::NativeDecisionSource;
+            use antecedent::design::decision_contract::{SourceRepresentation, SourceRequirement};
+
+            let requirement = SourceRequirement {
+                any_of: vec![SourceRepresentation::Mean],
+                sampled_needs_error_receipt: false,
+            };
+            let input = match response.claim.decision_source(&requirement) {
+                Ok(input) => input,
+                Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+            };
+            let NativeDecisionSource::Mean(expected) = input.source else {
+                return Err(crate::value_err("native response supplied no mean"));
+            };
+            if expected.coordinates != source.coordinates
+                || expected.means != source.means
+                || expected.provider_id != source.provider_id
+                || expected.snapshot_id != source.snapshot_id
+                || expected.causal_contract_id != source.causal_contract_id
+            {
+                return Err(crate::value_err("mean source differs from its retained response"));
+            }
+            Some(response.authority.result.method_provenance())
+        } else {
+            None
+        };
+        match evaluate_compiled_contract(
+            contract,
+            ContractSource::Means(source.clone()),
+            evidence.as_ref(),
+        )? {
             Ok(result) => {
                 let json = mean_result_to_json(&result, &source).map_err(serialization)?;
                 Ok((Some(with_outcome(&json, &result)?), None))
@@ -218,9 +276,12 @@ fn export_decision_result<'py>(
     crate::catch_ffi(|| {
         check_size(contract_json)?;
         let contract = contract_from_json(contract_json).map_err(serialization)?;
-        let result =
-            evaluate_compiled_contract(contract, ContractSource::Law(source.inner().clone()))?
-                .map_err(serialization_eval)?;
+        let result = evaluate_compiled_contract(
+            contract,
+            ContractSource::Law(source.inner().clone()),
+            None,
+        )?
+        .map_err(serialization_eval)?;
         let artifact = DecisionResultArtifact::new(result, source.inner());
         Ok(PyBytes::new(py, &artifact.to_bytes(artifact_id).map_err(serialization)?))
     })

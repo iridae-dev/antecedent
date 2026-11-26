@@ -2017,6 +2017,7 @@ impl PlanView {
             "statistical": statistical_json(self.statistical()),
             "evidence": evidence_json(self.evidence()),
             "physical": self.physical.facts(),
+            "method_provenance": self.method_provenance(),
             "uncertainty": self.uncertainty.facts(),
             "support": self.support.facts(),
             "mixture": self.mixture.as_ref().map(MixtureView::facts),

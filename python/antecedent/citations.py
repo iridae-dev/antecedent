@@ -16,7 +16,7 @@ descriptive: it changes no number, support status or calibration annotation. See
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -202,13 +202,7 @@ def capability_provenance(capability: str) -> MethodProvenance:
 
 
 def provenance_of(result: Any) -> MethodProvenance:
-    """Provenance of ``result``: the identifier and estimator its executed plan names.
-
-    ``result`` is an :class:`~antecedent.outcomes.Outcome` or the result it holds. A
-    :class:`MethodProvenance` passes through. A loaded analysis result gives the provenance its
-    artifact carries. A result without a plan (a refusal, or a family that records no
-    strategy-table route) names no route and has empty provenance.
-    """
+    """Read a compiled method snapshot from a result, execution plan or loaded artifact."""
     from ._workflow import LoadedResult
     from .outcomes import Outcome
 
@@ -218,8 +212,16 @@ def provenance_of(result: Any) -> MethodProvenance:
         result = result.value
     if isinstance(result, LoadedResult):
         return result.method_provenance
+    body = getattr(result, "_body", None)
+    if isinstance(body, Mapping) and (carried := body.get("method_provenance")) is not None:
+        return MethodProvenance._parse(json.dumps(carried))
     plan = getattr(result, "plan", None)
-    carried = getattr(plan, "_method_provenance_json", None)
+    carried = (
+        getattr(result, "_method_provenance_json", None)
+        or getattr(plan, "_method_provenance_json", None)
+        or getattr(getattr(result, "_raw", None), "method_provenance_json", None)
+        or getattr(getattr(result, "_native", None), "method_provenance_json", None)
+    )
     if carried is not None:
         return MethodProvenance._parse(carried)
     identifier = getattr(plan, "identifier", None) if plan is not None else None

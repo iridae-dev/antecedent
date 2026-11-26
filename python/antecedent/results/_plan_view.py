@@ -187,6 +187,18 @@ class ProgramPlanView(ResultModel):
     reuse: Mapping[str, Any] | None = None
     operations: Sequence[Mapping[str, Any]] = ()
     _operation: dict[str, Any] | None = PrivateAttr(default=None)
+    _method_provenance_json: str | None = PrivateAttr(default=None)
+
+    @property
+    def method_provenance(self) -> Any:
+        """Method records for the operations resolved by this plan."""
+        from ..citations import provenance_of
+
+        return provenance_of(self)
+
+    def citations(self) -> tuple[Any, ...]:
+        """Published sources behind the lowered plan."""
+        return self.method_provenance.citations()
 
     @model_validator(mode="after")
     def _validate_identity_scope(self) -> Self:
@@ -212,6 +224,7 @@ class ProgramPlanView(ResultModel):
     def from_json(cls, raw: str) -> ProgramPlanView:
         """Decode the native view, naming variables by the handle's columns."""
         payload = json.loads(raw)
+        methods = payload.pop("method_provenance", None)
         names: list[str] = list(payload.pop("names", []))
         detail = payload.pop("operation_detail", None)
 
@@ -281,6 +294,8 @@ class ProgramPlanView(ResultModel):
         payload.pop("operation", None)
         view = cls(**payload)
         view._operation = _plain(detail)
+        if methods is not None:
+            view._method_provenance_json = json.dumps(methods)
         return view
 
     def __repr__(self) -> str:

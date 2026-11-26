@@ -42,6 +42,7 @@ use antecedent_design::decision_structural::AtomEvidence;
 use antecedent_io::distribution_artifact::DistributionArtifact;
 use std::sync::Arc;
 
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::analysis::supplied_identity::{Canonical, Declaration, Wire, variant};
 pub use crate::analysis::supplied_terminal::TerminalError;
 use crate::analysis::supplied_terminal::{
@@ -494,11 +495,35 @@ impl CompiledContractDecision {
         &self,
         ctx: &ExecutionContext,
     ) -> Result<DecisionResult, TerminalError<DecisionEvalError>> {
+        self.execute_with_evidence(ctx, None)
+    }
+
+    /// Score the source with the method snapshot from its accepted producer.
+    ///
+    /// # Errors
+    /// The compiler or the evaluator refuses the decision.
+    #[doc(hidden)]
+    pub fn execute_with_evidence(
+        &self,
+        ctx: &ExecutionContext,
+        evidence: Option<&antecedent_io::method_provenance::MethodProvenanceWire>,
+    ) -> Result<DecisionResult, TerminalError<DecisionEvalError>> {
         let _scoped = self.enter(ctx)?;
+        let evidence = match &self.source {
+            ContractSource::Law(law) => law.method_provenance().or(evidence),
+            ContractSource::Means(_) => evidence,
+        };
         match &self.source {
             ContractSource::Law(law) => evaluate_contract(&self.contract, law),
             ContractSource::Means(means) => evaluate_contract_on_means(&self.contract, means),
         }
+        .map(|result| {
+            let mut provenance = self.result_method_provenance(evidence);
+            if evidence.is_none() {
+                provenance.note_unlinked_source(result.source.provider_id.clone());
+            }
+            result.with_method_provenance(provenance)
+        })
         .map_err(TerminalError::Kernel)
     }
 }

@@ -1061,7 +1061,11 @@ class Contract:
             assert result is not None
             return Decision(contract, source, json.loads(result), declared=declared)
         if isinstance(source, MeanSource):
-            source._validated_original()
+            original = source._validated_original()
+            effect = None
+            if source._original_effect is not None:
+                _, value, units, population = source._original_effect
+                effect = (original, value, units, population)
             result, refusal = _evaluate_means(
                 wire,
                 json.dumps([q._wire() for q in source.coordinates]),
@@ -1069,6 +1073,8 @@ class Contract:
                 source.provider_id,
                 source.snapshot_id,
                 source.causal_contract_id,
+                effect,
+                getattr(source._original_native, "_native", None),
             )
             raise_refusal(refusal, DecisionRefusal)
             assert result is not None
