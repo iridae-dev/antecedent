@@ -28,8 +28,8 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "unsupported_variant"
-rationale = "A closed semantic boundary: a mean, a predictive law, a posterior, an identified set and a joint outcome law answer different questions and the bridge refuses to interconvert them."
-no_independent_algorithm = "kind.rs enumerates the value kinds and claim.rs refuses a held kind that differs from the requested one (bridge_substitution_refused) or is not carried; nothing is converted and no estimator is implemented."
+rationale = "A mean, predictive law, posterior, identified set, joint outcome law, estimator-sampling law and conditional bootstrap law each answer distinct requests. A typed map may preserve a declared law reading, with explicit dependence, while incompatible value-kind substitution refuses."
+no_independent_algorithm = "The value kinds carry distinct stable tags. The claim reader refuses mismatched kinds, and a shared-trial declaration gives the receipt its own evidence label. Transformations and coverage checks execute in the separately reviewed bridge procedures."
 record_sha256 = "19f3a40029594e48118333f0a7fd137a0079984abeda314ff105b81d3a011d1d"
 
 [[non_algorithm_review.artifacts]]
@@ -42,13 +42,13 @@ sha256 = "2402e0e7cdd581c74e6f24bc9c914f5fdee2aabae6cb0cd41d26fb2cc710eccc"
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/kind.rs"
 items = ["enum AssumptionKind", "enum BridgeKind", "enum QuantityClass", "enum ValueKind", "fn allowed_mappings", "fn endpoint_pairs", "fn principal_assumption"]
-sha256 = "852932442e8822f52942a0a5beb3f72f9d3ec4f68b8d0aa9dfd269146961a188"
+sha256 = "1af203c3a092474500c2f311be7ac57d06fba723fe15f4e759311fac85998910"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-contract/src/bridge/claim.rs"
 items = ["const BRIDGE_CLAIM_IDENTITY_VERSION", "const PROPAGATION_SECTION", "const TAG_CLAIM", "const TAG_TARGET", "fn assumptions", "fn bridge_receipt", "fn bridged_claim_id", "fn bridged_claim_id_with_propagation", "fn bridged_identities", "fn bridged_reasoning", "fn bridged_uncertainty", "fn claim_identity_prefix", "fn derive_bridged_claim", "fn derive_bridged_claim_propagating", "fn freshness", "fn is_alignment_evidence", "fn kind", "fn mismatch_name", "fn node", "fn obligation", "fn request_interval", "fn require_value_kind", "fn source_point_value", "struct BridgeSource", "struct BridgedClaim"]
-sha256 = "e517fc55fa5c73ff4338e50e7e5614227325bc94865ea13968cd13919ce62e09"
+sha256 = "e178f8af5e064cef179ce4b7f9fbeec8191668e588065c31764d879ac874e1f5"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

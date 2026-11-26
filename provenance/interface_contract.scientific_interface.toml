@@ -31,7 +31,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Scientific interface contract: what a component produces and consumes, whether two components may be connected, decided from declarations alone. This record's slice: scientific interface."
+rationale = "Scientific interface contract: what a component produces and consumes, whether two components may be connected, decided from declarations alone. This record's slice: scientific interface. The identified-set operation has a distinct canonical tag. It carries causal compatibility rather than an interval or sampling paradigm, and requires explicit matching ports."
 no_independent_algorithm = "Declaration data and connection decisions; no estimator input and no numeric routine."
 record_sha256 = "8d67af81ff462a0592004f6776262a5855a91a56717c1a2d5d454d40f75e0532"
 
@@ -39,7 +39,7 @@ record_sha256 = "8d67af81ff462a0592004f6776262a5855a91a56717c1a2d5d454d40f75e053
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
 items = ["const ALL_MEANINGS", "const INTERFACE_CONTRACT_VERSION", "const TAG_CONTRACT", "enum CalibrationRequirement", "enum CalibrationStatus", "enum ContractOperation", "enum DependenceRequirement", "enum EvidenceBasis", "enum SupportDomain", "enum UncertaintyParadigm", "fn accepts", "fn canonical_identity", "fn carries_uncertainty", "fn check_common", "fn check_models", "fn check_stages", "fn check_text", "fn check_uncertainty", "fn consumed", "fn from_capability", "fn from_name", "fn interval", "fn is_lower_hex_digest", "fn is_well_formed", "fn kind", "fn label", "fn name", "fn new", "fn operations_of_capabilities", "fn paradigm", "fn produced", "fn sources", "fn tag", "fn uncertainty_ops", "fn validate", "fn with_calibration", "fn with_dependence", "fn with_evidence", "fn with_measurement_models", "fn with_provenance", "fn with_uncertainty", "fn write_consumed", "fn write_operations", "fn write_produced", "fn write_set", "fn write_support", "fn write_uncertainty", "struct ConsumedPort", "struct InterfaceContract", "struct PortFacts", "struct ProducedPort", "struct UncertaintyMeaning"]
-sha256 = "e89069df128b2292e82446a472abe3915ca281ac86c789dd7257721b1f2c44a4"
+sha256 = "4d1eb0a5738f77430e9c0f5a1d93822a712a9f8a506e0259332fc5bce5508ece"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -51,7 +51,7 @@ sha256 = "87b3feb03bd296d16f37dc5c56439143b7ac24f128194886922968cf5b9d0f3e"
 role = "implementation"
 path = "crates/antecedent-contract/src/interface_contract/connection.rs"
 items = ["const TAG_CONNECTION", "fn check_connection", "fn check_ports", "fn compare_quantities", "fn compare_uncertainty", "fn conditioning_text", "fn operation_remedy", "fn set_text", "struct Connection"]
-sha256 = "afad2cdecdefcb2caa1f7dca27d7b06cb19c267ec7f3fa962f2b50a51606ca8b"
+sha256 = "29da901380cfa5c85f85b7d0bf5c0e955b2cfa9052023f487161e242710970ba"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"

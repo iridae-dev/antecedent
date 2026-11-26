@@ -15,7 +15,7 @@ test_sources = ["crates/antecedent/tests/bayesian_randomized_routes.rs"]
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "The composition of responder_pseudo_outcomes with posterior_arm_contrasts_with_draws for two-arm Gaussian superpopulation IPW, its exact graphless support, retained source and prior binding, and estimator-aware detached numerical replay. The pseudo-outcome helper computes R Y / pi minus the fitted-logistic score correction h' I^-1 s, with all assigned units retained. The underlying conjugate and observation-fit numerics have the separate reviews estimate.randomized.bayesian and estimate.randomized_missing_outcomes; this review checks the composition rather than expanding their scope. The posterior-index test module was moved after the production items in contract_section/verify.rs; the module body and all other content and bound artifacts were compared unchanged."
+scope = "The composition of responder_pseudo_outcomes with posterior_arm_contrasts_with_draws for two-arm Gaussian superpopulation IPW, its exact graphless support, retained source and prior binding, and estimator-aware detached numerical replay. The pseudo-outcome helper computes R Y / pi minus the fitted-logistic score correction h' I^-1 s, with all assigned units retained. The underlying conjugate and observation-fit numerics have the separate reviews estimate.randomized.bayesian and estimate.randomized_missing_outcomes; this review checks the composition rather than expanding their scope. The posterior-index test module remains outside the production functions. The later survival and longitudinal branches in detached result verification dispatch by their own typed query and retain the IID and observation-fit checks for the two-arm IPW estimator reviewed here."
 assumptions = [
   "Observation is missing at random given assignment and the declared complete baseline covariates. The armwise linear-logistic observation model with an intercept is correctly specified; positivity and an estimable fit are required.",
   "The Gaussian working likelihood is on data-dependent score-adjusted pseudo-outcomes with a declared proper Normal-Inverse-Gamma prior. Observation-model coefficients are fitted and conditioned upon, not assigned a posterior.",
@@ -64,7 +64,7 @@ sha256 = "48ba6480b3d6d1673edde537373a5e8f8e6d2a3b4d0c30aec570e7bf87f7ee1d"
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
 items = ["module"]
-sha256 = "3cd522b13de84230adc4030e985e8aed22cf9a2ad49d4c1914d96affa2fc4f5e"
+sha256 = "296f397fd7f58ac2a0561c1ce6fe9b1d26a5933d500944846b465ab2074a2508"
 
 [[method_review.artifacts]]
 role = "implementation"
