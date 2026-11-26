@@ -1851,11 +1851,11 @@
     },
     {
       "path": "crates/antecedent/tests/integrated_schedule_decision.rs",
-      "sha256": "16744fef7eb007ddc6c49331eed9187ce9b31207b0aa552355eb2dd18b6e5abe",
+      "sha256": "3c49a356b266abd4f09b4dd475074c8beb7602f55dbadec5979fb9cb8cb5d4c1",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 309,
+          "line": 321,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: name, dgp, interval: \"hoeffding_optimum_set\" },\n        REPORTED_LEVEL,"
         }
