@@ -675,12 +675,10 @@ fn quantity_wire(
     }
 }
 
-fn native_fit_of(
+fn fit_quantities(
     parsed: &NativeFitJson,
-) -> Result<antecedent::analysis::cohort_decision::NativeCohortFit, String> {
-    use antecedent::analysis::cohort_decision::{
-        CATE_FUNCTIONAL_ID, ContrastDeclaration, fit_cohort_effect,
-    };
+) -> Result<(ScientificQuantityWire, Vec<ScientificQuantityWire>), String> {
+    use antecedent::analysis::cohort_decision::{CATE_FUNCTIONAL_ID, ContrastDeclaration};
     if parsed.feature_names.len() != parsed.features.len()
         || parsed.feature_units.len() != parsed.features.len()
     {
@@ -704,6 +702,14 @@ fn native_fit_of(
             quantity_wire(name, "covariate", units, &parsed.population_id, "mean", "observed")
         })
         .collect();
+    Ok((response, quantities))
+}
+
+fn native_fit_of(
+    parsed: &NativeFitJson,
+) -> Result<antecedent::analysis::cohort_decision::NativeCohortFit, String> {
+    use antecedent::analysis::cohort_decision::fit_cohort_effect;
+    let (response, quantities) = fit_quantities(parsed)?;
     let columns: Vec<&[f64]> = parsed.features.iter().map(Vec::as_slice).collect();
     fit_cohort_effect(&parsed.outcome, &parsed.treatment, &columns, &response, &quantities)
         .map_err(|e| e.to_string())
@@ -719,6 +725,28 @@ fn native_fit_refusal(message: &str) -> String {
     .json()
 }
 
+fn native_fit_payload(
+    native: &antecedent::analysis::cohort_decision::NativeCohortFit,
+) -> PyResult<(String, Vec<u8>)> {
+    let fit = native.linear_fit();
+    let export = native.export();
+    let bytes = export
+        .to_bytes("cohort_decision_model")
+        .map_err(|e| invalid_argument(format!("cohort_decision.fitted_model_invalid: {e}")))?;
+    let summary = serde_json::json!({
+        "identity": export.identity(),
+        "rows": fit.rows,
+        "width": fit.width,
+        "coefficients": fit.coefficients,
+        "covariance": fit.covariance,
+        "feature_names": native.rows().feature_ids,
+    });
+    Ok((summary.to_string(), bytes))
+}
+
+#[path = "cohort_decision_api/native_fit.rs"]
+mod native_fit;
+
 /// Fit a linear conditional effect natively (OLS on the declared basis and its treatment
 /// interaction, HC3 covariance): `(summary json, export bytes, refusal json)`.
 #[pyfunction]
@@ -728,20 +756,8 @@ fn fit_native_cohort_effect(py: Python<'_>, fit_json: &str) -> PyResult<BuildPay
         .map_err(|e| invalid_argument(format!("cohort_decision.invalid_request: {e}")))?;
     detach_catch(py, move || match native_fit_of(&parsed) {
         Ok(native) => {
-            let fit = native.linear_fit();
-            let export = native.export();
-            let bytes = export.to_bytes("cohort_decision_model").map_err(|e| {
-                invalid_argument(format!("cohort_decision.fitted_model_invalid: {e}"))
-            })?;
-            let summary = serde_json::json!({
-                "identity": export.identity(),
-                "rows": fit.rows,
-                "width": fit.width,
-                "coefficients": fit.coefficients,
-                "covariance": fit.covariance,
-                "feature_names": parsed.feature_names,
-            });
-            Ok((Some(summary.to_string()), Some(bytes), None))
+            let (summary, bytes) = native_fit_payload(&native)?;
+            Ok((Some(summary), Some(bytes), None))
         }
         Err(message) => Ok((None, None, Some(native_fit_refusal(&message)))),
     })
@@ -810,6 +826,7 @@ fn cohort_decision_interval(
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    native_fit::register(m)?;
     m.add_function(wrap_pyfunction!(fit_native_cohort_effect, m)?)?;
     m.add_function(wrap_pyfunction!(cohort_decision_interval, m)?)?;
     m.add_function(wrap_pyfunction!(compiled::cohort_decision_compiled_interval, m)?)?;

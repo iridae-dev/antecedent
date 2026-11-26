@@ -51,7 +51,7 @@ import numpy as np
 
 from antecedent import _reason_details
 
-from . import _deprecation, _retained
+from . import _deprecation, _native, _retained
 from ._artifact_protocol import (
     ExportedArtifact,
     artifact_consumer,
@@ -75,10 +75,13 @@ from ._native import transport_cohort_effect_compiled as _transport
 from ._native import transport_cohort_effect_verify as _transport_verify
 from ._native import transported_cohort_refusal as _transported_refusal
 from ._native import validate_cohort_binding as _validate
-from ._refusal import StructuredRefusal
+from ._refusal import StructuredRefusal, raise_refusal
 from ._scientific import ScientificResult
+from ._unit_support import read_unit_support
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls, resolve_execution
 from .joint_distribution import ScientificQuantity
+from .outcomes import outcome_operation
 
 if TYPE_CHECKING:
     from ._artifact_protocol import ExportedArtifact
@@ -94,10 +97,13 @@ __all__ = [
     "CohortDecisionSource",
     "CohortTransportReceipt",
     "CovariateShift",
+    "CompiledNativeCohortFit",
+    "NativeCohortFitRun",
     "NativeEffectFit",
     "SelectionShift",
     "TransportedCohortEffect",
     "UncalibratedStandardError",
+    "compile_native_cohort_fit",
     "consume_cohort_decision_source",
     "decision_source_from_compact_export",
     "decision_source_from_model",
@@ -711,7 +717,7 @@ def decision_source_from_model(
 class NativeEffectFit:
     """A linear conditional effect fitted natively, with its retained rows.
 
-    Produced only by :func:`fit_native_cohort_effect`. Outcome is regressed on the declared
+    Produced by the native cohort fit program. Outcome is regressed on the declared
     basis ``(1, features)`` and its treatment interaction by ordinary least squares with an
     HC3 sandwich covariance; ``rows`` and ``width`` are the retained ``n`` and ``p``. The
     retained rows are replayed by the interval route, so a hand-built export cannot claim a
@@ -733,6 +739,135 @@ class NativeEffectFit:
         return artifact_from_receipt(self, self._export)
 
 
+def _native_fit_json(
+    *,
+    outcome: Sequence[float],
+    treatment: Sequence[float],
+    features: Mapping[str, Sequence[float]],
+    outcome_name: str,
+    treatment_name: str,
+    active: float = 1.0,
+    control: float = 0.0,
+    outcome_units: str,
+    population: str,
+    feature_units: Mapping[str, str] | None = None,
+) -> str:
+    names = tuple(_text(name, "feature name") for name in features)
+    units = feature_units or {}
+    payload = {
+        "outcome_name": _text(outcome_name, "outcome_name"),
+        "treatment_name": _text(treatment_name, "treatment_name"),
+        "active": float(active),
+        "control": float(control),
+        "outcome_units": _text(outcome_units, "outcome_units"),
+        "population_id": _text(population, "population"),
+        "outcome": [float(v) for v in outcome],
+        "treatment": [float(v) for v in treatment],
+        "feature_names": list(names),
+        "feature_units": [str(units.get(name, "1")) for name in names],
+        "features": [[float(v) for v in features[name]] for name in names],
+    }
+    return json.dumps(payload, allow_nan=False)
+
+
+def _read_native_fit(summary: str, export: bytes, text: str) -> NativeEffectFit:
+    parsed = json.loads(summary)
+    return NativeEffectFit(
+        identity=str(parsed["identity"]),
+        rows=int(parsed["rows"]),
+        width=int(parsed["width"]),
+        coefficients=tuple(float(v) for v in parsed["coefficients"]),
+        covariance=tuple(float(v) for v in parsed["covariance"]),
+        feature_names=tuple(str(v) for v in parsed["feature_names"]),
+        _export=bytes(export),
+        _fit_json=text,
+    )
+
+
+
+@dataclass(frozen=True, slots=True)
+class NativeCohortFitRun:
+    """A native effect fit and the program that executed it."""
+
+    fit: NativeEffectFit
+    program_identity: str
+
+
+class CompiledNativeCohortFit:
+    """An inspectable native linear-effect fit over retained training columns."""
+
+    def __init__(
+        self, handle: _native.NativeCohortFitPlanHandle, payload: str, policy: Execution,
+    ) -> None:
+        self._handle = handle
+        self._payload = payload
+        self._policy = policy
+
+    @property
+    def program_identity(self) -> str:
+        """The exact identity of the retained fit program."""
+        return self._handle.program_identity
+
+    def plan_view(self) -> dict[str, Any]:
+        """Inspect the lowered plan before fitting the model."""
+        return dict(json.loads(self._handle.plan_view_json()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """Read the support verdict of the compiled fit."""
+        return read_unit_support(self._handle)
+
+    @outcome_operation
+    def execute(self, *, execution: Execution | None = None) -> NativeCohortFitRun:
+        """Run the retained fit under the chosen execution controls."""
+        policy = self._policy if execution is None else resolve_execution(execution)
+        payload, refusal = policy._call(
+            self._handle.execute,
+            **native_controls(
+                policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+            ),
+        )
+        raise_refusal(refusal, CohortDecisionRefusal)
+        if payload is None:  # pragma: no cover - native invariant
+            raise CausalValueError("the native fit returned neither a result nor a refusal")
+        summary, artifact, identity = payload
+        return NativeCohortFitRun(_read_native_fit(summary, artifact, self._payload), identity)
+
+
+@outcome_operation
+def compile_native_cohort_fit(
+    *,
+    outcome: Sequence[float],
+    treatment: Sequence[float],
+    features: Mapping[str, Sequence[float]],
+    outcome_name: str,
+    treatment_name: str,
+    active: float = 1.0,
+    control: float = 0.0,
+    outcome_units: str,
+    population: str,
+    feature_units: Mapping[str, str] | None = None,
+    execution: Execution | None = None,
+) -> CompiledNativeCohortFit:
+    """Compile the ordered training columns and treatment contrast before fitting."""
+    text = _native_fit_json(
+        outcome=outcome, treatment=treatment, features=features,
+        outcome_name=outcome_name, treatment_name=treatment_name, active=active, control=control,
+        outcome_units=outcome_units, population=population, feature_units=feature_units,
+    )
+    policy = resolve_execution(execution)
+    handle, refusal = policy._call(
+        _native.compile_native_cohort_fit,
+        text,
+        **native_controls(
+            policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+        ),
+    )
+    raise_refusal(refusal, CohortDecisionRefusal)
+    if handle is None:  # pragma: no cover - native invariant
+        raise CausalValueError("the native fit returned neither a plan nor a refusal")
+    return CompiledNativeCohortFit(handle, text, policy)
+
+
 def fit_native_cohort_effect(
     *,
     outcome: Sequence[float],
@@ -751,38 +886,17 @@ def fit_native_cohort_effect(
     ``features`` maps each declared modifier name to its column. Treatment must be randomized
     or ignorable given exactly these modifiers; the outcome mean is assumed linear in them.
     """
-    names = tuple(_text(name, "feature name") for name in features)
-    units = feature_units or {}
-    payload = {
-        "outcome_name": _text(outcome_name, "outcome_name"),
-        "treatment_name": _text(treatment_name, "treatment_name"),
-        "active": float(active),
-        "control": float(control),
-        "outcome_units": _text(outcome_units, "outcome_units"),
-        "population_id": _text(population, "population"),
-        "outcome": [float(v) for v in outcome],
-        "treatment": [float(v) for v in treatment],
-        "feature_names": list(names),
-        "feature_units": [str(units.get(name, "1")) for name in names],
-        "features": [[float(v) for v in features[name]] for name in names],
-    }
-    text = json.dumps(payload, allow_nan=False)
+    text = _native_fit_json(
+        outcome=outcome, treatment=treatment, features=features,
+        outcome_name=outcome_name, treatment_name=treatment_name, active=active, control=control,
+        outcome_units=outcome_units, population=population, feature_units=feature_units,
+    )
     summary, export, refusal = _fit_native(text)
     if refusal is not None:
         raise CohortDecisionRefusal(json.loads(refusal))
     if summary is None or export is None:  # pragma: no cover - the native contract
         raise CausalValueError("the native fit returned neither a result nor a refusal")
-    parsed = json.loads(summary)
-    return NativeEffectFit(
-        identity=str(parsed["identity"]),
-        rows=int(parsed["rows"]),
-        width=int(parsed["width"]),
-        coefficients=tuple(float(v) for v in parsed["coefficients"]),
-        covariance=tuple(float(v) for v in parsed["covariance"]),
-        feature_names=tuple(str(v) for v in parsed["feature_names"]),
-        _export=bytes(export),
-        _fit_json=text,
-    )
+    return _read_native_fit(summary, export, text)
 
 
 def decision_source_from_native_fit(

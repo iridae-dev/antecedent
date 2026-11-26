@@ -31,6 +31,8 @@ const MAX_DECLARATION_BYTES: usize = crate::bridge::MAX_CONFIG_DECLARATION_BYTES
 
 type Refusal = Option<String>;
 
+mod compact_refit;
+
 pub(crate) fn error_refusal(error: &BundleError) -> String {
     if let Some(refusal) = error.to_refusal() {
         return external_refusal_json(&refusal);
@@ -503,15 +505,6 @@ fn composition_require_compact_refit(py: Python<'_>, data: &[u8]) -> PyResult<Re
     })
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CompactRefitTraining {
-    outcome: Vec<f64>,
-    treatment: Vec<f64>,
-    features: Vec<Vec<f64>>,
-    feature_ids: Vec<String>,
-}
-
 /// Refit the native model from its original ordered training data.
 #[pyfunction]
 #[pyo3(signature = (data, expected_identity, learner, training_json, *, model_node=None, seed=1, threads=None, cancel=None, memory_bytes=None))]
@@ -528,49 +521,12 @@ fn composition_refit_compact<'py>(
     cancel: Option<crate::PyCancellationToken>,
     memory_bytes: Option<u64>,
 ) -> PyResult<(Option<(String, Bound<'py, PyBytes>)>, Refusal)> {
-    use antecedent::analysis::cohort_decision::NativeFitRows;
     let ctx = crate::chain_decision_api::context(seed, threads, cancel, memory_bytes);
     let result = crate::detach_catch(py, || {
-        let error = |stage, reason| BundleError::Refused {
-            stage,
-            reason,
-            offending: model_node.map(str::to_owned),
+        let training = match compact_refit::training(training_json, model_node, &ctx) {
+            Ok(rows) => rows,
+            Err(problem) => return Ok(Err(problem)),
         };
-        if training_json.len() > 64 * 1024 * 1024 {
-            return Ok(Err(error(
-                BundleStage::Oversized,
-                "compact refit training exceeds the JSON bound".into(),
-            )));
-        }
-        let admission = ctx.acquire_admission(0, (training_json.len() as u64).saturating_mul(2));
-        let lease = match admission {
-            Ok(lease) => lease,
-            Err(error) => {
-                let stage = if ctx.cancellation.is_cancelled() {
-                    BundleStage::ExecutionCancelled
-                } else {
-                    BundleStage::ResourceRefused
-                };
-                return Ok(Err(BundleError::Refused {
-                    stage,
-                    reason: error.to_string(),
-                    offending: model_node.map(str::to_owned),
-                }));
-            }
-        };
-        let parsed = serde_json::from_str::<CompactRefitTraining>(training_json);
-        let training = match parsed {
-            Ok(rows) => NativeFitRows {
-                outcome: rows.outcome,
-                treatment: rows.treatment,
-                features: rows.features,
-                feature_ids: rows.feature_ids,
-            },
-            Err(problem) => {
-                return Ok(Err(error(BundleStage::SwappedEvidence, problem.to_string())));
-            }
-        };
-        drop(lease);
         let replayed = if let Some(node) = model_node {
             refit_compact_bundle_model(data, expected_identity, node, training, learner, &ctx)
         } else {
@@ -580,11 +536,7 @@ fn composition_refit_compact<'py>(
             Ok(replayed) => replayed,
             Err(problem) => return Ok(Err(problem)),
         };
-        let export = replayed.export();
-        Ok(export
-            .to_bytes("refitted-compact-model")
-            .map(|bytes| (export.identity().to_owned(), bytes))
-            .map_err(|problem| error(BundleStage::TamperedQuantity, problem.to_string())))
+        Ok(compact_refit::artifact(&replayed, model_node))
     })?;
     Ok(match result {
         Ok((identity, bytes)) => (Some((identity, PyBytes::new(py, &bytes))), None),
@@ -599,6 +551,7 @@ fn producer_artifact_identity(role: &str, data: &[u8]) -> PyResult<String> {
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    compact_refit::register(m)?;
     m.add_class::<PyBundleBuilder>()?;
     m.add_class::<PyCompositionBundle>()?;
     m.add_function(wrap_pyfunction!(consume_composition_bundle, m)?)?;

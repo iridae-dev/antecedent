@@ -8749,6 +8749,28 @@ def count_fitted_observation_interval(
 def count_fitted_observation_compiled_interval(
     bytes: bytes, level: float, *, cancel: Any = None
 ) -> tuple[NativeMeasuredInference | None, str | None]: ...
+class NativeCohortFitPlanHandle:
+    @property
+    def program_identity(self) -> str: ...
+    def plan_view_json(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[tuple[str, bytes, str] | None, str | None]: ...
+
+def compile_native_cohort_fit(
+    fit_json: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[NativeCohortFitPlanHandle | None, str | None]: ...
 def fit_native_cohort_effect(
     fit_json: str,
 ) -> tuple[str | None, bytes | None, str | None]: ...
@@ -9024,6 +9046,32 @@ def composition_mean_decision(
 ) -> tuple[bytes | None, str | None]: ...
 def composition_detect_kind(data: bytes) -> str | None: ...
 def composition_require_compact_refit(data: bytes) -> str | None: ...
+class CompactModelRefitPlanHandle:
+    @property
+    def program_identity(self) -> str: ...
+    def plan_view_json(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[tuple[str, bytes, str] | None, str | None]: ...
+
+def composition_compile_compact_refit(
+    data: bytes,
+    expected_identity: str,
+    learner: str,
+    training_json: str,
+    *,
+    model_node: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[CompactModelRefitPlanHandle | None, str | None]: ...
 def composition_refit_compact(
     data: bytes,
     expected_identity: str,

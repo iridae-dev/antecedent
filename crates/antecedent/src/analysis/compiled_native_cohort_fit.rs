@@ -2,7 +2,7 @@
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 
 use antecedent_contract::{ClaimKind, ScientificQuantity};
 use antecedent_core::{
@@ -38,13 +38,18 @@ pub struct CohortModelFitRun {
 /// The ordered training columns and quantity declarations bound to a native fit program.
 #[derive(Clone, Debug)]
 pub struct CompiledNativeCohortFit<'a> {
-    outcome: &'a [f64],
-    treatment: &'a [f64],
-    features: &'a [&'a [f64]],
-    response: &'a ScientificQuantityWire,
-    feature_quantities: &'a [ScientificQuantityWire],
+    input: FitInput<'a>,
     working_bytes: u64,
     lowered: Arc<LoweredProgram>,
+}
+
+#[derive(Clone, Debug)]
+struct FitInput<'a> {
+    outcome: Cow<'a, [f64]>,
+    treatment: Cow<'a, [f64]>,
+    features: Vec<Cow<'a, [f64]>>,
+    response: Cow<'a, ScientificQuantityWire>,
+    feature_quantities: Cow<'a, [ScientificQuantityWire]>,
 }
 
 pub(super) fn working_bytes(
@@ -104,6 +109,47 @@ impl Study {
         response: &'a ScientificQuantityWire,
         feature_quantities: &'a [ScientificQuantityWire],
     ) -> Result<CompiledNativeCohortFit<'a>, EstimationError> {
+        if features.len() > MAX_FIT_FEATURES {
+            return Err(AdmissionError::Overflow.into());
+        }
+        FitInput {
+            outcome: Cow::Borrowed(outcome),
+            treatment: Cow::Borrowed(treatment),
+            features: features.iter().map(|&column| Cow::Borrowed(column)).collect(),
+            response: Cow::Borrowed(response),
+            feature_quantities: Cow::Borrowed(feature_quantities),
+        }
+        .compile()
+    }
+
+    /// Move owned training columns into the same inspectable fit plan.
+    ///
+    /// # Errors
+    /// The same input errors as [`Study::compile_native_cohort_fit`].
+    pub fn compile_owned_native_cohort_fit(
+        outcome: Vec<f64>,
+        treatment: Vec<f64>,
+        features: Vec<Vec<f64>>,
+        response: ScientificQuantityWire,
+        feature_quantities: Vec<ScientificQuantityWire>,
+    ) -> Result<CompiledNativeCohortFit<'static>, EstimationError> {
+        if features.len() > MAX_FIT_FEATURES {
+            return Err(AdmissionError::Overflow.into());
+        }
+        FitInput {
+            outcome: Cow::Owned(outcome),
+            treatment: Cow::Owned(treatment),
+            features: features.into_iter().map(Cow::Owned).collect(),
+            response: Cow::Owned(response),
+            feature_quantities: Cow::Owned(feature_quantities),
+        }
+        .compile()
+    }
+}
+
+impl<'a> FitInput<'a> {
+    fn compile(self) -> Result<CompiledNativeCohortFit<'a>, EstimationError> {
+        let Self { outcome, treatment, features, response, feature_quantities } = &self;
         let working_bytes = working_bytes(
             outcome.len(),
             treatment.len(),
@@ -119,7 +165,7 @@ impl Study {
         }
         let mut question = CanonicalWriter::new("antecedent.native_cohort_fit.question.v1");
         question.text(FIT_PROCEDURE_ID).size(feature_quantities.len());
-        for wire in std::iter::once(response).chain(feature_quantities) {
+        for wire in std::iter::once(response.as_ref()).chain(feature_quantities.iter()) {
             let quantity = ScientificQuantity::try_from(wire.clone()).map_err(|_| {
                 EstimationError::Unsupported {
                     message: "cohort linear effect: invalid scientific quantity",
@@ -143,15 +189,7 @@ impl Study {
         .map_err(|_| EstimationError::Unsupported {
             message: "cohort linear effect: the native fit program could not be lowered",
         })?;
-        Ok(CompiledNativeCohortFit {
-            outcome,
-            treatment,
-            features,
-            response,
-            feature_quantities,
-            working_bytes,
-            lowered,
-        })
+        Ok(CompiledNativeCohortFit { input: self, working_bytes, lowered })
     }
 }
 
@@ -184,12 +222,14 @@ impl CompiledNativeCohortFit<'_> {
             message: "cohort linear effect: native fit route is not supported",
         })?;
         let _lease = scoped.acquire_serial_numerical_admission(self.working_bytes)?;
+        let input = &self.input;
+        let columns: Vec<&[f64]> = input.features.iter().map(Cow::as_ref).collect();
         let fit = NativeCohortFit::fit_controlled(
-            self.outcome,
-            self.treatment,
-            self.features,
-            self.response,
-            self.feature_quantities,
+            &input.outcome,
+            &input.treatment,
+            &columns,
+            &input.response,
+            &input.feature_quantities,
             || scoped.cancellation.is_cancelled(),
         );
         if scoped.cancellation.is_cancelled() {

@@ -1,0 +1,12 @@
+{
+  "program_identity": "004ed7f0efbe5add47bc57af77ef6bda3deea53b944a2b3de73036aaed2c829d",
+  "input": {
+    "outcome": [0, 1, 2, 2, 3, 4, 2, 3.5, 5, 4, 5.5, 7],
+    "treatment": [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+    "features": {"z": [-1, 0, 1, -1, 0, 1, -1, 0, 1, -1, 0, 1]},
+    "outcome_name": "y",
+    "treatment_name": "t",
+    "outcome_units": "mmHg",
+    "population": "target"
+  }
+}

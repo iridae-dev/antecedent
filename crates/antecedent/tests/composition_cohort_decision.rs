@@ -529,3 +529,75 @@ fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
         })
     ));
 }
+
+#[test]
+fn native_cohort_fit_program_digest_matches_the_shared_python_fixture() {
+    use antecedent::analysis::cohort_decision::ContrastDeclaration;
+    use antecedent::analysis::execute::Study;
+    use antecedent_io::quantity_wire::ScientificQuantityWire;
+
+    #[derive(serde::Deserialize)]
+    struct Inputs {
+        outcome: Vec<f64>,
+        treatment: Vec<f64>,
+        features: std::collections::BTreeMap<String, Vec<f64>>,
+        outcome_name: String,
+        treatment_name: String,
+        outcome_units: String,
+        population: String,
+    }
+    #[derive(serde::Deserialize)]
+    struct Fixture {
+        program_identity: String,
+        input: Inputs,
+    }
+
+    let fixture: Fixture =
+        serde_json::from_str(include_str!("fixtures/native_cohort_fit_program.json")).unwrap();
+    let input = fixture.input;
+    let response = ScientificQuantityWire {
+        version: 1,
+        variable_id: input.outcome_name.clone(),
+        variable_name: input.outcome_name,
+        role: "outcome".into(),
+        units: input.outcome_units,
+        population_id: input.population,
+        regime_id: ContrastDeclaration::regime_of(&input.treatment_name, 1.0, 0.0),
+        horizon: 0,
+        functional_id: "conditional_mean_difference".into(),
+        conditioning: vec![],
+        transform_id: "identity".into(),
+    };
+    let modifiers: Vec<ScientificQuantityWire> = input
+        .features
+        .keys()
+        .map(|name| ScientificQuantityWire {
+            variable_id: name.clone(),
+            variable_name: name.clone(),
+            role: "covariate".into(),
+            units: "1".into(),
+            regime_id: "observed".into(),
+            functional_id: "mean".into(),
+            ..response.clone()
+        })
+        .collect();
+    let columns: Vec<&[f64]> = input.features.values().map(Vec::as_slice).collect();
+    let borrowed = Study::compile_native_cohort_fit(
+        &input.outcome,
+        &input.treatment,
+        &columns,
+        &response,
+        &modifiers,
+    )
+    .unwrap();
+    assert_eq!(borrowed.lowered().identity().to_hex(), fixture.program_identity);
+    let owned = Study::compile_owned_native_cohort_fit(
+        input.outcome,
+        input.treatment,
+        input.features.into_values().collect(),
+        response,
+        modifiers,
+    )
+    .unwrap();
+    assert_eq!(owned.lowered().identity().to_hex(), fixture.program_identity);
+}

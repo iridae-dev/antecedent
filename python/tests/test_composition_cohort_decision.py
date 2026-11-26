@@ -238,3 +238,57 @@ print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
             outcome=outcome, treatment=treatment, features=features,
         )
     assert error.value.detail == "composition_bundle.callback_unavailable"
+
+
+def test_native_and_compact_fit_program_receipts_preserve_the_shared_digest() -> None:
+    from antecedent import CancellationToken, ResourceLimits
+
+    fixture_path = (
+        Path(__file__).resolve().parents[2]
+        / "crates" / "antecedent" / "tests" / "fixtures" / "native_cohort_fit_program.json"
+    )
+    fixture = json.loads(fixture_path.read_text())
+    inputs = fixture["input"]
+    native = require_success(cd.compile_native_cohort_fit(**inputs))
+    assert native.plan_view()["route"] == "NativeCohortFit"
+    assert native.plan_view()["identity"] == native.program_identity == fixture["program_identity"]
+    run = require_success(native.execute())
+    assert run.program_identity == native.program_identity
+    assert run.fit.identity == cd.fit_native_cohort_effect(**inputs).identity
+
+    training = {key: inputs[key] for key in ("outcome", "treatment", "features")}
+    learner = "ols_hc3_treatment_by_basis"
+    refit = require_success(cb.compile_compact_model_refit(
+        run.fit, expected_identity=run.fit.identity, learner=learner, **training
+    ))
+    assert refit.plan_view()["route"] == "CompactModelRefit"
+    reproduced = require_success(refit.execute())
+    assert reproduced.program_identity == refit.program_identity == refit.plan_view()["identity"]
+    assert reproduced.model.identity == run.fit.identity
+    assert reproduced.model.evaluate({"z": 0.5}).point == pytest.approx(2.75)
+
+    bundle = cb.BundleBuilder().add_artifact(run.fit, node_id="native-model").build()
+    bundled = require_success(cb.compile_compact_model_refit(
+        bundle, expected_identity=bundle.identity, model_node="native-model",
+        learner=learner, **training,
+    ))
+    assert bundled.program_identity != refit.program_identity
+    assert require_success(bundled.execute()).model.identity == run.fit.identity
+
+    limited = Execution(limits=ResourceLimits(memory_bytes=1))
+    with pytest.raises(cd.CohortDecisionRefusal) as native_limit:
+        require_success(native.execute(execution=limited))
+    assert native_limit.value.reason_code == "execution_resource_limit"
+    with pytest.raises(cb.CompositionBundleRefusal) as refit_limit:
+        require_success(refit.execute(execution=limited))
+    assert refit_limit.value.detail == "composition_bundle.resource_refused"
+
+    token = CancellationToken()
+    token.cancel()
+    stopped = Execution(cancel=token)
+    with pytest.raises(cd.CohortDecisionRefusal) as native_cancel:
+        require_success(native.execute(execution=stopped))
+    assert native_cancel.value.reason_code == "cancelled_no_claim"
+    with pytest.raises(cb.CompositionBundleRefusal) as refit_cancel:
+        require_success(refit.execute(execution=stopped))
+    assert refit_cancel.value.detail == "composition_bundle.execution_cancelled"

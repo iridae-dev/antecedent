@@ -1490,6 +1490,109 @@ def require_compact_refit_inputs(model: object) -> None:
     raise_refusal(_native.composition_require_compact_refit(_bytes(model)), _refusal_type)
 
 
+def _compact_refit_training(
+    outcome: Sequence[float],
+    treatment: Sequence[float],
+    features: Mapping[str, Sequence[float]],
+) -> str:
+    if not isinstance(features, Mapping):
+        raise CausalTypeError("features must map modifier ids to training columns")
+    names = [_name(name, "feature id") for name in features]
+    return json.dumps(
+        {
+            "outcome": [float(value) for value in outcome],
+            "treatment": [float(value) for value in treatment],
+            "feature_ids": names,
+            "features": [[float(value) for value in features[name]] for name in names],
+        },
+        allow_nan=False,
+    )
+
+
+def _read_refitted_model(identity: str, data: bytes) -> CompactExport:
+    from .compact_export import CompactExport
+
+    return CompactExport.consume(
+        data, expected_identity=identity, retained_identity=_retained.artifact_identity(data)
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class CompactModelRefitRun:
+    """A reproduced compact model and the program that refit it."""
+
+    model: CompactExport
+    program_identity: str
+
+
+class CompiledCompactModelRefit:
+    """An inspectable refit of a retained compact model from its original training."""
+
+    def __init__(self, handle: _native.CompactModelRefitPlanHandle, policy: Execution) -> None:
+        self._handle = handle
+        self._policy = policy
+
+    @property
+    def program_identity(self) -> str:
+        """The exact identity of the retained refit program."""
+        return self._handle.program_identity
+
+    def plan_view(self) -> dict[str, Any]:
+        """Inspect the lowered refit plan."""
+        return dict(json.loads(self._handle.plan_view_json()))
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """Read the support verdict of the compiled refit."""
+        return read_unit_support(self._handle)
+
+    @outcome_operation
+    def execute(self, *, execution: Execution | None = None) -> CompactModelRefitRun:
+        """Refit and verify the model under the chosen execution controls."""
+        policy = self._policy if execution is None else resolve_execution(execution)
+        result, refusal = policy._call(
+            self._handle.execute,
+            **native_controls(
+                policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+            ),
+        )
+        raise_refusal(refusal, _refusal_type)
+        if result is None:  # pragma: no cover - native invariant
+            raise CausalValueError("native compact refit returned neither a result nor a refusal")
+        identity, artifact, program = result
+        return CompactModelRefitRun(_read_refitted_model(identity, artifact), program)
+
+
+@outcome_operation
+def compile_compact_model_refit(
+    model: object,
+    *,
+    expected_identity: str,
+    learner: str,
+    outcome: Sequence[float],
+    treatment: Sequence[float],
+    features: Mapping[str, Sequence[float]],
+    model_node: str | None = None,
+    execution: Execution | None = None,
+) -> CompiledCompactModelRefit:
+    """Bind the authenticated compact model or bundle to an inspectable refit plan."""
+    policy = resolve_execution(execution)
+    handle, refusal = policy._call(
+        _native.composition_compile_compact_refit,
+        _bytes(model),
+        _name(expected_identity, "expected_identity"),
+        _name(learner, "learner"),
+        _compact_refit_training(outcome, treatment, features),
+        model_node=None if model_node is None else _name(model_node, "model_node"),
+        **native_controls(
+            policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+        ),
+    )
+    raise_refusal(refusal, _refusal_type)
+    if handle is None:  # pragma: no cover - native invariant
+        raise CausalValueError("native compact refit returned neither a plan nor a refusal")
+    return CompiledCompactModelRefit(handle, policy)
+
+
 def refit_compact_model(
     model: object,
     *,
@@ -1509,20 +1612,7 @@ def refit_compact_model(
     the original fit. Legacy exports without a training binding retain their
     prediction capability and report the unavailable refit dependency.
     """
-    from .compact_export import CompactExport
-
-    if not isinstance(features, Mapping):
-        raise CausalTypeError("features must map modifier ids to training columns")
-    names = [_name(name, "feature id") for name in features]
-    training = json.dumps(
-        {
-            "outcome": [float(value) for value in outcome],
-            "treatment": [float(value) for value in treatment],
-            "feature_ids": names,
-            "features": [[float(value) for value in features[name]] for name in names],
-        },
-        allow_nan=False,
-    )
+    training = _compact_refit_training(outcome, treatment, features)
     policy = resolve_execution(execution)
     result, refusal = policy._call(
         _native.composition_refit_compact,
@@ -1539,9 +1629,7 @@ def refit_compact_model(
     if result is None:  # pragma: no cover - native invariant
         raise CausalValueError("native compact refit returned neither a result nor a refusal")
     identity, data = result
-    return CompactExport.consume(
-        data, expected_identity=identity, retained_identity=_retained.artifact_identity(data)
-    )
+    return _read_refitted_model(identity, data)
 
 
 def cohort_decision(
@@ -2304,6 +2392,9 @@ __all__ = [
     "compile_predictive_fit_decision_bundle",
     "compile_sequential_reliability_node_bundle",
     "consume_bundle",
+    "CompiledCompactModelRefit",
+    "CompactModelRefitRun",
+    "compile_compact_model_refit",
     "refit_compact_model",
     "require_compact_refit_inputs",
     "consume_bundle_recomputation",
