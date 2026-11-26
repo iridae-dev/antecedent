@@ -6174,3 +6174,15 @@ rust = "antecedent::analysis::composition::standard_consumer"
 kind = "fn"
 status = "internal"
 reason = "Constructs the native verifier registry. Python invokes the same registry through composition_bundle.consume_bundle and does not expose mutation of native verifier registrations."
+
+[[entry]]
+rust = "antecedent::analysis::composition::refit_compact_model"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.refit_compact_model"
+
+[[entry]]
+rust = "antecedent::analysis::composition::refit_compact_bundle_model"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.refit_compact_model"

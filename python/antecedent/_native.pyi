@@ -9024,6 +9024,18 @@ def composition_mean_decision(
 ) -> tuple[bytes | None, str | None]: ...
 def composition_detect_kind(data: bytes) -> str | None: ...
 def composition_require_compact_refit(data: bytes) -> str | None: ...
+def composition_refit_compact(
+    data: bytes,
+    expected_identity: str,
+    learner: str,
+    training_json: str,
+    *,
+    model_node: str | None = None,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[tuple[str, bytes] | None, str | None]: ...
 
 class AdjustedSessionHandle:
     def __init__(self) -> None: ...

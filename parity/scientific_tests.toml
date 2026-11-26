@@ -3682,3 +3682,10 @@ evidence_assertion = "empirical_schedule_scope_requires_verified_binary_endpoint
 kind = "known_truth"
 fixtures = []
 why = "A fractional sample with the matching sizes and declared study scope retains the theorem but cannot activate the fixed Bernoulli calibration. The binary sample retains its calibration coordinate through replay."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/composition_cohort_decision.rs"
+evidence_assertion = "compact_refit_checks_original_training_and_replays_the_named_bundle_model"
+kind = "reference"
+fixtures = []
+why = "A balanced linear fixture gives an independently calculated contrast of 2.75 at z=0.5. Refit requires the original row snapshot, the native learner and the unchanged mask, both standalone and from an authenticated bundle."

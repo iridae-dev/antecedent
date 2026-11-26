@@ -124,3 +124,18 @@ A stored artifact describes the data it was computed on. Whether new data make i
 The container layout, section compression, the versioned durable format and the artifact kinds for each result family are in [artifact format and compatibility](../../artifacts.md). Artifacts written by an older supported format load and migrate; one that needs a newer reader than yours is refused rather than guessed. Record the library version a service was validated with, and treat a format change as a migration. [Embed Antecedent in an application or agent](embedding.md) lists the three version numbers a host should track.
 
 To carry a result into a decision or composition, an artifact is checked against the consumer's [interface contract](scientific-interfaces.md) before anything runs.
+
+## Compact model refits
+
+A native OLS/HC3 compact effect model binds the ordered training columns, its feature
+declarations, and the learner used to fit it. In Python, pass the model and its retained
+semantic identity to `composition_bundle.refit_compact_model` along with the original
+`outcome`, `treatment`, and ordered `features`, and set `learner="ols_hc3_treatment_by_basis"`.
+For a bundle, pass the bundle's independently retained identity and the embedded model's
+`model_node` instead. The consumer checks the supplied training snapshot and learner, reruns
+the fit, and verifies the entire compact model before returning it. The compact artifact
+contains a training digest and keeps the training rows outside the artifact.
+
+Older or caller-declared compact exports can still predict within their retained feature
+support. Refitting one requires a binding created by the original native fit. A compact
+prediction artifact without that binding reports the missing refit dependency.

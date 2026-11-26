@@ -332,3 +332,125 @@ fn cohort_bundle_recomputes_an_edited_terminal_and_obeys_execution_limits() {
         Some(BundleStage::TamperedQuantity),
     );
 }
+
+#[test]
+fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
+    use antecedent::analysis::cohort_decision::{NativeCohortFit, fit_cohort_effect};
+    use antecedent::analysis::composition::{refit_compact_bundle_model, refit_compact_model};
+    use antecedent_contract::QuantityRole;
+    use antecedent_estimate::cohort_linear_effect::{FIT_PROCEDURE_ID, FIT_TRAINING_VARIABLE};
+    use antecedent_io_core::compact_export::{
+        CompactExport, ExportQuery, ExportSpec, InputSupport, MaskCondition, MaskRegion,
+    };
+
+    let mut response = fixture().quantity().clone();
+    response.functional_id = "conditional_mean_difference".into();
+    let mut modifier = response.clone();
+    modifier.variable_id = "z".into();
+    modifier.variable_name = "z".into();
+    modifier.role = QuantityRole::Covariate;
+    modifier.units = "1".into();
+    modifier.regime_id = "observed".into();
+    modifier.functional_id = "mean".into();
+    let feature = [-1.0, 0.0, 1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 1.0];
+    let outcome = [0.0, 1.0, 2.0, 2.0, 3.0, 4.0, 2.0, 3.5, 5.0, 4.0, 5.5, 7.0];
+    let treatment = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
+    let fit =
+        fit_cohort_effect(&outcome, &treatment, &[&feature], &response.into(), &[modifier.into()])
+            .unwrap();
+    let model = fit.export();
+    let bytes = model.to_bytes("retained-native-model").unwrap();
+    let ctx = ExecutionContext::for_tests(9);
+    let checked =
+        refit_compact_model(&bytes, model.identity(), fit.rows().clone(), FIT_PROCEDURE_ID, &ctx)
+            .unwrap();
+    assert_eq!(checked.export().body(), model.body());
+    let query = ExportQuery::new().with_number("z", 0.5);
+    assert!((checked.export().evaluate(&query).unwrap().point - 2.75).abs() < 1e-12);
+
+    let mut bundle = BundleBuilder::new();
+    bundle.add_detected_artifact(Some("native-model"), &bytes).unwrap();
+    let bundle = bundle.build().unwrap();
+    let bundle_bytes = export_bundle(&bundle, "native-model-bundle").unwrap();
+    let from_bundle = refit_compact_bundle_model(
+        &bundle_bytes,
+        bundle.identity(),
+        "native-model",
+        fit.rows().clone(),
+        FIT_PROCEDURE_ID,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(from_bundle.export().body(), model.body());
+
+    let mut revised = fit.rows().clone();
+    revised.outcome.swap(0, 3); // same features and treatment, but not the original row snapshot
+    assert!(matches!(
+        refit_compact_model(&bytes, model.identity(), revised, FIT_PROCEDURE_ID, &ctx),
+        Err(antecedent::analysis::composition::BundleError::Refused {
+            stage: BundleStage::GraphOrSnapshotMismatch,
+            ..
+        })
+    ));
+    assert!(matches!(
+        refit_compact_model(&bytes, model.identity(), fit.rows().clone(), "another_learner", &ctx),
+        Err(antecedent::analysis::composition::BundleError::Refused {
+            stage: BundleStage::ProviderRequestChanged,
+            ..
+        })
+    ));
+
+    let mut legacy_response = model.body().response.clone();
+    legacy_response.conditioning.retain(|condition| condition.variable_id != FIT_TRAINING_VARIABLE);
+    let as_spec = |response, mask| ExportSpec {
+        response,
+        inputs: model.body().inputs.clone(),
+        terms: model.body().terms.clone(),
+        coefficients: model.body().coefficients.clone(),
+        covariance: model.body().covariance.clone(),
+        mask,
+    };
+    let legacy = CompactExport::build(as_spec(legacy_response, vec![])).unwrap();
+    // Historical source-bearing cohort readers still reproduce their original compact identities.
+    assert_eq!(
+        NativeCohortFit::replay(fit.rows().clone(), &legacy).unwrap().export().identity(),
+        legacy.identity(),
+    );
+    assert!(matches!(
+        refit_compact_model(
+            &legacy.to_bytes("legacy-model").unwrap(),
+            legacy.identity(),
+            fit.rows().clone(),
+            FIT_PROCEDURE_ID,
+            &ctx
+        ),
+        Err(antecedent::analysis::composition::BundleError::Refused {
+            stage: BundleStage::CallbackUnavailable,
+            ..
+        })
+    ));
+    let with_mask = CompactExport::build(as_spec(
+        model.body().response.clone(),
+        vec![MaskRegion {
+            id: "restricted".into(),
+            conditions: vec![MaskCondition {
+                quantity: "z".into(),
+                within: InputSupport::Range { lo: -0.1, hi: 0.1 },
+            }],
+        }],
+    ))
+    .unwrap();
+    assert!(matches!(
+        refit_compact_model(
+            &with_mask.to_bytes("changed-mask").unwrap(),
+            with_mask.identity(),
+            fit.rows().clone(),
+            FIT_PROCEDURE_ID,
+            &ctx
+        ),
+        Err(antecedent::analysis::composition::BundleError::Refused {
+            stage: BundleStage::TamperedQuantity,
+            ..
+        })
+    ));
+}

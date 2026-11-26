@@ -158,3 +158,83 @@ def test_cohort_bundle_refuses_swapped_source_and_nonaffine_contract() -> None:
     )
     with pytest.raises(cb.UnsupportedLawRefusal):
         cb.cohort_decision(nonlinear, source)
+
+
+def test_compact_model_refits_original_inputs_from_standalone_and_bundle(tmp_path: Path) -> None:
+    features = {"z": [-1.0, 0.0, 1.0] * 4}
+    treatment = [0.0] * 6 + [1.0] * 6
+    outcome = [0.0, 1.0, 2.0, 2.0, 3.0, 4.0, 2.0, 3.5, 5.0, 4.0, 5.5, 7.0]
+    fit = cd.fit_native_cohort_effect(
+        outcome=outcome,
+        treatment=treatment,
+        features=features,
+        outcome_name="y",
+        treatment_name="t",
+        outcome_units="mmHg",
+        population="original",
+    )
+    learner = "ols_hc3_treatment_by_basis"
+    refitted = cb.refit_compact_model(
+        fit, expected_identity=fit.identity, learner=learner,
+        outcome=outcome, treatment=treatment, features=features,
+    )
+    assert refitted.identity == fit.identity
+    assert refitted.evaluate({"z": 0.5}).point == pytest.approx(2.75)
+
+    bundle = cb.BundleBuilder().add_artifact(fit, node_id="native-model").build()
+    checked = cb.refit_compact_model(
+        bundle, expected_identity=bundle.identity, learner=learner,
+        outcome=outcome, treatment=treatment, features=features, model_node="native-model",
+    )
+    assert checked.identity == fit.identity
+
+    path = tmp_path / "compact-model-bundle.ante"
+    path.write_bytes(bytes(bundle.export()))
+    child = subprocess.run(
+        [
+            sys.executable, "-c",
+            """import json, sys
+from pathlib import Path
+from antecedent.composition_bundle import refit_compact_model
+inputs = json.loads(sys.stdin.read())
+checked = refit_compact_model(
+    Path(sys.argv[1]).read_bytes(), expected_identity=sys.argv[2],
+    model_node="native-model", **inputs,
+)
+print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
+            str(path), bundle.identity,
+        ],
+        input=json.dumps({
+            "learner": learner, "outcome": outcome, "treatment": treatment, "features": features,
+        }),
+        text=True, capture_output=True, check=True,
+    )
+    identity, point = json.loads(child.stdout)
+    assert identity == fit.identity
+    assert point == pytest.approx(2.75)
+
+    revised = list(outcome)
+    revised[0], revised[3] = revised[3], revised[0]
+    with pytest.raises(cb.CompositionBundleRefusal) as error:
+        cb.refit_compact_model(
+            fit, expected_identity=fit.identity, learner=learner,
+            outcome=revised, treatment=treatment, features=features,
+        )
+    assert error.value.detail == "composition_bundle.graph_or_snapshot_mismatch"
+    with pytest.raises(cb.CompositionBundleRefusal) as error:
+        cb.refit_compact_model(
+            fit, expected_identity=fit.identity, learner="another_learner",
+            outcome=outcome, treatment=treatment, features=features,
+        )
+    assert error.value.detail == "composition_bundle.provider_request_changed"
+
+    legacy = CompactExport.consume(
+        (FIXTURES / "compact_runtime_export_v1.bin").read_bytes(),
+        expected_identity=MODEL_IDENTITY,
+    )
+    with pytest.raises(cb.CompositionBundleRefusal) as error:
+        cb.refit_compact_model(
+            legacy, expected_identity=legacy.identity, learner=learner,
+            outcome=outcome, treatment=treatment, features=features,
+        )
+    assert error.value.detail == "composition_bundle.callback_unavailable"

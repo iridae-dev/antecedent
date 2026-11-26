@@ -83,14 +83,23 @@ fn spd_inverse(a: &[f64], p: usize) -> Option<Vec<f64>> {
 /// # Errors
 /// Mismatched lengths, a non-finite value, too few rows for the design width, a
 /// singular design or a row with leverage 1 (HC3 is undefined there).
-#[allow(
-    clippy::too_many_lines,
-    reason = "one fit: design matrix, sandwich covariance and identity"
-)]
 pub fn fit_cohort_linear_effect(
     outcome: &[f64],
     treatment: &[f64],
     features: &[&[f64]],
+) -> Result<CohortLinearFit, EstimationError> {
+    fit_cohort_linear_effect_controlled(outcome, treatment, features, &|| false)
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "one fit: design matrix, sandwich covariance and identity"
+)]
+fn fit_cohort_linear_effect_controlled(
+    outcome: &[f64],
+    treatment: &[f64],
+    features: &[&[f64]],
+    cancelled: &impl Fn() -> bool,
 ) -> Result<CohortLinearFit, EstimationError> {
     let n = outcome.len();
     let k = features.len();
@@ -126,6 +135,9 @@ pub fn fit_cohort_linear_effect(
     let mut xtx = vec![0.0; p * p];
     let mut xty = vec![0.0; p];
     for i in 0..n {
+        if i % 1024 == 0 && cancelled() {
+            return Err(unsupported("cohort linear effect: execution cancelled"));
+        }
         let x = row(i);
         for a in 0..p {
             xty[a] += x[a] * outcome[i];
@@ -141,6 +153,9 @@ pub fn fit_cohort_linear_effect(
     let mut meat = vec![0.0; p * p];
     let mut max_leverage = 0.0_f64;
     for i in 0..n {
+        if i % 1024 == 0 && cancelled() {
+            return Err(unsupported("cohort linear effect: execution cancelled"));
+        }
         let x = row(i);
         let fitted: f64 = x.iter().zip(&beta).map(|(a, b)| a * b).sum();
         let residual = outcome[i] - fitted;
@@ -248,6 +263,7 @@ impl CohortLinearFit {
         &self,
         response: &ScientificQuantityWire,
         feature_quantities: &[ScientificQuantityWire],
+        training_snapshot: Option<&str>,
     ) -> Result<CompactExport, ExportRefusal> {
         if feature_quantities.len() != self.feature_ranges.len() {
             return Err(ExportRefusal {
@@ -260,6 +276,7 @@ impl CohortLinearFit {
         response.conditioning = native_fit_conditioning(
             NativeFitSize { rows: self.rows as u64, width: self.width as u64 },
             &self.digest(),
+            training_snapshot,
         );
         let mut terms = vec![TermSpec::Intercept];
         let mut inputs = Vec::new();
@@ -332,6 +349,8 @@ fn basis_with_structure(structure: &str, rows: u64, level: f64) -> CalibrationBa
 pub const FIT_DIGEST_VARIABLE: &str = "fit.digest";
 /// Conditioning variable naming the fitting procedure of a natively fitted export.
 pub const FIT_PROCEDURE_VARIABLE: &str = "fit.procedure";
+/// Conditioning variable binding the exact original row and modifier order.
+pub const FIT_TRAINING_VARIABLE: &str = "fit.training_snapshot";
 /// Conditioning variable carrying the retained row count.
 pub const FIT_ROWS_VARIABLE: &str = "fit.n";
 /// Conditioning variable carrying the retained design width.
@@ -364,17 +383,25 @@ pub struct NativeFitSize {
     pub width: u64,
 }
 
-fn native_fit_conditioning(size: NativeFitSize, digest: &str) -> Vec<QuantityConditionWire> {
+fn native_fit_conditioning(
+    size: NativeFitSize,
+    digest: &str,
+    training_snapshot: Option<&str>,
+) -> Vec<QuantityConditionWire> {
     let item = |name: &str, value: String| QuantityConditionWire {
         variable_id: name.to_owned(),
         value_id: value,
     };
-    vec![
+    let mut conditions = vec![
         item(FIT_DIGEST_VARIABLE, digest.to_owned()),
         item(FIT_ROWS_VARIABLE, size.rows.to_string()),
         item(FIT_WIDTH_VARIABLE, size.width.to_string()),
         item(FIT_PROCEDURE_VARIABLE, FIT_PROCEDURE_ID.to_owned()),
-    ]
+    ];
+    if let Some(snapshot) = training_snapshot {
+        conditions.push(item(FIT_TRAINING_VARIABLE, snapshot.to_owned()));
+    }
+    conditions
 }
 
 /// The declared inputs a native fit was computed from: what a consumer replays.
@@ -388,6 +415,25 @@ pub struct NativeFitRows {
     pub features: Vec<Vec<f64>>,
     /// Modifier variable ids, aligned with `features`.
     pub feature_ids: Vec<String>,
+}
+
+impl NativeFitRows {
+    /// Identity of the original ordered training columns and modifier declaration.
+    #[must_use]
+    pub fn training_identity(&self) -> String {
+        let mut writer =
+            antecedent_core::CanonicalWriter::new("antecedent.cohort_linear_effect.training.v1");
+        writer.text(FIT_PROCEDURE_ID).reals(&self.outcome).reals(&self.treatment);
+        writer.size(self.feature_ids.len());
+        for id in &self.feature_ids {
+            writer.text(id);
+        }
+        writer.size(self.features.len());
+        for column in &self.features {
+            writer.reals(column);
+        }
+        writer.finish_hex()
+    }
 }
 
 /// A natively fitted linear effect and its export. It can only be constructed by
@@ -415,16 +461,37 @@ impl NativeCohortFit {
         response: &ScientificQuantityWire,
         feature_quantities: &[ScientificQuantityWire],
     ) -> Result<Self, EstimationError> {
-        let fit = fit_cohort_linear_effect(outcome, treatment, features)?;
-        let export = fit
-            .to_compact_export(response, feature_quantities)
-            .map_err(|_| unsupported("cohort linear effect: the export was refused"))?;
+        Self::fit_with_snapshot(
+            outcome,
+            treatment,
+            features,
+            response,
+            feature_quantities,
+            true,
+            &|| false,
+        )
+    }
+
+    fn fit_with_snapshot(
+        outcome: &[f64],
+        treatment: &[f64],
+        features: &[&[f64]],
+        response: &ScientificQuantityWire,
+        feature_quantities: &[ScientificQuantityWire],
+        bind_training: bool,
+        cancelled: &impl Fn() -> bool,
+    ) -> Result<Self, EstimationError> {
+        let fit = fit_cohort_linear_effect_controlled(outcome, treatment, features, cancelled)?;
         let rows = NativeFitRows {
             outcome: outcome.to_vec(),
             treatment: treatment.to_vec(),
             features: features.iter().map(|c| c.to_vec()).collect(),
             feature_ids: feature_quantities.iter().map(|q| q.variable_id.clone()).collect(),
         };
+        let snapshot = bind_training.then(|| rows.training_identity());
+        let export = fit
+            .to_compact_export(response, feature_quantities, snapshot.as_deref())
+            .map_err(|_| unsupported("cohort linear effect: the export was refused"))?;
         Ok(Self { fit, export, rows })
     }
 
@@ -434,12 +501,34 @@ impl NativeCohortFit {
     /// # Errors
     /// Rows that do not reproduce the export's coefficients, covariance, marker or
     /// identity (a declared or hand-edited export), or any refusal of the fit.
+    pub fn replay(rows: NativeFitRows, like: &CompactExport) -> Result<Self, EstimationError> {
+        Self::replay_controlled(rows, like, || false)
+    }
+
+    /// Replay the retained fit while checking cancellation between row blocks.
+    ///
+    /// # Errors
+    /// A changed model or training snapshot, a refused fit, or cancellation.
     #[allow(
         clippy::needless_pass_by_value,
         reason = "the rows are the retained fit and are consumed by their callers"
     )]
-    pub fn replay(rows: NativeFitRows, like: &CompactExport) -> Result<Self, EstimationError> {
+    pub fn replay_controlled(
+        rows: NativeFitRows,
+        like: &CompactExport,
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Self, EstimationError> {
         let body = like.body();
+        let training = body
+            .response
+            .conditioning
+            .iter()
+            .find(|condition| condition.variable_id == FIT_TRAINING_VARIABLE);
+        if training.is_some_and(|condition| condition.value_id != rows.training_identity()) {
+            return Err(unsupported(
+                "cohort linear effect: training snapshot differs from the export",
+            ));
+        }
         let mut quantities = Vec::with_capacity(rows.feature_ids.len());
         for id in &rows.feature_ids {
             let input = body
@@ -453,8 +542,17 @@ impl NativeCohortFit {
             return Err(unsupported("cohort linear effect: modifier ids differ from the export"));
         }
         let columns: Vec<&[f64]> = rows.features.iter().map(Vec::as_slice).collect();
-        let replayed =
-            Self::fit(&rows.outcome, &rows.treatment, &columns, &body.response, &quantities)?;
+        // A historical measured interval retains the original rows in its own
+        // artifact. Reproduce its old compact identity while validating those bytes.
+        let replayed = Self::fit_with_snapshot(
+            &rows.outcome,
+            &rows.treatment,
+            &columns,
+            &body.response,
+            &quantities,
+            training.is_some(),
+            &cancelled,
+        )?;
         if replayed.export.identity() != like.identity() || replayed.export.body() != like.body() {
             return Err(unsupported(
                 "cohort linear effect: the retained rows do not reproduce the export",

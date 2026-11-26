@@ -5774,3 +5774,16 @@ reason = "Encodes the verified patient result together with its source and progr
 path = "antecedent_io_core::patient_surrogate::PatientSurrogateRequest::identity"
 disposition = "not_scientific"
 reason = "Hashes the study design and supplied patient evidence."
+
+[[row]]
+path = "antecedent::analysis::composition::refit_compact_model"
+disposition = "consume"
+
+[[row]]
+path = "antecedent::analysis::composition::refit_compact_bundle_model"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_estimate::cohort_linear_effect::NativeCohortFit::replay_controlled"
+disposition = "kernel"
+reason = "Runs the existing native conditional-effect fitting kernel under the compact refit consumer after it resolves the artifact, training source and learner."

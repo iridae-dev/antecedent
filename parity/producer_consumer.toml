@@ -425,7 +425,7 @@ detail = "`CausalTypeError`"
 producer = "fitted_effect_model"
 consumer = "bundle_node"
 status = "ADAPTER"
-detail = "The validating reader admits a `compact_fitted_effect_model` node for retained-basis prediction. A declared contrast model can feed a `cohort_decision_source` node bound to that exact model, then an affine decision. Unsupported feature values refuse, and a refit request identifies the missing training data and learner."
+detail = "The validating reader admits a `compact_fitted_effect_model` node for retained-basis prediction. A declared contrast model can feed a `cohort_decision_source` node bound to that exact model, then an affine decision. Unsupported feature values refuse. A native compact model can refit through the named bundle node when the consumer supplies the ordered training columns and the declared learner. Legacy compact-only exports identify the unavailable training binding."
 
 [[cell]]
 producer = "fitted_effect_model"

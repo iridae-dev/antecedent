@@ -65,7 +65,7 @@ registered ``code`` / ``reason_code``, the namespaced ``composition_bundle.<stag
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from inspect import signature as _signature
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
@@ -102,6 +102,7 @@ if TYPE_CHECKING:
 
 if TYPE_CHECKING:
     from .cohort_decision import CohortDecisionSource
+    from .compact_export import CompactExport
     from .decision_reliability import SequentialPolicyReliability
 
 _UNSET: Any = object()
@@ -286,7 +287,6 @@ RecomputationRoute = Literal[
     "predictive_decision",
     "posterior_decision",
     "cohort_decision",
-    "require_compact_refit_inputs",
     "ledger_pooled_decision",
     "predictive_fit_decision",
 ]
@@ -1480,11 +1480,66 @@ def require_compact_refit_inputs(model: object) -> None:
 
     Compact exports verify the prediction model, including its basis and support.
     A refit request requires the original training data and learner declaration.
+    Use :func:`refit_compact_model` when both inputs are available.
 
     Raises:
         CompositionBundleRefusal: the model or its refit dependencies cannot be verified.
     """
     raise_refusal(_native.composition_require_compact_refit(_bytes(model)), _refusal_type)
+
+
+def refit_compact_model(
+    model: object,
+    *,
+    expected_identity: str,
+    learner: str,
+    outcome: Sequence[float],
+    treatment: Sequence[float],
+    features: Mapping[str, Sequence[float]],
+    model_node: str | None = None,
+    execution: Execution | None = None,
+) -> CompactExport:
+    """Refit a native compact model against its original ordered training snapshot.
+
+    Pass the compact artifact and its semantic identity, or pass a bundle, its
+    semantic identity, and the embedded model's node id. The native learner id
+    is ``ols_hc3_treatment_by_basis``. Feature mapping order and row order must match
+    the original fit. Legacy exports without a training binding retain their
+    prediction capability and report the unavailable refit dependency.
+    """
+    from .compact_export import CompactExport
+
+    if not isinstance(features, Mapping):
+        raise CausalTypeError("features must map modifier ids to training columns")
+    names = [_name(name, "feature id") for name in features]
+    training = json.dumps(
+        {
+            "outcome": [float(value) for value in outcome],
+            "treatment": [float(value) for value in treatment],
+            "feature_ids": names,
+            "features": [[float(value) for value in features[name]] for name in names],
+        },
+        allow_nan=False,
+    )
+    policy = resolve_execution(execution)
+    result, refusal = policy._call(
+        _native.composition_refit_compact,
+        _bytes(model),
+        _name(expected_identity, "expected_identity"),
+        _name(learner, "learner"),
+        training,
+        model_node=None if model_node is None else _name(model_node, "model_node"),
+        **native_controls(
+            policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"
+        ),
+    )
+    raise_refusal(refusal, _refusal_type)
+    if result is None:  # pragma: no cover - native invariant
+        raise CausalValueError("native compact refit returned neither a result nor a refusal")
+    identity, data = result
+    return CompactExport.consume(
+        data, expected_identity=identity, retained_identity=_retained.artifact_identity(data)
+    )
 
 
 def cohort_decision(
@@ -2247,6 +2302,8 @@ __all__ = [
     "compile_predictive_fit_decision_bundle",
     "compile_sequential_reliability_node_bundle",
     "consume_bundle",
+    "refit_compact_model",
+    "require_compact_refit_inputs",
     "consume_bundle_recomputation",
     "consume_portable_sequential_reliability_node_bundle",
     "describe_artifact",

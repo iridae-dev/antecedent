@@ -15,7 +15,7 @@ use antecedent::analysis::composition::{
     CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship, NodeKind, NodeSource,
     NodeStatus, ProviderOrData, SuppliedSources, consume_with_limits, describe_artifact,
     detect_node_kind, export_bundle, mean_decision_bytes, producer_identity,
-    require_compact_model_refit_inputs,
+    refit_compact_bundle_model, refit_compact_model, require_compact_model_refit_inputs,
 };
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_artifact::contract_from_json_refusal;
@@ -503,6 +503,95 @@ fn composition_require_compact_refit(py: Python<'_>, data: &[u8]) -> PyResult<Re
     })
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompactRefitTraining {
+    outcome: Vec<f64>,
+    treatment: Vec<f64>,
+    features: Vec<Vec<f64>>,
+    feature_ids: Vec<String>,
+}
+
+/// Refit the native model from its original ordered training data.
+#[pyfunction]
+#[pyo3(signature = (data, expected_identity, learner, training_json, *, model_node=None, seed=1, threads=None, cancel=None, memory_bytes=None))]
+#[allow(clippy::too_many_arguments)]
+fn composition_refit_compact<'py>(
+    py: Python<'py>,
+    data: &[u8],
+    expected_identity: &str,
+    learner: &str,
+    training_json: &str,
+    model_node: Option<&str>,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> PyResult<(Option<(String, Bound<'py, PyBytes>)>, Refusal)> {
+    use antecedent::analysis::cohort_decision::NativeFitRows;
+    let ctx = crate::chain_decision_api::context(seed, threads, cancel, memory_bytes);
+    let result = crate::detach_catch(py, || {
+        let error = |stage, reason| BundleError::Refused {
+            stage,
+            reason,
+            offending: model_node.map(str::to_owned),
+        };
+        if training_json.len() > 64 * 1024 * 1024 {
+            return Ok(Err(error(
+                BundleStage::Oversized,
+                "compact refit training exceeds the JSON bound".into(),
+            )));
+        }
+        let admission = ctx.acquire_admission(0, (training_json.len() as u64).saturating_mul(2));
+        let lease = match admission {
+            Ok(lease) => lease,
+            Err(error) => {
+                let stage = if ctx.cancellation.is_cancelled() {
+                    BundleStage::ExecutionCancelled
+                } else {
+                    BundleStage::ResourceRefused
+                };
+                return Ok(Err(BundleError::Refused {
+                    stage,
+                    reason: error.to_string(),
+                    offending: model_node.map(str::to_owned),
+                }));
+            }
+        };
+        let parsed = serde_json::from_str::<CompactRefitTraining>(training_json);
+        let training = match parsed {
+            Ok(rows) => NativeFitRows {
+                outcome: rows.outcome,
+                treatment: rows.treatment,
+                features: rows.features,
+                feature_ids: rows.feature_ids,
+            },
+            Err(problem) => {
+                return Ok(Err(error(BundleStage::SwappedEvidence, problem.to_string())));
+            }
+        };
+        drop(lease);
+        let replayed = if let Some(node) = model_node {
+            refit_compact_bundle_model(data, expected_identity, node, training, learner, &ctx)
+        } else {
+            refit_compact_model(data, expected_identity, training, learner, &ctx)
+        };
+        let replayed = match replayed {
+            Ok(replayed) => replayed,
+            Err(problem) => return Ok(Err(problem)),
+        };
+        let export = replayed.export();
+        Ok(export
+            .to_bytes("refitted-compact-model")
+            .map(|bytes| (export.identity().to_owned(), bytes))
+            .map_err(|problem| error(BundleStage::TamperedQuantity, problem.to_string())))
+    })?;
+    Ok(match result {
+        Ok((identity, bytes)) => (Some((identity, PyBytes::new(py, &bytes))), None),
+        Err(problem) => (None, Some(error_refusal(&problem))),
+    })
+}
+
 /// The existing identity of a producer artifact, for a catalog role.
 #[pyfunction]
 fn producer_artifact_identity(role: &str, data: &[u8]) -> PyResult<String> {
@@ -517,5 +606,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(composition_describe_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(composition_mean_decision, m)?)?;
     m.add_function(wrap_pyfunction!(composition_require_compact_refit, m)?)?;
+    m.add_function(wrap_pyfunction!(composition_refit_compact, m)?)?;
     m.add_function(wrap_pyfunction!(composition_detect_kind, m)?)
 }
