@@ -1518,6 +1518,21 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "composition.bundle"
+route = "antecedent.composition_bundle.compile_compact_model_refit"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/cohort_decision.mean_contrast.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.compact_refit.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Twelve ordered outcomes, a binary treatment and one numeric effect modifier feed the native OLS/HC3 learner. The original compact model is supplied alone or embedded at a named bundle node."
+expected_values = "The refit reproduces the original model body and predicts 2.75 at z=0.5. A changed training snapshot or learner refuses before publication."
+tolerance = "Exact equality for the model body and identities, absolute error below 1e-12 for the scalar prediction."
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.compact_refit.artifact"
+provider_trust = "Only the original native learner and ordered training snapshot satisfy the refit bindings."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
 route = "antecedent.composition.cohort_decision_bytes"
 algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/cohort_decision.mean_contrast.toml"]
 parity_registry = "parity/capability_records.toml"
@@ -13406,7 +13421,7 @@ oracle_inputs = "Independent complete-data potential outcomes at every box corne
 expected_values = "The extrema are 0.04 and 0.20 and the box crosses 0.075. The two single-mechanism minima of 0.09 and 0.15 retain the active decision. Replay preserves all simultaneous intervals and the decision."
 tolerance = "1e-12 absolute for exact corners; identical numerical output on replay."
 calibration = "The coverage coordinates are cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners, cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema. Publication requires a current measurement for the applicable design."
-artifact_consumer_fixture = "sensitivity.longitudinal_joint.replay"
+artifact_consumer_fixture = "sensitivity.longitudinal_joint.replay.artifact"
 provider_trust = "Native completed conditional-mean calculation under caller-declared assumptions; no external provider."
 exact_request_verification = "not_applicable_no_external_provider"
 
@@ -13421,7 +13436,7 @@ oracle_inputs = "Independent complete-data potential outcomes at every box corne
 expected_values = "The extrema are 0.04 and 0.20 and the box crosses 0.075. The two single-mechanism minima of 0.09 and 0.15 retain the active decision. Replay preserves all simultaneous intervals and the decision."
 tolerance = "1e-12 absolute for exact corners; identical numerical output on replay."
 calibration = "The coverage coordinates are cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners, cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema. Publication requires a current measurement for the applicable design."
-artifact_consumer_fixture = "sensitivity.longitudinal_joint.replay"
+artifact_consumer_fixture = "sensitivity.longitudinal_joint.replay.artifact"
 provider_trust = "Native completed conditional-mean calculation under caller-declared assumptions; no external provider."
 exact_request_verification = "not_applicable_no_external_provider"
 

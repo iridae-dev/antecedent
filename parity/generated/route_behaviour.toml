@@ -2093,6 +2093,7 @@ refusals = [
   { code = "execution_resource_limit", detail = "composition_bundle.resource_refused" },
 ]
 routes = [
+  { route = "antecedent.composition_bundle.compile_compact_model_refit", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.bundle.export_bundle", stage = "representation", status = "supported", claim = "point_only" },
   { route = "antecedent.bundle.consume_bundle", stage = "consume", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.compile_chain_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },

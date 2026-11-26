@@ -8,8 +8,8 @@ import sys
 from pathlib import Path
 
 import pytest
+from antecedent import _native, decision
 from antecedent import composition_bundle as cb
-from antecedent import decision
 from antecedent import evidence_ledger as el
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
@@ -71,6 +71,28 @@ def _consume(bundle: cb.Bundle) -> cb.ConsumedBundle:
     return require_success(
         cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
     )
+
+
+def test_ledger_reference_verifies_supplied_bytes_and_refuses_edited_history() -> None:
+    ledger = LEDGER.read_bytes()
+    assert _native.producer_artifact_identity("ledger", ledger) == LEDGER_ID
+    bundle = cb.Bundle.builder().add_producer_reference("history", "ledger", ledger).build()
+    exported = bytes(bundle.export())
+
+    def consume(producers: dict[str, bytes]) -> cb.ConsumedNode:
+        result = require_success(
+            cb.consume_bundle(exported, expected_identity=bundle.identity, producers=producers)
+        )
+        return result.node("history")
+
+    assert isinstance(consume({}).status, cb.ReferenceUnresolved)
+    node = consume({"ledger": ledger})
+    assert node.verified and not node.replayed
+    assert node.identity == LEDGER_ID
+    edited = LEDGER.with_name("evidence_ledger__head_edited.artifact").read_bytes()
+    failed = consume({"ledger": edited})
+    assert isinstance(failed.status, cb.Failed)
+    assert failed.status.stage == "swapped_evidence"
 
 
 def test_inherited_point_ledger_bundle_recomputes_in_a_fresh_process(tmp_path: Path) -> None:
