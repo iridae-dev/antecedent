@@ -41,6 +41,7 @@
 //! content and the bundle refuses a node whose recomputation differs.
 
 mod artifact_inspection;
+mod cohort_source_inspection;
 mod replay_inspection;
 
 pub use artifact_inspection::{evidence_relationship_bytes, mean_decision_bytes, mean_source_of};
@@ -49,6 +50,8 @@ use artifact_inspection::{
     inspect_ranking, inspect_relationship, inspect_repair, inspect_result, inspect_rollout,
     inspect_sensitivity,
 };
+#[doc(hidden)]
+pub use cohort_source_inspection::CohortDecisionSourceVerifier;
 
 use replay_inspection::{
     inspect_frozen_scores, inspect_observation_query, inspect_propagation_chain,
@@ -60,6 +63,7 @@ use std::io::Cursor;
 
 use antecedent_contract::ScientificQuantity;
 use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex};
+use antecedent_io_core::cohort_decision::COHORT_DECISION_ARTIFACT_KIND;
 use antecedent_io_core::convert::{from_cbor, to_cbor};
 use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionMetadata, DistributionTrust, DrawAlignment,
@@ -135,12 +139,13 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 19] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 20] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
     NodeKind::Transformation,
     NodeKind::Distribution,
+    NodeKind::CohortDecisionSource,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
     NodeKind::DecisionResult,
@@ -402,6 +407,9 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             })
         }
         NodeKind::Distribution => inspect_distribution(bytes),
+        NodeKind::CohortDecisionSource => {
+            cohort_source_inspection::inspect(bytes, &ExecutionContext::production_default(0))
+        }
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
         NodeKind::DecisionResult => inspect_result(bytes),
@@ -640,6 +648,7 @@ fn cross_check(
             matches!(
                 u.kind,
                 NodeKind::Distribution
+                    | NodeKind::CohortDecisionSource
                     | NodeKind::ExternalClaim
                     | NodeKind::ObservationQuery
                     | NodeKind::ScientificBridge
@@ -807,6 +816,7 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
     match label.as_str() {
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
         KIND_DISTRIBUTION => Some(NodeKind::Distribution),
+        COHORT_DECISION_ARTIFACT_KIND => Some(NodeKind::CohortDecisionSource),
         KIND_EXTERNAL_CLAIM => Some(NodeKind::ExternalClaim),
         KIND_CONTRACT | KIND_ADMISSIBLE => Some(NodeKind::DecisionContract),
         KIND_RESULT | KIND_ROBUST | KIND_STRUCTURAL => Some(NodeKind::DecisionResult),
@@ -957,6 +967,9 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         | NodeKind::QuantityCoordinates
         | NodeKind::Transformation => Box::new(SourceProjectionVerifier(kind)),
         NodeKind::Distribution => Box::new(DistributionVerifier),
+        NodeKind::CohortDecisionSource => {
+            Box::new(CohortDecisionSourceVerifier::new(&ExecutionContext::production_default(0)))
+        }
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),

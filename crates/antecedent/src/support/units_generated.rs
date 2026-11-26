@@ -216,6 +216,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
         | "BridgeBundleRecomputation"
         | "BundleRecomputation"
+        | "CohortDecisionBundleRecomputation"
         | "CyclicPosteriorBundleRecomputation"
         | "CyclicPosteriorNodeBundleRecomputation"
         | "CyclicTargetFeedbackNodeDecisionBundleRecomputation"

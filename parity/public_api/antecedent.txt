@@ -1187,6 +1187,7 @@ impl core::clone::Clone for antecedent::analysis::composition::PredictiveFitDeci
 impl core::clone::Clone for antecedent::analysis::composition::ReplayedBundleDependency
 impl core::clone::Clone for antecedent::analysis::composition::SequentialReliabilityBundleReceipt
 impl core::clone::Clone for antecedent::analysis::composition::TrialIpwNodeBundleReceipt
+impl core::clone::Clone for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation
 impl core::clone::Clone for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation
 impl core::clone::Clone for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt
 impl core::clone::Clone for antecedent::analysis::conditional_study_ranking::ConditionalBranch
@@ -3944,6 +3945,7 @@ impl core::fmt::Debug for antecedent::analysis::composition::SequentialReliabili
 impl core::fmt::Debug for antecedent::analysis::composition::SequentialReliabilityBundleReceipt
 impl core::fmt::Debug for antecedent::analysis::composition::TrialIpwBundleError
 impl core::fmt::Debug for antecedent::analysis::composition::TrialIpwNodeBundleReceipt
+impl core::fmt::Debug for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation
 impl core::fmt::Debug for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation
 impl core::fmt::Debug for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt
 impl core::fmt::Debug for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError
@@ -5742,6 +5744,7 @@ impl core::marker::Freeze for antecedent::analysis::composition::SequentialRelia
 impl core::marker::Freeze for antecedent::analysis::composition::SequentialReliabilityBundleReceipt [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::TrialIpwBundleError [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::TrialIpwNodeBundleReceipt [auto]
+impl core::marker::Freeze for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation [auto]
 impl core::marker::Freeze for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation [auto]
 impl core::marker::Freeze for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt [auto]
 impl core::marker::Freeze for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError [auto]
@@ -7205,6 +7208,7 @@ impl core::marker::Send for antecedent::analysis::composition::SequentialReliabi
 impl core::marker::Send for antecedent::analysis::composition::SequentialReliabilityBundleReceipt [auto]
 impl core::marker::Send for antecedent::analysis::composition::TrialIpwBundleError [auto]
 impl core::marker::Send for antecedent::analysis::composition::TrialIpwNodeBundleReceipt [auto]
+impl core::marker::Send for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation [auto]
 impl core::marker::Send for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation [auto]
 impl core::marker::Send for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt [auto]
 impl core::marker::Send for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError [auto]
@@ -9419,6 +9423,7 @@ impl core::marker::Sync for antecedent::analysis::composition::SequentialReliabi
 impl core::marker::Sync for antecedent::analysis::composition::SequentialReliabilityBundleReceipt [auto]
 impl core::marker::Sync for antecedent::analysis::composition::TrialIpwBundleError [auto]
 impl core::marker::Sync for antecedent::analysis::composition::TrialIpwNodeBundleReceipt [auto]
+impl core::marker::Sync for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation [auto]
 impl core::marker::Sync for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation [auto]
 impl core::marker::Sync for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt [auto]
 impl core::marker::Sync for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError [auto]
@@ -10929,6 +10934,7 @@ impl core::marker::Unpin for antecedent::analysis::composition::SequentialReliab
 impl core::marker::Unpin for antecedent::analysis::composition::SequentialReliabilityBundleReceipt [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::TrialIpwBundleError [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::TrialIpwNodeBundleReceipt [auto]
+impl core::marker::Unpin for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation [auto]
 impl core::marker::Unpin for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation [auto]
 impl core::marker::Unpin for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt [auto]
 impl core::marker::Unpin for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError [auto]
@@ -12419,6 +12425,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compositi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::SequentialReliabilityBundleReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::TrialIpwBundleError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::TrialIpwNodeBundleReceipt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError [auto]
@@ -13843,6 +13850,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition:
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::SequentialReliabilityBundleReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::TrialIpwBundleError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::TrialIpwNodeBundleReceipt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError [auto]
@@ -21738,6 +21746,7 @@ pub fn <antecedent::analysis::compiled_trial_aipw_learners::CompiledTrialAipwLea
 pub fn <antecedent::analysis::compiled_trial_aipw_learners::TrialAipwLearnersRequest>::fn new(diagram: antecedent_graph::selection::SelectionDiagram, query: antecedent_core::query::transport::TransportQuery, input: antecedent_estimate::learned_trial::TrialAipwInput, options: antecedent_estimate::learned_trial::TrialAipwOptions, learners: antecedent::analysis::declared_learners::LearnerFactories) -> Self
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_artifact(&mut self, node_id: core::option::Option<&str>, kind: antecedent_design::composition_bundle::vocabulary::NodeKind, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_assessed_bridge_posterior_fit(&mut self, id: &str, artifact: &[u8], program: antecedent_core::identity::SemanticDigest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent::analysis::composition::PredictiveFitDecisionBundleError>
+pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_cohort_decision_source(&mut self, node_id: core::option::Option<&str>, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_cyclic_posterior_fit(&mut self, node_id: &str, artifact: &[u8], program: antecedent_core::identity::SemanticDigest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent::analysis::composition::CyclicPosteriorBundleError>
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_cyclic_target_feedback_fit(&mut self, id: &str, artifact: &[u8], program: antecedent_core::identity::SemanticDigest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<(), antecedent::analysis::composition::PredictiveFitDecisionBundleError>
 pub fn <antecedent::analysis::composition::BundleBuilder>::fn add_detected_artifact(&mut self, node_id: core::option::Option<&str>, bytes: &[u8]) -> core::result::Result<alloc::string::String, antecedent_design::composition_bundle::BundleError>
@@ -21799,6 +21808,10 @@ pub fn <antecedent::analysis::composition::CompiledTrialIpwNodeBundle>::fn execu
 pub fn <antecedent::analysis::composition::CompiledTrialIpwNodeBundle>::fn export_portable(&self, receipt: &antecedent::analysis::composition::TrialIpwNodeBundleReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::composition::TrialIpwBundleError>
 pub fn <antecedent::analysis::composition::CompiledTrialIpwNodeBundle>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::composition::CompiledTrialIpwNodeBundle>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
+pub fn <antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation>::fn export_portable(&self, receipt: &antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
+pub fn <antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
 pub fn <antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation>::fn export_portable(&self, receipt: &antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
 pub fn <antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
@@ -24045,6 +24058,9 @@ pub fn antecedent::analysis::composition::graph_imputation_transport_bundle_cons
 pub fn antecedent::analysis::composition::joint_transport_effect_bundle_consumer(ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::composition_bundle::BundleConsumer
 pub fn antecedent::analysis::composition::native_fit_bundle_consumer(ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::composition_bundle::BundleConsumer
 pub fn antecedent::analysis::composition::trial_ipw_bundle_consumer(ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_design::composition_bundle::BundleConsumer
+pub fn antecedent::analysis::composition_cohort_decision::cohort_decision_bytes(contract: &antecedent_design::decision_contract::DecisionContract, source: &antecedent_io_core::cohort_decision::CohortDecisionSource, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
+pub fn antecedent::analysis::composition_cohort_decision::compile_cohort_decision_bundle_recomputation(bundle: antecedent_design::composition_bundle::CompositionBundle, terminal_node: &str) -> core::result::Result<antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
+pub fn antecedent::analysis::composition_cohort_decision::consume_portable_cohort_decision_bundle_recomputation(bytes: &[u8], expected_bundle: &str, expected_program: antecedent_core::identity::SemanticDigest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
 pub fn antecedent::analysis::composition_decision_terminal::compile_decision_bundle_recomputation(bundle: antecedent_design::composition_bundle::CompositionBundle, terminal_node: &str, contract: antecedent_design::decision_contract::DecisionContract, source: antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
 pub fn antecedent::analysis::composition_decision_terminal::compile_posterior_decision_bundle_recomputation(bundle: antecedent_design::composition_bundle::CompositionBundle, terminal_node: &str, contract: antecedent_design::decision_contract::DecisionContract, source: antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
 pub fn antecedent::analysis::composition_decision_terminal::consume_portable_decision_bundle_recomputation(bytes: &[u8], expected_bundle: &str, expected_program: antecedent_core::identity::SemanticDigest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt, antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError>
@@ -24645,6 +24661,7 @@ pub mod antecedent::analysis::compiled_transported_cohort
 pub mod antecedent::analysis::compiled_transported_counterfactual
 pub mod antecedent::analysis::compiled_trial_aipw_learners
 pub mod antecedent::analysis::composition
+pub mod antecedent::analysis::composition_cohort_decision
 pub mod antecedent::analysis::composition_decision_terminal
 pub mod antecedent::analysis::composition_verification
 pub mod antecedent::analysis::conditional_study_ranking
@@ -25666,6 +25683,8 @@ pub struct antecedent::analysis::composition::PredictiveFitDecisionBundleReceipt
 pub struct antecedent::analysis::composition::ReplayedBundleDependency
 pub struct antecedent::analysis::composition::SequentialReliabilityBundleReceipt
 pub struct antecedent::analysis::composition::TrialIpwNodeBundleReceipt
+pub struct antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation
+pub struct antecedent::analysis::composition_cohort_decision::CompiledCohortDecisionBundleRecomputation has private fields
 pub struct antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation
 pub struct antecedent::analysis::composition_decision_terminal::CompiledDecisionBundleRecomputation has private fields
 pub struct antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputationReceipt
@@ -33099,6 +33118,7 @@ pub variant antecedent::planner::PlanRoute::ChoiceStudyRanking
 pub variant antecedent::planner::PlanRoute::ClassicalTransportIdentification
 pub variant antecedent::planner::PlanRoute::ClusterSamplingAssumptionUnion
 pub variant antecedent::planner::PlanRoute::CodeterminedJoint
+pub variant antecedent::planner::PlanRoute::CohortDecisionBundleRecomputation
 pub variant antecedent::planner::PlanRoute::CohortMeanInterval
 pub variant antecedent::planner::PlanRoute::ConditionalCpdag
 pub variant antecedent::planner::PlanRoute::ConditionalDag

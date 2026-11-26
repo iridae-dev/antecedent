@@ -762,7 +762,20 @@ pub fn mean_result_to_bytes(
     source: &MeanSource,
     artifact_id: &str,
 ) -> Result<Vec<u8>, IoError> {
-    let mut body = result_to_body(result, &mean_source_digest(source));
+    bound_mean_result_to_bytes(result, &mean_source_digest(source), artifact_id)
+}
+
+/// Encode a mean decision bound to a digest supplied by its verified producer.
+///
+/// # Errors
+/// A blank artifact id, an oversized payload or an encoding failure.
+#[doc(hidden)]
+pub fn bound_mean_result_to_bytes(
+    result: &DecisionResult,
+    source_binding: &str,
+    artifact_id: &str,
+) -> Result<Vec<u8>, IoError> {
+    let mut body = result_to_body(result, source_binding);
     body.lineage = Vec::new();
     encode(RESULT_KIND, artifact_id, "decision_result", &to_cbor(&body)?)
 }

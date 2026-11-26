@@ -1373,6 +1373,10 @@ name = "composition_chain"
 path = "tests/composition_chain.rs"
 
 [[test]]
+name = "composition_cohort_decision"
+path = "tests/composition_cohort_decision.rs"
+
+[[test]]
 name = "weighted_target_effect_calibration"
 path = "tests/weighted_target_effect_calibration.rs"
 

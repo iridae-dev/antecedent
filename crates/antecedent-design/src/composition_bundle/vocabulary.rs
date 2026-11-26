@@ -55,6 +55,8 @@ pub enum NodeKind {
     SupportTrustCalibration,
     /// A portable distribution artifact.
     Distribution,
+    /// A retained fitted model and weighted cohort replayed as one contrast mean.
+    CohortDecisionSource,
     /// A named transformation.
     Transformation,
     /// A decision contract.
@@ -109,6 +111,7 @@ named_variants! {
         QuantityCoordinates => "quantity_coordinates",
         SupportTrustCalibration => "support_trust_calibration",
         Distribution => "distribution",
+        CohortDecisionSource => "cohort_decision_source",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
         DecisionResult => "decision_result",
@@ -144,6 +147,7 @@ impl NodeKind {
             | Self::SequentialPolicyReliabilityFit
             | Self::SequentialDecisionDraws
             | Self::Distribution
+            | Self::CohortDecisionSource
             | Self::FrozenScores => CompositionStage::DistributionArtifact,
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
             Self::EvidenceRelationship

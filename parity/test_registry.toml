@@ -25201,6 +25201,21 @@ path = "crates/antecedent/tests/composition_chain.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "composition-cohort-affine-decision"
+crate = "antecedent"
+cargo_target = "composition_cohort_decision"
+path = "crates/antecedent/tests/composition_cohort_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "composition-cohort-affine-decision-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_composition_cohort_decision.py"
+gates = ["inventory"]
+why = "Replay weighted cohort decisions in a new interpreter and reject mismatched evidence."
+
+[[test]]
 id = "composition-chain-python"
 crate = "python"
 cargo_target = "script"

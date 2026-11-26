@@ -220,6 +220,12 @@ const PINNED: &[(C, R, &str, F)] = &[
         "PosteriorDecisionBundleRecomputation",
         F::PropagationChain,
     ),
+    (
+        C::CohortDecisionBundleRecomputation,
+        R::CohortDecisionBundleRecomputation,
+        "CohortDecisionBundleRecomputation",
+        F::PropagationChain,
+    ),
     (C::GraphImputation, R::GraphImputation, "GraphImputation", F::GraphImputation),
     (
         C::GraphImputationEffectDecision,

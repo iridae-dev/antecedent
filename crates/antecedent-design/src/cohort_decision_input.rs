@@ -18,6 +18,7 @@
 //! model's identity and is refused where a native source is required.
 
 use antecedent_contract::ExternalTrustState;
+use antecedent_core::CanonicalWriter;
 use antecedent_io_core::cohort_decision::{CohortDecisionSource, CohortRefusal};
 
 use crate::composition_boundary::{
@@ -25,6 +26,17 @@ use crate::composition_boundary::{
 };
 use crate::decision_eval::{MeanEstimate, MeanSource};
 use crate::inverse_query::ForwardClaim;
+
+/// Bind the affine decision to the complete replayed source, including the fitted
+/// model identity and cohort weights, even when two models issue the same mean.
+#[must_use]
+#[doc(hidden)]
+pub fn cohort_mean_binding(source: &CohortDecisionSource) -> String {
+    CanonicalWriter::digest_bytes_hex(
+        "antecedent.cohort_affine_decision.source.v1",
+        source.identity().as_bytes(),
+    )
+}
 
 /// The cohort-mean contrast as a mean source with exactly one coordinate.
 ///

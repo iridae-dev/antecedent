@@ -1517,6 +1517,51 @@ provider_trust = "native_computation_only; the decision terminal is rescored fro
 exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.cohort_decision_bytes"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/cohort_decision.mean_contrast.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cohort_affine_decision.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The inherited three-row cohort fixture with CATE values 1.5, 2.25 and 2.5, normalized weights, and the affine decision 4 times the cohort mean minus 8 versus zero."
+expected_values = "The affine result binds the complete source identity and reports 0.9 and -1.3 for treatment in the original and revised cohort; a squared utility needs a law."
+tolerance = "1e-12 on the independent arithmetic; exact equality for retained identities, fingerprints and receipts"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.cohort_affine_decision.artifact"
+provider_trust = "Declared compact-model trust is preserved by replay. A reference cohort or contract cannot produce a live receipt."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_cohort_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/cohort_decision.mean_contrast.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cohort_affine_decision.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The inherited three-row cohort fixture with CATE values 1.5, 2.25 and 2.5, normalized weights, and the affine decision 4 times the cohort mean minus 8 versus zero."
+expected_values = "The compiler identifies the retained cohort and contract and executes the exact point carrier. Revised weights change the program and decision fingerprint. Missing dependencies and changed cohort bytes refuse."
+tolerance = "1e-12 on the independent arithmetic; exact equality for retained identities, fingerprints and receipts"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.cohort_affine_decision.artifact"
+provider_trust = "Declared compact-model trust is preserved by replay. A reference cohort or contract cannot produce a live receipt."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_cohort_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/cohort_decision.mean_contrast.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.cohort_affine_decision.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The inherited three-row cohort fixture with CATE values 1.5, 2.25 and 2.5, normalized weights, and the affine decision 4 times the cohort mean minus 8 versus zero."
+expected_values = "A new consumer reconstructs the three embedded nodes, recompiles the program and reproduces the full receipt under the retained graph and program identities."
+tolerance = "1e-12 on the independent arithmetic; exact equality for retained identities, fingerprints and receipts"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.cohort_affine_decision.artifact"
+provider_trust = "Declared compact-model trust is preserved by replay. A reference cohort or contract cannot produce a live receipt."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
 id = "composition.verifiers"
 route = "antecedent.composition_bundle.consume_bundle"
 algorithm_provenance = ["provenance/composition.verifiers.toml"]

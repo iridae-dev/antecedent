@@ -262,12 +262,39 @@ impl CohortDecisionSource {
         limits: &CohortIntakeLimits,
     ) -> Result<Self, CohortRefusal> {
         let body = decode_body(bytes, limits.max_bytes)?;
-        let model = rebuild_model(&body)?;
+        Self::replay_body(&body, expectation, ctx, limits)
+    }
+
+    /// Replay an embedded artifact while discovering its semantic identity.
+    ///
+    /// Use this for building a bundle whose node will retain the returned identity.
+    /// A consumer expecting a specific source uses [`Self::consume_with_limits`].
+    ///
+    /// # Errors
+    /// An invalid artifact, a bounds violation, or a mismatch with live model replay.
+    #[doc(hidden)]
+    pub fn inspect_for_bundle(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        limits: &CohortIntakeLimits,
+    ) -> Result<Self, CohortRefusal> {
+        let body = decode_body(bytes, limits.max_bytes)?;
+        let expectation = CohortExpectation::for_identity(&body.identity);
+        Self::replay_body(&body, &expectation, ctx, limits)
+    }
+
+    fn replay_body(
+        body: &SourceBody,
+        expectation: &CohortExpectation,
+        ctx: &ExecutionContext,
+        limits: &CohortIntakeLimits,
+    ) -> Result<Self, CohortRefusal> {
+        let model = rebuild_model(body)?;
         let options = CohortOptions { shift: body.shift.clone(), expected_contrast_regime: None };
         let recomputed =
             Self::build_within(&model, &body.cohort, &body.outcome_units, &options, ctx, limits)?;
         check_expectation(&recomputed, expectation)?;
-        if recomputed.to_body() != body
+        if recomputed.to_body() != *body
             || recomputed.mean_contrast.to_bits() != body.mean_contrast.to_bits()
         {
             return Err(invalid(

@@ -8,6 +8,7 @@
 //! refusal comes back as structured JSON for the Python layer to raise as a typed exception; a
 //! cancelled run raises `CausalCancelledError`.
 
+use antecedent::analysis::cohort_decision::{CohortDecisionSource, CohortExpectation};
 use antecedent::analysis::composition::{
     BundleBuilder, BundleError, ChainBundleRecomputationReceipt, ChainBundleRecomputeError,
     CompiledChainBundleRecomputation, CompiledPredictiveFitDecisionBundle, CompositionBundle,
@@ -18,6 +19,11 @@ use antecedent::analysis::composition::{
     compile_joint_transport_predictive_node_decision_bundle,
     compile_trial_ipw_predictive_node_decision_bundle, consume_portable_chain_bundle_recomputation,
     consume_portable_predictive_fit_decision_bundle,
+};
+use antecedent::analysis::composition_cohort_decision::{
+    CompiledCohortDecisionBundleRecomputation, cohort_decision_bytes,
+    compile_cohort_decision_bundle_recomputation,
+    consume_portable_cohort_decision_bundle_recomputation,
 };
 use antecedent::analysis::composition_decision_terminal::{
     CompiledDecisionBundleRecomputation, DecisionBundleRecomputationReceipt,
@@ -73,6 +79,7 @@ const ARTIFACT_INVALID: &str = "bundle_recomputation.artifact_invalid";
 const CHAIN_ROUTE: &str = "chain";
 const PREDICTIVE_DECISION_ROUTE: &str = "predictive_decision";
 const POSTERIOR_DECISION_ROUTE: &str = "posterior_decision";
+const COHORT_DECISION_ROUTE: &str = "cohort_decision";
 const PREDICTIVE_FIT_ROUTE: &str = "predictive_fit_decision";
 
 fn cancelled() -> PyErr {
@@ -168,6 +175,7 @@ fn dependencies_json(dependencies: &[ReplayedBundleDependency]) -> Json {
 enum Plan {
     Chain(CompiledChainBundleRecomputation),
     Decision { plan: CompiledDecisionBundleRecomputation, posterior: bool },
+    Cohort(CompiledCohortDecisionBundleRecomputation),
     Predictive(CompiledPredictiveFitDecisionBundle),
 }
 
@@ -184,6 +192,7 @@ impl Plan {
             Self::Chain(_) => CHAIN_ROUTE,
             Self::Decision { posterior: false, .. } => PREDICTIVE_DECISION_ROUTE,
             Self::Decision { posterior: true, .. } => POSTERIOR_DECISION_ROUTE,
+            Self::Cohort(_) => COHORT_DECISION_ROUTE,
             Self::Predictive(_) => PREDICTIVE_FIT_ROUTE,
         }
     }
@@ -192,6 +201,7 @@ impl Plan {
         match self {
             Self::Chain(plan) => plan.lowered().identity(),
             Self::Decision { plan, .. } => plan.lowered().identity(),
+            Self::Cohort(plan) => plan.lowered().identity(),
             Self::Predictive(plan) => plan.lowered().identity(),
         }
     }
@@ -200,6 +210,7 @@ impl Plan {
         match self {
             Self::Chain(plan) => plan.plan_view().to_json().to_string(),
             Self::Decision { plan, .. } => plan.plan_view().to_json().to_string(),
+            Self::Cohort(plan) => plan.plan_view().to_json().to_string(),
             Self::Predictive(plan) => plan.plan_view().to_json().to_string(),
         }
     }
@@ -208,6 +219,7 @@ impl Plan {
         match self {
             Self::Chain(plan) => crate::errors::unit_support_json(&plan.plan_view()),
             Self::Decision { plan, .. } => crate::errors::unit_support_json(&plan.plan_view()),
+            Self::Cohort(plan) => crate::errors::unit_support_json(&plan.plan_view()),
             Self::Predictive(plan) => crate::errors::unit_support_json(&plan.plan_view()),
         }
     }
@@ -219,6 +231,10 @@ impl Plan {
                 .map(Receipt::Chain)
                 .map_err(|error| chain_bundle_json(&error, Phase::Replay)),
             Self::Decision { plan, .. } => plan
+                .execute(ctx)
+                .map(Receipt::Decision)
+                .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
+            Self::Cohort(plan) => plan
                 .execute(ctx)
                 .map(Receipt::Decision)
                 .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
@@ -239,6 +255,9 @@ impl Plan {
                 .export_portable(receipt, ctx)
                 .map_err(|error| chain_bundle_json(&error, Phase::Replay)),
             (Self::Decision { plan, .. }, Receipt::Decision(receipt)) => plan
+                .export_portable(receipt, ctx)
+                .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
+            (Self::Cohort(plan), Receipt::Decision(receipt)) => plan
                 .export_portable(receipt, ctx)
                 .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
             (Self::Predictive(plan), Receipt::Predictive(receipt)) => plan
@@ -502,6 +521,64 @@ fn decision_bundle_recomputation_compile(
     })
 }
 
+/// Export the affine decision dependent on a replayed cohort artifact.
+#[pyfunction]
+fn composition_cohort_decision<'py>(
+    py: Python<'py>,
+    contract_json: &str,
+    source_bytes: &[u8],
+    source_identity: &str,
+    artifact_id: &str,
+) -> PyResult<(Option<Bound<'py, PyBytes>>, Option<String>)> {
+    let contract = match contract_from_json_refusal(contract_json) {
+        Ok(contract) => contract,
+        Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+    };
+    let result = crate::detach_catch(py, move || {
+        let outcome = CohortDecisionSource::consume(
+            source_bytes,
+            &CohortExpectation::for_identity(source_identity),
+        )
+        .map_err(|error| external_refusal_json(&error.to_refusal()))
+        .and_then(|source| {
+            cohort_decision_bytes(&contract, &source, artifact_id).map_err(|error| {
+                decision_bundle_json(
+                    &error,
+                    Phase::Compile(reason_code!("decision_contract_unsatisfied")),
+                )
+            })
+        });
+        Ok(outcome)
+    })?;
+    Ok(match result {
+        Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
+        Err(refusal) => (None, Some(refusal)),
+    })
+}
+
+/// Compile a self-contained cohort and affine decision from the graph.
+#[pyfunction]
+fn cohort_decision_bundle_recomputation_compile(
+    bundle: PyRef<'_, PyCompositionBundle>,
+    terminal_node: &str,
+) -> PyResult<Refused<PyBundleRecomputationPlan>> {
+    crate::catch_ffi(|| {
+        Ok(
+            match compile_cohort_decision_bundle_recomputation(bundle.bundle.clone(), terminal_node)
+            {
+                Ok(plan) => (Some(PyBundleRecomputationPlan { plan: Plan::Cohort(plan) }), None),
+                Err(error) => (
+                    None,
+                    Some(decision_bundle_json(
+                        &error,
+                        Phase::Compile(reason_code!("decision_contract_unsatisfied")),
+                    )),
+                ),
+            },
+        )
+    })
+}
+
 /// Compile a producer -> chain -> decision bundle. The producer kind is the kind of the
 /// `producer` node; the chain and the predictive chain-decision terminal follow it by edges.
 #[pyfunction]
@@ -639,6 +716,29 @@ fn decision_bundle_recomputation_consume(
     })
 }
 
+/// Independently replay the portable cohort version with the caller's controls.
+#[pyfunction]
+#[pyo3(signature = (data, expected_bundle, expected_program, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+#[allow(clippy::too_many_arguments, reason = "the artifact, its two identities and the controls")]
+fn cohort_decision_bundle_recomputation_consume(
+    py: Python<'_>,
+    data: &[u8],
+    expected_bundle: &str,
+    expected_program: &str,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> PyResult<Refused<PyBundleRecomputationRun>> {
+    let program = crate::digest::digest(expected_program, "expected_program")?;
+    let ctx = context(seed, threads, cancel, memory_bytes);
+    consume_run(py, COHORT_DECISION_ROUTE, ctx, move |ctx| {
+        consume_portable_cohort_decision_bundle_recomputation(data, expected_bundle, program, ctx)
+            .map(Receipt::Decision)
+            .map_err(|error| decision_bundle_json(&error, Phase::Replay))
+    })
+}
+
 /// Rebuild a portable producer -> chain -> decision bundle, refit the producer from its raw
 /// evidence, rescore the decision and require the live receipt.
 #[pyfunction]
@@ -752,6 +852,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(chain_bundle_recomputation_consume, module)?)?;
     module.add_function(wrap_pyfunction!(decision_bundle_recomputation_compile, module)?)?;
     module.add_function(wrap_pyfunction!(decision_bundle_recomputation_consume, module)?)?;
+    module.add_function(wrap_pyfunction!(composition_cohort_decision, module)?)?;
+    module.add_function(wrap_pyfunction!(cohort_decision_bundle_recomputation_compile, module)?)?;
+    module.add_function(wrap_pyfunction!(cohort_decision_bundle_recomputation_consume, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_fit_decision_bundle_compile, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_fit_decision_bundle_consume, module)?)?;
     Ok(())

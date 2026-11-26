@@ -5,8 +5,10 @@
 #[doc(hidden)] pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn result_json(&self, result: &antecedent_design::decision_robust_artifact::ScenarioDecision) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn <antecedent_design::sequential_evaluation::FiniteSequentialModel>::fn identity_hex_v1(&self) -> alloc::string::String
 #[doc(hidden)] pub fn <antecedent_design::source_evidence::SourceEvidence>::fn original_consumption(&self) -> core::result::Result<&antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_design::source_evidence::SourceEvidenceError>
+#[doc(hidden)] pub fn antecedent_design::cohort_decision_input::cohort_mean_binding(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> alloc::string::String
 #[doc(hidden)] pub fn antecedent_design::composition_verifiers::projection_node_description(kind: antecedent_design::composition_bundle::NodeKind, artifact: &antecedent_design::source_projection_artifact::SourceProjectionArtifact, upstream: &[antecedent_design::composition_bundle::UpstreamNode<'_>]) -> core::result::Result<antecedent_design::composition_bundle::VerifiedNode, antecedent_design::composition_bundle::NodeFailure>
 #[doc(hidden)] pub fn antecedent_design::composition_verifiers::register_standard_verifiers(consumer: antecedent_design::composition_bundle::BundleConsumer) -> antecedent_design::composition_bundle::BundleConsumer
+#[doc(hidden)] pub fn antecedent_design::decision_artifact::bound_mean_result_to_bytes(result: &antecedent_design::decision_eval::DecisionResult, source_binding: &str, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_design::inverse_query_artifact::decode_parts(bytes: &[u8]) -> core::result::Result<(antecedent_design::inverse_query_artifact::InverseQueryMeta, alloc::vec::Vec<u8>, alloc::vec::Vec<u8>), antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_design::inverse_query_artifact::encode_parts(meta: &antecedent_design::inverse_query_artifact::InverseQueryMeta, contract: &[u8], data: &[u8], artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_design::sequential_evaluation_artifact::model_from_wire_body(wire: &antecedent_design::sequential_evaluation_artifact::ModelWire) -> core::result::Result<antecedent_design::sequential_evaluation::FiniteSequentialModel, antecedent_io_core::error::IoError>
@@ -49,6 +51,7 @@
 impl !core::marker::Send for antecedent_design::composition_bundle::BundleConsumer [auto]
 impl !core::marker::Sync for antecedent_design::composition_bundle::BundleConsumer [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::BundleConsumer [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiCandidate [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiRequest [auto]
@@ -60,6 +63,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::scientific_
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::PreparedLaw [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::PreparedSignal [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::BundleConsumer [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiCandidate [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiRequest [auto]
@@ -88,6 +92,7 @@ impl antecedent_design::RepairFamily for antecedent_design::TransportRepairFamil
 impl antecedent_design::RepairFamily for antecedent_design::ZTransportRepairFamily
 impl antecedent_design::Utility<usize, f64> for antecedent_design::AffineUtility
 impl antecedent_design::Utility<usize, f64> for antecedent_design::GridUtility
+impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DecisionContractVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DecisionResultVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DistributionVerifier
@@ -3738,6 +3743,7 @@ impl core::marker::Freeze for antecedent_design::composition_bundle::SuppliedPro
 impl core::marker::Freeze for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Freeze for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::ArtifactDescription [auto]
+impl core::marker::Freeze for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::DistributionVerifier [auto]
@@ -4629,6 +4635,7 @@ impl core::marker::Send for antecedent_design::composition_bundle::SuppliedProvi
 impl core::marker::Send for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Send for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::ArtifactDescription [auto]
+impl core::marker::Send for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::DistributionVerifier [auto]
@@ -6302,6 +6309,7 @@ impl core::marker::Sync for antecedent_design::composition_bundle::SuppliedProvi
 impl core::marker::Sync for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Sync for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::ArtifactDescription [auto]
+impl core::marker::Sync for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::DistributionVerifier [auto]
@@ -7194,6 +7202,7 @@ impl core::marker::Unpin for antecedent_design::composition_bundle::SuppliedProv
 impl core::marker::Unpin for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::marker::Unpin for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::ArtifactDescription [auto]
+impl core::marker::Unpin for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::DistributionVerifier [auto]
@@ -10218,7 +10227,7 @@ pub const <antecedent_design::StudyKind>::ALL: [Self; 6]
 pub const <antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises>::DECLARED: Self
 pub const <antecedent_design::composition_bundle::BundleStage>::ALL: [Self; 13]
 pub const <antecedent_design::composition_bundle::EvidenceRelationship>::ALL: [Self; 5]
-pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 34]
+pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 35]
 pub const <antecedent_design::decision_artifact::DecisionResultArtifact>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_design::decision_evidence::Stage>::ALL: [Self; 5]
 pub const <antecedent_design::decision_reliability::PublishedRoute>::ALL: [Self; 4]
@@ -10263,7 +10272,7 @@ pub const antecedent_design::composition_verifiers::TRUST_ATTESTED: &str
 pub const antecedent_design::composition_verifiers::TRUST_NATIVE: &str
 pub const antecedent_design::composition_verifiers::TRUST_UNVERIFIED: &str
 pub const antecedent_design::composition_verifiers::TRUST_VERIFIED: &str
-pub const antecedent_design::composition_verifiers::VERIFIABLE_KINDS: [antecedent_design::composition_bundle::NodeKind; 19]
+pub const antecedent_design::composition_verifiers::VERIFIABLE_KINDS: [antecedent_design::composition_bundle::NodeKind; 20]
 pub const antecedent_design::confounder_value::MAX_PRIOR_DRAWS: u64
 pub const antecedent_design::decision_artifact::MAX_DECISION_ARTIFACT_BYTES: usize
 pub const antecedent_design::decision_evidence::DELTA_METHOD_STATEMENT: &str
@@ -13837,6 +13846,7 @@ pub fn <antecedent_design::composition_bundle::NodeKind>::fn from_name(name: &st
 pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_data(self, snapshot_id: &str, digest: &str) -> Self
 pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_producer(self, role: &str, bytes: alloc::vec::Vec<u8>) -> Self
 pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_provider(self, provider_id: &str, snapshot_id: &str, request_fingerprint: &str) -> Self
+pub fn <antecedent_design::composition_verifiers::CohortDecisionSourceVerifier>::fn new(ctx: &antecedent_core::execution::context::ExecutionContext) -> Self
 pub fn <antecedent_design::decision_adapters::AdapterError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::decision_artifact::DecisionContractArtifact>::fn contract(&self) -> &antecedent_design::DecisionContract
 pub fn <antecedent_design::decision_artifact::DecisionContractArtifact>::fn from_bytes(bytes: &[u8], expected_identity: &str) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -14987,6 +14997,8 @@ pub struct antecedent_design::composition_bundle::SuppliedSources
 pub struct antecedent_design::composition_bundle::UpstreamNode<'a>
 pub struct antecedent_design::composition_bundle::VerifiedNode
 pub struct antecedent_design::composition_verifiers::ArtifactDescription
+pub struct antecedent_design::composition_verifiers::CohortDecisionSourceVerifier
+pub struct antecedent_design::composition_verifiers::CohortDecisionSourceVerifier has private fields
 pub struct antecedent_design::composition_verifiers::DecisionContractVerifier
 pub struct antecedent_design::composition_verifiers::DecisionResultVerifier
 pub struct antecedent_design::composition_verifiers::DistributionVerifier
@@ -16221,6 +16233,7 @@ pub variant antecedent_design::composition_bundle::EvidenceRelationship::Unknown
 pub variant antecedent_design::composition_bundle::NodeKind::AssessedBridgePosteriorFit
 pub variant antecedent_design::composition_bundle::NodeKind::Attestation
 pub variant antecedent_design::composition_bundle::NodeKind::CausalContract
+pub variant antecedent_design::composition_bundle::NodeKind::CohortDecisionSource
 pub variant antecedent_design::composition_bundle::NodeKind::CyclicPosteriorFit
 pub variant antecedent_design::composition_bundle::NodeKind::CyclicTargetFeedbackFit
 pub variant antecedent_design::composition_bundle::NodeKind::DecisionContract

@@ -3793,6 +3793,24 @@ status = "bound"
 python = "antecedent.composition_bundle.compile_decision_bundle_recomputation"
 
 [[entry]]
+rust = "antecedent::analysis::composition_cohort_decision::cohort_decision_bytes"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.cohort_decision"
+
+[[entry]]
+rust = "antecedent::analysis::composition_cohort_decision::compile_cohort_decision_bundle_recomputation"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.compile_cohort_decision_bundle_recomputation"
+
+[[entry]]
+rust = "antecedent::analysis::composition_cohort_decision::consume_portable_cohort_decision_bundle_recomputation"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.consume_bundle_recomputation"
+
+[[entry]]
 rust = "antecedent::analysis::composition_decision_terminal::compile_posterior_decision_bundle_recomputation"
 kind = "fn"
 status = "bound"

@@ -13853,6 +13853,25 @@ def decision_bundle_recomputation_consume(
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
 ) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
+def composition_cohort_decision(
+    contract_json: str,
+    source_bytes: bytes,
+    source_identity: str,
+    artifact_id: str,
+) -> tuple[bytes | None, str | None]: ...
+def cohort_decision_bundle_recomputation_compile(
+    bundle: CompositionBundle, terminal_node: str
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def cohort_decision_bundle_recomputation_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
 def predictive_fit_decision_bundle_compile(
     bundle: CompositionBundle,
     producer: str,

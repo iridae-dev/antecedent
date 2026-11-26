@@ -2449,6 +2449,27 @@ def _check_cohort_inverse(o: Objs) -> None:
 # -------------------------------------------------------------- bundle boundary (new rows)
 
 
+def _check_cohort_bundle(o: Objs) -> None:
+    source = o.cohort
+    contract = _cohort_contract(source)
+    assert cb.detect_kind(source) == "cohort_decision_source"
+    bundle = (
+        cb.Bundle.builder()
+        .add_artifact(source, node_id="cohort")
+        .add_artifact(contract, node_id="contract")
+        .add_artifact(cb.cohort_decision(contract, source), node_id="decision")
+        .connect("cohort", "decision")
+        .connect("contract", "decision")
+        .build()
+    )
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
+    assert consumed.all_replayed
+    assert consumed.value("cohort", "mean_contrast") == pytest.approx(2.225)
+    assert consumed.value("decision", "treat.expected_utility") == pytest.approx(7.4)
+
+
 def _check_no_bundle_node_kind(producer: str, o: Objs) -> None:
     """The producer's artifact is not a bundle node kind, whatever kind it is offered as."""
     payload = _bundle_payload(producer, o)
@@ -3475,6 +3496,7 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("counterfactual_transport_result", "inverse_query"): _check_transport_inverse,
     ("cohort_decision_source", "decision"): _check_cohort_decision,
     ("cohort_decision_source", "inverse_query"): _check_cohort_inverse,
+    ("cohort_decision_source", "bundle_node"): _check_cohort_bundle,
     ("decision_reliability_report", "decision"): _check_reliability_decision,
     ("decision_reliability_report", "inverse_query"): _check_reliability_inverse,
     ("observation_query_claim", "decision"): _check_observation_decision,
@@ -3502,7 +3524,6 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
         "composed_model",
         "evidence_ledger",
         "counterfactual_transport_result",
-        "cohort_decision_source",
         "decision_reliability_report",
         "adaptive_monitoring_contract",
         "adaptive_inference_result",
@@ -3546,8 +3567,8 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     cells = [status for row in STATUS.values() for status in row]
     assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 280
     assert cells.count("DIRECT") == 21
-    assert cells.count("ADAPTER") == 62
-    assert cells.count("REFUSED") == 197
+    assert cells.count("ADAPTER") == 63
+    assert cells.count("REFUSED") == 196
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:

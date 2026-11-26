@@ -365,6 +365,13 @@ fixtures = []
 why = "The moving-block bootstrap's one hundred whole-chain reruns replay independently, a changed block design changes the program identity and an invalid block length is refused. This source assertion is unearned and the interval remains not_measured."
 
 [[test]]
+evidence_test = "crates/antecedent/tests/composition_cohort_decision.rs"
+evidence_assertion = "inherited_cohort_bundle_replays_affine_decision_and_reweights"
+kind = "reference"
+fixtures = []
+why = "A fitted linear contrast under two declared cohort weight vectors has hand-computed means 2.225 and 1.675. The affine utility changes the preferred action, and both the direct evaluator and the compiled bundle reproduce that change."
+
+[[test]]
 evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
 evidence_assertion = "matched_trial_validation_and_bridge_decision_replay_together"
 kind = "reference"

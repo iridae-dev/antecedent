@@ -1096,8 +1096,8 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 [[cell]]
 producer = "cohort_decision_source"
 consumer = "bundle_node"
-status = "REFUSED"
-detail = "no node kind: the `cohort_decision_source_v1` container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the bundle accepts the export protocol but refuses this unsupported scientific node kind"
+status = "ADAPTER"
+detail = "The validating reader replays the model, rows and weights of a `cohort_decision_source` node. `composition_bundle.cohort_decision` packages an affine result bound to the full source identity. The compiled bundle recomputes the decision under the retained graph and program identities. Law-valued contracts refuse `composition_bundle.unsupported_law`."
 
 [[cell]]
 producer = "cohort_decision_source"

@@ -68,7 +68,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from inspect import signature as _signature
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, cast
 
 from antecedent import _reason_details
 
@@ -101,6 +101,7 @@ if TYPE_CHECKING:
     from .graph_imputation_decision import GraphImputationDecisionArtifact
 
 if TYPE_CHECKING:
+    from .cohort_decision import CohortDecisionSource
     from .decision_reliability import SequentialPolicyReliability
 
 _UNSET: Any = object()
@@ -127,6 +128,7 @@ NodeKind = Literal[
     "quantity_coordinates",
     "support_trust_calibration",
     "distribution",
+    "cohort_decision_source",
     "transformation",
     "decision_contract",
     "decision_result",
@@ -175,6 +177,7 @@ NODE_KINDS: tuple[str, ...] = (
     "quantity_coordinates",
     "support_trust_calibration",
     "distribution",
+    "cohort_decision_source",
     "transformation",
     "decision_contract",
     "decision_result",
@@ -198,6 +201,7 @@ EMBEDDABLE_KINDS: tuple[str, ...] = (
     "external_claim",
     "evidence_relationship",
     "distribution",
+    "cohort_decision_source",
     "decision_contract",
     "decision_result",
     "sensitivity",
@@ -236,7 +240,11 @@ PREDICTIVE_FIT_KINDS: tuple[str, ...] = (
     "assessed_bridge_posterior_fit",
 )
 RecomputationRoute = Literal[
-    "chain", "predictive_decision", "posterior_decision", "predictive_fit_decision"
+    "chain",
+    "predictive_decision",
+    "posterior_decision",
+    "cohort_decision",
+    "predictive_fit_decision",
 ]
 """The terminal a :class:`CompiledBundleRecomputation` executes live: a propagation chain, a
 decision result scored on a predictive law or on a parameter posterior, or a predictive producer
@@ -246,6 +254,7 @@ RECOMPUTATION_ROUTES: tuple[str, ...] = (
     "chain",
     "predictive_decision",
     "posterior_decision",
+    "cohort_decision",
     "predictive_fit_decision",
 )
 STAGES: tuple[str, ...] = (
@@ -1419,6 +1428,35 @@ def detect_kind(data: object) -> str | None:
     return _native.composition_detect_kind(_bytes(data))
 
 
+def cohort_decision(
+    contract: Contract,
+    source: CohortDecisionSource,
+    *,
+    artifact_id: str = "cohort-affine-decision",
+) -> bytes:
+    """Export a supported affine decision bound to the complete cohort source.
+
+    Connect the result node to both the cohort source and its decision contract.
+    A law-valued contract or a coordinate outside the support of the cohort refuses.
+    """
+    from .cohort_decision import CohortDecisionSource
+
+    contract = require_success(contract)
+    source = require_success(source)
+    if not isinstance(contract, Contract):
+        raise CausalTypeError("contract must be a decision.Contract")
+    if not isinstance(source, CohortDecisionSource):
+        raise CausalTypeError("source must be a CohortDecisionSource")
+    return cast(
+        bytes,
+        _recomputed(
+            _native.composition_cohort_decision(
+                json.dumps(contract._wire()), _bytes(source), source.identity, artifact_id
+            )
+        ),
+    )
+
+
 # ------------------------------------------------------------------- recomputation
 
 
@@ -1679,6 +1717,24 @@ def compile_decision_bundle_recomputation(
 
 
 @outcome_operation
+def compile_cohort_decision_bundle_recomputation(
+    bundle: Bundle, terminal: str
+) -> CompiledBundleRecomputation:
+    """Compile an affine decision from its embedded cohort source and contract.
+
+    The terminal must have direct edges from a cohort source and a decision contract.
+    The program replays the weighted mean and evaluates the decision when executed.
+    """
+    built = _bundle(bundle)
+    handle = _recomputed(
+        _native.cohort_decision_bundle_recomputation_compile(
+            built._native, _node(terminal, "terminal")
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
 def compile_predictive_fit_decision_bundle(
     bundle: Bundle,
     *,
@@ -1898,6 +1954,14 @@ def consume_bundle_recomputation(
             expected_program,
             **controls,
         )
+    elif route == "cohort_decision":
+        pair = policy._call(
+            _native.cohort_decision_bundle_recomputation_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            **controls,
+        )
     else:
         pair = policy._call(
             _native.decision_bundle_recomputation_consume,
@@ -2007,6 +2071,8 @@ __all__ = [
     "Verified",
     "compile_chain_bundle_recomputation",
     "compile_decision_bundle_recomputation",
+    "compile_cohort_decision_bundle_recomputation",
+    "cohort_decision",
     "compile_predictive_fit_decision_bundle",
     "compile_sequential_reliability_node_bundle",
     "consume_bundle",
