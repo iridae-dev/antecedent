@@ -666,7 +666,7 @@ mod depth_tests {
         let width = u32::try_from(limit + 1).unwrap();
         let mut pag = Pag::with_variables(width);
         for index in 1..width {
-            pag.insert_marked(MarkedEdge {
+            pag.insert_marked(antecedent_graph::MarkedEdge {
                 a: DenseNodeId::from_raw(index - 1),
                 b: DenseNodeId::from_raw(index),
                 at_a: Endpoint::Tail,
