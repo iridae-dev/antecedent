@@ -410,7 +410,9 @@ impl LongitudinalRegimeQuery {
                     && contrasts & (1 << reference) == 0
                     && self.regime_actions[..2] == [reference & 2 != 0, reference & 1 != 0]
             }
-            LongitudinalScheduleTarget::Learn { .. } => false,
+            LongitudinalScheduleTarget::Learn { training_fold } => {
+                fitted_fold_ownership(&self.fold_ids, Some(training_fold))
+            }
         }
     }
 }

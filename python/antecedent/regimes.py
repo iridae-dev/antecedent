@@ -1463,8 +1463,10 @@ def trajectory_hazard_credible_interval(
 __all__ = [
     "FittedRegimeQ",
     "FixedScheduleContrasts",
+    "LearnedScheduleClass",
     "LongitudinalScheduleResult",
     "ScheduleContrast",
+    "ScheduleLearningResult",
     "TrajectorySurvivalIntervals",
     "trajectory_hazard_credible_interval",
     "trajectory_survival_bootstrap",

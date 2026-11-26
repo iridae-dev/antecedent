@@ -54,3 +54,20 @@ def test_paired_longitudinal_comparisons_replay_and_bind_the_class():
     assert ant.prepare(data, query=smaller).plan_view().identity != prepared.plan_view().identity
 
 
+@pytest.mark.parametrize("means,selected,optima", [
+    ((1.0, 2.0, 3.0, 10.0), 3, (3,)),
+    ((1.0, 2.0, 10.0, 10.0), 2, (2, 3)),
+])
+def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selected, optima):
+    declaration = LearnedScheduleClass(SCHEDULES, training_fold=0, draws=199)
+    data, query = _study(means, declaration)
+    result = require_success(ant.analyze(data, query=query))
+    fit = result.longitudinal_regime
+    selected_fit = fit.schedule_family.learning
+    assert selected_fit.selected_schedule == selected
+    assert selected_fit.optimum_set == optima
+    assert sum(count for _, count in selected_fit.refit_selections) == 199
+    assert fit.value_interval_95[0] <= means[selected] <= fit.value_interval_95[1]
+    artifact = require_success(ant.load(bytes(result.export(source_data=data)))).replay()
+    assert artifact.acceptance.replayed
+    assert artifact.decoded_artifact.payload["longitudinal_regime"]["schedule_family"]["learning"]["optimum_set"] == list(optima)

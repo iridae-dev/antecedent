@@ -132,3 +132,64 @@ fn simultaneous_schedule_intervals_use_paired_subject_scores_and_bound_the_contr
     );
 }
 
+#[test]
+fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajectory_support() {
+    let target = LongitudinalScheduleTarget::Learn { training_fold: 0 };
+    let ctx = ExecutionContext::for_tests(409);
+    for (means, want, set) in
+        [([1.0, 2.0, 3.0, 10.0], 3, vec![3]), ([1.0, 2.0, 10.0, 10.0], 2, vec![2, 3])]
+    {
+        let (table, query, outcomes) = fixture(means, target);
+        let prepared = compiled(&table, query, &ctx);
+        let result = prepared.estimate(&table, &ctx).unwrap();
+        let fit = result.longitudinal_regime().unwrap();
+        let learned = fit.schedule_family.as_ref().unwrap().learning.as_ref().unwrap();
+        assert_eq!(learned.selected_schedule, want);
+        assert_eq!(learned.optimum_set, set);
+        let bounds = fit.value_interval_95.unwrap();
+        assert!(bounds[0] <= 10.0 && 10.0 <= bounds[1]);
+        assert_eq!(learned.refit_selections.iter().map(|(_, n)| *n).sum::<usize>(), DRAWS as usize);
+        let sourced = prepared
+            .encode_contracted_result_with_source(&result, &table, "learned-schedule", &ctx)
+            .unwrap();
+        let replay = antecedent_io::replay_analysis_result(&sourced).unwrap();
+        assert!(replay.acceptance.accepts_as_claim(), "{:?}", replay.acceptance.unresolved);
+        assert_eq!(
+            replay.body.longitudinal_regime.as_ref().unwrap().schedule_family.as_ref(),
+            fit.schedule_family.as_ref()
+        );
+        if want == 3 {
+            let revised: Vec<_> = outcomes
+                .iter()
+                .enumerate()
+                .map(|(i, &y)| if i / 4 % 2 == 0 && i % 4 == 0 { y + 30.0 } else { y })
+                .collect();
+            let revised = TabularData::from_f64_columns([("outcome", revised.as_slice())]).unwrap();
+            assert!(
+                prepared
+                    .encode_contracted_result_with_source(&result, &revised, "swapped", &ctx)
+                    .is_err()
+            );
+            let revised_stage =
+                prepared.rebind_data(revised, &ctx).unwrap().materialize(&ctx).unwrap();
+            let revised_result = revised_stage.estimate_retained(&ctx).unwrap();
+            let revised = revised_result.longitudinal_regime().unwrap();
+            let learning = revised.schedule_family.as_ref().unwrap().learning.as_ref().unwrap();
+            assert_eq!(learning.selected_schedule, 0);
+            assert_eq!(learning.optimum_set.as_slice(), &[3]);
+            assert!((revised.value - 1.0).abs() < 0.01);
+        }
+    }
+    let (table, mut query, _) = fixture([1.0, 2.0, 3.0, 10.0], target);
+    let rows = Arc::make_mut(&mut query.treatment_history);
+    for actions in rows.chunks_exact_mut(2).skip(3).step_by(4) {
+        actions[1] = false;
+    }
+    let error = compiled(&table, query, &ctx).estimate(&table, &ctx).unwrap_err();
+    assert!(matches!(
+        error.peeled(),
+        antecedent::CausalError::Estimate(antecedent_estimate::EstimationError::Stats(
+            antecedent_stats::StatsError::Unsupported { .. }
+        ))
+    ));
+}

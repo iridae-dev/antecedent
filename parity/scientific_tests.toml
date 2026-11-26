@@ -3626,3 +3626,10 @@ evidence_assertion = "simultaneous_schedule_intervals_use_paired_subject_scores_
 kind = "reference"
 fixtures = []
 why = "The reference expands each paired subject score and explicitly recomputes the maximum-t distribution and endpoints on common multipliers. Removing a candidate changes the program identity. The bundled interval replays against the original endpoint table."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/longitudinal_schedule_route.rs"
+evidence_assertion = "learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajectory_support"
+kind = "known_truth"
+fixtures = []
+why = "Balanced two-decision data have either a unique best schedule or a known optimal tie. The honest training rule selects the smaller tied schedule code and the complete-class confidence set contains both tied optima. Known support failure refuses, and source replay reproduces the training, evaluation, and bootstrap selection counts."

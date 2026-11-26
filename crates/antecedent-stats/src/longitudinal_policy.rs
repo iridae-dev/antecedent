@@ -297,7 +297,6 @@ fn refit_values(
 /// The selected-value interval is conditional on the trained schedule. The optimum confidence
 /// set uses simultaneous evaluation of every pair in the declared class, including tied policies.
 /// Separate whole-procedure refits describe training variability, including changes in selection.
-#[doc(hidden)]
 pub fn learn_longitudinal_schedule(
     treatments: &[bool],
     outcomes: &[f64],

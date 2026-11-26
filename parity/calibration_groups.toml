@@ -15429,3 +15429,19 @@ target = "longitudinal_schedule_calibration"
 tests = ["fixed_longitudinal_schedule_family_joint_coverage"]
 ignored = true
 grid = true
+
+[[group]]
+label = "longitudinal_schedule_calibration: learned_longitudinal_schedule_unique_optimum_coverage"
+package = "antecedent"
+target = "longitudinal_schedule_calibration"
+tests = ["learned_longitudinal_schedule_unique_optimum_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "longitudinal_schedule_calibration: learned_longitudinal_schedule_tied_optima_coverage"
+package = "antecedent"
+target = "longitudinal_schedule_calibration"
+tests = ["learned_longitudinal_schedule_tied_optima_coverage"]
+ignored = true
+grid = true

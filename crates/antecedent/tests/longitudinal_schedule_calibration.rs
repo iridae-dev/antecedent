@@ -13,7 +13,7 @@ use antecedent_core::{
 };
 use antecedent_data::TabularData;
 use common::calibration::{
-    CoverageTally, REPORTED_LEVEL, RecordKey, gaussian, grid_n, map_replicates,
+    CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, gaussian, grid_n, map_replicates,
     n_sim, uniform,
 };
 use common::calibration_bind::{bind_reported, constructions};
@@ -114,3 +114,79 @@ fn fixed_longitudinal_schedule_family_joint_coverage() {
     tally.assert();
 }
 
+fn learned_coverage(test: &'static str, dgp: &'static str, means: [f64; 4], true_optima: &[u8]) {
+    let subjects = grid_n(800);
+    let observations = map_replicates(n_sim(), |seed| {
+        let (prepared, result) = evaluate(
+            subjects,
+            means,
+            LongitudinalScheduleTarget::Learn { training_fold: 0 },
+            seed ^ 0x5320_1020,
+        );
+        let fit = result.longitudinal_regime().unwrap();
+        let family = fit.schedule_family.as_ref().unwrap();
+        let learning = family.learning.as_ref().unwrap();
+        let mut maximum = 0.0_f64;
+        for contrast in &family.contrasts {
+            if true_optima.contains(&contrast.schedule) {
+                maximum = maximum.max(-contrast.difference / contrast.standard_error);
+            }
+            if true_optima.contains(&contrast.reference) {
+                maximum = maximum.max(contrast.difference / contrast.standard_error);
+            }
+        }
+        assert_eq!(
+            maximum <= family.critical_value,
+            true_optima.iter().all(|optimum| learning.optimum_set.contains(optimum))
+        );
+        let reported = constructions(&prepared.contract_for_result(&result).unwrap(), &result);
+        (
+            fit.value_interval_95.unwrap(),
+            means[learning.selected_schedule as usize],
+            family.critical_value,
+            maximum,
+            reported,
+        )
+    });
+    let mut selected =
+        CoverageTally::for_record(RecordKey { test, dgp, interval: "analytic_se" }, REPORTED_LEVEL)
+            .labelled("selected_value");
+    let mut optima = CoverageTally::for_record(
+        RecordKey { test, dgp, interval: "simultaneous_band" },
+        REPORTED_LEVEL,
+    )
+    .labelled("all_true_optima");
+    for ([lower, upper], truth, critical, maximum, reported) in observations {
+        bind_reported(&mut selected, &reported);
+        selected.record(Some((lower, upper)), truth);
+        bind_reported(&mut optima, &reported);
+        optima.record(Some((0.0, critical)), maximum);
+    }
+    selected.assert();
+    optima.assert_one_sided(
+        CoverageSide::Upper,
+        "every_true_optimal_schedule_is_in_the_reported_set",
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn learned_longitudinal_schedule_unique_optimum_coverage() {
+    learned_coverage(
+        "learned_longitudinal_schedule_unique_optimum_coverage",
+        "independent_fair_coin_decisions_unique_optimal_gaussian_schedule",
+        [1.0, 2.0, 3.0, 5.0],
+        &[3],
+    );
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn learned_longitudinal_schedule_tied_optima_coverage() {
+    learned_coverage(
+        "learned_longitudinal_schedule_tied_optima_coverage",
+        "independent_fair_coin_decisions_tied_optimal_gaussian_schedules",
+        [1.0, 2.0, 5.0, 5.0],
+        &[2, 3],
+    );
+}

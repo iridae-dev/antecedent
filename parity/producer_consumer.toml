@@ -2863,8 +2863,20 @@ detail = "The bundle replays the paired score contrasts and their common multipl
 evidence_test = "crates/antecedent/tests/longitudinal_schedule_route.rs"
 evidence_assertion = "simultaneous_schedule_intervals_use_paired_subject_scores_and_bound_the_contrast_family"
 
+[[rust_cell]]
+producer = "learned_two_decision_schedule"
+consumer = "longitudinal_interval_replay"
+status = "DIRECT"
+detail = "Replay reruns training selection, held-out value estimation, all class comparisons, and whole-subject refit selection counts. The optimum set covers tied schedules by the same rule used for a unique optimum."
+evidence_test = "crates/antecedent/tests/longitudinal_schedule_route.rs"
+evidence_assertion = "learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajectory_support"
 
 [[rust_producer]]
 key = "fixed_two_decision_schedule_contrasts"
 object = "simultaneous fixed-schedule contrasts from common subject scores"
 built_from = "`LongitudinalRegimeMethod::ScheduleFamily` with a fixed reference and contrast subset"
+
+[[rust_producer]]
+key = "learned_two_decision_schedule"
+object = "honestly selected schedule value, whole-procedure refit diagnostics and complete-class optimum confidence set"
+built_from = "`LongitudinalRegimeMethod::ScheduleFamily` with a declared training fold and static action class"
