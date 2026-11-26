@@ -3654,3 +3654,24 @@ evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_termin
 kind = "reference"
 fixtures = []
 why = "An eight-cell rational oracle checks the target utility of each schedule under each structural/preference state, including an exact tie. The compiled route reproduces the final joint optimum set and rejects replaced or disconnected target evidence."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/patient_surrogate.rs"
+evidence_assertion = "equal_trial_and_joint_arm_summaries_allow_opposite_individual_surrogate_answers"
+kind = "known_truth"
+fixtures = []
+why = "Two explicit monotone patient populations have identical observed joint distributions in both arms. Benefit among surrogate improvers is zero in one and one in the other, attaining both reported bounds."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/patient_surrogate.rs"
+evidence_assertion = "identified_set_bridge_requires_the_replayed_patient_bounds"
+kind = "reference"
+fixtures = []
+why = "The affine utility endpoints follow from the sharp patient bounds. Changing the lower endpoint while retaining its source identity causes the dependent bridge node to fail verification."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/rpcmci_regime_learning.rs"
+evidence_assertion = "portable_shared_series_replays_and_accepts_explicit_regimes"
+kind = "known_truth"
+fixtures = ["conformance/discovery/rpcmci_shared_portable.json"]
+why = "Two known regimes have opposite directed lag effects. Compare the estimated assignments up to label permutation and check both graph directions after portable replay and explicit regime selection."
