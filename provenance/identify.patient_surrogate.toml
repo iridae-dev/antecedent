@@ -1,0 +1,19 @@
+feature_id = "identify.patient_surrogate"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+  { title = "Principal Stratification in Causal Inference", authors = ["Constantine E. Frangakis", "Donald B. Rubin"], year = 2002, doi = "10.1111/j.0006-341x.2002.00021.x", url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC4137767/", sections = ["principal stratification", "surrogate outcomes"] },
+]
+implementation_deviations = [
+  "The target is the probability of terminal benefit among patients whose binary surrogate would improve under treatment. The implementation derives bounds directly from the capacity constraints of the monotone 4-by-4 potential endpoint table.",
+  "The scientific identified set is conditional on declared exact population arm joint laws and identification premises. Empirical sample frequencies have a distinct reported reading and cannot license a population threshold decision. There is no coverage claim.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-identify/src/principal_surrogate.rs",
+  "crates/antecedent/tests/patient_surrogate.rs",
+  "python/tests/test_patient_surrogate.py",
+]

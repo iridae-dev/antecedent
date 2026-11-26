@@ -41,6 +41,7 @@ pub mod fitted_mechanism_transport;
 pub mod learned_joint_transport;
 pub mod measured_exposure_effect;
 pub mod nested_markov;
+pub mod patient_surrogate;
 pub mod policy_transport;
 pub mod power_prior_selection;
 pub mod prior_composition;
@@ -62,6 +63,8 @@ pub(crate) enum KernelRealization {
     Posterior,
     /// An exact evaluation of an identified functional of the declared input.
     Exact,
+    /// A sharp compatibility set or its empirical counterpart.
+    PartialIdentification,
 }
 
 /// The fixed shape of one kernel program family.
@@ -135,7 +138,7 @@ pub(crate) fn lower(
         KernelRealization::Posterior => {
             Realization::DeclaredPosterior { evaluator: Arc::from(shape.evaluator) }
         }
-        KernelRealization::Exact => {
+        KernelRealization::Exact | KernelRealization::PartialIdentification => {
             Realization::ExactPoint { evaluator: Arc::from(shape.evaluator) }
         }
     };
@@ -162,7 +165,12 @@ pub(crate) fn lower(
         .estimates(ByteEstimates::absent().with_output(canonical.len() as u64))
         .build()
         .map_err(|_| invalid(shape, "invalid read operator"))?;
-    let fit = PhysicalOperator::declare(PhysicalEffect::Fit)
+    let effect = if shape.realization == KernelRealization::PartialIdentification {
+        PhysicalEffect::Condition
+    } else {
+        PhysicalEffect::Fit
+    };
+    let fit = PhysicalOperator::declare(effect)
         .build()
         .map_err(|_| invalid(shape, "invalid fit operator"))?;
     let physical = PhysicalLayer { operators: Arc::from([read, fit]), design };
@@ -173,7 +181,12 @@ pub(crate) fn lower(
         statistical,
         evidence,
         physical,
-        claim: ClaimDemand { uncertainty: shape.uncertainty, kind: None },
+        claim: ClaimDemand {
+            uncertainty: shape.uncertainty,
+            kind: (shape.realization == KernelRealization::PartialIdentification
+                && shape.uncertainty == UncertaintyReading::Envelope)
+                .then_some(antecedent_contract::ClaimKind::Bounds),
+        },
     }
     .finish())
 }

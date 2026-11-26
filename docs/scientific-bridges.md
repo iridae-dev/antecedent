@@ -375,3 +375,41 @@ law, no associational claim as a source, no truncation or extrapolation of draws
 outside a mapping's validated range, no calibration of a model score, no individual-level
 surrogacy, no extrapolation of a trial-level relationship beyond the validated
 range, no differential measurement error without the claim's arm.
+
+## Patient-level surrogate identification
+
+A parallel randomized trial can identify an interval for the probability of terminal benefit among patients whose binary surrogate would improve with treatment. The endpoints must both be observed for each patient. The patient-level target requires consistency, no interference, positive individual random assignment, complete follow-up, and monotonicity of the surrogate. Under monotonicity the difference in surrogate prevalence identifies the proportion of improvers, which must be positive. The calculation uses the within-arm joint distributions of the surrogate and terminal endpoint. Even identical joint arm distributions can allow distinct probabilities of individual terminal benefit.
+
+```python
+from antecedent.outcomes import require_success
+from antecedent.patient_surrogate import (
+    PatientSurrogateDesign,
+    PopulationJointSurrogateLaw,
+    compile_patient_surrogate,
+)
+
+design = PatientSurrogateDesign(
+    trial_id="adjunct-study",
+    population="enrolled-adults",
+    surrogate="early_response",
+    outcome="terminal_benefit",
+    surrogate_visit=1,
+    outcome_visit=4,
+    control="standard",
+    treatment="adjunct",
+    consistency_and_no_interference=True,
+    randomized_exchangeability=True,
+    complete_joint_follow_up=True,
+    monotone_surrogate=True,
+)
+law = PopulationJointSurrogateLaw("declared-joint-laws", (3, 0, 1, 0), (0, 0, 1, 3))
+plan = require_success(compile_patient_surrogate(design, law))
+result = require_success(plan.execute())
+assert result.bounds == (2 / 3, 1.0)
+assert require_success(result.decide(2, 3)).reading == "all_at_or_above"
+assert require_success(result.decide(4, 5)).reading == "ambiguous"
+```
+
+For the declared exact arm laws the whole interval comprises compatible population values. The exact-rational comparison includes equality at a threshold. Complete finite patient rows yield empirical plug-in bounds, which require additional sampling inference before they can support a population decision. A portable export preserves the named trial, its premises and joint evidence together with the bounds and program identity.
+
+[Frangakis and Rubin, Principal Stratification in Causal Inference](https://pmc.ncbi.nlm.nih.gov/articles/PMC4137767/)

@@ -75,6 +75,7 @@ pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     super::intrinsic_influence_api::register(m)?;
     super::file_source_api::register(m)?;
     super::pag_completion_api::register(m)?;
+    super::patient_surrogate_api::register(m)?;
     super::cohort_pushdown_api::register(m)?;
     super::discovered_transport_trial_api::register(m)?;
     super::finite_discrete_api::register(m)?;

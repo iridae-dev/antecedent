@@ -14253,3 +14253,62 @@ def sequential_reliability_bundle_consume(
     seed: int = 1,
     cancel: CancellationToken | None = None,
 ) -> tuple[str | None, str | None]: ...
+
+class PatientSurrogateResultHandle:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def source_identity(self) -> str: ...
+    @property
+    def reading(self) -> str: ...
+    @property
+    def bounds(self) -> tuple[float, float]: ...
+    @property
+    def exact_bounds(self) -> tuple[int, int, int]: ...
+    @property
+    def improver_probability(self) -> float: ...
+    def quantity_json(self) -> str: ...
+    def point(self) -> tuple[float | None, str | None]: ...
+    def decide(self, numerator: int, denominator: int) -> tuple[str | None, str | None]: ...
+
+class PatientSurrogatePlanHandle:
+    @property
+    def program_identity(self) -> str: ...
+    def plan_view_json(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[PatientSurrogateResultHandle | None, str | None]: ...
+    def export(
+        self,
+        artifact_id: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[bytes | None, str | None]: ...
+
+def patient_surrogate_compile(
+    request: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[PatientSurrogatePlanHandle | None, str | None]: ...
+def patient_surrogate_consume(
+    data: bytes,
+    expected_program: str,
+    expected_result: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[PatientSurrogateResultHandle | None, str | None]: ...

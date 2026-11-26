@@ -37,6 +37,8 @@ pub use antecedent_design::composition_verifiers::{
 pub use antecedent_design::decision_artifact::mean_result_to_bytes;
 
 use super::composition_counterfactual_transport as counterfactual_bundle;
+#[path = "composition_patient_surrogate.rs"]
+mod patient_surrogate;
 use super::propagation_chain::{PropagationChainPlan, compile_propagation_chain};
 use super::scientific_bridge::{
     PreparedScientificBridgeDistribution, ScientificBridgeRefusal,
@@ -117,6 +119,8 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
 pub fn describe_artifact(kind: NodeKind, bytes: &[u8]) -> Result<ArtifactDescription, NodeFailure> {
     if kind == NodeKind::CounterfactualTransportResult {
         counterfactual_bundle::describe(bytes, &ExecutionContext::production_default(0))
+    } else if kind == NodeKind::PatientSurrogateIdentification {
+        patient_surrogate::describe(bytes, &ExecutionContext::production_default(0))
     } else {
         antecedent_design::composition_verifiers::describe_artifact(kind, bytes)
     }
@@ -149,6 +153,7 @@ pub fn standard_consumer() -> BundleConsumer {
 fn standard_consumer_with_context(ctx: &ExecutionContext) -> BundleConsumer {
     antecedent_design::composition_verifiers::standard_consumer()
         .register(Box::new(counterfactual_bundle::CounterfactualTransportVerifier(ctx.clone())))
+        .register(Box::new(patient_surrogate::PatientSurrogateVerifier(ctx.clone())))
 }
 
 

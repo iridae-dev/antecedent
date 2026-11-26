@@ -18813,3 +18813,51 @@ id = "longitudinal_joint_sensitivity.identity"
 family = "longitudinal_joint_sensitivity"
 codes = ["invalid_argument"]
 meaning = "The portable program, source or replayed result differs from the expected identities."
+
+[[detail]]
+id = "patient_surrogate.declaration"
+family = "patient_surrogate"
+codes = ["invalid_argument"]
+meaning = "The patient design, joint endpoint evidence or exact decision threshold is malformed."
+
+[[detail]]
+id = "patient_surrogate.empty_stratum"
+family = "patient_surrogate"
+codes = ["invalid_argument"]
+meaning = "The joint arm laws identify zero probability of a surrogate improver."
+
+[[detail]]
+id = "patient_surrogate.monotonicity"
+family = "patient_surrogate"
+codes = ["invalid_argument"]
+meaning = "The treatment-arm surrogate prevalence contradicts the declared monotonicity."
+
+[[detail]]
+id = "patient_surrogate.unsupported_reading"
+family = "patient_surrogate"
+codes = ["route_not_supported"]
+meaning = "The supplied evidence provides no verified population point or threshold comparison."
+
+[[detail]]
+id = "patient_surrogate.replay"
+family = "patient_surrogate"
+codes = ["invalid_argument"]
+meaning = "The retained evidence or readout does not replay under the expected identities."
+
+[[detail]]
+id = "patient_surrogate.resource"
+family = "patient_surrogate"
+codes = ["route_not_supported"]
+meaning = "The declared patient evidence or workspace exceeds the admitted resource bound."
+
+[[detail]]
+id = "patient_surrogate.cancelled"
+family = "patient_surrogate"
+codes = ["cancelled_no_claim"]
+meaning = "The patient surrogate operation was cancelled before verification finished."
+
+[[detail]]
+id = "patient_surrogate.not_supported"
+family = "patient_surrogate"
+codes = ["route_not_supported"]
+meaning = "The patient surrogate route is unavailable under the release support policy."

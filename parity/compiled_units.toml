@@ -147,6 +147,12 @@ unit = "composition.bundle"
 entry = { rust = "crates/antecedent/src/analysis/composition_decision_terminal.rs", python = "python/antecedent/composition_bundle.py" }
 
 [[route]]
+lowering = "PatientSurrogateIdentification"
+unit_kind = "capability"
+unit = "identify.patient_surrogate"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/patient_surrogate.rs", python = "python/antecedent/patient_surrogate.py" }
+
+[[route]]
 lowering = "BridgeBundleRecomputation"
 unit_kind = "capability"
 unit = "composition.bundle"

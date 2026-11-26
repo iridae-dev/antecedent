@@ -27650,3 +27650,10 @@ crate = "antecedent"
 cargo_target = "lib"
 path = "crates/antecedent/src/planner/lowered/site_tests.rs"
 gates = ["inventory", "named"]
+
+[[test]]
+id = "patient-surrogate"
+crate = "antecedent"
+cargo_target = "patient_surrogate"
+path = "crates/antecedent/tests/patient_surrogate.rs"
+gates = ["inventory"]

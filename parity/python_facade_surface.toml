@@ -5976,3 +5976,15 @@ rust = "antecedent::estimate::longitudinal_regime::evaluate_sequential_dr_value"
 kind = "fn"
 status = "bound"
 python = "native:python/src/regimes_api.rs"
+
+[[entry]]
+rust = "antecedent::analysis::kernel_programs::patient_surrogate::CompiledPatientSurrogate"
+kind = "type"
+status = "bound"
+python = "antecedent.patient_surrogate.CompiledPatientSurrogate"
+
+[[entry]]
+rust = "antecedent::analysis::kernel_programs::patient_surrogate::consume_patient_surrogate"
+kind = "fn"
+status = "bound"
+python = "antecedent.patient_surrogate.consume_patient_surrogate"

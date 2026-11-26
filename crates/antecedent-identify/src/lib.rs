@@ -60,6 +60,7 @@ pub mod recovery;
 pub mod recovery_chain;
 pub mod response;
 pub(crate) mod response_id;
+pub mod principal_surrogate;
 pub mod response_intervention;
 pub mod result;
 pub(crate) mod selection_separation;

@@ -181,6 +181,7 @@ mod observational_interference_api;
 mod observational_policy_api;
 mod observational_survival_api;
 mod pag_completion_api;
+mod patient_surrogate_api;
 mod planning_api;
 mod policy_api;
 mod policy_reliability_api;

@@ -59,6 +59,8 @@ pub enum NodeKind {
     DelayedEntryIncidenceResult,
     /// A simultaneous delayed-entry difference band replayed on its subject table.
     DelayedEntrySurvivalBandResult,
+    /// Sharp patient-level surrogate identification or its empirical plug-in readout.
+    PatientSurrogateIdentification,
     /// An exact finite-law or sampled plug-in counterfactual transport point.
     CounterfactualTransportResult,
     /// A verified compact model that evaluates its retained prediction basis.
@@ -121,6 +123,7 @@ named_variants! {
         Distribution => "distribution",
         DelayedEntryIncidenceResult => "delayed_entry_incidence_result",
         DelayedEntrySurvivalBandResult => "delayed_entry_survival_band_result",
+        PatientSurrogateIdentification => "patient_surrogate_identification",
         CounterfactualTransportResult => "counterfactual_transport_result",
         CompactFittedEffectModel => "compact_fitted_effect_model",
         CohortDecisionSource => "cohort_decision_source",
@@ -161,6 +164,7 @@ impl NodeKind {
             | Self::Distribution
             | Self::DelayedEntryIncidenceResult
             | Self::DelayedEntrySurvivalBandResult
+            | Self::PatientSurrogateIdentification
             | Self::CounterfactualTransportResult
             | Self::CompactFittedEffectModel
             | Self::CohortDecisionSource
@@ -192,6 +196,7 @@ impl NodeKind {
             Self::QuantityCoordinates
             | Self::DelayedEntryIncidenceResult
             | Self::DelayedEntrySurvivalBandResult
+            | Self::PatientSurrogateIdentification
             | Self::CounterfactualTransportResult
             | Self::DecisionResult
             | Self::Sensitivity

@@ -1698,3 +1698,7 @@ path = "tests/standing_route_calibration.rs"
 [[test]]
 name = "standing_support_transport"
 path = "tests/standing_support_transport.rs"
+
+[[test]]
+name = "patient_surrogate"
+path = "tests/patient_surrogate.rs"

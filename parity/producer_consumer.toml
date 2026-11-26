@@ -2736,6 +2736,32 @@ evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
 evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"
 
 [[rust_producer]]
+key = "patient_surrogate_bounds"
+object = "sharp bounds on terminal benefit in the binary monotone surrogate-improver stratum"
+built_from = "`Study::compile_patient_surrogate` from the exact population law or full paired randomized patient records"
+
+[[rust_consumer]]
+key = "patient_surrogate_threshold"
+entry = "`PatientSurrogateResult::decide` and Python `PatientSurrogateResult.decide`"
+note = "Only the exact population identification reading supplies the complete compatibility set. Comparison to a rational threshold preserves ties."
+
+[[rust_cell]]
+producer = "patient_surrogate_bounds"
+consumer = "patient_surrogate_threshold"
+status = "DIRECT"
+detail = "Replayed subset bounds return a unanimous or ambiguous comparison and bind the source identity; changed joint evidence invalidates replay under the old identities."
+evidence_test = "crates/antecedent/tests/patient_surrogate.rs"
+evidence_assertion = "threshold_decision_consumes_exact_bounds_and_replays_under_both_identities"
+
+[[rust_cell]]
+producer = "patient_surrogate_bounds"
+consumer = "patient_surrogate_threshold"
+status = "REFUSED"
+detail = "Empirical plug-in endpoints and absent identification premises cannot supply a population threshold decision."
+evidence_test = "crates/antecedent/tests/patient_surrogate.rs"
+evidence_assertion = "empirical_joint_counts_cannot_license_a_population_point_or_decision"
+
+[[rust_producer]]
 key = "delayed_entry_competing_incidence_interval"
 object = "a source-bearing pointwise delayed-entry target-cause cumulative incidence difference"
 built_from = "`SurvivalQuery` with a declared target cause, checked subject bootstrap, and contracted export with the original subject rows"

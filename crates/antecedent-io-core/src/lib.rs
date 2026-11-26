@@ -89,6 +89,7 @@ pub mod mmap_file;
 pub mod model_operation_wire;
 pub mod observation_query_artifact;
 mod panel_calibration_design;
+pub mod patient_surrogate;
 pub mod plan_wire;
 pub mod policy_program_artifact;
 pub mod posterior;

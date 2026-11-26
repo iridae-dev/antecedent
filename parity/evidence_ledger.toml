@@ -13259,3 +13259,48 @@ calibration = "estimate_basis_interval_reported_not_measured"
 artifact_consumer_fixture = "preference_learning.accepted_preferences.round_trip.artifact"
 provider_trust = "native_computation_over_a_supplied_contract_and_source; no external provider"
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "identify.patient_surrogate"
+route = "antecedent.identify.compile_patient_surrogate"
+algorithm_provenance = ["provenance/identify.patient_surrogate.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "identify.patient_surrogate.identical_margins.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The finite enumeration of all monotone couplings of four equally weighted patient types and the fibers of their randomized arm joint laws."
+expected_values = "Each finite fiber has the sharp extrema reported by the checked bound, including ties and singleton sets. Different latent mechanisms can match fully observed joint trial laws."
+tolerance = "Exact rational endpoints, stratum mass, decision comparison and source identity."
+calibration = "identified_set_no_sampling_coverage"
+artifact_consumer_fixture = "identify.patient_surrogate.verified_threshold.artifact"
+provider_trust = "Conditional on the declared population laws and randomized patient premises, numerical bounds and the threshold decision are independently replayed."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "identify.patient_surrogate"
+route = "antecedent.identify.consume_patient_surrogate"
+algorithm_provenance = ["provenance/identify.patient_surrogate.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "identify.patient_surrogate.identical_margins.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The finite enumeration of all monotone couplings of four equally weighted patient types and the fibers of their randomized arm joint laws."
+expected_values = "Each finite fiber has the sharp extrema reported by the checked bound, including ties and singleton sets. Different latent mechanisms can match fully observed joint trial laws."
+tolerance = "Exact rational endpoints, stratum mass, decision comparison and source identity."
+calibration = "identified_set_no_sampling_coverage"
+artifact_consumer_fixture = "identify.patient_surrogate.verified_threshold.artifact"
+provider_trust = "Conditional on the declared population laws and randomized patient premises, numerical bounds and the threshold decision are independently replayed."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "identify.patient_surrogate"
+route = "antecedent.patient_surrogate.PatientSurrogateResult.decide"
+algorithm_provenance = ["provenance/identify.patient_surrogate.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "identify.patient_surrogate.identical_margins.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The finite enumeration of all monotone couplings of four equally weighted patient types and the fibers of their randomized arm joint laws."
+expected_values = "Each finite fiber has the sharp extrema reported by the checked bound, including ties and singleton sets. Different latent mechanisms can match fully observed joint trial laws."
+tolerance = "Exact rational endpoints, stratum mass, decision comparison and source identity."
+calibration = "identified_set_no_sampling_coverage"
+artifact_consumer_fixture = "identify.patient_surrogate.verified_threshold.artifact"
+provider_trust = "Conditional on the declared population laws and randomized patient premises, numerical bounds and the threshold decision are independently replayed."
+exact_request_verification = "not_applicable_no_external_provider"

@@ -847,6 +847,7 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
             }
         }
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
+        antecedent_io_core::patient_surrogate::PATIENT_SURROGATE_ARTIFACT_KIND => Some(NodeKind::PatientSurrogateIdentification),
         KIND_DISTRIBUTION => Some(NodeKind::Distribution),
         COHORT_DECISION_ARTIFACT_KIND => Some(NodeKind::CohortDecisionSource),
         antecedent_io_core::compact_export::COMPACT_EXPORT_ARTIFACT_KIND => {

@@ -26807,3 +26807,50 @@ fixtures = [
   { id = "preference_learning.accepted_preferences.shape_region.artifact", role = "artifact", intent = "Accepted preferences learned under a shape parameter load from their artifact equal to the accepted preferences, region and value relations included.", evidence_test = "crates/antecedent-design/tests/preference_shape_learning.rs", evidence_assertion = "the_learned_region_survives_the_accepted_preferences_artifact" },
   { id = "preference_learning.accepted_preferences.shape_undetermined_python.negative", role = "negative", intent = "In Python an undetermined shape outcome is reported and accepting it is refused with accepted_preferences.set_undetermined; two disjoint lottery choices are a proven conflict.", evidence_test = "python/tests/test_preference_learning.py", evidence_assertion = "test_shape_learning_reports_undetermined_outcomes_and_proven_conflicts" },
 ]
+
+[[record]]
+id = "identify.patient_surrogate"
+capability = "identify.patient_surrogate"
+status = "supported"
+consumer_question = "What probability of terminal benefit is compatible with a randomized trial among patients whose binary surrogate would improve with treatment?"
+theorem = "For consistency, positive randomized exchangeability, complete joint endpoint follow-up and monotone binary surrogate response, the observed joint arm margins fix the mass d of the surrogate-improver stratum. The joint cell for terminal benefit and surrogate improvement has sharp extrema max(0, r00+c11-1) and min(r00,c11,d). Divide those extrema by d when it is positive."
+reference = "provenance/identify.patient_surrogate.toml"
+guarantee = "sharp_binary_principal_surrogate_identification_under_monotonicity"
+graph_class = "Parallel individually randomized trial with complete joint observations of the ordered endpoints."
+population_semantics = "The same declared patient population under the two fixed treatment interventions. Exact arm masses describe population laws, while finite randomized patient records supply empirical plug-in frequencies."
+evidence_family = "Exhaustive integer latent endpoint tables, two different causal mechanisms with identical joint observable arm margins, and exact rational threshold comparisons."
+estimand = "P(Y(1)>Y(0) | S(1)>S(0)) for a positive monotone surrogate-improver stratum."
+provider = "Named exact population laws of the jointly observed pair within each arm, or complete jointly observed randomized records for a descriptive plug-in."
+inference_claim = "none"
+inference_notes = "The exact population interval is an identified set. Plug-in sample endpoints are descriptive and carry no sampling coverage or population-decision authority."
+owners = ["antecedent-identify", "antecedent-io-core", "antecedent", "python/antecedent"]
+identity_inputs = ["trial and population, intervention identities and visit-ordered binary endpoints", "consistency, positive randomized exchangeability, complete follow-up and surrogate monotonicity", "joint arm population laws or original jointly observed patient rows", "exact threshold and verified compatible bounds when a decision is requested"]
+wire_changes = ["patient_surrogate_identification_v1 is an additive versioned artifact and can be embedded as a patient_surrogate_identification bundle node."]
+compatibility = "Existing trial-level surrogate mappings keep their existing targets and contracts."
+search = false
+bounds = { cancellation = true, memory_limit = "ExecutionContext.admission", max_patients = 100000, max_artifact_bytes = 16777216 }
+surface = ["crates/antecedent/src/analysis/kernel_programs/patient_surrogate.rs", "python/antecedent/patient_surrogate.py"]
+surface_pyo3 = ["python/src/patient_surrogate_api.rs"]
+surface_rust = ["crates/antecedent-identify/src/principal_surrogate.rs", "crates/antecedent-io-core/src/patient_surrogate.rs"]
+surface_values = ["CompiledPatientSurrogate", "PatientSurrogateDesign", "PatientSurrogateEvidence", "PatientSurrogateRequest", "PatientSurrogateResult", "SurrogateThresholdDecision", "PopulationJointSurrogateLaw", "SurrogatePatientSample", "ObservedSurrogatePatient"]
+refusals = [
+  { detail = "patient_surrogate.declaration" },
+  { detail = "patient_surrogate.empty_stratum" },
+  { detail = "patient_surrogate.monotonicity" },
+  { detail = "patient_surrogate.unsupported_reading" },
+  { detail = "patient_surrogate.replay" },
+  { detail = "patient_surrogate.resource" },
+  { detail = "patient_surrogate.cancelled" },
+  { detail = "patient_surrogate.not_supported" },
+]
+routes = [
+  { name = "antecedent.identify.compile_patient_surrogate", stage = "identify", status = "supported", claim = "none", covers = ["patient_surrogate_compile", "monotone_principal_surrogate_bounds", "CompiledPatientSurrogate.execute"] },
+  { name = "antecedent.identify.consume_patient_surrogate", stage = "consume", status = "supported", claim = "none", covers = ["patient_surrogate_consume", "CompiledPatientSurrogate.export"] },
+  { name = "antecedent.patient_surrogate.PatientSurrogateResult.decide", stage = "evaluate", status = "supported", claim = "none", covers = ["PatientSurrogateResult.point"] },
+]
+fixtures = [
+  { id = "identify.patient_surrogate.identical_margins.positive", role = "positive", intent = "The joint arm marginals allow both zero and one as the individual-level principal-surrogate answer under the same observed data and monotonicity.", evidence_test = "crates/antecedent/tests/patient_surrogate.rs", evidence_assertion = "equal_trial_and_joint_arm_summaries_allow_opposite_individual_surrogate_answers" },
+  { id = "identify.patient_surrogate.exhaustive_couplings.truth", role = "truth", intent = "Enumerate every four-patient latent coupling with monotone surrogates and compare the exact extrema within each joint-margin equivalence class, including empty and singleton strata.", evidence_test = "crates/antecedent-identify/src/principal_surrogate.rs", evidence_assertion = "independent_exhaustive_monotone_surrogate_couplings" },
+  { id = "identify.patient_surrogate.sample_reading.negative", role = "negative", intent = "A deterministic empirical interval supplies neither a population point nor a population-threshold decision. Incomplete follow-up and zero improver mass refuse.", evidence_test = "crates/antecedent/tests/patient_surrogate.rs", evidence_assertion = "empirical_joint_counts_cannot_license_a_population_point_or_decision" },
+  { id = "identify.patient_surrogate.verified_threshold.artifact", role = "artifact", intent = "A freshly started Python process replays exact bounds under independent program and result identities and uses the same checked bounds in a bundle and threshold decision.", evidence_test = "python/tests/test_patient_surrogate.py", evidence_assertion = "test_patient_surrogate_replays_bounds_and_threshold_in_a_fresh_process" },
+]

@@ -226,6 +226,12 @@ const PINNED: &[(C, R, &str, F)] = &[
         "CohortDecisionBundleRecomputation",
         F::PropagationChain,
     ),
+    (
+        C::PatientSurrogateIdentification,
+        R::PatientSurrogateIdentification,
+        "PatientSurrogateIdentification",
+        F::DesignBased,
+    ),
     (C::GraphImputation, R::GraphImputation, "GraphImputation", F::GraphImputation),
     (
         C::GraphImputationEffectDecision,

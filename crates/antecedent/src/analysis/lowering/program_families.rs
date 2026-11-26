@@ -102,6 +102,8 @@ macro_rules! program_families {
             PosteriorDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with a retained cohort and affine decision terminal.
             CohortDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
+            /// Sharp binary principal-surrogate bounds from jointly observed randomized endpoints.
+            PatientSurrogateIdentification => DesignBased, unit "identify.patient_surrogate";
             /// A graph-selection imputation composite.
             GraphImputation => GraphImputation, unit "graph_imputation.compiled_candidate";
             /// Graph-imputation effect posterior and downstream utility.
