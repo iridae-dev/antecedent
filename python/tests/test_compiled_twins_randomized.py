@@ -43,6 +43,7 @@ def test_estimate_cuped_effect_warns_and_matches_the_compiled_estimated_slope_ro
     )
     fit = require_success(ant.analyze(data, query=query, refute="none")).randomized_effect
     assert fit.effect == direct.effect
+    assert fit.adjustment_coefficient == direct.adjustment_coefficient
     assert fit.standard_error == direct.standard_error
     assert fit.interval_95 is not None
     assert fit.interval_95[0] < fit.effect < fit.interval_95[1]
@@ -88,6 +89,7 @@ def test_estimate_ancova_effect_warns_and_matches_the_compiled_route():
     fit = require_success(ant.analyze(data, query=query, refute="none")).randomized_effect
     assert fit.effect == direct.effect
     assert fit.standard_error == direct.standard_error
+    assert fit.adjustment_coefficient is None
 
 
 def test_exact_randomization_test_warns_and_matches_the_compiled_bernoulli_test():
@@ -107,6 +109,7 @@ def test_exact_randomization_test_warns_and_matches_the_compiled_bernoulli_test(
     fit = require_success(
         ant.analyze({"outcome": np.asarray(outcome)}, query=query, refute="none")
     ).randomized_effect
+    assert fit.adjustment_coefficient is None
     assert fit.effect == direct.observed_effect
     assert fit.randomization_p_value == direct.exact_two_sided_p_value
     assert fit.randomization_allocations == direct.assignments_enumerated

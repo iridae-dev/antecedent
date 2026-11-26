@@ -922,6 +922,8 @@ class RandomizedExperimentEstimate:
 
     The legacy ``variance_upper_bound`` field is a sequence sandwich variance
     estimate for switchback designs. Read ``uncertainty`` for its semantics.
+    ``adjustment_coefficient`` is the pooled slope of an estimated CUPED or
+    cluster-CUPAC fit, and is absent for every other design.
     """
 
     effect: float
@@ -964,6 +966,7 @@ class RandomizedExperimentEstimate:
     second_factor_interval_95: tuple[float, float] | None = None
     factorial_interaction_interval_95: tuple[float, float] | None = None
     multi_arm_intervals_95: tuple[tuple[float, float] | None, ...] = ()
+    adjustment_coefficient: float | None = None
 
     @property
     def multi_arm_contrasts(self) -> tuple[MultiArmContrast, ...]:

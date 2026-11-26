@@ -151,6 +151,8 @@ pub struct RandomizedEffectEstimate {
     pub outcome_units: Arc<[Arc<str>]>,
     /// Control and treatment labels.
     pub treatment_arms: (Arc<str>, Arc<str>),
+    /// Pooled slope from an estimated CUPED or cluster-CUPAC fit. Absent for every other design.
+    pub adjustment_coefficient: Option<f64>,
 }
 
 /// Two-period panel `DiD` point estimate with cluster-aware uncertainty.

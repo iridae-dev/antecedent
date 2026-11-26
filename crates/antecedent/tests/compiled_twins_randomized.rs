@@ -156,7 +156,15 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
             .to_string();
         assert!(refusal.contains("states no pre-assignment covariate"), "{fields:?}: {refusal}");
     }
+    let published = wire
+        .randomized_effect
+        .as_ref()
+        .expect("the randomized section")
+        .adjustment_coefficient
+        .map(f64::to_bits);
+    assert_eq!(published, Some(direct.beta.to_bits()));
     let fit = result.into_randomized_effect().unwrap();
+    assert_eq!(fit.adjustment_coefficient.map(f64::to_bits), Some(direct.beta.to_bits()));
     assert_eq!(&*fit.uncertainty, "bernoulli_estimated_cuped_ht_score_normal_interval");
     assert_eq!(fit.effect.to_bits(), direct.effect.to_bits());
     assert_eq!(
@@ -406,6 +414,7 @@ fn bernoulli_exact_test_matches_the_direct_kernel() {
     .unwrap();
     let data = TabularData::from_f64_columns([("outcome", y.as_slice())]).unwrap();
     let fit = run(&data, bernoulli(n, assigned, probabilities).with_exact_randomization_test());
+    assert_eq!(fit.adjustment_coefficient, None);
     assert_eq!(fit.effect.to_bits(), direct.observed.to_bits());
     assert_eq!(fit.randomization_p_value.unwrap().to_bits(), direct.p_value.to_bits());
     assert_eq!(fit.randomization_allocations, Some(direct.allocations as u64));

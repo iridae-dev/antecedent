@@ -253,6 +253,7 @@ impl SupportedWire for RandomizedEffectEstimate {
             minimum_assignment_probability: self.minimum_assignment_probability,
             uncertainty: self.uncertainty.to_string(),
             graphless_support_status: support_label(support),
+            adjustment_coefficient: self.adjustment_coefficient,
         }
     }
 }
@@ -572,7 +573,7 @@ pub(crate) fn iv_bounds_wire(
 ) -> antecedent_io::analysis_result_artifact::IvBoundsWire {
     {
         use antecedent_io::analysis_result_artifact::{
-            IV_BOUNDS_POINT_UNCERTAINTY, IvBoundsIntervalWire, IvBoundsPosteriorWire,
+            IvBoundsIntervalWire, IvBoundsPosteriorWire, IV_BOUNDS_POINT_UNCERTAINTY,
         };
         let interval = fit.interval.map(|interval| IvBoundsIntervalWire {
             level: interval.level,
@@ -696,7 +697,7 @@ pub(crate) fn association_wire(
 
 #[cfg(test)]
 mod support_label_tests {
-    use super::{CellStatus, support_label};
+    use super::{support_label, CellStatus};
 
     /// The support label is the cell status spelled one to one: no status is written as a
     /// stronger one, and an unclassified result writes none.

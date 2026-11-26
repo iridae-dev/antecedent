@@ -662,6 +662,7 @@ class RandomizedEffectSection:
     outcome_units: list[str]
     control_arm: str
     treatment_arm: str
+    adjustment_coefficient: float | None
 
 class PanelDidSection:
     effect: float

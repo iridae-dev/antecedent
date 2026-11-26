@@ -816,6 +816,10 @@ pub struct RandomizedEffectWire {
     /// Exact graphless support status; absent for off-axis results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphless_support_status: Option<String>,
+    /// Pooled slope from an estimated CUPED or cluster-CUPAC fit. Absent on every other result,
+    /// and omitted from the artifact so those bytes stay as they were.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adjustment_coefficient: Option<f64>,
 }
 
 fn default_randomized_itt() -> String {

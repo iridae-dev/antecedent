@@ -141,7 +141,13 @@ impl RandomizedMethod {
 
     /// Cluster-level dependence is what the published standard error accounts for.
     pub(super) fn clustered_standard_error(self) -> bool {
-        matches!(self, Self::Cluster | Self::ClusterFixedCuped | Self::ClusterEstimatedCuped | Self::Switchback)
+        matches!(
+            self,
+            Self::Cluster
+                | Self::ClusterFixedCuped
+                | Self::ClusterEstimatedCuped
+                | Self::Switchback
+        )
     }
 
     pub(super) fn uncertainty(self, interval_published: bool) -> &'static str {
@@ -555,7 +561,8 @@ fn fit_design_with_missing_outcomes(
         }
         _ => {
             return Err(CausalError::Unsupported {
-                message: "randomized outcomes are missing and the declared policy does not handle them",
+                message:
+                    "randomized outcomes are missing and the declared policy does not handle them",
             });
         }
     }
@@ -655,13 +662,15 @@ fn fit_estimated_cuped(
         &query.assignment_probabilities,
     )
     .map_err(|message| CausalError::Unsupported { message })?;
-    Ok(TrialFit::point(
+    let mut trial = TrialFit::point(
         fit.effect,
         fit.standard_error * fit.standard_error,
         fit.control_support,
         fit.treated_support,
     )
-    .with_interval(fit.interval_95, fit.standard_error))
+    .with_interval(fit.interval_95, fit.standard_error);
+    trial.cuped_slope = Some(fit.beta);
+    Ok(trial)
 }
 
 fn fit_complier(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialFit, CausalError> {
@@ -677,7 +686,8 @@ fn fit_complier(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<Trial
         &query.assignment_probabilities,
     )
     .ok_or(CausalError::Unsupported {
-        message: "receipt-adjusted randomized effects require a finite positive receipt first stage",
+        message:
+            "receipt-adjusted randomized effects require a finite positive receipt first stage",
     })?;
     let controls = query.realized_assignment.iter().filter(|assigned| !**assigned).count();
     let treated = outcomes.len() - controls;
@@ -943,11 +953,11 @@ fn fit_stratified(
         .values()
         .map(|(treated, control, _)| (treated.as_slice(), control.as_slice()))
         .collect::<Vec<_>>();
-    let fit = antecedent_estimate::randomized_neyman::blocked_unit_itt(&cells).ok_or(
-        CausalError::Unsupported {
-            message: "blocked-randomized ITT requires finite outcomes and estimable within-block variances",
-        },
-    )?;
+    let fit = antecedent_estimate::randomized_neyman::blocked_unit_itt(&cells)
+        .ok_or(CausalError::Unsupported {
+        message:
+            "blocked-randomized ITT requires finite outcomes and estimable within-block variances",
+    })?;
     let treatment_units = cells.iter().map(|(treated, _)| treated.len()).sum();
     let control_units = cells.iter().map(|(_, control)| control.len()).sum();
     let mut out =
@@ -1419,7 +1429,7 @@ mod bernoulli_bound_tests {
 
 #[cfg(test)]
 mod fisher_tests {
-    use super::{MONTE_CARLO_ALLOCATIONS, allocation_contrast, binomial_within, fisher_p_value};
+    use super::{allocation_contrast, binomial_within, fisher_p_value, MONTE_CARLO_ALLOCATIONS};
     use antecedent_core::ExecutionContext;
 
     #[test]
@@ -1491,9 +1501,7 @@ mod fisher_tests {
 
         let pool = AdmissionPool::fixed(1, bytes);
         let ctx = ExecutionContext::for_tests(42).with_admission(pool.clone());
-        assert!(
-            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx).is_ok()
-        );
+        assert!(fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx).is_ok());
         assert_eq!(pool.available().bytes(), bytes);
         let mut cancelled = ExecutionContext::for_tests(42).with_admission(pool.clone());
         cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(2);

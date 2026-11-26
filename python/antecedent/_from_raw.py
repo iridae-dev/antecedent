@@ -538,6 +538,7 @@ def _randomized_effect_from_raw(raw: Any) -> RandomizedExperimentEstimate | None
         treatment_units=section.treatment_units,
         minimum_assignment_probability=section.minimum_assignment_probability,
         uncertainty=section.uncertainty,
+        adjustment_coefficient=section.adjustment_coefficient,
         support_status=(
             section.graphless_support_status
             or (

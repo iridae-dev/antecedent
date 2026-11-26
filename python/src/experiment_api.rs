@@ -70,6 +70,8 @@ pub struct RandomizedEffectSection {
     pub control_arm: String,
     /// Treatment arm label.
     pub treatment_arm: String,
+    /// Pooled slope from an estimated CUPED or cluster-CUPAC fit.
+    pub adjustment_coefficient: Option<f64>,
 }
 
 impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
@@ -117,6 +119,7 @@ impl From<&antecedent::RandomizedEffectEstimate> for RandomizedEffectSection {
             graphless_support_status: None,
             assignment_units: value.assignment_units.iter().map(ToString::to_string).collect(),
             outcome_units: value.outcome_units.iter().map(ToString::to_string).collect(),
+            adjustment_coefficient: value.adjustment_coefficient,
             control_arm: value.treatment_arms.0.to_string(),
             treatment_arm: value.treatment_arms.1.to_string(),
         }

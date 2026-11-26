@@ -579,6 +579,7 @@ impl CheckedRandomizedOperation {
             assignment_units: Arc::clone(&self.query.assignment_units),
             outcome_units: Arc::clone(&self.query.outcome_units),
             treatment_arms: self.query.treatment_arms.clone(),
+            adjustment_coefficient: fit.cuped_slope,
         }
     }
 
