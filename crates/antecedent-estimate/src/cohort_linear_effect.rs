@@ -28,6 +28,7 @@ use std::sync::Arc;
 
 use antecedent_core::CalibrationBasis;
 use antecedent_core::ExecutionContext;
+use antecedent_io_core::artifact_codec::CanonicalSize;
 use antecedent_io_core::cohort_decision::{
     CohortBinding, CohortDecisionSource, CohortOptions, RetainedEffectModel,
 };
