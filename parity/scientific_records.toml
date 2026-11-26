@@ -1367,6 +1367,16 @@ recorded_at = "2026-11-09T11:45:45Z"
 dependency_manifest = "a0db7415ad362e9797ce84e7d1dd649a5c1242dd7deb8c4d0bc27dfbb9c8016b"
 
 [[record]]
+test = "antecedent-discovery::lib::rpcmci::learn::duration_updates_match_independent_exhaustive_path_cost"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "5234bca8aa7f4f12eead8a6c8ed99c6bcabab6be101ce63cbb3eaf8578176075"
+recorded_at = "2026-11-26T05:18:57Z"
+dependency_manifest = "9f7df4c75292a3ed85f4a0f50226c3c7eb4eb045211880d240fb16f46ea55a09"
+
+[[record]]
 test = "antecedent-discovery::lib::selective::populations::identical_structures_agree_on_every_edge"
 roles = ["scientific"]
 passed = true
@@ -10783,6 +10793,16 @@ dirty = false
 fingerprint = "83b4e0f4508728c3585b939319ed736edac07f4734eb410e05136d9333d95ce5"
 recorded_at = "2026-11-15T06:50:57Z"
 dependency_manifest = "48763bd37974ce98ab42ac8db676d030bc2c44f6884b0bbdf1109432953e3e48"
+
+[[record]]
+test = "antecedent::suite_07::survival_route::fitted_conditional_survival_identifies_the_pre_entry_population"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "ce3e1a45a84e0454303c103d7b72384146fdc95c14ca17aff221f7e29bcbf03f"
+recorded_at = "2026-11-26T05:18:47Z"
+dependency_manifest = "7b65eab320fcb3d9fe02fb7f1df2eef0879e720ea84b6e71e9dfe12dfa214a58"
 
 [[record]]
 test = "antecedent::suite_07::temporal_admg_route_evidence::temporal_admg_average_effect_explicit_and_accepted"
