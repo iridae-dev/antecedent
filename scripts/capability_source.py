@@ -340,10 +340,11 @@ def _source_item_hash(path: Path, kind: str, name: str) -> str | None:
 def _adaptive_premise_proven(path: Path) -> bool:
     """Prove Error::PremiseFailed survives the facade with adaptive_assumption_violated."""
     base = REPO_ROOT / "crates/antecedent-stats/src/adaptive_inference"
+    facade_hash = "13932dd853b8bf857e6774bdfea36d6d232de57ba880cf0f9ccee8b6d81f9f6f"
     producers = {
         (base / "repeated_measures_posterior.rs").resolve(): ("premise_failure", "ee58cf70efbfd761a85d19d29808869bc0a9b7fae688d46821fff0c3c2811479"),
         (base / "procedure_uncertainty.rs").resolve(): ("premise", "ebde83de6f9c7b4948a7585661eef4cf33efa8faeae63a6006fcc5bd59cb099c"),
-        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs").resolve(): ("refusal_of", "cc7d439d6ef611d653d461b664ca078fc0da34963fc271daef2da48f6d302142"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs").resolve(): ("refusal_of", facade_hash),
     }
     producer = producers.get(path.resolve())
     if producer is None:
@@ -356,7 +357,7 @@ def _adaptive_premise_proven(path: Path) -> bool:
     dependencies = [
         (path, "fn", producer[0], producer[1]),
         (base / "procedure_uncertainty.rs", "fn", "premise_reason_code", "e7c1e8626a528b0980e4908f547d51413e9a17bb582361af9593b275653d18d5"),
-        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "refusal_of", "cc7d439d6ef611d653d461b664ca078fc0da34963fc271daef2da48f6d302142"),
+        (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "refusal_of", facade_hash),
         (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "fn", "premise_remedy", "0c1d0f2938c2319560babbe138d3ca33d8829ba489b86f0e29a5cd03a1e9648a"),
         (REPO_ROOT / "crates/antecedent/src/analysis/adaptive_procedure_report.rs", "const", "ASSUMPTION_DETAILS", "8e1ce67d6d75afc09b56ba0d1752b0dce63c2d3b051103550888d27e6c82d294"),
     ]
@@ -446,7 +447,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     _, items = rust_items(path.resolve())
     consts = [it for it in items if it.kind == "const"]
     out: list[Lit] = []
-    provider_literals: set[int] = set()
+    metadata_literals: set[int] = set()
     imported = _imported_core_refusal_helpers(skel)
     core_helpers = _core_refusal_helpers() if imported else {}
     horizon_proven = _horizon_refusal_is_proven(path, code, skel) if path.name == "horizon_composition.rs" else False
@@ -462,16 +463,25 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
             and not re.search(r"\b(?:struct|enum|type|trait)\s+MultipleImputationError\b", skel)
             and not re.search(r"\buse\s+(?!super::)[^;]*\bMultipleImputationError\b", skel)):
         mi_helpers = _multiple_imputation_error_helpers()
-    for block in re.finditer(r"\bDistributionProvenance\s*\{", skel):
-        opening = block.end() - 1
-        closing = _match_bracket(skel, opening)
-        for match in re.finditer(r'provider_id\s*:\s*"[^"\n]*"\.to_owned\(\)\s*,', code[opening + 1:closing]):
-            start = opening + 1 + match.start()
-            prefix = skel[opening + 1:start]
-            if (re.match(r"provider_id\s*:", skel[start:])
-                    and prefix.count("{") == prefix.count("}")
-                    and prefix.count("(") == prefix.count(")")):
-                provider_literals.add(code.index('"', start, opening + 1 + match.end()))
+    # Only the literal assigned directly to the named metadata field is non-emitting.
+    # An error constructed in a different field, nested block or subsequent call stays visible.
+    metadata_fields = (
+        ("DistributionProvenance", "provider_id", r"\.\s*(?:to_owned|into)\s*\(\s*\)"),
+        ("KernelProgramShape", "plan_id", ""),
+    )
+    for struct, field, conversion in metadata_fields:
+        field_pattern = rf'\b{field}\s*:\s*("[^"\n]*")\s*{conversion}\s*(?=,|$)'
+        for block in re.finditer(rf"\b{struct}\s*\{{", skel):
+            opening = block.end() - 1
+            closing = _match_bracket(skel, opening)
+            for match in re.finditer(field_pattern, code[opening + 1:closing]):
+                start = opening + 1 + match.start()
+                prefix = skel[opening + 1:start]
+                if (re.match(rf"{field}\s*:", skel[start:])
+                        and prefix.count("{") == prefix.count("}")
+                        and prefix.count("(") == prefix.count(")")
+                        and prefix.count("[") == prefix.count("]")):
+                    metadata_literals.add(opening + 1 + match.start(1))
     remedy_ranges: list[tuple[int, int]] = []
     # This exact report lookup is descriptive only while the full premise
     # forwarding proof, including its body fingerprint, remains valid.
@@ -521,7 +531,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
         match_pattern = bool(token and token.group("str") is not None
                              and _inside(remedy_ranges, at)
                              and re.match(r"\s*=>", skel[token.end():]))
-        if at in provider_literals or at in enum_metadata or match_pattern:
+        if at in metadata_literals or at in enum_metadata or match_pattern:
             continue
         # A sentence appended to report limits is explanatory text, not a
         # dynamically constructed refusal detail. Restrict this to the literal

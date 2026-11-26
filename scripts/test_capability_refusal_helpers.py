@@ -316,6 +316,23 @@ class MetadataLiteralTests(unittest.TestCase):
             self.assertIn((5, "example.{detail}: {message}"), values)
 
 
+    def test_compiler_plan_and_provider_ids_are_not_emitted_refusals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bridge.rs"
+            path.write_text(
+                'fn f() { let shape = KernelProgramShape { plan_id: "example.plan", '
+                'design: nested(Other { plan_id: "example.nested" }) }; refuse("example.plan");\n'
+                'let source = DistributionProvenance { provider_id: "example.provider".into() };\n'
+                'let other = Other { plan_id: "example.other" }; refuse("example.provider"); }',
+                encoding="utf-8",
+            )
+            values = [lit.value for lit in rust_literals(path, in_crate=False)]
+            self.assertEqual(values.count("example.plan"), 1)
+            self.assertEqual(values.count("example.provider"), 1)
+            self.assertIn("example.nested", values)
+            self.assertIn("example.other", values)
+
+
 class CrossFileHelperTests(unittest.TestCase):
     def test_core_helpers_prove_only_literal_unshadowed_calls(self):
         self.assertEqual(_core_refusal_helpers(), {
