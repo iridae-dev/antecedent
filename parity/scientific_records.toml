@@ -4088,11 +4088,11 @@ dependency_manifest = "3cd7867b3e577a6c67dd4204c61305f07d631aac2067fa3e90161fcc6
 test = "antecedent-io-core::lib::bridge_distribution_tests::whole_trial_bootstrap_interval_refits_both_sources_before_taking_quantiles"
 roles = ["scientific"]
 passed = true
-commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+commit = "d2c94400e9a3892e24a7417ab5d4a586f239fea3"
 dirty = true
-fingerprint = "392e03ec3bf6fc8376196ef9c42c314a986613bfec926769f6b6be8d534eb284"
-recorded_at = "2026-11-26T05:32:57Z"
-dependency_manifest = "392121b4e28d84a4391a2113560bc0354bb6b092c4b3e67b1fb0d218420e3f3f"
+fingerprint = "5ce1a2586334ff6296ba660c4947e1f88fcdaa3412a681989251a0bbd1430509"
+recorded_at = "2026-11-26T07:36:39Z"
+dependency_manifest = "27ba2d049f9ac2295a570cbe4b28f516355e64df92f8d4a70e5cc81ddc852d75"
 
 [[record]]
 test = "antecedent-io-core::lib::bridge_image_tests::affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs"
