@@ -3,7 +3,9 @@
 use crate::backend::{BayesDesignRef, BayesLikelihood, LaplaceWorkspace};
 use crate::error::ProbError;
 use crate::gaussian_target::PosteriorTarget;
-use crate::likelihood_terms::{LikelihoodScratch, accumulate_likelihood, log_posterior_value};
+use crate::likelihood_terms::{
+    accumulate_likelihood, glm_observation_terms, log_posterior_value, LikelihoodScratch,
+};
 use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior};
 
 /// A posterior the leapfrog integrator can traverse.
@@ -11,8 +13,8 @@ use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior};
 /// The two implementors differ only in how they evaluate the gradient and the
 /// log density, and in which sweep errors mean "this trajectory diverged":
 ///
-/// * the GLM score path sweeps the data once per leapfrog step for `∇U` and once
-///   more per transition for the final log posterior (`L + 1` sweeps), and
+/// * the GLM score path sweeps the design once per leapfrog step for `∇U`. The
+///   accept/reject density reads the linear predictor that sweep stored, and
 ///   propagates every [`ProbError`] except [`ProbError::Numerical`];
 /// * the Gaussian target returns the log density with its gradient (`L` sweeps)
 ///   and treats any error as a divergent trajectory.
@@ -124,16 +126,19 @@ impl HmcTarget for GlmTarget<'_> {
         ws: &mut LaplaceWorkspace,
         _lp_last: f64,
     ) -> Result<f64, ProbError> {
+        // The last leapfrog gradient stored η at this proposal, in the same
+        // offset-then-columns order `log_posterior_value` would recompute.
         let nrows = self.design.nrows;
-        log_posterior_value(
-            self.likelihood,
-            self.design,
-            &ws.q[..dim],
-            self.coef_prior,
-            self.prec,
-            &mut ws.eta[..nrows],
-            1.0,
-        )
+        let mut ll = 0.0;
+        for r in 0..nrows {
+            let weight = self.design.weights.map_or(1.0, |weights| weights[r]);
+            if weight == 0.0 {
+                continue;
+            }
+            ll += glm_observation_terms(self.likelihood, self.design.y[r], ws.eta[r], weight, 1.0)?
+                .log_value;
+        }
+        Ok(ll + self.prec.log_kernel(&ws.q[..dim], &self.coef_prior.mean))
     }
 
     fn is_divergent(error: &ProbError) -> bool {

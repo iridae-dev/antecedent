@@ -432,11 +432,18 @@ impl LikelihoodPass<'_> {
         let mut active = [false; LIKELIHOOD_PANEL_ROWS];
         for local in 0..height {
             let r = row + local;
-            let offset = self.design.offsets.map_or(0.0, |o| o[r]);
-            let mut e = offset;
-            for c in 0..ncols {
-                e += self.design.x_colmajor[c * nrows + r] * self.beta[c];
+            self.eta[r] = self.design.offsets.map_or(0.0, |o| o[r]);
+        }
+        for c in 0..ncols {
+            let beta = self.beta[c];
+            let column = c * nrows + row;
+            for local in 0..height {
+                self.eta[row + local] += self.design.x_colmajor[column + local] * beta;
             }
+        }
+        for local in 0..height {
+            let r = row + local;
+            let e = self.eta[r];
             match self.commit(r, e, self.design.weights.map_or(1.0, |w| w[r])) {
                 Ok(Some(score)) => {
                     active[local] = true;
@@ -551,7 +558,7 @@ impl LikelihoodPass<'_> {
     }
 }
 
-fn glm_observation_terms(
+pub(crate) fn glm_observation_terms(
     likelihood: BayesLikelihood,
     y: f64,
     eta: f64,
