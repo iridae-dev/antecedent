@@ -10199,3 +10199,285 @@ name = "program, snapshot, execution"
 class = "ordered"
 canonical = "program text, then snapshot text, then execution text, each length-prefixed under antecedent.decision.supplied_child.v1"
 concern = ""
+
+[[sites]]
+id = "core.query.survival.StratifiedCensoringSurvival.encode"
+file = "crates/antecedent-core/src/query/survival.rs"
+item = "impl:CanonicalEncode for StratifiedCensoringSurvival#0/fn:encode#0"
+feeds = "StratifiedCensoringSurvival input of the SurvivalQuery digest"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_identifies_the_pre_entry_population"]
+[[sites.collections]]
+name = "population weights"
+class = "ordered"
+canonical = "count-prefixed reals: index 0 is entry-stratum zero, index 1 is entry-stratum one, each real by its bits"
+concern = ""
+
+[[sites]]
+id = "antecedent.compiled_native_cohort_fit.question_digest"
+file = "crates/antecedent/src/analysis/compiled_native_cohort_fit.rs"
+item = "impl:<'a>FitInput<'a>#0/fn:compile#0"
+feeds = "NativeCohortFit question digest -> query functional and shared evidence contract of the lowered program"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/composition_cohort_decision.rs::native_cohort_fit_program_digest_matches_the_shared_python_fixture"]
+note = "Written by FitInput::compile under antecedent.native_cohort_fit.question.v1, beside the source digest."
+[[sites.collections]]
+name = "feature quantities"
+class = "ordered"
+canonical = "declared order: a count word of the feature list, the response quantity, then each feature via ScientificQuantity::write_canonical"
+concern = ""
+
+[[sites]]
+id = "antecedent.compiled_native_cohort_fit.source_digest"
+file = "crates/antecedent/src/analysis/compiled_native_cohort_fit.rs"
+item = "impl:<'a>FitInput<'a>#0/fn:compile#0"
+feeds = "NativeCohortFit source digest -> scientific source_digest and the observations evidence source"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/composition_cohort_decision.rs::native_cohort_fit_program_digest_matches_the_shared_python_fixture"]
+note = "Written by FitInput::compile under antecedent.native_cohort_fit.source.v1, beside the question digest."
+[[sites.collections]]
+name = "rows (outcome, treatment)"
+class = "ordered"
+canonical = "count-prefixed reals in row order, aligned by index, each real by its bits"
+concern = ""
+[[sites.collections]]
+name = "feature columns"
+class = "ordered"
+canonical = "count-prefixed in declared order; each column is count-prefixed reals in the same row order"
+concern = ""
+
+[[sites]]
+id = "estimate.cohort_linear_effect.NativeFitRows.training_identity"
+file = "crates/antecedent-estimate/src/cohort_linear_effect.rs"
+item = "impl:NativeFitRows#0/fn:training_identity#0"
+feeds = "training snapshot compared by compact-model refit and stored on the native fit, under antecedent.cohort_linear_effect.training.v1"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/composition_cohort_decision.rs::compact_refit_checks_original_training_and_replays_the_named_bundle_model"]
+[[sites.collections]]
+name = "rows (outcome, treatment)"
+class = "ordered"
+canonical = "count-prefixed reals in row order, aligned by index, each real by its bits"
+concern = ""
+[[sites.collections]]
+name = "feature ids"
+class = "ordered"
+canonical = "count-prefixed texts in declared order, aligned with the feature columns"
+concern = ""
+[[sites.collections]]
+name = "feature columns"
+class = "ordered"
+canonical = "count-prefixed in declared order; each column is count-prefixed reals in the same row order"
+concern = ""
+
+[[sites]]
+id = "antecedent.compact_model_refit.compile"
+file = "crates/antecedent/src/analysis/composition_compact_refit.rs"
+item = "fn:compile_refit#0"
+feeds = "CompactModelRefit question digest (antecedent.compact_model_refit.question.v1) and source digest (source.v1) -> query functional and observations evidence of the lowered refit"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/composition_cohort_decision.rs::compact_refit_checks_original_training_and_replays_the_named_bundle_model"]
+note = "The source digest is the training identity just compared with the compact model's training snapshot."
+[[sites.collections]]
+name = "question parts (compact identity, learner, bundle node)"
+class = "ordered"
+canonical = "fixed field order: compact identity, learner, a presence word, and when a bundle node is named the bundle identity then the node id"
+concern = ""
+[[sites.collections]]
+name = "source (training identity)"
+class = "ordered"
+canonical = "one framed text, the NativeFitRows training identity"
+concern = ""
+
+[[sites]]
+id = "io_core.pag_identification.PagIdentificationProblem.identity"
+file = "crates/antecedent-io-core/src/pag_identification.rs"
+item = "impl:PagIdentificationProblem#0/fn:identity#0"
+feeds = "problem identity under antecedent.pag_identification.problem.v1.oracle_no_selection_positive, framed into the result seal and the persisted artifact"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/pag_direct_identification.rs::shared_budget_preserves_persisted_work_and_result_identities"]
+[[sites.collections]]
+name = "names"
+class = "ordered"
+canonical = "CBOR array in graph-variable order: index i names dense variable i; validate refuses a repeated or empty name before the digest"
+concern = ""
+[[sites.collections]]
+name = "actions, outcomes, given"
+class = "set"
+canonical = "validate refuses an unsorted, repeated or overlapping coordinate, then each CBOR array is that strictly ascending order"
+concern = ""
+[[sites.collections]]
+name = "edges"
+class = "ordered"
+canonical = "CBOR array of the stored PagWire, each edge as (a, b, at_a, at_b)"
+concern = "Stored wire order reaches the digest. pag_to_wire emits each undirected pair once, walking increasing dense endpoints then adjacency order, so a hand-built wire with the same marks in another order is another identity."
+
+[[sites]]
+id = "io_core.pag_identification.PagIdentificationArtifact.seal"
+file = "crates/antecedent-io-core/src/pag_identification.rs"
+item = "impl:PagIdentificationArtifact#0/fn:seal#0"
+feeds = "result identity under antecedent.pag_identification.result.v1: the problem identity, the proof CBOR and the metered work"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/pag_direct_identification.rs::shared_budget_preserves_persisted_work_and_result_identities"]
+[[sites.collections]]
+name = "identified arena tables"
+class = "ordered"
+canonical = "expr_arena_to_wire in id order inside the proof CBOR; members of a var set or list stay in arena order"
+concern = ""
+[[sites.collections]]
+name = "marginal available and required; conditional bucket and actions"
+class = "set"
+canonical = "graph.labels of a BTreeSet of dense ids, so dense-id order, written as each variable's raw id"
+concern = ""
+[[sites.collections]]
+name = "conditional exchange path"
+class = "ordered"
+canonical = "witness walk order, a CBOR array of raw ids"
+concern = ""
+
+[[sites]]
+id = "antecedent.rpcmci_portable.wire_identity"
+file = "crates/antecedent/src/analysis/rpcmci_portable.rs"
+item = "fn:wire_identity#0"
+feeds = "learned RPCMCI artifact identity (antecedent.rpcmci.learned_result.v2 when a source schema is attached, otherwise v1) compared on replay"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/rpcmci_regime_learning.rs::portable_shared_series_replays_and_accepts_explicit_regimes"]
+[[sites.collections]]
+name = "names and series columns"
+class = "ordered"
+canonical = "CBOR arrays in retained graph order: column i is name i, and each column is the series in time order"
+concern = ""
+[[sites.collections]]
+name = "assignments"
+class = "ordered"
+canonical = "CBOR array in source-row order: index i is observation i"
+concern = ""
+[[sites.collections]]
+name = "regime graphs and per-regime agreement"
+class = "ordered"
+canonical = "graphs in reported regime-id order; graph_agreement follows that graph index. Each graph value is the hex of its temporal CPDAG identity"
+concern = ""
+[[sites.collections]]
+name = "candidate scores and infeasible counts"
+class = "ordered"
+canonical = "ascending regime-count order, the order the learning loop records them"
+concern = ""
+[[sites.collections]]
+name = "diagnostics"
+class = "ordered"
+canonical = "emission order, a CBOR array of (code, message)"
+concern = ""
+
+[[sites]]
+id = "antecedent.longitudinal_joint_sensitivity.compile"
+file = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs"
+item = "fn:compile_longitudinal_joint_sensitivity#0"
+feeds = "LongitudinalJointSensitivity question digest (antecedent.longitudinal.joint_sensitivity.v1, which frames the source digest) and source digest (subjects.v1) -> query functional, shared evidence contract and observations source"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/longitudinal_joint_sensitivity.rs::two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"]
+note = "The question writes the model, the claim method, the spec CBOR, then the source digest's bytes."
+[[sites.collections]]
+name = "subjects"
+class = "ordered"
+canonical = "input order under subjects.v1: a count word, then each subject as id, baseline, first treatment, second treatment, intermediate, and a presence word plus outcome bits when recorded. spec.check refuses a repeated subject id before the digest"
+concern = ""
+[[sites.collections]]
+name = "assignment limits"
+class = "ordered"
+canonical = "stage one then stage two in the spec CBOR, each lower endpoint then upper"
+concern = ""
+[[sites.collections]]
+name = "MNAR limits and outcome support"
+class = "ordered"
+canonical = "lower then upper in the spec CBOR; outcome support is a CBOR option of that pair"
+concern = ""
+
+[[sites]]
+id = "antecedent.longitudinal_joint_sensitivity.assemble"
+file = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs"
+item = "fn:assemble#0"
+feeds = "artifact identity under antecedent.longitudinal.joint_sensitivity.artifact.v1: CBOR of the spec, the subjects, the report and the program identity"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/longitudinal_joint_sensitivity.rs::two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"]
+[[sites.collections]]
+name = "subjects"
+class = "ordered"
+canonical = "the compiled input order, as a CBOR array"
+concern = ""
+[[sites.collections]]
+name = "corners"
+class = "ordered"
+canonical = "stage-one endpoint, then stage-two endpoint, then MNAR endpoint; a later copy of the same point is dropped"
+concern = ""
+[[sites.collections]]
+name = "assumption range and extremum bands"
+class = "ordered"
+canonical = "minimum then maximum; each extremum band is lower then upper"
+concern = ""
+
+[[sites]]
+id = "io_core.bridge_image.BridgeImageRequest.input_identity"
+file = "crates/antecedent-io-core/src/bridge_image_artifact.rs"
+item = "impl:BridgeImageRequest#0/fn:input_identity#0"
+feeds = "bridge-image request identity under antecedent.bridge.exact_image_request.v1: the input-wire CBOR and the exact source bytes"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent-io-core/src/bridge_image_tests.rs::fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images"]
+[[sites.collections]]
+name = "assumptions"
+class = "multiset"
+canonical = "sort_by id before the contract CBOR (a trial-confidence contract and every TermWire); repeats kept"
+concern = "The sort is stable, so equal ids keep listing order. A valid contract's assumption ids are unique, so listing order stays out of that contract."
+[[sites.collections]]
+name = "independent-study surrogate effects"
+class = "multiset"
+canonical = "sort_by total order, then each effect's bits; repeats kept"
+concern = ""
+[[sites.collections]]
+name = "joint-outcome terms"
+class = "ordered"
+canonical = "output order, then term order within an output; each term's assumptions follow the assumption sort"
+concern = ""
+[[sites.collections]]
+name = "bridge domain and identified-set bounds"
+class = "ordered"
+canonical = "domain low then high on every term; identified-set bounds are lower then upper, each real by its bits"
+concern = ""
+
+[[sites]]
+id = "design.ledger_pool_selection.LedgerPoolSelection.identity"
+file = "crates/antecedent-design/src/ledger_pool_selection.rs"
+item = "impl:LedgerPoolSelection#0/fn:identity#0"
+feeds = "selection identity under antecedent.ledger_pool_selection.v1, stored on the selection and checked by inspect"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/composition_ledger_decision.rs::ledger_binding_refuses_swapped_study_summaries_even_when_the_mean_is_identical"]
+[[sites.collections]]
+name = "parts (evidence fields, quantity)"
+class = "ordered"
+canonical = "result, operation, synthesis digest, method, estimate bits, the literal still_valid, then ScientificQuantity::write_canonical"
+concern = "Conditioning reaches the digest in stored order: select checks the quantity's identity fields and refuses an outcome law, and leaves ScientificQuantity::validate to the quantity site."
+
+[[sites]]
+id = "design.ledger_pool_selection.PoolEvidence.binding"
+file = "crates/antecedent-design/src/ledger_pool_selection.rs"
+item = "impl:PoolEvidence#0/fn:binding#0"
+feeds = "evidence binding under antecedent.ledger_pool_selection.evidence.v1, compared by LedgerPoolSelection::verify_against"
+released = false
+status = "checked"
+checks = ["unit:crates/antecedent/tests/composition_ledger_decision.rs::ledger_binding_refuses_swapped_study_summaries_even_when_the_mean_is_identical"]
+note = "verify_against replays the ledger and compares this binding. It writes no digest of its own."
+[[sites.collections]]
+name = "parts (result, operation, synthesis, method, estimate, validity)"
+class = "ordered"
+canonical = "the evidence fields of the selection identity, under antecedent.ledger_pool_selection.evidence.v1, ending with the literal still_valid"
+concern = ""
