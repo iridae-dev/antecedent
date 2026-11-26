@@ -2,12 +2,13 @@
   "schema": 1,
   "policy": "nix-darwin-private-tmp-audit-v1",
   "target": "aarch64-apple-darwin",
-  "cargo_lock_sha256": "9f92ed26f5ecb9c621ef81d7728d121a440924832ab26b6cb3e1cf859e8e641b",
+  "cargo_lock_sha256": "2024d2df1ebea20bcac4a0af264090a4b81c1475e15788a5ef524450e17ec09f",
   "scope": "Scoped source audit for ambient /private/tmp reads; trusted local Nix daemon, pinned Nix toolchain and signed-cache dependencies, macOS runtime, and the reviewed helper code are explicit assumptions. New units/features fail closed.",
   "audit_documents": [
     "nix/compile-time-audit.md",
     "nix/compile-time-helpers-review.md",
-    "nix/compile-time-suite01-review.md"
+    "nix/compile-time-suite01-review.md",
+    "nix/compile-time-lz4-review.md"
   ],
   "units": [
     {
@@ -1058,6 +1059,54 @@
         "projection": "reviewed-safe",
         "reason": "Reviewed package and its helper role do not select repository function text or source positions under the pinned Darwin graph and controlled build environment; registry and toolchain sources remain trusted inputs.",
         "observed_package_source_inputs": []
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "lz4-sys",
+      "version": "1.11.1+lz4-1.10.0",
+      "mode": "build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [],
+      "platform": null,
+      "checksum": "6bd8c0d6c6ed0cd30b3652886bb8711dc4bb01d637a68105a3d5158039b418e6",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "The featureless Darwin build uses the locked liblz4/lib C source and headers with the already reviewed cc dependency and the reviewed compiler environment. It copies package headers to Cargo OUT_DIR. No build-script or preprocessor source names a caller repository file or an ambient temporary input.",
+        "observed_package_source_inputs": [
+          "build.rs",
+          "liblz4/lib"
+        ]
+      },
+      "source_projection": "reviewed-safe"
+    },
+    {
+      "name": "lz4-sys",
+      "version": "1.11.1+lz4-1.10.0",
+      "mode": "run-custom-build",
+      "target_kind": [
+        "custom-build"
+      ],
+      "target_path": "build.rs",
+      "features": [],
+      "platform": null,
+      "checksum": "6bd8c0d6c6ed0cd30b3652886bb8711dc4bb01d637a68105a3d5158039b418e6",
+      "repo_source_review": {
+        "categories": [
+          "package-files-or-tool-process"
+        ],
+        "projection": "reviewed-safe",
+        "reason": "The featureless Darwin build uses the locked liblz4/lib C source and headers with the already reviewed cc dependency and the reviewed compiler environment. It copies package headers to Cargo OUT_DIR. No build-script or preprocessor source names a caller repository file or an ambient temporary input.",
+        "observed_package_source_inputs": [
+          "build.rs",
+          "liblz4/lib"
+        ]
       },
       "source_projection": "reviewed-safe"
     },
