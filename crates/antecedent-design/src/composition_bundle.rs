@@ -1476,9 +1476,9 @@ impl BundleConsumer {
             let state = {
                 let node = &nodes[position];
                 if node.kind == NodeKind::ScientificBridgeImage
-                    && derived.parents[position].iter().any(|&parent| {
-                        !matches!(states[parent].status, NodeStatus::Verified)
-                    })
+                    && derived.parents[position]
+                        .iter()
+                        .any(|&parent| !matches!(states[parent].status, NodeStatus::Verified))
                 {
                     states[position] = NodeState::failed(
                         BundleStage::SwappedEvidence,

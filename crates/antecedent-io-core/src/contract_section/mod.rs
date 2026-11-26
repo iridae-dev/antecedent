@@ -481,9 +481,9 @@ mod consume;
 mod cross_moments;
 pub mod cyclic;
 mod dr_replay;
-mod survival_replay;
 mod longitudinal_replay;
 mod replay;
+mod survival_replay;
 mod verify;
 
 pub use dr_replay::{DrReplayRefusal, SourceReplayBounds, verify_checked_dr_replay};

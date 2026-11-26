@@ -128,8 +128,9 @@ pub(crate) fn graphless_coordinate(
     adjustment: Option<&RandomizedAdjustment>,
 ) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
     match adjustment {
-        Some(adjustment) if adjustment.bernoulli_slope()
-            && matches!(query.design, RandomizationDesign::Bernoulli) =>
+        Some(adjustment)
+            if adjustment.bernoulli_slope()
+                && matches!(query.design, RandomizationDesign::Bernoulli) =>
         {
             ESTIMATED_CUPED_COORDINATE
         }
@@ -161,7 +162,8 @@ pub(crate) fn check(
 ) -> Result<(), CausalError> {
     let covariate = adjustment.covariate();
     let design_ok = match adjustment {
-        RandomizedAdjustment::EstimatedCuped { .. } | RandomizedAdjustment::EstimatedCupac { .. } => {
+        RandomizedAdjustment::EstimatedCuped { .. }
+        | RandomizedAdjustment::EstimatedCupac { .. } => {
             matches!(query.design, RandomizationDesign::Bernoulli)
         }
         RandomizedAdjustment::ClusterTotalCupac { .. } => {
@@ -226,10 +228,11 @@ pub(crate) fn admit(study: &crate::Study) -> Result<(), CausalError> {
         ));
     }
     let expected = match adjustment {
-        RandomizedAdjustment::EstimatedCuped { .. } | RandomizedAdjustment::EstimatedCupac { .. } => {
-            EstimatorId::RandomizedEstimatedCupedHt
+        RandomizedAdjustment::EstimatedCuped { .. }
+        | RandomizedAdjustment::EstimatedCupac { .. } => EstimatorId::RandomizedEstimatedCupedHt,
+        RandomizedAdjustment::ClusterTotalCupac { .. } => {
+            EstimatorId::RandomizedClusterEstimatedCuped
         }
-        RandomizedAdjustment::ClusterTotalCupac { .. } => EstimatorId::RandomizedClusterEstimatedCuped,
     };
     if study.declared.estimator.is_some_and(|estimator| estimator != expected) {
         return Err(crate::unsupported_reason!(

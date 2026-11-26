@@ -5,7 +5,7 @@
 //! native layer holds the search, constraints, standing label, held-out refusal and replayable
 //! record; the Python object only supplies paths.
 use antecedent::analysis::input_decision_programs::{
-    compile_adaptive_policy_search, TerminalError,
+    TerminalError, compile_adaptive_policy_search,
 };
 use antecedent::design::{
     AdaptivePolicyFamily, AdaptivePolicySearchError, ChanceBound, DrawSplit, HeldOutDesign,
@@ -16,7 +16,7 @@ use antecedent::design::{
 use antecedent::gcm::{ModelPolicySource, ModelRolloutDesign, StageUtility};
 use antecedent::prelude::VariableId;
 use pyo3::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::sync::Arc;
 
 use crate::PyCancellationToken;

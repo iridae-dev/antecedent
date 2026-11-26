@@ -814,8 +814,11 @@ fn pool_covariance_cells(arity: usize) -> Result<usize, ChainError> {
             "chain pool covariance cells",
         )));
     };
-    let _lease =
-        admit_chain_cells(quoted, &crate::execution_quote::open_execution(), "chain pool covariance cells")?;
+    let _lease = admit_chain_cells(
+        quoted,
+        &crate::execution_quote::open_execution(),
+        "chain pool covariance cells",
+    )?;
     Ok(cells)
 }
 
@@ -905,10 +908,14 @@ pub fn evaluate_columns_in(
         return Err(ChainError::Shape("a chain table needs at least one row"));
     }
     let Some(cells) = rows.checked_mul(sources.len() + stages.len()) else {
-        return Err(chain_search(crate::execution_quote::unrepresentable_quote("chain table cells")));
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain table cells",
+        )));
     };
     let Ok(quoted) = u64::try_from(cells) else {
-        return Err(chain_search(crate::execution_quote::unrepresentable_quote("chain table cells")));
+        return Err(chain_search(crate::execution_quote::unrepresentable_quote(
+            "chain table cells",
+        )));
     };
     let _lease = admit_chain_cells(quoted, ctx, "chain table cells")?;
     for column in sources {
@@ -1314,9 +1321,8 @@ fn preposterior_mode(
     } else {
         (0..n).map(|row| (row, prior(row))).collect::<Vec<_>>()
     };
-    let Some(comparisons) = u64::try_from(studies.len())
-        .ok()
-        .and_then(|m| m.checked_mul(u64::try_from(n).ok()?))
+    let Some(comparisons) =
+        u64::try_from(studies.len()).ok().and_then(|m| m.checked_mul(u64::try_from(n).ok()?))
     else {
         return Err(chain_search(crate::execution_quote::unrepresentable_quote(
             "preposterior study-by-row comparisons",
@@ -1502,10 +1508,7 @@ mod pool_budget_tests {
         let sources = vec![vec![0.0; rows], vec![1.0; rows]];
         let stages = [StageSpec {
             inputs: vec![0],
-            op: StageOp::Affine {
-                scale: Coefficient::Fixed(1.0),
-                shift: Coefficient::Fixed(0.0),
-            },
+            op: StageOp::Affine { scale: Coefficient::Fixed(1.0), shift: Coefficient::Fixed(0.0) },
         }];
         let open = evaluate_columns(&sources, &stages, &CancellationToken::new());
         assert!(open.is_ok(), "{open:?}");

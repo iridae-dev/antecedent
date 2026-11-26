@@ -7,13 +7,13 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::cohort_decision::{CohortDecisionSource, CohortExpectation};
 use antecedent::Study;
+use antecedent::analysis::cohort_decision::{CohortDecisionSource, CohortExpectation};
 use pyo3::prelude::*;
 
 use super::{
-    check_size, invalid_argument, native_fit_of, native_fit_refusal, refusal_json, ExpectationJson,
-    NativeFitJson,
+    ExpectationJson, NativeFitJson, check_size, invalid_argument, native_fit_of,
+    native_fit_refusal, refusal_json,
 };
 use crate::bridge::RefusalJson;
 use crate::detach_catch;

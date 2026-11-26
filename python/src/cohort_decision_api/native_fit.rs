@@ -1,17 +1,17 @@
 //! Owned, inspectable native cohort fit plans for Python.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::Study;
 use antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit;
 use antecedent::estimate::EstimationError;
 use antecedent::execution::AdmissionRefusal;
 use antecedent::reason::{reason_code, reason_details};
-use antecedent::Study;
 use pyo3::prelude::*;
 
-use super::{check_size, fit_quantities, invalid_argument, native_fit_payload, NativeFitJson};
+use super::{NativeFitJson, check_size, fit_quantities, invalid_argument, native_fit_payload};
+use crate::PyCancellationToken;
 use crate::bridge::RefusalJson;
 use crate::chain_decision_api::context;
-use crate::PyCancellationToken;
 
 type Checked<T> = (Option<T>, Option<String>);
 type FitResult = (String, Vec<u8>, String);

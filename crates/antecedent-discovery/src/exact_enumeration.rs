@@ -121,9 +121,7 @@ impl ExactDagPosterior {
                 "exact DAG enumeration",
             ) {
                 Err(error) => Err(error),
-                Ok(()) => Err(DiscoveryError::unsupported(
-                    "exact DAG enumeration was not entered",
-                )),
+                Ok(()) => Err(DiscoveryError::unsupported("exact DAG enumeration was not entered")),
             };
         }
 
@@ -181,11 +179,7 @@ impl ExactDagPosterior {
                     return Err(DiscoveryError::Cancelled);
                 }
                 let mut cache = antecedent_state::LocalScoreCache::new(
-                    crate::graph_score::graph_score_cache_key(
-                        score_family,
-                        n,
-                        score_data.n_rows,
-                    ),
+                    crate::graph_score::graph_score_cache_key(score_family, n, score_data.n_rows),
                 );
                 Ok(
                     match crate::graph_score::score_dag_mask(
@@ -347,18 +341,11 @@ fn check_quote<'a>(
     work: u64,
     unevaluated: &str,
 ) -> Result<SearchBudget<'a>, DiscoveryError> {
-    let budget = SearchBudget::with_memory(
-        SearchLimits { operations, depth: 1 },
-        memory.max(1),
-        ctx,
-    )
-    .map_err(quote_error)?;
+    let budget =
+        SearchBudget::with_memory(SearchLimits { operations, depth: 1 }, memory.max(1), ctx)
+            .map_err(quote_error)?;
     if let Err(stop) = budget.admits(1, memory.max(1), work) {
-        return Err(quote_error(budget.receipt(
-            stop,
-            Vec::new(),
-            vec![unevaluated.to_owned()],
-        )));
+        return Err(quote_error(budget.receipt(stop, Vec::new(), vec![unevaluated.to_owned()])));
     }
     Ok(budget)
 }
@@ -657,8 +644,9 @@ mod tests {
         ctx.set_memory_limit(Some(bytes));
         admit_quote(&ctx, usize::MAX, bytes, 0, "exact DAG enumeration").unwrap();
         ctx.set_memory_limit(Some(bytes - 1));
-        let text =
-            admit_quote(&ctx, usize::MAX, bytes, 0, "exact DAG enumeration").unwrap_err().to_string();
+        let text = admit_quote(&ctx, usize::MAX, bytes, 0, "exact DAG enumeration")
+            .unwrap_err()
+            .to_string();
         assert!(text.contains("search.memory"), "{text}");
         assert!(text.contains("unevaluated [exact DAG enumeration]"), "{text}");
         assert!(!text.contains("at most"), "{text}");

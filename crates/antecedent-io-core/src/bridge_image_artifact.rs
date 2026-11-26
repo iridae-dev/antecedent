@@ -26,7 +26,10 @@ use crate::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, MAX_DISTRIBUTION_ARTIFACT_BYTES,
 };
 use crate::quantity_wire::ScientificQuantityWire;
-use crate::{ArtifactContainer, ArtifactReader, IoError, OutSection, RetainedArtifactIdentity, load_expecting};
+use crate::{
+    ArtifactContainer, ArtifactReader, IoError, OutSection, RetainedArtifactIdentity,
+    load_expecting,
+};
 
 /// The artifact feature used by the compiled exact-image routes.
 pub const BRIDGE_IMAGE_ARTIFACT: &str = "scientific_bridge_exact_image_v1";
@@ -524,7 +527,9 @@ impl StoredBridgeImage {
         ctx: &ExecutionContext,
         retained: &RetainedArtifactIdentity,
     ) -> Result<Self, BridgeImageError> {
-        load_expecting(bytes, retained, |bytes| Self::open_with_context(bytes, program, result, ctx))
+        load_expecting(bytes, retained, |bytes| {
+            Self::open_with_context(bytes, program, result, ctx)
+        })
     }
 
     /// Open an embedded node under the default execution limits before numerical verification.

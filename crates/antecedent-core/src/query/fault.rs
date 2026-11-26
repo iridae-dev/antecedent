@@ -558,7 +558,9 @@ pub enum SurvivalFault {
     )]
     KnownCensoring,
     /// Refused: conditional entry and censoring require a named learner and source population.
-    #[error("conditional survival requires distinct entry and censoring strata, their ordered IndependentGiven declaration, positive source-population proportions, and a fitted censoring floor")]
+    #[error(
+        "conditional survival requires distinct entry and censoring strata, their ordered IndependentGiven declaration, positive source-population proportions, and a fitted censoring floor"
+    )]
     ConditionalObservation,
     /// Refused: randomized survival requires `IndependentGiven`; conditional censoring also requires known censoring survival
     #[error(

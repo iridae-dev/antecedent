@@ -150,10 +150,6 @@ pub use antecedent_estimate::LearnedContinuousOptions;
 pub use antecedent_estimate::ObservationalExposureSpec;
 /// Declared treatment levels of a propensity problem.
 pub use antecedent_estimate::OtherLevels;
-/// Classification a fit applied to a numeric treatment: discrete levels or a dose.
-pub use antecedent_estimate::TreatmentClassification;
-/// Caller declaration that a numeric treatment is levels or a dose.
-pub use antecedent_estimate::TreatmentDeclaration;
 /// Propensity stratification estimator.
 pub use antecedent_estimate::PropensityStratification;
 /// Inverse-probability weighting estimator.
@@ -168,6 +164,10 @@ pub use antecedent_estimate::SPREAD_LEVEL;
 pub use antecedent_estimate::SamplingWeights;
 /// Cross-fitted AIPW score tables for retargeting and joint inference.
 pub use antecedent_estimate::ScoreTable;
+/// Classification a fit applied to a numeric treatment: discrete levels or a dose.
+pub use antecedent_estimate::TreatmentClassification;
+/// Caller declaration that a numeric treatment is levels or a dose.
+pub use antecedent_estimate::TreatmentDeclaration;
 /// Joint outer bootstrap for catalog-bound empirical transport tables.
 pub use antecedent_estimate::Z_TRANSPORT_INTERVAL_NOT_MEASURED;
 /// Propensity problem preparation and shared workspace.

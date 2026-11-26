@@ -3,11 +3,11 @@
 use std::sync::Arc;
 
 use antecedent::analysis::composition::{
-    consume, detect_node_kind, export_bundle, BundleBuilder, NodeKind, SuppliedSources,
+    BundleBuilder, NodeKind, SuppliedSources, consume, detect_node_kind, export_bundle,
 };
 use antecedent::analysis::pag_identification::{
-    compile_pag_identification, consume_pag_identification, PagIdError, PagIdentificationProblem,
-    PagIdentificationProof, PagReplayError,
+    PagIdError, PagIdentificationProblem, PagIdentificationProof, PagReplayError,
+    compile_pag_identification, consume_pag_identification,
 };
 use antecedent_core::{ExecutionContext, RegimeId, Value, VariableId};
 use antecedent_expr::{
@@ -183,13 +183,15 @@ fn published_beyond_adjustment_formula_replays_and_executes() {
     let mut bundle = BundleBuilder::new();
     bundle.add_detected_artifact(Some("pag"), &bytes).unwrap();
     let graph = bundle.build().unwrap();
-    assert!(consume(
-        &export_bundle(&graph, "direct-pag").unwrap(),
-        graph.identity(),
-        &SuppliedSources::default()
-    )
-    .unwrap()
-    .all_replayed());
+    assert!(
+        consume(
+            &export_bundle(&graph, "direct-pag").unwrap(),
+            graph.identity(),
+            &SuppliedSources::default()
+        )
+        .unwrap()
+        .all_replayed()
+    );
 }
 
 #[test]
@@ -323,11 +325,7 @@ fn all_three_vertex_pag_classes_match_the_path_and_collider_reference() {
             let mut graph = Pag::with_variables(3);
             for &(a, b) in &present {
                 let mark = |node| {
-                    if collider == Some(node) {
-                        Endpoint::Arrow
-                    } else {
-                        Endpoint::Circle
-                    }
+                    if collider == Some(node) { Endpoint::Arrow } else { Endpoint::Circle }
                 };
                 graph
                     .insert_marked(MarkedEdge {
@@ -542,13 +540,15 @@ fn retained_search_stop_replays_under_its_original_budget() {
         consume_pag_identification(&bytes, stopped.identity(), plan.lowered().identity(), &ctx)
             .unwrap();
     assert_eq!(replayed.proof(), stopped.proof());
-    assert!(consume_pag_identification(
-        &bytes,
-        stopped.identity(),
-        plan.lowered().identity(),
-        &ctx.clone().with_id_work_limit(1)
-    )
-    .is_err());
+    assert!(
+        consume_pag_identification(
+            &bytes,
+            stopped.identity(),
+            plan.lowered().identity(),
+            &ctx.clone().with_id_work_limit(1)
+        )
+        .is_err()
+    );
     let completed = plan.execute_retaining_stop(&ctx).unwrap();
     assert!(matches!(completed.proof(), PagIdentificationProof::ConditionalObstruction { .. }));
     assert_ne!(completed.identity(), stopped.identity());
@@ -556,9 +556,9 @@ fn retained_search_stop_replays_under_its_original_budget() {
     builder.add_detected_artifact(Some("stopped"), &bytes).unwrap();
     let bundle = builder.build().unwrap();
     let encoded = export_bundle(&bundle, "retained-PAG-stop").unwrap();
-    assert!(consume(&encoded, bundle.identity(), &SuppliedSources::default())
-        .unwrap()
-        .all_replayed());
+    assert!(
+        consume(&encoded, bundle.identity(), &SuppliedSources::default()).unwrap().all_replayed()
+    );
 }
 
 /// Both SCMs use an independent uniform binary root and the same 10% flip noise.

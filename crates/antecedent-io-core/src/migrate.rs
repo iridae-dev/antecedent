@@ -299,8 +299,7 @@ mod tests {
     #[test]
     fn compiled_study_0_6_is_not_relabeled_and_another_0_6_kind_is_refused() {
         let mut study = tiny_artifact(crate::compiled_study::FORMAT);
-        study.manifest.artifact_kind =
-            ArtifactKind::Other(crate::compiled_study::KIND.into());
+        study.manifest.artifact_kind = ArtifactKind::Other(crate::compiled_study::KIND.into());
         study.manifest.minimum_reader_version = crate::compiled_study::FORMAT;
         let migrated = migrate_artifact(study).unwrap();
         assert_eq!(migrated.manifest.format_version, crate::compiled_study::FORMAT);

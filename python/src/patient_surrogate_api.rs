@@ -113,8 +113,12 @@ impl PyPatientSurrogatePlan {
     ) -> PyResult<Checked<(Bound<'py, PyBytes>, String)>> {
         let plan = &self.plan;
         let ctx = context(seed, threads, cancel, memory_bytes);
-        let result = crate::detach_catch(py, move || Ok(plan.export_with_identity(artifact_id, &ctx)))?;
-        Ok(checked(result.map(|(bytes, identity)| (PyBytes::new(py, &bytes), identity.to_hex())), program))
+        let result =
+            crate::detach_catch(py, move || Ok(plan.export_with_identity(artifact_id, &ctx)))?;
+        Ok(checked(
+            result.map(|(bytes, identity)| (PyBytes::new(py, &bytes), identity.to_hex())),
+            program,
+        ))
     }
 }
 

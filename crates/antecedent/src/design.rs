@@ -20,6 +20,11 @@ use crate::analysis::CausalContract;
 use crate::error::CausalError;
 use crate::support::CellStatus;
 
+pub use crate::analysis::composition_integrated_schedule::{
+    CompiledIntegratedScheduleDecision, compile_integrated_schedule_decision,
+    compile_schedule_decision_bundle, consume_schedule_decision_bundle,
+    consume_schedule_decision_bundle_with_context,
+};
 /// Experiment planning types; [`crate::analysis::planning`] compiles and
 /// executes a plan. A plan's `experiment_candidate` and `sampling_candidate`
 /// feed [`rank_designs_bound`] with the planned sample size.
@@ -41,13 +46,9 @@ pub use antecedent_design::adaptive_policy_search::{
 /// End-to-end finite schedule decision with joint source, transport, structural and preference uncertainty.
 pub use antecedent_design::intervention_schedule_decision::{
     IntegratedScheduleBundle, IntegratedScheduleDecision, PreparedIntegratedScheduleDecision,
-    ScheduleBundleError, ScheduleCalibrationDesign, ScheduleDecisionDeclaration, ScheduleDecisionError, ScheduleScenarioResult,
-    ScheduleSourceFit, ScheduleSourceSubject, ScheduleStructure, ScheduleTargetCohort,
-    ScheduleUtilityDifference,
-};
-pub use crate::analysis::composition_integrated_schedule::{
-    CompiledIntegratedScheduleDecision, compile_integrated_schedule_decision, compile_schedule_decision_bundle,
-    consume_schedule_decision_bundle, consume_schedule_decision_bundle_with_context,
+    ScheduleBundleError, ScheduleCalibrationDesign, ScheduleDecisionDeclaration,
+    ScheduleDecisionError, ScheduleScenarioResult, ScheduleSourceFit, ScheduleSourceSubject,
+    ScheduleStructure, ScheduleTargetCohort, ScheduleUtilityDifference,
 };
 pub use antecedent_design::planning::{
     AnalyticCharacteristics, ArmComparison, FactorialContrast, FamilyCharacteristics, FamilyPower,

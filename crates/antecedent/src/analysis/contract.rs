@@ -235,7 +235,10 @@ fn graphless_coordinate(
         let key = antecedent_io::graphless_support::survival_pointwise_key(
             query.delayed_entry.is_some(),
             query.known_censoring.is_some(),
-            matches!(query.functional, antecedent_core::SurvivalFunctional::CumulativeIncidence { .. }),
+            matches!(
+                query.functional,
+                antecedent_core::SurvivalFunctional::CumulativeIncidence { .. }
+            ),
         )
         .ok_or(MISMATCH)?;
         coordinate = Some(format!(
@@ -285,7 +288,9 @@ fn graphless_coordinate(
                 "intercept_and_period_effects_pointwise_95_normal_intervals",
             ),
             // Only calibrated graphless rows carry support.
-            Method::Ipw | Method::FittedGFormula(_) | Method::ScheduleFamily(_) => return Err(MISMATCH),
+            Method::Ipw | Method::FittedGFormula(_) | Method::ScheduleFamily(_) => {
+                return Err(MISMATCH);
+            }
         };
         coordinate = Some(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"));
     }

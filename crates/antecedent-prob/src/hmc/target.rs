@@ -4,7 +4,7 @@ use crate::backend::{BayesDesignRef, BayesLikelihood, LaplaceWorkspace};
 use crate::error::ProbError;
 use crate::gaussian_target::PosteriorTarget;
 use crate::likelihood_terms::{
-    accumulate_likelihood, glm_observation_terms, log_posterior_value, LikelihoodScratch,
+    LikelihoodScratch, accumulate_likelihood, glm_observation_terms, log_posterior_value,
 };
 use crate::prior::{CoefficientPrecision, GaussianCoefficientPrior};
 

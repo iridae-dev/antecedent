@@ -20,10 +20,11 @@ fn fixture(
     target: LongitudinalScheduleTarget,
 ) -> (TabularData, LongitudinalRegimeQuery, Vec<f64>) {
     let learned = matches!(target, LongitudinalScheduleTarget::Learn { .. });
-    let original_rows: Vec<_> = (0..SUBJECTS).map(|row|
-        if learned { row / 8 * 8 + (row % 2) * 4 + row / 2 % 4 } else { row }
-    ).collect();
-    let outcomes: Vec<_> = original_rows.iter()
+    let original_rows: Vec<_> = (0..SUBJECTS)
+        .map(|row| if learned { row / 8 * 8 + (row % 2) * 4 + row / 2 % 4 } else { row })
+        .collect();
+    let outcomes: Vec<_> = original_rows
+        .iter()
         .map(|&row| means[row % 4] + 0.125 * ((row / 8 % 3) as f64 - 1.0))
         .collect();
     let q = LongitudinalRegimeQuery {
@@ -41,13 +42,18 @@ fn fixture(
         observation_history: None,
         prediction_fold_ids: None,
         periods: 2,
-        treatment_history: original_rows.iter().flat_map(|&row| [row & 2 != 0, row & 1 != 0]).collect(),
+        treatment_history: original_rows
+            .iter()
+            .flat_map(|&row| [row & 2 != 0, row & 1 != 0])
+            .collect(),
         regime_actions: vec![false; SUBJECTS * 2].into(),
         treatment_probabilities: vec![0.5; SUBJECTS * 2].into(),
         censoring_probabilities: vec![1.0; SUBJECTS * 2].into(),
         outcome_observed: vec![true; SUBJECTS].into(),
         subject_ids: (0..SUBJECTS).map(|i| Arc::from(format!("schedule-{i}"))).collect(),
-        fold_ids: (0..SUBJECTS).map(|row| (if learned { row % 2 } else { row / 4 % 2 }) as u32).collect(),
+        fold_ids: (0..SUBJECTS)
+            .map(|row| (if learned { row % 2 } else { row / 4 % 2 }) as u32)
+            .collect(),
         excluded_fold_predictions: false,
         probabilities_known_by_design: true,
         minimum_probability: 0.01,
@@ -79,7 +85,9 @@ fn simultaneous_schedule_intervals_use_paired_subject_scores_and_bound_the_contr
     let ctx = ExecutionContext::for_tests(408);
     let first = compiled(&table, q.clone(), &ctx);
     let result = first.estimate(&table, &ctx).unwrap();
-    assert!(result.calibration_bases(&first.contract_for_result(&result).unwrap()).unwrap().is_empty());
+    assert!(
+        result.calibration_bases(&first.contract_for_result(&result).unwrap()).unwrap().is_empty()
+    );
     let family = result.longitudinal_regime().unwrap().schedule_family.as_ref().unwrap();
     let contrasts: [Vec<f64>; 2] = [1, 3].map(|candidate| {
         outcomes
@@ -151,7 +159,8 @@ fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajector
         let realized = query.treatment_history.clone();
         let prepared = compiled(&table, query, &ctx);
         let result = prepared.estimate(&table, &ctx).unwrap();
-        let scopes = result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
+        let scopes =
+            result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
         assert!(scopes.is_empty(), "the deterministic oracle has no measured-law declaration");
 
         let fit = result.longitudinal_regime().unwrap();
@@ -174,7 +183,13 @@ fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajector
             let revised: Vec<_> = outcomes
                 .iter()
                 .enumerate()
-                .map(|(i, &y)| if training[i] == 0 && realized[i * 2..i * 2 + 2] == [false, false] { y + 30.0 } else { y })
+                .map(|(i, &y)| {
+                    if training[i] == 0 && realized[i * 2..i * 2 + 2] == [false, false] {
+                        y + 30.0
+                    } else {
+                        y
+                    }
+                })
                 .collect();
             let revised = TabularData::from_f64_columns([("outcome", revised.as_slice())]).unwrap();
             assert!(

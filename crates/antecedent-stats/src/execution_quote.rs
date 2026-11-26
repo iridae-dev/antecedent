@@ -46,11 +46,8 @@ pub fn admit_execution_quote(
 ) -> Result<AdmissionLease, SearchReceipt> {
     let memory = ctx.memory_limit_bytes().unwrap_or(u64::MAX);
     let operations = usize::try_from(operation_limit).unwrap_or(usize::MAX).max(1);
-    let budget = match SearchBudget::with_memory(
-        SearchLimits { operations, depth: 1 },
-        memory,
-        ctx,
-    ) {
+    let budget = match SearchBudget::with_memory(SearchLimits { operations, depth: 1 }, memory, ctx)
+    {
         Ok(budget) => budget,
         Err(mut receipt) => {
             receipt.unevaluated = vec![unevaluated.to_owned()];
@@ -79,11 +76,8 @@ pub fn probe_execution_quote(
 ) -> Result<(), SearchReceipt> {
     let memory = ctx.memory_limit_bytes().unwrap_or(u64::MAX);
     let operations = usize::try_from(operation_limit).unwrap_or(usize::MAX).max(1);
-    let budget = match SearchBudget::with_memory(
-        SearchLimits { operations, depth: 1 },
-        memory,
-        ctx,
-    ) {
+    let budget = match SearchBudget::with_memory(SearchLimits { operations, depth: 1 }, memory, ctx)
+    {
         Ok(budget) => budget,
         Err(mut receipt) => {
             receipt.unevaluated = vec![unevaluated.to_owned()];
@@ -109,8 +103,7 @@ pub fn execution_quote_fits(
     }
     let memory = ctx.memory_limit_bytes().unwrap_or(u64::MAX);
     let operations = usize::try_from(operation_limit).unwrap_or(usize::MAX).max(1);
-    let Ok(budget) =
-        SearchBudget::with_memory(SearchLimits { operations, depth: 1 }, memory, ctx)
+    let Ok(budget) = SearchBudget::with_memory(SearchLimits { operations, depth: 1 }, memory, ctx)
     else {
         return false;
     };

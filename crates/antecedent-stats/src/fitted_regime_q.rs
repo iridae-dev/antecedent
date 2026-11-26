@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::{equal_tail_interval_sorted, QuantileRule, StatsError};
+use crate::{QuantileRule, StatsError, equal_tail_interval_sorted};
 use antecedent_core::{ExecutionContext, StreamDomain};
 
 const SUBJECT_BOOTSTRAP_STREAM: u64 = 0x5126_7740_0000_0000;

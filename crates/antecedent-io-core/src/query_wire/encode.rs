@@ -495,11 +495,13 @@ fn survival_to_wire(q: &antecedent_core::SurvivalQuery) -> CausalQueryWire {
             .known_censoring
             .as_ref()
             .map(|known| known.minimum_probability),
-        stratified_censoring: q.stratified_censoring.as_ref().map(|fit| super::StratifiedCensoringWire {
-            entry_stratum: fit.entry_stratum.raw(),
-            censoring_stratum: fit.censoring_stratum.raw(),
-            population_weights: fit.population_weights,
-            minimum_probability: fit.minimum_probability,
+        stratified_censoring: q.stratified_censoring.as_ref().map(|fit| {
+            super::StratifiedCensoringWire {
+                entry_stratum: fit.entry_stratum.raw(),
+                censoring_stratum: fit.censoring_stratum.raw(),
+                population_weights: fit.population_weights,
+                minimum_probability: fit.minimum_probability,
+            }
         }),
     })
 }
@@ -513,10 +515,14 @@ fn longitudinal_regime_to_wire(q: &antecedent_core::LongitudinalRegimeQuery) -> 
             antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
             antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
             antecedent_core::LongitudinalRegimeMethod::FittedGFormula(_) => "fitted_g_formula",
-            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) => match family.target {
-                antecedent_core::LongitudinalScheduleTarget::Contrasts { .. } => "compare_schedules",
-                antecedent_core::LongitudinalScheduleTarget::Learn { .. } => "learn_schedule",
-            },
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) => {
+                match family.target {
+                    antecedent_core::LongitudinalScheduleTarget::Contrasts { .. } => {
+                        "compare_schedules"
+                    }
+                    antecedent_core::LongitudinalScheduleTarget::Learn { .. } => "learn_schedule",
+                }
+            }
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => "sequential_dr",
             antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
                 "marginal_structural_model"
@@ -524,22 +530,34 @@ fn longitudinal_regime_to_wire(q: &antecedent_core::LongitudinalRegimeQuery) -> 
         }
         .into(),
         fitted_q: match q.method {
-            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) => Some(super::FittedRegimeQWire {
-                baseline: fit.baseline.raw(),
-                external_training_fold: fit.external_training_fold,
-                bootstrap_replicates: fit.bootstrap_replicates,
-            }),
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) => {
+                Some(super::FittedRegimeQWire {
+                    baseline: fit.baseline.raw(),
+                    external_training_fold: fit.external_training_fold,
+                    bootstrap_replicates: fit.bootstrap_replicates,
+                })
+            }
             _ => None,
         },
         schedule_family: match q.method {
-            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) => Some(super::LongitudinalScheduleFamilyWire {
-                schedules: family.schedules,
-                draws: family.draws,
-                target: match family.target {
-                    antecedent_core::LongitudinalScheduleTarget::Contrasts { reference, contrasts } => super::LongitudinalScheduleTargetWire::Contrasts { reference, contrasts },
-                    antecedent_core::LongitudinalScheduleTarget::Learn { training_fold } => super::LongitudinalScheduleTargetWire::Learn { training_fold },
-                },
-            }),
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) => {
+                Some(super::LongitudinalScheduleFamilyWire {
+                    schedules: family.schedules,
+                    draws: family.draws,
+                    target: match family.target {
+                        antecedent_core::LongitudinalScheduleTarget::Contrasts {
+                            reference,
+                            contrasts,
+                        } => super::LongitudinalScheduleTargetWire::Contrasts {
+                            reference,
+                            contrasts,
+                        },
+                        antecedent_core::LongitudinalScheduleTarget::Learn { training_fold } => {
+                            super::LongitudinalScheduleTargetWire::Learn { training_fold }
+                        }
+                    },
+                })
+            }
             _ => None,
         },
         period_outcome_predictions: q

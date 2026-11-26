@@ -675,9 +675,7 @@ pub fn resolve_nested_digest(
 ) -> Result<(), IoError> {
     let got = digest_canonical(domain, &nested.bytes);
     if got != nested.digest {
-        return Err(IoError::Convert(
-            "nested digest does not match its canonical bytes".into(),
-        ));
+        return Err(IoError::Convert("nested digest does not match its canonical bytes".into()));
     }
     Ok(())
 }
@@ -707,9 +705,7 @@ pub fn identification_product_canonical_bytes(
 /// # Errors
 ///
 /// The bytes are not one canonical CBOR item, or they do not hash to the product digest.
-pub fn decode_identification_product(
-    bytes: &[u8],
-) -> Result<IdentificationProductWire, IoError> {
+pub fn decode_identification_product(bytes: &[u8]) -> Result<IdentificationProductWire, IoError> {
     let wire: IdentificationProductWire = crate::from_cbor(bytes)?;
     let canonical = identification_product_canonical_bytes(&wire)?;
     if canonical.as_slice() != bytes {
@@ -3003,10 +2999,7 @@ mod tests {
             nested.digest,
             identification_product_digest_wire(&wire).expect("existing digest")
         );
-        assert_eq!(
-            digest_canonical(IdentityDomain::IdentificationProduct, &bytes),
-            nested.digest
-        );
+        assert_eq!(digest_canonical(IdentityDomain::IdentificationProduct, &bytes), nested.digest);
         assert_eq!(decode_identification_product(&bytes).expect("decode"), wire);
         let mut tampered = bytes.clone();
         tampered.push(0);

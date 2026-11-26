@@ -19,7 +19,10 @@ const ARTIFACT_KIND: &str = crate::artifact_kinds::ANALYSIS_RESULT;
 const HEADER_SECTION: &str = "analysis_result.header";
 const BODY_SECTION: &str = "analysis_result.body";
 mod longitudinal_schedule;
-pub use longitudinal_schedule::{LongitudinalScheduleContrastWire, LongitudinalScheduleLearningWire, LongitudinalScheduleResultWire};
+pub use longitudinal_schedule::{
+    LongitudinalScheduleContrastWire, LongitudinalScheduleLearningWire,
+    LongitudinalScheduleResultWire,
+};
 
 // Only composite analysis results with an unreported mediation point use this
 // extension. Other artifacts retain the stable 0.5 container format.

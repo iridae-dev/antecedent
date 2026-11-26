@@ -515,8 +515,8 @@ fn lowered_program_tag_reaches_canonical_writer_only_from_encode_invariant() {
 }
 
 fn collect_rust_sources(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
-    let entries = std::fs::read_dir(dir)
-        .unwrap_or_else(|error| panic!("read {}: {error}", dir.display()));
+    let entries =
+        std::fs::read_dir(dir).unwrap_or_else(|error| panic!("read {}: {error}", dir.display()));
     for entry in entries {
         let path = entry.expect("directory entry").path();
         if path.is_dir() {
@@ -594,11 +594,10 @@ fn enclosing_function(source: &str, index: usize) -> &str {
     let mut rest = &source[..index];
     while let Some(at) = rest.find("fn ") {
         let absolute = source[..index].len() - rest.len() + at;
-        let boundary = absolute == 0
-            || {
-                let previous = source.as_bytes()[absolute - 1];
-                !previous.is_ascii_alphanumeric() && previous != b'_'
-            };
+        let boundary = absolute == 0 || {
+            let previous = source.as_bytes()[absolute - 1];
+            !previous.is_ascii_alphanumeric() && previous != b'_'
+        };
         if boundary && !line_comment_covers(source, absolute) {
             let after = &source[absolute + 3..];
             let end = after

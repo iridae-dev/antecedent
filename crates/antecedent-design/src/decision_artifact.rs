@@ -609,9 +609,7 @@ pub(crate) fn decode_with_method_provenance<T: serde::de::DeserializeOwned>(
                 .map(|methods| methods.provenance);
             Ok((decode_body(&body)?, provenance))
         }
-        Err(antecedent_io_core::CodecError::Layout) => {
-            decode(bytes, kind).map(|body| (body, None))
-        }
+        Err(antecedent_io_core::CodecError::Layout) => decode(bytes, kind).map(|body| (body, None)),
         Err(error) => Err(error.into_io("unsupported decision artifact layout")),
     }
 }
@@ -679,7 +677,8 @@ impl DecisionResultArtifact {
         expected_contract_identity: &str,
         expected_source_digest: &str,
     ) -> Result<Self, IoError> {
-        let (mut body, methods): (ResultBody, _) = decode_with_method_provenance(bytes, RESULT_KIND)?;
+        let (mut body, methods): (ResultBody, _) =
+            decode_with_method_provenance(bytes, RESULT_KIND)?;
         if body.contract_identity != expected_contract_identity {
             return Err(refused(
                 "contract_expected",

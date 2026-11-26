@@ -97,7 +97,9 @@ pub fn adjustment_verdicts(design: &str) -> Vec<AdjustmentVerdict> {
             strategy: "cluster_total_slope",
             coefficient: "ordinary least-squares slope of cluster outcome totals on cluster prediction totals",
             admissible: if design == "cluster" {
-                Ok("estimated from the cluster totals; the cluster stays the unit of analysis and the Neyman variance treats the slope as fixed")
+                Ok(
+                    "estimated from the cluster totals; the cluster stays the unit of analysis and the Neyman variance treats the slope as fixed",
+                )
             } else {
                 Err("a slope estimated from cluster totals is the cluster design's adjustment")
             },
@@ -157,8 +159,9 @@ pub fn compile_joint_experiment(
                 return Err(EvidenceRefusal::AdjustmentNotAdmissible {
                     strategy: "cluster_total_slope".into(),
                     design: spec.assignment_design.clone(),
-                    reason: "a slope estimated from cluster totals is the cluster design's adjustment"
-                        .into(),
+                    reason:
+                        "a slope estimated from cluster totals is the cluster design's adjustment"
+                            .into(),
                 });
             }
             if covariate.trim().is_empty() {
@@ -192,10 +195,8 @@ pub fn compile_joint_experiment(
             AdjustmentKind::FixedCuped { .. } | AdjustmentKind::CenteredFixedCuped { .. }
         )
     });
-    let cluster_slope = spec
-        .adjustments
-        .iter()
-        .any(|a| matches!(a.kind, AdjustmentKind::ClusterTotalSlope { .. }));
+    let cluster_slope =
+        spec.adjustments.iter().any(|a| matches!(a.kind, AdjustmentKind::ClusterTotalSlope { .. }));
     if fixed_coefficient {
         obligations.push(CompiledObligation {
             id: "fixed_pre_assignment_coefficient",

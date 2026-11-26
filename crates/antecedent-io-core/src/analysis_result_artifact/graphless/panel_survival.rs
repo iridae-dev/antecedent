@@ -447,7 +447,9 @@ fn survival_support(
                         control,
                         interval_95_published: true,
                         rows: control.saturating_add(treated),
-                        reported_intervals: 1 + usize::from(curve.rmst_difference_interval.is_some()),
+                        reported_intervals: 1 + usize::from(
+                            curve.rmst_difference_interval.is_some(),
+                        ),
                         all_reported_intervals: true,
                         known_density: ipcw,
                         ..GraphlessAssignmentSupport::default()
@@ -461,7 +463,10 @@ fn survival_support(
         });
     let band_key = if let Some(fit) = &query.stratified_censoring {
         crate::graphless_support::conditional_survival_band_key(
-            query.delayed_entry.is_some(), incidence, query.tau, fit.population_weights,
+            query.delayed_entry.is_some(),
+            incidence,
+            query.tau,
+            fit.population_weights,
             fit.minimum_probability,
         )
     } else {
@@ -471,24 +476,26 @@ fn survival_support(
         band_valid
             && band.replicates_ok >= 399
             && curve.assignment_counts.is_some_and(|[control, treated]| {
-                band_key.is_some_and(|key| graphless_admits_resampled(
-                    key,
-                    GraphlessAssignmentSupport {
-                        assignment_unit: "unit",
-                        treated,
-                        control,
-                        interval_95_published: true,
-                        rows: control.saturating_add(treated),
-                        reported_intervals: 1,
-                        all_reported_intervals: true,
-                        known_density: ipcw,
-                        ..GraphlessAssignmentSupport::default()
-                    },
-                    GraphlessResampleSupport {
-                        interval_resamples: band.replicates_ok as usize,
-                        ..GraphlessResampleSupport::default()
-                    },
-                ))
+                band_key.is_some_and(|key| {
+                    graphless_admits_resampled(
+                        key,
+                        GraphlessAssignmentSupport {
+                            assignment_unit: "unit",
+                            treated,
+                            control,
+                            interval_95_published: true,
+                            rows: control.saturating_add(treated),
+                            reported_intervals: 1,
+                            all_reported_intervals: true,
+                            known_density: ipcw,
+                            ..GraphlessAssignmentSupport::default()
+                        },
+                        GraphlessResampleSupport {
+                            interval_resamples: band.replicates_ok as usize,
+                            ..GraphlessResampleSupport::default()
+                        },
+                    )
+                })
             })
     });
     (scalar_supported, band_supported)
@@ -505,8 +512,10 @@ fn survival_band_valid(
             let design_valid = if query.stratified_censoring.is_some() {
                 let minimum_risk = band.minimum_horizon_risk_set;
                 if query.delayed_entry.is_some() {
-                    minimum_risk.is_some_and(|risk| risk >= DELAYED_ENTRY_BAND_MIN_RISK_SET
-                        && curve.assignment_counts.is_some_and(|[a, b]| risk <= a.min(b) / 4))
+                    minimum_risk.is_some_and(|risk| {
+                        risk >= DELAYED_ENTRY_BAND_MIN_RISK_SET
+                            && curve.assignment_counts.is_some_and(|[a, b]| risk <= a.min(b) / 4)
+                    })
                 } else {
                     minimum_risk.is_none()
                 }
@@ -515,14 +524,18 @@ fn survival_band_valid(
                     && band.minimum_horizon_risk_set.is_some_and(|risk| {
                         risk >= DELAYED_ENTRY_BAND_MIN_RISK_SET
                             && curve.assignment_counts.is_some_and(|[a, b]| {
-                                a.min(b) >= delayed_entry_band_min_arm(!query.censoring_columns.is_empty())
+                                a.min(b)
+                                    >= delayed_entry_band_min_arm(
+                                        !query.censoring_columns.is_empty(),
+                                    )
                                     && risk <= a.min(b)
                             })
                     })
             } else {
                 band.minimum_horizon_risk_set.is_none() && query.censoring_columns.is_empty()
             };
-            design_valid && bootstrapped
+            design_valid
+                && bootstrapped
                 && requested >= 399
                 && band.replicates_ok >= 399
                 && band.replicates_ok >= requested.saturating_sub(requested / 10)
@@ -604,11 +617,17 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
     let conditional = query.stratified_censoring.is_some();
     let fitted_band = conditional
         && curve.uncertainty == STRATIFIED_CENSORING_BAND
-        && curve.difference_band.as_ref().is_some_and(|band| Some(band.replicates_ok) == curve.bootstrap_replicates_ok)
+        && curve
+            .difference_band
+            .as_ref()
+            .is_some_and(|band| Some(band.replicates_ok) == curve.bootstrap_replicates_ok)
         && curve.rmst_difference_interval.is_none()
         && curve.difference_at_tau_interval.is_none();
-    let provenance = if conditional { Some(STRATIFIED_CENSORING_PROVENANCE) } else {
-        (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
+    let provenance = if conditional {
+        Some(STRATIFIED_CENSORING_PROVENANCE)
+    } else {
+        (!query.censoring_columns.is_empty())
+            .then_some("caller_supplied_fixed_not_fitted_or_verified")
     };
     let band_valid = survival_band_valid(curve, query, pointwise_bootstrap || fitted_band);
     let (scalar_supported, band_supported) =

@@ -5,12 +5,12 @@
 //! Each provider fit returns its model as a portable prediction map.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::compiled_joint_cells_learners::JointCellsLearnersRequest;
 use antecedent::Study;
+use antecedent::analysis::compiled_joint_cells_learners::JointCellsLearnersRequest;
 use pyo3::prelude::*;
 use serde_json::json;
 
-use super::{callback_context, smoothed_dose::portable_factories, PythonReceipt};
+use super::{PythonReceipt, callback_context, smoothed_dose::portable_factories};
 
 /// Run the compiled factorized joint-cell fit with two registered Python providers.
 ///

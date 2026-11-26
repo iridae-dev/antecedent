@@ -4,13 +4,13 @@
 mod common;
 
 use antecedent::analysis::longitudinal_joint_sensitivity::{
-    JointSensitivityError, LongitudinalSensitivityCoverageDesign, LongitudinalSensitivitySpec, LongitudinalSubject,
-    compile_longitudinal_joint_sensitivity,
+    JointSensitivityError, LongitudinalSensitivityCoverageDesign, LongitudinalSensitivitySpec,
+    LongitudinalSubject, compile_longitudinal_joint_sensitivity,
 };
 use antecedent_core::{CalibrationBasis, ExecutionContext};
 use common::calibration::{
-    Construction, CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
-    map_replicates, n_sim, uniform,
+    Construction, CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n,
+    grid_seed, map_replicates, n_sim, uniform,
 };
 
 const TEST: &str = "longitudinal_two_decision_joint_box_and_extrema_l95";
@@ -51,8 +51,11 @@ fn measure(seed: u64, n: usize) -> Option<(f64, f64, Vec<CalibrationBasis>)> {
     let prepared = compile_longitudinal_joint_sensitivity(spec, data, &ctx).unwrap();
     let result = match prepared.execute(&ctx) {
         Ok(result) => result,
-        Err(JointSensitivityError::Positivity | JointSensitivityError::RefitPositivity(_)
-            | JointSensitivityError::IncoherentBox) => return None,
+        Err(
+            JointSensitivityError::Positivity
+            | JointSensitivityError::RefitPositivity(_)
+            | JointSensitivityError::IncoherentBox,
+        ) => return None,
         Err(error) => panic!("unexpected joint sensitivity calibration failure: {error}"),
     };
     let report = result.report();
@@ -135,5 +138,8 @@ fn longitudinal_two_decision_joint_box_and_extrema_l95() {
         }
     }
     surface.assert();
-    extrema.assert_one_sided(CoverageSide::Upper, "simultaneous containment of both projected decision extrema");
+    extrema.assert_one_sided(
+        CoverageSide::Upper,
+        "simultaneous containment of both projected decision extrema",
+    );
 }

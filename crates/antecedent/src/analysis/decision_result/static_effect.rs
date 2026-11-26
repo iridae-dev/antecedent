@@ -12,8 +12,8 @@ use antecedent_core::{
 use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 
 use super::{
-    causal_source_identity, mean_contrast_quantity, static_refusal, DecisionProjectionError,
-    OUTCOME_NAME, TREATMENT_NAME,
+    DecisionProjectionError, OUTCOME_NAME, TREATMENT_NAME, causal_source_identity,
+    mean_contrast_quantity, static_refusal,
 };
 use crate::result::{ExecutedContract, StudyResult};
 use crate::support::CellStatus;

@@ -34,12 +34,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::signal::RefusalBuilder;
 
-use antecedent_io_core::MethodProvenanceWire;
-use crate::decision_artifact::{decode_with_method_provenance, encode_with_method_provenance};
 use crate::decision_artifact::{
     ContractBody, MAX_DECISION_ARTIFACT_BYTES, body_from_contract, contract_from_body, decode,
     encode, refused, source_digest,
 };
+use crate::decision_artifact::{decode_with_method_provenance, encode_with_method_provenance};
 use crate::decision_contract::{
     AdmissibilityRules, AdmissibleDecisionContract, DeclaredExclusion, SupportRule,
     UncertaintyKind, UncertaintyRequirement,
@@ -49,6 +48,7 @@ use crate::decision_robustness::{
     SupportShortfall, evaluate_robust,
 };
 use crate::decision_structural::{AtomEvidence, StructuralAtom};
+use antecedent_io_core::MethodProvenanceWire;
 
 const ADMISSIBLE_KIND: &str = "admissible_decision_contract_v1";
 const ROBUST_KIND: &str = "robust_decision_result_v1";
@@ -1034,8 +1034,10 @@ pub struct RobustResultArtifact {
 
 impl PartialEq for RobustResultArtifact {
     fn eq(&self, other: &Self) -> bool {
-        self.result == other.result && self.profile == other.profile
-            && self.atoms == other.atoms && self.receipts == other.receipts
+        self.result == other.result
+            && self.profile == other.profile
+            && self.atoms == other.atoms
+            && self.receipts == other.receipts
     }
 }
 

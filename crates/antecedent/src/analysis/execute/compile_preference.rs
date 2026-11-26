@@ -100,8 +100,8 @@ pub use structures::{CompiledStructure, StructureIdentification};
 
 use super::Study;
 use crate::analysis::attached_decision::{ParentDecisionProgram, ParentSpec, lower_parent};
-use crate::analysis::decision_result::supplied_child_identity;
 use crate::analysis::contract::CausalContract;
+use crate::analysis::decision_result::supplied_child_identity;
 use crate::analysis::joint_panel::JointPanelError;
 use crate::analysis::lowering::CompileGoal;
 use crate::analysis::native_claims::{
@@ -327,7 +327,8 @@ pub(super) fn admit_supplied_child(
         .unwrap_or_else(|| "none".to_owned());
     let compiled_execution = execution_hex(admission)?;
     let result_execution = digest_hex(result.execution_identity);
-    let compiled = supplied_child_identity(&digest_hex(compiled_program), snapshot, &compiled_execution);
+    let compiled =
+        supplied_child_identity(&digest_hex(compiled_program), snapshot, &compiled_execution);
     let supplied_identity =
         supplied_child_identity(&digest_hex(result_program), &result_snapshot, &result_execution);
     if compiled != supplied_identity {
@@ -1590,12 +1591,7 @@ impl CompiledPreferenceDecision {
                     "no prepared structure".to_owned(),
                 ));
             };
-            let ran = admit_supplied_child(
-                structure.plan.as_ref(),
-                &study.snapshot,
-                result,
-                ctx,
-            )?;
+            let ran = admit_supplied_child(structure.plan.as_ref(), &study.snapshot, result, ctx)?;
             if let Some(plan) = &structure.plan {
                 programs.push(plan.identity());
                 executed.push(ran);

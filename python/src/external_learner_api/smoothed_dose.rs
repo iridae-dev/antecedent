@@ -10,23 +10,23 @@
 //! fit receipt of every fold is returned.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::{atomic::Ordering, Arc};
+use std::sync::{Arc, atomic::Ordering};
 
+use antecedent::Study;
 use antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRequest;
 use antecedent::analysis::declared_learners::LearnerFactories;
 use antecedent::analysis::portable_learner_fit::portable_fit;
+use antecedent::estimate::SmoothedDoseOptions;
 use antecedent::estimate::external_learner::{
     DesignView, FittedPredictor, LearnError, LearnerCapabilities, LearnerFactory,
     LearnerProvenance, PredictionTask, TargetView,
 };
-use antecedent::estimate::SmoothedDoseOptions;
 use antecedent::prelude::ExecutionContext;
-use antecedent::Study;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 use super::{
-    callback_bytes, callback_context, fit_columns, learner_weights, CallbackState, PythonReceipt,
+    CallbackState, PythonReceipt, callback_bytes, callback_context, fit_columns, learner_weights,
 };
 
 /// A registered Python provider whose fits are portable prediction maps.

@@ -5,7 +5,7 @@
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::{standard_normal, unbiased_index};
 
-use crate::{quantile_sorted, QuantileRule, StatsError, NORMAL_Q975};
+use crate::{NORMAL_Q975, QuantileRule, StatsError, quantile_sorted};
 
 const SIMULTANEOUS_STREAM: u64 = 0x5319_0000_0000_0000;
 const POLICY_REFIT_STREAM: u64 = 0x5320_0000_0000_0000;

@@ -90,7 +90,10 @@ fn the_compiled_seal_reproduces_the_direct_seal() {
         panic!("an interval without an interval construction must be refused");
     };
     assert_eq!(refusal.code, "uncertainty_representation_insufficient");
-    assert_eq!(refusal.detail, antecedent::reason::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION);
+    assert_eq!(
+        refusal.detail,
+        antecedent::reason::reason_details::joint_law_propagation::NO_INTERVAL_CONSTRUCTION
+    );
 
     request.reading = RequestedReading::Point;
     let direct = CrossWorldExecution::seal(&request, &ctx()).unwrap();

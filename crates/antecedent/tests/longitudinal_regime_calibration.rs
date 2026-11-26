@@ -4,12 +4,13 @@
 mod common;
 
 use antecedent::{CausalError, PreparedStudy, Study, StudyResult};
-use antecedent_estimate::error::EstimationError;
-use antecedent_stats::StatsError;
 use antecedent_core::{
-    CausalQuery, ExecutionContext, LongitudinalCalibrationDesign, LongitudinalRegimeMethod, LongitudinalRegimeQuery, VariableId,
+    CausalQuery, ExecutionContext, LongitudinalCalibrationDesign, LongitudinalRegimeMethod,
+    LongitudinalRegimeQuery, VariableId,
 };
 use antecedent_data::TabularData;
+use antecedent_estimate::error::EstimationError;
+use antecedent_stats::StatsError;
 use common::calibration::{
     CoverageTally, REPORTED_LEVEL, RecordKey, gaussian, grid_n, map_replicates, n_sim, uniform,
 };
@@ -243,7 +244,9 @@ fn fitted_q_coverage(test: &'static str, external_training_fold: Option<u32>) {
         };
         let (prepared, result) = match run(&data, query, seed) {
             Ok(fit) => fit,
-            Err(CausalError::Estimate(EstimationError::Stats(StatsError::Unsupported { .. }))) => {
+            Err(CausalError::Estimate(EstimationError::Stats(StatsError::Unsupported {
+                ..
+            }))) => {
                 return None;
             }
             Err(error) => panic!("unexpected fitted-Q calibration failure: {error}"),

@@ -11,15 +11,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::posterior_boundaries::{
-    require_ordinary_temporal_curve_posterior, trajectory_hazard_credible_interval,
-    trajectory_survival_bootstrap, trajectory_survival_contrast, SerialErrorModel, TrajectoryRows,
+    SerialErrorModel, TrajectoryRows, require_ordinary_temporal_curve_posterior,
+    trajectory_hazard_credible_interval, trajectory_survival_bootstrap,
+    trajectory_survival_contrast,
 };
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
+use crate::PyCancellationToken;
 use crate::chain_decision_api::context;
 use crate::ingest::snapshot_array;
-use crate::PyCancellationToken;
 
 use crate::{detach_catch, py_err, value_err};
 

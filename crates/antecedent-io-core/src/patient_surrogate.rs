@@ -698,7 +698,8 @@ mod tests {
         assert!(matches!(
             StoredPatientSurrogate::decode_expecting(&tampered, &retained),
             Err(PatientSurrogateError::Artifact(IoError::Refused {
-                code: "external_binding_mismatch", ..
+                code: "external_binding_mismatch",
+                ..
             }))
         ));
         let stored = StoredPatientSurrogate::open(&tampered, program, live.identity()).unwrap();

@@ -152,8 +152,8 @@ pub use procedure_uncertainty::{
     EstimandStatement, EstimatorLaw, Functional, InversionGrid, InversionInterval,
     MAX_INVERSION_LAWS, ObservedTerminal, OrderingPValues, PosteriorMeanGap, UncertaintyParadigm,
     admit, anytime_exclusion_probability, anytime_exclusion_probability_in, anytime_valid_report,
-    bayesian_report, decision_report, decision_report_in, inversion_interval, inversion_interval_in,
-    ordering_p_values, posterior_mean_gaps, posterior_mean_gaps_in,
+    bayesian_report, decision_report, decision_report_in, inversion_interval,
+    inversion_interval_in, ordering_p_values, posterior_mean_gaps, posterior_mean_gaps_in,
 };
 pub use repeated_measures_posterior::{
     ArmMeanPosterior, ContrastPosterior, MAX_POSTERIOR_UNITS, NormalMeanPrior,

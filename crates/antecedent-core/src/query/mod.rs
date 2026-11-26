@@ -96,7 +96,10 @@ pub use iv_bounds::IvBoundsQuery;
 pub use local_polynomial_ratio::{
     LocalBandwidthRule, LocalPolynomialRatioQuery, LocalRatioOptions,
 };
-pub use longitudinal_regime::{FittedRegimeQ, LongitudinalCalibrationDesign, LongitudinalRegimeMethod, LongitudinalRegimeQuery, LongitudinalScheduleFamily, LongitudinalScheduleTarget};
+pub use longitudinal_regime::{
+    FittedRegimeQ, LongitudinalCalibrationDesign, LongitudinalRegimeMethod,
+    LongitudinalRegimeQuery, LongitudinalScheduleFamily, LongitudinalScheduleTarget,
+};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use model_operations::{
     ArrowStrengthsTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget, ModelOperation,
@@ -122,7 +125,9 @@ pub use response::{
 pub use sequential_contrast::SequentialContrastQuery;
 pub use simulate::{SimulateQuery, SimulationTarget};
 pub use smoothed_dose::{SmoothedDoseTransportQuery, SmoothingKernel};
-pub use survival::{KnownCensoringSurvival, StratifiedCensoringSurvival, SurvivalFunctional, SurvivalQuery};
+pub use survival::{
+    KnownCensoringSurvival, StratifiedCensoringSurvival, SurvivalFunctional, SurvivalQuery,
+};
 pub use synthetic_control::{
     SyntheticControlQuery, SyntheticInterval, SyntheticPanelMethod, SyntheticRollout,
 };

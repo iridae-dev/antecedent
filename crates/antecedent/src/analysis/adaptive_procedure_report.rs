@@ -445,7 +445,8 @@ impl AdaptiveProcedure {
                     None
                 };
                 let priors = vec![*prior; spec.cells()];
-                let mean_gaps = posterior_mean_gaps_in(spec, &priors, &cancelled, ctx).map_err(fail)?;
+                let mean_gaps =
+                    posterior_mean_gaps_in(spec, &priors, &cancelled, ctx).map_err(fail)?;
                 (
                     UncertaintyParadigm::BayesianPosterior,
                     ProcedureReportBody::Bayesian { posterior, mean_gaps },
@@ -548,7 +549,12 @@ impl AdaptiveProcedure {
                     .as_ref()
                     .map(|t| {
                         anytime_exclusion_probability_in(
-                            spec, t, *alpha, *tuning_samples, &cancelled, ctx,
+                            spec,
+                            t,
+                            *alpha,
+                            *tuning_samples,
+                            &cancelled,
+                            ctx,
                         )
                     })
                     .transpose()
@@ -559,9 +565,8 @@ impl AdaptiveProcedure {
                 )
             }
             ProcedureReportRequest::WholeProcedureInversion { observed, grid, alpha } => {
-                let interval =
-                    inversion_interval_in(spec, observed, grid, *alpha, &cancelled, ctx)
-                        .map_err(fail)?;
+                let interval = inversion_interval_in(spec, observed, grid, *alpha, &cancelled, ctx)
+                    .map_err(fail)?;
                 (
                     UncertaintyParadigm::WholeProcedureInversion,
                     ProcedureReportBody::WholeProcedureInversion(interval),

@@ -16,7 +16,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 pub use antecedent_estimate::temporal_curve_posterior_meaning::{
-    temporal_curve_posterior_meaning, SerialErrorModel, TemporalCurvePosteriorMeaning,
+    SerialErrorModel, TemporalCurvePosteriorMeaning, temporal_curve_posterior_meaning,
 };
 pub use antecedent_estimate::trajectory_survival::{
     TrajectoryBootstrapIntervals, TrajectoryRows, TrajectorySurvivalContrast,

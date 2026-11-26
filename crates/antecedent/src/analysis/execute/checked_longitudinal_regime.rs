@@ -905,7 +905,9 @@ fn longitudinal_identification(
         LongitudinalRegimeMethod::GFormula => "longitudinal.g_formula",
         LongitudinalRegimeMethod::FittedGFormula(_) => "longitudinal.fitted_g_formula",
         LongitudinalRegimeMethod::ScheduleFamily(family) => match family.target {
-            LongitudinalScheduleTarget::Contrasts { .. } => "longitudinal.fixed_schedule_contrast_family",
+            LongitudinalScheduleTarget::Contrasts { .. } => {
+                "longitudinal.fixed_schedule_contrast_family"
+            }
             LongitudinalScheduleTarget::Learn { .. } => "longitudinal.honest_schedule_selection",
         },
         LongitudinalRegimeMethod::SequentialDoublyRobust => "longitudinal.sequential_dr",
@@ -914,9 +916,15 @@ fn longitudinal_identification(
         }
     };
     let premise = match query.method {
-        LongitudinalRegimeMethod::FittedGFormula(_) => "known sequential randomization identifies the fixed-schedule value after standardizing fitted conditional means to evaluation subjects",
-        LongitudinalRegimeMethod::ScheduleFamily(_) => "known probabilities identify paired mean scores over every schedule in the declared class",
-        _ => "known sequential assignment, observation, and valid supplied conditional rewards identify the prescribed regime mean",
+        LongitudinalRegimeMethod::FittedGFormula(_) => {
+            "known sequential randomization identifies the fixed-schedule value after standardizing fitted conditional means to evaluation subjects"
+        }
+        LongitudinalRegimeMethod::ScheduleFamily(_) => {
+            "known probabilities identify paired mean scores over every schedule in the declared class"
+        }
+        _ => {
+            "known sequential assignment, observation, and valid supplied conditional rewards identify the prescribed regime mean"
+        }
     };
     arena.set_derivation(functional, DerivationMeta::rule(rule, Some(Arc::from(premise))));
     let estimand = IdentifiedEstimand::new(

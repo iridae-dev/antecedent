@@ -1386,10 +1386,16 @@ pub(in crate::contract_section) fn note_published_claim(
                 && query.target_cause.is_some()
             {
                 let coordinate = crate::graphless_support::survival_pointwise_key(
-                    query.delayed_entry.is_some(), !query.censoring_columns.is_empty(), true,
-                ).map(|key| format!(
-                    "graphless:{}/{}/{}/{}", key.family, key.design, key.method, key.inference_claim
-                ));
+                    query.delayed_entry.is_some(),
+                    !query.censoring_columns.is_empty(),
+                    true,
+                )
+                .map(|key| {
+                    format!(
+                        "graphless:{}/{}/{}/{}",
+                        key.family, key.design, key.method, key.inference_claim
+                    )
+                });
                 let claimed = slot.matrix_status == "supported"
                     && coordinate.is_some()
                     && slot.matrix_coordinate == coordinate;
@@ -1432,7 +1438,8 @@ pub(in crate::contract_section) fn note_published_claim(
         if let CausalQueryWire::LongitudinalRegime(query) = &body.query
             && matches!(query.method.as_str(), "compare_schedules" | "learn_schedule")
         {
-            let actual = claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str());
+            let actual =
+                claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str());
             let secondary = claim.calibration.secondary.as_slice();
             let declared = query.schedule_calibration_coordinates().or_else(|| {
                 if actual.is_none() {
@@ -1445,7 +1452,9 @@ pub(in crate::contract_section) fn note_published_claim(
                     None
                 }
             });
-            let actual_secondary = secondary.first().and_then(|slot| slot.basis.as_ref())
+            let actual_secondary = secondary
+                .first()
+                .and_then(|slot| slot.basis.as_ref())
                 .map(|basis| basis.key.functional.as_str());
             if actual != declared.map(|(primary, _)| primary)
                 || actual_secondary != declared.and_then(|(_, secondary)| secondary)
@@ -1465,9 +1474,12 @@ pub(in crate::contract_section) fn note_published_claim(
             });
             if basis.map(|basis| basis.key.functional.as_str()) != declared
                 || basis.is_some_and(|basis| {
-                    basis.scope.replicates_ok != body.longitudinal_regime.as_ref()
-                        .and_then(|fit| fit.fitted_q_bootstrap_replicates_ok)
-                        .and_then(|completed| u32::try_from(completed).ok())
+                    basis.scope.replicates_ok
+                        != body
+                            .longitudinal_regime
+                            .as_ref()
+                            .and_then(|fit| fit.fitted_q_bootstrap_replicates_ok)
+                            .and_then(|completed| u32::try_from(completed).ok())
                 })
             {
                 unresolved.push(ContractReason::ClaimCalibrationBasis);
@@ -1478,17 +1490,28 @@ pub(in crate::contract_section) fn note_published_claim(
             && query.method == "sequential_dr"
         {
             let fit = body.longitudinal_regime.as_ref();
-            let design = query.four_period_dr_calibration_design().or_else(|| {
-                (query.calibration_design.is_none() && claim.calibration.basis.is_some())
-                    .then(|| query.four_period_dr_calibration_geometry())
-                    .flatten()
-            }).filter(|_| fit.is_some_and(|fit| fit.value_interval_95.is_some()));
-            if claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str()) != design {
+            let design = query
+                .four_period_dr_calibration_design()
+                .or_else(|| {
+                    (query.calibration_design.is_none() && claim.calibration.basis.is_some())
+                        .then(|| query.four_period_dr_calibration_geometry())
+                        .flatten()
+                })
+                .filter(|_| fit.is_some_and(|fit| fit.value_interval_95.is_some()));
+            if claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str()) != design
+            {
                 unresolved.push(ContractReason::ClaimCalibrationBasis);
             }
-            if let (Some(slot), Some(key)) = (support, crate::graphless_support::sequential_dr_key(4)) {
-                let coordinate = format!("graphless:{}/{}/{}/{}", key.family, key.design, key.method, key.inference_claim);
-                let carried = fit.is_some_and(|fit| fit.graphless_support_status.as_deref() == Some("supported"));
+            if let (Some(slot), Some(key)) =
+                (support, crate::graphless_support::sequential_dr_key(4))
+            {
+                let coordinate = format!(
+                    "graphless:{}/{}/{}/{}",
+                    key.family, key.design, key.method, key.inference_claim
+                );
+                let carried = fit.is_some_and(|fit| {
+                    fit.graphless_support_status.as_deref() == Some("supported")
+                });
                 if carried != (slot.matrix_status == "supported")
                     || carried != (slot.matrix_coordinate.as_deref() == Some(coordinate.as_str()))
                 {
@@ -1689,7 +1712,10 @@ fn longitudinal_unmeasured_claim(slot: &CalibrationSlotWire) -> bool {
         && slot.secondary.iter().all(crate::calibration::longitudinal_unmeasured_receipt)
 }
 
-fn longitudinal_receipts_match(actual: &CalibrationSlotWire, mut computed: CalibrationSlotWire) -> bool {
+fn longitudinal_receipts_match(
+    actual: &CalibrationSlotWire,
+    mut computed: CalibrationSlotWire,
+) -> bool {
     // A historical report makes no measurement assertion for the interval
     // whose record did not yet exist. Other intervals still verify on their own.
     let matches = |slot: &CalibrationSlotWire, expected: &CalibrationSlotWire| {

@@ -573,7 +573,7 @@ pub(crate) fn iv_bounds_wire(
 ) -> antecedent_io::analysis_result_artifact::IvBoundsWire {
     {
         use antecedent_io::analysis_result_artifact::{
-            IvBoundsIntervalWire, IvBoundsPosteriorWire, IV_BOUNDS_POINT_UNCERTAINTY,
+            IV_BOUNDS_POINT_UNCERTAINTY, IvBoundsIntervalWire, IvBoundsPosteriorWire,
         };
         let interval = fit.interval.map(|interval| IvBoundsIntervalWire {
             level: interval.level,
@@ -697,7 +697,7 @@ pub(crate) fn association_wire(
 
 #[cfg(test)]
 mod support_label_tests {
-    use super::{support_label, CellStatus};
+    use super::{CellStatus, support_label};
 
     /// The support label is the cell status spelled one to one: no status is written as a
     /// stronger one, and an unclassified result writes none.

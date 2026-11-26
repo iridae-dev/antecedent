@@ -171,7 +171,10 @@ impl SurvivalQuery {
                 })
                 || !matches!(&self.observation_assumption,
                     ObservationAssumption::IndependentGiven(vars) if vars.as_ref() == strata)
-                || !p0.is_finite() || !p1.is_finite() || p0 <= 0.0 || p1 <= 0.0
+                || !p0.is_finite()
+                || !p1.is_finite()
+                || p0 <= 0.0
+                || p1 <= 0.0
                 || (p0 + p1 - 1.0).abs() > 1e-12
                 || !(learner.minimum_probability > 0.0 && learner.minimum_probability <= 1.0)
             {

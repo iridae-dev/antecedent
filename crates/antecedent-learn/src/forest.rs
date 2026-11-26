@@ -153,20 +153,23 @@ impl ForestLearner {
         #[cfg(test)]
         let fit_thread = std::thread::current().id();
         let trees = ctx
-            .map_indexed_with_spare_workers(n_trees, |index, inner| -> Result<Vec<PredictionNode>, LearnError> {
-                if inner.cancellation.is_cancelled() {
-                    return Err(LearnError::Cancelled);
-                }
-                #[cfg(test)]
-                if let Some(recorder) = &recorder {
-                    recorder.note_worker(fit_thread, inner);
-                }
-                let mut rng = inner.rng.stream_for(
-                    StreamDomain::Learner,
-                    derive_stream(crate::streams::FOREST, index as u64),
-                );
-                Ok(grow_tree(&grow, &mut rng))
-            })
+            .map_indexed_with_spare_workers(
+                n_trees,
+                |index, inner| -> Result<Vec<PredictionNode>, LearnError> {
+                    if inner.cancellation.is_cancelled() {
+                        return Err(LearnError::Cancelled);
+                    }
+                    #[cfg(test)]
+                    if let Some(recorder) = &recorder {
+                        recorder.note_worker(fit_thread, inner);
+                    }
+                    let mut rng = inner.rng.stream_for(
+                        StreamDomain::Learner,
+                        derive_stream(crate::streams::FOREST, index as u64),
+                    );
+                    Ok(grow_tree(&grow, &mut rng))
+                },
+            )
             .map_err(map_forest_error)?;
         let model = assemble_forest(trees, prepared.ncols, self.task)?;
         Ok(Box::new(GrownForest { model }))
@@ -877,9 +880,8 @@ mod tests {
         let serial_budget = serial.admission().thread_budget();
         let serial_free = serial.admission().available().threads();
         let recording = Recording::default();
-        let serial_fit = recording
-            .with(|| learner.fit(view, TargetView::new(&y), None, &serial))
-            .unwrap();
+        let serial_fit =
+            recording.with(|| learner.fit(view, TargetView::new(&y), None, &serial)).unwrap();
         assert_eq!(recording.max_workers_per_fit(), 1);
         assert_eq!(serial.admission().thread_budget(), serial_budget);
         assert_eq!(serial.admission().available().threads(), serial_free);
@@ -890,9 +892,8 @@ mod tests {
         assert_eq!(budget, n_trees);
         assert_eq!(free, n_trees);
         let recording = Recording::default();
-        let parallel_fit = recording
-            .with(|| learner.fit(view, TargetView::new(&y), None, &parallel))
-            .unwrap();
+        let parallel_fit =
+            recording.with(|| learner.fit(view, TargetView::new(&y), None, &parallel)).unwrap();
         assert_eq!(recording.max_workers_per_fit(), usize::try_from(n_trees).unwrap());
         assert_eq!(parallel.admission().thread_budget(), budget);
         assert_eq!(parallel.admission().available().threads(), free);
@@ -938,13 +939,14 @@ mod tests {
         let serial = ExecutionContext::for_tests(3);
 
         let expected =
-            crate::crossfit::cross_fit(&forest, view, TargetView::new(&y), 2, &serial, None).unwrap();
+            crate::crossfit::cross_fit(&forest, view, TargetView::new(&y), 2, &serial, None)
+                .unwrap();
         let actual =
-            crate::crossfit::cross_fit(&learner, view, TargetView::new(&y), 2, &parallel, None).unwrap();
+            crate::crossfit::cross_fit(&learner, view, TargetView::new(&y), 2, &parallel, None)
+                .unwrap();
         assert_eq!(actual.predictions, expected.predictions);
         assert_eq!(actual.fold_assignment, expected.fold_assignment);
         assert_eq!(learner.recording.max_workers_per_fit(), 2);
         assert_eq!(parallel.admission().available().threads(), 3);
     }
-
 }

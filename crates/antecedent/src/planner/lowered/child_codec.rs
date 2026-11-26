@@ -20,8 +20,8 @@ use antecedent_core::{
 };
 use antecedent_identify::IdentificationResult;
 use antecedent_io_core::identity::{
-    IdentificationProductWire, decode_identification_product, identification_product_canonical_bytes,
-    identification_product_wire,
+    IdentificationProductWire, decode_identification_product,
+    identification_product_canonical_bytes, identification_product_wire,
 };
 
 use super::super::planning::canon::{CanonBuf, CanonPut, framed_digest};
@@ -180,7 +180,8 @@ pub(crate) fn check_children(
     if children.statistical != statistical_bytes(program.statistical()) {
         return Err(err("statistical child bytes are not the live layer"));
     }
-    if framed_digest(&children.statistical) != *program.statistical().lowered_layer_digest().as_bytes()
+    if framed_digest(&children.statistical)
+        != *program.statistical().lowered_layer_digest().as_bytes()
     {
         return Err(err("statistical bytes do not hash to lowered_layer_digest"));
     }
@@ -202,7 +203,8 @@ pub(crate) fn check_children(
     if children.referents != referents(program) {
         return Err(err("a nested digest does not match the live program"));
     }
-    if children.process_local != process_local(program) || !children.process_local.causal_state_omitted
+    if children.process_local != process_local(program)
+        || !children.process_local.causal_state_omitted
     {
         return Err(err("process-local flags do not match the live program"));
     }
@@ -345,10 +347,12 @@ fn write_realization<S: CanonPut>(sink: &mut S, realization: &Realization) {
             sink.text("declared_predictive").text(evaluator);
         }
         Realization::NestedFit { producer_program, method, law } => {
-            sink.text("nested_fit").bytes(producer_program.as_bytes()).text(method).text(match law {
-                NestedFitLaw::Posterior => "posterior",
-                NestedFitLaw::Predictive => "predictive",
-            });
+            sink.text("nested_fit").bytes(producer_program.as_bytes()).text(method).text(
+                match law {
+                    NestedFitLaw::Posterior => "posterior",
+                    NestedFitLaw::Predictive => "predictive",
+                },
+            );
         }
         Realization::DeclaredAssumptionEnvelope { evaluator, draw_meaning } => {
             sink.text("declared_assumption_envelope").text(evaluator).word(draw_meaning.tag());
@@ -476,7 +480,9 @@ fn write_non_graphical(buf: &mut CanonBuf, identification: &NonGraphicalIdentifi
     }
 }
 
-fn cache_wires(caches: &[IdentificationCache]) -> Result<Vec<IdentificationProductWire>, ChildCodecError> {
+fn cache_wires(
+    caches: &[IdentificationCache],
+) -> Result<Vec<IdentificationProductWire>, ChildCodecError> {
     let mut wires = Vec::new();
     for cache in caches {
         match cache {
@@ -524,7 +530,10 @@ fn push_wire(
     result: &IdentificationResult,
     wires: &mut Vec<IdentificationProductWire>,
 ) -> Result<(), ChildCodecError> {
-    wires.push(identification_product_wire(result, false).map_err(|_| err("identification product wire"))?);
+    wires.push(
+        identification_product_wire(result, false)
+            .map_err(|_| err("identification product wire"))?,
+    );
     Ok(())
 }
 
@@ -537,11 +546,9 @@ fn referents(program: &LoweredProgram) -> Vec<Referent> {
                 push_target(&mut out, target);
             }
         }
-        ProblemTarget::QueryFunctional { query, .. } => out.push(Referent {
-            role: "scientific.query",
-            digest: *query,
-            owner: "query_digest",
-        }),
+        ProblemTarget::QueryFunctional { query, .. } => {
+            out.push(Referent { role: "scientific.query", digest: *query, owner: "query_digest" })
+        }
     }
     if let Some(digest) = program.scientific().source_digest() {
         out.push(Referent { role: "scientific.source", digest, owner: "the source rows" });
@@ -555,11 +562,7 @@ fn referents(program: &LoweredProgram) -> Vec<Referent> {
             });
         }
         if let Some(digest) = retained.key {
-            out.push(Referent {
-                role: "identification.key",
-                digest,
-                owner: "retention_key",
-            });
+            out.push(Referent { role: "identification.key", digest, owner: "retention_key" });
         }
         for seal in retained.seals.iter().copied().flatten() {
             out.push(Referent { role: "identification.seal", digest: seal, owner: "seal_cache" });
@@ -600,7 +603,8 @@ fn referents(program: &LoweredProgram) -> Vec<Referent> {
         });
     }
     if let Some(decision) = program.evidence().decision() {
-        if let Some(joint) = decision.utility().preference_facts().and_then(|facts| facts.joint_law())
+        if let Some(joint) =
+            decision.utility().preference_facts().and_then(|facts| facts.joint_law())
         {
             out.push(Referent {
                 role: "evidence.preference.joint_program",
@@ -637,12 +641,7 @@ fn process_local(program: &LoweredProgram) -> ProcessLocal {
         | IdentificationLayer::NonGraphical(_)
         | IdentificationLayer::NotClaimed { .. } => (false, false),
     };
-    ProcessLocal {
-        runtime_callback,
-        arc_graph,
-        arena_in_process,
-        causal_state_omitted: true,
-    }
+    ProcessLocal { runtime_callback, arc_graph, arena_in_process, causal_state_omitted: true }
 }
 
 fn cache_holds_graph(cache: &IdentificationCache) -> bool {
@@ -659,7 +658,10 @@ fn cache_holds_graph(cache: &IdentificationCache) -> bool {
     }
 }
 
-fn check_resume(layer: &IdentificationLayer, resume: &IdentificationResume) -> Result<(), ChildCodecError> {
+fn check_resume(
+    layer: &IdentificationLayer,
+    resume: &IdentificationResume,
+) -> Result<(), ChildCodecError> {
     let matches = match (layer, resume) {
         (
             IdentificationLayer::Deferred { reason, .. },
@@ -774,7 +776,10 @@ fn check_statistical(program: &StatisticalProgram, bytes: &[u8]) -> Result<(), C
     frames.expect_end()
 }
 
-fn check_realization_frames(frames: &mut Frames<'_>, realization: &Realization) -> Result<(), ChildCodecError> {
+fn check_realization_frames(
+    frames: &mut Frames<'_>,
+    realization: &Realization,
+) -> Result<(), ChildCodecError> {
     match realization {
         Realization::Frequentist(inner) => tagged_digest(frames, "frequentist", inner.identity()),
         Realization::Bayesian(inner) => tagged_digest(frames, "bayesian", inner.identity()),
@@ -830,13 +835,13 @@ fn check_realization_frames(frames: &mut Frames<'_>, realization: &Realization) 
     }
 }
 
-fn tagged_digest(frames: &mut Frames<'_>, tag: &str, digest: SemanticDigest) -> Result<(), ChildCodecError> {
+fn tagged_digest(
+    frames: &mut Frames<'_>,
+    tag: &str,
+    digest: SemanticDigest,
+) -> Result<(), ChildCodecError> {
     same_text(frames, tag)?;
-    if frames.digest()? == *digest.as_bytes() {
-        Ok(())
-    } else {
-        Err(err("realization digest"))
-    }
+    if frames.digest()? == *digest.as_bytes() { Ok(()) } else { Err(err("realization digest")) }
 }
 
 fn same_text(frames: &mut Frames<'_>, expected: &str) -> Result<(), ChildCodecError> {
@@ -878,7 +883,10 @@ fn check_resampling(
     }
 }
 
-fn check_posterior(frames: &mut Frames<'_>, plan: Option<&PosteriorPlan>) -> Result<(), ChildCodecError> {
+fn check_posterior(
+    frames: &mut Frames<'_>,
+    plan: Option<&PosteriorPlan>,
+) -> Result<(), ChildCodecError> {
     match (frames.word()?, plan) {
         (0, None) => Ok(()),
         (1, Some(plan)) => {
@@ -936,7 +944,10 @@ fn check_evidence(program: &EvidenceDecisionProgram, bytes: &[u8]) -> Result<(),
     frames.expect_end()
 }
 
-fn check_composition(frames: &mut Frames<'_>, composition: Composition) -> Result<(), ChildCodecError> {
+fn check_composition(
+    frames: &mut Frames<'_>,
+    composition: Composition,
+) -> Result<(), ChildCodecError> {
     match composition {
         Composition::Single => same_text(frames, "single"),
         Composition::AtomMixture { atoms } => {
@@ -959,7 +970,10 @@ fn check_composition(frames: &mut Frames<'_>, composition: Composition) -> Resul
     }
 }
 
-fn check_decision(frames: &mut Frames<'_>, decision: &DecisionProgram) -> Result<(), ChildCodecError> {
+fn check_decision(
+    frames: &mut Frames<'_>,
+    decision: &DecisionProgram,
+) -> Result<(), ChildCodecError> {
     same_text(frames, decision.carrier().as_str())?;
     check_utility(frames, decision.utility())?;
     same_word(frames, decision.actions() as u64)?;
@@ -994,7 +1008,9 @@ fn check_utility(frames: &mut Frames<'_>, utility: &UtilityForm) -> Result<(), C
             same_text(frames, "affine")?;
             same_word(frames, coefficients.len() as u64)?;
             for &(intercept, slope) in coefficients.iter() {
-                if frames.real_bits()? != intercept.to_bits() || frames.real_bits()? != slope.to_bits() {
+                if frames.real_bits()? != intercept.to_bits()
+                    || frames.real_bits()? != slope.to_bits()
+                {
                     return Err(err("affine utility"));
                 }
             }
@@ -1005,7 +1021,8 @@ fn check_utility(frames: &mut Frames<'_>, utility: &UtilityForm) -> Result<(), C
             same_text(frames, "preference_value")?;
             same_word(frames, u64::from(*means_suffice))?;
             let got = frames.texts()?;
-            if got.len() != quantities.len() || got.iter().zip(quantities.iter()).any(|(g, q)| g != q.as_ref())
+            if got.len() != quantities.len()
+                || got.iter().zip(quantities.iter()).any(|(g, q)| g != q.as_ref())
             {
                 return Err(err("preference quantities"));
             }
@@ -1015,11 +1032,16 @@ fn check_utility(frames: &mut Frames<'_>, utility: &UtilityForm) -> Result<(), C
     }
 }
 
-fn check_joint(frames: &mut Frames<'_>, joint: Option<&PreferenceJointLawFact>) -> Result<(), ChildCodecError> {
+fn check_joint(
+    frames: &mut Frames<'_>,
+    joint: Option<&PreferenceJointLawFact>,
+) -> Result<(), ChildCodecError> {
     match frames.word()? {
         0 if joint.is_none() => Ok(()),
         1 => {
-            let Some(joint) = joint else { return Err(err("joint law")); };
+            let Some(joint) = joint else {
+                return Err(err("joint law"));
+            };
             same_text(frames, "joint_law")?;
             same_text(frames, joint.declaration())?;
             if frames.digest()? == *joint.program().as_bytes() {
@@ -1039,7 +1061,9 @@ fn check_design_law(
     match frames.word()? {
         0 if law.is_none() => Ok(()),
         1 => {
-            let Some(law) = law else { return Err(err("design law")); };
+            let Some(law) = law else {
+                return Err(err("design law"));
+            };
             same_text(frames, "design_law")?;
             same_text(frames, law.kind())?;
             same_text(frames, law.unit())?;
@@ -1087,7 +1111,10 @@ fn check_cost(frames: &mut Frames<'_>, cost: &CostMapping) -> Result<(), ChildCo
     }
 }
 
-fn check_chain(frames: &mut Frames<'_>, chain: &super::super::chain::ChainProgram) -> Result<(), ChildCodecError> {
+fn check_chain(
+    frames: &mut Frames<'_>,
+    chain: &super::super::chain::ChainProgram,
+) -> Result<(), ChildCodecError> {
     same_text(frames, chain.declaration_identity())?;
     same_text(frames, chain.plan().label)?;
     same_word(frames, chain.plan().stages.len() as u64)?;
@@ -1137,7 +1164,10 @@ fn check_identification(layer: &IdentificationLayer, bytes: &[u8]) -> Result<(),
     frames.expect_end()
 }
 
-fn check_retained_body(frames: &mut Frames<'_>, retained: &RetainedIdentification) -> Result<(), ChildCodecError> {
+fn check_retained_body(
+    frames: &mut Frames<'_>,
+    retained: &RetainedIdentification,
+) -> Result<(), ChildCodecError> {
     match (&retained.product, frames.word()?) {
         (None, 0) => {}
         (Some(product), 1) if frames.digest()? == *product.identity().as_bytes() => {}
@@ -1157,7 +1187,8 @@ fn check_retained_body(frames: &mut Frames<'_>, retained: &RetainedIdentificatio
     }
     for wire in &wires {
         let bytes = frames.bytes()?;
-        let decoded = decode_identification_product(bytes).map_err(|_| err("product wire decode"))?;
+        let decoded =
+            decode_identification_product(bytes).map_err(|_| err("product wire decode"))?;
         if decoded != *wire {
             return Err(err("product wire"));
         }
@@ -1171,7 +1202,9 @@ fn check_non_graphical_body(
 ) -> Result<(), ChildCodecError> {
     same_text(frames, identification.as_str())?;
     match identification {
-        NonGraphicalIdentification::SpecifiedModelConditional { model } => same_digest(frames, model),
+        NonGraphicalIdentification::SpecifiedModelConditional { model } => {
+            same_digest(frames, model)
+        }
         NonGraphicalIdentification::ExperimentalRecovery { design, unresolved } => {
             same_digest(frames, design)?;
             same_word(frames, unresolved.len() as u64)?;
@@ -1185,7 +1218,9 @@ fn check_non_graphical_body(
             Ok(())
         }
         NonGraphicalIdentification::CyclicIoScm { source } => same_digest(frames, source),
-        NonGraphicalIdentification::SharedEvidenceContract { contract } => same_digest(frames, contract),
+        NonGraphicalIdentification::SharedEvidenceContract { contract } => {
+            same_digest(frames, contract)
+        }
         NonGraphicalIdentification::DeclaredPolicyEvaluation { request }
         | NonGraphicalIdentification::GraphCheckedPolicyEvaluation { request } => {
             same_digest(frames, request)
@@ -1210,8 +1245,11 @@ fn skip_retained(frames: &mut Frames<'_>) -> Result<(), ChildCodecError> {
 
 fn skip_non_graphical(frames: &mut Frames<'_>) -> Result<(), ChildCodecError> {
     match frames.text()? {
-        "specified_model_conditional" | "cyclic_ioscm" | "shared_evidence_contract"
-        | "declared_policy_evaluation" | "graph_checked_policy_evaluation" => {
+        "specified_model_conditional"
+        | "cyclic_ioscm"
+        | "shared_evidence_contract"
+        | "declared_policy_evaluation"
+        | "graph_checked_policy_evaluation" => {
             let _ = frames.digest()?;
             Ok(())
         }
@@ -1366,19 +1404,20 @@ mod tests {
     use super::super::super::{
         CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape,
         EvidenceDecisionProgram, EvidenceRole, EvidenceSourceRef, EvsiProgram, FunctionalKind,
-        IdentificationLayer, LoweredParts, LoweringDepth, NonGraphicalIdentification, PhysicalLayer,
-        ProblemTarget, ProgramIdentityScope, RetainedIdentification, ScientificProblem,
-        UncertaintyReading,
+        IdentificationLayer, LoweredParts, LoweringDepth, NonGraphicalIdentification,
+        PhysicalLayer, ProblemTarget, ProgramIdentityScope, RetainedIdentification,
+        ScientificProblem, UncertaintyReading,
     };
     use super::super::RankSchedule;
     use super::{
-        check_children, check_realization, check_statistical, framed_digest, realization_preimage,
-        resolve_children, resume_identification, statistical_bytes, IdentificationResume,
-        ReidentifyKind,
+        IdentificationResume, ReidentifyKind, check_children, check_realization, check_statistical,
+        framed_digest, realization_preimage, resolve_children, resume_identification,
+        statistical_bytes,
     };
     use crate::analysis::lowering::RouteCell;
     use crate::planner::statistical::{
-        DeclaredProgram, FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit, StatisticalProgram,
+        DeclaredProgram, FoldPlan, ModelRole, ModelSlot, Realization, ResampleUnit,
+        StatisticalProgram,
     };
     use crate::{EstimatorId, IdentifierId, InferenceMode};
 
@@ -1458,7 +1497,10 @@ mod tests {
         }
     }
 
-    fn finish(scope: ProgramIdentityScope, layer: IdentificationLayer) -> super::super::super::LoweredProgram {
+    fn finish(
+        scope: ProgramIdentityScope,
+        layer: IdentificationLayer,
+    ) -> super::super::super::LoweredProgram {
         LoweredParts {
             cell: RouteCell::StaticAteDag,
             depth: LoweringDepth::Complete,
@@ -1498,9 +1540,11 @@ mod tests {
         assert!(!children.process_local.runtime_callback);
         assert!(children.process_local.causal_state_omitted);
         assert!(!children.process_local.arc_graph);
-        assert!(children.referents.iter().any(|referent| {
-            referent.role == "scientific.query" && referent.digest == [1; 32]
-        }));
+        assert!(
+            children.referents.iter().any(|referent| {
+                referent.role == "scientific.query" && referent.digest == [1; 32]
+            })
+        );
         let mut tampered = children.clone();
         tampered.statistical[0] ^= 1;
         assert!(check_children(&program, &tampered).is_err());
@@ -1541,7 +1585,8 @@ mod tests {
         ));
         assert!(!children.process_local.arena_in_process);
 
-        let retained = RetainedIdentification::new(None, Vec::new(), Some([3; 32])).expect("retain");
+        let retained =
+            RetainedIdentification::new(None, Vec::new(), Some([3; 32])).expect("retain");
         let program = finish(
             ProgramIdentityScope::Semantic,
             IdentificationLayer::Retained(Arc::new(retained)),

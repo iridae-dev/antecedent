@@ -206,7 +206,14 @@ fn compile_chain_decision_with_worlds(
     )?;
     let lowered = Arc::new(lowered);
     let chain = chain.within_lowered(Arc::clone(&lowered))?;
-    Ok(ChainDecisionPlan { chain, contract, coordinates, lowered, action_worlds, input_methods: None })
+    Ok(ChainDecisionPlan {
+        chain,
+        contract,
+        coordinates,
+        lowered,
+        action_worlds,
+        input_methods: None,
+    })
 }
 
 /// Compile an action-world decision only when the caller supplies one

@@ -14,8 +14,9 @@ mod wire;
 
 use std::collections::BTreeMap;
 use wire::{
-    bad, declaration_json, declaration_of, evidence_json, output_json, output_of, policy_of,
-    quantity_of, query_json, request_of, support_of, IdentityJson, OutputBitsJson, SupportJson,
+    IdentityJson, OutputBitsJson, SupportJson, bad, declaration_json, declaration_of,
+    evidence_json, output_json, output_of, policy_of, quantity_of, query_json, request_of,
+    support_of,
 };
 
 use antecedent::analysis::evidence_ledger::{SourceId, TransportIdentity};
@@ -24,29 +25,29 @@ use antecedent::analysis::interface_contract::{
 };
 use antecedent::analysis::predictive_assessment::{ForecastLaw, LawSource};
 use antecedent::analysis::provider_callbacks::{
-    check_claim_to_callback, export_callback_result, forecast_law_from_sample,
-    output_values_digest, predictive_law_source, refuse_identification_evidence, refuse_interval,
-    refuse_joint_law, refuse_native_trust, refuse_posterior_guarantee, verification_holds,
     CallbackConnectionError, CallbackContext, CallbackDeclaration, CallbackDependency,
     CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy, CallbackFailure,
     CallbackInput, CallbackKind, CallbackOperation, CallbackOutcome, CallbackOutput, CallbackPhase,
     CallbackPlan, CallbackQuery, CallbackRegistrationError, CallbackRequest,
     CallbackResultArtifact, CallbackResultRecord, CallbackResume, CallbackSession, CallbackTrust,
     DependencyDeclaration, DependencyKind, FnCallback, InputSupplier, ProviderCallback,
-    ReplayContract, RetryContract, UpdateDeclaration, ValidatedOutput,
+    ReplayContract, RetryContract, UpdateDeclaration, ValidatedOutput, check_claim_to_callback,
+    export_callback_result, forecast_law_from_sample, output_values_digest, predictive_law_source,
+    refuse_identification_evidence, refuse_interval, refuse_joint_law, refuse_native_trust,
+    refuse_posterior_guarantee, verification_holds,
 };
 use antecedent::analysis::transport_handoff::{
-    consume_for_callback, hand_to_callback, TransportHandoffRefusal, TransportedClaimOffer,
-    TransportedInputPolicy,
+    TransportHandoffRefusal, TransportedClaimOffer, TransportedInputPolicy, consume_for_callback,
+    hand_to_callback,
 };
 use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::contract::provider_transport::{
-    connect_bound_provider_source, AdmittedProviderSource, ProviderTransportSource,
-    SourceTrustRequirement,
+    AdmittedProviderSource, ProviderTransportSource, SourceTrustRequirement,
+    connect_bound_provider_source,
 };
 use antecedent::contract::{
-    probe_from_name, verify_external_object, ExternalRefusal, ExternalTrustState,
-    ProviderObjectIdentity, VerificationProbe,
+    ExternalRefusal, ExternalTrustState, ProviderObjectIdentity, VerificationProbe,
+    probe_from_name, verify_external_object,
 };
 use antecedent::execution::CancellationToken;
 use antecedent::io::external_claim_artifact::VerificationProbeWire;
@@ -57,7 +58,7 @@ use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value as Json};
+use serde_json::{Value as Json, json};
 
 use crate::bridge::RefusalJson;
 use crate::evidence_ledger_api::EvidenceLedgerHandle;

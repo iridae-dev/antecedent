@@ -113,8 +113,8 @@ mod tests {
 
     #[test]
     fn legacy_words_decode_onto_one_policy_and_round_trip() {
-        let handoff = FoldPolicy::from_legacy("external_learner_owned_not_recorded_by_handoff")
-            .unwrap();
+        let handoff =
+            FoldPolicy::from_legacy("external_learner_owned_not_recorded_by_handoff").unwrap();
         assert_eq!(handoff, FoldPolicy::HandoffUnknown);
         assert_eq!(handoff.assigner(), "unknown");
         assert!(!handoff.assignment_recorded());

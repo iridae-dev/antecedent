@@ -80,10 +80,8 @@ pub fn project_stored_winner<'a>(
         if row.candidate_id.is_empty() {
             return Err(WinningDesignError::BlankId);
         }
-        winner = Some(WinningDesignDeclaration {
-            candidate_id: row.candidate_id.to_owned(),
-            n: row.n,
-        });
+        winner =
+            Some(WinningDesignDeclaration { candidate_id: row.candidate_id.to_owned(), n: row.n });
     }
     if !seen {
         return Err(WinningDesignError::Empty);
@@ -104,11 +102,13 @@ pub fn project_ranking_record(
             rank: row.rank as u64,
             n: row.sample_size,
         })),
-        (true, false) => project_stored_winner(record.structural.iter().map(|row| StoredDesignRow {
-            candidate_id: row.semantic_id.as_str(),
-            rank: row.rank as u64,
-            n: row.cost.sample_budget,
-        })),
+        (true, false) => {
+            project_stored_winner(record.structural.iter().map(|row| StoredDesignRow {
+                candidate_id: row.semantic_id.as_str(),
+                rank: row.rank as u64,
+                n: row.cost.sample_budget,
+            }))
+        }
     }
 }
 
@@ -195,9 +195,9 @@ mod tests {
     use antecedent_core::{EnvironmentId, MonteCarloBudget, MonteCarloError, VariableId};
 
     use super::{
+        StoredDesignRow, WinningDesignDeclaration, WinningDesignError,
         project_choice_study_ranking, project_ranking_record, project_scored_design,
-        project_stored_winner, stored_sample_size, StoredDesignRow, WinningDesignDeclaration,
-        WinningDesignError,
+        project_stored_winner, stored_sample_size,
     };
     use crate::candidate::{
         CandidateDesign, DesignCost, EnvironmentPlan, ExperimentPlan, MeasurementPlan, SamplingPlan,
@@ -256,10 +256,7 @@ mod tests {
                 .unwrap_err(),
             WinningDesignError::BlankId
         );
-        assert_eq!(
-            WinningDesignError::Empty.to_string(),
-            "the ranking stored no candidates"
-        );
+        assert_eq!(WinningDesignError::Empty.to_string(), "the ranking stored no candidates");
     }
 
     fn search() -> SearchReceipt {

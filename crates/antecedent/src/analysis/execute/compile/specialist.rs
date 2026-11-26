@@ -240,9 +240,11 @@ impl super::super::Study {
             .into_iter()
             .chain(q.delayed_entry)
             .chain(q.known_censoring.iter().flat_map(|known| known.columns.iter().copied()))
-            .chain(q.stratified_censoring.iter().flat_map(|learner| {
-                [learner.entry_stratum, learner.censoring_stratum]
-            }))
+            .chain(
+                q.stratified_censoring
+                    .iter()
+                    .flat_map(|learner| [learner.entry_stratum, learner.censoring_stratum]),
+            )
             .collect::<Arc<[_]>>();
         for &id in variables.iter() {
             data.schema().get(id).map_err(CausalError::rejected)?;
@@ -441,7 +443,9 @@ impl super::super::Study {
         let method_id = match q.method {
             _ if bayesian => PlanId::BayesianSequentialRegimeValue,
             antecedent_core::LongitudinalRegimeMethod::Ipw => PlanId::LongitudinalIpwRegime,
-            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(_) => PlanId::LongitudinalIpwRegime,
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(_) => {
+                PlanId::LongitudinalIpwRegime
+            }
             antecedent_core::LongitudinalRegimeMethod::GFormula => {
                 PlanId::LongitudinalGFormulaRegime
             }
@@ -464,7 +468,9 @@ impl super::super::Study {
             "randomized.design",
             method_id,
             match q.method {
-                antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) => Arc::from([q.outcome, fit.baseline]),
+                antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) => {
+                    Arc::from([q.outcome, fit.baseline])
+                }
                 _ => Arc::from([q.outcome]),
             },
         ))

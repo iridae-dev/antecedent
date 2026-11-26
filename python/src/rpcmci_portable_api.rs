@@ -53,10 +53,7 @@ impl PyLearnedRpcmci {
     }
 
     fn export<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        self.0
-            .to_bytes()
-            .map(|value| PyBytes::new(py, &value))
-            .map_err(crate::value_err_display)
+        self.0.to_bytes().map(|value| PyBytes::new(py, &value)).map_err(crate::value_err_display)
     }
 
     fn regime_scope_json(&self, regime: u32) -> PyResult<Returned<String>> {
@@ -105,9 +102,7 @@ fn learned_rpcmci_run(
     if request.len() > 32 * 1024 * 1024 {
         return Ok((
             None,
-            Some(refused(&RpcmciReplayError::Invalid(
-                "source declaration exceeds its byte bound",
-            ))),
+            Some(refused(&RpcmciReplayError::Invalid("source declaration exceeds its byte bound"))),
         ));
     }
     let ctx = context(seed, threads, cancel, memory_bytes);
@@ -146,12 +141,10 @@ fn learned_rpcmci_consume(
 ) -> PyResult<Returned<PyLearnedRpcmci>> {
     let ctx = context(0, threads, cancel, memory_bytes);
     crate::detach_catch(py, || {
-        Ok(
-            match consume_learned_rpcmci(data, expected_identity, &ctx) {
-                Ok(result) => (Some(PyLearnedRpcmci(result)), None),
-                Err(error) => (None, Some(refused(&error))),
-            },
-        )
+        Ok(match consume_learned_rpcmci(data, expected_identity, &ctx) {
+            Ok(result) => (Some(PyLearnedRpcmci(result)), None),
+            Err(error) => (None, Some(refused(&error))),
+        })
     })
 }
 

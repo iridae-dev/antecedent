@@ -93,16 +93,25 @@ pub(super) fn inspect(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
 pub(super) fn inspect_band(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let kind = NodeKind::DelayedEntrySurvivalBandResult;
     if bytes.len() > MAX_SNIFF_BYTES {
-        return Err(failure(BundleStage::Oversized, "survival band artifact exceeds the size bound"));
+        return Err(failure(
+            BundleStage::Oversized,
+            "survival band artifact exceeds the size bound",
+        ));
     }
     let consumed = replay_analysis_result(bytes).map_err(|error| io_failure(kind, &error))?;
     if !is_delayed_entry_band(&consumed.body) {
-        return Err(failure(BundleStage::SwappedEvidence, "a delayed-entry curve band is required"));
+        return Err(failure(
+            BundleStage::SwappedEvidence,
+            "a delayed-entry curve band is required",
+        ));
     }
     if !consumed.acceptance.accepts_as_claim() {
         let missing = consumed.acceptance.unresolved.iter().any(|reason| {
-            matches!(reason.as_ref(), "dependencies.checked_survival_band_operation"
-                | "dependencies.checked_survival_conditional_training")
+            matches!(
+                reason.as_ref(),
+                "dependencies.checked_survival_band_operation"
+                    | "dependencies.checked_survival_conditional_training"
+            )
         });
         return Err(failure(
             if missing { BundleStage::CallbackUnavailable } else { BundleStage::TamperedQuantity },
@@ -113,7 +122,10 @@ pub(super) fn inspect_band(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         return Err(failure(BundleStage::SwappedEvidence, "band result has no source contract"));
     };
     let (Some(band), Some(claim)) = (&curve.difference_band, &contract.claim) else {
-        return Err(failure(BundleStage::TamperedQuantity, "simultaneous band claim is incomplete"));
+        return Err(failure(
+            BundleStage::TamperedQuantity,
+            "simultaneous band claim is incomplete",
+        ));
     };
     let digest = |bytes| antecedent_core::SemanticDigest::from_bytes(bytes).to_hex();
     let mut inspected = Inspected { identity: digest(claim.claim_id), ..Inspected::default() };
@@ -125,7 +137,11 @@ pub(super) fn inspect_band(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     if let Some(provenance) = &curve.censoring_survival_provenance {
         publish(&mut inspected.facts, "censoring_survival_provenance", provenance);
     }
-    publish(&mut inspected.facts, "support", band.graphless_support_status.as_deref().unwrap_or("off_axis"));
+    publish(
+        &mut inspected.facts,
+        "support",
+        band.graphless_support_status.as_deref().unwrap_or("off_axis"),
+    );
     if let Some(cause) = curve.target_cause {
         publish(&mut inspected.facts, "target_cause", cause.to_string());
     }
@@ -134,10 +150,9 @@ pub(super) fn inspect_band(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         push_value(&mut inspected.values, "horizon_lower_95".into(), *lower);
         push_value(&mut inspected.values, "horizon_upper_95".into(), *upper);
     }
-    if let (Some(lower), Some(upper)) = (
-        band.lower.iter().copied().reduce(f64::min),
-        band.upper.iter().copied().reduce(f64::max),
-    ) {
+    if let (Some(lower), Some(upper)) =
+        (band.lower.iter().copied().reduce(f64::min), band.upper.iter().copied().reduce(f64::max))
+    {
         push_value(&mut inspected.values, "whole_grid_lower_95".into(), lower);
         push_value(&mut inspected.values, "whole_grid_upper_95".into(), upper);
     }

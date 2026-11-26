@@ -96,13 +96,7 @@ pub(crate) fn admit_exact_marginals(
     let work = u64::try_from(exact_marginal_work(n)).unwrap_or(u64::MAX);
     let bytes = marginal_table_bytes(n).unwrap_or(u64::MAX);
     let operations = usize::try_from(EXACT_MARGINAL_WORK_BUDGET).unwrap_or(usize::MAX);
-    crate::exact_enumeration::admit_quote(
-        ctx,
-        operations,
-        bytes,
-        work,
-        "exact marginal recursion",
-    )
+    crate::exact_enumeration::admit_quote(ctx, operations, bytes, work, "exact marginal recursion")
 }
 
 /// The exact edge marginals of a DAG posterior.
@@ -436,7 +430,8 @@ mod tests {
     #[test]
     fn a_visit_quote_past_the_declaration_is_an_operations_receipt() {
         let ctx = ExecutionContext::for_tests(0);
-        let text = admit_exact_marginals(EXACT_MARGINAL_MAX_NODES + 1, &ctx).unwrap_err().to_string();
+        let text =
+            admit_exact_marginals(EXACT_MARGINAL_MAX_NODES + 1, &ctx).unwrap_err().to_string();
         assert!(text.contains("search.operations"), "{text}");
         assert!(text.contains("unevaluated [exact marginal recursion]"), "{text}");
         assert!(!text.contains("at most"), "{text}");

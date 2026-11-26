@@ -791,10 +791,18 @@ fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays() {
     Arc::make_mut(other_q.q_predictions.as_mut().unwrap())[0] += 0.125;
     let other = Study::tabular(data.clone())
         .query(CausalQuery::LongitudinalRegime(other_q))
-        .build().unwrap().prepare(&ctx).unwrap();
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
     let executed = other.estimate(&data, &ctx).unwrap();
     assert!(executed.longitudinal_regime().unwrap().value_interval_95.is_some());
-    assert!(executed.calibration_bases(&other.contract_for_result(&executed).unwrap()).unwrap().is_empty());
+    assert!(
+        executed
+            .calibration_bases(&other.contract_for_result(&executed).unwrap())
+            .unwrap()
+            .is_empty()
+    );
 
     // Each case crosses a separate support boundary while retaining a point value.
     let mut low_overlap = q.clone();
@@ -1203,17 +1211,19 @@ fn sequential_dr_refuses_split_q_fold_and_reappearing_subject() {
 }
 
 #[test]
-#[allow(clippy::too_many_lines, reason = "one shared fixture") ]
+#[allow(clippy::too_many_lines, reason = "one shared fixture")]
 fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstraps() {
     use antecedent::analysis::composition::{BundleBuilder, consume, export_bundle};
     use antecedent_core::{FittedRegimeQ, LongitudinalRegimeMethod, StreamDomain};
 
     let n = 800;
     let replicates = 199;
-    let original_index: Vec<_> = (0..n).map(|i| (i / 16) * 16 + (i % 2) * 8 + (i / 2 % 8)).collect();
+    let original_index: Vec<_> =
+        (0..n).map(|i| (i / 16) * 16 + (i % 2) * 8 + (i / 2 % 8)).collect();
     let baseline: Vec<_> = original_index.iter().map(|&i| ((i / 4) % 2) as f64).collect();
     let outcomes: Vec<_> = original_index
-        .iter().zip(&baseline)
+        .iter()
+        .zip(&baseline)
         .map(|(&i, &baseline)| {
             1.0 + (i & 1) as f64
                 + 2.0 * f64::from(i & 2 != 0)
@@ -1243,8 +1253,10 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
         for eval_fold in if external { 1..2 } else { 0..2 } {
             let training = &groups[1 - eval_fold];
             for &i in &groups[eval_fold] {
-                let matching =
-                    training.iter().copied().filter(|&j| original_index[j] % 4 == 3 && baseline[j] == baseline[i]);
+                let matching = training
+                    .iter()
+                    .copied()
+                    .filter(|&j| original_index[j] % 4 == 3 && baseline[j] == baseline[i]);
                 let (sum, count) =
                     matching.fold((0.0, 0), |(sum, count), j| (sum + outcomes[j], count + 1));
                 assert!(count > 0);
@@ -1273,7 +1285,8 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
             .prepare(&ctx)
             .unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
-        let bases = result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
+        let bases =
+            result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
         assert!(bases.is_empty(), "the refit oracle has no measured-law declaration");
         let fit = result.longitudinal_regime().unwrap();
         assert_close(fit.value, reference(&members, external), 1e-12, "full-refit point");

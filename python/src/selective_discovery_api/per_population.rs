@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
+    Bound, DiscoveryClaimKeys, Json, NumericColumn, PerPopulationDiscovery, PerPopulationReport,
+    PopulationRows, PyModule, PyModuleMethods, PyResult, Python, Reply, STAGE,
+    SelectiveDiscoveryError, StaticSelectiveDiscovery, TabularData, VariableId,
     add_per_population_claims, claim_graph, claim_graph_refusal, claims_json, contract_map,
     get_u64, hex, input_err, json, node_json, outcome_json, parse_json, pyclass, pymethods,
     refusal_json, reply, report_value, request_selection_targets_from_differences, static_contract,
-    structure_refusal, Bound, DiscoveryClaimKeys, Json, NumericColumn, PerPopulationDiscovery,
-    PerPopulationReport, PopulationRows, PyModule, PyModuleMethods, PyResult, Python, Reply,
-    SelectiveDiscoveryError, StaticSelectiveDiscovery, TabularData, VariableId, STAGE,
+    structure_refusal,
 };
 
 fn per_population_report_json(report: &PerPopulationReport) -> String {
@@ -155,10 +156,10 @@ impl PerPopulationDiscoveryHandle {
         threads: Option<u32>,
         cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<String>, Option<String>, Option<String>)> {
+        use antecedent::Study;
         use antecedent::analysis::compiled_per_population_discovery::{
             PerPopulationSearchError, PerPopulationSearchRequest,
         };
-        use antecedent::Study;
         let parsed = parse_json(contract_json)?;
         let map = contract_map(&parsed, "static")?;
         let seed = get_u64(map, "seed")?;

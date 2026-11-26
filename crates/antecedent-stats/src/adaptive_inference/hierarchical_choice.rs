@@ -661,11 +661,8 @@ impl HierarchicalChoicePosterior {
             return Ok(());
         }
         let eps = 1e-6;
-        let (lo, _hi, span) = if dim == sticks {
-            (vlo, vhi, vhi - vlo)
-        } else {
-            (eps, 1.0 - eps, 1.0 - 2.0 * eps)
-        };
+        let (lo, _hi, span) =
+            if dim == sticks { (vlo, vhi, vhi - vlo) } else { (eps, 1.0 - eps, 1.0 - 2.0 * eps) };
         for (x, w) in xs.iter().zip(ws) {
             if *w <= 0.0 {
                 continue;

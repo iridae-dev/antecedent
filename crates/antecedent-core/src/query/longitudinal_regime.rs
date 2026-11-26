@@ -1,9 +1,9 @@
 //! Longitudinal regime value contract for one outcome row per subject.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::fault::LongitudinalRegimeFault;
 use super::QueryError;
-use crate::canonical_encode::{count, encode_flags, encode_u32s, flag, CanonicalEncode};
+use super::fault::LongitudinalRegimeFault;
+use crate::canonical_encode::{CanonicalEncode, count, encode_flags, encode_u32s, flag};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;

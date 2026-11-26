@@ -13,9 +13,10 @@
 #![allow(clippy::cast_precision_loss, reason = "fixture counts are far below 2^52")]
 
 use antecedent::analysis::posterior_boundaries::{
+    SerialErrorModel, TemporalCurvePosteriorMeaning, TrajectoryRows,
     require_ordinary_temporal_curve_posterior, temporal_curve_posterior_meaning,
     trajectory_hazard_credible_interval, trajectory_survival_bootstrap,
-    trajectory_survival_contrast, SerialErrorModel, TemporalCurvePosteriorMeaning, TrajectoryRows,
+    trajectory_survival_contrast,
 };
 use antecedent::prelude::ExecutionContext;
 

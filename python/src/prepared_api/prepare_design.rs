@@ -665,35 +665,60 @@ impl PyPreparedAnalysis {
             req.off_gil(py, move |req| {
                 let outcome_id = crate::graph_build::schema_var_id(data.schema(), &outcome)?;
                 if fitted_q.is_some() != (method == "fitted_g_formula") {
-                    return Err(crate::value_err("fitted Q declaration must match the fitted_g_formula method"));
+                    return Err(crate::value_err(
+                        "fitted Q declaration must match the fitted_g_formula method",
+                    ));
                 }
-                if schedule_family.is_some() != matches!(method, "compare_schedules" | "learn_schedule") {
-                    return Err(crate::value_err("schedule class must match its longitudinal method"));
+                if schedule_family.is_some()
+                    != matches!(method, "compare_schedules" | "learn_schedule")
+                {
+                    return Err(crate::value_err(
+                        "schedule class must match its longitudinal method",
+                    ));
                 }
                 let method = match method {
                     "ipw" => antecedent::query::LongitudinalRegimeMethod::Ipw,
                     "g_formula" => antecedent::query::LongitudinalRegimeMethod::GFormula,
                     "fitted_g_formula" => {
                         let (baseline, external_training_fold, bootstrap_replicates) = fitted_q
-                            .ok_or_else(|| crate::value_err("fitted_g_formula requires a fitted Q declaration"))?;
-                        antecedent::query::LongitudinalRegimeMethod::FittedGFormula(antecedent::query::FittedRegimeQ {
-                            baseline: crate::graph_build::schema_var_id(data.schema(), &baseline)?,
-                            external_training_fold,
-                            bootstrap_replicates,
-                        })
+                            .ok_or_else(|| {
+                                crate::value_err("fitted_g_formula requires a fitted Q declaration")
+                            })?;
+                        antecedent::query::LongitudinalRegimeMethod::FittedGFormula(
+                            antecedent::query::FittedRegimeQ {
+                                baseline: crate::graph_build::schema_var_id(
+                                    data.schema(),
+                                    &baseline,
+                                )?,
+                                external_training_fold,
+                                bootstrap_replicates,
+                            },
+                        )
                     }
                     "compare_schedules" | "learn_schedule" => {
-                        use antecedent::query::{LongitudinalScheduleFamily, LongitudinalScheduleTarget};
-                        let (schedules, draws, contrast, training) = schedule_family
-                            .ok_or_else(|| crate::value_err("the schedule class must be declared"))?;
-                        let target = match (method, contrast, training) {
-                            ("compare_schedules", Some((reference, contrasts)), None) =>
-                                LongitudinalScheduleTarget::Contrasts { reference, contrasts },
-                            ("learn_schedule", None, Some(training_fold)) =>
-                                LongitudinalScheduleTarget::Learn { training_fold },
-                            _ => return Err(crate::value_err("declare the fixed contrasts or the independent training fold")),
+                        use antecedent::query::{
+                            LongitudinalScheduleFamily, LongitudinalScheduleTarget,
                         };
-                        antecedent::query::LongitudinalRegimeMethod::ScheduleFamily(LongitudinalScheduleFamily { schedules, draws, target })
+                        let (schedules, draws, contrast, training) =
+                            schedule_family.ok_or_else(|| {
+                                crate::value_err("the schedule class must be declared")
+                            })?;
+                        let target = match (method, contrast, training) {
+                            ("compare_schedules", Some((reference, contrasts)), None) => {
+                                LongitudinalScheduleTarget::Contrasts { reference, contrasts }
+                            }
+                            ("learn_schedule", None, Some(training_fold)) => {
+                                LongitudinalScheduleTarget::Learn { training_fold }
+                            }
+                            _ => {
+                                return Err(crate::value_err(
+                                    "declare the fixed contrasts or the independent training fold",
+                                ));
+                            }
+                        };
+                        antecedent::query::LongitudinalRegimeMethod::ScheduleFamily(
+                            LongitudinalScheduleFamily { schedules, draws, target },
+                        )
                     }
                     "sequential_dr" => {
                         antecedent::query::LongitudinalRegimeMethod::SequentialDoublyRobust
@@ -707,10 +732,15 @@ impl PyPreparedAnalysis {
                         }));
                     }
                 };
-                let calibration_design = calibration_design.as_deref().map(|design| {
-                    antecedent::query::LongitudinalCalibrationDesign::from_name(design)
-                        .ok_or_else(|| crate::value_err("unknown longitudinal calibration design"))
-                }).transpose()?;
+                let calibration_design = calibration_design
+                    .as_deref()
+                    .map(|design| {
+                        antecedent::query::LongitudinalCalibrationDesign::from_name(design)
+                            .ok_or_else(|| {
+                                crate::value_err("unknown longitudinal calibration design")
+                            })
+                    })
+                    .transpose()?;
                 let query = antecedent::query::LongitudinalRegimeQuery {
                     calibration_design,
                     outcome: outcome_id,
@@ -817,7 +847,9 @@ impl PyPreparedAnalysis {
                     treatment: id(&treatment)?,
                     tau,
                     delayed_entry: delayed_entry.as_deref().map(id).transpose()?,
-                    stratified_censoring: if let Some((entry, censor, weights, floor)) = stratified_censoring {
+                    stratified_censoring: if let Some((entry, censor, weights, floor)) =
+                        stratified_censoring
+                    {
                         Some(antecedent::query::StratifiedCensoringSurvival {
                             entry_stratum: id(&entry)?,
                             censoring_stratum: id(&censor)?,

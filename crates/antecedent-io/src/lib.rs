@@ -102,12 +102,11 @@ pub use antecedent_io_core::{
     decode_causal_payload_artifact_expecting, decode_container, decode_external_estimate_claim,
     decode_external_estimate_claim_expecting, decode_posterior_artifact,
     decode_posterior_meta_from_bytes, decode_posterior_meta_from_bytes_expecting,
-    decode_posterior_meta_from_path,
-    decode_posterior_meta_from_path_expecting, decode_posterior_meta_from_seek,
-    decode_posterior_meta_from_seek_expecting, decode_prior_source_meta,
-    decode_prior_source_meta_expecting, decode_with_version, diagnostic_from_wire,
-    diagnostic_to_wire, digest_canonical, digest_hex, digest_wire, discovery_wire,
-    distribution_artifact, distribution_replay, encode_analysis_result_artifact,
+    decode_posterior_meta_from_path, decode_posterior_meta_from_path_expecting,
+    decode_posterior_meta_from_seek, decode_posterior_meta_from_seek_expecting,
+    decode_prior_source_meta, decode_prior_source_meta_expecting, decode_with_version,
+    diagnostic_from_wire, diagnostic_to_wire, digest_canonical, digest_hex, digest_wire,
+    discovery_wire, distribution_artifact, distribution_replay, encode_analysis_result_artifact,
     encode_analysis_result_artifact_with_contract, encode_causal_payload_artifact,
     encode_container, encode_external_estimate_claim, encode_posterior_artifact,
     encode_prior_source_meta, error, exact_law_wire, executed_functional_labels, execution_digest,
@@ -210,22 +209,22 @@ pub mod transport_interference_wire;
 pub mod transport_scenario_artifact;
 pub mod z_transport_artifact;
 pub use antecedent_io_core::adaptive_monitoring_contract_artifact;
-pub use antecedent_io_core::callback_result_artifact;
-pub use antecedent_io_core::catalog_role;
-pub use antecedent_io_core::compiled_study;
-pub use antecedent_io_core::cohort_decision;
-pub use antecedent_io_core::patient_surrogate;
-pub use antecedent_io_core::pag_identification;
+pub use antecedent_io_core::bridge_image_artifact;
 pub use antecedent_io_core::bridge_interval_decision;
+pub use antecedent_io_core::bridge_joint_outcomes;
 pub use antecedent_io_core::bridge_posterior_interval;
 pub use antecedent_io_core::bridge_trial_interval;
-pub use antecedent_io_core::bridge_image_artifact;
-pub use antecedent_io_core::bridge_joint_outcomes;
+pub use antecedent_io_core::callback_result_artifact;
+pub use antecedent_io_core::catalog_role;
+pub use antecedent_io_core::cohort_decision;
+pub use antecedent_io_core::compiled_study;
 pub use antecedent_io_core::composition_verification_artifact;
 pub use antecedent_io_core::cross_world_execution_artifact;
 pub use antecedent_io_core::joint_law_propagation_artifact;
 pub use antecedent_io_core::method_provenance;
 pub use antecedent_io_core::observation_query_artifact;
+pub use antecedent_io_core::pag_identification;
+pub use antecedent_io_core::patient_surrogate;
 pub use antecedent_io_core::policy_program_artifact;
 pub use antecedent_io_core::propagation_chain_record;
 pub use antecedent_io_core::selective_discovery_artifact;

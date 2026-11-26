@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use super::{
-    bad, connect_bound_provider_source, connection_json, consume_for_callback, contract_of,
-    contract_to_wire, declaration_of, hand_to_callback, json, parse, parse_digest_hex, pyfunction,
-    quantity_of, refusal_json, support_of, wrap_pyfunction, AdmittedProviderSource, Bound,
-    CalibrationStatus, Checked, ContractOperation, Deserialize, EvidenceBasis, ExternalTrustState,
-    Json, ProviderTransportSource, Py, PyBytes, PyModule, PyModuleMethods,
-    PyProviderVerificationReceipt, PyRef, PyResult, Python, RefusalJson, Refused,
+    AdmittedProviderSource, Bound, CalibrationStatus, Checked, ContractOperation, Deserialize,
+    EvidenceBasis, ExternalTrustState, Json, ProviderTransportSource, Py, PyBytes, PyModule,
+    PyModuleMethods, PyProviderVerificationReceipt, PyRef, PyResult, Python, RefusalJson, Refused,
     ScientificQuantityWire, SourceId, SourceTrustRequirement, SupportJson, TransportHandoffRefusal,
-    TransportIdentity, TransportedClaimOffer, TransportedInputPolicy, UncertaintyMeaning,
+    TransportIdentity, TransportedClaimOffer, TransportedInputPolicy, UncertaintyMeaning, bad,
+    connect_bound_provider_source, connection_json, consume_for_callback, contract_of,
+    contract_to_wire, declaration_of, hand_to_callback, json, parse, parse_digest_hex, pyfunction,
+    quantity_of, refusal_json, support_of, wrap_pyfunction,
 };
 
 // -- transported claim handoff -----------------------------------------------------------------

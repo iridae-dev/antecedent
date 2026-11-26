@@ -522,10 +522,7 @@ fn project_transported_response(
 ) -> PyResult<Refused<TransportedResponseHandle>> {
     crate::catch_ffi(|| {
         let Some(result) = prepared.retained_result() else {
-            return Ok((
-                None,
-                Some(transported_refusal_json(&TransportedRefusal::NotTransported)),
-            ));
+            return Ok((None, Some(transported_refusal_json(&TransportedRefusal::NotTransported))));
         };
         Ok(match antecedent::analysis::project_transported_response(result) {
             Ok(inner) => (Some(TransportedResponseHandle { inner }), None),

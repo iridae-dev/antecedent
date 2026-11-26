@@ -630,14 +630,11 @@ fn synthetic_control_average_matches_only_the_measured_panel_and_grid_point() {
 
 #[test]
 fn integrated_schedule_decisions_use_only_attested_exact_sample_sizes() {
-    static POINTS: [CoverageGridPoint; 2] = [
-        grid_point(0, 4096, 0.92, true),
-        grid_point(1, 8192, 0.96, false),
-    ];
-    for functional in [
-        "integrated_schedule_example_unique_optima",
-        "integrated_schedule_example_all_tied_optima",
-    ] {
+    static POINTS: [CoverageGridPoint; 2] =
+        [grid_point(0, 4096, 0.92, true), grid_point(1, 8192, 0.96, false)];
+    for functional in
+        ["integrated_schedule_example_unique_optima", "integrated_schedule_example_all_tied_optima"]
+    {
         let record = CoverageRecord {
             query: "IntegratedScheduleDecision",
             estimator: "schedule_decision.joint_fit_and_transport",

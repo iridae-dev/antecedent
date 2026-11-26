@@ -558,7 +558,10 @@ pub(crate) fn validate_query_ids(
                 treatment: antecedent_core::VariableId::from_raw(wire.treatment),
                 tau: wire.tau,
                 delayed_entry: wire.delayed_entry.map(antecedent_core::VariableId::from_raw),
-                stratified_censoring: wire.stratified_censoring.as_ref().map(crate::query_wire::StratifiedCensoringWire::to_core),
+                stratified_censoring: wire
+                    .stratified_censoring
+                    .as_ref()
+                    .map(crate::query_wire::StratifiedCensoringWire::to_core),
                 known_censoring: wire.censoring_probability_floor.map(|minimum_probability| {
                     antecedent_core::KnownCensoringSurvival {
                         times: std::sync::Arc::from(wire.censoring_times.clone()),

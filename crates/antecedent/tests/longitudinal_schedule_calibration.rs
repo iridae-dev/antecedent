@@ -7,13 +7,13 @@ mod common;
 use std::sync::Arc;
 
 use antecedent::{CausalError, Study};
-use antecedent_estimate::error::EstimationError;
-use antecedent_stats::StatsError;
 use antecedent_core::{
-    CausalQuery, ExecutionContext, LongitudinalCalibrationDesign, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
-    LongitudinalScheduleFamily, LongitudinalScheduleTarget, VariableId,
+    CausalQuery, ExecutionContext, LongitudinalCalibrationDesign, LongitudinalRegimeMethod,
+    LongitudinalRegimeQuery, LongitudinalScheduleFamily, LongitudinalScheduleTarget, VariableId,
 };
 use antecedent_data::TabularData;
+use antecedent_estimate::error::EstimationError;
+use antecedent_stats::StatsError;
 use common::calibration::{
     CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, gaussian, grid_n, map_replicates,
     n_sim, uniform,

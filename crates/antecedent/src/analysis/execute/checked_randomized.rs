@@ -378,7 +378,11 @@ impl CheckedRandomizedOperation {
                         DiagnosticSeverity::Info,
                         diagnostic,
                     )
-                    .with_fields(estimated_cuped_fields(method, adjustment, fit.cuped_slope)),
+                    .with_fields(estimated_cuped_fields(
+                        method,
+                        adjustment,
+                        fit.cuped_slope,
+                    )),
                 ],
                 refutations: Vec::new(),
                 distribution: None,

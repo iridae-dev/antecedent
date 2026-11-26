@@ -3,9 +3,9 @@
 
 use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
 use antecedent::analysis::longitudinal_joint_sensitivity::{
-    compile_longitudinal_joint_sensitivity, consume_longitudinal_joint_sensitivity,
     JointSensitivityError, LongitudinalSensitivityChoice, LongitudinalSensitivityPoint,
-    LongitudinalSensitivitySpec, LongitudinalSubject,
+    LongitudinalSensitivitySpec, LongitudinalSubject, compile_longitudinal_joint_sensitivity,
+    consume_longitudinal_joint_sensitivity,
 };
 use antecedent_core::{CausalRng, ExecutionContext};
 

@@ -370,7 +370,8 @@ mod tests {
             .with_bootstrap_replicates(0)
             .with_treatment_declaration(crate::propensity::TreatmentDeclaration::Levels);
         let resident = estimator.prepare(&data, &estimand, &query).unwrap_err();
-        let streamed = estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();
+        let streamed =
+            estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap_err();
         for error in [resident, streamed] {
             assert_eq!(error.reason_code(), Some("arm_not_populated"));
             assert!(error.to_string().contains("level 4 has no"));

@@ -236,13 +236,19 @@ impl StudyResult {
         {
             return IntervalBinding::new(M::AnalyticSe, fit.coverage, base);
         }
-        if let Some(completed) = self.longitudinal_regime().and_then(|fit| fit.fitted_q_bootstrap_replicates_ok) {
-            let mut binding = IntervalBinding::new(M::PercentileBootstrap, REPORTED_SE_INTERVAL_LEVEL, base);
+        if let Some(completed) =
+            self.longitudinal_regime().and_then(|fit| fit.fitted_q_bootstrap_replicates_ok)
+        {
+            let mut binding =
+                IntervalBinding::new(M::PercentileBootstrap, REPORTED_SE_INTERVAL_LEVEL, base);
             binding.replicates_ok = draws_u32(completed);
             return binding;
         }
-        if let Some(family) = self.longitudinal_regime().and_then(|fit| fit.schedule_family.as_ref()) {
-            let method = if family.learning.is_some() { M::AnalyticSe } else { M::SimultaneousBand };
+        if let Some(family) =
+            self.longitudinal_regime().and_then(|fit| fit.schedule_family.as_ref())
+        {
+            let method =
+                if family.learning.is_some() { M::AnalyticSe } else { M::SimultaneousBand };
             return IntervalBinding::new(method, REPORTED_SE_INTERVAL_LEVEL, base);
         }
         if self.posterior.is_some() {
@@ -399,17 +405,18 @@ impl StudyResult {
 
     fn delayed_survival_band_binding(&self) -> Option<IntervalBinding> {
         let curve = self.survival()?;
-        if !curve.has_delayed_entry && curve.censoring_survival_provenance.as_deref()
-            != Some(antecedent_stats::survival::STRATIFIED_CENSORING_PROVENANCE)
+        if !curve.has_delayed_entry
+            && curve.censoring_survival_provenance.as_deref()
+                != Some(antecedent_stats::survival::STRATIFIED_CENSORING_PROVENANCE)
         {
             return None;
         }
         let band = curve.difference_band.as_ref()?;
-        let mut binding = IntervalBinding::new(
-            antecedent_core::IntervalMethod::SimultaneousBand, 0.95, "iid",
-        );
+        let mut binding =
+            IntervalBinding::new(antecedent_core::IntervalMethod::SimultaneousBand, 0.95, "iid");
         binding.replicates_ok = Some(band.replicates_ok);
-        binding.replicates_failed = curve.bootstrap_replicates_requested
+        binding.replicates_failed = curve
+            .bootstrap_replicates_requested
             .map(|requested| requested.saturating_sub(band.replicates_ok));
         Some(binding)
     }

@@ -25,7 +25,7 @@ use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, SemanticDigest,
 };
-use antecedent_io::calibration::{calibration_slots, CalibrationBasisWire};
+use antecedent_io::calibration::{CalibrationBasisWire, calibration_slots};
 use antecedent_io::contract_section::CalibrationSlotWire;
 use serde::{Deserialize, Serialize};
 

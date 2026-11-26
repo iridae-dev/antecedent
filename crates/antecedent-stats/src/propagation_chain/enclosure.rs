@@ -1,8 +1,8 @@
 //! Propagation of structural enclosures through chain stages.
 
 use super::{
-    CANCEL_STRIDE, ChainError, Coefficient, Combine, ExprTerm, StageOp, StageSpec,
-    UnaryFn, check_cancel, validate_spec,
+    CANCEL_STRIDE, ChainError, Coefficient, Combine, ExprTerm, StageOp, StageSpec, UnaryFn,
+    check_cancel, validate_spec,
 };
 use antecedent_core::CancellationToken;
 

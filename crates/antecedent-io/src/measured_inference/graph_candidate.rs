@@ -357,8 +357,7 @@ fn validate_confounded_adjustment(
 ) -> Result<(), IoError> {
     let n = parts.names.len();
     for atom in &parts.atoms {
-        let dag =
-            dag_from_adjacency_mask(&atom.mask, n).map_err(invalid)?;
+        let dag = dag_from_adjacency_mask(&atom.mask, n).map_err(invalid)?;
         let treatment = antecedent_graph::DenseNodeId::from_raw(parts.treatment);
         let outcome = antecedent_graph::DenseNodeId::from_raw(parts.outcome);
         let mut adjustment = atom.adjustment.clone();
@@ -393,8 +392,7 @@ fn validate_target_selection_admissibility(
 ) -> Result<(), IoError> {
     let n = parts.names.len();
     for atom in &parts.atoms {
-        let dag =
-            dag_from_adjacency_mask(&atom.mask, n).map_err(invalid)?;
+        let dag = dag_from_adjacency_mask(&atom.mask, n).map_err(invalid)?;
         let mut adjustment = atom.adjustment.clone();
         for &id in selected {
             if !adjustment.contains(&id) {
@@ -707,7 +705,8 @@ fn derive_atoms(
         if ctx.is_some_and(|ctx| ctx.cancellation.is_cancelled()) {
             return Err(cancelled());
         }
-        if !graph_imputation_supported_mask(&mask, n, treatment as usize, outcome as usize, support) {
+        if !graph_imputation_supported_mask(&mask, n, treatment as usize, outcome as usize, support)
+        {
             return Err(invalid(format!("graph mask {mask} lies outside declared support")));
         }
         let dag = dag_from_adjacency_mask(&mask, n)
@@ -830,12 +829,7 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
     let source = GraphImputationSource::decode(bytes).map_err(invalid)?;
     let parts = source.parts();
     let n = parts.names.len();
-    let graph_lease = ctx
-        .acquire_admission(
-            0,
-            parts.admission_bytes(),
-        )
-        .map_err(admission)?;
+    let graph_lease = ctx.acquire_admission(0, parts.admission_bytes()).map_err(admission)?;
     let table = TabularData::from_f64_columns(
         parts
             .names
@@ -882,15 +876,14 @@ fn reconstruct(bytes: &[u8], ctx: &ExecutionContext) -> Result<Reconstructed, Io
         VariableId::from_raw(parts.outcome),
     );
     // The compiler's retained child operations must equal those derived here, atom for atom.
-    let DerivedSupport { atoms, excluded } =
-        derive_atoms(
-            n,
-            parts.treatment,
-            parts.outcome,
-            (parts.support, parts.candidates.as_deref()),
-            &query,
-            Some(ctx),
-        )?;
+    let DerivedSupport { atoms, excluded } = derive_atoms(
+        n,
+        parts.treatment,
+        parts.outcome,
+        (parts.support, parts.candidates.as_deref()),
+        &query,
+        Some(ctx),
+    )?;
     if atoms.len() != parts.atoms.len()
         || atoms.iter().zip(&parts.atoms).any(|(derived, carried)| derived.operation != *carried)
     {
@@ -1586,7 +1579,10 @@ fn execute(
             .map_err(|receipt| execution_refused(receipt.summary()))?;
     let retained: Vec<_> = rec.atoms.iter().map(|atom| atom.operation.mask.clone()).collect();
     let retained_words = (parts.names.len() <= MAX_VARIABLES).then(|| {
-        retained.iter().map(|mask| mask.to_word().expect("validated legacy mask")).collect::<Vec<_>>()
+        retained
+            .iter()
+            .map(|mask| mask.to_word().expect("validated legacy mask"))
+            .collect::<Vec<_>>()
     });
     let mut pooled = Vec::new();
     let mut pooled_worlds = Vec::new();
@@ -1644,20 +1640,36 @@ fn execute(
         let (data, completed_digest) = complete_table(rec, imputer, index, &scoped)?;
         let graphs = if let Some(words) = &retained_words {
             graph_imputation_exact_dags(
-                &data, &rec.variables, treatment, outcome, parts.support, words, &mut budget,
+                &data,
+                &rec.variables,
+                treatment,
+                outcome,
+                parts.support,
+                words,
+                &mut budget,
             )
         } else {
             for done in 0..retained.len() {
                 if let Err(stop) = budget.charge(1, MEMORY_LIMIT) {
-                    return Err(execution_refused(budget.receipt(
-                        stop,
-                        vec![format!("retained:0..{done}")],
-                        vec![format!("retained:{done}..{}", retained.len())],
-                    ).summary()));
+                    return Err(execution_refused(
+                        budget
+                            .receipt(
+                                stop,
+                                vec![format!("retained:0..{done}")],
+                                vec![format!("retained:{done}..{}", retained.len())],
+                            )
+                            .summary(),
+                    ));
                 }
             }
             graph_imputation_exact_from_masks(
-                &data, &rec.variables, treatment, outcome, parts.support, &retained, &budget,
+                &data,
+                &rec.variables,
+                treatment,
+                outcome,
+                parts.support,
+                &retained,
+                &budget,
             )
         }
         .map_err(|error| match error {
@@ -2060,7 +2072,8 @@ fn execute(
             if values.len() < 2 || values.iter().any(|value| !value.is_finite()) {
                 return Err(execution_refused("missing or nonfinite effect draws"));
             }
-            let digest = child_receipt(mask, parts.names.len(), &completed_digest, values, &fit.assumptions);
+            let digest =
+                child_receipt(mask, parts.names.len(), &completed_digest, values, &fit.assumptions);
             kept.push((mask, weight, digest));
             total += weight;
             value_count += values.len() as u64;

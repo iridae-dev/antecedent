@@ -108,11 +108,7 @@ fn bounds_and_domain_are_refused() {
     assert!(
         enumerate_choice_law(&five, &ChoiceKernel::Fixed { theta: vec![0.2; 5] }, &never).is_ok()
     );
-    let wide = ChoiceProcedureSpec {
-        prior: vec![1.0; 4],
-        batches: vec![10_000],
-        rule: five.rule,
-    };
+    let wide = ChoiceProcedureSpec { prior: vec![1.0; 4], batches: vec![10_000], rule: five.rule };
     let tight = ExecutionContext::for_tests(0).with_memory_limit(Some(1024));
     match enumerate_choice_law_in(
         &wide,

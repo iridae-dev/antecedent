@@ -11,20 +11,20 @@
 //! uncalibrated diagnostic and never an interval.
 
 use antecedent::analysis::cohort_decision::{
-    cohort_forward_claim, cohort_mean_source, evaluate_cohort_decision, CohortBinding,
-    CohortDecisionSource, CohortExpectation, CohortOptions, CohortRefusal,
-    CovariateShiftDeclaration, FittedEffectModel, LawRequest,
+    CohortBinding, CohortDecisionSource, CohortExpectation, CohortOptions, CohortRefusal,
+    CovariateShiftDeclaration, FittedEffectModel, LawRequest, cohort_forward_claim,
+    cohort_mean_source, evaluate_cohort_decision,
 };
 use antecedent::analysis::transported_cohort::{
-    transport_cohort_effect_from_result, verify_cohort_transport, SelectionShiftDeclaration,
-    TransportRefusal, TransportedCohort, TransportedRequest, TRANSPORTED_POINT_SCOPE,
+    SelectionShiftDeclaration, TRANSPORTED_POINT_SCOPE, TransportRefusal, TransportedCohort,
+    TransportedRequest, transport_cohort_effect_from_result, verify_cohort_transport,
 };
 use antecedent::design::composition_boundary::SupportPolicy;
 use antecedent::design::decision_artifact::contract_from_json_refusal;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
-use crate::bridge::{check_declared_size, external_refusal_json, RefusalJson};
+use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json};
 use crate::composition_api::{boundary_refusal, parse_support, parse_unsupported, supported_json};
 use crate::{detach_catch, value_err_code};
 
@@ -683,7 +683,7 @@ fn quantity_wire(
 fn fit_quantities(
     parsed: &NativeFitJson,
 ) -> Result<(ScientificQuantityWire, Vec<ScientificQuantityWire>), String> {
-    use antecedent::analysis::cohort_decision::{ContrastDeclaration, CATE_FUNCTIONAL_ID};
+    use antecedent::analysis::cohort_decision::{CATE_FUNCTIONAL_ID, ContrastDeclaration};
     if parsed.feature_names.len() != parsed.features.len()
         || parsed.feature_units.len() != parsed.features.len()
     {

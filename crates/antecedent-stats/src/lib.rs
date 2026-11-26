@@ -17,13 +17,12 @@ pub mod describe;
 pub mod design;
 pub mod divergence;
 pub mod error;
-pub mod fitted_regime_q;
-pub mod longitudinal_policy;
 pub mod execution_quote;
 pub mod faer_backend;
 pub mod faer_scope;
 pub mod fdr;
 pub mod fit_counts;
+pub mod fitted_regime_q;
 pub mod gam;
 pub mod glm;
 pub mod gram;
@@ -33,6 +32,7 @@ pub mod joint_law;
 pub mod layout_rules;
 pub mod linalg;
 pub mod linear_program;
+pub mod longitudinal_policy;
 pub mod longitudinal_regime;
 pub mod m_estimate;
 pub mod matching;
@@ -77,8 +77,7 @@ pub use cluster::{
 };
 pub use covariance::{
     Hc2Coefficient, SandwichKind, coefficient_covariance, coefficient_covariance_in,
-    hc2_coefficient_bell_mccaffrey,
-    score_coefficient_covariance, symmetric_eigen,
+    hc2_coefficient_bell_mccaffrey, score_coefficient_covariance, symmetric_eigen,
 };
 pub use dcor::distance_correlation;
 pub use describe::{iid_se, mean_and_sample_variance, mean_and_se};

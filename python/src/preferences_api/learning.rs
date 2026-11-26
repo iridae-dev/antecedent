@@ -10,26 +10,26 @@
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::AcceptedPreferencesError;
 use antecedent::analysis::preference_decision::{
-    analysis_options, AcceptedPreferences, AcceptedPreferencesArtifact, BeliefSource,
-    ChoiceModelEstimate, ChoiceModelOptions, ChoiceModelResult, ChoiceOption, ChoiceRecord,
-    ChoiceRecordSet, ConflictKind, CovarianceKind, EstimateOutcome, LearnedPreferenceSet,
-    LearningOptions, OptionBelief, PendingReview, Pooling, PreferenceBasis, SetLearningOptions,
-    SetLearningResult, SetOutcome,
+    AcceptedPreferences, AcceptedPreferencesArtifact, BeliefSource, ChoiceModelEstimate,
+    ChoiceModelOptions, ChoiceModelResult, ChoiceOption, ChoiceRecord, ChoiceRecordSet,
+    ConflictKind, CovarianceKind, EstimateOutcome, LearnedPreferenceSet, LearningOptions,
+    OptionBelief, PendingReview, Pooling, PreferenceBasis, SetLearningOptions, SetLearningResult,
+    SetOutcome, analysis_options,
 };
 use antecedent::analysis::preference_learning_programs::{
-    compile_choice_model, compile_choice_model_relearn, compile_compatible_set,
-    compile_compatible_set_relearn, TerminalError,
+    TerminalError, compile_choice_model, compile_choice_model_relearn, compile_compatible_set,
+    compile_compatible_set_relearn,
 };
 use antecedent::contract::ExternalRefusal;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::{
-    attribute_from, contract_from, debug_kind, mean_source_from, measure_value, model_from,
-    model_value, parameter_to, parse, refusal, refusal_value, relation_to, reply, AttributeWire,
-    Reply,
+    AttributeWire, Reply, attribute_from, contract_from, debug_kind, mean_source_from,
+    measure_value, model_from, model_value, parameter_to, parse, refusal, refusal_value,
+    relation_to, reply,
 };
 use crate::distribution_api::PyJointDistributionArtifact;
 

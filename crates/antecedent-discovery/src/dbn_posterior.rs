@@ -336,15 +336,18 @@ impl DbnPosterior {
                 u64::try_from(p).unwrap_or(u64::MAX),
                 "exact DBN templates",
             )?;
-            return Err(DiscoveryError::unsupported(
-                "exact DBN templates were not entered",
-            ));
+            return Err(DiscoveryError::unsupported("exact DBN templates were not entered"));
         }
         let n_lag_bits = (max_lag as usize) * p * p;
-        let est_bytes = template_product(p, n_lag_bits)
-            .and_then(template_bytes)
-            .unwrap_or(u64::MAX);
-        crate::exact_enumeration::admit_quote(ctx, usize::MAX, est_bytes, 0, "exact DBN templates")?;
+        let est_bytes =
+            template_product(p, n_lag_bits).and_then(template_bytes).unwrap_or(u64::MAX);
+        crate::exact_enumeration::admit_quote(
+            ctx,
+            usize::MAX,
+            est_bytes,
+            0,
+            "exact DBN templates",
+        )?;
         let contemp = enumerate_unique_dags(p);
         let mut kept_masks = Vec::new();
         let mut kept_lag = Vec::new();

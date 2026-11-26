@@ -397,8 +397,7 @@ pub fn estimated_cluster_cuped_itt(
         return None;
     }
     let theta = cluster_total_ols_slope(outcome_totals, prediction_totals)?;
-    let adjusted =
-        cluster_totals_adjusted_by_slope(outcome_totals, prediction_totals, theta)?;
+    let adjusted = cluster_totals_adjusted_by_slope(outcome_totals, prediction_totals, theta)?;
     let treated = adjusted
         .iter()
         .zip(assigned)
@@ -835,8 +834,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let fit = estimated_cluster_cuped_itt(&observed, &prediction, &assigned, rows).unwrap();
             let theta = cluster_total_ols_slope(&observed, &prediction).unwrap();
-            let adjusted =
-                cluster_totals_adjusted_by_slope(&observed, &prediction, theta).unwrap();
+            let adjusted = cluster_totals_adjusted_by_slope(&observed, &prediction, theta).unwrap();
             let treated_totals = adjusted
                 .iter()
                 .zip(&assigned)

@@ -3,7 +3,7 @@
 //! The caller supplies the candidate id, rank and sample size a ranking already stored.
 //! This module does not rank and does not call `design.consume`.
 
-use antecedent::analysis::winning_design::{project_stored_winner, StoredDesignRow};
+use antecedent::analysis::winning_design::{StoredDesignRow, project_stored_winner};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 

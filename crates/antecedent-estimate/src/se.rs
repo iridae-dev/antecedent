@@ -508,11 +508,7 @@ pub(crate) fn multiway_influence_se(
     psi: &[f64],
     dimensions: &[Vec<u32>],
 ) -> Result<f64, EstimationError> {
-    multiway_influence_se_in(
-        psi,
-        dimensions,
-        &antecedent_stats::execution_quote::open_execution(),
-    )
+    multiway_influence_se_in(psi, dimensions, &antecedent_stats::execution_quote::open_execution())
 }
 
 pub(crate) fn multiway_influence_se_in(
@@ -530,7 +526,8 @@ pub(crate) fn multiway_influence_se_in(
     }
     let d = dimensions.len();
     let n = psi.len();
-    let _lease = antecedent_stats::cluster::admit_multiway(d, n, ctx).map_err(map_multiway_quote)?;
+    let _lease =
+        antecedent_stats::cluster::admit_multiway(d, n, ctx).map_err(map_multiway_quote)?;
     for dim in dimensions {
         if dim.len() != n {
             return Err(EstimationError::data_msg(format!(

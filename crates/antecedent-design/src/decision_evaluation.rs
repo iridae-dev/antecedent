@@ -431,26 +431,25 @@ pub fn execute_demand(
     if requirement.is_identified_set() {
         return Err(EvaluationError::IdentifiedSet);
     }
-    let mut executed = if requirement.any_of.contains(&SourceRepresentation::Mean)
-        && source.supplies_means()
-    {
-        execute_on_means(contract, source, budget)?
-    } else {
-        let draws = requirement.any_of.iter().any(|representation| {
-            matches!(
-                representation,
-                SourceRepresentation::MarginalDraws | SourceRepresentation::JointDraws
-            )
-        }) || (source.supplies_draws() && !source.supplies_means());
-        if !draws {
-            return Err(EvaluationError::CarrierUnavailable { needed: requirement.any_of });
-        }
-        if !source.supplies_draws() {
-            return Err(means_insufficient(requirement.any_of));
-        }
-        let needs_joint = !requirement.any_of.contains(&SourceRepresentation::MarginalDraws);
-        execute_on_draws(contract, source, budget, cancellation, needs_joint)?
-    };
+    let mut executed =
+        if requirement.any_of.contains(&SourceRepresentation::Mean) && source.supplies_means() {
+            execute_on_means(contract, source, budget)?
+        } else {
+            let draws = requirement.any_of.iter().any(|representation| {
+                matches!(
+                    representation,
+                    SourceRepresentation::MarginalDraws | SourceRepresentation::JointDraws
+                )
+            }) || (source.supplies_draws() && !source.supplies_means());
+            if !draws {
+                return Err(EvaluationError::CarrierUnavailable { needed: requirement.any_of });
+            }
+            if !source.supplies_draws() {
+                return Err(means_insufficient(requirement.any_of));
+            }
+            let needs_joint = !requirement.any_of.contains(&SourceRepresentation::MarginalDraws);
+            execute_on_draws(contract, source, budget, cancellation, needs_joint)?
+        };
     if let Some(provenance) = source.method_provenance() {
         executed.decision.set_method_provenance(provenance.clone());
     }

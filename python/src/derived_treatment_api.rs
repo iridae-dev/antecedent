@@ -6,15 +6,15 @@
 
 use antecedent::data::TableView;
 use antecedent::estimate::{
-    declared_joint_nuisance, orderings_for, CellStatus, EstimationError, FactorizedJointConfig,
-    FactorizedJointFit, JointCellReport, JointContrast, RidgeTuning, DEFAULT_RIDGE_GRID,
+    CellStatus, DEFAULT_RIDGE_GRID, EstimationError, FactorizedJointConfig, FactorizedJointFit,
+    JointCellReport, JointContrast, RidgeTuning, declared_joint_nuisance, orderings_for,
 };
 use antecedent::{
-    check_derived_treatment, estimate_derived_joint_cells, estimate_joint_cell_cost, CausalError,
-    ConstituentRole, DerivedTreatmentDeclaration,
+    CausalError, ConstituentRole, DerivedTreatmentDeclaration, check_derived_treatment,
+    estimate_derived_joint_cells, estimate_joint_cell_cost,
 };
 use pyo3::prelude::*;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::{
     detach_catch, py_err, py_execution_context_cancel, resolve_user_threads,

@@ -450,7 +450,6 @@ impl LabelOrder {
         sort_identity_pairs(&mapped, &mut scratch, &mut sorted, &mut counts);
         Ok(sorted)
     }
-
 }
 
 /// Sort valid label-space pairs. Both buffers have input length and counts has node count plus one slots.

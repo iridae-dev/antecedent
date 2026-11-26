@@ -470,8 +470,10 @@ pub fn calibration_slot_in(
 pub(crate) fn longitudinal_exact_grid(key: &CalibrationKeyWire) -> bool {
     key.query == "LongitudinalRegime"
         && match key.estimator.as_str() {
-            "longitudinal.sequential_dr_regime" => key.functional
-                == "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q_gaussian_v1",
+            "longitudinal.sequential_dr_regime" => {
+                key.functional
+                    == "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q_gaussian_v1"
+            }
             "longitudinal.g_formula_regime" => matches!(
                 key.functional.as_str(),
                 "fitted_q_binary_baseline_h2_internal_crossfit_gaussian_v1"

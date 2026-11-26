@@ -1,8 +1,8 @@
 //! Row-isolated Python provider factories for the native AIPW cross-fit.
 use std::borrow::Cow;
 use std::sync::{
-    atomic::{AtomicU64, Ordering},
     Arc, Mutex,
+    atomic::{AtomicU64, Ordering},
 };
 
 use antecedent::estimate::external_learner::{
@@ -10,7 +10,7 @@ use antecedent::estimate::external_learner::{
     LearnerProvenance, PredictionTask, TargetView,
 };
 use antecedent::prelude::ExecutionContext;
-use numpy::{ndarray::Array2, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
+use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, ndarray::Array2};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 

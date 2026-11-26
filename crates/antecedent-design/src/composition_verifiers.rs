@@ -458,7 +458,12 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             } else {
                 artifact::inspect_terminal(bytes)?
             };
-            Ok(Inspected { identity: verified.identity, facts: verified.facts, values: verified.values, ..Inspected::default() })
+            Ok(Inspected {
+                identity: verified.identity,
+                facts: verified.facts,
+                values: verified.values,
+                ..Inspected::default()
+            })
         }
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
@@ -521,11 +526,11 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     };
     if (fit.value_interval_95.is_none() && fit.schedule_family.is_none())
         || !(query.periods == 4 && query.method == "sequential_dr"
-        || query.periods == 2
-            && matches!(
-                query.method.as_str(),
-                "fitted_g_formula" | "compare_schedules" | "learn_schedule"
-            ))
+            || query.periods == 2
+                && matches!(
+                    query.method.as_str(),
+                    "fitted_g_formula" | "compare_schedules" | "learn_schedule"
+                ))
     {
         return Err(failure(
             BundleStage::SwappedEvidence,
@@ -553,15 +558,31 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         }
         if let Some(learning) = &family.learning {
             if let Some(basis) = &claim.calibration.basis {
-                publish(&mut inspected.facts, "selected_value.calibration_functional", basis.key.functional.clone());
+                publish(
+                    &mut inspected.facts,
+                    "selected_value.calibration_functional",
+                    basis.key.functional.clone(),
+                );
             }
             if let Some(calibration) = claim.calibration.secondary.first() {
-                publish(&mut inspected.facts, "optimum_set.calibration", calibration.status.as_str());
+                publish(
+                    &mut inspected.facts,
+                    "optimum_set.calibration",
+                    calibration.status.as_str(),
+                );
                 if let Some(basis) = &calibration.basis {
-                    publish(&mut inspected.facts, "optimum_set.calibration_functional", basis.key.functional.clone());
+                    publish(
+                        &mut inspected.facts,
+                        "optimum_set.calibration_functional",
+                        basis.key.functional.clone(),
+                    );
                 }
                 if let Some(record_id) = &calibration.record_id {
-                    publish(&mut inspected.facts, "optimum_set.calibration_record", record_id.clone());
+                    publish(
+                        &mut inspected.facts,
+                        "optimum_set.calibration_record",
+                        record_id.clone(),
+                    );
                 }
             } else {
                 publish(&mut inspected.facts, "optimum_set.calibration", "not_measured");
@@ -1025,8 +1046,12 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
                     })
             }
         }
-        crate::intervention_schedule_decision::artifact::EVIDENCE_KIND => Some(NodeKind::IntegratedScheduleEvidence),
-        crate::intervention_schedule_decision::artifact::DECISION_KIND => Some(NodeKind::IntegratedScheduleDecision),
+        crate::intervention_schedule_decision::artifact::EVIDENCE_KIND => {
+            Some(NodeKind::IntegratedScheduleEvidence)
+        }
+        crate::intervention_schedule_decision::artifact::DECISION_KIND => {
+            Some(NodeKind::IntegratedScheduleDecision)
+        }
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
         antecedent_io_core::patient_surrogate::PATIENT_SURROGATE_ARTIFACT_KIND => {
             Some(NodeKind::PatientSurrogateIdentification)
@@ -1234,8 +1259,14 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::LedgerPooledResult => Box::new(LedgerPooledResultVerifier),
         NodeKind::LongitudinalRegimeResult => Box::new(LongitudinalRegimeResultVerifier),
         NodeKind::PagIdentification => Box::new(PagIdentificationVerifier),
-        NodeKind::IntegratedScheduleEvidence => Box::new(crate::intervention_schedule_decision::artifact::EvidenceVerifier),
-        NodeKind::IntegratedScheduleDecision => Box::new(crate::intervention_schedule_decision::artifact::DecisionVerifier(ExecutionContext::production_default(0))),
+        NodeKind::IntegratedScheduleEvidence => {
+            Box::new(crate::intervention_schedule_decision::artifact::EvidenceVerifier)
+        }
+        NodeKind::IntegratedScheduleDecision => {
+            Box::new(crate::intervention_schedule_decision::artifact::DecisionVerifier(
+                ExecutionContext::production_default(0),
+            ))
+        }
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),

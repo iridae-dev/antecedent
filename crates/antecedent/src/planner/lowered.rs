@@ -1740,10 +1740,8 @@ impl LoweredProgram {
             (ProvenanceRole::Estimator, estimator),
             (ProvenanceRole::Capability, unit.map(|unit| unit.as_str())),
         ];
-        let resolved: Vec<_> = components
-            .into_iter()
-            .filter_map(|(role, key)| key.map(|key| (role, key)))
-            .collect();
+        let resolved: Vec<_> =
+            components.into_iter().filter_map(|(role, key)| key.map(|key| (role, key))).collect();
         route_provenance(&resolved)
     }
 

@@ -18,18 +18,18 @@ use std::sync::Arc;
     reason = "the Python binding of the deprecated direct path; the Python function warns"
 )]
 use antecedent::analysis::discovered_transport::{
-    discover_and_transport, formula_kind, transport_discovered_structure_with_context,
-    DiscoveredTransportError, DiscoveredTransportReport, DiscoveredTransportRun, EnvelopeStatus,
-    MemberVerdict, DEFAULT_ENVELOPE_MEMBER_BOUND,
+    DEFAULT_ENVELOPE_MEMBER_BOUND, DiscoveredTransportError, DiscoveredTransportReport,
+    DiscoveredTransportRun, EnvelopeStatus, MemberVerdict, discover_and_transport, formula_kind,
+    transport_discovered_structure_with_context,
 };
 use antecedent::analysis::discovered_transport_estimate::{
-    estimate_discovered_transport, verify_discovered_transport_estimate,
     DiscoveredTransportEstimate, MemberOutcome, TransportAnswer, TransportEvidence,
+    estimate_discovered_transport, verify_discovered_transport_estimate,
 };
 use antecedent::analysis::discovered_transport_temporal::{
+    DiscoveredTemporalTransportReport, TemporalClass, TemporalHorizon,
     estimate_discovered_temporal_transport, transport_discovered_temporal_structure_with_context,
-    transport_temporal_class_with_context, DiscoveredTemporalTransportReport, TemporalClass,
-    TemporalHorizon,
+    transport_temporal_class_with_context,
 };
 use antecedent::analysis::selective_discovery::{DiscoveryOutcome, SelectiveDiscoveryError};
 use antecedent::prelude::VariableId;
@@ -38,7 +38,7 @@ use antecedent::query::{
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use serde_json::{json, Map, Value as Json};
+use serde_json::{Map, Value as Json, json};
 
 use crate::bridge::RefusalJson;
 use crate::selective_discovery_api as sd;
@@ -769,7 +769,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod transport_operational_error_tests {
-    use super::{refusal_of, DiscoveredTransportError};
+    use super::{DiscoveredTransportError, refusal_of};
     use antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure as map_io;
     use antecedent::execution::artifact_io_admission_error;
     use antecedent::identify::{IdentificationBudget, IdentificationError};
@@ -785,24 +785,28 @@ mod transport_operational_error_tests {
             let budget = DiscoveredTransportError::Identification(IdentificationError::Budget {
                 budget: IdentificationBudget::Steps,
             });
-            assert!(refusal_of(&cancelled)
-                .unwrap_err()
-                .is_instance_of::<crate::CausalCancelledError>(py));
-            assert!(refusal_of(&budget)
-                .unwrap_err()
-                .is_instance_of::<crate::CausalResourceError>(py));
+            assert!(
+                refusal_of(&cancelled)
+                    .unwrap_err()
+                    .is_instance_of::<crate::CausalCancelledError>(py)
+            );
+            assert!(
+                refusal_of(&budget).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
+            );
             let cancelled = map_io(artifact_io_admission_error(true));
             let resource = map_io(artifact_io_admission_error(false));
             let ambiguous = map_io(IoError::Refused {
                 code: "transport_budget_cancel",
                 message: "unknown stop".into(),
             });
-            assert!(refusal_of(&cancelled)
-                .unwrap_err()
-                .is_instance_of::<crate::CausalCancelledError>(py));
-            assert!(refusal_of(&resource)
-                .unwrap_err()
-                .is_instance_of::<crate::CausalResourceError>(py));
+            assert!(
+                refusal_of(&cancelled)
+                    .unwrap_err()
+                    .is_instance_of::<crate::CausalCancelledError>(py)
+            );
+            assert!(
+                refusal_of(&resource).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
+            );
             let ambiguous = refusal_of(&ambiguous).unwrap_err();
             assert!(!ambiguous.is_instance_of::<crate::CausalCancelledError>(py));
             assert!(!ambiguous.is_instance_of::<crate::CausalResourceError>(py));

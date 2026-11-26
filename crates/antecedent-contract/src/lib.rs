@@ -30,8 +30,8 @@ pub mod evidence_obligation;
 pub mod evidence_ports;
 pub mod external;
 pub mod external_binding;
-pub mod fold_policy;
 pub mod external_refusal;
+pub mod fold_policy;
 #[cfg(test)]
 pub(crate) mod identity_laws;
 pub mod interface_contract;

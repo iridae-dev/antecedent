@@ -184,8 +184,11 @@ impl StudyResult {
         let calibration = if reports_calibrated_effect_interval(&self.payload)
             || (matches!(&contract.body.query, CausalQueryWire::Survival(query)
                 if query.delayed_entry.is_some() || query.stratified_censoring.is_some())
-                && self.survival().is_some_and(|curve| curve.difference_band.is_some()
-                    || (curve.target_cause.is_some() && curve.difference_at_tau_interval.is_some())))
+                && self.survival().is_some_and(|curve| {
+                    curve.difference_band.is_some()
+                        || (curve.target_cause.is_some()
+                            && curve.difference_at_tau_interval.is_some())
+                }))
             || super::calibration::four_period_dr_design(self, contract).is_some()
             || super::calibration::fitted_q_design(self, contract).is_some()
             || super::calibration::longitudinal_schedule_design(self, contract).is_some()

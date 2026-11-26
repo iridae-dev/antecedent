@@ -36,8 +36,6 @@ pub use antecedent_core::{
 pub use antecedent_core::EvidenceCatalogDelta;
 /// Randomized interference queries.
 pub use antecedent_core::ExposurePropensityProvenance;
-/// Longitudinal regime value contract for one outcome row per subject.
-pub use antecedent_core::{FittedRegimeQ, LongitudinalCalibrationDesign, LongitudinalRegimeMethod, LongitudinalScheduleFamily, LongitudinalScheduleTarget};
 /// A narrowly supported natural direct effect query.
 pub use antecedent_core::NestedCounterfactualQuery;
 /// Stable node identity before dense graph indexing.
@@ -85,6 +83,11 @@ pub use antecedent_core::{
 };
 /// Continuous causal-response queries.
 pub use antecedent_core::{FeedbackDeclaration, ObservationAssumption, ObservationSpec};
+/// Longitudinal regime value contract for one outcome row per subject.
+pub use antecedent_core::{
+    FittedRegimeQ, LongitudinalCalibrationDesign, LongitudinalRegimeMethod,
+    LongitudinalScheduleFamily, LongitudinalScheduleTarget,
+};
 /// Query contract for randomized binary and multi-action policy value.
 pub use antecedent_core::{FixedCandidateRegretInputs, MultiActionPolicyInputs, PolicyValueQuery};
 /// Interventions on causal variables.
@@ -93,7 +96,9 @@ pub use antecedent_core::{
     TemporalBudget, TemporalMaterializationError, TemporalMaterializationLimits,
 };
 /// Randomized survival and competing-risk query contract.
-pub use antecedent_core::{KnownCensoringSurvival, StratifiedCensoringSurvival, SurvivalFunctional, SurvivalQuery};
+pub use antecedent_core::{
+    KnownCensoringSurvival, StratifiedCensoringSurvival, SurvivalFunctional, SurvivalQuery,
+};
 /// Declared local-polynomial fuzzy discontinuity and regression kink design.
 pub use antecedent_core::{LocalBandwidthRule, LocalRatioOptions};
 /// Query submodule.

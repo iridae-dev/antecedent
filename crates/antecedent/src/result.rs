@@ -551,7 +551,8 @@ pub struct LongitudinalRegimeEstimate {
     /// Completed full-procedure subject bootstrap refits for the fitted Q method.
     pub fitted_q_bootstrap_replicates_ok: Option<usize>,
     /// Simultaneous fixed-schedule contrasts or an honestly learned schedule summary.
-    pub schedule_family: Option<antecedent_io_core::analysis_result_artifact::LongitudinalScheduleResultWire>,
+    pub schedule_family:
+        Option<antecedent_io_core::analysis_result_artifact::LongitudinalScheduleResultWire>,
     /// Pointwise 95% intervals for additive MSM period coefficients.
     pub period_intervals_95: Option<Arc<[[f64; 2]]>>,
     /// Specific reason the regime value has no interval, when applicable.
@@ -1236,7 +1237,8 @@ pub struct StudyResult {
     /// results no prepared handle executed; those cannot be exported as claims.
     pub(crate) executed_contract: Option<ExecutedContract>,
     /// Method records resolved by the dispatch that produced this result.
-    pub(crate) compiled_method_provenance: Option<Arc<antecedent_io::method_provenance::MethodProvenanceWire>>,
+    pub(crate) compiled_method_provenance:
+        Option<Arc<antecedent_io::method_provenance::MethodProvenanceWire>>,
     /// Identity of the lowered program whose dispatch produced this result.
     pub(crate) lowered_identity: Option<antecedent_core::SemanticDigest>,
     /// Execution identity captured by the dispatch that produced this result.

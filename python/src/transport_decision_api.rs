@@ -156,7 +156,9 @@ impl Failure {
     /// An invalid-state message that carries the registered `not_supported` reason is the
     /// support gate's refusal; any other is an invalid declaration.
     fn from_invalid(message: String) -> Self {
-        if crate::reason_code_in_message(&message) == Some(antecedent::reason::reason_code!("not_supported")) {
+        if crate::reason_code_in_message(&message)
+            == Some(antecedent::reason::reason_code!("not_supported"))
+        {
             Self::NotSupported(message)
         } else {
             Self::Invalid(message)

@@ -45,16 +45,10 @@ fn known_series(rows: usize, split: Option<usize>, seed: u64) -> TimeSeriesData 
 }
 
 fn run(data: TimeSeriesData, count: RegimeCountPolicy) -> CompiledExecution {
-    let options = RpcmciLearning {
-        starts: 4,
-        switch_penalty: 18.0,
-        ..RpcmciLearning::new(count)
-    };
+    let options = RpcmciLearning { starts: 4, switch_penalty: 18.0, ..RpcmciLearning::new(count) };
     let spec = DiscoverySpec::rpcmci_learn(params(), Some(48), options, "parcorr").unwrap();
-    let study = Study::series(data)
-        .discovery(spec, vec![variable(0), variable(1)])
-        .build()
-        .unwrap();
+    let study =
+        Study::series(data).discovery(spec, vec![variable(0), variable(1)]).build().unwrap();
     CompiledExecution::run(&study, &ExecutionContext::production(71, 1)).unwrap()
 }
 
@@ -105,45 +99,28 @@ fn independent_changing_graphs_recover_labels_and_replay() {
     let diag = fit.learning.as_ref().unwrap();
     assert_eq!(diag.seed, 71);
     assert_eq!(diag.selected_count, 2);
-    assert!(
-        diag.assignment_agreement
-            .is_some_and(|score| (0.5..=1.0).contains(&score))
-    );
+    assert!(diag.assignment_agreement.is_some_and(|score| (0.5..=1.0).contains(&score)));
     assert!(diag.graph_agreement.iter().all(Option::is_some));
     let second = run(known_series(450, Some(split), 1279), policy);
     assert_eq!(first.lowered_identity(), second.lowered_identity());
     assert_eq!(fit.assignments, result(&second).assignments);
     assert_eq!(fit.graphs.graphs, result(&second).graphs.graphs);
     assert_eq!(fit.learning, result(&second).learning);
-    let selected = run(
-        known_series(450, Some(split), 1279),
-        RegimeCountPolicy::Bic { max_regimes: 2 },
-    );
-    assert_eq!(
-        result(&selected).learning.as_ref().unwrap().selected_count,
-        2
-    );
+    let selected =
+        run(known_series(450, Some(split), 1279), RegimeCountPolicy::Bic { max_regimes: 2 });
+    assert_eq!(result(&selected).learning.as_ref().unwrap().selected_count, 2);
     assert_ne!(first.lowered_identity(), selected.lowered_identity());
 }
 
 #[test]
 fn stationary_series_declares_one_regime_and_short_counts_are_infeasible() {
-    let fit = run(
-        known_series(132, None, 493),
-        RegimeCountPolicy::Bic { max_regimes: 4 },
-    );
+    let fit = run(known_series(132, None, 493), RegimeCountPolicy::Bic { max_regimes: 4 });
     let selected = result(&fit);
     let diag = selected.learning.as_ref().unwrap();
     assert_eq!(diag.selected_count, 1);
     assert_eq!(diag.infeasible_counts, [3, 4]);
     assert!(diag.converged);
-    assert!(
-        selected
-            .assignments
-            .regimes
-            .iter()
-            .all(|label| label.raw() == 0)
-    );
+    assert!(selected.assignments.regimes.iter().all(|label| label.raw() == 0));
     assert!(link(&selected.graphs.graphs[0].1, variable(0), variable(1)));
     assert_eq!(diag.graph_agreement, [None]);
 }
@@ -203,12 +180,8 @@ fn portable_shared_series_replays_and_accepts_explicit_regimes() {
     assert_ne!(early, late);
     let accepted_early = fitted.accept_regime(early).unwrap();
     let accepted_late = fitted.accept_regime(late).unwrap();
-    let GraphRef::TemporalCpdag(first) = accepted_early.graph_ref() else {
-        panic!("first graph")
-    };
-    let GraphRef::TemporalCpdag(second) = accepted_late.graph_ref() else {
-        panic!("second graph")
-    };
+    let GraphRef::TemporalCpdag(first) = accepted_early.graph_ref() else { panic!("first graph") };
+    let GraphRef::TemporalCpdag(second) = accepted_late.graph_ref() else { panic!("second graph") };
     assert!(link(first, variable(0), variable(1)));
     assert!(!link(first, variable(1), variable(0)));
     assert!(link(second, variable(1), variable(0)));
@@ -219,11 +192,7 @@ fn portable_shared_series_replays_and_accepts_explicit_regimes() {
         let scope = fitted.regime_scope(regime).unwrap();
         assert_eq!(scope.artifact_identity, fitted.identity());
         assert_eq!(scope.data_identity, report.data_identity);
-        let graph_index = report
-            .graphs
-            .iter()
-            .position(|(id, _)| *id == regime)
-            .unwrap();
+        let graph_index = report.graphs.iter().position(|(id, _)| *id == regime).unwrap();
         assert_eq!(scope.graph_identity, report.graphs[graph_index].1);
         assert_eq!(scope.graph_agreement, report.graph_agreement[graph_index]);
         assert_eq!(scope.assignment_agreement, report.assignment_agreement);
@@ -243,10 +212,7 @@ fn portable_shared_series_replays_and_accepts_explicit_regimes() {
     let replay =
         consume_learned_rpcmci(&bytes, fitted.identity(), &ExecutionContext::for_tests(0)).unwrap();
     assert_eq!(replay.report(), fitted.report());
-    assert_eq!(
-        replay.regime_scope(early).unwrap(),
-        fitted.regime_scope(early).unwrap()
-    );
+    assert_eq!(replay.regime_scope(early).unwrap(), fitted.regime_scope(early).unwrap());
     assert_eq!(replay.result().graphs.graphs, fitted.result().graphs.graphs);
     let limited = ExecutionContext::for_tests(0).with_admission(AdmissionPool::fixed(1, 1024));
     assert!(consume_learned_rpcmci(&bytes, fitted.identity(), &limited).is_err());
@@ -257,9 +223,7 @@ fn portable_shared_series_replays_and_accepts_explicit_regimes() {
     assert!(consume_learned_rpcmci(&changed.to_bytes().unwrap(), fitted.identity(), &ctx).is_err());
 
     let mut builder = BundleBuilder::new();
-    builder
-        .add_detected_artifact(Some("learned-regimes"), &bytes)
-        .unwrap();
+    builder.add_detected_artifact(Some("learned-regimes"), &bytes).unwrap();
     let bundle = builder.build().unwrap();
     let data = export_bundle(&bundle, "learned-rpcmci").unwrap();
     let verified = consume(&data, bundle.identity(), &SuppliedSources::default()).unwrap();

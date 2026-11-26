@@ -78,7 +78,9 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
                     band.support_status.map(|status| status.as_str().to_string()),
                 )
             }),
-            band_minimum_horizon_risk_set: value.difference_band.as_ref()
+            band_minimum_horizon_risk_set: value
+                .difference_band
+                .as_ref()
                 .and_then(|band| band.minimum_horizon_risk_set),
             band_unavailable_reason: value
                 .band_unavailable_reason

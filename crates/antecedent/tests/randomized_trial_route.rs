@@ -656,7 +656,8 @@ fn bernoulli_cupac_reuses_the_estimated_cuped_kernel() {
     };
     let cuped = run(RandomizedAdjustment::EstimatedCuped { covariate: VariableId::from_raw(1) });
     let cupac = run(RandomizedAdjustment::EstimatedCupac { covariate: VariableId::from_raw(1) });
-    let (measured, predicted) = (cuped.randomized_effect().unwrap(), cupac.randomized_effect().unwrap());
+    let (measured, predicted) =
+        (cuped.randomized_effect().unwrap(), cupac.randomized_effect().unwrap());
     assert_eq!(predicted.effect, measured.effect);
     assert_eq!(predicted.variance_upper_bound, measured.variance_upper_bound);
     assert_eq!(predicted.uncertainty, measured.uncertainty);

@@ -67,7 +67,9 @@ impl JointOutcomeMap {
         ctx: &ExecutionContext,
     ) -> Result<JointOutcomeImage, JointOutcomeBridgeError> {
         let limits = DistributionIntakeLimits::default();
-        if source.metadata().identity.alignment != crate::distribution_artifact::DrawAlignment::Joint {
+        if source.metadata().identity.alignment
+            != crate::distribution_artifact::DrawAlignment::Joint
+        {
             return Err(antecedent_contract::bridge::draws_not_aligned().into());
         }
         if !matches!(

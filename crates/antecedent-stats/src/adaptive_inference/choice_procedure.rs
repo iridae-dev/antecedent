@@ -287,9 +287,10 @@ pub fn enumerate_choice_law_in(
             CHOICE_UNEVALUATED,
         )));
     };
-    let Some(bytes) = state.checked_mul(16).and_then(|head| {
-        operations.checked_mul(16).and_then(|tail| head.checked_add(tail))
-    }) else {
+    let Some(bytes) = state
+        .checked_mul(16)
+        .and_then(|head| operations.checked_mul(16).and_then(|tail| head.checked_add(tail)))
+    else {
         return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
             CHOICE_UNEVALUATED,
         )));

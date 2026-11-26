@@ -1104,9 +1104,8 @@ impl PropagationChainRecordWire {
                 }
             })
             .collect();
-        let evaluated =
-            evaluate_columns_in(&columns, &specs, &ctx.cancellation, ctx)
-                .map_err(map_chain_error)?;
+        let evaluated = evaluate_columns_in(&columns, &specs, &ctx.cancellation, ctx)
+            .map_err(map_chain_error)?;
         for (position, stage) in self.stages.iter().enumerate() {
             let (status, invalidated_by) = stage_status(&stage.id);
             let mut values = Vec::new();

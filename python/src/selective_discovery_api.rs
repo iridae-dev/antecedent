@@ -16,27 +16,27 @@ use crate::NumericColumn;
 use antecedent::analysis::composition_verification::{CompositionGraph, GraphError};
 use antecedent::analysis::evidence_ledger::{SourceDeclaration, SourceId};
 use antecedent::analysis::per_population_discovery::{
-    add_per_population_claims, request_selection_targets_from_differences, PerPopulationDiscovery,
-    PerPopulationReport, PopulationRows,
+    PerPopulationDiscovery, PerPopulationReport, PopulationRows, add_per_population_claims,
+    request_selection_targets_from_differences,
 };
 use antecedent::analysis::sample_split_analysis::{
-    discover_on_split, split_evidence_sources, AnalysisBinding, SplitDiscovery, SplitRule,
-    WHOLE_METHOD_CALIBRATION,
+    AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
+    split_evidence_sources,
 };
-use antecedent::analysis::sample_split_effect::{estimate_effect_on_split, SplitEffect};
+use antecedent::analysis::sample_split_effect::{SplitEffect, estimate_effect_on_split};
 use antecedent::analysis::sample_split_parent_set_effect::{
-    estimate_parent_set_effect, estimate_parent_set_effect_with_knowledge, Knowledge,
-    ParentSetEffect, ParentSetOptions, Transformation,
+    Knowledge, ParentSetEffect, ParentSetOptions, Transformation, estimate_parent_set_effect,
+    estimate_parent_set_effect_with_knowledge,
 };
 use antecedent::analysis::selective_discovery::{
+    CiTestSpec, DataIdentity, DeclaredCompletion, DiscoveredStructure, DiscoveredStructureRefusal,
+    DiscoveryClaimKeys, DiscoveryOutcome, DiscoveryPlan, DiscoverySnapshot, GraphAcceptance,
+    NativeResult, PortableDiscoveryState, SelectiveDiscoveryError, SelectiveRunReport,
+    StageDecision, StageInputs, StaticAlgorithm, StaticDiscoveryContract, StaticSelectiveDiscovery,
+    TemporalAlgorithm, TemporalDiscoveryContract, TemporalSelectiveDiscovery, WorkUnits,
     accepted_graph_stage_identity, add_discovery_claims, discovered_graph_source,
     discovered_structure_refusal, discovery_data_source, discovery_rows_source,
-    request_selection_diagram, CiTestSpec, DataIdentity, DeclaredCompletion, DiscoveredStructure,
-    DiscoveredStructureRefusal, DiscoveryClaimKeys, DiscoveryOutcome, DiscoveryPlan,
-    DiscoverySnapshot, GraphAcceptance, NativeResult, PortableDiscoveryState,
-    SelectiveDiscoveryError, SelectiveRunReport, StageDecision, StageInputs, StaticAlgorithm,
-    StaticDiscoveryContract, StaticSelectiveDiscovery, TemporalAlgorithm,
-    TemporalDiscoveryContract, TemporalSelectiveDiscovery, WorkUnits,
+    request_selection_diagram,
 };
 use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::data::{OwnedColumnarStorage, TableView, ValidityBitmap};
@@ -54,7 +54,7 @@ use antecedent::prelude::{TabularData, TimeSeriesData, VariableId};
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use serde_json::{json, Map, Value as Json};
+use serde_json::{Map, Value as Json, json};
 
 use crate::evidence_ledger_api::declaration_json;
 
@@ -1230,7 +1230,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod selective_link_json_tests {
-    use super::{link_json, Lag, LaggedLink, VariableId};
+    use super::{Lag, LaggedLink, VariableId, link_json};
 
     #[test]
     fn untested_nan_statistics_are_explicitly_marked() {

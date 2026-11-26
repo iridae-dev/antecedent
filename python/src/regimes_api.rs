@@ -51,7 +51,10 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
             value_standard_error: value.value_standard_error,
             value_interval_95: value.value_interval_95.map(|bounds| (bounds[0], bounds[1])),
             fitted_q_bootstrap_replicates_ok: value.fitted_q_bootstrap_replicates_ok,
-            schedule_family_json: value.schedule_family.as_ref().and_then(|family| serde_json::to_string(family).ok()),
+            schedule_family_json: value
+                .schedule_family
+                .as_ref()
+                .and_then(|family| serde_json::to_string(family).ok()),
             period_intervals_95: value
                 .period_intervals_95
                 .as_ref()

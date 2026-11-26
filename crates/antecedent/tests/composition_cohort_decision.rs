@@ -339,9 +339,9 @@ fn cohort_bundle_recomputes_an_edited_terminal_and_obeys_execution_limits() {
     reason = "one retained-model fixture checks plan identity, admission and artifact replay"
 )]
 fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
+    use antecedent::Study;
     use antecedent::analysis::cohort_decision::{NativeCohortFit, fit_cohort_effect};
     use antecedent::analysis::composition::{refit_compact_bundle_model, refit_compact_model};
-    use antecedent::Study;
     use antecedent_contract::QuantityRole;
     use antecedent_core::execution::AdmissionError;
     use antecedent_estimate::EstimationError;
@@ -532,8 +532,8 @@ fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
 
 #[test]
 fn native_cohort_fit_program_digest_matches_the_shared_python_fixture() {
-    use antecedent::analysis::cohort_decision::ContrastDeclaration;
     use antecedent::Study;
+    use antecedent::analysis::cohort_decision::ContrastDeclaration;
     use antecedent_io::quantity_wire::ScientificQuantityWire;
 
     #[derive(serde::Deserialize)]

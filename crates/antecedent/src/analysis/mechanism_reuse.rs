@@ -163,9 +163,9 @@ fn supplied_dag(study: &Study) -> Result<&antecedent_graph::Dag, CausalError> {
 fn table(study: &Study) -> Result<&TabularData, CausalError> {
     match &study.data {
         DataInput::Tabular(data) => Ok(data),
-        _ => Err(CausalError::Unsupported {
-            message: "a fitted mechanism is retained from a table",
-        }),
+        _ => {
+            Err(CausalError::Unsupported { message: "a fitted mechanism is retained from a table" })
+        }
     }
 }
 
@@ -278,7 +278,8 @@ mod tests {
                 _workspace: &mut MechanismWorkspace,
             ) -> Result<(), ModelError> {
                 self.calls.fetch_add(1, Ordering::Relaxed);
-                for ((out, &parent), &noise) in output.iter_mut().zip(parents.column(0)?).zip(noise) {
+                for ((out, &parent), &noise) in output.iter_mut().zip(parents.column(0)?).zip(noise)
+                {
                     *out = self.slope * parent + noise;
                 }
                 Ok(())

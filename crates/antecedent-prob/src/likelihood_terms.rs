@@ -307,11 +307,7 @@ const fn panel_height(remaining: usize, ncols: usize) -> usize {
         return 0;
     }
     let fit = remaining / (ncols + 1);
-    if fit < LIKELIHOOD_PANEL_ROWS {
-        fit
-    } else {
-        LIKELIHOOD_PANEL_ROWS
-    }
+    if fit < LIKELIHOOD_PANEL_ROWS { fit } else { LIKELIHOOD_PANEL_ROWS }
 }
 
 struct LikelihoodPass<'a> {

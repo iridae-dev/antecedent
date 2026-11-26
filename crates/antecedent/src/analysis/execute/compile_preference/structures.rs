@@ -26,11 +26,11 @@ use super::{
     unsupported_query,
 };
 use crate::analysis::lowering::CompileGoal;
-use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::analysis::preference_decision::{
     ClassMember, ClassSampling, decide_across_structures_with_context,
     decide_on_sampled_structures, structure_claims,
 };
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::planner::plan_view::IdentificationKind;
 use crate::planner::{PlanStage, PlanView};
 use crate::result::{StructuralResponseAtom, StructuralResponseMixture, StructuralWeightBasis};
@@ -293,12 +293,7 @@ impl CompiledPreferenceDecision {
                     .get(structure.source)
                     .map(|bound| bound.snapshot.as_str())
                     .unwrap_or("");
-                let ran = admit_supplied_child(
-                    structure.plan.as_ref(),
-                    snapshot,
-                    result,
-                    ctx,
-                )?;
+                let ran = admit_supplied_child(structure.plan.as_ref(), snapshot, result, ctx)?;
                 if let Some(response) = retained_response(result) {
                     method_provenance.inherit([&result.method_provenance()]);
                     identified += weight;

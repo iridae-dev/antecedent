@@ -799,7 +799,11 @@ impl DesignLowering for SurvivalQuery {
         let family = if let Some(fit) = &query.stratified_censoring {
             inputs.extend([fit.entry_stratum, fit.censoring_stratum]);
             "ipcw_entry_stratum_standardization"
-        } else if query.known_censoring.is_some() { "ipcw_product_limit" } else { "product_limit" };
+        } else if query.known_censoring.is_some() {
+            "ipcw_product_limit"
+        } else {
+            "product_limit"
+        };
         let mut models = vec![slot(ModelRole::Outcome, family, &inputs, Some(query.duration))];
         if let Some(known) = &query.known_censoring {
             models.push(slot(
@@ -810,8 +814,12 @@ impl DesignLowering for SurvivalQuery {
             ));
         }
         let resampling = query.stratified_censoring.as_ref().and_then(|fit| {
-            models.push(slot(ModelRole::Nuisance, "stratified_reverse_product_limit_same_subject",
-                &[query.treatment, fit.entry_stratum, fit.censoring_stratum], Some(query.event)));
+            models.push(slot(
+                ModelRole::Nuisance,
+                "stratified_reverse_product_limit_same_subject",
+                &[query.treatment, fit.entry_stratum, fit.censoring_stratum],
+                Some(query.event),
+            ));
             let replicates = env.study.settings.bootstrap_replicates;
             (replicates > 0).then_some(ResamplingPlan {
                 method: ResamplingMethod::Bootstrap,
@@ -825,7 +833,8 @@ impl DesignLowering for SurvivalQuery {
             models,
             WidthSource::NotDesignBased("arm product-limit estimators fit no design matrix"),
             ClaimKind::Response,
-        ).with_randomization_test(resampling))
+        )
+        .with_randomization_test(resampling))
     }
 }
 
@@ -854,22 +863,30 @@ impl DesignLowering for LongitudinalRegimeQuery {
         models.extend(
             outcome_family.map(|family| slot(ModelRole::Outcome, family, &[], Some(query.outcome))),
         );
-        let resampling = if let antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) = query.method {
-            models.push(slot(ModelRole::Outcome, "baseline_stratified_regime_cell_mean", &[fit.baseline], Some(query.outcome)));
-            Some(ResamplingPlan {
-                method: ResamplingMethod::Bootstrap,
-                replicates: fit.bootstrap_replicates,
-                unit: ResampleUnit::Subject,
-            })
-        } else if let antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) = query.method {
-            Some(ResamplingPlan {
-                method: ResamplingMethod::Bootstrap,
-                replicates: family.draws,
-                unit: ResampleUnit::Subject,
-            })
-        } else {
-            None
-        };
+        let resampling =
+            if let antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) = query.method {
+                models.push(slot(
+                    ModelRole::Outcome,
+                    "baseline_stratified_regime_cell_mean",
+                    &[fit.baseline],
+                    Some(query.outcome),
+                ));
+                Some(ResamplingPlan {
+                    method: ResamplingMethod::Bootstrap,
+                    replicates: fit.bootstrap_replicates,
+                    unit: ResampleUnit::Subject,
+                })
+            } else if let antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) =
+                query.method
+            {
+                Some(ResamplingPlan {
+                    method: ResamplingMethod::Bootstrap,
+                    replicates: family.draws,
+                    unit: ResampleUnit::Subject,
+                })
+            } else {
+                None
+            };
         let folds = query.fold_ids.iter().collect::<BTreeSet<_>>().len();
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::RegimeValue, query.outcome),

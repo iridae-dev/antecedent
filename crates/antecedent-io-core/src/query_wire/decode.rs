@@ -492,7 +492,10 @@ fn survival_from_wire(w: &SurvivalQueryWire) -> Result<CausalQuery, IoError> {
         treatment: VariableId::from_raw(w.treatment),
         tau: w.tau,
         delayed_entry: w.delayed_entry.map(VariableId::from_raw),
-        stratified_censoring: w.stratified_censoring.as_ref().map(super::StratifiedCensoringWire::to_core),
+        stratified_censoring: w
+            .stratified_censoring
+            .as_ref()
+            .map(super::StratifiedCensoringWire::to_core),
         known_censoring: w.censoring_probability_floor.map(|minimum_probability| {
             antecedent_core::KnownCensoringSurvival {
                 times: Arc::from(w.censoring_times.clone()),
@@ -529,32 +532,60 @@ fn survival_from_wire(w: &SurvivalQueryWire) -> Result<CausalQuery, IoError> {
 /// Decode the [`CausalQuery::LongitudinalRegime`] payload.
 fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<CausalQuery, IoError> {
     if w.fitted_q.is_some() != (w.method == "fitted_g_formula") {
-        return Err(IoError::Convert("fitted longitudinal Q declaration must match its method".into()));
+        return Err(IoError::Convert(
+            "fitted longitudinal Q declaration must match its method".into(),
+        ));
     }
-    if w.schedule_family.is_some() != matches!(w.method.as_str(), "compare_schedules" | "learn_schedule") {
-        return Err(IoError::Convert("longitudinal schedule declaration must match its method".into()));
+    if w.schedule_family.is_some()
+        != matches!(w.method.as_str(), "compare_schedules" | "learn_schedule")
+    {
+        return Err(IoError::Convert(
+            "longitudinal schedule declaration must match its method".into(),
+        ));
     }
     let method = match w.method.as_str() {
         "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
         "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
         "fitted_g_formula" => {
-            let fit = w.fitted_q.ok_or_else(|| IoError::Convert("missing fitted Q declaration".into()))?;
-            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(antecedent_core::FittedRegimeQ {
-                baseline: VariableId::from_raw(fit.baseline),
-                external_training_fold: fit.external_training_fold,
-                bootstrap_replicates: fit.bootstrap_replicates,
-            })
+            let fit = w
+                .fitted_q
+                .ok_or_else(|| IoError::Convert("missing fitted Q declaration".into()))?;
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(
+                antecedent_core::FittedRegimeQ {
+                    baseline: VariableId::from_raw(fit.baseline),
+                    external_training_fold: fit.external_training_fold,
+                    bootstrap_replicates: fit.bootstrap_replicates,
+                },
+            )
         }
         "compare_schedules" | "learn_schedule" => {
-            let family = w.schedule_family.ok_or_else(|| IoError::Convert("missing schedule class".into()))?;
+            let family = w
+                .schedule_family
+                .ok_or_else(|| IoError::Convert("missing schedule class".into()))?;
             let target = match (w.method.as_str(), family.target) {
-                ("compare_schedules", super::LongitudinalScheduleTargetWire::Contrasts { reference, contrasts }) => antecedent_core::LongitudinalScheduleTarget::Contrasts { reference, contrasts },
-                ("learn_schedule", super::LongitudinalScheduleTargetWire::Learn { training_fold }) => antecedent_core::LongitudinalScheduleTarget::Learn { training_fold },
-                _ => return Err(IoError::Convert("longitudinal schedule target disagrees with method".into())),
+                (
+                    "compare_schedules",
+                    super::LongitudinalScheduleTargetWire::Contrasts { reference, contrasts },
+                ) => {
+                    antecedent_core::LongitudinalScheduleTarget::Contrasts { reference, contrasts }
+                }
+                (
+                    "learn_schedule",
+                    super::LongitudinalScheduleTargetWire::Learn { training_fold },
+                ) => antecedent_core::LongitudinalScheduleTarget::Learn { training_fold },
+                _ => {
+                    return Err(IoError::Convert(
+                        "longitudinal schedule target disagrees with method".into(),
+                    ));
+                }
             };
-            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(antecedent_core::LongitudinalScheduleFamily {
-                schedules: family.schedules, draws: family.draws, target,
-            })
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(
+                antecedent_core::LongitudinalScheduleFamily {
+                    schedules: family.schedules,
+                    draws: family.draws,
+                    target,
+                },
+            )
         }
         "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
         "marginal_structural_model" => {
@@ -562,10 +593,14 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
         }
         _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
     };
-    let calibration_design = w.calibration_design.as_deref().map(|name| {
-        antecedent_core::LongitudinalCalibrationDesign::from_name(name)
-            .ok_or_else(|| IoError::Convert("unknown longitudinal calibration design".into()))
-    }).transpose()?;
+    let calibration_design = w
+        .calibration_design
+        .as_deref()
+        .map(|name| {
+            antecedent_core::LongitudinalCalibrationDesign::from_name(name)
+                .ok_or_else(|| IoError::Convert("unknown longitudinal calibration design".into()))
+        })
+        .transpose()?;
     let q = antecedent_core::LongitudinalRegimeQuery {
         calibration_design,
         outcome: VariableId::from_raw(w.outcome),

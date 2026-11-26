@@ -5,12 +5,12 @@
 //! program. Each provider fit returns its model as a portable prediction map.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use antecedent::Study;
 use antecedent::analysis::compiled_trial_aipw_learners::TrialAipwLearnersRequest;
 use antecedent::estimate::TrialAipwOptions;
-use antecedent::Study;
 use pyo3::prelude::*;
 
-use super::{callback_context, smoothed_dose::portable_factories, PythonReceipt};
+use super::{PythonReceipt, callback_context, smoothed_dose::portable_factories};
 
 /// Run the compiled trial AIPW transport with two registered Python providers as its learners.
 ///

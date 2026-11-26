@@ -561,8 +561,7 @@ fn fit_design_with_missing_outcomes(
         }
         _ => {
             return Err(CausalError::Unsupported {
-                message:
-                    "randomized outcomes are missing and the declared policy does not handle them",
+                message: "randomized outcomes are missing and the declared policy does not handle them",
             });
         }
     }
@@ -1429,7 +1428,7 @@ mod bernoulli_bound_tests {
 
 #[cfg(test)]
 mod fisher_tests {
-    use super::{allocation_contrast, binomial_within, fisher_p_value, MONTE_CARLO_ALLOCATIONS};
+    use super::{MONTE_CARLO_ALLOCATIONS, allocation_contrast, binomial_within, fisher_p_value};
     use antecedent_core::ExecutionContext;
 
     #[test]
@@ -1501,7 +1500,9 @@ mod fisher_tests {
 
         let pool = AdmissionPool::fixed(1, bytes);
         let ctx = ExecutionContext::for_tests(42).with_admission(pool.clone());
-        assert!(fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx).is_ok());
+        assert!(
+            fisher_p_value(&[1.0, 2.0, 3.0, 4.0], 2, &[true, true, false, false], &ctx).is_ok()
+        );
         assert_eq!(pool.available().bytes(), bytes);
         let mut cancelled = ExecutionContext::for_tests(42).with_admission(pool.clone());
         cancelled.cancellation = antecedent_core::CancellationToken::cancel_after_checks(2);

@@ -1897,14 +1897,18 @@ impl PyCompiledPreferenceDecision {
         }
         let admission = match seed {
             Some(seed) => crate::transport_common::execution_context(seed, memory_bytes, cancel),
-            None => first_context.unwrap_or_else(|| {
-                antecedent::prelude::ExecutionContext::production_default(0)
-            }),
+            None => first_context
+                .unwrap_or_else(|| antecedent::prelude::ExecutionContext::production_default(0)),
         };
         let compiled = std::sync::Arc::clone(&self.inner);
         crate::detach_catch(py, move || {
-            match compiled.execute_supplied(&held, &admission, measure.as_ref(), options, &admission)
-            {
+            match compiled.execute_supplied(
+                &held,
+                &admission,
+                measure.as_ref(),
+                options,
+                &admission,
+            ) {
                 Ok(executed) => {
                     let law = match &executed.source {
                         Some(NativeDecisionSource::JointLaw(law)) => {
@@ -2129,8 +2133,8 @@ mod supplied_execution_tests {
     fn curve(name: &str, slope: f64) -> Study {
         let t: Vec<_> = (0..80).map(|i| f64::from(i) / 40.0).collect();
         let y: Vec<_> = t.iter().map(|dose| dose * slope).collect();
-        let data = TabularData::from_f64_columns([("t", t.as_slice()), (name, y.as_slice())])
-            .unwrap();
+        let data =
+            TabularData::from_f64_columns([("t", t.as_slice()), (name, y.as_slice())]).unwrap();
         let mut graph = Dag::with_variables(2);
         graph.insert_directed(DenseNodeId::from_raw(0), DenseNodeId::from_raw(1)).unwrap();
         Study::tabular(data)

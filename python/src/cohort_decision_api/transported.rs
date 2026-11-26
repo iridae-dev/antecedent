@@ -9,13 +9,13 @@
 //! the summary adds a `program` section with the plan route and the lowered program identity.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::analysis::compiled_transported_cohort::TransportedCohortRequest;
 use antecedent::Study;
+use antecedent::analysis::compiled_transported_cohort::TransportedCohortRequest;
 use pyo3::prelude::*;
 
 use super::{
-    parse_cohort, refusal_json, selection_shift_of, summary, transport_refusal_json,
-    transport_summary, TransportBuildPayload,
+    TransportBuildPayload, parse_cohort, refusal_json, selection_shift_of, summary,
+    transport_refusal_json, transport_summary,
 };
 use crate::detach_catch;
 

@@ -166,9 +166,10 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         && query.ancova_covariates.is_empty()
         && !query.exact_randomization_test
         && ESTIMATED_CUPED_UNCERTAINTY.contains(&randomized.uncertainty.as_str());
-    let cluster_estimated_cuped = matches!(query.design, crate::RandomizationDesignWire::Cluster { .. })
-        && query.fixed_cuped.is_none()
-        && CLUSTER_ESTIMATED_CUPED_UNCERTAINTY.contains(&randomized.uncertainty.as_str());
+    let cluster_estimated_cuped =
+        matches!(query.design, crate::RandomizationDesignWire::Cluster { .. })
+            && query.fixed_cuped.is_none()
+            && CLUSTER_ESTIMATED_CUPED_UNCERTAINTY.contains(&randomized.uncertainty.as_str());
     // The covariate is a scientific premise (it must be pre-assignment), so the result must
     // state it, as structured data: the estimator's diagnostic names one covariate other than
     // the outcome.
