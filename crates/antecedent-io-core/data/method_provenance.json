@@ -172,6 +172,9 @@
   "categorical_treatment.compiled_candidate": [
    "categorical_treatment.compiled_candidate"
   ],
+  "choice_inference.interval_candidates": [
+   "choice_inference.contract"
+  ],
   "cohort_decision.declared_shift": [
    "cohort_decision.declared_shift"
   ],
@@ -765,6 +768,9 @@
   ],
   "joint_law.transported_composition": [
    "joint_law.transported_composition"
+  ],
+  "joint_response.interval_readings": [
+   "response.joint_panel"
   ],
   "matching.period_history_contrast": [
    "estimate.history_match"
@@ -1725,6 +1731,20 @@
   },
   {
    "deviations": [
+    "Categorical choices only, at most 4 options, 24 looks and 65535 units; the state is the vector of choice counts, bounded by the same live-state and work limits as the Bernoulli procedure law, and a larger procedure is refused rather than approximated.",
+    "The stopping rule is a posterior probability-best and expected-loss criterion on the Dirichlet posterior with a minimum enrolment; every element is declared and none is defaulted. The comparison band is the Bernoulli rules' threshold tolerance.",
+    "The law is of the declared procedure under a hypothesized truth or the declared Dirichlet prior predictive only. It is not a bound over other truths, a coverage statement or a calibration claim; those stay closed until a coverage record attests the cell."
+   ],
+   "digest": "4cd6af35d32d175fba2586d93db2daad6634191da4b187ff53e2fcccd088b92a",
+   "id": "adaptive_inference.choice_procedure_law",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the Dirichlet posterior functionals (adaptive_inference"
+   ],
+   "sources": []
+  },
+  {
+   "deviations": [
     "The loss is the regret of choosing an arm in success probability; other losses are not offered.",
     "The rule's reliability (probability of a wrong stop, regret over the procedure) is a scientific refusal (estimator_inference_mismatch, adaptive_inference.no_stopping_reliability_procedure), not a calibration gap: a posterior threshold (probability best above c, or expected loss below c) is a statement about the posterior given the observed history, and it fixes no sampling error rate of the rule; the rule-level error rate depends on the unknown truth and on the assignment policy, so no construction from the posterior yields it. The expected loss and the probability of being best themselves are exact and are checked against closed forms."
    ],
@@ -1746,6 +1766,33 @@
      ],
      "title": "ON THE LIKELIHOOD THAT ONE UNKNOWN PROBABILITY EXCEEDS ANOTHER IN VIEW OF THE EVIDENCE OF TWO SAMPLES",
      "year": 1933
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Only the Dirichlet-multinomial likelihood of repeated categorical choices with prior shapes at least one; other priors and likelihoods, and hierarchical or random-coefficient choice models, are closed.",
+    "The probability that each option has the largest share and the expected loss are evaluated by composite Gauss-Legendre panels over the independent-gamma representation theta_k = G_k / S (G_k independent Gamma(alpha_k, 1), S independent of theta), with the window widened until each tail holds 1e-18 of the mass and the end panels graded toward zero; accuracy about 1e-9 against an independent reference. Larger shapes than the reference grid (250) were not compared.",
+    "The posterior is exact under the declared prior; it is not a frequentist statement and no coverage under optional stopping is claimed. Calibration of the reported probabilities is not measured."
+   ],
+   "digest": "2a998f2772443df9a36049069b11e1f2b1cf41672cdcca3a587fd129b4f5c528",
+   "id": "adaptive_inference.dirichlet_choice",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the lifecycle layer in antecedent-design (a separate non-algorithm record), hierarchical preference models, or any frequentist coverage"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "Eugene Lukacs"
+     ],
+     "doi": "10.1214/aoms/1177728549",
+     "doi_verified": true,
+     "sections": [
+      "independence of the sum and the ratios of independent gamma variables"
+     ],
+     "title": "A characterization of the gamma distribution",
+     "year": 1955
     }
    ]
   },
@@ -1815,6 +1862,33 @@
      ],
      "title": "Group sequential methods in the design and analysis of clinical trials",
      "year": 1977
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "Respondent shares are Dirichlet(kappa pi) with a Dirichlet(a) population mean and a log-normal concentration kappa; the paper derives the compound distribution and its correlation structure and does not prescribe this prior or any posterior computation. Two or three options only, with every prior shape at least one.",
+    "Every reported quantity is deterministic quadrature of the posterior of (pi, kappa): Gauss-Legendre panels cut at the tie breakpoints of the best-option region, a zoomed box around the mass, and a quadrature error bound (largest change between a coarse and a fine rule) beyond which the posterior is refused rather than reported.",
+    "The population shares and heterogeneity describe the sampled population in the declared choice set. Stated choices do not identify behavioural or causal outcomes, and no coverage or calibration claim is made about any interval built from this posterior."
+   ],
+   "digest": "1ca98d9108c9a0d679cc90086c7e2084dad50f9262c80aa2b84ea07f52660a8d",
+   "id": "adaptive_inference.hierarchical_choice",
+   "review": "method_review",
+   "scope_limits": [
+    "not covered by the method review: the pooled posterior of one choice per respondent (adaptive_inference"
+   ],
+   "sources": [
+    {
+     "authors": [
+      "JAMES E. MOSIMANN"
+     ],
+     "doi": "10.1093/biomet/49.1-2.65",
+     "doi_verified": true,
+     "sections": [
+      "the compound multinomial (Dirichlet-multinomial) distribution of counts whose probabilities are Dirichlet"
+     ],
+     "title": "On the compound multinomial distribution, the multivariate β-distribution, and correlations among proportions",
+     "year": 1962
     }
    ]
   },
@@ -2270,6 +2344,29 @@
    ],
    "digest": "847d40b3eb16a8553340f9f20ab51cbbd77014c84774ddc7f34d2036b0903072",
    "id": "categorical_treatment.compiled_candidate",
+   "review": "none",
+   "scope_limits": [],
+   "sources": []
+  },
+  {
+   "covered_by": [
+    "adaptive_inference.dirichlet_choice",
+    "adaptive_inference.hierarchical_choice",
+    "adaptive_inference.choice_procedure_law",
+    "adaptive_inference.analysis_contract",
+    "adaptive_inference.procedure_matrix",
+    "design.evsi"
+   ],
+   "deviations": [
+    "Historical borrowing follows the power-prior idea (Ibrahim and Chen, Statistical Science 2000, doi 10.1214/ss/1009212673) and is applied to Dirichlet-multinomial counts: each retained source contributes discount times its counts to the prior shapes, with a fixed discount in [0, 1]; the paper treats regression models and an optionally random discount.",
+    "A source with different meaning or population is refused; a free-text rationale does not establish source-to-target transport. A same-frame native pooled posterior can be reused through its replayed artifact and independently retained identity, with the same base prior and bounded, replayed nested ancestry.",
+    "Pooled sources require integer counts and one normalized identity per independent respondent; overlap between respondents and sources, and between sources, is judged by the evidence ledger.",
+    "The per-source conflict diagnostic is a prior-predictive log evidence ratio against a vague prior versus the remaining discounted evidence and the current look, screened at ln 10; for fractional power-prior counts it is a generalized score, not a calibrated Bayes factor; calibration of the screen is not measured and a conflicting source is reported in the posterior and refused for stopping decisions or study ranking, never silently re-weighted.",
+    "Every route is point-only with calibration not_measured except the pooled-share interval (capability `choice_inference.interval_candidates`): the equal-tail credible interval from the explicit Beta marginal quantiles of the Dirichlet posterior, reported with its calibration status and never refused for the lack of a coverage record. The study value is the exact expected value of sample information over the Dirichlet-multinomial predictive (Monte Carlo with a standard error beyond 250 000 outcomes) under a linear per-option value, with no calibrated-uncertainty claim.",
+    "Stated choices do not identify behavioural or causal outcomes."
+   ],
+   "digest": "5aa39210401044c0a55d5d0c3a4576d181578e4fff8b655d0fbf31f9f6414e01",
+   "id": "choice_inference.contract",
    "review": "none",
    "scope_limits": [],
    "sources": []
@@ -15067,6 +15164,14 @@
   }
  ],
  "unlinked": {
+  "capability": [
+   "identify.mixed_source_proof_search",
+   "recovery.binary_observation",
+   "sensitivity.joint_mechanism",
+   "transport.admg_conditional",
+   "transport.finite_scenario_envelope",
+   "transport.multi_source_limited_experiment"
+  ],
   "estimator": [
    "bayesian.iv_bounds.endpoint_bootstrap",
    "bayesian.period_history_outcome_model",
