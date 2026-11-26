@@ -34,10 +34,16 @@ impl super::super::Study {
                 // The declared independent-factor 2x2 reading of a four-cell multi-arm design;
                 // the checked operation refuses it on any other design.
                 EstimatorId::RandomizedFactorialBernoulliHt.as_str()
-            } else if self.declared.randomized_adjustment.is_some() {
-                // A declared same-sample CUPED adjustment; the build refuses it on any query
-                // but an unadjusted independent Bernoulli ITT.
-                EstimatorId::RandomizedEstimatedCupedHt.as_str()
+            } else if let Some(adjustment) = self.declared.randomized_adjustment.as_ref() {
+                match adjustment {
+                    crate::analysis::randomized_adjustment::RandomizedAdjustment::ClusterTotalCupac { .. } => {
+                        EstimatorId::RandomizedClusterEstimatedCuped.as_str()
+                    }
+                    crate::analysis::randomized_adjustment::RandomizedAdjustment::EstimatedCuped { .. }
+                    | crate::analysis::randomized_adjustment::RandomizedAdjustment::EstimatedCupac { .. } => {
+                        EstimatorId::RandomizedEstimatedCupedHt.as_str()
+                    }
+                }
             } else {
                 match &q.design {
                     antecedent_core::RandomizationDesign::Bernoulli => {

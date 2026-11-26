@@ -580,6 +580,31 @@ class EstimatedCUPED:
             raise CausalValueError("CUPED covariate must be a non-empty column name")
 
 
+@dataclass(frozen=True, slots=True)
+class CUPAC:
+    """CUPED whose covariate is a prediction fixed from pre-assignment information.
+
+    The prediction is one column on the randomization unit. Aggregating a finer grain, such as
+    orders up to a user or cluster, is the caller's step, done before these outcomes are used.
+    The predictive model is not fit here, and its error is not in the reported variance.
+
+    ``coefficient`` set: the slope was locked outside this trial. The residual is fixed CUPED,
+    on Bernoulli rows or on cluster totals. ``coefficient`` omitted: the slope is estimated
+    from this trial. On Bernoulli rows that is the pooled outcome-on-covariate slope. On a
+    cluster design it is the ordinary least-squares slope of the cluster outcome totals on the
+    cluster prediction totals, and the Neyman variance treats that slope as fixed.
+    """
+
+    covariate: str
+    coefficient: float | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.covariate, str) or not self.covariate.strip():
+            raise CausalValueError("CUPAC covariate must be a non-empty column name")
+        if self.coefficient is not None and not np.isfinite(self.coefficient):
+            raise CausalValueError("CUPAC coefficient must be finite")
+
+
 def _check_sampling_weights_design(query: RandomizedEffect) -> None:
     """Sampling weights are read by unadjusted Bernoulli and complete randomization of units."""
     if isinstance(query.weights, str) and not query.weights.strip():
@@ -588,6 +613,7 @@ def _check_sampling_weights_design(query: RandomizedEffect) -> None:
         isinstance(query.design, MultiArmExperimentDesign)
         or query.cuped is not None
         or query.estimated_cuped is not None
+        or query.cupac is not None
         or bool(query.ancova_covariates)
         or query.exact_randomization_test
         or not isinstance(query.design.assignment, (BernoulliAssignment, CompleteRandomization))
@@ -621,6 +647,12 @@ class RandomizedEffect:
     compiled route of :func:`estimate_cuped_effect` and returns the same effect and standard
     error, with a pointwise 95% interval where the Bernoulli score interval is supported.
 
+    ``cupac=CUPAC(...)`` is that adjustment when the column is a prediction fixed from
+    pre-assignment information. A locked coefficient uses the fixed-CUPED route. An omitted
+    coefficient estimates the slope: the Bernoulli pooled slope, or, under cluster
+    randomization, the slope of the cluster totals. The result records
+    ``pre_assignment_prediction`` in place of the measured-covariate assumption.
+
     ``weights="w"`` names a column of sampling weights (or gives one weight per row) for an
     unadjusted Bernoulli or completely randomized design. The estimate is then the
     intention-to-treat effect in the weighted population: the difference of the arms' Hajek
@@ -637,6 +669,7 @@ class RandomizedEffect:
     _: KW_ONLY
     cuped: FixedCUPED | None = None
     estimated_cuped: EstimatedCUPED | None = None
+    cupac: CUPAC | None = None
     ancova_covariates: tuple[str, ...] = ()
     exact_randomization_test: bool = False
     weights: str | Sequence[float] | None = None
@@ -657,6 +690,7 @@ class RandomizedEffect:
             if (
                 self.cuped is not None
                 or self.estimated_cuped is not None
+                or self.cupac is not None
                 or self.ancova_covariates
                 or self.exact_randomization_test
             ):
@@ -664,6 +698,27 @@ class RandomizedEffect:
                     "multi-arm contrasts do not combine with CUPED, ANCOVA, or exact Fisher inference"
                 )
             return
+        if self.cupac is not None:
+            if not isinstance(self.cupac, CUPAC) or self.cupac.covariate == self.outcome:
+                raise CausalValueError("CUPAC requires a distinct pre-assignment prediction")
+            if self.cuped is not None or self.estimated_cuped is not None or self.ancova_covariates:
+                raise CausalValueError(
+                    "CUPAC is the prediction form of CUPED and does not combine with another "
+                    "CUPED declaration or with ANCOVA"
+                )
+            if self.cupac.coefficient is None:
+                if self.exact_randomization_test or not isinstance(
+                    self.design.assignment, (BernoulliAssignment, ClusterRandomization)
+                ):
+                    raise CausalValueError(
+                        "a CUPAC slope estimated from this trial requires Bernoulli or cluster "
+                        "assignment and cannot combine with exact randomization inference"
+                    )
+            elif not isinstance(self.design.assignment, (BernoulliAssignment, ClusterRandomization)):
+                raise CausalValueError(
+                    "CUPAC with a coefficient fixed outside the trial requires Bernoulli or "
+                    "cluster assignment"
+                )
         if self.estimated_cuped is not None:
             if (
                 not isinstance(self.estimated_cuped, EstimatedCUPED)
@@ -721,6 +776,7 @@ class RandomizedEffect:
         if self.exact_randomization_test and (
             type(self.exact_randomization_test) is not bool
             or self.cuped is not None
+            or self.cupac is not None
             or self.ancova_covariates
             or not isinstance(self.design.assignment, (CompleteRandomization, BernoulliAssignment))
         ):
@@ -773,6 +829,7 @@ class RandomizedEffect:
                 or self.ancova_covariates
                 or self.cuped is not None
                 or self.estimated_cuped is not None
+                or self.cupac is not None
             )
         ):
             _deprecation.direct_path_deprecated(
@@ -794,7 +851,7 @@ class RandomizedEffect:
                 "factorial contrasts require analyze or prepare to retain all three estimands and their variance contracts",
                 reason_code="route_not_supported",
             )
-        if self.cuped is not None or self.estimated_cuped is not None:
+        if self.cuped is not None or self.estimated_cuped is not None or self.cupac is not None:
             raise CausalUnsupportedError(
                 "CUPED is available through analyze or prepare; the direct estimator does not retain its adjustment",
                 reason_code="route_not_supported",
@@ -1263,6 +1320,7 @@ __all__ = [
     "ComplierEffectEstimate",
     "TreatmentOnTreated",
     "CUPEDEstimate",
+    "CUPAC",
     "EstimatedCUPED",
     "FixedCUPED",
     "FactorialRandomization",

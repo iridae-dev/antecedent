@@ -454,6 +454,9 @@ pub enum EstimatorId {
     RandomizedFixedCupedHt,
     /// Complete cluster-randomized ITT over cluster totals adjusted by a fixed pre-assignment covariate.
     RandomizedClusterFixedCuped,
+    /// Cluster ITT after the OLS slope of cluster outcome totals on cluster prediction totals.
+    /// The Neyman variance treats that slope as fixed.
+    RandomizedClusterEstimatedCuped,
     /// Fitted multi-covariate ANCOVA under independent Bernoulli assignment.
     RandomizedAncova,
     /// Wald CACE/LATE under independent Bernoulli encouragement.
@@ -1147,6 +1150,13 @@ pub(super) const fn estimator_data(id: EstimatorId) -> EstimatorData {
             kernel_label: "randomized.cluster_fixed_cuped_itt",
             provenance: same_step("estimate.randomized.cluster_fixed_cuped_itt"),
         },
+        EstimatorId::RandomizedClusterEstimatedCuped => EstimatorData {
+            compatible: RANDOMIZED,
+            name: "randomized.cluster_estimated_cuped_itt",
+            parallel_task_dimension: "analysis",
+            kernel_label: "randomized.cluster_estimated_cuped_itt",
+            provenance: same_step("estimate.randomized.cluster_estimated_cuped_itt"),
+        },
         EstimatorId::RandomizedAncova => EstimatorData {
             compatible: RANDOMIZED,
             name: "randomized.ancova_itt",
@@ -1811,6 +1821,7 @@ pub fn estimand_compatible_with_estimator(method: EstimandMethod, estimator: &Es
         | EstimatorId::RandomizedFixedCupedHt
         | EstimatorId::RandomizedEstimatedCupedHt
         | EstimatorId::RandomizedClusterFixedCuped
+        | EstimatorId::RandomizedClusterEstimatedCuped
         | EstimatorId::RandomizedAncova
         | EstimatorId::RandomizedWaldCace
         | EstimatorId::RandomizedSwitchbackHt

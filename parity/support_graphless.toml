@@ -587,6 +587,19 @@ limitations = "Known complete cluster assignment, independent clusters, binary u
 
 [[support]]
 family = "randomized_effect"
+design = "cluster"
+method = "estimated_cuped_cluster_totals"
+inference_claim = "pointwise_95_normal_interval"
+assignment_unit = "cluster"
+min_assignment_units_per_arm = 30
+min_reported_intervals = 1
+known_truth_test = "crates/antecedent-estimate/src/randomized_neyman.rs::estimated_cluster_total_slope_is_not_the_fixed_coefficient_identity"
+independent_check = "crates/antecedent-estimate/src/randomized_neyman.rs::estimated_cluster_total_slope_is_not_the_fixed_coefficient_identity"
+retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs::cluster_estimated_cupac_publishes_its_own_interval"
+limitations = "Known complete cluster assignment, independent clusters, binary unit-weighted ITT, one caller-supplied pre-assignment prediction, and an ordinary least-squares slope of cluster outcome totals on cluster prediction totals. At least 30 clusters per arm and an actually published interval (positive realized variance). The variance is the Neyman bound over the adjusted cluster totals and treats the slope as fixed; it does not propagate slope estimation or model error, and coverage of this interval is not measured. The prediction is supplied by the caller. A coefficient learned from rows is not supported by this row, and it does not inherit the unadjusted cluster row or the fixed-coefficient cluster row. The estimated slope is not the fixed-coefficient transform, so the mean is not the unadjusted per-row ITT."
+
+[[support]]
+family = "randomized_effect"
 design = "stratified"
 method = "blocked_neyman_difference_in_means"
 inference_claim = "pointwise_95_normal_interval"

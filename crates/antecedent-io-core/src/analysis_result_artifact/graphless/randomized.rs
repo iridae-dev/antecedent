@@ -16,14 +16,23 @@ const ESTIMATED_CUPED_UNCERTAINTY: [&str; 2] = [
     "bernoulli_estimated_cuped_ht_score_normal_interval",
 ];
 
+/// Point-only and interval labels of the cluster-total prediction slope.
+const CLUSTER_ESTIMATED_CUPED_UNCERTAINTY: [&str; 2] = [
+    "cluster_estimated_cuped_neyman_variance_no_interval",
+    "cluster_estimated_cuped_neyman_normal_interval",
+];
+
+const CLUSTER_ESTIMATED_CUPED_DIAGNOSTIC: &str = "estimate.randomized.cluster_estimated_cuped_itt";
+
 /// The covariate a same-sample CUPED result states: the one
 /// [`crate::graphless_support::ESTIMATED_CUPED_COVARIATE_FIELD`] of its one
 /// [`crate::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC`], a variable id in canonical decimal.
 /// `None` when the result states none, or states it more than once.
-fn stated_estimated_cuped_covariate(diagnostics: &[crate::DiagnosticWire]) -> Option<u32> {
-    let mut stated = diagnostics.iter().filter(|diagnostic| {
-        diagnostic.code == crate::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC
-    });
+fn stated_estimated_cuped_covariate(
+    diagnostics: &[crate::DiagnosticWire],
+    code: &str,
+) -> Option<u32> {
+    let mut stated = diagnostics.iter().filter(|diagnostic| diagnostic.code == code);
     let diagnostic = stated.next()?;
     if stated.next().is_some() {
         return None;
@@ -157,16 +166,31 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
         && query.ancova_covariates.is_empty()
         && !query.exact_randomization_test
         && ESTIMATED_CUPED_UNCERTAINTY.contains(&randomized.uncertainty.as_str());
+    let cluster_estimated_cuped = matches!(query.design, crate::RandomizationDesignWire::Cluster { .. })
+        && query.fixed_cuped.is_none()
+        && CLUSTER_ESTIMATED_CUPED_UNCERTAINTY.contains(&randomized.uncertainty.as_str());
     // The covariate is a scientific premise (it must be pre-assignment), so the result must
     // state it, as structured data: the estimator's diagnostic names one covariate other than
     // the outcome.
     if estimated_cuped
-        && stated_estimated_cuped_covariate(&result.diagnostics)
-            .is_none_or(|covariate| covariate == query.outcome)
+        && stated_estimated_cuped_covariate(
+            &result.diagnostics,
+            crate::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC,
+        )
+        .is_none_or(|covariate| covariate == query.outcome)
     {
         return Err(IoError::Convert(
             "estimated-slope CUPED result states no pre-assignment covariate other than the \
              outcome"
+                .into(),
+        ));
+    }
+    if cluster_estimated_cuped
+        && stated_estimated_cuped_covariate(&result.diagnostics, CLUSTER_ESTIMATED_CUPED_DIAGNOSTIC)
+            .is_none_or(|covariate| covariate == query.outcome)
+    {
+        return Err(IoError::Convert(
+            "cluster-total CUPAC result states no pre-assignment prediction other than the outcome"
                 .into(),
         ));
     }
@@ -216,6 +240,11 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "cluster",
             "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval",
             Some("cluster_fixed_cuped_neyman_normal_interval"),
+        ),
+        crate::RandomizationDesignWire::Cluster { .. } if cluster_estimated_cuped => (
+            "cluster",
+            CLUSTER_ESTIMATED_CUPED_UNCERTAINTY[0],
+            Some(CLUSTER_ESTIMATED_CUPED_UNCERTAINTY[1]),
         ),
         crate::RandomizationDesignWire::Cluster { .. } => (
             "cluster",
@@ -391,6 +420,13 @@ pub(in crate::analysis_result_artifact) fn validate_randomized_graphless(
             "randomized_effect",
             "cluster",
             "fixed_cuped_cluster_totals",
+            "cluster",
+            "pointwise_95_normal_interval",
+        )),
+        crate::RandomizationDesignWire::Cluster { .. } if cluster_estimated_cuped => Some((
+            "randomized_effect",
+            "cluster",
+            "estimated_cuped_cluster_totals",
             "cluster",
             "pointwise_95_normal_interval",
         )),

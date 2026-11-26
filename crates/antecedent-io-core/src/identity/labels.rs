@@ -225,7 +225,10 @@ fn other_query_labels(query: &CausalQueryWire) -> Vec<(String, String)> {
                 if query.ancova_covariates.is_empty() {
                     query.fixed_cuped.map_or_else(
                         || "none".into(),
-                        |(id, coefficient)| format!("fixed_cuped:{id}:{coefficient}"),
+                        |(id, coefficient)| {
+                            let kind = if query.cupac { "cupac" } else { "fixed_cuped" };
+                            format!("{kind}:{id}:{coefficient}")
+                        },
                     )
                 } else {
                     format!("ancova:{}", join_ids(&query.ancova_covariates))

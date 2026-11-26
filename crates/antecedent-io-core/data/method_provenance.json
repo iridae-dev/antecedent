@@ -1484,6 +1484,9 @@
   "randomized.ancova_itt": [
    "estimate.randomized.ancova_itt"
   ],
+  "randomized.cluster_estimated_cuped_itt": [
+   "estimate.randomized.cluster_estimated_cuped_itt"
+  ],
   "randomized.cluster_fixed_cuped_itt": [
    "estimate.randomized.cluster_fixed_cuped_itt"
   ],
@@ -8172,6 +8175,50 @@
   },
   {
    "deviations": [
+    "The prediction is supplied by the caller and is not fit here. Model error is the caller's premise and is not in the variance.",
+    "Theta is the ordinary least-squares slope of cluster outcome totals on cluster prediction totals, with both totals centered. It is applied as Y minus theta times (X minus the mean of X).",
+    "The variance is the Neyman bound of the adjusted cluster totals and treats theta as fixed. It does not propagate the estimation of theta.",
+    "This is not the fixed-coefficient transform. A coefficient fixed outside the experiment leaves the per-row ITT unchanged; a slope estimated from these totals does not, and the known-truth enumeration shows the two means differ.",
+    "This is not a switchback regression and it is not a row-level learned coefficient. A slope fit on rows stays refused."
+   ],
+   "digest": "ccd1ef21291ec300fd235f7d9f572bef17738a51f15a60fb97a72297cfbe8dd7",
+   "id": "estimate.randomized.cluster_estimated_cuped_itt",
+   "review": "method_review",
+   "scope_limits": [],
+   "sources": [
+    {
+     "authors": [
+      "Alex Deng",
+      "Ya Xu",
+      "Ron Kohavi",
+      "Toby Walker"
+     ],
+     "doi": "10.1145/2433396.2433413",
+     "doi_verified": true,
+     "sections": [
+      "theta equals the covariance of the outcome and the covariate divided by the variance of the covariate"
+     ],
+     "title": "Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data",
+     "year": 2013
+    },
+    {
+     "authors": [
+      "Jerzy Splawa-Neyman",
+      "D. M. Dabrowska",
+      "T. P. Speed"
+     ],
+     "doi": "10.1214/ss/1177012031",
+     "doi_verified": true,
+     "sections": [
+      "difference in means under complete randomization, with a variance that drops the unobservable variance of treatment effects"
+     ],
+     "title": "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9",
+     "year": 1990
+    }
+   ]
+  },
+  {
+   "deviations": [
     "This composes two procedures and is not an estimator analyzed in either paper: the CUPED adjustment of the first, applied to cluster outcome totals, then the conservative Neyman bound of the second over those totals. The guarantee is derived here, not inherited: with a coefficient fixed outside the experiment, the adjusted outcome is another potential outcome whose per-row contrast equals the unadjusted one, so the cluster Neyman analysis of its totals targets the unadjusted per-row ITT.",
     "The coefficient is supplied by the caller and is not estimated from this experiment. A coefficient learned from the rows (ANCOVA or the same-sample theta of the paper) is refused on a cluster design, because the row-level residual variance would treat rows as independent units and change the unit of analysis.",
     "The covariate must be measured before assignment; the adjustment is applied to each row and totalled per assignment cluster, so the cluster, not the row, is the unit of analysis. The interval support floor is that of the unadjusted cluster interval: 30 independently assigned clusters in each arm and positive realized variance.",
@@ -10846,7 +10893,7 @@
     "A requested Fisher exact test records the sharp null as an estimation assumption. It is not the identifying claim for the interval estimators. For a Bernoulli design the recorded statistic is the absolute Horvitz-Thompson contrast over every Bernoulli assignment weighted by its known probability; fixed-count designs record the absolute difference in means (exhaustive or Monte Carlo).",
     "A fixed CUPED coefficient records a pre-assignment covariate fixed independently of the outcomes as an identification assumption. An estimated-slope CUPED adjustment records its pre-assignment covariate as an estimation assumption that states the slope is estimated from these outcomes and that the independent-row score variance does not propagate that estimation."
    ],
-   "digest": "726c28c8eb01e2ef632b133eebfd4bd4269ab1e9226b7b06c2f633146487412f",
+   "digest": "9117be37f4d1117233401e29364a862aa452294e52d7bfa4ffaf9702883a861c",
    "id": "identify.randomized.design",
    "review": "none",
    "scope_limits": [],

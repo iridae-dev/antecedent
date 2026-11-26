@@ -349,6 +349,9 @@ pub(crate) fn validate_query_ids(
                     coefficient,
                 );
             }
+            if wire.cupac {
+                query = query.with_cupac();
+            }
             if !wire.ancova_covariates.is_empty() {
                 query = query.with_ancova(
                     wire.ancova_covariates

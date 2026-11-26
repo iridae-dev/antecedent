@@ -57,6 +57,7 @@ public_query_companions = [
   "ExperimentDesign",
   "FactorialRandomization",
   "FeedbackMechanism",
+  "CUPAC",
   "FixedCUPED",
   "IPCWCumulativeIncidenceEstimate",
   "IPCWSurvivalEstimate",

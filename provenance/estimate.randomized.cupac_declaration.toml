@@ -1,0 +1,38 @@
+feature_id = "estimate.randomized.cupac_declaration"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+# CUPAC here is a declaration, not an estimator. The caller supplies a prediction already aligned to
+# the randomization unit. A locked coefficient selects the fixed CUPED kernel; an omitted coefficient
+# on a Bernoulli design selects the same-sample CUPED kernel; an omitted coefficient on a cluster
+# design selects the cluster-total slope. Those kernels keep their own records. This record only
+# swaps the stated assumption to pre_assignment_prediction. The working paper that names CUPAC is
+# not the source of any of those kernels, so it is not cited.
+papers = []
+implementation_deviations = []
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/randomized_trial_route.rs (fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution, bernoulli_cupac_reuses_the_estimated_cuped_kernel)",
+]
+
+[non_algorithm_review]
+status = "justified_non_algorithm"
+kind = "wrapper"
+rationale = "Records that a CUPED covariate is a caller-supplied pre-assignment prediction and selects the existing CUPED kernel."
+no_independent_algorithm = "push_randomized_covariate_assumptions and prediction_assumption write an assumption id. They do not form a residual, a slope, or a variance."
+covered_by = ["estimate.randomized.fixed_cuped_ht_itt", "estimate.randomized.estimated_cuped_ht_itt", "estimate.randomized.cluster_fixed_cuped_itt", "estimate.randomized.cluster_estimated_cuped_itt"]
+record_sha256 = "811f7872d866aa9b257677675dced8b31d403b13520038ec5680478232413662"
+
+[[non_algorithm_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
+items = ["fn prediction_assumption", "fn push_randomized_covariate_assumptions"]
+sha256 = "b6973c5e091293fb6d61f511161d77128d4de85e0db2d3c1fe8f500c3424dab1"
+
+[[non_algorithm_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/randomized_trial_route.rs"
+items = ["fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution", "fn bernoulli_cupac_reuses_the_estimated_cuped_kernel"]
+sha256 = "8ffdbfc7f9575536a511134c1186433b85e40adc877a611eded5fa19bc8e5b07"

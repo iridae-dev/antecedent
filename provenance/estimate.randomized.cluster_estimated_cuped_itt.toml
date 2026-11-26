@@ -1,0 +1,49 @@
+feature_id = "estimate.randomized.cluster_estimated_cuped_itt"
+implementation_crate = "antecedent-estimate"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+ { title = "Improving the Sensitivity of Online Controlled Experiments by Utilizing Pre-Experiment Data", doi = "10.1145/2433396.2433413", sections = ["theta equals the covariance of the outcome and the covariate divided by the variance of the covariate"] },
+ { title = "On the Application of Probability Theory to Agricultural Experiments. Essay on Principles. Section 9", doi = "10.1214/ss/1177012031", sections = ["difference in means under complete randomization, with a variance that drops the unobservable variance of treatment effects"] },
+]
+
+implementation_deviations = [
+ "The prediction is supplied by the caller and is not fit here. Model error is the caller's premise and is not in the variance.",
+ "Theta is the ordinary least-squares slope of cluster outcome totals on cluster prediction totals, with both totals centered. It is applied as Y minus theta times (X minus the mean of X).",
+ "The variance is the Neyman bound of the adjusted cluster totals and treats theta as fixed. It does not propagate the estimation of theta.",
+ "This is not the fixed-coefficient transform. A coefficient fixed outside the experiment leaves the per-row ITT unchanged; a slope estimated from these totals does not, and the known-truth enumeration shows the two means differ.",
+ "This is not a switchback regression and it is not a row-level learned coefficient. A slope fit on rows stays refused.",
+]
+
+upstream_implementations_observed = []
+
+test_sources = [
+ "crates/antecedent-estimate/src/randomized_neyman.rs (estimated_cluster_total_slope_is_not_the_fixed_coefficient_identity)",
+ "crates/antecedent/tests/randomized_precision_intervals.rs (cluster_estimated_cupac_publishes_its_own_interval)",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "cluster_total_ols_slope, cluster_totals_adjusted_by_slope, and estimated_cluster_cuped_itt in crates/antecedent-estimate/src/randomized_neyman.rs. The slope is the centered covariance ratio. The adjusted totals are passed to complete_cluster_itt. The enumeration test compares that slope's assignment-mean with a fixed coefficient and checks the reported variance against complete_cluster_itt of the adjusted totals."
+assumptions = ["The prediction totals were fixed before assignment.", "Clusters are the assignment units and the Neyman variance treats the slope as a constant.", "Coverage of the resulting interval is not measured."]
+historical_exposure = "This review read the product functions named in its scope and the enumeration test. It did not consult an upstream implementation. The cited papers supply the covariance ratio and the Neyman variance; the composition, the cluster totals, and the decision not to propagate the slope are stated in implementation_deviations."
+redistribution = "Primary work is cited, not redistributed."
+limitations = "The known-truth fixture is one population of six clusters with three treated. It shows the estimated-slope mean is not the unadjusted per-row ITT and that the variance matches the Neyman bound of the adjusted totals. It does not measure coverage. The published interval still requires thirty clusters in each arm."
+sources = ["https://doi.org/10.1145/2433396.2433413", "https://doi.org/10.1214/ss/1177012031"]
+findings_resolved = ["No numerical defect was found. Over all 20 assignments of six clusters with three treated, a coefficient fixed outside the experiment has mean equal to the unadjusted per-row contrast, the slope fit on the observed totals does not, and the reported variance equals the Neyman bound of the adjusted totals."]
+record_sha256 = "ccd1ef21291ec300fd235f7d9f572bef17738a51f15a60fb97a72297cfbe8dd7"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-estimate/src/randomized_neyman.rs"
+items = ["fn cluster_total_ols_slope", "fn cluster_totals_adjusted_by_slope", "fn estimated_cluster_cuped_itt", "fn estimated_cluster_total_slope_is_not_the_fixed_coefficient_identity", "struct EstimatedClusterCuped"]
+sha256 = "0eae4e5a04a972ad7628698b30e08bc6174a4aa76332880c60648a0de48d5770"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/randomized_precision_intervals.rs"
+items = ["fn cluster_estimated_cupac_publishes_its_own_interval"]
+sha256 = "50c23762c46d3bbfb3eec80313b0f90fda7767f1d90fc58841c142293e539b19"

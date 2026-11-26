@@ -49,6 +49,20 @@ pub enum RandomizedAdjustment {
         /// Pre-assignment covariate whose pooled outcome slope is estimated from the rows.
         covariate: VariableId,
     },
+    /// Same kernel and estimator as [`Self::EstimatedCuped`]. The covariate is a prediction
+    /// fixed from pre-assignment information; the predictive model's error is not in the
+    /// reported variance.
+    EstimatedCupac {
+        /// Prediction column, one value per Bernoulli row.
+        covariate: VariableId,
+    },
+    /// Slope of cluster outcome totals on cluster prediction totals, then the cluster Neyman
+    /// contrast of the adjusted totals. The cluster stays the unit of analysis. The variance
+    /// treats the slope as fixed.
+    ClusterTotalCupac {
+        /// Prediction column, summed to the assignment cluster.
+        covariate: VariableId,
+    },
 }
 
 impl RandomizedAdjustment {
@@ -56,8 +70,16 @@ impl RandomizedAdjustment {
     #[must_use]
     pub const fn covariate(&self) -> VariableId {
         match self {
-            Self::EstimatedCuped { covariate } => *covariate,
+            Self::EstimatedCuped { covariate }
+            | Self::EstimatedCupac { covariate }
+            | Self::ClusterTotalCupac { covariate } => *covariate,
         }
+    }
+
+    /// Bernoulli same-sample slope, whether or not the covariate is a supplied prediction.
+    #[must_use]
+    pub const fn bernoulli_slope(self) -> bool {
+        matches!(self, Self::EstimatedCuped { .. } | Self::EstimatedCupac { .. })
     }
 }
 
@@ -71,13 +93,31 @@ const ESTIMATED_CUPED_COORDINATE: (&str, &str, &str, &str, &str) = (
     "pointwise_95_normal_interval",
 );
 
+/// Graphless coordinate of the cluster-total prediction slope. The interval is the cluster
+/// Neyman interval of the adjusted totals; its coverage is not measured.
+const CLUSTER_TOTAL_CUPAC_COORDINATE: (&str, &str, &str, &str, &str) = (
+    "randomized_effect",
+    "cluster",
+    "estimated_cuped_cluster_totals",
+    "cluster",
+    "pointwise_95_normal_interval",
+);
+
 /// Why a declared adjustment does not apply to the study's query.
-fn design_refusal() -> CausalError {
-    crate::unsupported_reason!(
-        "option_not_applicable",
-        "estimated-slope CUPED requires independent Bernoulli assignment, a distinct \
-         pre-assignment covariate, and no other adjustment or exact test"
-    )
+fn design_refusal(cluster: bool) -> CausalError {
+    if cluster {
+        crate::unsupported_reason!(
+            "option_not_applicable",
+            "cluster-total CUPAC requires complete cluster randomization, a distinct \
+             pre-assignment prediction, and no other adjustment or exact test"
+        )
+    } else {
+        crate::unsupported_reason!(
+            "option_not_applicable",
+            "estimated-slope CUPED requires independent Bernoulli assignment, a distinct \
+             pre-assignment covariate, and no other adjustment or exact test"
+        )
+    }
 }
 
 /// The graphless support coordinate of a randomized query read under `adjustment`: the
@@ -88,10 +128,15 @@ pub(crate) fn graphless_coordinate(
     adjustment: Option<&RandomizedAdjustment>,
 ) -> (&'static str, &'static str, &'static str, &'static str, &'static str) {
     match adjustment {
-        Some(RandomizedAdjustment::EstimatedCuped { .. })
-            if matches!(query.design, RandomizationDesign::Bernoulli) =>
+        Some(adjustment) if adjustment.bernoulli_slope()
+            && matches!(query.design, RandomizationDesign::Bernoulli) =>
         {
             ESTIMATED_CUPED_COORDINATE
+        }
+        Some(RandomizedAdjustment::ClusterTotalCupac { .. })
+            if matches!(query.design, RandomizationDesign::Cluster { .. }) =>
+        {
+            CLUSTER_TOTAL_CUPAC_COORDINATE
         }
         _ => antecedent_core::randomized_graphless_coordinate(
             &query.design,
@@ -114,19 +159,28 @@ pub(crate) fn check(
     query: &RandomizedEffectQuery,
     adjustment: RandomizedAdjustment,
 ) -> Result<(), CausalError> {
-    match adjustment {
-        RandomizedAdjustment::EstimatedCuped { covariate } => {
-            if !matches!(query.design, RandomizationDesign::Bernoulli)
-                || query.estimand != RandomizedEstimand::IntentionToTreat
-                || covariate == query.outcome
-                || query.fixed_cuped.is_some()
-                || !query.ancova_covariates.is_empty()
-                || query.received_treatment.is_some()
-                || query.exact_randomization_test
-            {
-                return Err(design_refusal());
-            }
+    let covariate = adjustment.covariate();
+    let design_ok = match adjustment {
+        RandomizedAdjustment::EstimatedCuped { .. } | RandomizedAdjustment::EstimatedCupac { .. } => {
+            matches!(query.design, RandomizationDesign::Bernoulli)
         }
+        RandomizedAdjustment::ClusterTotalCupac { .. } => {
+            matches!(query.design, RandomizationDesign::Cluster { .. })
+        }
+    };
+    if !design_ok
+        || query.estimand != RandomizedEstimand::IntentionToTreat
+        || covariate == query.outcome
+        || query.fixed_cuped.is_some()
+        || query.cupac
+        || !query.ancova_covariates.is_empty()
+        || query.received_treatment.is_some()
+        || query.exact_randomization_test
+    {
+        return Err(design_refusal(matches!(
+            adjustment,
+            RandomizedAdjustment::ClusterTotalCupac { .. }
+        )));
     }
     Ok(())
 }
@@ -142,12 +196,17 @@ pub(crate) fn check(
 /// that estimator is declared without an adjustment.
 pub(crate) fn admit(study: &crate::Study) -> Result<(), CausalError> {
     let Some(adjustment) = study.declared.randomized_adjustment.as_ref() else {
-        if study.declared.estimator == Some(EstimatorId::RandomizedEstimatedCupedHt) {
+        if matches!(
+            study.declared.estimator,
+            Some(
+                EstimatorId::RandomizedEstimatedCupedHt
+                    | EstimatorId::RandomizedClusterEstimatedCuped
+            )
+        ) {
             return Err(crate::unsupported_reason!(
                 "required_option_missing",
-                "randomized.estimated_cuped_ht_itt estimates the slope of a declared \
-                 pre-assignment covariate; declare it with \
-                 randomized_adjustment(RandomizedAdjustment::EstimatedCuped { covariate })"
+                "the estimated-slope CUPED and cluster-total CUPAC estimators read a declared \
+                 pre-assignment covariate"
             ));
         }
         return Ok(());
@@ -166,15 +225,17 @@ pub(crate) fn admit(study: &crate::Study) -> Result<(), CausalError> {
              estimators read no CUPED adjustment, so use inference=Frequentist"
         ));
     }
-    if study
-        .declared
-        .estimator
-        .is_some_and(|estimator| estimator != EstimatorId::RandomizedEstimatedCupedHt)
-    {
+    let expected = match adjustment {
+        RandomizedAdjustment::EstimatedCuped { .. } | RandomizedAdjustment::EstimatedCupac { .. } => {
+            EstimatorId::RandomizedEstimatedCupedHt
+        }
+        RandomizedAdjustment::ClusterTotalCupac { .. } => EstimatorId::RandomizedClusterEstimatedCuped,
+    };
+    if study.declared.estimator.is_some_and(|estimator| estimator != expected) {
         return Err(crate::unsupported_reason!(
             "option_not_applicable",
-            "a declared estimated-slope CUPED adjustment is estimated by \
-             randomized.estimated_cuped_ht_itt; omit estimator= or declare that estimator"
+            "a declared slope adjustment is estimated by its own route; omit estimator= or \
+             declare that estimator"
         ));
     }
     Ok(())

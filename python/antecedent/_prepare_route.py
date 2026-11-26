@@ -1663,8 +1663,17 @@ class _PrepareRoute:
             blocks,
             treated_per_row,
             treated_clusters=treated_clusters,
-            fixed_cuped=(query.cuped.covariate, query.cuped.coefficient) if query.cuped else None,
-            estimated_cuped=query.estimated_cuped.covariate if query.estimated_cuped else None,
+            fixed_cuped=_cuped_column(query),
+            estimated_cuped=_bernoulli_slope_column(query, design_kind, prediction=False),
+            estimated_cupac=_bernoulli_slope_column(query, design_kind, prediction=True),
+            cluster_cupac=(
+                query.cupac.covariate
+                if query.cupac is not None
+                and query.cupac.coefficient is None
+                and design_kind == "cluster"
+                else None
+            ),
+            cupac=query.cupac is not None and query.cupac.coefficient is not None,
             ancova_covariates=list(query.ancova_covariates),
             exact_randomization_test=query.exact_randomization_test,
             second_factor_assignment=list(resolved(assignment.second_factor_assignment))
@@ -3109,3 +3118,27 @@ def _check_quantile_functional(
             "retarget for score-table target weights",
             reason_code="route_not_supported",
         )
+
+
+def _cuped_column(query: RandomizedEffect) -> tuple[str, float] | None:
+    """Fixed CUPED column and coefficient, including CUPAC with a locked coefficient."""
+    if query.cuped is not None:
+        return (query.cuped.covariate, query.cuped.coefficient)
+    if query.cupac is not None and query.cupac.coefficient is not None:
+        return (query.cupac.covariate, float(query.cupac.coefficient))
+    return None
+
+
+def _bernoulli_slope_column(
+    query: RandomizedEffect, design_kind: str, *, prediction: bool
+) -> str | None:
+    """Bernoulli same-sample slope column. ``prediction`` selects the CUPAC form."""
+    if design_kind != "bernoulli":
+        return None
+    if prediction:
+        if query.cupac is not None and query.cupac.coefficient is None:
+            return query.cupac.covariate
+        return None
+    if query.estimated_cuped is not None:
+        return query.estimated_cuped.covariate
+    return None

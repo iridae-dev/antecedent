@@ -1811,6 +1811,20 @@ retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs
 notes = "method=fixed_cuped_cluster_totals; assignment_unit=cluster. Support row in parity/support_graphless.toml. Known complete cluster assignment, independent clusters, binary unit-weighted ITT adjusted by one pre-assignment covariate whose coefficient was fixed outside these outcomes, at least 30 clusters per arm, and an actually published interval (positive realized variance). The estimand is the unadjusted per-row ITT; the unit of analysis stays the cluster. A learned coefficient, row-level independence and other designs are not supported, and the row does not inherit the unadjusted cluster row. One 2,000-allocation fixture family covers three fixed coefficients."
 
 [[route]]
+id = "graphless.randomized_effect.cluster.estimated_cuped_cluster_totals"
+target = "randomized_effect"
+graph_class = "RandomizedTrial"
+design_time_model = "cluster"
+inference = "pointwise_95_normal_interval"
+decision_ports = "unlisted"
+artifact_consumer = "unlisted"
+status = "graphless"
+owning_module = "crates/antecedent-estimate/src/randomized_neyman.rs"
+retained_operation = "randomized"
+retained_route_test = "crates/antecedent/tests/randomized_precision_intervals.rs::cluster_estimated_cupac_publishes_its_own_interval"
+notes = "method=estimated_cuped_cluster_totals; assignment_unit=cluster. Support row in parity/support_graphless.toml. Slope of cluster outcome totals on caller-supplied prediction totals, then the Neyman interval on the adjusted totals. The variance treats the slope as fixed. Coverage is not measured. A row-level learned coefficient is refused. The row does not inherit the unadjusted or fixed-coefficient cluster rows."
+
+[[route]]
 id = "graphless.randomized_effect.stratified.blocked_neyman_difference_in_means"
 target = "randomized_effect"
 graph_class = "RandomizedTrial"

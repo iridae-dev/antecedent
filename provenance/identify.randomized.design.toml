@@ -41,10 +41,10 @@ record_sha256 = "2d184a771857689290840a1c2fc353b8b870ac4898472229c5e6c16e85ef0bc
 role = "implementation"
 path = "crates/antecedent/src/analysis/execute/checked_randomized.rs"
 items = ["fn push_randomized_core_assumptions", "fn push_randomized_covariate_assumptions", "fn push_randomized_design_assumptions", "fn randomized_identification"]
-sha256 = "83c88858a363c601779b98d9f461761abeb672b9585ea51b6462d82885cfed13"
+sha256 = "22bfefbee5bcdf8acc24737abbeddef51ed70e6f1cab9cada5f4517b6579c10d"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/randomized_trial_route.rs"
 items = ["fn bernoulli_encouragement_retains_wald_cace_and_refuses_fabricated_interval", "fn calibrated_randomized_intervals_round_trip_and_reject_tampering", "fn cluster_randomized_itt_refuses_inconsistent_assignment_or_sparse_arms", "fn cluster_randomized_itt_uses_cluster_totals_and_assignment_units", "fn complete_randomization_enumerates_fisher_sharp_null_without_interval", "fn complete_randomization_keeps_its_own_neyman_construction_at_300_rows", "fn diff_means", "fn fisher_large_scale_includes_the_observed_allocation", "fn fixed_cell_factorial_reports_both_main_effects_and_interaction_without_interval", "fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution", "fn graphless_bernoulli_itt_runs_and_retains_design_units", "fn graphless_complete_and_stratified_itt_use_neyman_variance", "fn graphless_interval_support_refuses_zero_variance_despite_assignment_support", "fn multi_arm_retained_study_reports_all_contrasts_and_refuses_missing_support", "fn multi_covariate_ancova_runs_in_retained_study_and_artifact", "fn neyman_se", "fn one_sided_treatment_on_treated_is_distinct_and_refuses_two_sided_receipt", "fn run_case", "fn switchback_itt_retains_periods_and_sequence_variance"]
-sha256 = "5f1db18bb0f1beb238a6c3533b364cc2274950b21266ad15422421ce1da93915"
+sha256 = "ba4e8276a933ef286b5929ed4988d8d0717aaf0f9ae2637da4087b16a4f194d2"

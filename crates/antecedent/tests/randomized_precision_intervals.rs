@@ -382,6 +382,45 @@ fn cluster_fixed_cuped_keeps_the_cluster_unit_and_its_own_support() {
 }
 
 #[test]
+fn cluster_estimated_cupac_publishes_its_own_interval() {
+    use antecedent::analysis::randomized_adjustment::RandomizedAdjustment;
+
+    let (query, data) = cluster_trial(30);
+    let ctx = ExecutionContext::for_tests(0xC1_0575);
+    let prepared = Study::tabular(data.clone())
+        .query(query)
+        .randomized_adjustment(RandomizedAdjustment::ClusterTotalCupac {
+            covariate: VariableId::from_raw(1),
+        })
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "cluster_estimated_cupac_publishes_its_",
+        &prepared,
+        &result,
+        &ctx,
+    );
+    let fit = result.randomized_effect().unwrap();
+    assert_eq!(fit.assignment_design.as_ref(), "cluster");
+    assert_eq!((fit.control_units, fit.treatment_units), (30, 30));
+    assert_eq!(fit.estimand.as_ref(), "itt");
+    assert_eq!(fit.uncertainty.as_ref(), "cluster_estimated_cuped_neyman_normal_interval");
+    let [lower, upper] = fit.interval_95.expect("30 clusters per arm publish an interval");
+    assert!(lower < fit.effect && fit.effect < upper, "[{lower}, {upper}]");
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    assert!(result.identification.required_assumptions.entries.iter().any(|record| {
+        matches!(
+            &record.assumption,
+            antecedent_core::Assumption::Custom { id, .. }
+                if id.as_ref() == "pre_assignment_prediction"
+        )
+    }));
+}
+
+#[test]
 fn cluster_fixed_cuped_with_too_few_clusters_is_point_only_and_a_learned_slope_is_refused() {
     let ctx = ExecutionContext::for_tests(0xC1_0574);
     // 20 treated of 60 clusters: below the 30-per-arm independent-cluster support.

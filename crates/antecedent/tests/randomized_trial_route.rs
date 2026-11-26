@@ -579,8 +579,8 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
         ("control", "treated"),
     )
     .with_fixed_cuped(VariableId::from_raw(1), 4.0);
-    let result = Study::tabular(data)
-        .query(query)
+    let result = Study::tabular(data.clone())
+        .query(query.clone())
         .build()
         .unwrap()
         .run(&ExecutionContext::for_tests(47))
@@ -597,6 +597,80 @@ fn fixed_cuped_bernoulli_itt_adjusts_in_native_retained_execution() {
         &record.assumption, antecedent_core::Assumption::Custom { id, .. }
         if id.as_ref() == "fixed_pre_assignment_cuped"
     )));
+    let cupac = Study::tabular(data.clone())
+        .query(query.with_cupac())
+        .build()
+        .unwrap()
+        .run(&ExecutionContext::for_tests(47))
+        .unwrap();
+    let declared = cupac.randomized_effect().unwrap();
+    assert_eq!(declared.effect, adjusted.effect);
+    assert_eq!(declared.variance_upper_bound, adjusted.variance_upper_bound);
+    let has = |result: &antecedent::StudyResult, needle: &str| {
+        result.identification.required_assumptions.entries.iter().any(|record| {
+            matches!(
+                &record.assumption,
+                antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == needle
+            )
+        })
+    };
+    assert!(has(&cupac, "pre_assignment_prediction"));
+    assert!(!has(&cupac, "fixed_pre_assignment_cuped"));
+    let bare = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0),
+        [true, false, true, false, true, false, true, false],
+        [0.5; 8],
+        (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+        (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+        ("control", "treated"),
+    )
+    .with_cupac();
+    assert!(bare.validate().is_err(), "CUPAC without a coefficient is not a query flag");
+}
+
+#[test]
+fn bernoulli_cupac_reuses_the_estimated_cuped_kernel() {
+    use antecedent::analysis::randomized_adjustment::RandomizedAdjustment;
+
+    let baseline = [0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0];
+    let outcomes = [2.0, 0.0, 6.0, 4.0, 10.0, 8.0, 14.0, 12.0];
+    let data =
+        TabularData::from_f64_columns([("outcome", &outcomes[..]), ("baseline", &baseline[..])])
+            .unwrap();
+    let query = RandomizedEffectQuery::bernoulli_itt(
+        VariableId::from_raw(0),
+        [true, false, true, false, true, false, true, false],
+        [0.5; 8],
+        (0..8).map(|i| Arc::<str>::from(format!("u{i}"))).collect::<Vec<_>>(),
+        (0..8).map(|i| Arc::<str>::from(format!("y{i}"))).collect::<Vec<_>>(),
+        ("control", "treated"),
+    );
+    let run = |adjustment| {
+        Study::tabular(data.clone())
+            .query(query.clone())
+            .randomized_adjustment(adjustment)
+            .build()
+            .unwrap()
+            .run(&ExecutionContext::for_tests(48))
+            .unwrap()
+    };
+    let cuped = run(RandomizedAdjustment::EstimatedCuped { covariate: VariableId::from_raw(1) });
+    let cupac = run(RandomizedAdjustment::EstimatedCupac { covariate: VariableId::from_raw(1) });
+    let (measured, predicted) = (cuped.randomized_effect().unwrap(), cupac.randomized_effect().unwrap());
+    assert_eq!(predicted.effect, measured.effect);
+    assert_eq!(predicted.variance_upper_bound, measured.variance_upper_bound);
+    assert_eq!(predicted.uncertainty, measured.uncertainty);
+    let has = |result: &antecedent::StudyResult, needle: &str| {
+        result.identification.required_assumptions.entries.iter().any(|record| {
+            matches!(
+                &record.assumption,
+                antecedent_core::Assumption::Custom { id, .. } if id.as_ref() == needle
+            )
+        })
+    };
+    assert!(has(&cuped, "estimated_pre_assignment_cuped"));
+    assert!(has(&cupac, "pre_assignment_prediction"));
+    assert!(!has(&cupac, "estimated_pre_assignment_cuped"));
 }
 
 #[test]

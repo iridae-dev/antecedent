@@ -318,6 +318,7 @@ _EXPECTED_STAGE_ALL = {
         "ANCOVAEstimate",
         "ComplierEffect",
         "ComplierEffectEstimate",
+        "CUPAC",
         "CUPEDEstimate",
         "EstimatedCUPED",
         "ExperimentDesign",

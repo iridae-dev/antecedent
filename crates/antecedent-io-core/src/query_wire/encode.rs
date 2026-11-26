@@ -292,6 +292,7 @@ fn randomized_effect_to_wire(q: &antecedent_core::RandomizedEffectQuery) -> Caus
             _ => Vec::new(),
         },
         fixed_cuped: q.fixed_cuped.map(|(id, coefficient)| (id.raw(), coefficient)),
+        cupac: q.cupac,
         ancova_covariates: q.ancova_covariates.iter().map(|id| id.raw()).collect(),
         received_treatment: q.received_treatment.as_ref().map(|receipt| receipt.to_vec()),
         exact_randomization_test: q.exact_randomization_test,

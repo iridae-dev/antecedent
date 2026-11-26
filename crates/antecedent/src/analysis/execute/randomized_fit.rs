@@ -32,6 +32,7 @@ pub(super) enum RandomizedMethod {
     Complete,
     Cluster,
     ClusterFixedCuped,
+    ClusterEstimatedCuped,
     Stratified,
     Factorial2x2,
     MultiArm,
@@ -45,10 +46,14 @@ impl RandomizedMethod {
     ) -> Self {
         if !query.ancova_covariates.is_empty() {
             Self::Ancova
-        } else if matches!(adjustment, Some(RandomizedAdjustment::EstimatedCuped { .. }))
+        } else if adjustment.is_some_and(|adjustment| adjustment.bernoulli_slope())
             && matches!(query.design, RandomizationDesign::Bernoulli)
         {
             Self::EstimatedCuped
+        } else if matches!(adjustment, Some(RandomizedAdjustment::ClusterTotalCupac { .. }))
+            && matches!(query.design, RandomizationDesign::Cluster { .. })
+        {
+            Self::ClusterEstimatedCuped
         } else if query.received_treatment.is_some() {
             if query.estimand == RandomizedEstimand::TreatmentOnTreated {
                 Self::TreatmentOnTreated
@@ -82,7 +87,7 @@ impl RandomizedMethod {
             | Self::EstimatedCuped
             | Self::Bernoulli => "bernoulli",
             Self::Complete => "complete",
-            Self::Cluster | Self::ClusterFixedCuped => "cluster",
+            Self::Cluster | Self::ClusterFixedCuped | Self::ClusterEstimatedCuped => "cluster",
             Self::Stratified => "stratified",
             Self::Factorial2x2 => "factorial_2x2",
             Self::MultiArm => "multi_arm",
@@ -96,6 +101,7 @@ impl RandomizedMethod {
             Self::FixedCuped => EstimatorId::RandomizedFixedCupedHt,
             Self::EstimatedCuped => EstimatorId::RandomizedEstimatedCupedHt,
             Self::ClusterFixedCuped => EstimatorId::RandomizedClusterFixedCuped,
+            Self::ClusterEstimatedCuped => EstimatorId::RandomizedClusterEstimatedCuped,
             Self::Ancova => EstimatorId::RandomizedAncova,
             Self::Bernoulli | Self::MultiArm => EstimatorId::RandomizedHt,
             Self::Complete | Self::Stratified | Self::Factorial2x2 | Self::Cluster => {
@@ -122,6 +128,7 @@ impl RandomizedMethod {
             // The code the result verifier reads the covariate's structured field under.
             Self::EstimatedCuped => antecedent_io::graphless_support::ESTIMATED_CUPED_DIAGNOSTIC,
             Self::ClusterFixedCuped => "estimate.randomized.cluster_fixed_cuped_itt",
+            Self::ClusterEstimatedCuped => "estimate.randomized.cluster_estimated_cuped_itt",
             Self::Ancova => "estimate.randomized.ancova_itt",
             Self::Bernoulli => "estimate.randomized.ht_itt",
             Self::Switchback => "estimate.randomized.switchback_ht_itt",
@@ -134,7 +141,7 @@ impl RandomizedMethod {
 
     /// Cluster-level dependence is what the published standard error accounts for.
     pub(super) fn clustered_standard_error(self) -> bool {
-        matches!(self, Self::Cluster | Self::ClusterFixedCuped | Self::Switchback)
+        matches!(self, Self::Cluster | Self::ClusterFixedCuped | Self::ClusterEstimatedCuped | Self::Switchback)
     }
 
     pub(super) fn uncertainty(self, interval_published: bool) -> &'static str {
@@ -156,6 +163,9 @@ impl RandomizedMethod {
             (Self::ClusterFixedCuped, false) => {
                 "cluster_fixed_cuped_neyman_variance_upper_bound_no_interval"
             }
+            (Self::ClusterEstimatedCuped, false) => {
+                "cluster_estimated_cuped_neyman_variance_no_interval"
+            }
             (Self::Stratified, false) => "stratified_neyman_variance_upper_bound_no_interval",
             (Self::Factorial2x2, false) => "factorial_cell_neyman_variance_upper_bound_no_interval",
             (Self::MultiArm, false) => "multi_arm_covariance_free_variance_bound_no_interval",
@@ -171,6 +181,7 @@ impl RandomizedMethod {
             (Self::Complete, true) => "complete_neyman_normal_interval",
             (Self::Cluster, true) => "cluster_neyman_normal_interval",
             (Self::ClusterFixedCuped, true) => "cluster_fixed_cuped_neyman_normal_interval",
+            (Self::ClusterEstimatedCuped, true) => "cluster_estimated_cuped_neyman_normal_interval",
             (Self::Stratified, true) => "stratified_neyman_normal_interval",
             (Self::Factorial2x2, true) => "factorial_cell_neyman_pointwise_normal_intervals",
             (Self::MultiArm, true) => "multi_arm_ht_score_pointwise_normal_intervals",
@@ -222,6 +233,9 @@ impl RandomizedMethod {
             (Self::ClusterFixedCuped, false) => {
                 "Complete cluster-randomization ITT over cluster totals of outcomes adjusted by a declared pre-assignment covariate and externally fixed coefficient, with Neyman conservative variance over the cluster totals; no confidence interval: the normal interval needs 30 independently assigned clusters in each arm and a positive variance"
             }
+            (Self::ClusterEstimatedCuped, false) => {
+                "Complete cluster-randomization ITT after the ordinary least-squares slope of cluster outcome totals on cluster prediction totals; the Neyman variance treats that slope as fixed and publishes no interval below 30 clusters in each arm"
+            }
             (Self::Stratified, false) => {
                 "Stratified difference in means weighted by block size, with blockwise Neyman conservative variance estimate; no confidence interval is reported"
             }
@@ -260,6 +274,9 @@ impl RandomizedMethod {
             }
             (Self::ClusterFixedCuped, true) => {
                 "Cluster-randomized ITT over cluster totals of outcomes adjusted by an externally fixed pre-assignment CUPED coefficient, with a conservative cluster-level Neyman variance and pointwise 95% normal interval; the cluster is the unit of analysis and the estimand is the unadjusted per-row ITT"
+            }
+            (Self::ClusterEstimatedCuped, true) => {
+                "Cluster-randomized ITT after the ordinary least-squares slope of cluster outcome totals on a pre-assignment prediction, with a conservative cluster-level Neyman variance and pointwise 95% normal interval; the variance treats the slope as fixed and the predictive model's error is not in it"
             }
             (Self::Stratified, true) => {
                 "Blocked difference in means with blockwise conservative Neyman variance and pointwise 95% normal interval"
@@ -307,6 +324,8 @@ pub(super) struct TrialFit {
     pub(super) sampling: Option<antecedent_estimate::SamplingWeightRecord>,
     /// Bell-McCaffrey degrees of freedom when the interval is the small-arm Student interval.
     pub(super) small_arm_df: Option<f64>,
+    /// Slope fit on cluster totals. `None` unless the method estimated one.
+    pub(super) cuped_slope: Option<f64>,
 }
 
 impl TrialFit {
@@ -328,6 +347,7 @@ impl TrialFit {
             multi_arm_intervals_95: Arc::from([]),
             sampling: None,
             small_arm_df: None,
+            cuped_slope: None,
         }
     }
 
@@ -388,6 +408,9 @@ pub(super) fn fit_randomized(
         RandomizedMethod::Complete => fit_complete(query, outcomes),
         RandomizedMethod::Cluster | RandomizedMethod::ClusterFixedCuped => {
             fit_cluster(query, outcomes)
+        }
+        RandomizedMethod::ClusterEstimatedCuped => {
+            fit_cluster_estimated_cupac(query, adjustment, data, outcomes)
         }
         RandomizedMethod::Stratified => fit_stratified(query, outcomes),
         RandomizedMethod::Factorial2x2 => fit_factorial(query, outcomes),
@@ -835,6 +858,67 @@ fn fit_cluster(query: &RandomizedEffectQuery, outcomes: &[f64]) -> Result<TrialF
         *treated_clusters,
     )
     .with_interval(fit.interval_95, fit.variance_upper_bound.sqrt()))
+}
+
+/// Cluster-total CUPAC: sum the outcome and the prediction to each cluster, fit the slope
+/// on those totals, and take the Neyman contrast of the adjusted totals.
+fn fit_cluster_estimated_cupac(
+    query: &RandomizedEffectQuery,
+    adjustment: Option<&RandomizedAdjustment>,
+    data: &TabularData,
+    outcomes: &[f64],
+) -> Result<TrialFit, CausalError> {
+    let RandomizationDesign::Cluster { treated_clusters } = &query.design else {
+        unreachable!("cluster-total CUPAC requires a cluster design")
+    };
+    let covariate =
+        adjustment.map(RandomizedAdjustment::covariate).ok_or(CausalError::Unsupported {
+            message: "cluster-total CUPAC requires a declared pre-assignment prediction",
+        })?;
+    let values = match data.column(covariate).map_err(CausalError::from)? {
+        antecedent_data::ColumnView::Float64(column) => column.values.as_slice(),
+        _ => {
+            return Err(CausalError::Unsupported {
+                message: "cluster-total CUPAC prediction must be continuous",
+            });
+        }
+    };
+    if values.len() != outcomes.len() || values.iter().any(|value| !value.is_finite()) {
+        return Err(CausalError::Unsupported {
+            message: "cluster-total CUPAC requires a complete finite pre-assignment prediction",
+        });
+    }
+    let mut clusters: BTreeMap<&str, (bool, f64, f64)> = BTreeMap::new();
+    for (i, outcome) in outcomes.iter().enumerate() {
+        let entry = clusters.entry(query.assignment_units[i].as_ref()).or_insert((
+            query.realized_assignment[i],
+            0.0,
+            0.0,
+        ));
+        entry.1 += outcome;
+        entry.2 += values[i];
+    }
+    let assigned = clusters.values().map(|entry| entry.0).collect::<Vec<_>>();
+    let outcome_totals = clusters.values().map(|entry| entry.1).collect::<Vec<_>>();
+    let prediction_totals = clusters.values().map(|entry| entry.2).collect::<Vec<_>>();
+    let fit = antecedent_estimate::randomized_neyman::estimated_cluster_cuped_itt(
+        &outcome_totals,
+        &prediction_totals,
+        &assigned,
+        outcomes.len(),
+    )
+    .ok_or(CausalError::Unsupported {
+        message: "cluster-total CUPAC requires finite cluster totals, a prediction that varies, and estimable variance",
+    })?;
+    let mut trial = TrialFit::point(
+        fit.effect,
+        fit.variance_upper_bound,
+        clusters.len() - treated_clusters,
+        *treated_clusters,
+    )
+    .with_interval(fit.interval_95, fit.variance_upper_bound.sqrt());
+    trial.cuped_slope = Some(fit.theta);
+    Ok(trial)
 }
 
 fn fit_stratified(

@@ -59,7 +59,7 @@ result.verdict                       # "robust", "assumption_dependent" or "unre
 
 ## Design-aware precision adjustment
 
-Fixed-coefficient CUPED composes with complete cluster randomization (`fixed_cuped_cluster_totals`; supported row in the graphless support matrix). The adjustment is applied to cluster totals, so the cluster stays the unit of analysis and the estimand stays the unadjusted per-row contrast. A coefficient learned from the experiment's own outcomes is not admissible for clusters: fitting it on rows would treat rows as independent and change the unit of analysis. `compile_joint_experiment` lists both verdicts with reasons.
+Fixed-coefficient CUPED composes with complete cluster randomization (`fixed_cuped_cluster_totals`; supported row in the graphless support matrix). The adjustment is applied to cluster totals, so the cluster stays the unit of analysis and the estimand stays the unadjusted per-row contrast. `cluster_total_slope` is admissible on a cluster design: the slope of cluster outcome totals on caller-supplied prediction totals, then the Neyman variance of the adjusted totals, which treats that slope as fixed. A coefficient learned from rows is still refused, because that fit would treat rows as independent and change the unit of analysis. `compile_joint_experiment` lists these verdicts with reasons.
 
 ## Joint estimates
 
@@ -86,7 +86,7 @@ A statistical interval needs at least 30 independently assigned units in each ar
 
 ## Interference and scope boundaries
 
-Between-unit exposure must be declared: `no_between_unit_interference` (an assumption, not a finding), `bounded_spillover` (a per-outcome bound on the bias of the contrast, which enters as an assumption range), or `unspecified` (refused). Bounds on component contrasts do not determine nonlinear functions of arm means, so those combinations are refused. For nonlinear quantities use `CenteredFixedCuped` and center each cluster's pretreatment total using the pretreatment mean across all target rows; `centered_fixed_cuped_totals` implements this calculation. The Python cluster constructor accepts `centered_fixed_cuped`, `cluster_sizes`, and `pretreatment_totals` and performs the centering. Uncentered fixed CUPED remains available for linear contrasts only. Alternatively, declare `bounded_arm_spillover` with separate per-component treated and control arm bias bounds; these assumptions support nonlinear sensitivity analysis without converting the bounds into empirical intervals. A request for another population, contrast or horizon is refused with its next attempt. A deployment-policy quantity is refused unless a structural bridge assumption is declared and is then reported as an assumption of the answer.
+Between-unit exposure must be declared: `no_between_unit_interference` (an assumption, not a finding), `bounded_spillover` (a per-outcome bound on the bias of the contrast, which enters as an assumption range), or `unspecified` (refused). Bounds on component contrasts do not determine nonlinear functions of arm means, so those combinations are refused. For nonlinear quantities use `CenteredFixedCuped` and center each cluster's pretreatment total using the pretreatment mean across all target rows; `centered_fixed_cuped_totals` implements this calculation. The Python cluster constructor accepts `centered_fixed_cuped`, `cluster_total_slope`, `cluster_sizes`, and `pretreatment_totals`. Centering applies to the fixed-coefficient form. `cluster_total_slope` estimates the slope from the declared prediction totals. Uncentered fixed CUPED remains available for linear contrasts only. Alternatively, declare `bounded_arm_spillover` with separate per-component treated and control arm bias bounds; these assumptions support nonlinear sensitivity analysis without converting the bounds into empirical intervals. A request for another population, contrast or horizon is refused with its next attempt. A deployment-policy quantity is refused unless a structural bridge assumption is declared and is then reported as an assumption of the answer.
 
 ## Reuse and withdrawal
 
@@ -109,7 +109,7 @@ Stage digests chain (premise, adjustment, estimate, derived quantity, decision).
 
 ## Out of scope
 
-No marketplace-specific module, no default substantive assumption, no learned cluster-level adjustment, no calibration claim for derived intervals, no sensitivity bound converted to a probability. Interference beyond a declared no-interference or bounded-spillover assumption is refused rather than modeled.
+No marketplace-specific module, no default substantive assumption, no row-level learned adjustment on clusters (the cluster-total slope is the one learned adjustment a cluster design admits), no calibration claim for derived intervals, no sensitivity bound converted to a probability. Interference beyond a declared no-interference or bounded-spillover assumption is refused rather than modeled.
 
 The cluster-margin interval, with and without centered fixed CUPED, has its own calibration basis naming the transformation, adjustment, design and number of assignment units, so a coverage record for one construction never annotates another.
 

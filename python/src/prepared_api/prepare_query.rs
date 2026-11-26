@@ -602,7 +602,7 @@ impl PyPreparedAnalysis {
     #[staticmethod]
     #[pyo3(signature = (names, columns, outcome, realized_assignment, assignment_probabilities,
         assignment_units, outcome_units, treatment_arms, design_kind, treated_units=None, blocks=None,
-        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, estimated_cuped=None, ancova_covariates=None, periods=None, received_treatment=None, treatment_on_treated=false, exact_randomization_test=false,
+        treated_per_row=None, *, treated_clusters=None, fixed_cuped=None, estimated_cuped=None, estimated_cupac=None, cluster_cupac=None, cupac=false, ancova_covariates=None, periods=None, received_treatment=None, treatment_on_treated=false, exact_randomization_test=false,
         second_factor_assignment=None, factorial_cell_counts=None, second_factor_arms=None,
         multi_arm_labels=None, multi_arm_assignment=None, multi_arm_probabilities=None,
         accepted=false, seed=1, threads=None,
@@ -625,6 +625,9 @@ impl PyPreparedAnalysis {
         treated_clusters: Option<usize>,
         fixed_cuped: Option<(String, f64)>,
         estimated_cuped: Option<String>,
+        estimated_cupac: Option<String>,
+        cluster_cupac: Option<String>,
+        cupac: bool,
         ancova_covariates: Option<Vec<String>>,
         periods: Option<Vec<String>>,
         received_treatment: Option<Vec<bool>>,
@@ -746,13 +749,32 @@ impl PyPreparedAnalysis {
                 let covariate_id = crate::graph_build::schema_var_id(data.schema(), &covariate)?;
                 query = query.with_fixed_cuped(covariate_id, coefficient);
             }
+            if cupac {
+                query = query.with_cupac();
+            }
             // Same-sample CUPED is the study's declared adjustment, not part of the query; the
             // build refuses it beside a fixed coefficient or any other adjustment.
-            let adjustment = estimated_cuped
-                .map(|covariate| {
+            let slope = match (estimated_cuped, estimated_cupac, cluster_cupac) {
+                (Some(covariate), None, None) => Some((covariate, false, false)),
+                (None, Some(covariate), None) => Some((covariate, true, false)),
+                (None, None, Some(covariate)) => Some((covariate, false, true)),
+                (None, None, None) => None,
+                _ => {
+                    return Err(py_msg(
+                        "declare at most one of estimated CUPED, Bernoulli CUPAC, and cluster-total CUPAC",
+                    ));
+                }
+            };
+            let adjustment = slope
+                .map(|(covariate, prediction, cluster)| {
                     crate::graph_build::schema_var_id(data.schema(), &covariate).map(|covariate| {
-                        antecedent::analysis::randomized_adjustment::RandomizedAdjustment::EstimatedCuped {
-                            covariate,
+                        use antecedent::analysis::randomized_adjustment::RandomizedAdjustment;
+                        if cluster {
+                            RandomizedAdjustment::ClusterTotalCupac { covariate }
+                        } else if prediction {
+                            RandomizedAdjustment::EstimatedCupac { covariate }
+                        } else {
+                            RandomizedAdjustment::EstimatedCuped { covariate }
                         }
                     })
                 })

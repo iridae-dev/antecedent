@@ -1704,6 +1704,9 @@ pub struct RandomizedEffectQueryWire {
     /// Optional pre-assignment covariate and externally fixed CUPED coefficient.
     #[serde(default)]
     pub fixed_cuped: Option<(u32, f64)>,
+    /// The fixed CUPED covariate is a prediction built without these outcomes.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub cupac: bool,
     /// Pre-assignment covariates jointly fitted by ANCOVA.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ancova_covariates: Vec<u32>,

@@ -630,6 +630,11 @@ const fn declared(id: EstimatorId) -> EstimatorTarget {
         EstimatorId::RandomizedClusterFixedCuped => {
             frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::ClusterCuped]))
         }
+        // The slope is the study's declared cluster-total adjustment. The query itself is an
+        // unadjusted cluster design; the build requires the adjustment.
+        EstimatorId::RandomizedClusterEstimatedCuped => {
+            frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::Cluster]))
+        }
         EstimatorId::RandomizedAncova => {
             frequentist(RANDOMIZED, DesignTarget::Randomized(&[R::BernoulliAncova]))
         }

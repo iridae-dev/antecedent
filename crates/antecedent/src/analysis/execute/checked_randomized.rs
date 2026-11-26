@@ -46,10 +46,28 @@ pub(super) use bayesian_arms::bayesian_randomized_estimator;
 fn estimated_cuped_fields(
     method: RandomizedMethod,
     adjustment: Option<&RandomizedAdjustment>,
+    slope: Option<f64>,
 ) -> Vec<(String, String)> {
     match (method, adjustment) {
         (RandomizedMethod::EstimatedCuped, Some(adjustment)) => {
-            antecedent_io::graphless_support::estimated_cuped_fields(adjustment.covariate().raw())
+            let mut fields = antecedent_io::graphless_support::estimated_cuped_fields(
+                adjustment.covariate().raw(),
+            );
+            if matches!(adjustment, RandomizedAdjustment::EstimatedCupac { .. }) {
+                fields.push(("prediction".into(), "true".into()));
+            }
+            fields
+        }
+        (RandomizedMethod::ClusterEstimatedCuped, Some(adjustment)) => {
+            let slope = slope.unwrap_or(f64::NAN);
+            vec![
+                (
+                    antecedent_io::graphless_support::ESTIMATED_CUPED_COVARIATE_FIELD.into(),
+                    adjustment.covariate().raw().to_string(),
+                ),
+                ("prediction".into(), "true".into()),
+                ("slope".into(), slope.to_string()),
+            ]
         }
         _ => Vec::new(),
     }
@@ -111,6 +129,7 @@ fn check_declaration_for_design(
                 | RandomizedMethod::FixedCuped
                 | RandomizedMethod::EstimatedCuped
                 | RandomizedMethod::ClusterFixedCuped
+                | RandomizedMethod::ClusterEstimatedCuped
         )
     {
         return Ok(());
@@ -359,7 +378,7 @@ impl CheckedRandomizedOperation {
                         DiagnosticSeverity::Info,
                         diagnostic,
                     )
-                    .with_fields(estimated_cuped_fields(method, adjustment)),
+                    .with_fields(estimated_cuped_fields(method, adjustment, fit.cuped_slope)),
                 ],
                 refutations: Vec::new(),
                 distribution: None,
@@ -1429,6 +1448,18 @@ fn push_randomized_design_assumptions(
     });
 }
 
+fn prediction_assumption(scope: AssumptionScope, description: &'static str) -> AssumptionRecord {
+    AssumptionRecord {
+        assumption: Assumption::Custom {
+            id: Arc::from("pre_assignment_prediction"),
+            description: Arc::from(description),
+        },
+        source: AssumptionSource::UserDeclared,
+        scope,
+        status: AssumptionStatus::Declared,
+    }
+}
+
 /// Estimated-slope CUPED, fixed CUPED and ANCOVA pre-assignment covariate assumptions.
 fn push_randomized_covariate_assumptions(
     query: &antecedent_core::RandomizedEffectQuery,
@@ -1446,7 +1477,24 @@ fn push_randomized_covariate_assumptions(
             status: AssumptionStatus::Declared,
         });
     }
-    if query.fixed_cuped.is_some() {
+    if matches!(adjustment, Some(RandomizedAdjustment::EstimatedCupac { .. })) {
+        assumptions.push(prediction_assumption(
+            AssumptionScope::Estimation,
+            "the covariate is a prediction fixed from pre-assignment information and was not fitted on these outcomes; its pooled slope is estimated from these outcomes and the independent-row score variance does not propagate that estimation; the predictive model's error is not in the reported variance",
+        ));
+    }
+    if matches!(adjustment, Some(RandomizedAdjustment::ClusterTotalCupac { .. })) {
+        assumptions.push(prediction_assumption(
+            AssumptionScope::Estimation,
+            "the covariate is a prediction fixed from pre-assignment information and was not fitted on these outcomes; its slope is the ordinary least-squares slope of the cluster outcome totals on the cluster prediction totals and the cluster Neyman variance does not propagate that estimation; the predictive model's error is not in the reported variance",
+        ));
+    }
+    if query.fixed_cuped.is_some() && query.cupac {
+        assumptions.push(prediction_assumption(
+            AssumptionScope::Identification,
+            "the covariate is a prediction fixed from pre-assignment information and was not fitted on these outcomes; its coefficient was fixed independently of these outcomes; the predictive model's error is not in the reported variance",
+        ));
+    } else if query.fixed_cuped.is_some() {
         assumptions.push(AssumptionRecord {
             assumption: Assumption::Custom {
                 id: Arc::from("fixed_pre_assignment_cuped"),

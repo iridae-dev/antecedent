@@ -880,6 +880,13 @@ and `ChangeAttribution` run on every static and temporal graph class (see
   design-specific support gates and every claimed pointwise interval pass.
   Sparse and degenerate results remain outside the support matrix; no simultaneous coverage is
   supported.
+  `CUPAC` names a caller-supplied pre-assignment prediction already aligned to the
+  randomization unit. A locked coefficient uses the fixed CUPED kernel. An omitted
+  coefficient on a Bernoulli design uses the same-sample CUPED kernel. An omitted
+  coefficient on a cluster design fits the slope of cluster outcome totals on
+  cluster prediction totals and publishes the Neyman interval of the adjusted
+  totals once both arms have at least 30 clusters; that variance treats the slope
+  as fixed, and its coverage is not measured. The prediction model is not fit here.
   Bernoulli ANCOVA reports a pointwise HC0 interval with one or two
   pre-assignment covariates, a common assignment probability from 0.2 through
   0.8, and 30 observed and 40 expected rows in each arm (the row count times the

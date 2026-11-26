@@ -198,6 +198,12 @@ pub struct RandomizedEffectQuery {
     /// Pre-assignment covariate and coefficient fixed before outcomes were observed.
     /// Valid under Bernoulli rows and complete cluster randomization.
     pub fixed_cuped: Option<(VariableId, f64)>,
+    /// The fixed CUPED covariate is a prediction built without these outcomes.
+    ///
+    /// The residual and the variance are the fixed-CUPED kernels. The flag changes the
+    /// recorded premise: the column is a function of pre-assignment information, and the
+    /// predictive model's error is not in the reported variance.
+    pub cupac: bool,
     /// Pre-assignment covariates fitted jointly with assignment by ANCOVA.
     pub ancova_covariates: Arc<[VariableId]>,
     /// Observed treatment receipt in row order for CACE/LATE.
@@ -284,6 +290,7 @@ impl CanonicalEncode for RandomizedEffectQuery {
                 writer.word(0);
             }
         }
+        writer.word(flag(self.cupac));
         encode_variables(writer, &self.ancova_covariates);
         match &self.received_treatment {
             Some(received) => {
@@ -341,10 +348,18 @@ impl RandomizedEffectQuery {
             outcome_units: outcome_units.into(),
             treatment_arms: (treatment_arms.0.into(), treatment_arms.1.into()),
             fixed_cuped: None,
+            cupac: false,
             ancova_covariates: Arc::from([]),
             received_treatment: None,
             exact_randomization_test: false,
         }
+    }
+
+    /// Record that the fixed CUPED covariate is a pre-assignment prediction.
+    #[must_use]
+    pub fn with_cupac(mut self) -> Self {
+        self.cupac = true;
+        self
     }
 
     /// Declare an externally fixed CUPED coefficient for a pre-assignment covariate.
@@ -504,6 +519,11 @@ impl RandomizedEffectQuery {
         } else if self.received_treatment.is_some() {
             return Err(QueryError::RandomizedEffectRefused(
                 RandomizedEffectFault::ReceiptWithoutComplier,
+            ));
+        }
+        if self.cupac && self.fixed_cuped.is_none() {
+            return Err(QueryError::RandomizedEffectRefused(
+                RandomizedEffectFault::FixedCupedDesign,
             ));
         }
         if let Some((covariate, coefficient)) = self.fixed_cuped {
