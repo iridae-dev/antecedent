@@ -5,6 +5,7 @@
 #[doc(hidden)] pub fn antecedent_stats::survival::for_each_resampled_subject(arms: &[alloc::vec::Vec<usize>; 2], rng: &mut u64, visit: impl core::ops::function::FnMut(usize, bool))
 #[doc(hidden)] pub fn antecedent_stats::survival::percentile_95(draws: &mut [f64]) -> [f64; 2]
 #[doc(hidden)] pub fn antecedent_stats::survival::randomized_survival_bootstrap_intervals_controlled(rows: &antecedent_stats::survival::SurvivalRows<'_>, known_censoring: core::option::Option<&antecedent_stats::survival::KnownCensoring<'_>>, tau: f64, endpoint: antecedent_stats::survival::SurvivalEndpoint, replicates: u32, seed: u64, cancelled: impl core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::survival::SurvivalBootstrapIntervals, &'static str>
+#[doc(hidden)] pub fn antecedent_stats::survival::survival_event_code(value: f64) -> core::option::Option<i64>
 #[non_exhaustive] pub enum antecedent_stats::BasisKind
 #[non_exhaustive] pub enum antecedent_stats::ChainError
 #[non_exhaustive] pub enum antecedent_stats::IdentifiedSetIntervalMethod
