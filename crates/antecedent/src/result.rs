@@ -1223,6 +1223,8 @@ pub struct StudyResult {
     /// [`crate::PreparedStudy`] entry point that produced it. `None` for
     /// results no prepared handle executed; those cannot be exported as claims.
     pub(crate) executed_contract: Option<ExecutedContract>,
+    /// Method records resolved by the dispatch that produced this result.
+    pub(crate) compiled_method_provenance: Option<Arc<antecedent_io::method_provenance::MethodProvenanceWire>>,
     /// Identity of the lowered program whose dispatch produced this result.
     pub(crate) lowered_identity: Option<antecedent_core::SemanticDigest>,
     /// Execution identity captured by the dispatch that produced this result.
@@ -1345,19 +1347,15 @@ impl StudyResult {
         self.support_status
     }
 
-    /// The provenance records behind the route this result executed: the identifier and
-    /// estimator of [`StudyResultView::logical_plan`], each with its published sources, the
-    /// deviations its record documents, what its bounded review leaves out, and its id and
-    /// digest. Ids that name no record are listed as unlinked.
-    ///
-    /// Descriptive only, like the calibration slot: it changes no number or support status.
-    /// [`StudyResultView::provenance`] is the execution's provenance graph, a different thing.
-    #[must_use = "the provenance is computed on each call"]
+    /// Method records resolved by the route this result executed, with their sources and caveats.
+    #[must_use]
     pub fn method_provenance(&self) -> antecedent_io::method_provenance::MethodProvenanceWire {
-        antecedent_io::method_provenance::method_provenance(
-            self.logical_plan.identifier.as_deref(),
-            self.logical_plan.estimator.as_deref(),
-        )
+        self.compiled_method_provenance.as_deref().cloned().unwrap_or_else(|| {
+            antecedent_io::method_provenance::method_provenance(
+                self.logical_plan.identifier.as_deref(),
+                self.logical_plan.estimator.as_deref(),
+            )
+        })
     }
 
     /// The sources to cite for this result, de-duplicated, each with the caveats of the
@@ -1372,10 +1370,13 @@ impl StudyResult {
         program: &crate::planner::lowered::LoweredProgram,
         ctx: &antecedent_core::ExecutionContext,
     ) -> Result<(), crate::CausalError> {
-        let execution = antecedent_io::execution_digest(
-            &antecedent_io::execution_identity_from_context(ctx),
-        )
-        .map_err(crate::CausalError::rejected)?;
+        let execution =
+            antecedent_io::execution_digest(&antecedent_io::execution_identity_from_context(ctx))
+                .map_err(crate::CausalError::rejected)?;
+        self.compiled_method_provenance = Some(Arc::new(program.resolve_method_provenance(
+            self.logical_plan.identifier.as_deref(),
+            self.logical_plan.estimator.as_deref(),
+        )));
         self.lowered_identity = program.semantic_identity();
         self.lowered_quadrant = Some(program.refutation_quadrant());
         self.execution_identity = Some(execution);

@@ -1017,6 +1017,8 @@ class PerformanceView(ResultModel):
 class PlanView(ResultModel):
     """Logical-plan summary (semantics; inspect before/after estimate)."""
 
+    _method_provenance_json: str | None = PrivateAttr(default=None)
+
     plan_id: str
     modality: str | None = None
     discovery_algorithm: str | None = None

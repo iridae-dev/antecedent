@@ -148,6 +148,14 @@ impl PyJointDistributionArtifact {
     }
 
     #[getter]
+    fn method_provenance_json(&self) -> PyResult<Option<String>> {
+        self.artifact
+            .method_provenance()
+            .map(|value| serde_json::to_string(value).map_err(artifact_error))
+            .transpose()
+    }
+
+    #[getter]
     fn metadata_json(&self) -> PyResult<String> {
         serde_json::to_string(self.artifact.metadata()).map_err(artifact_error)
     }

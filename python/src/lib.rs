@@ -1543,6 +1543,7 @@ pub(crate) fn shared_study_sections(
     let posterior = shared_posterior_section(result)?;
     let validation = ValidationSection::from_reports(refutations.clone(), &result.diagnostics);
     let performance = PerformanceSection {
+        method_provenance: result.method_provenance(),
         native_execution: result.performance.native_execution.clone(),
         plan_id: plan_id.clone(),
         modality: modality.clone(),
@@ -1807,6 +1808,7 @@ impl ValidationSection {
 #[pyclass(skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct PerformanceSection {
+    method_provenance: antecedent::io::method_provenance::MethodProvenanceWire,
     native_execution: Option<antecedent::execution::execution_facts::ExecutionFacts>,
     #[pyo3(get)]
     pub(crate) plan_id: String,
@@ -2108,6 +2110,11 @@ mod tests {
 
 #[pymethods]
 impl PerformanceSection {
+    #[getter]
+    fn method_provenance_json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.method_provenance).map_err(|error| value_err(error.to_string()))
+    }
+
     /// Engine-produced execution observations, separate from plan estimates.
     #[getter]
     fn native_execution(&self) -> Option<inspect_receipt_api::PyExecutionFacts> {

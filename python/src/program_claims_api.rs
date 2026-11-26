@@ -414,7 +414,8 @@ impl PyNativeResponseClaim {
             Ok(input) => match input.source {
                 NativeDecisionSource::JointLaw(artifact) => Ok((
                     Some(crate::distribution_api::PyJointDistributionArtifact {
-                        artifact: *artifact,
+                        artifact: artifact
+                            .with_method_provenance(self.authority.result.method_provenance()),
                         source_claim: Some(self.clone()),
                     }),
                     None,

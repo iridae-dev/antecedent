@@ -244,6 +244,7 @@ fn inner_from_wire(wire: InnerWire) -> Result<DecisionResult, IoError> {
     let criterion = wire.criterion.into();
     let criterion_label = crate::decision_eval::criterion_label_of(criterion, &wire.assumptions);
     Ok(DecisionResult {
+        method_provenance: None,
         contract_identity: wire.contract_identity,
         criterion,
         criterion_label,

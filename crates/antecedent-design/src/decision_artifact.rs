@@ -14,6 +14,7 @@ use antecedent_core::CanonicalWriter;
 use antecedent_io_core::convert::to_cbor;
 use antecedent_io_core::distribution_artifact::DistributionArtifact;
 use antecedent_io_core::error::IoError;
+use antecedent_io_core::method_provenance::{METHOD_PROVENANCE_FORMAT, MethodProvenanceWire};
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use serde::{Deserialize, Serialize};
 
@@ -33,6 +34,7 @@ use crate::decision_wire::{
 pub const MAX_DECISION_ARTIFACT_BYTES: usize = 8 * 1024 * 1024;
 const CONTRACT_KIND: &str = "decision_contract_v1";
 const RESULT_KIND: &str = "decision_result_v1";
+const RESULT_METHOD_SECTION: &str = "decision_result.method_provenance";
 const BODY_SECTION: &str = "decision.body";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -134,6 +136,24 @@ pub(crate) fn encode_section(
     note: &str,
     body: &[u8],
 ) -> Result<Vec<u8>, IoError> {
+    encode_parts(
+        kind,
+        artifact_id,
+        note,
+        &[antecedent_io_core::OutSection {
+            id: section,
+            content_type: antecedent_io_core::CONTENT_CBOR,
+            bytes: body,
+        }],
+    )
+}
+
+fn encode_parts(
+    kind: &str,
+    artifact_id: &str,
+    note: &str,
+    sections: &[antecedent_io_core::OutSection<'_>],
+) -> Result<Vec<u8>, IoError> {
     antecedent_io_core::encode_container(
         &antecedent_io_core::ArtifactContainer {
             kind,
@@ -142,11 +162,7 @@ pub(crate) fn encode_section(
             artifact_id,
             library_version: env!("CARGO_PKG_VERSION"),
         },
-        &[antecedent_io_core::OutSection {
-            id: section,
-            content_type: antecedent_io_core::CONTENT_CBOR,
-            bytes: body,
-        }],
+        sections,
     )
     .map_err(|error| error.into_io("unsupported decision artifact layout"))
 }
@@ -169,10 +185,14 @@ pub(crate) fn decode_section<T: serde::de::DeserializeOwned>(
     let Ok([body]) = <[Vec<u8>; 1]>::try_from(parts) else {
         return Err(IoError::Convert("unsupported decision artifact layout".into()));
     };
+    decode_body(&body)
+}
+
+fn decode_body<T: serde::de::DeserializeOwned>(body: &[u8]) -> Result<T, IoError> {
     // The version word is read from the untyped item first, so a newer body
     // with a changed shape is refused as an unsupported version rather than
     // as a field error of this reader's layout.
-    antecedent_io_core::decode_with_version(&body, |version: u16| {
+    antecedent_io_core::decode_with_version(body, |version: u16| {
         if version == DECISION_BODY_VERSION {
             Ok(())
         } else {
@@ -487,6 +507,7 @@ fn body_to_result(body: ResultBody) -> Result<DecisionResult, IoError> {
     let criterion = body.criterion.into();
     let criterion_label = criterion_label_of(criterion, &body.assumptions);
     Ok(DecisionResult {
+        method_provenance: None,
         contract_identity: body.contract_identity,
         criterion,
         criterion_label,
@@ -520,6 +541,79 @@ fn body_to_result(body: ResultBody) -> Result<DecisionResult, IoError> {
         },
         assumptions: body.assumptions,
     })
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResultMethodProvenance {
+    result_fingerprint: String,
+    provenance: MethodProvenanceWire,
+}
+
+fn result_method_binding(body: &[u8]) -> String {
+    CanonicalWriter::new("antecedent.decision_method_snapshot.v1").bytes(body).finish_hex()
+}
+
+pub(crate) fn encode_with_method_provenance(
+    kind: &str,
+    artifact_id: &str,
+    note: &str,
+    body: &[u8],
+    provenance: Option<&MethodProvenanceWire>,
+) -> Result<Vec<u8>, IoError> {
+    let Some(provenance) = provenance else {
+        return encode(kind, artifact_id, note, body);
+    };
+    let metadata = to_cbor(&ResultMethodProvenance {
+        result_fingerprint: result_method_binding(body),
+        provenance: provenance.clone(),
+    })?;
+    encode_parts(
+        kind,
+        artifact_id,
+        note,
+        &[
+            antecedent_io_core::OutSection {
+                id: BODY_SECTION,
+                content_type: antecedent_io_core::CONTENT_CBOR,
+                bytes: body,
+            },
+            antecedent_io_core::OutSection {
+                id: RESULT_METHOD_SECTION,
+                content_type: antecedent_io_core::CONTENT_CBOR,
+                bytes: &metadata,
+            },
+        ],
+    )
+}
+
+pub(crate) fn decode_with_method_provenance<T: serde::de::DeserializeOwned>(
+    bytes: &[u8],
+    kind: &str,
+) -> Result<(T, Option<MethodProvenanceWire>), IoError> {
+    match antecedent_io_core::decode_container(
+        kind,
+        MAX_DECISION_ARTIFACT_BYTES,
+        &[BODY_SECTION, RESULT_METHOD_SECTION],
+        bytes,
+    ) {
+        Ok(parts) => {
+            let [body, methods] = <[Vec<u8>; 2]>::try_from(parts)
+                .map_err(|_| IoError::Convert("unsupported decision artifact layout".into()))?;
+            let provenance = antecedent_io_core::from_cbor::<ResultMethodProvenance>(&methods)
+                .ok()
+                .filter(|methods| {
+                    methods.provenance.format == METHOD_PROVENANCE_FORMAT
+                        && methods.result_fingerprint == result_method_binding(&body)
+                })
+                .map(|methods| methods.provenance);
+            Ok((decode_body(&body)?, provenance))
+        }
+        Err(antecedent_io_core::CodecError::Layout) => {
+            decode(bytes, kind).map(|body| (body, None))
+        }
+        Err(error) => Err(error.into_io("unsupported decision artifact layout")),
+    }
 }
 
 /// A decision result bound to its contract and source digest.
@@ -566,8 +660,13 @@ impl DecisionResultArtifact {
     /// # Errors
     /// An oversized payload refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
-        let body = to_cbor(&result_to_body(&self.result, &self.source_digest))?;
-        encode(RESULT_KIND, artifact_id, "decision_result", &body)
+        encode_with_method_provenance(
+            RESULT_KIND,
+            artifact_id,
+            "decision_result",
+            &to_cbor(&result_to_body(&self.result, &self.source_digest))?,
+            self.result.method_provenance(),
+        )
     }
 
     /// Load under the consumer's retained contract identity and source digest.
@@ -580,7 +679,7 @@ impl DecisionResultArtifact {
         expected_contract_identity: &str,
         expected_source_digest: &str,
     ) -> Result<Self, IoError> {
-        let mut body: ResultBody = decode(bytes, RESULT_KIND)?;
+        let (mut body, methods): (ResultBody, _) = decode_with_method_provenance(bytes, RESULT_KIND)?;
         if body.contract_identity != expected_contract_identity {
             return Err(refused(
                 "contract_expected",
@@ -592,8 +691,11 @@ impl DecisionResultArtifact {
         }
         let digest = body.source_digest.clone();
         let stored_lineage = std::mem::take(&mut body.lineage);
-        let result = body_to_result(body)?;
+        let mut result = body_to_result(body)?;
         verify_stored_lineage(&stored_lineage, &lineage_wire(&result, &digest))?;
+        if let Some(methods) = methods {
+            result.set_method_provenance(methods);
+        }
         Ok(Self { result, source_digest: digest })
     }
 
@@ -717,8 +819,7 @@ pub fn result_to_json(
     result: &DecisionResult,
     source: &DistributionArtifact,
 ) -> Result<String, IoError> {
-    serde_json::to_string(&result_to_body(result, &source_digest(source)))
-        .map_err(|e| IoError::Convert(e.to_string()))
+    result_body_json(result, &result_to_body(result, &source_digest(source)))
 }
 
 /// BLAKE3 of a mean source's coordinates and means.
@@ -745,7 +846,19 @@ pub fn mean_result_to_json(
 ) -> Result<String, IoError> {
     let mut body = result_to_body(result, &mean_source_digest(source));
     body.lineage = Vec::new();
-    serde_json::to_string(&body).map_err(|e| IoError::Convert(e.to_string()))
+    result_body_json(result, &body)
+}
+
+fn result_body_json(result: &DecisionResult, body: &ResultBody) -> Result<String, IoError> {
+    #[derive(Serialize)]
+    struct Reading<'a> {
+        #[serde(flatten)]
+        body: &'a ResultBody,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        method_provenance: Option<&'a MethodProvenanceWire>,
+    }
+    serde_json::to_string(&Reading { body, method_provenance: result.method_provenance() })
+        .map_err(|error| IoError::Convert(error.to_string()))
 }
 
 /// The checksummed container of a result computed from a mean source: the same
@@ -777,7 +890,13 @@ pub fn bound_mean_result_to_bytes(
 ) -> Result<Vec<u8>, IoError> {
     let mut body = result_to_body(result, source_binding);
     body.lineage = Vec::new();
-    encode(RESULT_KIND, artifact_id, "decision_result", &to_cbor(&body)?)
+    encode_with_method_provenance(
+        RESULT_KIND,
+        artifact_id,
+        "decision_result",
+        &to_cbor(&body)?,
+        result.method_provenance(),
+    )
 }
 
 #[cfg(test)]

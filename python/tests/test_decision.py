@@ -252,6 +252,8 @@ def test_contract_and_result_round_trip_and_replay_in_a_fresh_process(tmp_path: 
     replayed = require_success(decision.replay(result_bytes, contract=contract, source=source))
     assert replayed.selected == result.selected
     assert replayed.evpi == result.evpi
+    assert replayed.method_provenance == result.method_provenance
+    assert replayed.method_provenance.record("decision.contract") is not None
 
     other = dataclasses.replace(contract, criterion=decision.Criterion.expected_loss())
     with pytest.raises(decision.DecisionRefusal) as wrong_contract:

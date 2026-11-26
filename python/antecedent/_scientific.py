@@ -32,6 +32,17 @@ class ScientificResult:
                 if not isinstance(value, ExportedArtifact):
                     object.__setattr__(self, field.name, freeze(value))
 
+    @property
+    def method_provenance(self) -> Any:
+        """Method records carried by this scientific result."""
+        from .citations import provenance_of
+
+        return provenance_of(self)
+
+    def citations(self) -> tuple[Any, ...]:
+        """Published sources behind this result, with their caveats."""
+        return self.method_provenance.citations()
+
     def to_dict(self) -> dict[str, Any]:
         if is_dataclass(self):
             return thaw(self)

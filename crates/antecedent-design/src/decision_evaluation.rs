@@ -31,6 +31,7 @@ use antecedent_core::execution_facts::OutputRetention;
 use antecedent_core::{CancellationToken, ExecutionContext};
 use thiserror::Error;
 
+use antecedent_io_core::MethodProvenanceWire;
 use antecedent_io_core::distribution_artifact::{
     DistributionArtifact, DistributionCalibration, DrawAlignment,
 };
@@ -286,6 +287,11 @@ pub trait DemandSource {
     /// Lineage copied onto the result.
     fn receipt(&self) -> SourceReceipt;
 
+    /// Method snapshot carried by the admitted evidence.
+    fn method_provenance(&self) -> Option<&MethodProvenanceWire> {
+        None
+    }
+
     /// Whether `means` are posterior means or frequentist point estimates.
     fn mean_estimate(&self) -> MeanEstimate;
 
@@ -425,23 +431,30 @@ pub fn execute_demand(
     if requirement.is_identified_set() {
         return Err(EvaluationError::IdentifiedSet);
     }
-    if requirement.any_of.contains(&SourceRepresentation::Mean) && source.supplies_means() {
-        return execute_on_means(contract, source, budget);
+    let mut executed = if requirement.any_of.contains(&SourceRepresentation::Mean)
+        && source.supplies_means()
+    {
+        execute_on_means(contract, source, budget)?
+    } else {
+        let draws = requirement.any_of.iter().any(|representation| {
+            matches!(
+                representation,
+                SourceRepresentation::MarginalDraws | SourceRepresentation::JointDraws
+            )
+        }) || (source.supplies_draws() && !source.supplies_means());
+        if !draws {
+            return Err(EvaluationError::CarrierUnavailable { needed: requirement.any_of });
+        }
+        if !source.supplies_draws() {
+            return Err(means_insufficient(requirement.any_of));
+        }
+        let needs_joint = !requirement.any_of.contains(&SourceRepresentation::MarginalDraws);
+        execute_on_draws(contract, source, budget, cancellation, needs_joint)?
+    };
+    if let Some(provenance) = source.method_provenance() {
+        executed.decision.set_method_provenance(provenance.clone());
     }
-    let draws = requirement.any_of.iter().any(|representation| {
-        matches!(
-            representation,
-            SourceRepresentation::MarginalDraws | SourceRepresentation::JointDraws
-        )
-    }) || (source.supplies_draws() && !source.supplies_means());
-    if !draws {
-        return Err(EvaluationError::CarrierUnavailable { needed: requirement.any_of });
-    }
-    if !source.supplies_draws() {
-        return Err(means_insufficient(requirement.any_of));
-    }
-    let needs_joint = !requirement.any_of.contains(&SourceRepresentation::MarginalDraws);
-    execute_on_draws(contract, source, budget, cancellation, needs_joint)
+    Ok(executed)
 }
 
 /// [`execute_demand`] with the draw path's scratch and retained bytes leased from the
@@ -581,6 +594,10 @@ impl DemandSource for ArtifactDemand<'_> {
             rng_id: identity.rng_id.clone(),
             causal_contract_id: identity.causal_contract_id.clone(),
         }
+    }
+
+    fn method_provenance(&self) -> Option<&MethodProvenanceWire> {
+        self.artifact.method_provenance()
     }
 
     fn mean_estimate(&self) -> MeanEstimate {

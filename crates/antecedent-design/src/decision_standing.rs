@@ -548,6 +548,7 @@ mod tests {
 
     fn ordinary(verdict: Verdict) -> DecisionResult {
         DecisionResult {
+            method_provenance: None,
             contract_identity: "c".into(),
             criterion: DecisionCriterion::PosteriorExpectedUtility,
             criterion_label: "posterior expected utility".into(),

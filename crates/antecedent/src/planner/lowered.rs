@@ -1715,6 +1715,35 @@ const _: () = {
 };
 
 impl LoweredProgram {
+    /// Method records for the methods resolved at lowering, without running the program.
+    #[must_use]
+    pub fn method_provenance(&self) -> antecedent_io::method_provenance::MethodProvenanceWire {
+        self.resolve_method_provenance(
+            self.statistical.identifier().as_ref().map(|id| id.as_str()),
+            self.statistical.estimator().as_ref().map(|id| id.as_str()),
+        )
+    }
+
+    pub(crate) fn resolve_method_provenance(
+        &self,
+        identifier: Option<&str>,
+        estimator: Option<&str>,
+    ) -> antecedent_io::method_provenance::MethodProvenanceWire {
+        use antecedent_io::method_provenance::{ProvenanceRole, route_provenance};
+
+        let unit = crate::support::units_generated::unit_of(self.route());
+        let components = [
+            (ProvenanceRole::Identifier, identifier),
+            (ProvenanceRole::Estimator, estimator),
+            (ProvenanceRole::Capability, unit.map(|unit| unit.as_str())),
+        ];
+        let resolved: Vec<_> = components
+            .into_iter()
+            .filter_map(|(role, key)| key.map(|key| (role, key)))
+            .collect();
+        route_provenance(&resolved)
+    }
+
     /// Name of the compiled route cell this program was lowered for.
     #[must_use]
     pub const fn route(&self) -> &'static str {

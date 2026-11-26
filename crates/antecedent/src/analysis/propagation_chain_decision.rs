@@ -23,6 +23,7 @@ use antecedent_design::decision_evaluation::{
 };
 use antecedent_design::decision_transported_source::{TransportedResponse, TransportedValue};
 use antecedent_io::IoError;
+use antecedent_io::method_provenance::{METHOD_PROVENANCE_FORMAT, MethodProvenanceWire};
 use antecedent_io::propagation_chain_record::{
     ChainChangeWire, ChainCoefficientWire, ChainJointOutputWire, ChainOpWire, ChainSourceWire,
     ChainStageWire, PropagationChainRecordWire,
@@ -32,6 +33,7 @@ use serde::{Deserialize, Serialize};
 
 use super::lowering::chain::lower_chain_with_decision;
 use super::propagation_chain::{PropagationChain, PropagationChainPlan, compile_propagation_chain};
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::planner::lowered::{CarrierDemand, DecisionProgram, LoweredProgram};
 use crate::planner::{PlanStage, PlanView};
 
@@ -75,6 +77,7 @@ pub struct ChainDecisionPlan {
     coordinates: Vec<ScientificQuantity>,
     lowered: Arc<LoweredProgram>,
     action_worlds: bool,
+    input_methods: Option<MethodProvenanceWire>,
 }
 
 /// Maximum encoded chain-decision artifact bytes accepted before decoding.
@@ -93,6 +96,8 @@ struct ChainDecisionArtifactWire {
     contract_identity: String,
     decision_fingerprint: String,
     lowered_program_identity: [u8; 32],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    method_provenance: Option<MethodProvenanceWire>,
 }
 
 /// Compile a chain and a multi-action decision over its retained output law.
@@ -201,7 +206,7 @@ fn compile_chain_decision_with_worlds(
     )?;
     let lowered = Arc::new(lowered);
     let chain = chain.within_lowered(Arc::clone(&lowered))?;
-    Ok(ChainDecisionPlan { chain, contract, coordinates, lowered, action_worlds })
+    Ok(ChainDecisionPlan { chain, contract, coordinates, lowered, action_worlds, input_methods: None })
 }
 
 /// Compile an action-world decision only when the caller supplies one
@@ -441,7 +446,9 @@ pub fn compile_transported_law_chain_decision(
         let log_weights: Vec<f64> = retained_rows.iter().map(|&row| weights[row].ln()).collect();
         draft.changes.push(ChainChangeWire::reweight(carrier_id, &log_weights));
     }
-    compile_chain_decision(draft, contract, ctx)
+    let mut plan = compile_chain_decision(draft, contract, ctx)?;
+    plan.input_methods = law.method_provenance().cloned();
+    Ok(plan)
 }
 
 fn declared_transport_receipt(chain: &PropagationChain) -> Option<&str> {
@@ -455,6 +462,12 @@ fn declared_transport_receipt(chain: &PropagationChain) -> Option<&str> {
                 && factor.id.starts_with("transport_receipt:")
         })
         .map(|factor| factor.id.as_str())
+}
+
+impl CompiledProgramHandle for ChainDecisionPlan {
+    fn program(&self) -> &Arc<LoweredProgram> {
+        &self.lowered
+    }
 }
 
 impl ChainDecisionPlan {
@@ -503,6 +516,11 @@ impl ChainDecisionPlan {
                 "transport receipt and law are declared inputs; source transport fitting is not replayed by this decision".into(),
             );
         }
+        let mut methods = self.result_method_provenance(self.input_methods.as_ref());
+        if self.input_methods.is_none() {
+            methods.note_unlinked_source("declared_chain_inputs");
+        }
+        decision.set_method_provenance(methods);
         Ok(ChainDecisionResult {
             chain,
             decision,
@@ -546,6 +564,7 @@ impl ChainDecisionPlan {
                 result.chain.identity(),
             )?,
             lowered_program_identity: *self.lowered.identity().as_bytes(),
+            method_provenance: result.decision.method_provenance().cloned(),
         };
         let bytes = antecedent_io::to_cbor(&wire)?;
         if bytes.len() > MAX_CHAIN_DECISION_ARTIFACT_BYTES {
@@ -606,7 +625,7 @@ pub fn consume_chain_decision(
             "chain decision program identity differs from the independently retained identity",
         ));
     }
-    let result = plan.execute(ctx)?;
+    let mut result = plan.execute(ctx)?;
     if result.chain.identity() != wire.chain_identity
         || decision_result_fingerprint(&result.decision, result.chain.identity())?
             != wire.decision_fingerprint
@@ -614,6 +633,11 @@ pub fn consume_chain_decision(
         return Err(ChainDecisionError::Coordinate(
             "chain decision replay differs from the stored result",
         ));
+    }
+    if let Some(methods) = wire.method_provenance
+        && methods.format == METHOD_PROVENANCE_FORMAT
+    {
+        result.decision.set_method_provenance(methods);
     }
     Ok(result)
 }

@@ -26,6 +26,7 @@ use super::{
     unsupported_query,
 };
 use crate::analysis::lowering::CompileGoal;
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::analysis::preference_decision::{
     ClassMember, ClassSampling, decide_across_structures_with_context,
     decide_on_sampled_structures, structure_claims,
@@ -272,6 +273,7 @@ impl CompiledPreferenceDecision {
         let Some(contract) = self.contract.tradeoff() else {
             return Err(ordinary_structures_not_compiled());
         };
+        let mut method_provenance = self.parent.result_method_provenance([]);
         let mut atoms = Vec::with_capacity(structures.len());
         let mut programs = Vec::with_capacity(structures.len());
         let mut executed = Vec::with_capacity(structures.len());
@@ -298,6 +300,7 @@ impl CompiledPreferenceDecision {
                     ctx,
                 )?;
                 if let Some(response) = retained_response(result) {
+                    method_provenance.inherit([&result.method_provenance()]);
                     identified += weight;
                     atoms.push(structural_atom(graph_key, weight, Some(response)));
                 } else {
@@ -310,6 +313,7 @@ impl CompiledPreferenceDecision {
                     Ok(result) => {
                         let ran = executed_identity(structure.plan.as_ref(), &result)?;
                         if let Some(response) = retained_response(&result) {
+                            method_provenance.inherit([&result.method_provenance()]);
                             identified += weight;
                             atoms.push(structural_atom(graph_key, weight, Some(response)));
                         } else {
@@ -365,6 +369,7 @@ impl CompiledPreferenceDecision {
                 ctx,
             )?;
             return Ok(PreferenceDecisionExecution {
+                method_provenance,
                 evaluation: CompiledPreferenceEvaluation::Sampled(Box::new(evaluation)),
                 source: None,
                 inputs: Vec::new(),
@@ -383,6 +388,7 @@ impl CompiledPreferenceDecision {
         let evaluation =
             decide_across_structures_with_context(contract, &claims, measure, options, ctx)?;
         Ok(PreferenceDecisionExecution {
+            method_provenance,
             evaluation: CompiledPreferenceEvaluation::Structures(evaluation),
             source: None,
             inputs: Vec::new(),

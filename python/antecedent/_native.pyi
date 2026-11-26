@@ -445,6 +445,7 @@ class AteAnalysisResult:
     would_refuse: list[tuple[str, str, list[str]]]
 
 class ResponseAnalysisResult:
+    method_provenance_json: str | None
     def refutation_reports(
         self,
     ) -> list[tuple[str, bool, bool, float, float, str | None]]: ...
@@ -1188,6 +1189,7 @@ class PerformanceSection:
     temporal execution path currently records them, so they read `None`/empty on
     the temporal DTO."""
 
+    method_provenance_json: str
     native_execution: ExecutionFacts | None
     plan_id: str
     modality: str
@@ -8006,6 +8008,8 @@ def evaluate_decision_means(
     provider_id: str,
     snapshot_id: str,
     causal_contract_id: str,
+    original_effect: tuple[AteAnalysisResult, float, str, str] | None = None,
+    original_response: NativeResponseClaim | None = None,
 ) -> tuple[str | None, str | None]: ...
 def composition_lineage(links_json: str) -> str: ...
 
@@ -8523,6 +8527,8 @@ def planning_unit_support_py(request_json: str) -> str: ...
 
 class _ArrayFit:
     def metadata_json(self) -> str: ...
+    @property
+    def method_provenance_json(self) -> str | None: ...
     def value(self, name: str) -> float | None: ...
     def values_page(self, *, offset: int = 0, limit: int = 64) -> list[tuple[str, float]]: ...
     def assumptions_page(self, *, offset: int = 0, limit: int = 64) -> list[str]: ...

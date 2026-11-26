@@ -67,7 +67,6 @@ use std::sync::Arc;
 use antecedent_contract::{ExternalRefusal, ScientificQuantity};
 use antecedent_core::reason_details::{native_claims, preference_compile};
 use antecedent_core::{CanonicalWriter, ExecutionContext, ResponseIdentification, SemanticDigest};
-use antecedent_io::{execution_digest, execution_identity_from_context};
 use antecedent_design::decision_contract::{
     DecisionContract, HardConstraint, SourceRepresentation, SourceRequirement, StructuralPolicy,
 };
@@ -80,6 +79,8 @@ use antecedent_design::preference_evaluation::{
     PreferenceEvaluation, PreferenceEvaluationOptions, PreferenceRoute, RouteChoice,
     StructuralPreferenceEvaluation, preference_route,
 };
+use antecedent_io::method_provenance::MethodProvenanceWire;
+use antecedent_io::{execution_digest, execution_identity_from_context};
 
 pub use bind::BoundPreferenceContract;
 pub use design::DesignBootstrap;
@@ -107,6 +108,7 @@ use crate::analysis::native_claims::{
     NativeDecisionInput, NativeDecisionSource, NativeResponseClaim, NativeResponseContext,
 };
 use crate::analysis::preference_decision::decide_with_context;
+use crate::analysis::program_handle::CompiledProgramHandle;
 use crate::analysis::supplied_identity::Declaration;
 use crate::planner::PlanView;
 use crate::planner::lowered::{
@@ -1191,6 +1193,8 @@ pub struct PreferenceDecisionReceipt {
 /// An executed compiled decision.
 #[derive(Clone, Debug)]
 pub struct PreferenceDecisionExecution {
+    /// Method records for the decision and the evidence it read.
+    pub method_provenance: MethodProvenanceWire,
     /// The verdict.
     pub evaluation: CompiledPreferenceEvaluation,
     /// The aligned source the decision read; `None` across structures, whose sources are the
@@ -1424,7 +1428,9 @@ impl CompiledPreferenceDecision {
                     design.execute(self.demand.representation, ctx)?;
                 let mut evaluation = self.decide_source(&source, measure, options, ctx)?;
                 design.state_premise(&mut evaluation);
+                let methods = design.plan_view().method_provenance();
                 Ok(PreferenceDecisionExecution {
+                    method_provenance: self.parent.result_method_provenance([&methods]),
                     evaluation,
                     source: Some(source),
                     inputs: Vec::new(),
@@ -1435,6 +1441,9 @@ impl CompiledPreferenceDecision {
             }
         }?;
         execution.would_refuse = ctx.would_refuse();
+        if let CompiledPreferenceEvaluation::Ordinary(result) = &mut execution.evaluation {
+            result.set_method_provenance(execution.method_provenance.clone());
+        }
         Ok(execution)
     }
 
@@ -1498,6 +1507,9 @@ impl CompiledPreferenceDecision {
             }
         }?;
         execution.would_refuse = ctx.would_refuse();
+        if let CompiledPreferenceEvaluation::Ordinary(result) = &mut execution.evaluation {
+            result.set_method_provenance(execution.method_provenance.clone());
+        }
         Ok(execution)
     }
 
@@ -1511,6 +1523,7 @@ impl CompiledPreferenceDecision {
     ) -> Result<PreferenceDecisionExecution, PreferenceRouteError> {
         let requirement = means_requirement(self.demand.representation);
         let mut inputs = Vec::with_capacity(structures.len());
+        let mut method_provenance = self.parent.result_method_provenance([]);
         let mut programs = Vec::with_capacity(structures.len() + 1);
         let mut executed = Vec::with_capacity(structures.len() + 1);
         for structure in structures {
@@ -1528,6 +1541,7 @@ impl CompiledPreferenceDecision {
             let claim =
                 NativeResponseClaim::from_response(&response, &study.schema, &study.context(ctx))?;
             inputs.push(claim.decision_source(&requirement)?);
+            method_provenance.inherit([&result.method_provenance()]);
         }
         let source = if let [input] = inputs.as_slice() {
             input.source.clone()
@@ -1542,6 +1556,7 @@ impl CompiledPreferenceDecision {
         };
         let evaluation = self.decide_source(&source, measure, options, ctx)?;
         Ok(PreferenceDecisionExecution {
+            method_provenance,
             evaluation,
             source: Some(source),
             inputs,
@@ -1565,6 +1580,7 @@ impl CompiledPreferenceDecision {
         }
         let requirement = means_requirement(self.demand.representation);
         let mut inputs = Vec::with_capacity(structures.len());
+        let mut method_provenance = self.parent.result_method_provenance([]);
         let mut programs = Vec::with_capacity(structures.len() + 1);
         let mut executed = Vec::with_capacity(structures.len() + 1);
         for (structure, result) in structures.iter().zip(supplied) {
@@ -1588,6 +1604,7 @@ impl CompiledPreferenceDecision {
             let claim =
                 NativeResponseClaim::from_response(&response, &study.schema, &study.context(ctx))?;
             inputs.push(claim.decision_source(&requirement)?);
+            method_provenance.inherit([&result.method_provenance()]);
         }
         let source = if let [input] = inputs.as_slice() {
             input.source.clone()
@@ -1602,6 +1619,7 @@ impl CompiledPreferenceDecision {
         };
         let evaluation = self.decide_source(&source, measure, options, ctx)?;
         Ok(PreferenceDecisionExecution {
+            method_provenance,
             evaluation,
             source: Some(source),
             inputs,

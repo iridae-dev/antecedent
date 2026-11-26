@@ -16,6 +16,40 @@
 
 schema = 1
 
+# Where the unit name has no direct method record, reuse a relevant retained record
+# or disclose a gap. The method provenance generator checks all compiled units.
+[[method_provenance]]
+unit = "choice_inference.interval_candidates"
+records = ["choice_inference.contract"]
+
+[[method_provenance]]
+unit = "identify.mixed_source_proof_search"
+unavailable = "The proof-search capability cites do-search in its support record, but there is no retained method record for the bounded search and independent checker."
+
+[[method_provenance]]
+unit = "joint_response.interval_readings"
+records = ["response.joint_panel"]
+
+[[method_provenance]]
+unit = "recovery.binary_observation"
+unavailable = "The binary recovery identification and witness have no retained method record. The Bayesian and response-chain records describe other operations."
+
+[[method_provenance]]
+unit = "sensitivity.joint_mechanism"
+unavailable = "The exact range has an in-repo derivation and no retained method record. The joint uncertainty record describes the separate sampling construction."
+
+[[method_provenance]]
+unit = "transport.admg_conditional"
+unavailable = "The conditional reduction and exact witness search have no retained method record. The Bayesian record describes updating the supplied laws."
+
+[[method_provenance]]
+unit = "transport.finite_scenario_envelope"
+unavailable = "The envelope dispatches conditional or unconditional transport by scenario. There is no retained method record covering that dispatch."
+
+[[method_provenance]]
+unit = "transport.multi_source_limited_experiment"
+unavailable = "The mz identification capability documents the paper and implementation deviations, but those are not retained as a method record."
+
 # direct_status: the support verdict a direct (uncompiled) Python result reports. A direct result
 # runs no support decision, so its verdict is a fixed label; this table owns every such label and
 # generates python/antecedent/_direct_status.py, so no Python module carries a verdict literal.

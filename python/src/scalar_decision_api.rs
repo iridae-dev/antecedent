@@ -4,7 +4,8 @@
 
 use antecedent::StudyResult;
 use antecedent::analysis::decision_result::{
-    DecisionProjectionError, NativeEffectAuthority as EffectAuthority, project_static_effect,
+    DecisionProjectionError, NativeEffectAuthority as EffectAuthority, StaticEffectSource,
+    project_static_effect,
 };
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
@@ -23,6 +24,24 @@ impl NativeEffectAuthority {
     }
 }
 
+impl crate::AteAnalysisResult {
+    pub(crate) fn project_effect(
+        &self,
+        units: &str,
+        population: &str,
+        supplied_value: f64,
+    ) -> Result<StaticEffectSource, DecisionProjectionError> {
+        let authority = self.effect_authority.as_ref();
+        project_static_effect(
+            authority.map(|authority| &authority.inner),
+            units,
+            population,
+            supplied_value,
+            |id| authority?.names.get(id.raw() as usize).cloned(),
+        )
+    }
+}
+
 #[pymethods]
 impl crate::AteAnalysisResult {
     /// Read a checked original static ATE as an affine mean input. Declared units
@@ -34,17 +53,13 @@ impl crate::AteAnalysisResult {
         supplied_value: f64,
     ) -> PyResult<(Option<String>, Option<String>)> {
         crate::catch_ffi(|| {
-            let authority = self.effect_authority.as_ref();
-            let projected = match project_static_effect(
-                authority.map(|authority| &authority.inner),
-                units,
-                population,
-                supplied_value,
-                |id| authority?.names.get(id.raw() as usize).cloned(),
-            ) {
+            let projected = match self.project_effect(units, population, supplied_value) {
                 Ok(projected) => projected,
                 Err(DecisionProjectionError::Declaration(message)) => {
                     return Err(crate::value_err(message));
+                }
+                Err(DecisionProjectionError::Compiler(error)) => {
+                    return Err(crate::py_err(error));
                 }
                 Err(DecisionProjectionError::Refusal(refusal)) => {
                     return Ok((None, Some(external_refusal_json(&refusal))));

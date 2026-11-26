@@ -41,6 +41,7 @@ IDS = ROOT / "crates/antecedent/src/strategy_table/ids.rs"
 SPECS = ROOT / "parity/method_specs/specs.toml"
 CAPABILITIES = ROOT / "parity/capability_records.toml"
 CITATIONS = ROOT / "provenance/citation_metadata.json"
+COMPILED_UNITS = ROOT / "parity/compiled_units.toml"
 
 ROW = re.compile(r"\b(IdentifierData|EstimatorData)\s*\{(?P<body>[^{}]*)\}", re.S)
 NAME = re.compile(r'\bname:\s*"([^"]+)"')
@@ -162,6 +163,30 @@ def dedupe(items: list[str]) -> list[str]:
     return seen
 
 
+def compiled_unit_links(stems: set[str], capability: dict[str, list[str]]) -> list[str]:
+    """Check that every standalone compiled unit has an explicit provenance disposition."""
+    units = load(COMPILED_UNITS)
+    compiled = {route["unit"] for route in units["route"]}
+    gaps: set[str] = set()
+    for entry in units.get("method_provenance", []):
+        unit = entry["unit"]
+        if unit not in compiled or unit in capability or unit in gaps:
+            raise ValueError(f"stale or duplicate compiled method provenance entry for {unit}")
+        records = entry.get("records", [])
+        reason = entry.get("unavailable", "").strip()
+        if bool(records) == bool(reason):
+            raise ValueError(f"{unit}: declare records or state why provenance is unavailable")
+        if missing := set(records) - stems:
+            raise ValueError(f"{unit}: unknown provenance records {sorted(missing)}")
+        if records:
+            capability[unit] = dedupe(records)
+        else:
+            gaps.add(unit)
+    if missing := compiled - capability.keys() - gaps:
+        raise ValueError(f"compiled units without a method provenance disposition: {sorted(missing)}")
+    return sorted(gaps)
+
+
 def build() -> dict:
     files = sorted(p for p in (ROOT / "provenance").glob("*.toml") if p.name != "_template.toml")
     records = {p.stem: load(p) for p in files}
@@ -191,6 +216,7 @@ def build() -> dict:
         if linked:
             table["capability"][capability] = dedupe(linked)
 
+    unlinked["capability"] = compiled_unit_links(stems, table["capability"])
     cited = {stem for keyed in table.values() for linked in keyed.values() for stem in linked}
     # A wrapper's numerics live in its covered_by records; cite those too.
     pending = sorted(cited)
