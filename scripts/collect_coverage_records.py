@@ -326,8 +326,35 @@ def study_record_lines(text: str) -> list[dict]:
     return records
 
 
+def calibration_log_group(log: Path) -> str:
+    stem = log.name.removesuffix(".log").removesuffix(".recheck").removesuffix(".confirm")
+    return re.sub(r"\.p[012]$", "", stem)
+
+
+def required_records_at(sha: str) -> dict[str, list[str]]:
+    """Read the required coverage outputs from the revision the gate ran."""
+    path = "parity/calibration_obligations.toml"
+    try:
+        # Distinguish commits before the obligations existed from an unreadable
+        # revision. A failed git read cannot waive a registered requirement.
+        if not subprocess.check_output(["git", "ls-tree", sha, "--", path], cwd=ROOT):
+            return {}
+        obligations = tomllib.loads(calibration_family.read_source(ROOT, path, sha).decode())
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        raise SystemExit(f"cannot read calibration obligations at {sha}: {error}") from error
+    return {
+        label.translate(str.maketrans(" /:", "___")): records
+        for label, records in obligations.get("required_records", {}).items()
+    }
+
+
 def record_lines(
-    logs: list[Path], smoke: bool = False, sha: str | None = None, confirmation: bool = False
+    logs: list[Path],
+    smoke: bool = False,
+    sha: str | None = None,
+    confirmation: bool = False,
+    *,
+    required_records: dict[str, list[str]] | None = None,
 ) -> dict[str, dict[int, dict]]:
     """`calibration-record` payloads by record id and grid point.
 
@@ -338,8 +365,13 @@ def record_lines(
     tests names them (`rechecked_tests`), and replaces only their records; the
     first run's lines of every other test stand."""
     by_name = {log.name: log for log in logs}
+    required_records = required_records or {}
+    missing: dict[str, dict[str, set[int]]] = {}
     out: dict[str, dict[int, dict]] = {}
     for log in sorted(logs):
+        group = calibration_log_group(log)
+        if group in required_records and group not in missing:
+            missing[group] = {rid: set(range(GRID_POINTS)) for rid in required_records[group]}
         recheck = log.name.endswith(".recheck.log")
         superseded: set[str] | None = None
         if not recheck:
@@ -395,6 +427,16 @@ def record_lines(
                     "two tallies emit the same id"
                 )
             out[rid][point] = payload
+            if rid in missing.get(group, {}):
+                missing[group][rid].discard(point)
+    incomplete = [
+        f"{group}: {rid} at grid point(s) {', '.join(map(str, sorted(points)))}"
+        for group, records in sorted(missing.items())
+        for rid, points in sorted(records.items())
+        if points
+    ]
+    if incomplete:
+        raise SystemExit("missing required calibration records:\n  " + "\n  ".join(incomplete))
     return out
 
 
@@ -738,14 +780,17 @@ def is_confirmation_log(log: Path) -> bool:
 
 
 def merged_records(
-    logs: list[Path], smoke: bool = False, sha: str | None = None
+    logs: list[Path],
+    smoke: bool = False,
+    sha: str | None = None,
+    *,
+    required_records: dict[str, list[str]] | None = None,
 ) -> dict[str, dict]:
     """Every record the logs measured, merged over its grid points, with the
     independent confirmation of each boundary record that has one."""
     measured = [log for log in logs if not is_confirmation_log(log)]
-    records = {
-        rid: merge_grid(rid, points, smoke=smoke) for rid, points in record_lines(measured, smoke, sha).items()
-    }
+    points_by_record = record_lines(measured, smoke, sha, required_records=required_records)
+    records = {rid: merge_grid(rid, points, smoke=smoke) for rid, points in points_by_record.items()}
     confirmations = record_lines(
         [log for log in logs if is_confirmation_log(log)], smoke, sha, confirmation=True
     )
@@ -961,11 +1006,10 @@ def completed_owed_logs(log_dir: Path, sha: str, offset: int) -> list[Path]:
 
 def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
     """Harvest only complete passing groups; never recover selected grid points."""
+    required_records = required_records_at(sha)
     by_group: dict[str, list[Path]] = {}
     for log in logs:
-        stem = log.name.removesuffix(".log").removesuffix(".recheck").removesuffix(".confirm")
-        name = re.sub(r"\.p[012]$", "", stem)
-        by_group.setdefault(name, []).append(log)
+        by_group.setdefault(calibration_log_group(log), []).append(log)
     accepted = []
     for group, members in sorted(by_group.items()):
         reasons = []
@@ -978,7 +1022,7 @@ def passing_group_logs(logs: list[Path], sha: str) -> list[Path]:
             reasons.append("no first-pass log")
         try:
             check_logs(members, sha)
-            merged_records(members, sha=sha)
+            merged_records(members, sha=sha, required_records=required_records)
         except (SystemExit, ValueError, KeyError) as error:
             reasons.append(str(error))
         if reasons:
@@ -1051,7 +1095,12 @@ def load_records(
             coverage_decision_logs.audit_logs(logs, sha)
         except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
             raise SystemExit(f"invalid frozen-family decision log: {error}") from error
-    records = merged_records(logs, smoke, None if smoke or not verify_logs else sha)
+    records = merged_records(
+        logs,
+        smoke,
+        None if smoke or not verify_logs else sha,
+        required_records=None if smoke else required_records_at(sha),
+    )
     # A pass/fail-only re-run (the record-less groups) measures no record but still
     # refreshes the group ledger; --keep-not_measured keeps every existing record.
     if not records and allow_gate_only and gate_ledger(logs, sha):

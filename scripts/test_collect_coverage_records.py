@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -92,10 +93,13 @@ class PassingGroupHarvestTest(unittest.TestCase):
             wrong_sha = [log("wrong.log", measured="b" * 40)]
             unfinished = log("unfinished.log")
             unfinished.write_text("test t ... calibration-recheck t: extend\n" + unfinished.read_text(encoding="utf-8"), encoding="utf-8")
-            self.assertEqual(
-                collector.passing_group_logs(complete + failed + incomplete + wrong_sha + [unfinished], sha),
-                complete,
-            )
+            with patch.object(collector, "required_records_at", return_value={}):
+                self.assertEqual(
+                    collector.passing_group_logs(
+                        complete + failed + incomplete + wrong_sha + [unfinished], sha
+                    ),
+                    complete,
+                )
 
     def test_malformed_whole_file_records_skip_the_entire_group(self) -> None:
         sha = "a" * 40
@@ -108,10 +112,97 @@ class PassingGroupHarvestTest(unittest.TestCase):
                     encoding="utf-8",
                 )
                 logs.append(log)
-            with patch.object(
-                collector, "merged_records", side_effect=SystemExit("duplicate record id")
+            with (
+                patch.object(collector, "required_records_at", return_value={}),
+                patch.object(collector, "merged_records", side_effect=SystemExit("duplicate record id")),
             ):
                 self.assertEqual(collector.passing_group_logs(logs, sha), [])
+
+
+class RequiredGroupRecordsTest(unittest.TestCase):
+    def test_both_collection_modes_require_every_sibling_at_the_measured_revision(self) -> None:
+        reported = "interval.v2_validation_none.value"
+        sibling = "interval.v2_validation_none.optimum_set"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+
+            def git(*args: str) -> str:
+                return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+            def commit(message: str) -> str:
+                git("add", ".")
+                git(
+                    "-c", "user.name=Calibration Test", "-c", "user.email=calibration@example.org",
+                    "-c", "commit.gpgsign=false", "commit", "-q", "-m", message,
+                )
+                return git("rev-parse", "HEAD")
+
+            git("init", "-q")
+            write_text(root / "README", "before the obligations ledger\n")
+            historical_sha = commit("historical calibration")
+            obligations = root / "parity" / "calibration_obligations.toml"
+            obligations.parent.mkdir()
+            write_text(
+                obligations,
+                f'[required_records]\n"test: both readings" = ["{reported}", "{sibling}"]\n',
+            )
+            measured_sha = commit("two required records")
+            write_text(obligations, f'[required_records]\n"test: both readings" = ["{reported}"]\n')
+            newer_sha = commit("one required record")
+            log_dir = root / "logs"
+            log_dir.mkdir()
+
+            def write_log(name: str, point: int, *ids: str) -> Path:
+                log = log_dir / name
+                lines = [
+                    "calibration-record " + json.dumps(_point(
+                        point, 0.9, "named_boundary", id=rid, measured_at=measured_sha, boundary=True,
+                    ))
+                    for rid in ids
+                ]
+                lines.extend([
+                    "test result: ok. 1 passed; 0 failed;",
+                    f"calibration-measured-at {measured_sha}",
+                    "calibration-decision-context {}",
+                ])
+                write_text(log, "\n".join(lines) + "\n")
+                return log
+
+            group = "test__both_readings"
+            with (
+                patch.object(collector, "ROOT", root),
+                patch.object(collector.coverage_decision_logs, "audit_logs", return_value={}),
+            ):
+                self.assertEqual(collector.required_records_at(historical_sha), {})
+                self.assertEqual(collector.required_records_at(newer_sha), {group: [reported]})
+                incomplete = [write_log(f"{group}.p{k}.log", k, reported) for k in range(3)]
+                diagnostic = write_log("diagnostic.log", 1)
+                message = r"missing required calibration records:[\s\S]+optimum_set at grid point\(s\) 0, 1, 2"
+                with self.assertRaisesRegex(SystemExit, message):
+                    collector.load_records(measured_sha, log_dir, allow_gate_only=True)
+                self.assertEqual(
+                    collector.passing_group_logs(incomplete + [diagnostic], measured_sha),
+                    [diagnostic],
+                )
+                self.assertEqual(
+                    collector.load_records(
+                        measured_sha, log_dir, allow_gate_only=True, selected_logs=[diagnostic],
+                    ),
+                    {},
+                )
+
+                # A different group's logs cannot supply the missing output.
+                for point in range(3):
+                    write_log(f"foreign.p{point}.log", point, sibling)
+                with self.assertRaisesRegex(SystemExit, message):
+                    collector.load_records(measured_sha, log_dir, allow_gate_only=True)
+
+                complete = [write_log(f"{group}.p{k}.log", k, reported, sibling) for k in range(3)]
+                logs = complete + [diagnostic]
+                self.assertEqual(collector.passing_group_logs(logs, measured_sha), sorted(logs))
+                bound = collector.load_records(measured_sha, log_dir, selected_logs=logs)
+                self.assertEqual(set(bound), {reported, sibling})
+                self.assertTrue(all(record["calibration_sha"] == measured_sha for record in bound.values()))
 
 
 class AppendAttestedRecordsTest(unittest.TestCase):
