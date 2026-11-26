@@ -712,7 +712,8 @@ def prepare(
       suite. Default ``None`` leaves the choice to the engine's defaults and the inference
       ``profile``.
     * ``validators`` -- custom validator callbacks, as a sequence or a mapping of name to
-      callable. Their names are retained (:attr:`PreparedAnalysis.validator_names`).
+      callable. Use :func:`antecedent.validation.validator` to declare names in a sequence.
+      The names are retained (:attr:`PreparedAnalysis.validator_names`).
     * ``provider`` -- the evidence provider of a transport query; any other query refuses it.
 
     Rows and populations:
@@ -1095,11 +1096,9 @@ def prepare(
     options = replay_declaration(declarations)
     if options["data_diagnostics"] is _AUTO_DATA_DIAGNOSTICS:
         options["data_diagnostics"] = True
-    if options["validators"] is not None and not isinstance(options["validators"], Mapping):
-        # Request collections are frozen on the public handle. The native
-        # callback boundary accepts a concrete list and retains each original
-        # callable, so only the small declaration container is materialized.
-        options["validators"] = list(options["validators"])
+    from .validation import _validator_declarations
+
+    options["validators"] = _validator_declarations(options["validators"])
     for name in (
         "on_refusal",
         "evidence_candidates",

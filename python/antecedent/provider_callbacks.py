@@ -68,6 +68,7 @@ from ._artifact_protocol import (
     artifact_from_receipt,
     container_bytes,
 )
+from ._callback_signature import check_signature
 from ._float_bits import float_bits as _bits
 from ._freeze import thaw
 from ._refusal import StructuredRefusal
@@ -116,6 +117,7 @@ __all__ = [
     "check_claim_to_callback",
     "consume_callback_result",
     "inspect_callback_result",
+    "provider",
     "refuse_identification_evidence",
     "refuse_interval",
     "refuse_joint_law",
@@ -808,6 +810,44 @@ class FunctionProvider:
     def state_identity(self) -> str | None:
         """The exposed state identity, when there is one."""
         return None if self.state is None else self.state()
+
+
+@dataclass(slots=True, kw_only=True)
+class _DeclaredFunctionProvider(FunctionProvider):
+    declaration: CallbackDeclaration
+
+
+def provider(
+    *,
+    identity: ProviderIdentity,
+    declaration: CallbackDeclaration,
+    state: Callable[[], str | None] | None = None,
+) -> Callable[
+    [Callable[[Query, CallbackContext], Output | Mapping[str, Any]]], _DeclaredFunctionProvider
+]:
+    """Declare a function provider alongside its callback protocol declaration.
+
+    Pass the returned provider and its `declaration` to :meth:`CallbackSession.execute`.
+    Declaration validation runs at decoration. The function runs under the session's existing
+    negotiation, execution and replay rules.
+    """
+    if not isinstance(identity, ProviderIdentity):
+        raise CausalTypeError("identity must be a ProviderIdentity")
+    if not isinstance(declaration, CallbackDeclaration):
+        raise CausalTypeError("declaration must be a CallbackDeclaration")
+    if identity != declaration.provider:
+        raise CausalValueError("identity must match the declaration's provider")
+    declaration.validate()
+    if state is not None:
+        check_signature(state, "provider state callback")
+
+    def decorate(
+        fn: Callable[[Query, CallbackContext], Output | Mapping[str, Any]],
+    ) -> _DeclaredFunctionProvider:
+        check_signature(fn, "provider callback", None, None)
+        return _DeclaredFunctionProvider(identity, fn, state, declaration=declaration)
+
+    return decorate
 
 
 # -- results -----------------------------------------------------------------------------------

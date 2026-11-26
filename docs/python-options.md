@@ -60,6 +60,25 @@ executing it. Intents include `compatible_data_replace`, `retarget`,
 with the same `refusal` and `refusal_code` as the operation itself. For example,
 retargeting without prepared scores returns `score_table_unavailable`.
 
+### Name a custom validator
+
+Use `@validator` to bind a stable name to a caller-defined validation check.
+
+```python
+from antecedent.validation import validator
+
+
+@validator(name="minimum_clinical_effect")
+def clinical_relevance(*, ate, se_analytic, **kwargs):
+    return {
+        "passed": ate >= 0.5,
+        "comparison": ate - 0.5,
+    }
+```
+
+Pass `validators=[clinical_relevance]` to `prepare` or `analyze`. The study reports
+the declared name in `study.validator_names` and attributes the check to the caller.
+
 ### Refusal codes
 
 A returned refusal carries its registered code as `outcome.refusal.code`; a raised

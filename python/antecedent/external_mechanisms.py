@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, TypedDict, Unpack
 
 from . import _deprecation, _native, _retained
+from ._callback_signature import check_signature
 from .errors import CausalValueError
 
 __all__ = [
@@ -47,6 +48,7 @@ __all__ = [
     "default_registry",
     "inspect_artifact",
     "load_artifact",
+    "mechanism",
     "register_mechanism",
 ]
 
@@ -267,6 +269,97 @@ def register_mechanism(
         derivative=derivative,
         input_lipschitz=input_lipschitz,
     )
+
+
+class _MechanismDefinition:
+    """Collect the derivatives before registering a mechanism implementation."""
+
+    def __init__(self, register: Callable[..., MechanismImplementation]) -> None:
+        self._register = register
+        self._gradients: dict[str, Callable[..., Any]] = {}
+        self._implementation: MechanismImplementation | None = None
+
+    def _set_gradient(self, name: str, fn: Callable[..., Any]) -> None:
+        if self._implementation is not None:
+            raise CausalValueError("derivatives must be declared before mechanism registration")
+        if name in self._gradients:
+            raise CausalValueError(f"{name} is already declared")
+        check_signature(fn, name, None, None)
+        self._gradients[name] = fn
+
+    def input_gradient(
+        self, fn: Callable[[list[float], list[float]], Sequence[float]]
+    ) -> Callable[[list[float], list[float]], Sequence[float]]:
+        """Declare the derivative with respect to each input."""
+        self._set_gradient("input_gradient", fn)
+        return fn
+
+    def parameter_gradient(
+        self, fn: Callable[[list[float], list[float]], Sequence[float]]
+    ) -> Callable[[list[float], list[float]], Sequence[float]]:
+        """Declare the derivative with respect to each fitted parameter."""
+        self._set_gradient("parameter_gradient", fn)
+        return fn
+
+    def mixed_gradient(
+        self, fn: Callable[[list[float], list[float]], Sequence[Sequence[float]]]
+    ) -> Callable[[list[float], list[float]], Sequence[Sequence[float]]]:
+        """Declare the mixed derivatives in parameter-by-input order."""
+        self._set_gradient("mixed_gradient", fn)
+        return fn
+
+    def register(self) -> MechanismImplementation:
+        """Register the full declaration and return the implementation for an equation."""
+        if self._implementation is None:
+            self._implementation = self._register(**self._gradients)
+        return self._implementation
+
+
+def mechanism(
+    implementation_id: str,
+    *,
+    version: str,
+    reads: Sequence[int],
+    parameters: Sequence[str] = (),
+    registry: MechanismRegistry | None = None,
+    content: bytes | str | None = None,
+    dependencies: Sequence[Dependency] = (),
+    derivative: Literal["analytic"] | FiniteDifference | None = None,
+    input_lipschitz: Sequence[float] | None = None,
+) -> Callable[[Callable[[list[float], list[float]], float]], _MechanismDefinition]:
+    """Declare a mechanism and collect its optional derivative decorators.
+
+    Call `register()` on the decorated definition after declaring its derivatives. Registration
+    uses :func:`register_mechanism` and fixes the implementation identity. By default its content
+    includes the source of the value and every derivative. Explicit `content` must identify all
+    those callables together.
+    """
+    declared_reads = tuple(reads)
+    declared_parameters = tuple(parameters)
+    declared_dependencies = tuple(dependencies)
+    bounds = None if input_lipschitz is None else tuple(input_lipschitz)
+
+    def decorate(fn: Callable[[list[float], list[float]], float]) -> _MechanismDefinition:
+        check_signature(fn, "mechanism value", None, None)
+
+        def register(**gradients: Any) -> MechanismImplementation:
+            return register_mechanism(
+                implementation_id,
+                version,
+                fn,
+                declared_reads,
+                declared_parameters,
+                registry=registry,
+                content=content,
+                dependencies=declared_dependencies,
+                derivative=derivative,
+                input_lipschitz=bounds,
+                **gradients,
+            )
+
+        return _MechanismDefinition(register)
+
+    return decorate
 
 
 def _resolver(resolver: Any) -> Resolver | None:
