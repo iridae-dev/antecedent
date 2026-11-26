@@ -16,6 +16,7 @@ papers = [
 ]
 
 implementation_deviations = [
+  "The interface schema and both identity writers use identified_set as operation tag 11. The operation describes compatible causal values and does not require a sampling, posterior or predictive uncertainty declaration.",
   "The clean-room consumer decodes only the CBOR subset the formats use (definite and indefinite lengths, integers, text, arrays, maps with text keys, booleans, null and floats); it is not a general CBOR implementation.",
   "The clean-room consumer checks the evidence ledger by its artifact identity and structure and recomputes the fixed-effect inverse-variance syntheses; it does not replay the ledger's chained operation identities and says so.",
 ]
@@ -41,10 +42,10 @@ scope = "The canonical identity stream (CanonicalWriter in crates/antecedent-cor
 assumptions = ["The product takes BLAKE3 from the published blake3 crate; the clean-room consumer re-implements the reference algorithm and is itself checked against vectors in spec/conformance/blake3_vectors.json before any identity is trusted, so agreement is between two implementations of one published function, not a proof of the function.", "The specification text, not the product, is the normative statement; the consumer was written from that text, but its author is the same project, so independence is of code and not of authorship."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the canonical writer and the artifact metadata code named in its scope and executed the repository's second consumer against the fixtures the Rust implementation generates; no upstream implementation or test source was consulted or copied. RFC 8949 and the BLAKE3 specification were not retrieved in this review: the CBOR subset and the BLAKE3 algorithm are checked by the consumer against the fixtures and the vectors recorded in the repository, not against the documents."
 redistribution = "RFC 8949 is cited, not redistributed. The specification, the consumer, the fixtures and the BLAKE3 vector file are repository-authored (MIT OR Apache-2.0) and the consumer uses only the Python standard library; the vector file records inputs and outputs of the published algorithm."
-limitations = "Agreement is demonstrated on the committed fixtures only: a handful of accepted contracts, one pooled evidence ledger and one composition bundle, plus mutated copies of every accepted fixture that the consumer must reject. The BLAKE3 vector file holds 22 inputs of 0 to 31,744 bytes (block, chunk and tree boundaries at 63 to 65, 127 to 129, 1,023 to 1,025 and 2,048 to 3,073 bytes); inputs beyond that, the keyed and derive-key modes and extendable output are not exercised, and the identities use the default mode only. No fuzzing of the container, no property test over random contracts, and no check of non-ASCII or very long texts beyond what the fixtures contain. The consumer does not replay the evidence ledger's chained operation identities (it says so), and does not implement Zstandard, so compressed sections are refused rather than read. The Rust side of the check is a test in the antecedent crate; this review does not claim the specification is complete for formats other than the three it names."
+limitations = "Agreement is demonstrated on the committed fixtures only: a handful of accepted contracts, one pooled evidence ledger and one composition bundle, plus mutated copies of every accepted fixture that the consumer must reject. The BLAKE3 vector file holds 22 inputs of 0 to 31,744 bytes (block, chunk and tree boundaries at 63 to 65, 127 to 129, 1,023 to 1,025 and 2,048 to 3,073 bytes); inputs beyond that, the keyed and derive-key modes and extendable output are not exercised, and the identities use the default mode only. No fuzzing of the container, no property test over random contracts, and no check of non-ASCII or very long texts beyond what the fixtures contain. The consumer does not replay the evidence ledger's chained operation identities (it says so), and does not implement Zstandard, so compressed sections are refused rather than read. The Rust side of the check is a test in the antecedent crate; this review does not claim the specification is complete for formats other than the three it names. The identified-set addition is checked here at the operation vocabulary, canonical word and uncertainty classification. The committed binary fixtures do not exercise an identified-set port."
 sources = ["https://doi.org/10.17487/RFC8949"]
 findings_resolved = ["No defect found: the committed fixtures regenerate bit for bit from real contracts, ledgers and bundles, the consumer accepts every accepted fixture and rejects every mutated copy with the expected class, and its vocabulary tables equal the implementation's.", "Scoped re-review of interface-contract refusal projection confirms the shared helper preserves code and detail and selects the original remedy or interface-specific fallback; no identity, metadata layout or reference fixture changed.", "New composition node labels match the native stage mapping for retained survival, longitudinal, PAG, RPCMCI, schedule, ledger and bridge records. The clean-room reader checks the envelope stage and computed chain digest; it does not execute those scientific operations."]
-record_sha256 = "193b215c0250a58c6f1e9eb07ecd0823854f8f17c6e50f1062b8cf509184ee90"
+record_sha256 = "92e94e04eaf122737fe749527c802ec5b7bbc3392e648f82955451aa4b6632a4"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -77,9 +78,20 @@ items = ["const CB_KIND", "const CB_SECTION", "const EL_KIND", "const EL_SECTION
 sha256 = "7fb9a28827a9a26239e7c2bb7460b199ee9cb33bebd8a1f9fd9d9ec45a5484da"
 
 [[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-contract/src/interface_contract/declaration.rs"
+items = ["enum ContractOperation", "fn carries_uncertainty", "fn tag"]
+sha256 = "bb976c291b25e8ba8cb01eef31c169565195cfd9b49b1e11d26b8a83a10a28e3"
+
+[[method_review.artifacts]]
+role = "reference"
+path = "spec/interface-contract.schema.json"
+sha256 = "34210cb0ce185737a0bae8f21ba2fa5c9632fa371b7699668c785e7209ba1db4"
+
+[[method_review.artifacts]]
 role = "reference"
 path = "spec/consumer/validate.py"
-sha256 = "e1ecfcabca3c0fae9e9e82b34812269b892a0feef8bc6417a86699e1916f3fbf"
+sha256 = "7e52a15bfa16604e1d390e2b99fd15460e18c61d603d284bd3531c8c542adff6"
 
 [[method_review.artifacts]]
 role = "fixture"

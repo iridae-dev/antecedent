@@ -14,6 +14,7 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
+  "The facade exports the compiled compact-model refit handle. Its compiler binds the learner, original ordered training snapshot and compact identity. Execution delegates to the controlled OLS/HC3 replay and checks that it reproduces the retained model.",
   "Claim policy: point-only. The acceptance composes supported routes and checks their hand-derived values and refusals; it adds no source, no estimator and no interval or coverage claim. Every standard error, p-value, interval and Monte Carlo error inside a composed artifact is a diagnostic with calibration not_measured.",
   "The Python native input is obtained through an actual checked fit and opaque producer-issued claim. The direct composition adapter uses the retained execution record; reconstructed metadata and manually copied means cannot issue native authority.",
   "A native response retains no draws, so only an external aligned joint law answers a probability or quantile; a mean never stands in for the law.",
@@ -35,14 +36,14 @@ status = "justified_non_algorithm"
 kind = "wrapper"
 rationale = "The original acceptance example composes a native response, two external studies, a joint law and a design ranking. The same facade now delegates new typed source roles to the verified readers. For a sampling bridge terminal, it checks that exactly one embedded parent distribution is the supplied source, and binds its identity, the sampling meaning and the mapped terminal to the recomputation program."
 no_independent_algorithm = "The facade declares the program and resampling meaning, checks the terminal and source relationships, quotes bounded workspace and delegates derivation to the scientific bridge and each scientific operation to its own compiled route. A predictive source must have a predictive semantic kind. An empirical outcome table does not substitute for it. The portable consumer checks the retained bundle, program and terminal rather than relying on the artifact to choose its own target."
-covered_by = ["composition.bundle", "composition.native_response_claims", "composition.source_evidence", "composition.verifiers", "estimate.transport.trial_bayesian_bootstrap", "transport.joint_bayesian", "cyclic.general_systems", "graph_imputation.compiled_candidate", "decision.functionals", "scientific_bridge.distribution_bridges"]
-record_sha256 = "e0e3b3489f34977fd69607ecf6a83a92a22964985ecf29c85ed49287dddee313"
+covered_by = ["composition.bundle", "composition.native_response_claims", "composition.source_evidence", "composition.verifiers", "cohort_decision.interval", "estimate.transport.trial_bayesian_bootstrap", "transport.joint_bayesian", "cyclic.general_systems", "graph_imputation.compiled_candidate", "decision.functionals", "scientific_bridge.distribution_bridges"]
+record_sha256 = "b2f7fdd1bb95d7e580d189ab698856d184d58fec0f0de3baa7fcbffacb261791"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/composition.rs"
 items = ["module"]
-sha256 = "2f70828e7e6d76be2ac2d2b22e3ea700bfa6e52cc90cd0c6b8e3ac81bc40b35b"
+sha256 = "07d1107d0d86cb8fe5903b7d192ed28358efc57bb4b9168e8fbcb829b163aed8"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
