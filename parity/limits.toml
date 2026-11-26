@@ -1698,3 +1698,19 @@ implementation = [{ path = "crates/antecedent/src/analysis/latent_soft_intervent
 guard = { path = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs", pattern = 'SearchLimits \{ operations: request\.search_operations as usize, depth: 2 \}' }
 refusal = { path = "crates/antecedent/src/analysis/latent_soft_intervention/fit.rs", pattern = 'SearchLimits \{ operations: request\.search_operations as usize, depth: 2 \},[\s\S]{0,1800}?\.map_err\s*\(' }
 scope_fixture = { path = "crates/antecedent-core/src/search.rs", pattern = '\boperations_and_depth_limits_stop_with_measured_receipts\b' }
+
+[[bound]]
+record = "discovery.learned_rpcmci_replay"
+key = "max_cells"
+implementation = [{ path = "crates/antecedent/src/analysis/rpcmci_portable.rs", constant = "MAX_CELLS" }]
+guard = { path = "crates/antecedent/src/analysis/rpcmci_portable.rs", pattern = 'rows\.saturating_mul\(width\) > MAX_CELLS' }
+refusal = { path = "crates/antecedent/src/analysis/rpcmci_portable.rs", pattern = 'return Err\(RpcmciReplayError::Invalid\(\s*"supply a bounded complete regularly spaced series' }
+scope_fixture = { path = "crates/antecedent/tests/discovery_admission.rs", pattern = 'fn learned_rpcmci_checks_cells_and_artifact_bytes_before_resource_admission\(' }
+
+[[bound]]
+record = "discovery.learned_rpcmci_replay"
+key = "max_bytes"
+implementation = [{ path = "crates/antecedent/src/analysis/rpcmci_portable.rs", constant = "MAX_BYTES" }]
+guard = { path = "crates/antecedent/src/analysis/rpcmci_portable.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES' }
+refusal = { path = "crates/antecedent/src/analysis/rpcmci_portable.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES \{\s*return Err\(IoError::TooLarge\.into\(\)\)' }
+scope_fixture = { path = "crates/antecedent/tests/discovery_admission.rs", pattern = 'fn learned_rpcmci_checks_cells_and_artifact_bytes_before_resource_admission\(' }

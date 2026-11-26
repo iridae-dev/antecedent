@@ -142,3 +142,43 @@ fn a_finished_discovery_admits_as_accept_discovered() {
         assert_eq!(execution.lowered_identity(), identity);
     });
 }
+
+#[test]
+fn learned_rpcmci_checks_cells_and_artifact_bytes_before_resource_admission() {
+    use antecedent::analysis::rpcmci_portable::{
+        LearnedRpcmciRequest, RpcmciReplayError, consume_learned_rpcmci,
+    };
+    use antecedent_core::execution::AdmissionPool;
+    use antecedent_io::IoError;
+
+    let limited = ctx().with_admission(AdmissionPool::fixed(1, 1024));
+    let mut request = LearnedRpcmciRequest {
+        names: vec!["signal".into()],
+        columns: vec![vec![0.0; 1_000_000]],
+        interval_ns: 1,
+        count: 2,
+        select_count: false,
+        starts: 1,
+        max_iterations: 2,
+        switch_penalty: 1.0,
+        min_regime_len: Some(20),
+        max_lag: 1,
+        alpha: 0.05,
+        fdr: false,
+        max_cond_size: 1,
+    };
+    // At the declared maximum the request reaches the caller's smaller allocation budget.
+    assert!(matches!(request.clone().run(&limited), Err(RpcmciReplayError::Resource(_))));
+    request.columns[0].push(0.0);
+    assert!(matches!(request.run(&limited), Err(RpcmciReplayError::Invalid(_))));
+
+    let bytes = vec![0; (16 << 20) + 1];
+    assert!(matches!(
+        consume_learned_rpcmci(&bytes[..bytes.len() - 1], "retained", &limited),
+        Err(RpcmciReplayError::Resource(_))
+    ));
+    assert!(matches!(
+        consume_learned_rpcmci(&bytes, "retained", &limited),
+        Err(RpcmciReplayError::Io(IoError::TooLarge))
+    ));
+}
