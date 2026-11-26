@@ -70,9 +70,9 @@ pub mod bridge {
     pub use antecedent_contract::bridge::{
         AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind,
         BridgeMapping, BridgeScope, BridgeSource, BridgedClaim, EstimandBridge, ExposureSetting,
-        MappingUncertainty, NonlinearMap, PointPropagation, QuantityClass, SourceMappingDependence,
-        TransportabilityPremise, TrialEffectPair, TrialLevelValidation, ValueKind,
-        point_propagation_unavailable,
+        FixedBridgeDomain, IdentifiedSetSource, MappingUncertainty, NonlinearMap, PointPropagation,
+        QuantityClass, SourceMappingDependence, TransportabilityPremise, TrialEffectPair,
+        TrialLevelValidation, ValueInterval, ValueKind, point_propagation_unavailable,
     };
 }
 /// Portable claim envelope over a compiled contract and one result.
@@ -81,7 +81,9 @@ pub mod claim {
 }
 /// The runtime evidence ledger.
 pub mod evidence_ledger {
-    pub use antecedent_contract::evidence_ledger::{EffectiveObservations, parse_digest_hex};
+    pub use antecedent_contract::evidence_ledger::{
+        EffectiveObservations, ResultId, parse_digest_hex,
+    };
 }
 /// Semantic contract for measurement models.
 pub mod measurement {

@@ -23,7 +23,7 @@ pub use antecedent_io::{
     interference_estimate_from_wire, interference_estimate_to_wire, interference_query_from_wire,
     interference_query_to_wire, load_analysis_result_expecting, pag_from_dot, pag_from_gml,
     pag_from_json, pag_from_networkx_node_link, pag_to_dot, pag_to_gml, pag_to_json,
-    pag_to_networkx_node_link, replay_analysis_result_expecting, replay_loaded_result,
+    pag_to_networkx_node_link, pag_to_wire, replay_analysis_result_expecting, replay_loaded_result,
     transport_effect_from_wire, transport_effect_to_wire, transport_identification_from_wire,
     transport_identification_to_wire, transport_query_from_wire, transport_query_to_wire,
 };
@@ -550,8 +550,8 @@ pub mod measurement_model_wire {
 /// Items of `antecedent-io::method_provenance`.
 pub mod method_provenance {
     pub use antecedent_io::method_provenance::{
-        MethodProvenanceWire, bibliography, capability_provenance, decode_method_provenance_section,
-        method_provenance,
+        MethodProvenanceWire, bibliography, capability_provenance,
+        decode_method_provenance_section, method_provenance,
     };
 }
 /// Independent point-result artifacts for mixed-source proof search.
