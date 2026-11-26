@@ -2880,3 +2880,29 @@ built_from = "`LongitudinalRegimeMethod::ScheduleFamily` with a fixed reference 
 key = "learned_two_decision_schedule"
 object = "honestly selected schedule value, whole-procedure refit diagnostics and complete-class optimum confidence set"
 built_from = "`LongitudinalRegimeMethod::ScheduleFamily` with a declared training fold and static action class"
+
+[[rust_producer]]
+key = "learned_rpcmci"
+object = "compiled learned regimes and per-regime graphs with initialization diagnostics and complete source"
+built_from = "`LearnedRpcmciRequest::run`, `LearnedRpcmciArtifact::to_bytes`, and `RPCMCI.run_portable`"
+
+[[rust_consumer]]
+key = "learned_rpcmci_review"
+entry = "`consume_learned_rpcmci` followed by explicit `LearnedRpcmciArtifact::accept_regime`; Python uses the same compiler and reader"
+note = "The artifact retains the full raw series, initialization seed, regime assignments, graph identity and stability of each regime. Acceptance of one regime keeps the collection available in the verified result."
+
+[[rust_cell]]
+producer = "learned_rpcmci"
+consumer = "learned_rpcmci_review"
+status = "DIRECT"
+detail = "Both reversing lagged graphs are recovered under an independent shared fixture, independently verified in the bundle, and individually reviewed."
+evidence_test = "crates/antecedent/tests/rpcmci_regime_learning.rs"
+evidence_assertion = "portable_shared_series_replays_and_accepts_explicit_regimes"
+
+[[rust_cell]]
+producer = "learned_rpcmci"
+consumer = "learned_rpcmci_review"
+status = "REFUSED"
+detail = "Changed raw rows refuse the retained identity. Unavailable regime IDs and inadequate admission refuse."
+evidence_test = "crates/antecedent/tests/rpcmci_regime_learning.rs"
+evidence_assertion = "portable_shared_series_replays_and_accepts_explicit_regimes"

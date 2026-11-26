@@ -466,7 +466,7 @@ impl Study {
             Arc::new(crate::analysis::lowering::discovery_validation::lower(search, &check)?);
         gate_program(ctx, &CheckProgram(Arc::clone(&lowered)))?;
         let data = DiscoverData::from(&self.data);
-        let lease = data.admit_search(query, ctx, "discovery validation")?;
+        let lease = data.admit_search(query, spec, ctx, "discovery validation")?;
         let report = run_check(&check, spec, params, &data, &query.variables, ctx)?;
         drop(lease);
         if ctx.cancellation.is_cancelled() {

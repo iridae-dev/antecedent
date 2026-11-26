@@ -41,8 +41,9 @@ use crate::accepted::{AcceptedGraph, StructureProvenance};
 use crate::discovery::{
     BayesianDiscoverParams, CiSoftWeight, CpdagDiscoveryResult, DagDiscoveryResult, DiscoverParams,
     ExactDagMarginals, GraphMcmcSchedule, GraphPosterior, NotearsDiscoveryResult,
-    PagDiscoveryResult, RegimeAssignment, RpcmciDiscoveryResult, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticDiscoverParams, StaticPagDiscoveryResult, StructureStability,
+    PagDiscoveryResult, RegimeAssignment, RegimeCountPolicy, RpcmciDiscoveryResult, RpcmciLearning,
+    StaticCpdagDiscoveryResult, StaticDagDiscoveryResult, StaticDiscoverParams,
+    StaticPagDiscoveryResult, StructureStability,
 };
 use crate::error::CausalError;
 use crate::gcm::{
@@ -97,6 +98,7 @@ pub struct DiscoverySpec {
     max_lag: u32,
     schedule: Option<GraphMcmcSchedule>,
     regimes: Option<RegimeAssignment>,
+    regime_learning: Option<RpcmciLearning>,
     min_regime_len: Option<usize>,
     missing: Option<MissingPolicy>,
     /// The draw limit of exact signed-uniform marginals over a partially observed last column.
@@ -153,6 +155,7 @@ impl DiscoverySpec {
             max_lag,
             schedule: None,
             regimes: None,
+            regime_learning: None,
             min_regime_len: None,
             missing: None,
             observed_draws: None,
@@ -263,6 +266,29 @@ impl DiscoverySpec {
         spec.regimes = Some(regimes);
         spec.min_regime_len = min_regime_len;
         spec
+    }
+
+    /// Learn persistent regimes from one complete series and report a temporal CPDAG
+    /// per learned regime. The execution seed controls the initial partitions.
+    ///
+    /// # Errors
+    ///
+    /// Invalid count policy or search controls.
+    pub fn rpcmci_learn(
+        params: DiscoverParams,
+        min_regime_len: Option<usize>,
+        options: RpcmciLearning,
+        ci_label: impl Into<Arc<str>>,
+    ) -> Result<Self, CausalError> {
+        options.validate()?;
+        let mut spec = Self::new(
+            DiscoveryMethod::Rpcmci { min_regime_len: min_regime_len.map(saturating_u32) },
+            SearchParams::Temporal(params),
+            ci_label,
+        );
+        spec.regime_learning = Some(options);
+        spec.min_regime_len = min_regime_len;
+        Ok(spec)
     }
 
     /// Exact DAG posterior by enumeration.
@@ -696,6 +722,19 @@ impl DiscoverySpec {
             }
         }
         writer.opt_word(self.min_regime_len.map(|value| value as u64));
+        if let Some(options) = self.regime_learning {
+            writer.text("rpcmci.learn.duration.classification_bic.v1");
+            match options.count {
+                RegimeCountPolicy::Fixed(count) => writer.text("fixed").word(u64::from(count)),
+                RegimeCountPolicy::Bic { max_regimes } => {
+                    writer.text("bic").word(u64::from(max_regimes))
+                }
+            };
+            writer
+                .word(u64::from(options.starts))
+                .word(u64::from(options.max_iterations))
+                .word(options.switch_penalty.to_bits());
+        }
         writer.opt_text(self.missing.map(MissingPolicy::name));
         // Written only when declared: a search without it keeps the digest it always had.
         if let Some(draws) = self.observed_draws {
@@ -1199,10 +1238,20 @@ impl DiscoverData<'_> {
     pub(crate) fn admit_search(
         &self,
         query: &DiscoverQuery,
+        spec: &DiscoverySpec,
         ctx: &ExecutionContext,
         stage: &'static str,
     ) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
-        admit(ctx, discovery_route::discovery_quote(query, self.rows()), stage)
+        let rows = self.rows();
+        let base = discovery_route::discovery_quote(query, rows);
+        let bytes = spec.regime_learning.map_or(base, |options| {
+            let (_, max_regimes) = options.count.bounds();
+            let count = u64::from(max_regimes);
+            let retained = u64::from(options.starts).saturating_mul(2).saturating_mul(count);
+            let duration = rows.saturating_add(1).saturating_mul(count).saturating_mul(32);
+            base.saturating_mul(retained.saturating_add(2)).saturating_add(duration)
+        });
+        admit(ctx, bytes, stage)
     }
 
     fn modality(&self) -> &'static str {

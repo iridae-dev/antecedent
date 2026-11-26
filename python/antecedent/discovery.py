@@ -20,7 +20,7 @@ The configurations, by the structure they return:
   :class:`LiNGAM` and :class:`NOTEARS` (a DAG under linear-model assumptions).
 * Time series, one graph: :class:`PCMCI` (lagged links), :class:`PCMCIPlus` (lagged and
   contemporaneous), :class:`LPCMCI` (with unmeasured common causes), :class:`JPCMCIPlus`
-  (several environments) and :class:`RPCMCI` (labelled regimes).
+  (several environments) and :class:`RPCMCI` (supplied or learned regimes).
 * Graph posteriors (:class:`GraphPosterior`): :class:`ExactDagPosterior`, :class:`OrderMcmc`,
   :class:`StructureMcmc`, :class:`CiScreenedPosterior`, :class:`DbnPosterior`,
   :class:`ExactPagPosterior`, :class:`PagMcmc` and :class:`EquivalenceClassPosterior`.
@@ -137,6 +137,7 @@ from .execution import Execution, native_controls
 from .graph import cpdag_oriented_edges, discovery_to_dag
 
 if TYPE_CHECKING:
+    from .rpcmci_portable import LearnedRpcmciArtifact
     from .accepted_graph import AcceptedGraph
     from .graph import Dag
 
@@ -841,9 +842,12 @@ class JPCMCIPlus:
 
 @dataclass(frozen=True)
 class RPCMCI:
-    """Regime-PCMCI. Pass ``regimes=`` to ``analyze`` / ``run()`` (required).
+    """Regime-PCMCI over one complete series.
 
-    Use ``two_regime_half_split(n)`` when a simple half-split label vector is enough.
+    Declare ``n_regimes`` for a fixed count or ``max_regimes`` to select a count by
+    classification BIC. Otherwise pass one supplied label per row to ``run()``.
+    Learning uses linear lagged predictors, a minimum run length and a penalty for
+    switches. Its stability scores compare successful initializations on the same data.
     """
 
     max_lag: int = 1
@@ -852,6 +856,12 @@ class RPCMCI:
     ci: CiSpec = "parcorr"
     max_cond_size: int = 2
     kind: Literal["rpcmci"] = "rpcmci"
+    n_regimes: int | None = None
+    max_regimes: int | None = None
+    min_regime_len: int | None = None
+    starts: int = 6
+    max_iterations: int = 12
+    switch_penalty: float = 12.0
 
     algorithm_id: ClassVar[str] = "rpcmci"
 
@@ -865,25 +875,43 @@ class RPCMCI:
             "max_cond_size": self.max_cond_size,
         }
 
+    def _learning(self) -> tuple[int, bool, int, int, float, int | None] | None:
+        if self.n_regimes is not None and self.max_regimes is not None:
+            raise CausalValueError("RPCMCI needs either n_regimes or max_regimes")
+        count = self.n_regimes if self.max_regimes is None else self.max_regimes
+        if count is None:
+            return None
+        return (
+            count,
+            self.max_regimes is not None,
+            self.starts,
+            self.max_iterations,
+            self.switch_penalty,
+            self.min_regime_len,
+        )
+
     def run(
         self,
         data: Any,
         *,
-        regimes: Sequence[int],
+        regimes: Sequence[int] | None = None,
         execution: Execution | None = None,
         weights: list[float] | None = None,
     ) -> RpcmciDiscoverySummary:
-        """``regimes`` is required (length = series length); no silent half-split.
-
-        Call ``two_regime_half_split(len(series))`` for an explicit two-regime mid-point split.
-        """
+        """Discover per-regime CPDAGs and retain the assignment and stability diagnostics."""
+        learning = self._learning()
+        if learning is None and regimes is None:
+            raise CausalTypeError("RPCMCI requires regimes, n_regimes or max_regimes")
+        if learning is not None and regimes is not None:
+            raise CausalValueError("RPCMCI accepts supplied regimes or a count policy")
         names, cols = coerce_data(data, temporal=True)
         return _run_native(
             execution,
             _discover_rpcmci,
             names,
             cols,
-            regimes=list(regimes),
+            regimes=None if regimes is None else list(regimes),
+            learning=learning,
             max_lag=self.max_lag,
             alpha=self.alpha,
             fdr=self.fdr,
@@ -891,6 +919,50 @@ class RPCMCI:
             weights=weights,
             max_cond_size=self.max_cond_size,
         )
+
+    def run_portable(
+        self, data: Any, *, execution: Execution | None = None
+    ) -> LearnedRpcmciArtifact:
+        """Learn unweighted native parcorr regimes and retain raw-series replay evidence."""
+        from .rpcmci_portable import _run
+
+        return _run(self, data, execution)
+
+    def replay(
+        self,
+        data: Any,
+        expected: RpcmciDiscoverySummary,
+        *,
+        execution: Execution | None = None,
+        weights: list[float] | None = None,
+    ) -> RpcmciDiscoverySummary:
+        """Verify a learned result by rerunning its configuration on the raw series and seed."""
+        seed = expected.seed
+        if seed is None:
+            raise CausalValueError("RPCMCI replay requires a learned regime result")
+        policy = Execution(seed=seed) if execution is None else execution
+        if not isinstance(policy, Execution):
+            raise CausalTypeError("execution must be an antecedent.Execution")
+        if policy.seed != seed:
+            raise CausalValueError("RPCMCI replay differs in seed")
+        replayed = self.run(data, execution=policy, weights=weights)
+        for name in (
+            "program_identity",
+            "data_identity",
+            "seed",
+            "assignments",
+            "marked_edges",
+            "candidate_scores",
+            "infeasible_counts",
+            "converged",
+            "iterations",
+            "graph_agreement",
+            "assignment_agreement",
+            "successful_starts",
+        ):
+            if getattr(replayed, name) != getattr(expected, name):
+                raise CausalValueError(f"RPCMCI replay differs in {name}")
+        return replayed
 
     def accept(
         self,
@@ -902,7 +974,7 @@ class RPCMCI:
     ) -> AcceptedGraph:
         """Run this configuration once and accept it through its review gate.
 
-        ``regimes`` (one label per observation) is required.
+        Provide one label per observation or configure a regime-count policy.
         """
         from .accepted_graph import accept_discovery
 
@@ -2504,6 +2576,12 @@ class BootstrapStability:
                 **common,
             )
         if isinstance(base, RPCMCI):
+            if base._learning() is not None:
+                raise CausalUnsupportedError(
+                    "RPCMCI block-bootstrap stability uses supplied labels. "
+                    "For a learned assignment, read the initialization diagnostics from RPCMCI.run.",
+                    reason_code="option_not_applicable",
+                )
             if regimes is None:
                 raise CausalValueError(
                     "RPCMCI stability needs the regime label of every row",

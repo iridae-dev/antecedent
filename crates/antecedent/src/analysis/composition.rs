@@ -105,7 +105,9 @@ impl Default for BundleBuilder {
 /// Detect a standard artifact or a transport result requiring the host's validating reader.
 #[must_use]
 pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
-    if counterfactual_bundle::detects(bytes) {
+    if super::rpcmci_portable::recognizes(bytes) {
+        Some(NodeKind::LearnedRpcmci)
+    } else if counterfactual_bundle::detects(bytes) {
         Some(NodeKind::CounterfactualTransportResult)
     } else {
         antecedent_design::composition_verifiers::detect_node_kind(bytes)
@@ -117,7 +119,9 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
 /// # Errors
 /// The artifact's own reader refuses its shape or the recorded computation does not replay.
 pub fn describe_artifact(kind: NodeKind, bytes: &[u8]) -> Result<ArtifactDescription, NodeFailure> {
-    if kind == NodeKind::CounterfactualTransportResult {
+    if kind == NodeKind::LearnedRpcmci {
+        super::rpcmci_portable::describe(bytes, &ExecutionContext::production_default(0))
+    } else if kind == NodeKind::CounterfactualTransportResult {
         counterfactual_bundle::describe(bytes, &ExecutionContext::production_default(0))
     } else if kind == NodeKind::PatientSurrogateIdentification {
         patient_surrogate::describe(bytes, &ExecutionContext::production_default(0))
@@ -154,6 +158,7 @@ fn standard_consumer_with_context(ctx: &ExecutionContext) -> BundleConsumer {
     antecedent_design::composition_verifiers::standard_consumer()
         .register(Box::new(counterfactual_bundle::CounterfactualTransportVerifier(ctx.clone())))
         .register(Box::new(patient_surrogate::PatientSurrogateVerifier(ctx.clone())))
+        .register(Box::new(super::rpcmci_portable::Verifier(ctx.clone())))
 }
 
 

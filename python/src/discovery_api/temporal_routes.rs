@@ -400,14 +400,59 @@ fn two_regime_half_split_py(series_len: usize) -> Vec<u32> {
     two_regime_half_split(series_len).regimes.iter().map(|r| r.raw()).collect()
 }
 
-/// RPCMCI with caller-supplied regimes (required; no silent half-split).
+type LearningWire = (u32, bool, u32, u32, f64, Option<usize>);
+
+fn rpcmci_spec(
+    params: DiscoverParams,
+    ci_name: impl Into<Arc<str>>,
+    regimes: Option<Vec<u32>>,
+    learning: Option<LearningWire>,
+    rows: usize,
+) -> PyResult<DiscoverySpec> {
+    use antecedent::discovery::{RegimeCountPolicy, RpcmciLearning};
+    match (regimes, learning) {
+        (None, Some((count, bic, starts, max_iterations, switch_penalty, min_len))) => {
+            let count = if bic {
+                RegimeCountPolicy::Bic { max_regimes: count }
+            } else {
+                RegimeCountPolicy::Fixed(count)
+            };
+            DiscoverySpec::rpcmci_learn(
+                params,
+                min_len,
+                RpcmciLearning { count, starts, max_iterations, switch_penalty },
+                ci_name,
+            )
+            .map_err(py_err)
+        }
+        (Some(regimes), None) => {
+            if regimes.len() != rows {
+                return Err(crate::value_err(format!(
+                    "regimes length {} != series length {rows}",
+                    regimes.len(),
+                )));
+            }
+            let assignment = RegimeAssignment::try_new(
+                regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
+            )
+            .map_err(|e| crate::value_err(e.to_string()))?;
+            Ok(DiscoverySpec::rpcmci(params, assignment, None, ci_name))
+        }
+        _ => Err(crate::value_err(
+            "RPCMCI requires exactly one of a supplied assignment or a regime count policy",
+        )),
+    }
+}
+
+/// RPCMCI using supplied labels or a seeded regime-learning policy.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2))]
+#[pyo3(signature = (names, columns, *, regimes=None, learning=None, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2))]
 fn discover_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<NumericColumn<'_>>,
-    regimes: Vec<u32>,
+    regimes: Option<Vec<u32>>,
+    learning: Option<LearningWire>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -429,17 +474,6 @@ fn discover_rpcmci(
     let threads = if is_callback { Some(1) } else { threads };
     detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
-        if regimes.len() != series.row_count() {
-            return Err(crate::value_err(format!(
-                "regimes length {} != series length {}",
-                regimes.len(),
-                series.row_count()
-            )));
-        }
-        let assign = RegimeAssignment::try_new(
-            regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
-        )
-        .map_err(|e| crate::value_err(e.to_string()))?;
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -451,8 +485,8 @@ fn discover_rpcmci(
         };
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
-        let (result, _route) = compiled_search(
-            DiscoverySpec::rpcmci(params, assign, None, ci_name),
+        let (result, route) = compiled_search(
+            rpcmci_spec(params, ci_name, regimes, learning, series.row_count())?,
             DiscoverInput::Series(series),
             &variables,
             &ctx,
@@ -464,17 +498,58 @@ fn discover_rpcmci(
         let mut regime_ids = Vec::new();
         let mut directed = Vec::new();
         let mut undirected = Vec::new();
+        let mut marked_edges = Vec::new();
         for (rid, g) in result.graphs.graphs.iter() {
             regime_ids.push(rid.raw());
             directed.push(g.directed_edge_count() as u64);
             undirected.push(g.undirected_edge_count() as u64);
+            marked_edges.push(
+                g.edges()
+                    .into_iter()
+                    .map(|e| {
+                        let (a, al) = node_ref_parts(&names, g.nodes()[e.a.as_usize()]);
+                        let (b, bl) = node_ref_parts(&names, g.nodes()[e.b.as_usize()]);
+                        (
+                            a,
+                            al,
+                            endpoint_name(e.at_a).to_owned(),
+                            b,
+                            bl,
+                            endpoint_name(e.at_b).to_owned(),
+                        )
+                    })
+                    .collect(),
+            );
         }
+        let result_stamp = route.execution.result().executed_contract();
+        let learning = result.learning.as_ref();
         Ok(RpcmciDiscoverySummary {
             algorithm: result.algorithm.id.to_string(),
             n_regimes: regime_ids.len() as u64,
             regime_ids,
             directed_edges: directed,
             undirected_edges: undirected,
+            assignments: result.assignments.regimes.iter().map(|id| id.raw()).collect(),
+            marked_edges,
+            seed: learning.map(|diag| diag.seed),
+            converged: learning.map(|diag| diag.converged),
+            iterations: learning.map(|diag| diag.iterations),
+            candidate_scores: learning
+                .map(|diag| diag.candidate_scores.clone())
+                .unwrap_or_default(),
+            infeasible_counts: learning
+                .map(|diag| diag.infeasible_counts.clone())
+                .unwrap_or_default(),
+            assignment_agreement: learning.and_then(|diag| diag.assignment_agreement),
+            graph_agreement: learning.map(|diag| diag.graph_agreement.clone()).unwrap_or_default(),
+            successful_starts: learning.map(|diag| diag.successful_starts),
+            diagnostics: result
+                .diagnostics
+                .iter()
+                .map(|d| (d.code.to_string(), d.message.to_string()))
+                .collect(),
+            program_identity: route.execution.lowered_identity().map(|id| id.to_hex()),
+            data_identity: result_stamp.map(|stamp| stamp.inspection_data_snapshot.to_hex()),
         })
     })
 }
@@ -486,12 +561,13 @@ fn discover_rpcmci(
 /// regimes raise `ReviewRequired` (each regime's CPDAG is reviewed separately).
 /// `accept_discovered=False` leaves pending undirected edges under review.
 #[pyfunction]
-#[pyo3(signature = (names, columns, *, regimes, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, accept_discovered=true))]
+#[pyo3(signature = (names, columns, *, regimes=None, learning=None, max_lag=1, alpha=0.05, fdr=true, seed=1, ci=None, weights=None, threads=None, cancel=None, max_cond_size=2, accept_discovered=true))]
 fn accept_rpcmci(
     py: Python<'_>,
     names: Vec<String>,
     columns: Vec<NumericColumn<'_>>,
-    regimes: Vec<u32>,
+    regimes: Option<Vec<u32>>,
+    learning: Option<LearningWire>,
     max_lag: u32,
     alpha: f64,
     fdr: bool,
@@ -515,17 +591,6 @@ fn accept_rpcmci(
     let out_names = names.clone();
     let accepted = detach_catch(py, move || {
         let (series, variables) = series_from_batch(&batch)?;
-        if regimes.len() != series.row_count() {
-            return Err(crate::value_err(format!(
-                "regimes length {} != series length {}",
-                regimes.len(),
-                series.row_count()
-            )));
-        }
-        let assign = RegimeAssignment::try_new(
-            regimes.into_iter().map(RegimeId::from_raw).collect::<Vec<_>>(),
-        )
-        .map_err(|e| crate::value_err(e.to_string()))?;
         let params = DiscoverParams {
             max_lag,
             alpha,
@@ -538,7 +603,7 @@ fn accept_rpcmci(
         let ctx =
             crate::py_execution_context_cancel(seed, crate::resolve_user_threads(threads), cancel);
         let (result, _route) = compiled_search(
-            DiscoverySpec::rpcmci(params, assign, None, ci_name),
+            rpcmci_spec(params, ci_name, regimes, learning, series.row_count())?,
             DiscoverInput::Series(series),
             &variables,
             &ctx,

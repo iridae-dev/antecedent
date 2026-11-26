@@ -349,6 +349,17 @@ fn run_rpcmci(search: &Search<'_>) -> Result<Option<DiscoveredStructure>, Causal
     else {
         return Ok(None);
     };
+    if let Some(options) = search.spec.regime_learning {
+        let mut workspace = antecedent_discovery::DiscoveryWorkspace::default();
+        let found = crate::discovery::engines::rpcmci_for(p, search.spec.min_regime_len).learn(
+            s,
+            search.vars,
+            options,
+            &mut workspace,
+            search.ctx,
+        )?;
+        return Ok(Some(DiscoveredStructure::Regimes(found)));
+    }
     let regimes = search.spec.regimes.as_ref().ok_or_else(|| {
         crate::compile_reason!("required_option_missing", "regime PCMCI needs a regime assignment")
     })?;

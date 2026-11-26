@@ -18891,3 +18891,9 @@ id = "pag_identification.exact_evaluation_refused"
 family = "pag_identification"
 codes = ["invalid_argument"]
 meaning = "The exact observational-law evaluator refused the concrete PAG functional request."
+
+[[detail]]
+id = "rpcmci_learned.portable_refusal"
+family = "rpcmci_learned"
+codes = ["invalid_argument", "execution_resource_limit", "cancelled_no_claim"]
+meaning = "The learned-regime payload, replay resources or selected-regime review could not be admitted."

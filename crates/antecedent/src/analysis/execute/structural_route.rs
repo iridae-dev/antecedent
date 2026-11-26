@@ -404,7 +404,7 @@ impl super::Study {
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled { stage: DISCOVER_STAGE });
         }
-        let lease = data.admit_search(query, ctx, "structure search")?;
+        let lease = data.admit_search(query, spec, ctx, "structure search")?;
         let structure = run_discovery(spec, query, data, self.declared.sampling_design, ctx)?;
         drop(lease);
         if ctx.cancellation.is_cancelled() {

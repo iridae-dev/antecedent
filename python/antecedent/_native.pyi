@@ -183,7 +183,8 @@ def accept_rpcmci(
     names: list[str],
     columns: Sequence[Any],
     *,
-    regimes: list[int],
+    regimes: list[int] | None = None,
+    learning: tuple[int, bool, int, int, float, int | None] | None = None,
     max_lag: int = 1,
     alpha: float = 0.05,
     fdr: bool = True,
@@ -195,7 +196,7 @@ def accept_rpcmci(
     max_cond_size: int = 2,
     accept_discovered: bool = True,
 ) -> Any:
-    """Run RPCMCI over labelled regimes and return the reviewed accepted graph."""
+    """Run RPCMCI and return the reviewed accepted graph when one regime was found."""
 
 class CausalUnsupportedError(CausalError): ...
 class CausalCancelledError(CausalError): ...
@@ -1388,6 +1389,19 @@ class RpcmciDiscoverySummary:
     regime_ids: list[int]
     directed_edges: list[int]
     undirected_edges: list[int]
+    assignments: list[int]
+    marked_edges: list[list[tuple[str, int, str, str, int, str]]]
+    seed: int | None
+    converged: bool | None
+    iterations: int | None
+    candidate_scores: list[tuple[int, float]]
+    infeasible_counts: list[int]
+    assignment_agreement: float | None
+    graph_agreement: list[float | None]
+    successful_starts: int | None
+    diagnostics: list[tuple[str, str]]
+    program_identity: str | None
+    data_identity: str | None
 
 class GraphPosterior:
     names: list[str]
@@ -4101,7 +4115,8 @@ def discover_rpcmci(
     names: list[str],
     columns: Sequence[NDArray[np.float64]],
     *,
-    regimes: list[int],
+    regimes: list[int] | None = None,
+    learning: tuple[int, bool, int, int, float, int | None] | None = None,
     max_lag: int = 1,
     alpha: float = 0.05,
     fdr: bool = True,
@@ -14394,3 +14409,21 @@ def direct_pag_consume(
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
 ) -> tuple[DirectPagResultHandle | None, str | None]: ...
+
+class LearnedRpcmciHandle:
+    @property
+    def identity(self) -> str: ...
+    def plan_view_json(self) -> str: ...
+    def report_json(self) -> str: ...
+    def export(self) -> bytes: ...
+    def accept_regime(self, regime: int) -> tuple[TemporalCpdag | None, str | None]: ...
+
+def learned_rpcmci_run(
+    request: str, *, seed: int = 1, threads: int | None = None,
+    cancel: CancellationToken | None = None, memory_bytes: int | None = None,
+) -> tuple[LearnedRpcmciHandle | None, str | None]: ...
+
+def learned_rpcmci_consume(
+    data: bytes, expected_identity: str, *, threads: int | None = None,
+    cancel: CancellationToken | None = None, memory_bytes: int | None = None,
+) -> tuple[LearnedRpcmciHandle | None, str | None]: ...

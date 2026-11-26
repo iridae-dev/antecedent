@@ -1328,6 +1328,10 @@ name = "compiled_twins_discovery_validation"
 path = "tests/compiled_twins_discovery_validation.rs"
 
 [[test]]
+name = "rpcmci_regime_learning"
+path = "tests/rpcmci_regime_learning.rs"
+
+[[test]]
 name = "bayesian_randomized_calibration"
 
 [[test]]

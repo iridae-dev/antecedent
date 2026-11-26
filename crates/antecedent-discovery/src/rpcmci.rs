@@ -30,6 +30,9 @@ use crate::error::DiscoveryError;
 use crate::pcmci_plus::PcmciPlus;
 use crate::result::{AlgorithmRecord, CpdagDiscoveryResult, DiscoveryDiagnostic};
 
+mod learn;
+pub use learn::{RegimeCountPolicy, RpcmciLearning, RpcmciLearningDiagnostics};
+
 /// Retained `(source variable, lag)` parents, indexed by target variable.
 type LaggedParents = Vec<Vec<(usize, usize)>>;
 
@@ -117,6 +120,8 @@ pub struct RpcmciDiscoveryResult {
     pub per_regime: Arc<[CpdagDiscoveryResult]>,
     /// Algorithm record.
     pub algorithm: AlgorithmRecord,
+    /// Diagnostics from learning the assignments, when no labels were supplied.
+    pub learning: Option<RpcmciLearningDiagnostics>,
     /// Diagnostics.
     pub diagnostics: Vec<DiscoveryDiagnostic>,
 }
@@ -292,6 +297,7 @@ impl Rpcmci {
             graphs: last.graphs,
             per_regime: last.per_regime,
             algorithm: last.algorithm,
+            learning: None,
             diagnostics,
         })
     }
@@ -392,6 +398,7 @@ impl Rpcmci {
             graphs: RegimeGraphCollection { graphs: Arc::from(graphs) },
             per_regime: Arc::from(per_regime),
             algorithm,
+            learning: None,
             diagnostics,
         })
     }
@@ -517,7 +524,7 @@ fn reassign_by_lagged_residual(
         })
         .collect();
 
-    let models = fit_regime_models(&regime_parents, &cols, first_row, n, current);
+    let models = fit_regime_models(&regime_parents, &cols, first_row, n, current, 0);
     if models.len() < 2 {
         return Ok(None);
     }
@@ -604,13 +611,15 @@ fn fit_regime_models(
     first_row: usize,
     n: usize,
     current: &RegimeAssignment,
+    stable_window: usize,
 ) -> Vec<RegimeModel> {
     // Fit each regime's equations on the rows currently assigned to it.
     let backend = FaerBackend;
     let mut models: Vec<RegimeModel> = Vec::with_capacity(regime_parents.len());
     'regimes: for (regime, by_target) in regime_parents {
-        let regime_rows: Vec<usize> =
-            (first_row..n).filter(|&t| current.regimes[t] == *regime).collect();
+        let regime_rows: Vec<usize> = (first_row..n)
+            .filter(|&t| current.regimes[t - stable_window..=t].iter().all(|r| r == regime))
+            .collect();
         let mut equations = Vec::with_capacity(cols.len());
         for (ti, parents) in by_target.iter().enumerate() {
             // A missing cell is not a residual. Fit only on a full finite window.

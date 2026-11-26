@@ -726,6 +726,7 @@ pub mod cyclic_component_composition;
 pub mod cyclic_evidence;
 pub mod cyclic_posterior_action_decision;
 pub mod cyclic_target_feedback_decision;
+pub mod rpcmci_portable;
 pub mod sampling_assumption_union;
 pub mod sequential_policy_reliability;
 pub mod temporal_linear_prediction;

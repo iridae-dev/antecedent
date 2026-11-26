@@ -123,6 +123,8 @@ fn predict_conditional_summary(
     })
 }
 
+type RegimeMarkedEdge = (String, u32, String, String, u32, String);
+
 /// RPCMCI summary (typed regimes, no single-graph collapse).
 #[pyclass]
 pub(crate) struct RpcmciDiscoverySummary {
@@ -136,6 +138,32 @@ pub(crate) struct RpcmciDiscoverySummary {
     pub(crate) directed_edges: Vec<u64>,
     #[pyo3(get)]
     pub(crate) undirected_edges: Vec<u64>,
+    #[pyo3(get)]
+    pub(crate) assignments: Vec<u32>,
+    #[pyo3(get)]
+    pub(crate) marked_edges: Vec<Vec<RegimeMarkedEdge>>,
+    #[pyo3(get)]
+    pub(crate) seed: Option<u64>,
+    #[pyo3(get)]
+    pub(crate) converged: Option<bool>,
+    #[pyo3(get)]
+    pub(crate) iterations: Option<u32>,
+    #[pyo3(get)]
+    pub(crate) candidate_scores: Vec<(u32, f64)>,
+    #[pyo3(get)]
+    pub(crate) infeasible_counts: Vec<u32>,
+    #[pyo3(get)]
+    pub(crate) assignment_agreement: Option<f64>,
+    #[pyo3(get)]
+    pub(crate) graph_agreement: Vec<Option<f64>>,
+    #[pyo3(get)]
+    pub(crate) successful_starts: Option<usize>,
+    #[pyo3(get)]
+    pub(crate) diagnostics: Vec<(String, String)>,
+    #[pyo3(get)]
+    pub(crate) program_identity: Option<String>,
+    #[pyo3(get)]
+    pub(crate) data_identity: Option<String>,
 }
 
 /// Mediation effects summary.

@@ -27672,3 +27672,17 @@ crate = "antecedent"
 cargo_target = "patient_surrogate"
 path = "crates/antecedent/tests/patient_surrogate.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "rpcmci-regime-learning"
+crate = "antecedent"
+cargo_target = "rpcmci_regime_learning"
+path = "crates/antecedent/tests/rpcmci_regime_learning.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "rpcmci-regime-learning-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_rpcmci_regime_learning.py"
+gates = ["inventory"]

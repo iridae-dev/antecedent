@@ -575,7 +575,7 @@ def accept_discovery(
     the same decision the one-shot Rust entry points make.
 
     J-PCMCI+ takes its environments from a ``MultiEnvFrame`` or a sequence of
-    tables; RPCMCI requires ``regimes`` and accepts only when discovery found a
+    tables; RPCMCI runs with supplied labels or a regime-count policy and only accepts a
     single regime. Lives here (rather than on each config) because this module
     owns the accepted-graph artifact; ``discovery.py`` imports it inside
     ``accept()`` to avoid the module-level cycle.
@@ -602,10 +602,10 @@ def accept_discovery(
             reason_code="option_not_applicable",
         )
     if isinstance(config, RPCMCI):
-        if regimes is None:
+        learning = config._learning()
+        if (learning is None) == (regimes is None):
             raise CausalValueError(
-                "RPCMCI requires regimes=[…] (one label per observation); "
-                "two_regime_half_split(n) builds an explicit half split"
+                "RPCMCI requires exactly one of regimes, n_regimes or max_regimes"
             )
         from ._data import as_columns
         from ._native import accept_rpcmci
@@ -617,7 +617,8 @@ def accept_discovery(
             accept_rpcmci,
             names,
             columns,
-            regimes=[int(r) for r in regimes],
+            regimes=None if regimes is None else [int(r) for r in regimes],
+            learning=learning,
             max_lag=config.max_lag,
             alpha=config.alpha,
             fdr=config.fdr,

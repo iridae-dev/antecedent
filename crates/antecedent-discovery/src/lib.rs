@@ -154,7 +154,8 @@ pub use result::{
 };
 pub use rfci::Rfci;
 pub use rpcmci::{
-    RegimeAssignment, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult, two_regime_half_split,
+    RegimeAssignment, RegimeCountPolicy, RegimeGraphCollection, Rpcmci, RpcmciDiscoveryResult,
+    RpcmciLearning, RpcmciLearningDiagnostics, two_regime_half_split,
 };
 pub use rule_scheduling::{
     LpcmciDiscriminatingPathRule, LpcmciOrientCollider, LpcmciOrientationRule, LpcmciR1,

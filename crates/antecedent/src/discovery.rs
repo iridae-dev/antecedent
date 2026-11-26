@@ -33,10 +33,11 @@ pub use antecedent_discovery::{
     ExactDagPosterior, Fci, Ges, GraphPosterior, GraphPosteriorAtomKind, GraphPosteriorEngine,
     GraphPrior, JpcmciNodeRole, JpcmciPlus, LaggedParent, Lpcmci, MultiDatasetConstraints, Notears,
     NotearsDiscoveryResult, OrderMcmc, PagDiscoveryResult, Pc, PcSepsets, RegimeAssignment,
-    RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, SamplingSummary, ScoredLink,
-    ScreenedMarginals, SoftTiers, SpaceDummyCiMode, StaticCpdagDiscoveryResult,
-    StaticDagDiscoveryResult, StaticPagDiscoveryResult, StructureMcmc, StructureStability,
-    TimeDummyCiMode, adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
+    RegimeCountPolicy, RegimeGraphCollection, Rfci, Rpcmci, RpcmciDiscoveryResult, RpcmciLearning,
+    RpcmciLearningDiagnostics, SamplingSummary, ScoredLink, ScreenedMarginals, SoftTiers,
+    SpaceDummyCiMode, StaticCpdagDiscoveryResult, StaticDagDiscoveryResult,
+    StaticPagDiscoveryResult, StructureMcmc, StructureStability, TimeDummyCiMode,
+    adjacency_mask_from_cpdag, adjacency_masks_from_pag, two_regime_half_split,
 };
 use antecedent_graph::{DenseNodeId, Endpoint, TemporalPag};
 pub use antecedent_prob::InferenceDiagnostics;

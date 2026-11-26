@@ -75,6 +75,8 @@ pub enum NodeKind {
     LongitudinalRegimeResult,
     /// A directly identified PAG functional or graphical nonidentification witness.
     PagIdentification,
+    /// Replayed learned RPCMCI regimes and stability diagnostics.
+    LearnedRpcmci,
     /// A named transformation.
     Transformation,
     /// A decision contract.
@@ -139,6 +141,7 @@ named_variants! {
         LedgerPooledResult => "ledger_pooled_result",
         LongitudinalRegimeResult => "longitudinal_regime_result",
         PagIdentification => "pag_identification",
+        LearnedRpcmci => "learned_rpcmci",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
         DecisionResult => "decision_result",
@@ -188,6 +191,7 @@ impl NodeKind {
             | Self::EvidenceLedger
             | Self::PagIdentification
             | Self::QuantityCoordinates
+            | Self::LearnedRpcmci
             | Self::SupportTrustCalibration
             | Self::RepairReport
             | Self::RecalculationReceipt => CompositionStage::Evidence,

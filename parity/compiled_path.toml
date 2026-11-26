@@ -5696,3 +5696,8 @@ reason = "construction, serialization, identity or gating helper; computes no es
 path = "antecedent_model::typed_mechanism_transport::typed_refusal_code"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
+
+[[row]]
+path = "antecedent_discovery::Rpcmci::learn"
+disposition = "kernel"
+reason = "kernel API; DiscoverTemporal runs this engine when its DiscoverySpec declares seeded label learning"

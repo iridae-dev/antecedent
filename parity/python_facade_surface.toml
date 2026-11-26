@@ -6024,3 +6024,27 @@ rust = "antecedent::analysis::pag_identification::consume_pag_identification"
 kind = "fn"
 status = "bound"
 python = "antecedent.pag_identification.consume_pag_identification"
+
+[[entry]]
+rust = "antecedent::DiscoverySpec::rpcmci_learn"
+kind = "method"
+status = "bound"
+python = "antecedent.discovery.RPCMCI.run"
+
+[[entry]]
+rust = "antecedent::analysis::rpcmci_portable::LearnedRpcmciRequest::run"
+kind = "method"
+status = "bound"
+python = "antecedent.discovery.RPCMCI.run_portable"
+
+[[entry]]
+rust = "antecedent::analysis::rpcmci_portable::LearnedRpcmciArtifact"
+kind = "type"
+status = "bound"
+python = "antecedent.rpcmci_portable.LearnedRpcmciArtifact"
+
+[[entry]]
+rust = "antecedent::analysis::rpcmci_portable::consume_learned_rpcmci"
+kind = "fn"
+status = "bound"
+python = "antecedent.rpcmci_portable.consume_learned_rpcmci"

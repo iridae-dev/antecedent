@@ -520,7 +520,7 @@ def analyze(
         :class:`CausalUnsupportedError`.
         Live discovery runs once and is accepted through its review gate
         (``accept_discovered=False`` raises ``ReviewRequired`` while anything is
-        pending); ``RPCMCI`` also needs ``regimes=``, and ``JPCMCIPlus`` takes a
+        pending); ``RPCMCI`` uses ``regimes=`` or a regime-count policy, and ``JPCMCIPlus`` takes a
         ``MultiEnvFrame`` or a sequence of environment tables.
     participant:
         Optional name of a data column of participant (row-owner) labels, strings or whole
