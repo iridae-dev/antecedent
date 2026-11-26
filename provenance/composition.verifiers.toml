@@ -15,12 +15,12 @@ copied_tests = false
 papers = []
 
 implementation_deviations = [
-  "Claim policy: point-only. A verifier establishes that an artifact decodes, recomputes its own identity and agrees with its neighbours on the declared binding facts; it grants no causal, interval or coverage support and re-derives no estimate beyond what the artifact's own consumer replays.",
+  "Each verifier establishes that its artifact decodes, recomputes its own identity and agrees with its neighbours on declared binding facts. Any causal or uncertainty support comes from the relevant compiled route and its underlying consumer.",
   "External mean decisions are point-only attested: an external claim publishes law 'mean_only' and trust 'externally_attested', upgraded to 'verified_extension' only when the artifact retains its exact-request verification receipt. A mean decision is evaluated only from the claim's finite response grid and refuses what a mean cannot answer.",
   "Joint-draw decisions retain the aligned-law requirement: only a joint distribution with aligned draws publishes the joint law, a decision whose functional needs it publishes requires_law, and the dependent node fails at unsupported_law over a mean-only or marginal-draw upstream.",
   "A verifier decodes through the artifact's own consumer but cannot retain an identity independently of the bundle: inside a bundle the retained identity is the node's declared identity, which the Merkle chain covers and the consumer's retained bundle identity anchors. A verifier refuses a node whose recomputed identity differs, and a decision result is checked against the contract and the sources upstream of it, so replacing either with a resealed, self-consistent artifact fails the dependent node.",
   "Embedded kinds with no verifier (a causal contract, an attestation, quantity coordinates, a transformation) fail as unknown_node_kind and must travel as reference nodes; they are never verified by default. Recalculation receipts are not covered by this registry.",
-  "A reference node is verified by the bundle only as 'matched a supplied source' and is never replayed by a verifier.",
+  "Ordinary reference nodes pass by matching a supplied source. A registered ledger verifier can replay a catalog ledger from matched bytes before a dependent pool consumes its checked values.",
 ]
 
 upstream_implementations_observed = []
@@ -28,15 +28,16 @@ upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-design/tests/composition_verifiers.rs",
   "crates/antecedent-design/tests/composition_bundle.rs",
+  "crates/antecedent/tests/counterfactual_transport_lifecycle.rs (counterfactual_bundle_replays_exact_and_sampled_affine_decisions)",
 ]
 
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
 rationale = "One node verifier per portable artifact kind: it dispatches to that artifact's own consumer, recomputes the identity from the decoded content and publishes the binding facts the bundle cross-checks. A propagation chain is replayed by its record's own consumer; its node publishes the law meaning, joint-law meaning or assumption-envelope label and the counts of output draws, joint coordinates and rows, and enclosures as diagnostics, never the law fact a decision consumer requires."
-no_independent_algorithm = "Dispatch and fact extraction over other records' consumers (including inspect_inverse, which re-reads an inverse-query artifact); the module has no square root, logarithm, exponential, power or solve."
-covered_by = ["composition.bundle", "decision.functional_inverse"]
-record_sha256 = "36f5a13d2fab0f30d14c18845293716d10b3296e00f65063d58312af5ec22be4"
+no_independent_algorithm = "Dispatch and fact extraction over artifact readers and checked affine scoring. Counterfactual decision replay reconstructs the declared quantity, its source bindings and its contract, delegates affine scoring and checks the terminal fingerprint."
+covered_by = ["composition.bundle", "decision.functional_inverse", "decision.contract", "counterfactual.transport_general", "counterfactual.transport_sampled"]
+record_sha256 = "4eaca36b49656a146927a4bb4b911b4693defdbae18726ae0cdce92bfe000139"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -47,8 +48,8 @@ sha256 = "b96bdf5523ce2479e71a09d879c2e3171e710127858753570deb04a8c0aa9421"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_verifiers/artifact_inspection.rs"
-items = ["fn atom_digests", "fn body_str", "fn evidence_relationship_bytes", "fn inspect_contract", "fn inspect_distribution", "fn inspect_external_claim", "fn inspect_inverse", "fn inspect_ranking", "fn inspect_relationship", "fn inspect_repair", "fn inspect_result", "fn inspect_rollout", "fn inspect_sensitivity", "fn mean_decision_bytes", "fn mean_source_of", "fn repair_failure"]
-sha256 = "e09f5fd8fa4b821fa54e2ece4aa71533928e68f6fd58c741bbee5cf0bf93d196"
+items = ["fn atom_digests", "fn body_str", "fn evidence_relationship_bytes", "fn inspect_contract", "fn inspect_distribution", "fn inspect_external_claim", "fn inspect_inverse", "fn inspect_ranking", "fn inspect_relationship", "fn inspect_repair", "fn inspect_result", "fn inspect_rollout", "fn inspect_sensitivity", "fn mean_decision_bytes", "fn mean_source_of", "fn repair_failure", "fn replay_counterfactual_decision"]
+sha256 = "83c07b4c5503bcdf132d688f2ad5997e8087294df1a19c912ce45fca9ae50c3d"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"

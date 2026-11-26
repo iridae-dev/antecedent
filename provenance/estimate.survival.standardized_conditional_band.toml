@@ -6,19 +6,20 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", sections = ["product-limit estimator of the survival function from a risk set"] },
+  { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", url = "https://jhanley.biostat.mcgill.ca/bios601/SurvivalAnalysis/KaplanMeier1958.pdf", sections = ["Section 2.1, equation (2b) and the following delayed-entry paragraph"] },
 ]
 
 implementation_deviations = [
   "Two declared binary baseline histories govern entry and censoring. Independence of entry from event, cause, censoring and the censoring history conditional on arm and entry history allows the entry probability to cancel within each weighted risk ratio.",
+  "The cited product-limit identity supplies the risk ratio. Baseline standardization, refitting and the band are derived for this declared design in the repository.",
   "The reverse product-limit censoring fit uses entry-aware risk sets in each arm and joint baseline history. Event exits precede censoring exits at a tied time. Weighted curve estimates within each entry history are standardized using a prespecified distribution for the randomized population before entry.",
   "Each arm-stratified whole-subject bootstrap refits the censoring learner on the same resampled subjects used for estimation. The distinct calibration design scores the standardized survival contrast at every knot. The calibration record establishes the measured scope.",
 ]
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/src/survival/conditional_observation.rs",
-  "crates/antecedent/tests/common/conditional_survival_fixture.rs",
-  "crates/antecedent/tests/delayed_entry_incidence_calibration.rs",
-  "crates/antecedent/tests/survival_route.rs",
+  "crates/antecedent/tests/common/conditional_survival_fixture.rs (four factorial entry and censoring mechanisms with an analytic pre-entry population curve)",
+  "crates/antecedent/tests/delayed_entry_incidence_calibration.rs (jointly_conditional_entry_and_censoring_survival_band_coverage scores whole-band hits against the analytic target)",
+  "crates/antecedent/tests/survival_route.rs (fitted_conditional_survival_identifies_the_pre_entry_population varies each mechanism and checks omitted-mechanism bias)",
   "python/tests/test_survival_combined_observation.py",
 ]

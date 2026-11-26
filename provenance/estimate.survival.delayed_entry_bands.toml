@@ -6,7 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", sections = ["product-limit estimator of the survival function from a risk set"] },
+  { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", url = "https://jhanley.biostat.mcgill.ca/bios601/SurvivalAnalysis/KaplanMeier1958.pdf", sections = ["Section 2.1, equation (2b) and the following delayed-entry paragraph"] },
+  { title = "An Empirical Transition Matrix for Non-Homogeneous Markov Chains Based on Censored Observations", authors = ["Odd O. Aalen", "Søren Johansen"], year = 1978, url = "https://gwern.net/doc/statistics/survival-analysis/1978-aalen.pdf", sections = ["Section 1, equation (1.9)", "Section 5, equation (5.1)"] },
 ]
 
 implementation_deviations = [
@@ -17,8 +18,8 @@ implementation_deviations = [
 upstream_implementations_observed = []
 test_sources = [
   "crates/antecedent-stats/src/survival.rs",
-  "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs",
-  "crates/antecedent/tests/delayed_entry_incidence_calibration.rs",
+  "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs (four delayed_entry_*_band_matches_reference tests recompute the risk sets, both endpoint curves and the supremum radius)",
+  "crates/antecedent/tests/delayed_entry_incidence_calibration.rs (four delayed_entry_*_band_coverage studies score simultaneous whole-grid hits by endpoint and censoring coordinate)",
   "crates/antecedent/tests/survival_route.rs",
   "python/tests/test_survival_combined_observation.py",
 ]

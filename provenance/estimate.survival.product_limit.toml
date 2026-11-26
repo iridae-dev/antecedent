@@ -6,7 +6,8 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", sections = ["product-limit estimator of the survival function from a risk set"] },
+ { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", url = "https://jhanley.biostat.mcgill.ca/bios601/SurvivalAnalysis/KaplanMeier1958.pdf", sections = ["Section 2.1, equation (2b) and the following delayed-entry paragraph"] },
+  { title = "An Empirical Transition Matrix for Non-Homogeneous Markov Chains Based on Censored Observations", authors = ["Odd O. Aalen", "Søren Johansen"], year = 1978, url = "https://gwern.net/doc/statistics/survival-analysis/1978-aalen.pdf", sections = ["Section 1, equation (1.9)", "Section 5, equation (5.1)"] },
 ]
 
 implementation_deviations = [
@@ -20,10 +21,10 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/survival.rs",
  "crates/antecedent-estimate/src/survival.rs",
- "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs",
+ "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs (delayed_entry_incidence_interval_matches_the_exact_bootstrap_law and delayed_entry_fixed_known_censoring_incidence_interval_matches_the_exact_bootstrap_law enumerate multinomial support and check both endpoints)",
  "crates/antecedent/src/analysis/execute/checked_survival.rs",
  "crates/antecedent-io-core/src/contract_section/survival_replay.rs",
- "crates/antecedent/tests/survival_route.rs",
+ "crates/antecedent/tests/survival_route.rs (separate unweighted and fixed-known interval replay and source forgery checks)",
  "crates/antecedent-estimate/tests/product_limit_reference.rs (exact-rational Kaplan-Meier, Aalen-Johansen and restricted mean over 39 seeded datasets)",
 ]
 
@@ -36,7 +37,7 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "Kaplan and Meier's paper was not retrieved for this review (nothing downloaded, no local copy); the check is against the standard definitions of the product-limit, Aalen-Johansen and restricted-mean quantities, not a section-level reading. The comparison covers 39 seeded datasets of 14 to 43 subjects in two arms (13 with delayed entry, 19 with a second competing cause) with tied event times, ties between events and censorings, events exactly at the horizon and censoring before it, at 1e-14 on curves and 1e-13 on restricted means. It does not cover large samples, weights, the censoring-weighted variant, or intervals; no variance or interval from the paper exists in this module. Left-truncated risk sets that are very small early on yield valid but highly variable curves and are not otherwise screened here."
 sources = ["https://doi.org/10.1080/01621459.1958.10501452", "https://docs.python.org/3/library/fractions.html"]
 findings_resolved = ["No numerical defect was found: curves on the merged grid, restricted means, cumulative incidence (using the survival function just before each event time), the left-truncation risk set and the smallest event risk set agree with exact rational arithmetic on every dataset.", "The record's description of the module as Kaplan-Meier plus an Aalen-Johansen option, with no analytic variance, was confirmed against the code."]
-record_sha256 = "58baedeacf7beb1c044edfb58c36f853e4501542564b742a1faf1eb372d41233"
+record_sha256 = "cf147c161b36efab079b4dc9a3af04fcec1dfe937582901e043671e5b1e9602e"
 
 [[method_review.artifacts]]
 role = "implementation"

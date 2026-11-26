@@ -27,6 +27,8 @@ implementation_deviations = [
   "The cohort source node delegates to the cohort artifact reader. Its affine decision compiler requires the cohort and contract as embedded parents and binds the terminal to the full cohort source identity. Replay rebuilds the cohort mean and scores the complete decision under the retained bundle and program identities.",
   "An exact or sampled plug-in counterfactual transport result is read by its own validating consumer. Its target event probability supplies an affine decision and retains the transport premises, target population, evidence snapshot and sampled construction where present.",
   "A compact fitted-effect node validates the stored prediction basis, coefficients, covariance, feature support and mask. A retained cohort can consume the model under its recomputed identity. Refitting requires the original training data and learner declaration.",
+  "Delayed-entry incidence and survival-band nodes require the matching raw subject table to numerically replay the interval or band. The patient surrogate node delegates to its finite coupling-bounds reader.",
+  "The integrated schedule terminal accepts replayed source, target and declaration products under their compiled child identities. Reference declarations without numerical replay do not supply those products.",
   "The ledger node delegates to the evidence ledger reader. A separate pool selection verifies its result, operation, retained synthesis input and value digest, and active standing against the replayed ledger. The affine terminal reads that branch's dependency closure; a stale sibling does not block the valid branch. Its scientific quantity remains caller-declared.",
 ]
 
@@ -38,11 +40,13 @@ test_sources = [
   "python/tests/test_composition_bundle.py",
   "crates/antecedent/tests/recalc_dr.rs",
   "python/tests/test_recalc_dr.py",
-  "crates/antecedent/tests/composition_cohort_decision.rs",
+  "crates/antecedent/tests/composition_cohort_decision.rs (compact_prediction_replays_into_a_supported_cohort_and_names_missing_refit_inputs)",
   "python/tests/test_composition_cohort_decision.py",
-  "crates/antecedent/tests/counterfactual_transport_lifecycle.rs",
+  "crates/antecedent/tests/counterfactual_transport_lifecycle.rs (counterfactual_bundle_replays_exact_and_sampled_affine_decisions)",
   "python/tests/test_producer_consumer_matrix.py",
   "crates/antecedent/tests/composition_ledger_decision.rs",
+  "crates/antecedent/tests/integrated_schedule_decision.rs (point_oracle_replays_and_changed_parent_invalidates_terminal)",
+  "crates/antecedent/tests/survival_route.rs (delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g)",
   "python/tests/test_composition_ledger_decision.py",
 ]
 
@@ -55,19 +59,19 @@ kind = "wrapper"
 rationale = "Portable composed-result container: a typed directed graph of embedded or referenced nodes whose edges carry the Merkle digest of the upstream node. Each node is decoded by the verifier registered for its artifact kind: a standard verifier, or for the host-replayed fit, predictive chain-decision and sequential reliability kinds, a verifier the composition facade registers with its execution context. from_bytes rebuilds a bundle from its container and refuses it unless the recomputed edges equal the stored edges and the recomputed identity equals both the stored identity and the independently retained one. Cancellation and execution or admission budget refusals are reported at their own stages."
 no_independent_algorithm = "Graph construction, digest recomputation and cross-edge fact comparison only; no estimator, interval or density appears in the module."
 covered_by = ["composition.verifiers", "composition.provenance", "composition.multi_source"]
-record_sha256 = "b6f54ada93faa9491554a4761b80e834e47fc455f59d9a1c59c06a1490bbc081"
+record_sha256 = "b05d562b8cf7c5d617fba41027414eee792636e705b4b51803ef6e2f1a4bac5b"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_bundle.rs"
-items = ["const BINDING_FACTS", "const BODY_SECTION", "const BUNDLE_KIND", "const BUNDLE_VERSION", "const FACT_EVIDENCE_DIGEST", "const FACT_LAW", "const FACT_QUANTITY_DIGEST", "const FACT_REQUEST", "const FACT_REQUIRES_LAW", "const FACT_SNAPSHOT", "const LAW_JOINT", "const LAW_MEAN_ONLY", "enum BundleError", "enum BundleStage", "enum ClaimLabel", "enum NodeStatus", "fn adjacency", "fn all_verified", "fn as_str", "fn body", "fn bundle_identity", "fn chain_digest", "fn chain_refusal", "fn claim_label", "fn code", "fn consume", "fn decode", "fn derive", "fn detail", "fn edges", "fn embedded_section", "fn evaluate", "fn failed", "fn find_conflict", "fn from", "fn from_bytes", "fn graph_error", "fn identity", "fn is_failed", "fn new", "fn node", "fn node_digest", "fn node_from_wire", "fn node_to_wire", "fn nodes", "fn refused", "fn register", "fn require_verified", "fn resolve_reference", "fn stage", "fn to_bytes", "fn to_refusal", "fn topological", "fn validate_nodes", "fn value", "fn verify_embedded", "fn with_data", "fn with_provider", "struct BodyWire", "struct BundleConsumer", "struct CompositionBundle", "struct ConsumedBundle", "struct ConsumedNode", "struct Decoded", "struct Derived", "struct EdgeWire", "struct NodeFailure", "struct NodeState", "struct NodeWire", "struct SuppliedData", "struct SuppliedProvider", "struct SuppliedSources", "struct UpstreamNode", "struct VerifiedNode", "trait NodeVerifier", "type Adjacency"]
-sha256 = "a35b45334bf254e6b1c43929da61401857c11f323551d202fb95ad5e59480804"
+items = ["const BINDING_FACTS", "const BODY_SECTION", "const BUNDLE_KIND", "const BUNDLE_VERSION", "const FACT_EVIDENCE_DIGEST", "const FACT_LAW", "const FACT_QUANTITY_DIGEST", "const FACT_REQUEST", "const FACT_REQUIRES_LAW", "const FACT_SNAPSHOT", "const LAW_JOINT", "const LAW_MEAN_ONLY", "enum BundleError", "enum BundleStage", "enum ClaimLabel", "enum NodeStatus", "fn adjacency", "fn all_verified", "fn as_str", "fn body", "fn bundle_identity", "fn chain_digest", "fn chain_refusal", "fn check_producer", "fn claim_label", "fn code", "fn consume", "fn decode", "fn derive", "fn detail", "fn edges", "fn embedded_section", "fn evaluate", "fn failed", "fn find_conflict", "fn from", "fn from_bytes", "fn graph_error", "fn identity", "fn is_failed", "fn ledger_parent_checked", "fn new", "fn node", "fn node_digest", "fn node_from_wire", "fn node_to_wire", "fn nodes", "fn refused", "fn register", "fn require_verified", "fn resolve_reference", "fn stage", "fn to_bytes", "fn to_refusal", "fn topological", "fn validate_nodes", "fn value", "fn verify_embedded", "fn with_data", "fn with_provider", "struct BodyWire", "struct BundleConsumer", "struct CompositionBundle", "struct ConsumedBundle", "struct ConsumedNode", "struct Decoded", "struct Derived", "struct EdgeWire", "struct NodeFailure", "struct NodeState", "struct NodeWire", "struct SuppliedData", "struct SuppliedProvider", "struct SuppliedSources", "struct UpstreamNode", "struct VerifiedNode", "trait NodeVerifier", "type Adjacency"]
+sha256 = "623f056cd3ba60ecc22ae38d88c8aa006d2a7908fb65225aef30455deeb6a9dc"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/composition_bundle/vocabulary.rs"
 items = ["enum EvidenceRelationship", "enum NodeKind", "enum NodeSource", "enum ProviderOrData", "fn canonical", "fn default", "fn embedded", "fn identity_mismatch_stage", "fn reference", "fn stage", "fn with_fact", "fn with_inspected", "struct BundleEdge", "struct BundleLimits", "struct BundleNode"]
-sha256 = "90a42e9164655a31a2b8b4f5fb1a427def8a4a73d92e9524157852389cdd2d62"
+sha256 = "b4ade7e69268c9caa277c7febd95c4385839b24981a49b4e185f0096f555cde3"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
