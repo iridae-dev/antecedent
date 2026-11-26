@@ -184,6 +184,45 @@ print(json.dumps(dict(loaded.decoded_artifact.payload["survival"])))
 
 
 @pytest.mark.parametrize("fixed_known", [False, True])
+@pytest.mark.parametrize("thin_arm", [0, 1])
+def test_incidence_support_counts_only_entered_subjects_in_each_arm(
+    fixed_known: bool, thin_arm: int
+) -> None:
+    data = _data(200)
+    horizon = 3.0
+    at_horizon = data.index[(data.treated == thin_arm) & (data.duration == horizon)]
+    # Only the first 24 count at the horizon. One more enters exactly at tau.
+    data.loc[at_horizon[24:], "duration"] = 2.0
+    boundary_subject = at_horizon[24]
+    data.loc[boundary_subject, ["entry", "duration"]] = [horizon, horizon + 1.0]
+    query = CompetingRisksOutcome(
+        "duration",
+        "cause",
+        "treated",
+        1,
+        horizon,
+        randomized=True,
+        delayed_entry="entry",
+        known_censoring=_g() if fixed_known else None,
+        observation_assumption=IndependentGiven(()),
+    )
+    for entry, risk in ((horizon, 24), (horizon - 0.25, 25)):
+        data.loc[boundary_subject, "entry"] = entry
+        result = require_success(
+            ant.analyze(
+                data,
+                query=query,
+                inference=ant.Frequentist(bootstrap=299),
+                execution=ant.Execution(seed=297),
+            )
+        )
+        section = result.survival
+        assert section.minimum_horizon_risk_set == risk
+        assert section.incidence_difference_interval is not None
+        assert (section.support_status == "supported") == (risk == 25)
+
+
+@pytest.mark.parametrize("fixed_known", [False, True])
 @pytest.mark.parametrize("incidence", [False, True])
 def test_delayed_entry_band_replays_in_a_bundle(fixed_known: bool, incidence: bool) -> None:
     rows = []
