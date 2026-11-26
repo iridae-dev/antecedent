@@ -315,7 +315,10 @@ fn counterfactual_bundle_replays_exact_and_sampled_affine_decisions() {
         let mut contract = DecisionContract {
             actions: vec![
                 action("include", UtilityExpr::Input(0)),
-                action("hold", UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0))),
+                action(
+                    "hold",
+                    UtilityExpr::product(UtilityExpr::Input(0), UtilityExpr::Const(0.0)),
+                ),
             ],
             utility_units: "utility".into(),
             criterion: DecisionCriterion::PosteriorExpectedUtility,
@@ -340,12 +343,69 @@ fn counterfactual_bundle_replays_exact_and_sampled_affine_decisions() {
         assert!(
             (consumed.value("decision", "include.expected_utility").unwrap() - truth).abs() < 1e-4
         );
+        assert_compiled_transport_bundle(&bundle, &context);
         contract.criterion = DecisionCriterion::Quantile { p: 0.5 };
         assert_eq!(
             mean_decision_bytes(&contract, &bytes, "requires-draws").unwrap_err().stage,
             BundleStage::UnsupportedLaw,
         );
     }
+}
+
+fn assert_compiled_transport_bundle(
+    bundle: &antecedent::analysis::composition::CompositionBundle,
+    context: &ExecutionContext,
+) {
+    use antecedent::analysis::composition::{
+        BundleStage, compile_counterfactual_transport_decision_bundle_recomputation,
+        consume_portable_counterfactual_transport_decision_bundle_recomputation,
+    };
+    use antecedent::analysis::composition_decision_terminal::DecisionBundleRecomputeError;
+    use antecedent_core::execution::AdmissionPool;
+
+    let plan =
+        compile_counterfactual_transport_decision_bundle_recomputation(bundle.clone(), "decision")
+            .unwrap();
+    let run = plan.execute(context).unwrap();
+    assert_eq!(run.bundle_identity, bundle.identity());
+    assert_eq!(run.dependencies.len(), 3);
+    assert_eq!(run.lowered_program_identity, *plan.lowered().identity().as_bytes());
+    let portable = plan.export_portable(&run, context).unwrap();
+    let replay = |ctx| {
+        consume_portable_counterfactual_transport_decision_bundle_recomputation(
+            &portable,
+            bundle.identity(),
+            plan.lowered().identity(),
+            ctx,
+        )
+    };
+    assert_eq!(replay(context).unwrap(), run);
+    let check_stage = |error| match error {
+        DecisionBundleRecomputeError::Bundle(error) => error.stage(),
+        _ => None,
+    };
+    let limited = ctx().with_admission(AdmissionPool::fixed(1, 1));
+    assert_eq!(
+        check_stage(plan.execute(&limited).unwrap_err()),
+        Some(BundleStage::ResourceRefused)
+    );
+    assert_eq!(check_stage(replay(&limited).unwrap_err()), Some(BundleStage::ResourceRefused));
+    let cancelled = ctx();
+    cancelled.cancellation.cancel();
+    assert_eq!(
+        check_stage(plan.execute(&cancelled).unwrap_err()),
+        Some(BundleStage::ExecutionCancelled)
+    );
+
+    assert!(
+        consume_portable_counterfactual_transport_decision_bundle_recomputation(
+            &portable,
+            bundle.identity(),
+            antecedent_core::SemanticDigest::from_bytes([0; 32]),
+            context,
+        )
+        .is_err()
+    );
 }
 
 fn reseal(mut wire: Wire) -> Vec<u8> {

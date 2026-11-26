@@ -231,6 +231,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "BundleRecomputation"
         | "CohortDecisionBundleRecomputation"
         | "CompactModelRefit"
+        | "CounterfactualTransportDecisionBundleRecomputation"
         | "CyclicPosteriorBundleRecomputation"
         | "CyclicPosteriorNodeBundleRecomputation"
         | "CyclicTargetFeedbackNodeDecisionBundleRecomputation"

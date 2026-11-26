@@ -16,13 +16,13 @@ use antecedent_io::counterfactual_transport_artifact::{
     consume_counterfactual_transport_with_limits,
 };
 use antecedent_io::sampled_counterfactual_transport_artifact::{
-    SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE, SampledCounterfactualTransportConsumeLimits,
-    SampledCounterfactualTransportExpectedIdentity,
+    SAMPLED_COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE, SampledCounterfactualTransportArtifactError,
+    SampledCounterfactualTransportConsumeLimits, SampledCounterfactualTransportExpectedIdentity,
     consume_sampled_counterfactual_transport_with_limits,
 };
 use antecedent_io_core::counterfactual_transport_wire::{
-    COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE, CounterfactualTransportExpectedIdentity,
-    CounterfactualTransportQueryWire,
+    COUNTERFACTUAL_TRANSPORT_ARTIFACT_FEATURE, CounterfactualTransportArtifactError,
+    CounterfactualTransportExpectedIdentity, CounterfactualTransportQueryWire,
 };
 use serde::{Deserialize, Serialize};
 
@@ -73,6 +73,50 @@ pub(super) fn detects(bytes: &[u8]) -> bool {
     feature(bytes).is_some()
 }
 
+fn stopped(ctx: &ExecutionContext) -> BundleStage {
+    if ctx.cancellation.is_cancelled() {
+        BundleStage::ExecutionCancelled
+    } else {
+        BundleStage::ResourceRefused
+    }
+}
+
+fn exact_failure(
+    error: CounterfactualTransportArtifactError,
+    ctx: &ExecutionContext,
+) -> NodeFailure {
+    use CounterfactualTransportArtifactError as E;
+    let stage = match &error {
+        E::UnsupportedVersion { .. } => BundleStage::IncompatibleVersion,
+        E::LimitsExceeded(_) => BundleStage::ResourceRefused,
+        E::Replay { code, .. }
+            if *code == antecedent_core::reason_code!("transport_budget_cancel") =>
+        {
+            stopped(ctx)
+        }
+        _ => BundleStage::TamperedQuantity,
+    };
+    failure(stage, error)
+}
+
+fn sampled_failure(
+    error: SampledCounterfactualTransportArtifactError,
+    ctx: &ExecutionContext,
+) -> NodeFailure {
+    use SampledCounterfactualTransportArtifactError as E;
+    let stage = match &error {
+        E::UnsupportedVersion { .. } => BundleStage::IncompatibleVersion,
+        E::LimitsExceeded(_) => BundleStage::ResourceRefused,
+        E::Replay { code, .. }
+            if *code == antecedent_core::reason_code!("transport_budget_cancel") =>
+        {
+            stopped(ctx)
+        }
+        _ => BundleStage::TamperedQuantity,
+    };
+    failure(stage, error)
+}
+
 fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailure> {
     if bytes.len() > 64 * 1024 * 1024 {
         return Err(failure(
@@ -86,6 +130,10 @@ fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailu
             "counterfactual transport replay was cancelled",
         ));
     }
+    // Wire decoding and replay retain owned tables and decoded source metadata.
+    let _intake = ctx
+        .acquire_admission(0, 4 * bytes.len() as u64)
+        .map_err(|error| failure(stopped(ctx), error))?;
     let feature = feature(bytes).ok_or_else(|| {
         failure(BundleStage::SwappedEvidence, "expected a counterfactual transport artifact")
     })?;
@@ -97,7 +145,7 @@ fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailu
                 CounterfactualTransportConsumeLimits::default(),
                 ctx,
             )
-            .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
+            .map_err(|error| exact_failure(error, ctx))?;
             let ConsumedCounterfactualTransportOutcome::Identified(result) = consumed.outcome
             else {
                 return Err(failure(
@@ -122,7 +170,7 @@ fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailu
                 SampledCounterfactualTransportConsumeLimits::default(),
                 ctx,
             )
-            .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
+            .map_err(|error| sampled_failure(error, ctx))?;
             let Some(point) = consumed.estimate.point else {
                 return Err(failure(
                     BundleStage::UnsupportedLaw,

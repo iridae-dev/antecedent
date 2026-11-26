@@ -116,6 +116,8 @@ macro_rules! program_families {
             IntegratedScheduleDecision => PropagationChain, unit "design.integrated_schedule_decision";
             /// Bundle replay with a retained cohort and affine decision terminal.
             CohortDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
+            /// Bundle replay with an exact or sampled transport point and an affine terminal.
+            CounterfactualTransportDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Sharp binary principal-surrogate bounds from jointly observed randomized endpoints.
             PatientSurrogateIdentification => DesignBased, unit "identify.patient_surrogate";
             /// Bundle replay with an active ledger pool and affine decision terminal.

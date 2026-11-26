@@ -287,17 +287,19 @@ RecomputationRoute = Literal[
     "predictive_decision",
     "posterior_decision",
     "cohort_decision",
+    "counterfactual_transport_decision",
     "ledger_pooled_decision",
     "predictive_fit_decision",
 ]
 """The terminal a :class:`CompiledBundleRecomputation` executes live, including an affine
-decision on a cohort or selected ledger pool."""
+decision on a cohort, selected ledger pool or counterfactual transport point."""
 #: Routes :func:`consume_bundle_recomputation` replays.
 RECOMPUTATION_ROUTES: tuple[str, ...] = (
     "chain",
     "predictive_decision",
     "posterior_decision",
     "cohort_decision",
+    "counterfactual_transport_decision",
     "ledger_pooled_decision",
     "predictive_fit_decision",
 )
@@ -2028,6 +2030,25 @@ def compile_cohort_decision_bundle_recomputation(
 
 
 @outcome_operation
+def compile_counterfactual_transport_decision_bundle_recomputation(
+    bundle: Bundle, terminal: str
+) -> CompiledBundleRecomputation:
+    """Compile a bound affine decision over exact or sampled counterfactual transport.
+
+    Connect the embedded decision result directly to its transport result and decision
+    contract. Execution rereads the transport premises and target under the caller's
+    controls. A sampled transport result contributes its plug-in point.
+    """
+    built = _bundle(bundle)
+    handle = _recomputed(
+        _native.counterfactual_transport_decision_bundle_recomputation_compile(
+            built._native, _node(terminal, "terminal")
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
 def compile_ledger_pooled_decision_bundle_recomputation(
     bundle: Bundle, terminal: str
 ) -> CompiledBundleRecomputation:
@@ -2227,7 +2248,7 @@ def consume_bundle_recomputation(
     terminal executed again; the live receipt must equal the stored one. ``route`` is the
     :attr:`BundleRecomputation.route` the producer handed over with the two identities: a
     ``predictive_decision`` or ``posterior_decision`` rebuilds the contract and the source law,
-    a ``predictive_fit_decision`` refits its producer, and the cohort and ledger routes
+    a ``predictive_fit_decision`` refits its producer, and the cohort, ledger and counterfactual transport routes
     reconstruct their bound point quantities before scoring the affine decision.
 
     Raises:
@@ -2269,6 +2290,14 @@ def consume_bundle_recomputation(
     elif route == "cohort_decision":
         pair = policy._call(
             _native.cohort_decision_bundle_recomputation_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            **controls,
+        )
+    elif route == "counterfactual_transport_decision":
+        pair = policy._call(
+            _native.counterfactual_transport_decision_bundle_recomputation_consume,
             data,
             expected_bundle,
             expected_program,
@@ -2392,6 +2421,7 @@ __all__ = [
     "compile_chain_bundle_recomputation",
     "compile_decision_bundle_recomputation",
     "compile_cohort_decision_bundle_recomputation",
+    "compile_counterfactual_transport_decision_bundle_recomputation",
     "cohort_decision",
     "LedgerPooledResult",
     "select_ledger_pooled_result",

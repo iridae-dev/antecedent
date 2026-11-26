@@ -237,6 +237,12 @@ unit = "composition.bundle"
 entry = { rust = "crates/antecedent/src/analysis/composition_cohort_decision.rs", python = "python/antecedent/composition_bundle.py" }
 
 [[route]]
+lowering = "CounterfactualTransportDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition_cohort_decision.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
 lowering = "JointPanelResponse"
 unit_kind = "capability"
 unit = "joint_response.interval_readings"

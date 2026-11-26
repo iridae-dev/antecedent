@@ -259,6 +259,12 @@ const PINNED: &[(C, R, &str, F)] = &[
         F::PropagationChain,
     ),
     (
+        C::CounterfactualTransportDecisionBundleRecomputation,
+        R::CounterfactualTransportDecisionBundleRecomputation,
+        "CounterfactualTransportDecisionBundleRecomputation",
+        F::PropagationChain,
+    ),
+    (
         C::PatientSurrogateIdentification,
         R::PatientSurrogateIdentification,
         "PatientSurrogateIdentification",

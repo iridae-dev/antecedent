@@ -1049,7 +1049,7 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 producer = "counterfactual_transport_result"
 consumer = "bundle_node"
 status = "ADAPTER"
-detail = "The exact and sampled validating readers replay a `counterfactual_transport_result` node. `composition_bundle.mean_decision` uses the verified target-event coordinate in an affine decision. A replacement target refuses the earlier terminal, and a quantile request refuses `composition_bundle.unsupported_law`."
+detail = "The exact and sampled validating readers replay a `counterfactual_transport_result` node. The affine decision compiler and its portable receipt reader bind the graph, target-event coordinate and terminal. A revised target refuses the earlier terminal, a quantile refuses `composition_bundle.unsupported_law`, and caller admission still applies to replay."
 
 [[cell]]
 producer = "counterfactual_transport_result"

@@ -25,7 +25,7 @@ use super::cohort_decision::{CohortDecisionSource, CohortExpectation, evaluate_c
 use super::composition::{
     BundleBuilder, BundleConsumer, BundleError, BundleLimits, BundleNode, BundleStage,
     CompositionBundle, NodeKind, NodeSource, ReplayedBundleDependency, SuppliedSources,
-    export_bundle,
+    export_bundle, standard_consumer_with_context,
 };
 use super::composition_decision_terminal::{
     DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError,
@@ -47,6 +47,9 @@ const CONSUME: &str =
     "antecedent.composition.consume_portable_cohort_decision_bundle_recomputation";
 const PRODUCE: &str = "antecedent.composition.cohort_decision_bytes";
 const FEATURE: &str = "cohort_decision_bundle_recomputation_portable_v1";
+const TRANSPORT_COMPILE: &str =
+    "antecedent.composition.compile_counterfactual_transport_decision_bundle_recomputation";
+const TRANSPORT_CONSUME: &str = "antecedent.composition.consume_portable_counterfactual_transport_decision_bundle_recomputation";
 const MAX_PORTABLE_BYTES: usize = 32 * 1024 * 1024;
 
 type Error = DecisionBundleRecomputeError;
@@ -55,6 +58,7 @@ type Error = DecisionBundleRecomputeError;
 pub(super) enum AffineDecisionSource {
     Cohort,
     LedgerPool,
+    CounterfactualTransport,
 }
 
 impl AffineDecisionSource {
@@ -62,6 +66,7 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => NodeKind::CohortDecisionSource,
             Self::LedgerPool => NodeKind::LedgerPooledResult,
+            Self::CounterfactualTransport => NodeKind::CounterfactualTransportResult,
         }
     }
 
@@ -69,6 +74,7 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => COMPILE,
             Self::LedgerPool => composition_ledger_decision::COMPILE,
+            Self::CounterfactualTransport => TRANSPORT_COMPILE,
         }
     }
 
@@ -76,6 +82,7 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => CONSUME,
             Self::LedgerPool => composition_ledger_decision::CONSUME,
+            Self::CounterfactualTransport => TRANSPORT_CONSUME,
         }
     }
 
@@ -83,6 +90,9 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => FEATURE,
             Self::LedgerPool => "ledger_pooled_decision_bundle_recomputation_portable_v1",
+            Self::CounterfactualTransport => {
+                "counterfactual_transport_decision_bundle_recomputation_portable_v1"
+            }
         }
     }
 
@@ -90,6 +100,9 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => ProgramCell::CohortDecisionBundleRecomputation,
             Self::LedgerPool => ProgramCell::LedgerPooledDecisionBundleRecomputation,
+            Self::CounterfactualTransport => {
+                ProgramCell::CounterfactualTransportDecisionBundleRecomputation
+            }
         }
     }
 
@@ -97,6 +110,9 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => "cohort_decision_bundle_recomputation.v1",
             Self::LedgerPool => "ledger_pooled_decision_bundle_recomputation.v1",
+            Self::CounterfactualTransport => {
+                "counterfactual_transport_decision_bundle_recomputation.v1"
+            }
         }
     }
 
@@ -104,6 +120,7 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => "cohort_decision.affine",
             Self::LedgerPool => "ledger_pooled_decision.affine",
+            Self::CounterfactualTransport => "counterfactual_transport_decision.affine",
         }
     }
 
@@ -111,6 +128,7 @@ impl AffineDecisionSource {
         match self {
             Self::Cohort => "portable-cohort-decision",
             Self::LedgerPool => "portable-ledger-pooled-decision",
+            Self::CounterfactualTransport => "portable-counterfactual-transport-decision",
         }
     }
 }
@@ -240,6 +258,25 @@ pub fn compile_cohort_decision_bundle_recomputation(
     compile_affine_decision_bundle(bundle, terminal_node, AffineDecisionSource::Cohort)
 }
 
+/// Compile an affine decision whose embedded source is exact or sampled counterfactual transport.
+///
+/// The program binds the selected transport artifact, graph, contract and terminal. The
+/// sampled carrier supplies its plug-in point, with its sampling facts retained by the
+/// source verifier.
+///
+/// # Errors
+/// A missing, referenced or ambiguous input, a malformed contract, or a request for a law.
+pub fn compile_counterfactual_transport_decision_bundle_recomputation(
+    bundle: CompositionBundle,
+    terminal_node: &str,
+) -> Result<CompiledAffineDecisionBundleRecomputation, Error> {
+    compile_affine_decision_bundle(
+        bundle,
+        terminal_node,
+        AffineDecisionSource::CounterfactualTransport,
+    )
+}
+
 pub(super) fn compile_affine_decision_bundle(
     bundle: CompositionBundle,
     terminal_node: &str,
@@ -289,6 +326,10 @@ fn lower(
             "antecedent.ledger_pooled_decision_bundle.source.v1",
             "antecedent.ledger_pooled_decision_bundle.question.v1",
         ),
+        AffineDecisionSource::CounterfactualTransport => (
+            "antecedent.counterfactual_transport_decision_bundle.source.v1",
+            "antecedent.counterfactual_transport_decision_bundle.question.v1",
+        ),
     };
     let source_digest = CanonicalWriter::digest_bytes(source_tag, source.identity.as_bytes());
     let mut question = CanonicalWriter::new(question_tag);
@@ -334,7 +375,10 @@ fn lower(
         composition: Composition::Chained {
             stages: match carrier {
                 AffineDecisionSource::Cohort => bundle.nodes().len(),
-                AffineDecisionSource::LedgerPool => ancestors(bundle, terminal).len(),
+                AffineDecisionSource::LedgerPool
+                | AffineDecisionSource::CounterfactualTransport => {
+                    ancestors(bundle, terminal).len()
+                }
             },
         },
         decision: Some(DecisionProgram {
@@ -448,41 +492,59 @@ impl CompiledAffineDecisionBundleRecomputation {
             ));
         }
         let limits = BundleLimits::default();
+        let _intake = self.admit_transport_bundle(&scoped)?;
         let selected;
         let required = match self.carrier {
             AffineDecisionSource::Cohort => &self.bundle,
-            AffineDecisionSource::LedgerPool => {
+            AffineDecisionSource::LedgerPool | AffineDecisionSource::CounterfactualTransport => {
                 selected = ancestry_subgraph(&self.bundle, &self.terminal_node)?;
                 &selected
             }
         };
         let bytes = export_bundle(required, "affine-decision-replay")?;
-        let consumer = register_standard_verifiers(
-            BundleConsumer::new()
-                .register(Box::new(CohortDecisionSourceVerifier::new(&scoped)))
-                .register(Box::new(EvidenceLedgerVerifier::new(&scoped))),
-        );
+        let consumer = if matches!(self.carrier, AffineDecisionSource::CounterfactualTransport) {
+            standard_consumer_with_context(&scoped)
+        } else {
+            register_standard_verifiers(
+                BundleConsumer::new()
+                    .register(Box::new(CohortDecisionSourceVerifier::new(&scoped)))
+                    .register(Box::new(EvidenceLedgerVerifier::new(&scoped))),
+            )
+        };
         let consumed =
             consumer.consume(&bytes, &limits, required.identity(), &SuppliedSources::default())?;
         consumed.require_verified()?;
         if !consumed.all_replayed() {
             return Err(Error::Invalid("every affine decision dependency must replay"));
         }
-        let (binding, live) = self.score_live(&scoped)?;
         let terminal = by_id(&self.bundle, &self.terminal_node)?;
-        let stored = DecisionResultArtifact::from_bytes(
-            embedded(terminal)?,
-            &self.contract_identity,
-            &binding,
-        )?;
-        let fingerprint = decision_result_fingerprint(&live, &binding)?;
-        if decision_result_fingerprint(stored.result(), &binding)? != fingerprint {
-            return Err(refused(
-                BundleStage::TamperedQuantity,
-                "the retained decision differs from the live affine decision",
-                Some(&self.terminal_node),
-            ));
-        }
+        let fingerprint = if matches!(self.carrier, AffineDecisionSource::CounterfactualTransport) {
+            // The terminal verifier has already rescored the verified transport parent and
+            // compared its result against this decision's complete retained fingerprint.
+            let binding = &by_id(&self.bundle, &self.source_node)?.identity;
+            let stored = DecisionResultArtifact::from_bytes(
+                embedded(terminal)?,
+                &self.contract_identity,
+                binding,
+            )?;
+            decision_result_fingerprint(stored.result(), binding)?
+        } else {
+            let (binding, live) = self.score_live(&scoped)?;
+            let stored = DecisionResultArtifact::from_bytes(
+                embedded(terminal)?,
+                &self.contract_identity,
+                &binding,
+            )?;
+            let fingerprint = decision_result_fingerprint(&live, &binding)?;
+            if decision_result_fingerprint(stored.result(), &binding)? != fingerprint {
+                return Err(refused(
+                    BundleStage::TamperedQuantity,
+                    "the retained decision differs from the live affine decision",
+                    Some(&self.terminal_node),
+                ));
+            }
+            fingerprint
+        };
         Ok(DecisionBundleRecomputationReceipt {
             bundle_identity: self.bundle.identity().to_owned(),
             terminal_node: terminal.id.clone(),
@@ -533,7 +595,27 @@ impl CompiledAffineDecisionBundleRecomputation {
                 let selection = LedgerPoolSelection::inspect(source_bytes).map_err(node_error)?;
                 Ok((selection.identity(), score_selection(&self.contract, &selection)?))
             }
+            AffineDecisionSource::CounterfactualTransport => {
+                Err(Error::Invalid("transport scoring belongs to the decision verifier"))
+            }
         }
+    }
+
+    fn admit_transport_bundle(
+        &self,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<antecedent_core::execution::AdmissionLease>, Error> {
+        if !matches!(self.carrier, AffineDecisionSource::CounterfactualTransport) {
+            return Ok(None);
+        }
+        let bytes = self.bundle.nodes().iter().try_fold(0u64, |sum, node| {
+            let size = match &node.source {
+                NodeSource::Embedded { bytes } => bytes.len() as u64,
+                NodeSource::Reference { .. } => 0,
+            };
+            sum.checked_add(size)
+        });
+        Ok(Some(transport_intake(ctx, bytes)?))
     }
 
     /// Embed the graph and the independently reproduced receipt.
@@ -548,6 +630,7 @@ impl CompiledAffineDecisionBundleRecomputation {
         if self.execute(ctx)? != *receipt {
             return Err(Error::Invalid("affine decision bundle receipt differs"));
         }
+        let _intake = self.admit_transport_bundle(ctx)?;
         let bytes = antecedent_io::to_cbor(&PortableAffineDecisionBundle {
             version: 1,
             required_feature: self.carrier.feature().into(),
@@ -584,6 +667,43 @@ pub fn consume_portable_cohort_decision_bundle_recomputation(
     )
 }
 
+/// Reconstruct the transport decision and independently reproduce its execution receipt.
+///
+/// # Errors
+/// An incompatible artifact, a graph or program identity mismatch, or a replay refusal.
+pub fn consume_portable_counterfactual_transport_decision_bundle_recomputation(
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+) -> Result<DecisionBundleRecomputationReceipt, Error> {
+    consume_portable_affine_decision_bundle(
+        bytes,
+        expected_bundle,
+        expected_program,
+        ctx,
+        AffineDecisionSource::CounterfactualTransport,
+    )
+}
+
+fn transport_intake(
+    ctx: &ExecutionContext,
+    size: Option<u64>,
+) -> Result<antecedent_core::execution::AdmissionLease, Error> {
+    // Outer decode/encode and bundle materialization retain copies of embedded bytes.
+    let bytes = size.and_then(|size| size.checked_mul(4)).ok_or_else(|| {
+        refused(BundleStage::ResourceRefused, "transport bundle intake overflowed", None)
+    })?;
+    ctx.acquire_admission(0, bytes).map_err(|error| {
+        let stage = if ctx.cancellation.is_cancelled() {
+            BundleStage::ExecutionCancelled
+        } else {
+            BundleStage::ResourceRefused
+        };
+        refused(stage, error.to_string(), None)
+    })
+}
+
 pub(super) fn consume_portable_affine_decision_bundle(
     bytes: &[u8],
     expected_bundle: &str,
@@ -599,6 +719,9 @@ pub(super) fn consume_portable_affine_decision_bundle(
             None,
         ));
     }
+    let intake = matches!(carrier, AffineDecisionSource::CounterfactualTransport)
+        .then(|| transport_intake(ctx, Some(bytes.len() as u64)))
+        .transpose()?;
     let wire: PortableAffineDecisionBundle = antecedent_io::from_cbor(bytes)?;
     if wire.version != 1 || wire.required_feature != carrier.feature() {
         return Err(refused(
@@ -616,8 +739,11 @@ pub(super) fn consume_portable_affine_decision_bundle(
     if plan.lowered.identity() != expected_program {
         return Err(Error::Invalid("affine decision bundle program differs"));
     }
+    let stored_receipt = wire.receipt;
+    drop(wire.bundle_bytes);
+    drop(intake);
     let receipt = plan.execute(ctx)?;
-    if receipt != wire.receipt {
+    if receipt != stored_receipt {
         return Err(Error::Invalid("affine decision bundle live receipt differs"));
     }
     Ok(receipt)

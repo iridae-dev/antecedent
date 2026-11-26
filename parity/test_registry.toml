@@ -27714,3 +27714,11 @@ crate = "antecedent"
 cargo_target = "integrated_schedule_decision"
 path = "crates/antecedent/tests/integrated_schedule_decision.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "counterfactual-transport-compiled-affine-bundle"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_counterfactual_transport_compiled_bundle.py"
+gates = ["inventory"]
+why = "Check both transport variants through the public decision compiler, portable receipt, changed target and replay resource refusal."

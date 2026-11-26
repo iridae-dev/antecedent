@@ -14108,6 +14108,19 @@ def composition_select_ledger_pool(
 def composition_ledger_pooled_decision(
     contract_json: str, source_bytes: bytes, artifact_id: str
 ) -> tuple[bytes | None, str | None]: ...
+def counterfactual_transport_decision_bundle_recomputation_compile(
+    bundle: CompositionBundle, terminal_node: str
+) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...
+def counterfactual_transport_decision_bundle_recomputation_consume(
+    data: bytes,
+    expected_bundle: str,
+    expected_program: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BundleRecomputationRunHandle | None, str | None]: ...
 def ledger_pooled_decision_bundle_recomputation_compile(
     bundle: CompositionBundle, terminal_node: str
 ) -> tuple[BundleRecomputationPlanHandle | None, str | None]: ...

@@ -10,14 +10,17 @@
 
 use antecedent::analysis::cohort_decision::{CohortDecisionSource, CohortExpectation};
 use antecedent::analysis::composition::{
-    BundleBuilder, BundleError, BundleLimits, ChainBundleRecomputationReceipt, ChainBundleRecomputeError,
-    CompiledChainBundleRecomputation, CompiledPredictiveFitDecisionBundle, CompositionBundle,
-    NodeKind, NodeSource, PredictiveFitDecisionBundleError, PredictiveFitDecisionBundleReceipt,
-    ReplayedBundleDependency, compile_assessed_bridge_posterior_node_decision_bundle,
-    compile_chain_bundle_recomputation, compile_cyclic_target_feedback_node_decision_bundle,
+    BundleBuilder, BundleError, BundleLimits, ChainBundleRecomputationReceipt,
+    ChainBundleRecomputeError, CompiledChainBundleRecomputation,
+    CompiledPredictiveFitDecisionBundle, CompositionBundle, NodeKind, NodeSource,
+    PredictiveFitDecisionBundleError, PredictiveFitDecisionBundleReceipt, ReplayedBundleDependency,
+    compile_assessed_bridge_posterior_node_decision_bundle, compile_chain_bundle_recomputation,
+    compile_counterfactual_transport_decision_bundle_recomputation,
+    compile_cyclic_target_feedback_node_decision_bundle,
     compile_graph_imputation_predictive_node_decision_bundle,
     compile_joint_transport_predictive_node_decision_bundle,
     compile_trial_ipw_predictive_node_decision_bundle, consume_portable_chain_bundle_recomputation,
+    consume_portable_counterfactual_transport_decision_bundle_recomputation,
     consume_portable_predictive_fit_decision_bundle,
 };
 use antecedent::analysis::composition_cohort_decision::{
@@ -88,6 +91,7 @@ const ARTIFACT_INVALID: &str = "bundle_recomputation.artifact_invalid";
 const CHAIN_ROUTE: &str = "chain";
 const PREDICTIVE_DECISION_ROUTE: &str = "predictive_decision";
 const POSTERIOR_DECISION_ROUTE: &str = "posterior_decision";
+const COUNTERFACTUAL_TRANSPORT_DECISION_ROUTE: &str = "counterfactual_transport_decision";
 const COHORT_DECISION_ROUTE: &str = "cohort_decision";
 const LEDGER_POOLED_DECISION_ROUTE: &str = "ledger_pooled_decision";
 const PREDICTIVE_FIT_ROUTE: &str = "predictive_fit_decision";
@@ -594,6 +598,36 @@ fn cohort_decision_bundle_recomputation_compile(
     })
 }
 
+/// Compile an affine decision over the embedded counterfactual transport point.
+#[pyfunction]
+fn counterfactual_transport_decision_bundle_recomputation_compile(
+    bundle: PyRef<'_, PyCompositionBundle>,
+    terminal_node: &str,
+) -> PyResult<Refused<PyBundleRecomputationPlan>> {
+    crate::catch_ffi(|| {
+        Ok(
+            match compile_counterfactual_transport_decision_bundle_recomputation(
+                bundle.bundle.clone(),
+                terminal_node,
+            ) {
+                Ok(plan) => (
+                    Some(PyBundleRecomputationPlan {
+                        plan: Plan::Affine(plan, COUNTERFACTUAL_TRANSPORT_DECISION_ROUTE),
+                    }),
+                    None,
+                ),
+                Err(error) => (
+                    None,
+                    Some(decision_bundle_json(
+                        &error,
+                        Phase::Compile(reason_code!("decision_contract_unsatisfied")),
+                    )),
+                ),
+            },
+        )
+    })
+}
+
 /// Independently validate the ledger and select one still-valid point pool.
 #[pyfunction]
 #[pyo3(signature = (ledger, expected_ledger, result, quantity_json, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
@@ -863,6 +897,34 @@ fn cohort_decision_bundle_recomputation_consume(
         consume_portable_cohort_decision_bundle_recomputation(data, expected_bundle, program, ctx)
             .map(Receipt::Decision)
             .map_err(|error| decision_bundle_json(&error, Phase::Replay))
+    })
+}
+
+/// Independently replay the portable counterfactual transport decision.
+#[pyfunction]
+#[pyo3(signature = (data, expected_bundle, expected_program, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+#[allow(clippy::too_many_arguments, reason = "the artifact, its two identities and the controls")]
+fn counterfactual_transport_decision_bundle_recomputation_consume(
+    py: Python<'_>,
+    data: &[u8],
+    expected_bundle: &str,
+    expected_program: &str,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> PyResult<Refused<PyBundleRecomputationRun>> {
+    let program = crate::digest::digest(expected_program, "expected_program")?;
+    let ctx = context(seed, threads, cancel, memory_bytes);
+    consume_run(py, COUNTERFACTUAL_TRANSPORT_DECISION_ROUTE, ctx, move |ctx| {
+        consume_portable_counterfactual_transport_decision_bundle_recomputation(
+            data,
+            expected_bundle,
+            program,
+            ctx,
+        )
+        .map(Receipt::Decision)
+        .map_err(|error| decision_bundle_json(&error, Phase::Replay))
     })
 }
 
@@ -1215,6 +1277,14 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(composition_cohort_decision, module)?)?;
     module.add_function(wrap_pyfunction!(cohort_decision_bundle_recomputation_compile, module)?)?;
     module.add_function(wrap_pyfunction!(cohort_decision_bundle_recomputation_consume, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        counterfactual_transport_decision_bundle_recomputation_compile,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        counterfactual_transport_decision_bundle_recomputation_consume,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(composition_select_ledger_pool, module)?)?;
     module.add_function(wrap_pyfunction!(composition_ledger_pooled_decision, module)?)?;
     module.add_function(wrap_pyfunction!(
