@@ -295,6 +295,12 @@ class ExecutionCaptureTests(Fixture):
         ]
         self.assertEqual(sr.built_executable("\n".join(lines)), "/t/top-abc")
 
+    def test_cargo_capture_executes_the_test_in_its_inline_module(self):
+        self.write("crates/top/tests/t.rs", "mod truth { #[test] fn check_top() {} }\n")
+        seen = []
+        self.run_capture(["crates/top/src/lib.rs"], seen=seen)
+        self.assertEqual(seen[0][:3], ["/bin/top-test", "--exact", "truth::check_top"])
+
     def run_capture(self, rels, passed=True, seen=None):
         import json
         import subprocess
@@ -312,7 +318,7 @@ class ExecutionCaptureTests(Fixture):
 
         with mock.patch.object(sr, "llvm_tool", lambda name: name):
             return sr.capture_one(
-                self.root, "/bin/top-test", sr.locate(self.root, self.row("top")), {}, fake
+                self.root, "/bin/top-test", sr.rust_execution_info(self.root, self.row("top")), {}, fake
             )
 
     def test_a_failing_test_is_not_captured(self):

@@ -239,6 +239,15 @@ def exact_test_name(root: Path, row: dict, info: dict) -> str:
     return "::".join([part for part in (prefix, *inner) if part] + [function])
 
 
+def rust_execution_info(root: Path, row: dict) -> dict:
+    """Resolve the exact executable test name separately from its stable evidence selector."""
+    info = locate(root, row)
+    if info["lang"] != "rust":
+        raise ValueError("Rust earning requires Rust assertions")
+    info["libtest"] = exact_test_name(root, row, info)
+    return info
+
+
 def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run,
                 *, llvm_tools: dict[str, str] | None = None) -> dict[str, set[int]] | None:
     """Run one Rust assertion's instrumented binary; its executed regions, or `None` on failure.
@@ -278,7 +287,7 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
     require_compile_environment(root)
     groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
     for row in items:
-        info = locate(root, row)
+        info = rust_execution_info(root, row)
         groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
     print(f"scientific records: earning {len(items)} Rust assertion(s) in {len(groups)} target(s)", flush=True)
     if not groups:
@@ -379,13 +388,11 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
     unresolved = []
     for row in items:
-        info = locate(root, row)
-        if info["lang"] != "rust":
-            raise ValueError("Nix Rust earning requires Rust assertions")
         try:
-            info["libtest"] = exact_test_name(root, row, info)
+            info = rust_execution_info(root, row)
         except SelectorError as error:
             unresolved.append(str(error))
+            continue
         groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
     if unresolved:
         # Before any build: a row that names no unique test cannot be earned.
