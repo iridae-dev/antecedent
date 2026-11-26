@@ -79,7 +79,7 @@
             "struct WeightedInteraction",
             "struct WeightedInteractionFit"
           ],
-          "sha256": "f2f1dc13ed67355d554c8fecc7ec7728d5e8f2c17e064b61233ee7a2d0bd191a"
+          "sha256": "e602f6d42fb10fbebe33d7a03584198e65aa70e359a148c0e6f3006261212010"
         }
       ],
       "fixture_payload_sha256": "0813b6be0eccb05ecacd0e49da2cb4a381b0745de8b6b7b050250fe14d5bf325"
