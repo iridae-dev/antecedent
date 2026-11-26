@@ -5,6 +5,7 @@ use std::collections::BTreeSet;
 
 use super::AnalysisResultContractWire;
 use super::dr_replay::{SourceReplay, SourceWitnessState};
+use super::verify::checked_resolved_estimator;
 use crate::contract_reason::ContractReason;
 use crate::distribution_replay::ReplayLimits;
 use crate::source_witness::{verify_source_witness, verify_source_witness_schema};
@@ -20,7 +21,7 @@ pub(super) fn declares_survival_replay(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
 ) -> bool {
-    contract.estimator.as_deref() == Some("randomized.survival_product_limit")
+    checked_resolved_estimator(contract) == Some("randomized.survival_product_limit")
         && matches!(&contract.target.query, CausalQueryWire::Survival(query)
         if query.stratified_censoring.is_some() && body.survival.is_some()
             || query.delayed_entry.is_some() && body.survival.as_ref().is_some_and(|curve| {

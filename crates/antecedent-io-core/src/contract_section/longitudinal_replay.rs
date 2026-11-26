@@ -4,6 +4,7 @@
 
 use super::AnalysisResultContractWire;
 use super::dr_replay::{SourceReplay, SourceWitnessState};
+use super::verify::checked_resolved_estimator;
 use crate::analysis_result_artifact::LongitudinalScheduleResultWire;
 use crate::contract_reason::ContractReason;
 use crate::query_wire::LongitudinalScheduleTargetWire;
@@ -22,13 +23,21 @@ pub(super) fn declares_longitudinal_replay(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
 ) -> bool {
-    matches!(&contract.target.query, CausalQueryWire::LongitudinalRegime(query)
-        if query.periods == 4 && query.method == "sequential_dr"
-            || query.periods == 2 && matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule"))
-        && body
-            .longitudinal_regime
-            .as_ref()
-            .is_some_and(|fit| fit.value_interval_95.is_some() || fit.schedule_family.is_some())
+    let (CausalQueryWire::LongitudinalRegime(query), Some(fit)) =
+        (&contract.target.query, &body.longitudinal_regime)
+    else {
+        return false;
+    };
+    match (query.periods, query.method.as_str(), checked_resolved_estimator(contract)) {
+        (4, "sequential_dr", Some("longitudinal.sequential_dr_regime"))
+        | (2, "fitted_g_formula", Some("longitudinal.g_formula_regime")) => {
+            fit.value_interval_95.is_some()
+        }
+        (2, "compare_schedules" | "learn_schedule", Some("longitudinal.ipw_regime")) => {
+            fit.schedule_family.is_some()
+        }
+        _ => false,
+    }
 }
 
 pub(super) fn replay_longitudinal_interval(

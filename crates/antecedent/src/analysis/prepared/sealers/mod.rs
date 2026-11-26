@@ -289,8 +289,10 @@ pub(super) const SEALERS: [Sealer; ExecutionKind::SEALED_COUNT] = [
 /// identification and procedure. Its fitter is an unfitted declaration: checking
 /// it invokes no estimator or user callback and reads no observation values.
 /// Checked Bayesian DAG ATE likewise binds only the graph, query, proof and inference
-/// declaration. It holds no row-derived design; fitting remains deferred until a click.
-/// Other routes keep their lowered-program guard until explicit materialization.
+/// declaration. The longitudinal regime checker binds the declared histories and checks
+/// the outcome schema and row count without reading the outcome values. Those routes retain
+/// their specialized operations without fitting. Other routes keep the lowered-program guard
+/// until explicit materialization.
 pub(super) fn seal_deferred_execution(
     cx: &SealContext<'_>,
 ) -> Result<PreparedExecution, CausalError> {
@@ -298,6 +300,9 @@ pub(super) fn seal_deferred_execution(
         return Ok(operation);
     }
     if let Some(operation) = bayesian::bayesian_gcomp(cx)? {
+        return Ok(operation);
+    }
+    if let Some(operation) = design::longitudinal_regime(cx)? {
         return Ok(operation);
     }
     estimator::estimator_route_operation(cx)

@@ -247,14 +247,29 @@ fn unresolved_after(
         }
     };
     note_checked_estimator_operation(
-        contract, body, &mut unresolved, replayed, survival_replayed, longitudinal_replayed,
+        contract,
+        body,
+        &mut unresolved,
+        replayed,
+        survival_replayed,
+        longitudinal_replayed,
     );
     unresolved
 }
 
+// A default estimator selected by the compiler is a resolved program
+// commitment, even when the caller did not request an estimator by name.
+pub(super) fn checked_resolved_estimator(contract: &AnalysisResultContractWire) -> Option<&str> {
+    let commitments = &contract.program.as_ref()?.commitments;
+    commitments.resolved_estimator.as_deref().filter(|&resolved| {
+        commitments.estimator == contract.estimator
+            && contract.estimator.as_deref().is_none_or(|requested| requested == resolved)
+    })
+}
+
 // Names in the wire are assertions, not proof of an executable operation. Only
 // routes with a corresponding portable replay path can clear this obligation;
-// their existing verifiers below still have to validate every carried input.
+// their existing verifiers still have to validate every carried input.
 fn note_checked_estimator_operation(
     contract: &AnalysisResultContractWire,
     body: &AnalysisResultWire,
@@ -264,12 +279,7 @@ fn note_checked_estimator_operation(
     longitudinal_replayed: bool,
 ) {
     let supported = contract.program.as_ref().is_some_and(|program| {
-        let resolved = program.commitments.resolved_estimator.as_deref();
-        if program.commitments.estimator != contract.estimator
-            || contract.estimator.as_deref().is_some_and(|name| Some(name) != resolved)
-        {
-            return false;
-        }
+        let resolved = checked_resolved_estimator(contract);
         // These contracts carry an atom-wise program family and a published
         // mixture, rather than one functional program. Their existing checks
         // bind the family to the posterior graph and to the mixture below.
@@ -314,7 +324,14 @@ fn note_checked_estimator_operation(
             (Some("randomized.survival_product_limit"), CausalQueryWire::Survival(_)) => {
                 survival_replayed
             }
-            (Some("longitudinal.sequential_dr_regime" | "longitudinal.g_formula_regime" | "longitudinal.ipw_regime"), CausalQueryWire::LongitudinalRegime(_)) => longitudinal_replayed,
+            (
+                Some(
+                    "longitudinal.sequential_dr_regime"
+                    | "longitudinal.g_formula_regime"
+                    | "longitudinal.ipw_regime",
+                ),
+                CausalQueryWire::LongitudinalRegime(_),
+            ) => longitudinal_replayed,
             (Some("functional.effect"), CausalQueryWire::Response(_)) => {
                 program.checked_functional_response_grid.is_some()
                     && contract
@@ -360,7 +377,8 @@ fn note_checked_estimator_operation(
     // These are typed verifier outputs, not reason strings supplied by the artifact.
     let operation_already_missing = unresolved.iter().any(|reason| {
         let name = reason.as_str();
-        name.starts_with("dependencies.checked_") && name.ends_with("_operation")
+        (name.starts_with("dependencies.checked_") && name.ends_with("_operation"))
+            || *reason == ContractReason::DependenciesCheckedSurvivalConditionalTraining
     });
     if !supported && !operation_already_missing {
         unresolved.push(ContractReason::DependenciesCheckedEstimatorOperation);
