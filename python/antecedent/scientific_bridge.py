@@ -106,6 +106,7 @@ if TYPE_CHECKING:
 
 from . import _native, _retained
 from ._artifact_protocol import (
+    ArtifactExpectation,
     ExportedArtifact,
     artifact_consumer,
     artifact_export,
@@ -147,6 +148,14 @@ __all__ = [
     "PreparedBridge",
     "PreparedDistributionBridge",
     "CompiledSamplingBridge",
+    "CompiledBridgeImage",
+    "IdentifiedSetSource",
+    "IdentifiedSetImage",
+    "JointOutcomeImage",
+    "OutcomeMapTerm",
+    "compile_identified_set_image",
+    "compile_joint_outcome_image",
+    "consume_bridge_image",
     "PropagatedUncertainty",
     "Scope",
     "ScientificBridgeRefusal",
@@ -1997,3 +2006,184 @@ def _consume_distribution(
     return ConsumedBridgeDistribution(
         claim=_distribution(summary, handle), identity=summary["identity"], _handle=handle
     )
+
+
+@dataclass(frozen=True, slots=True)
+class IdentifiedSetSource:
+    """A source claim's identified interval, coordinate, and retained scientific identity."""
+
+    quantity: ScientificQuantity
+    lower: float
+    upper: float
+    claim_identity: str
+
+
+@dataclass(frozen=True, slots=True)
+class OutcomeMapTerm:
+    """One fixed bridge contributing to a target outcome on a declared input domain."""
+
+    contract: BridgeContract
+    domain: tuple[float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class IdentifiedSetImage:
+    """Sharp bounds in the target coordinate."""
+
+    quantity: ScientificQuantity
+    lower: float
+    upper: float
+    identity: str
+
+
+@dataclass(frozen=True, slots=True)
+class JointOutcomeImage:
+    """Mapped outcomes retaining the source distribution's paired rows and weights."""
+
+    distribution: JointDistributionArtifact
+    identity: str
+
+
+def _bridge_image(handle: Any) -> IdentifiedSetImage | JointOutcomeImage:
+    from .joint_distribution import JointDistributionArtifact, ScientificQuantity
+
+    bounds = handle.identified_set_json()
+    if bounds is None:
+        return JointOutcomeImage(
+            JointDistributionArtifact._from_native(handle.distribution()), handle.identity()
+        )
+    fields = json.loads(bounds)
+    return IdentifiedSetImage(
+        ScientificQuantity.from_wire(fields["quantity"]),
+        fields["lower"],
+        fields["upper"],
+        handle.identity(),
+    )
+
+
+def _image_controls(controls: Execution) -> dict[str, Any]:
+    return native_controls(
+        controls, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"
+    )
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class CompiledBridgeImage:
+    """A fixed mapping bound to its source set or joint distribution."""
+
+    _handle: Any = field(repr=False, compare=False)
+    _execution: Execution = field(repr=False, compare=False)
+
+    @property
+    def program_identity(self) -> str:
+        return self._handle.program_identity()
+
+    def plan_view(self) -> dict[str, Any]:
+        return json.loads(self._handle.plan_json())
+
+    def unit_support(self) -> dict[str, Any] | None:
+        from ._unit_support import read_unit_support
+
+        return read_unit_support(self._handle)
+
+    @outcome_operation
+    def execute(
+        self, *, execution: Execution | None = None
+    ) -> IdentifiedSetImage | JointOutcomeImage:
+        """Evaluate the declared mapping on every compatible endpoint or paired row."""
+        controls = self._execution if execution is None else resolve_execution(execution)
+        return _bridge_image(
+            _unwrap(controls._call(self._handle.execute, **_image_controls(controls)))
+        )
+
+    @artifact_export
+    def export(
+        self, *, artifact_id: str = "bridge-image", execution: Execution | None = None
+    ) -> ExportedArtifact[IdentifiedSetImage | JointOutcomeImage]:
+        """Retain the source, declarations and independent replay identities."""
+        controls = self._execution if execution is None else resolve_execution(execution)
+        data, result = _unwrap(
+            controls._call(self._handle.export, artifact_id, **_image_controls(controls))
+        )
+        kind = "scientific_bridge_exact_image_v1"
+        return ExportedArtifact(
+            bytes(data),
+            kind,
+            ArtifactExpectation(
+                kind, {"expected_program": self.program_identity, "expected_result": result}
+            ),
+        )
+
+
+def compile_identified_set_image(
+    contract: BridgeContract,
+    source: IdentifiedSetSource,
+    *,
+    domain: tuple[float, float],
+    execution: Execution | None = None,
+) -> CompiledBridgeImage:
+    """Compile the exact image of the complete source interval on the declared mapping domain."""
+    controls = resolve_execution(execution)
+    handle = _unwrap(
+        controls._call(
+            _native.compile_identified_set_image,
+            _dumps(contract.to_wire()),
+            _dumps(source.quantity._wire()),
+            (source.lower, source.upper),
+            source.claim_identity,
+            domain,
+            **_image_controls(controls),
+        )
+    )
+    return CompiledBridgeImage(handle, controls)
+
+
+def compile_joint_outcome_image(
+    source: JointDistributionArtifact,
+    outputs: Sequence[Sequence[OutcomeMapTerm]],
+    *,
+    execution: Execution | None = None,
+) -> CompiledBridgeImage:
+    """Compile one sum of mapped coordinates per output, retaining the joint source law."""
+    from .outcomes import require_success
+
+    controls = resolve_execution(execution)
+    terms = [
+        [(_dumps(term.contract.to_wire()), term.domain) for term in output] for output in outputs
+    ]
+    handle = _unwrap(
+        controls._call(
+            _native.compile_joint_outcome_image,
+            require_success(source)._native,
+            terms,
+            **_image_controls(controls),
+        )
+    )
+    return CompiledBridgeImage(handle, controls)
+
+
+@outcome_operation
+@artifact_consumer(
+    proof="Recompile the source and declarations and reproduce the identified extrema or full weighted joint law.",
+    replayable=True,
+    identity=("expected_program", "expected_result"),
+)
+def consume_bridge_image(
+    artifact: bytes,
+    *,
+    expected_program: str,
+    expected_result: str,
+    execution: Execution | None = None,
+) -> IdentifiedSetImage | JointOutcomeImage:
+    """Replay the source under independently retained program and result identities."""
+    controls = resolve_execution(execution)
+    handle = _unwrap(
+        controls._call(
+            _native.consume_scientific_bridge_image,
+            container_bytes(artifact),
+            expected_program,
+            expected_result,
+            **_image_controls(controls),
+        )
+    )
+    return _bridge_image(handle)

@@ -171,7 +171,7 @@ fn statistical_program(
                 .ok_or_else(|| refuse("an assumption envelope needs a draw-law meaning"))?;
             Realization::DeclaredAssumptionEnvelope { evaluator: Arc::from(name), draw_meaning }
         }
-        UncertaintyReading::Envelope | UncertaintyReading::None => {
+        UncertaintyReading::Envelope | UncertaintyReading::Empirical | UncertaintyReading::None => {
             Realization::ExactPoint { evaluator: Arc::from(name) }
         }
     };

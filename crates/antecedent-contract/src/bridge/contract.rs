@@ -124,7 +124,8 @@ const fn value_operation(kind: ValueKind) -> Option<ContractOperation> {
         ValueKind::PredictiveLaw => Some(ContractOperation::Law),
         ValueKind::Posterior => Some(ContractOperation::Posterior),
         ValueKind::EstimatorSampling | ValueKind::Bootstrap => Some(ContractOperation::JointDraws),
-        ValueKind::IdentifiedSet | ValueKind::JointOutcomeLaw => None,
+        ValueKind::IdentifiedSet => Some(ContractOperation::IdentifiedSet),
+        ValueKind::JointOutcomeLaw => Some(ContractOperation::JointDraws),
     }
 }
 
@@ -325,7 +326,7 @@ impl BridgeContract {
     /// The first defect, in the order described in the module documentation,
     /// as a coded refusal with the declaration that would support it.
     pub fn check_support(&self) -> Result<Support, BridgeRefusal> {
-        self.check_support_carrying(false)
+        self.check_support_carrying(&[ValueKind::Mean])
     }
 
     /// Check the contract supports its bridge when the source value is a
@@ -343,12 +344,21 @@ impl BridgeContract {
     /// # Errors
     /// As [`Self::check_support`], and the refusals of the draws declaration.
     pub fn check_draws_support(&self) -> Result<Support, BridgeRefusal> {
-        let support = self.check_support_carrying(true)?;
+        let support = self.check_support_carrying(&[
+            ValueKind::Mean,
+            ValueKind::Posterior,
+            ValueKind::PredictiveLaw,
+            ValueKind::Bootstrap,
+            ValueKind::EstimatorSampling,
+        ])?;
         draws::check_draws_declaration(self)?;
         Ok(support)
     }
 
-    fn check_support_carrying(&self, draws: bool) -> Result<Support, BridgeRefusal> {
+    pub(super) fn check_support_carrying(
+        &self,
+        admitted: &[ValueKind],
+    ) -> Result<Support, BridgeRefusal> {
         self.validate()?;
         let pair = (self.source.class, self.target.class);
         if !self.kind.endpoint_pairs().contains(&pair) {
@@ -366,14 +376,7 @@ impl BridgeContract {
         if self.source_value != self.target_value {
             return Err(wrong_value_kind(self.target_value, self.source_value));
         }
-        let carried = self.source_value == ValueKind::Mean
-            || (draws
-                && (self.source_value.is_sampling()
-                    || matches!(
-                        self.source_value,
-                        ValueKind::Posterior | ValueKind::PredictiveLaw
-                    )));
-        if !carried {
+        if !admitted.contains(&self.source_value) {
             return Err(value_kind_not_carried(self.source_value));
         }
         let principal_kind = self.kind.principal_assumption();

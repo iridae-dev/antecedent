@@ -216,6 +216,8 @@ pub use antecedent_io_core::compiled_study;
 pub use antecedent_io_core::cohort_decision;
 pub use antecedent_io_core::patient_surrogate;
 pub use antecedent_io_core::pag_identification;
+pub use antecedent_io_core::bridge_image_artifact;
+pub use antecedent_io_core::bridge_joint_outcomes;
 pub use antecedent_io_core::composition_verification_artifact;
 pub use antecedent_io_core::cross_world_execution_artifact;
 pub use antecedent_io_core::joint_law_propagation_artifact;

@@ -562,6 +562,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "mechanism_composition_v1": ("mechanism_composition", "consume_mechanism_composition_artifact"),
     "observation_query_v1": ("observation_query", "consume_observation_query_artifact"),
     "predictive_assessment_v1": ("predictive_assessment", "consume_predictive_assessment_artifact"),
+    "scientific_bridge_exact_image_v1": ("scientific_bridge", "consume_bridge_image"),
     "scientific_bridge_v1": ("scientific_bridge", "consume_scientific_bridge_artifact"),
     "selective_discovery_v1": ("selective_discovery", "consume_selective_discovery_artifact"),
     "sequential_evaluation_v1": ("sequential_evaluation", "consume_artifact"),
@@ -584,6 +585,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
 # mapping that names only such parameters binds nothing. The period artifact kinds bind the
 # encoding digest and are handled separately.
 _IDENTITY_PARAMETERS: dict[str, frozenset[str]] = {
+    "scientific_bridge_exact_image_v1": frozenset({"expected_program", "expected_result"}),
     "causal_posterior": frozenset({"expected_encoding_sha256"}),
     "compiled_robust_decision_v1": frozenset({"expected_program_identity"}),
     "joint_sensitivity_interval_v1": frozenset(),
@@ -715,6 +717,16 @@ def load_scientific(
                 )
             kwargs.update(expected)
             identity_compared = True
+    required_identities = {
+        name
+        for name in _IDENTITY_PARAMETERS.get(view.kind, ())
+        if name in parameters and parameters[name].default is inspect.Parameter.empty
+    }
+    missing_identities = sorted(name for name in required_identities if kwargs.get(name) is None)
+    if missing_identities:
+        raise CausalValueError(
+            f"{view.kind} requires independent identity fields {missing_identities} in expected="
+        )
     if view.kind == "compiled_robust_decision_v1":
         if context is None or context.robust_source is None:
             raise CausalValueError(

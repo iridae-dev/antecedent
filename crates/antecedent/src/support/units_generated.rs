@@ -145,6 +145,8 @@ pub(crate) const RECOVERY_CHAIN_OBSERVATION: UnitId = UnitId::new("recovery.chai
 pub(crate) const RECOVERY_SAMPLED_OBSERVATION: UnitId = UnitId::new("recovery.sampled_observation");
 pub(crate) const SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES: UnitId =
     UnitId::new("scientific_bridge.distribution_bridges");
+pub(crate) const SCIENTIFIC_BRIDGE_TYPED_BRIDGES: UnitId =
+    UnitId::new("scientific_bridge.typed_bridges");
 pub(crate) const SENSITIVITY_JOINT_MECHANISM: UnitId = UnitId::new("sensitivity.joint_mechanism");
 pub(crate) const SENSITIVITY_MATCHED_HIDDEN_BIAS: UnitId =
     UnitId::new("sensitivity.matched_hidden_bias");
@@ -348,7 +350,10 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "MeasuredSampledObservationRecovery" | "SampledObservationRecovery" => {
             Some(RECOVERY_SAMPLED_OBSERVATION)
         }
-        "SamplingDistributionBridge" => Some(SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES),
+        "JointOutcomeBridge" | "SamplingDistributionBridge" => {
+            Some(SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES)
+        }
+        "IdentifiedSetBridge" => Some(SCIENTIFIC_BRIDGE_TYPED_BRIDGES),
         "ZTransportMechanismSensitivity" => Some(SENSITIVITY_JOINT_MECHANISM),
         "MatchedDesignSensitivity" => Some(SENSITIVITY_MATCHED_HIDDEN_BIAS),
         "SuppliedEstimateEValue" => Some(SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE),

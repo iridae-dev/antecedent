@@ -31,10 +31,12 @@ pub use antecedent_design::composition_bundle::{
 pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
     FACT_REQUIRES_DISTRIBUTION, FACT_SOURCE_DIGEST, LAW_MARGINAL, TRUST_ATTESTED, TRUST_NATIVE,
-    TRUST_UNVERIFIED, TRUST_VERIFIED, VERIFIABLE_KINDS, evidence_relationship_bytes, mean_source_of,
-    require_compact_model_refit_inputs,
+    TRUST_UNVERIFIED, TRUST_VERIFIED, VERIFIABLE_KINDS, evidence_relationship_bytes,
+    mean_source_of, require_compact_model_refit_inputs,
 };
 pub use antecedent_design::decision_artifact::mean_result_to_bytes;
+#[path = "composition_bridge_image.rs"]
+mod bridge_image;
 
 use super::composition_counterfactual_transport as counterfactual_bundle;
 #[path = "composition_patient_surrogate.rs"]
@@ -121,6 +123,8 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
 pub fn describe_artifact(kind: NodeKind, bytes: &[u8]) -> Result<ArtifactDescription, NodeFailure> {
     if kind == NodeKind::LearnedRpcmci {
         super::rpcmci_portable::describe(bytes, &ExecutionContext::production_default(0))
+    } else if kind == NodeKind::ScientificBridgeImage {
+        bridge_image::describe(bytes, &ExecutionContext::production_default(0), &[])
     } else if kind == NodeKind::CounterfactualTransportResult {
         counterfactual_bundle::describe(bytes, &ExecutionContext::production_default(0))
     } else if kind == NodeKind::PatientSurrogateIdentification {
@@ -141,7 +145,10 @@ pub fn mean_decision_bytes(
 ) -> Result<Vec<u8>, NodeFailure> {
     if counterfactual_bundle::detects(source) {
         counterfactual_bundle::decision_bytes(
-            contract, source, artifact_id, &ExecutionContext::production_default(0),
+            contract,
+            source,
+            artifact_id,
+            &ExecutionContext::production_default(0),
         )
     } else {
         antecedent_design::composition_verifiers::mean_decision_bytes(contract, source, artifact_id)
@@ -157,10 +164,10 @@ pub fn standard_consumer() -> BundleConsumer {
 fn standard_consumer_with_context(ctx: &ExecutionContext) -> BundleConsumer {
     antecedent_design::composition_verifiers::standard_consumer()
         .register(Box::new(counterfactual_bundle::CounterfactualTransportVerifier(ctx.clone())))
+        .register(Box::new(bridge_image::BridgeImageVerifier(ctx.clone())))
         .register(Box::new(patient_surrogate::PatientSurrogateVerifier(ctx.clone())))
         .register(Box::new(super::rpcmci_portable::Verifier(ctx.clone())))
 }
-
 
 impl BundleBuilder {
     /// An empty builder under the default bounds.
@@ -1343,7 +1350,8 @@ impl CompiledBridgeBundleRecomputation {
         };
         let stored =
             consume_scientific_bridge_distribution_artifact(terminal_bytes, Some(&node.identity))?;
-        let live = self.bridge.derive_cancellable(&self.source, None, self.seed, &scoped.cancellation)?;
+        let live =
+            self.bridge.derive_cancellable(&self.source, None, self.seed, &scoped.cancellation)?;
         let exported = live.export("bridge-bundle-live")?;
         if exported.identity != node.identity
             || stored.identity != exported.identity
@@ -1654,7 +1662,9 @@ fn native_fit_verifiers(ctx: &ExecutionContext) -> Vec<Box<dyn NodeVerifier>> {
 /// its embedded producer or decision as an independent consumer, and a compile inside a lowered
 /// dispatch is refused as `public_builder_reentry`, so no native node would replay.
 fn native_fit_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    native_fit_verifiers(ctx).into_iter().fold(standard_consumer_with_context(ctx), BundleConsumer::register)
+    native_fit_verifiers(ctx)
+        .into_iter()
+        .fold(standard_consumer_with_context(ctx), BundleConsumer::register)
 }
 
 /// The native-fit consumer handed out by the public entry point `route`. While the bundle unit

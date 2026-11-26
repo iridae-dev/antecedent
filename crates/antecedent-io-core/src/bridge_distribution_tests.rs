@@ -1071,3 +1071,6 @@ fn fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit() {
         near(value, sy / n + slope * (12.0 - sx / n), 1e-12);
     }
 }
+
+#[path = "bridge_image_tests.rs"]
+mod images;

@@ -664,3 +664,150 @@ def test_trial_bootstrap_replays_source_and_map_on_the_same_trials(tmp_path):
     assert loaded.stdout.strip() == terminal.expectation.identity
     with pytest.raises(ScientificBridgeRefusal):
         require_success(prepared.derive(source, seed=514))
+
+
+def test_identified_image_bounds_flow_into_the_decision_and_replay(tmp_path):
+    from antecedent import decision, decision_robust
+
+    source = sb.IdentifiedSetSource(SOURCE, -2.0, 3.0, "ab" * 32)
+    declaration = contract(
+        uncertain=False, value_kind="identified_set", mapping=sb.AffineMapping(1.0, -2.0)
+    )
+    plan = sb.compile_identified_set_image(declaration, source, domain=(-2.0, 4.0))
+    result = require_success(plan.execute())
+    assert (result.quantity, result.lower, result.upper) == (TARGET, -5.0, 5.0)
+    contract_for_decision = decision_robust.admissible_contract(
+        decision.Contract(
+            actions=(
+                decision.Action("act", inputs=(TARGET,), utility=decision.x(0) + 10.0),
+                decision.Action("wait", inputs=(TARGET,), utility=decision.x(0) * 0.0),
+            ),
+            utility_units="utility",
+            criterion=decision.Criterion.expected_utility(),
+            target_population="adults",
+            structural_policy="require_invariant_best_action",
+        )
+    )
+    utilities = [
+        decision_robust.IdentifiedUtility.from_inputs(contract_for_decision, name, [result])
+        for name in ("act", "wait")
+    ]
+    assert (utilities[0].lower, utilities[0].upper) == (5.0, 15.0)
+    assert (
+        require_success(decision_robust.identified_sets(contract_for_decision, utilities)).selected
+        == "act"
+    )
+    artifact = tmp_path / "sharp-set.bin"
+    from antecedent import load
+
+    exported = plan.export()
+    assert exported.expectation is not None
+    restored = require_success(load(exported, expected=exported.expectation))
+    assert (restored.identity, restored.lower, restored.upper) == (result.identity, -5.0, 5.0)
+    artifact.write_bytes(bytes(exported))
+    script = """
+import pathlib, sys
+from antecedent import scientific_bridge as sb
+from antecedent.outcomes import require_success
+result = require_success(sb.consume_bridge_image(pathlib.Path(sys.argv[1]).read_bytes(),
+                         expected_program=sys.argv[2], expected_result=sys.argv[3]))
+print(result.lower, result.upper)
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", script, str(artifact), plan.program_identity, result.identity],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert done.stdout.strip() == "-5.0 5.0"
+    with pytest.raises(ScientificBridgeRefusal):
+        require_success(
+            sb.compile_identified_set_image(declaration, source, domain=(-1.0, 4.0)).execute()
+        )
+
+
+def test_joint_outcome_image_consumes_paired_weighted_rows_and_feeds_affine_utility():
+    from antecedent import decision
+
+    source = JointDistributionArtifact(
+        replace(table(3).identity, semantic="empirical_outcome"),
+        np.array([[1.0, 3.0], [2.0, 2.0], [4.0, 1.0]]),
+        weights=(2.0, 1.0, 3.0),
+    )
+    second = outcome("trial:difference", units="log_hazard")
+
+    def term(q, target, a, b):
+        return sb.OutcomeMapTerm(
+            contract(
+                uncertain=False,
+                value_kind="joint_outcome_law",
+                source=q,
+                target=target,
+                mapping=sb.AffineMapping(a, b),
+            ),
+            (0.0, 5.0),
+        )
+
+    outputs = [
+        [term(SOURCE, TARGET, 1.0, 1.0), term(COST, TARGET, 0.0, 2.0)],
+        [term(SOURCE, second, 0.0, 1.0), term(COST, second, 0.0, -1.0)],
+    ]
+    plan = sb.compile_joint_outcome_image(source, outputs)
+    observed = require_success(plan.execute())
+    np.testing.assert_array_equal(
+        np.asarray(observed.distribution), [[8.0, -2.0], [7.0, 0.0], [7.0, 3.0]]
+    )
+    contract_for_decision = decision.Contract(
+        actions=(
+            decision.Action("act", inputs=(second,), utility=decision.x(0)),
+            decision.Action("wait", inputs=(second,), utility=decision.x(0) * 0.0),
+        ),
+        utility_units="utility",
+        criterion=decision.Criterion.expected_utility(),
+        target_population="adults",
+    )
+    result = require_success(contract_for_decision.evaluate(observed))
+    assert result.selected == ("act",)
+    assert result.actions[0].expected_utility == pytest.approx(5 / 6)
+    raw = bytes(plan.export())
+    replayed = require_success(
+        sb.consume_bridge_image(
+            raw, expected_program=plan.program_identity, expected_result=observed.identity
+        )
+    )
+    np.testing.assert_array_equal(
+        np.asarray(replayed.distribution), np.asarray(observed.distribution)
+    )
+    from antecedent import composition_bundle as cb
+
+    bundle = (
+        cb.Bundle.builder()
+        .add_artifact(source, node_id="source")
+        .add_artifact(raw, node_id="image")
+        .connect("source", "image")
+        .build()
+    )
+    report = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
+    assert report.all_replayed
+    assert report.value("image", "n_draws") == 3
+    changed = JointDistributionArtifact(source.identity, np.asarray(source) + 0.125)
+    changed_bundle = (
+        cb.Bundle.builder()
+        .add_artifact(changed, node_id="source")
+        .add_artifact(raw, node_id="image")
+        .connect("source", "image")
+        .build()
+    )
+    with pytest.raises(cb.CompositionBundleRefusal):
+        require_success(
+            cb.consume_bundle(
+                bytes(changed_bundle.export()), expected_identity=changed_bundle.identity
+            )
+        )
+    unpaired = JointDistributionArtifact(
+        replace(source.identity, alignment="independent_marginals"), np.asarray(source)
+    )
+    with pytest.raises(ScientificBridgeRefusal):
+        require_success(sb.compile_joint_outcome_image(unpaired, outputs).execute())

@@ -12,6 +12,9 @@
 //! uncalibrated spread; its interval is published only through the measured-coverage
 //! gate.
 
+#[path = "scientific_bridge_image_api.rs"]
+mod image_api;
+
 use std::sync::Arc;
 
 use antecedent::contract::bridge::{
@@ -1314,6 +1317,7 @@ fn scientific_bridge_shape(artifact: &[u8]) -> (Option<String>, Option<String>) 
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    image_api::register(module)?;
     module.add_class::<PreparedBridgeHandle>()?;
     module.add_class::<BridgedClaimHandle>()?;
     module.add_class::<ConsumedBridgeHandle>()?;

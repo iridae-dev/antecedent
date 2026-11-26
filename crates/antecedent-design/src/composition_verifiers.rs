@@ -41,9 +41,9 @@
 //! content and the bundle refuses a node whose recomputation differs.
 
 mod artifact_inspection;
-mod incidence_source_inspection;
 mod cohort_source_inspection;
 mod compact_model_inspection;
+mod incidence_source_inspection;
 mod ledger_pool_inspection;
 mod replay_inspection;
 
@@ -79,14 +79,14 @@ use antecedent_io_core::distribution_artifact::{
 };
 use antecedent_io_core::error::IoError;
 use antecedent_io_core::evidence_ledger_artifact::EVIDENCE_LEDGER_ARTIFACT_FEATURE;
-use antecedent_io_core::pag_identification::{
-    PagIdError, PagIdentificationArtifact, PagIdentificationProof, PagReplayError,
-};
 use antecedent_io_core::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimMetadata, ExternalClaimTrust,
     MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
 };
 use antecedent_io_core::observation_query_artifact::ObservationQueryArtifactWire;
+use antecedent_io_core::pag_identification::{
+    PagIdError, PagIdentificationArtifact, PagIdentificationProof, PagReplayError,
+};
 use antecedent_io_core::propagation_chain_record::PropagationChainRecordWire;
 use antecedent_io_core::quantity_wire::ScientificQuantityWire;
 use antecedent_io_core::reader::ArtifactReader;
@@ -436,7 +436,9 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         }
         NodeKind::Distribution => inspect_distribution(bytes),
         NodeKind::DelayedEntryIncidenceResult => incidence_source_inspection::inspect(bytes),
-        NodeKind::DelayedEntrySurvivalBandResult => incidence_source_inspection::inspect_band(bytes),
+        NodeKind::DelayedEntrySurvivalBandResult => {
+            incidence_source_inspection::inspect_band(bytes)
+        }
         NodeKind::CompactFittedEffectModel => compact_model_inspection::inspect(bytes),
         NodeKind::CohortDecisionSource => {
             cohort_source_inspection::inspect(bytes, &ExecutionContext::production_default(0))
@@ -505,7 +507,11 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         ));
     };
     if !(query.periods == 4 && query.method == "sequential_dr"
-        || query.periods == 2 && matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule"))
+        || query.periods == 2
+            && matches!(
+                query.method.as_str(),
+                "fitted_g_formula" | "compare_schedules" | "learn_schedule"
+            ))
     {
         return Err(failure(
             BundleStage::SwappedEvidence,
@@ -532,8 +538,16 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             push_value(&mut inspected.values, format!("{key}.upper_95"), contrast.interval[1]);
         }
         if let Some(learning) = &family.learning {
-            push_value(&mut inspected.values, "selected_schedule".into(), f64::from(learning.selected_schedule));
-            publish(&mut inspected.facts, "optimum_set", learning.optimum_set.iter().map(u8::to_string).collect::<Vec<_>>().join(","));
+            push_value(
+                &mut inspected.values,
+                "selected_schedule".into(),
+                f64::from(learning.selected_schedule),
+            );
+            publish(
+                &mut inspected.facts,
+                "optimum_set",
+                learning.optimum_set.iter().map(u8::to_string).collect::<Vec<_>>().join(","),
+            );
         }
     }
     Ok(inspected)
@@ -791,6 +805,7 @@ fn cross_check(
                     | NodeKind::ExternalClaim
                     | NodeKind::ObservationQuery
                     | NodeKind::ScientificBridge
+                    | NodeKind::ScientificBridgeImage
             )
         })
         .collect();
@@ -856,10 +871,10 @@ fn cross_check(
                 ),
             ));
         }
-        if let Some(transport) = matched.iter().find(|node| node.kind == NodeKind::CounterfactualTransportResult) {
-            artifact_inspection::replay_counterfactual_decision(
-                inspected, contract, transport,
-            )?;
+        if let Some(transport) =
+            matched.iter().find(|node| node.kind == NodeKind::CounterfactualTransportResult)
+        {
+            artifact_inspection::replay_counterfactual_decision(inspected, contract, transport)?;
         }
     }
     Ok(())
@@ -978,11 +993,16 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
             }
         }
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
-        antecedent_io_core::patient_surrogate::PATIENT_SURROGATE_ARTIFACT_KIND => Some(NodeKind::PatientSurrogateIdentification),
+        antecedent_io_core::patient_surrogate::PATIENT_SURROGATE_ARTIFACT_KIND => {
+            Some(NodeKind::PatientSurrogateIdentification)
+        }
         KIND_DISTRIBUTION => Some(NodeKind::Distribution),
         COHORT_DECISION_ARTIFACT_KIND => Some(NodeKind::CohortDecisionSource),
         antecedent_io_core::compact_export::COMPACT_EXPORT_ARTIFACT_KIND => {
             Some(NodeKind::CompactFittedEffectModel)
+        }
+        antecedent_io_core::bridge_image_artifact::BRIDGE_IMAGE_ARTIFACT => {
+            Some(NodeKind::ScientificBridgeImage)
         }
         KIND_EXTERNAL_CLAIM => Some(NodeKind::ExternalClaim),
         EVIDENCE_LEDGER_ARTIFACT_FEATURE => Some(NodeKind::EvidenceLedger),
@@ -1167,11 +1187,15 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::Distribution => Box::new(DistributionVerifier),
         NodeKind::CompactFittedEffectModel => Box::new(CompactFittedEffectModelVerifier),
         NodeKind::DelayedEntryIncidenceResult => Box::new(DelayedEntryIncidenceResultVerifier),
-        NodeKind::DelayedEntrySurvivalBandResult => Box::new(DelayedEntrySurvivalBandResultVerifier),
+        NodeKind::DelayedEntrySurvivalBandResult => {
+            Box::new(DelayedEntrySurvivalBandResultVerifier)
+        }
         NodeKind::CohortDecisionSource => {
             Box::new(CohortDecisionSourceVerifier::new(&ExecutionContext::production_default(0)))
         }
-        NodeKind::EvidenceLedger => Box::new(EvidenceLedgerVerifier::new(&ExecutionContext::production_default(0))),
+        NodeKind::EvidenceLedger => {
+            Box::new(EvidenceLedgerVerifier::new(&ExecutionContext::production_default(0)))
+        }
         NodeKind::LedgerPooledResult => Box::new(LedgerPooledResultVerifier),
         NodeKind::LongitudinalRegimeResult => Box::new(LongitudinalRegimeResultVerifier),
         NodeKind::PagIdentification => Box::new(PagIdentificationVerifier),

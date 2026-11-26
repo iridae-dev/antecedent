@@ -102,8 +102,7 @@ in a predictive model into a causal effect. Ask the causal question directly.
 A mean, a predictive law, a posterior, an identified set and a joint outcome
 law are not interchangeable, and no bridge relaxes that rule. A bridge carries
 a value of one kind to a quantity of the same kind. A point mean and the aligned
-draws of a posterior or a predictive law have executed routes; an identified set
-and a joint outcome law have none. A consumer that requires a law from a bridged
+draws of a posterior or a predictive law have executed routes. Fixed affine bridges also carry identified sets and jointly aligned outcomes. A consumer that requires a law from a bridged
 mean is refused at `BridgedClaim::require_value_kind`, and one that requires a
 mean from bridged draws at `BridgedDistributionClaim::require_value_kind`.
 

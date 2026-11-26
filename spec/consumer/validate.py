@@ -959,6 +959,7 @@ KIND_STAGE = {
     "ledger_pooled_result": "distribution_artifact",
     "learned_rpcmci": "evidence",
     "pag_identification": "evidence",
+    "scientific_bridge_image": "claim",
     "frozen_scores": "distribution_artifact",
     "external_claim": "external_provider",
     "attestation": "external_provider",

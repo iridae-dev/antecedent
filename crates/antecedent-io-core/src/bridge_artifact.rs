@@ -577,7 +577,7 @@ fn contract_to_wire_core(
     })
 }
 
-fn contract_to_wire(
+pub(crate) fn contract_to_wire(
     contract: &BridgeContract,
 ) -> Result<ContractWire, ScientificBridgeArtifactError> {
     let mut wire = contract_to_wire_core(contract)?;
@@ -588,7 +588,7 @@ fn contract_to_wire(
     Ok(wire)
 }
 
-fn contract_from_wire(
+pub(crate) fn contract_from_wire(
     wire: &ContractWire,
 ) -> Result<BridgeContract, ScientificBridgeArtifactError> {
     check_uncertainty_identity_version(wire.mapping_uncertainty.as_ref())?;

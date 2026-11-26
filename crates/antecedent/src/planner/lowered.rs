@@ -706,6 +706,8 @@ pub enum UncertaintyReading {
     AssumptionEnvelope,
     /// Identified set or envelope.
     Envelope,
+    /// A paired empirical law of observed outcomes.
+    Empirical,
     /// Point claim with no uncertainty.
     None,
 }
@@ -720,6 +722,7 @@ impl UncertaintyReading {
             Self::Predictive => "predictive",
             Self::MonteCarlo => "monte_carlo",
             Self::AssumptionEnvelope => "assumption_envelope",
+            Self::Empirical => "empirical",
             Self::Envelope => "envelope",
             Self::None => "none",
         }

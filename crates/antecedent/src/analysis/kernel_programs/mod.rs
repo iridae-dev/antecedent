@@ -32,6 +32,7 @@ use crate::planner::lowered::{
 };
 use crate::planner::statistical::{Realization, StatisticalProgram};
 
+pub mod bridge_images;
 pub mod chain_recovery;
 pub mod counterfactual_seal;
 pub mod discretized_bridge;
@@ -62,6 +63,8 @@ pub(crate) enum KernelRealization {
     Score,
     /// Sampling-law map, optionally with whole validation-trial refits.
     ReplicateMapping { validation_refits: Option<u32> },
+    /// Deterministic endpoint or joint-row transformation.
+    FixedImage,
     /// A posterior evaluated by the kernel under its declared likelihood and prior.
     Posterior,
     /// An exact evaluation of an identified functional of the declared input.
@@ -141,7 +144,12 @@ pub(crate) fn lower(
         KernelRealization::Posterior => {
             Realization::DeclaredPosterior { evaluator: Arc::from(shape.evaluator) }
         }
-        KernelRealization::Exact | KernelRealization::PartialIdentification => {
+        KernelRealization::FixedImage if shape.uncertainty == UncertaintyReading::Predictive => {
+            Realization::DeclaredPredictive { evaluator: Arc::from(shape.evaluator) }
+        }
+        KernelRealization::Exact
+        | KernelRealization::PartialIdentification
+        | KernelRealization::FixedImage => {
             Realization::ExactPoint { evaluator: Arc::from(shape.evaluator) }
         }
     };
@@ -179,7 +187,8 @@ pub(crate) fn lower(
         .map_err(|_| invalid(shape, "invalid read operator"))?;
     let effect = match shape.realization {
         KernelRealization::PartialIdentification => PhysicalEffect::Condition,
-        KernelRealization::ReplicateMapping { validation_refits: None } => {
+        KernelRealization::FixedImage
+        | KernelRealization::ReplicateMapping { validation_refits: None } => {
             PhysicalEffect::Transport
         }
         _ => PhysicalEffect::Fit,
@@ -198,12 +207,12 @@ pub(crate) fn lower(
         claim: ClaimDemand {
             uncertainty: shape.uncertainty,
             kind: match shape.realization {
-                KernelRealization::PartialIdentification
+                KernelRealization::PartialIdentification | KernelRealization::FixedImage
                     if shape.uncertainty == UncertaintyReading::Envelope =>
                 {
                     Some(antecedent_contract::ClaimKind::Bounds)
                 }
-                KernelRealization::ReplicateMapping { .. } => {
+                KernelRealization::FixedImage | KernelRealization::ReplicateMapping { .. } => {
                     Some(antecedent_contract::ClaimKind::Mixture)
                 }
                 _ => None,

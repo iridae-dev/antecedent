@@ -52,6 +52,7 @@
 
 mod claim;
 mod contract;
+mod identified_set;
 mod kind;
 mod mapping;
 mod refusal;
@@ -77,6 +78,7 @@ pub use contract::{
     MAX_PROPAGATION_WORK, MAX_SIMULATION_DRAWS, PropagationMethod, propagate_joint,
     propagate_nonlinear,
 };
+pub use identified_set::{BridgedIdentifiedSet, FixedBridgeDomain, IdentifiedSetSource};
 pub use kind::{AssumptionKind, BridgeKind, QuantityClass, ValueKind};
 pub use mapping::{
     AppliedMapping, BridgeMapping, MAX_VALIDATION_TRIALS, MIN_VALIDATION_TRIALS, MappingKind,

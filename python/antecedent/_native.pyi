@@ -9879,6 +9879,60 @@ def scientific_bridge_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[ConsumedBridgeHandle | None, str | None]: ...
 
+class CompiledBridgeImageHandle:
+    def plan_json(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[BridgeImageResultHandle | None, str | None]: ...
+    def export(
+        self,
+        artifact_id: str,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[tuple[bytes, str] | None, str | None]: ...
+
+def compile_identified_set_image(
+    contract_json: str,
+    quantity: str,
+    bounds: tuple[float, float],
+    source_identity: str,
+    mapping_domain: tuple[float, float],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[CompiledBridgeImageHandle | None, str | None]: ...
+def compile_joint_outcome_image(
+    distribution: JointDistributionArtifact,
+    outputs: list[list[tuple[str, tuple[float, float]]]],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[CompiledBridgeImageHandle | None, str | None]: ...
+def consume_scientific_bridge_image(
+    artifact: bytes,
+    program: str,
+    result: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[BridgeImageResultHandle | None, str | None]: ...
+
 class CompiledSamplingBridgeHandle:
     def plan_json(self) -> str: ...
     def program_identity(self) -> str: ...

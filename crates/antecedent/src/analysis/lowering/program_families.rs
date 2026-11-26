@@ -67,6 +67,10 @@ macro_rules! program_families {
             SequentialPolicyReliability => DesignBased, unit "decision_reliability.sampled_decision";
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation => PropagationChain, unit "composition.bundle";
+            /// Joint outcome rows mapped into a declared vector of target coordinates.
+            JointOutcomeBridge => PropagationChain, unit "scientific_bridge.distribution_bridges";
+            /// Sharp image of a scalar identified set.
+            IdentifiedSetBridge => PropagationChain, unit "scientific_bridge.typed_bridges";
             /// A sampling distribution carried through a fixed map or a validation-trial refit.
             SamplingDistributionBridge => PropagationChain, unit "scientific_bridge.distribution_bridges";
             /// Bundle replay with a live scientific bridge terminal.

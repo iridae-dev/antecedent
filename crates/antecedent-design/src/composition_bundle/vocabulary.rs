@@ -77,6 +77,8 @@ pub enum NodeKind {
     PagIdentification,
     /// Replayed learned RPCMCI regimes and stability diagnostics.
     LearnedRpcmci,
+    /// Replayable image of a declared scientific bridge.
+    ScientificBridgeImage,
     /// A named transformation.
     Transformation,
     /// A decision contract.
@@ -142,6 +144,7 @@ named_variants! {
         LongitudinalRegimeResult => "longitudinal_regime_result",
         PagIdentification => "pag_identification",
         LearnedRpcmci => "learned_rpcmci",
+        ScientificBridgeImage => "scientific_bridge_image",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
         DecisionResult => "decision_result",
@@ -203,6 +206,7 @@ impl NodeKind {
             | Self::InverseQuery
             | Self::ObservationQuery
             | Self::ScientificBridge
+            | Self::ScientificBridgeImage
             | Self::PropagationChain => CompositionStage::Claim,
             Self::Sensitivity => CompositionStage::SensitivityInput,
             Self::StudyRanking => CompositionStage::StudyRankingProvider,
@@ -227,6 +231,7 @@ impl NodeKind {
             | Self::InverseQuery
             | Self::ObservationQuery
             | Self::ScientificBridge
+            | Self::ScientificBridgeImage
             | Self::PropagationChain => BundleStage::TamperedQuantity,
             _ => BundleStage::SwappedEvidence,
         }

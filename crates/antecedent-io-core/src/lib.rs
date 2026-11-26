@@ -22,6 +22,8 @@ pub mod bayesian_prior_recalc_artifact;
 pub mod bound_identity;
 pub mod bridge_artifact;
 pub mod bridge_distribution;
+pub mod bridge_image_artifact;
+pub mod bridge_joint_outcomes;
 pub mod byte_cursor;
 pub mod calibration;
 pub mod callback_result_artifact;

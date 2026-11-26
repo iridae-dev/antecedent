@@ -15438,6 +15438,7 @@ refusals = [
   { detail = "scientific_bridge.value_kind_substitution", remedy = "Supply the requested object from its own route." },
 ]
 routes = [
+  { name = "antecedent.scientific_bridge.compile_identified_set_image", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.prepare", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.derive.surrogate_terminal_outcome", stage = "evaluate", status = "supported", claim = "point_only" },
   { name = "antecedent.scientific_bridge.derive.latent_measured_outcome", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -15452,6 +15453,7 @@ routes = [
   { name = "antecedent.scientific_bridge.extrapolated_surrogate", stage = "evaluate", status = "closed", reason_code = "bridge_mapping_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-contract/tests/scientific_bridge.rs", refusal_assertion = "validation_minimums_and_the_validated_range_are_enforced" },
 ]
 fixtures = [
+  { id = "scientific_bridge.typed_bridges.sharp_set.truth", role = "truth", intent = "The exact affine extrema for increasing, decreasing and constant maps agree with independent endpoint calculations.", evidence_test = "crates/antecedent-io-core/src/bridge_image_tests.rs", evidence_assertion = "fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images" },
   { id = "scientific_bridge.typed_bridges.surrogate_trial_level_regression.truth", role = "truth", intent = "Four validation trials give slope 0.92, intercept 0.06 and R^2 529/535 by hand; a surrogate effect 0.8 bridges to 0.796, with the source claim unmodified and the derived claim a different claim.", evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs", evidence_assertion = "surrogate_bridge_matches_the_hand_computed_trial_level_regression" },
   { id = "scientific_bridge.typed_bridges.trial_order.invariance", role = "invariance", intent = "Permuting the validation trials leaves the fit bit-identical; collinear trials give the exact line.", evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs", evidence_assertion = "the_fit_is_the_ordinary_least_squares_line_at_every_trial_order" },
   { id = "scientific_bridge.typed_bridges.validated_range.negative", role = "negative", intent = "Too few trials, a coefficient of determination below the minimum, degenerate trials and an extrapolated surrogate effect are each refused with a distinct detail.", evidence_test = "crates/antecedent-contract/tests/scientific_bridge.rs", evidence_assertion = "validation_minimums_and_the_validated_range_are_enforced" },
@@ -15664,6 +15666,8 @@ refusals = [
   { detail = "scientific_bridge.value_kind_substitution", remedy = "Supply the requested object from its own route." },
 ]
 routes = [
+  { name = "antecedent.scientific_bridge.consume_bridge_image", stage = "consume", status = "supported", claim = "none" },
+  { name = "antecedent.scientific_bridge.compile_joint_outcome_image", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.compile_sampling", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.prepare_distribution", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.derive_distribution", stage = "evaluate", status = "supported", claim = "none" },
@@ -15672,6 +15676,8 @@ routes = [
   { name = "antecedent.scientific_bridge.extrapolated_draws", stage = "evaluate", status = "closed", reason_code = "bridge_mapping_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", refusal_assertion = "a_trial_line_neither_truncates_nor_extrapolates_a_law" },
 ]
 fixtures = [
+  { id = "scientific_bridge.distribution_bridges.joint_outcome.truth", role = "truth", intent = "A weighted finite table reproduces both transformed coordinates and their dependence under two affine combinations.", evidence_test = "crates/antecedent-io-core/src/bridge_image_tests.rs", evidence_assertion = "affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs" },
+independent_consumers = ["antecedent.scientific_bridge.consume_bridge_image"]
   { id = "scientific_bridge.distribution_bridges.sampling_program.positive", role = "positive", intent = "The compiled pushforward reproduces every resampled row and obeys cancellation and memory limits.", evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs", evidence_assertion = "compiled_sampling_bridge_maps_every_replicate_and_obeys_resource_controls" },
   { id = "scientific_bridge.distribution_bridges.joint_refit.truth", role = "truth", intent = "Shared-source validation refits map trial centroids to their terminal centroids. Independent refits match a separate regression calculation.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit" },
   { id = "scientific_bridge.distribution_bridges.delta_method.truth", role = "truth", intent = "An affine map with an uncertain slope and intercept over 40000 posterior draws has the delta-method mean and variance (0.04 + 4.04 V at a unit mean) and agrees with an independent Monte Carlo of the coefficients drawn in the test.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "an_uncertain_slope_agrees_with_the_delta_method_and_a_monte_carlo_reference" },
