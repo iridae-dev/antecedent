@@ -179,3 +179,13 @@ def test_revised_pool_refuses_old_decision_and_reuses_the_unrelated_branch() -> 
     after = _bundle(updated, decision=select(updated, fresh), other=independent)
     assert _consume(after).value("decision", "treat.expected_utility") == pytest.approx(-0.65)
     assert _consume(after).node("other").identity == _consume(before).node("other").identity
+
+    withdrawal = require_success(el.SourceRevision.withdraw(b, "consent withdrawn"))
+    report = require_success(ledger.revise_source(withdrawal))
+    assert report.revalidation[fresh.result] == "withdrawn"
+    withdrawn = _bundle(ledger.export(), decision=select(updated, fresh), other=independent)
+    replay = _consume(withdrawn)
+    assert isinstance(replay.node("decision-selection").status, cb.Failed)
+    assert isinstance(replay.node("decision").status, cb.Failed)
+    assert replay.node("other").replayed
+    assert replay.value("other", "treat.expected_utility") == pytest.approx(1.75)
