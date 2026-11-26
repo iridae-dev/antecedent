@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Reconstructing regime-dependent causal relationships from observational time series", doi = "10.1063/5.0020538", sections = ["regime-learning phase + per-regime PCMCI causal-discovery phase"] },
+ { title = "Reconstructing regime-dependent causal relationships from observational time series", doi = "10.1063/5.0020538", sections = ["Sections III B–C and Algorithm 1"] },
 ]
 
 implementation_deviations = [
@@ -36,20 +36,20 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "Rpcmci::run in crates/antecedent-discovery/src/rpcmci.rs: the caller-labelled per-regime masked PCMCI+ discovery (window mask, minimum-length policy, frame depth) and the optional alternating label refinement (per-regime lagged least-squares equations, variance-standardised one-step cost, Viterbi minimum-cost label path with a switch penalty, stopping and rejection rules, post-selection diagnostic). Not a review of PCMCI+ itself, which each regime graph delegates to. This historical review covers the supplied-label path; it excludes the separately implemented hard-assignment regime learning path."
+scope = "The fixed-label review covers masked per-regime PCMCI+ and its optional cost-based reassignment. The label-free review covers seeded starts, refitted linear lagged equations, hard minimum-duration path updates and stopping, the classification-BIC count rule, alignment of stability diagnostics, and verification of the selected graph and original lag windows after source replay."
 assumptions = ["Within each regime the process is stationary, causally sufficient and (for the per-regime PCMCI+ tests) has CI-test assumptions of the chosen test; regime labels are either known to the caller or taken as the minimum-cost path under the refinement's fitted linear lagged models.", "Label refinement scores only linear lagged equations with each regime's retained positive-lag parents; nonlinear, contemporaneous or latent-driver regime differences do not enter the cost.", "A hard label path is chosen by minimum total cost; the switch penalty is a tuning constant in standardised-variance units, not an estimated persistence probability.", "Reported per-regime p-values are conditional on the labels; for refined labels they are not valid frequentist p-values (the code states this)."]
 historical_exposure = "Historical author exposure cannot be independently established. The earlier record disclosed black-box tigramite comparison only, with the upstream RPCMCI unavailable on the pinned version; no upstream RPCMCI implementation or test source was consulted or copied in this review."
 redistribution = "The exhaustive path-enumeration test is repository-authored under MIT OR Apache-2.0 and runs inside the crate's unit tests. The cited paper is linked by DOI, not redistributed. Existing fixtures are unchanged."
-limitations = "The cited paper (Saggioro et al., Chaos 2020) was not re-read in this review (not reachable here); this is a code-versus-rule review of the label-path search and mask logic with an executing exhaustive reference, not a comparison with the published regime-learning algorithm, which combines persistence-constrained membership optimisation and PCMCI graph discovery. The subsequent hard-assignment learning implementation is outside the scope of this historical review. The Viterbi check covers the path search as a pure function of step costs for up to four regimes and seven steps; it does not test that the step costs (lagged-equation fits, standardisation) estimate what the regime model intends beyond the existing unit tests. The external fixtures compare only fixed-label per-regime PCMCI+, not regime inference. No claim about recovery of true regimes, convergence of the alternating scheme to a global optimum, or false-discovery control after refinement. Calibration remains deferred. Scoped 2026-11-07 source re-review compared parent collection and equation fitting with 875f575bd: retained-parent order, finite-row filtering, identification thresholds and regime skipping are unchanged. Nine focused unit tests passed; no independent reference was regenerated."
+limitations = "Saggioro et al. use PCMCI with a persistence-constrained real-valued membership optimization. This implementation uses masked PCMCI+ and a hard duration-constrained assignment objective. The exhaustive references test path optimization on short problems; simulated series check selected cases of graph and label recovery, and external fixtures check only fixed-label PCMCI+. Neither the alternating updates nor the initialization agreement establishes global optimality, post-selection inference, or sampling coverage."
 sources = ["https://doi.org/10.1063/5.0020538"]
-findings_resolved = ["Isolated the label-path search into a pure function with the original tie rules (staying preferred on a tie, earliest regime at the last step, non-finite step costs scored as zero) and checked it against exhaustive enumeration of all k^T label paths for 300 random cost tables with two to four regimes, up to seven steps, four switch penalties and injected non-finite costs: the returned path costs exactly the minimum, and at least 30 optimal paths switch label so the comparison is not trivially a constant path.", "Added executing checks of the penalty semantics: equal costs never switch, and a one-step advantage is smoothed over when two switches cost more than the saving and taken when they cost less.", "Verified from the code that the mask keeps a time point only when its whole 2 * max_lag + 1 window lies in the regime (so the conditioning sets of the MCI step see no spliced rows), that regimes are scored only if every equation is identified on their current rows, that contemporaneous parents are excluded from the cost, that failed re-discovery after refinement keeps the previous assignment, and that refined labels add the post-selection diagnostic.", "Refactored without behaviour change: the Viterbi block of the reassignment sweep moved into min_cost_label_path; the existing reassignment tests and fixed-label oracle tests were not changed. No logic defect was found in the search; the structural difference from the cited method remains recorded as a deviation."]
-record_sha256 = "4d70cf1cd69173205e09a396f29789f76115d69d5ffc6943680e7122b6fd28a1"
+findings_resolved = ["Isolated the label-path search into a pure function with the original tie rules (staying preferred on a tie, earliest regime at the last step, non-finite step costs scored as zero) and checked it against exhaustive enumeration of all k^T label paths for 300 random cost tables with two to four regimes, up to seven steps, four switch penalties and injected non-finite costs: the returned path costs exactly the minimum, and at least 30 optimal paths switch label so the comparison is not trivially a constant path.", "Added executing checks of the penalty semantics: equal costs never switch, and a one-step advantage is smoothed over when two switches cost more than the saving and taken when they cost less.", "Verified from the code that the mask keeps a time point only when its whole 2 * max_lag + 1 window lies in the regime (so the conditioning sets of the MCI step see no spliced rows), that regimes are scored only if every equation is identified on their current rows, that contemporaneous parents are excluded from the cost, that failed re-discovery after refinement keeps the previous assignment, and that refined labels add the post-selection diagnostic.", "Refactored without behaviour change: the Viterbi block of the reassignment sweep moved into min_cost_label_path; the existing reassignment tests and fixed-label oracle tests were not changed. No logic defect was found in the search; the structural difference from the cited method remains recorded as a deviation.", "The learned route keeps only strictly improving admissible proposals up to its iteration bound. The score for choosing a count uses per-variable residual variance plus a penalty for coefficients, variable variances, label count and switches. Simulated shared fixtures verify replay and original non-spliced lag-window scope."]
+record_sha256 = "2ec13f75da697e73c3e91635bc13f5b4115ff208df2974c3b4a3baa897dbd880"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/rpcmci.rs"
 items = ["const DEFAULT_SWITCH_PENALTY", "fn at", "fn default", "fn discover_regimes", "fn get", "fn indexes_for", "fn is_empty", "fn len", "fn min_cost_label_path", "fn new", "fn reassign_by_lagged_residual", "fn regime_window_mask", "fn run", "fn try_new", "fn unique_regimes", "fn with_alternating_iters", "fn with_min_regime_len", "fn with_pcmci_plus", "struct RegimeAssignment", "struct RegimeEquation", "struct RegimeGraphCollection", "struct RegimeModel", "struct Rpcmci", "struct RpcmciDiscoveryResult", "type LaggedParents", "fn retained_regime_parents", "fn fit_regime_models"]
-sha256 = "dfc127178f600b9e721e764bea0c47816d5215d203f4b147b620a944cfa4339c"
+sha256 = "09e358d0c50a047511045e22611b31aecfed88b7dba94cfbf4fdd21c10664ede"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -61,3 +61,20 @@ sha256 = "0857d22f5d856f6bac0f5a86b9c691fc5cddbf1545a9e86e059543c9dce2f4b5"
 role = "fixture"
 path = "conformance/discovery/rpcmci_fixed_regime_matrix/expected.json"
 sha256 = "1d1c853c39b1b1a21d33121faa52327b6a751fe64725249eba2646376fd12c70"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-discovery/src/rpcmci/learn.rs"
+items = ["fn learn", "fn fit_start", "fn learned_candidate", "fn initialize", "fn criteria", "fn duration_path", "fn duration_indices", "fn stability"]
+sha256 = "d619c7f53d5eeb3b010451e366b0d2d7923ae059f7d5e464bbc748f58ff6a14a"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/rpcmci_regime_learning.rs"
+items = ["fn portable_shared_series_replays_and_accepts_explicit_regimes"]
+sha256 = "a0652856c2e6e93bed669a391eb5eced9889d43d23562ceb030ceaee5f3e6368"
+
+[[method_review.artifacts]]
+role = "fixture"
+path = "conformance/discovery/rpcmci_shared_portable.json"
+sha256 = "5d58b9a83ddd0cd3d13d97fb5f9e4498b00ec4e99d7a51dc5d96a4d18603ca85"

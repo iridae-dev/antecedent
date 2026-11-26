@@ -6,11 +6,12 @@ copied_comments = false
 copied_tests = false
 
 papers = [
-  { title = "A Selection Bias Approach to Sensitivity Analysis for Causal Effects", authors = ["Matthew Blackwell"], year = 2014, url = "https://www.mattblackwell.org/files/papers/sens.pdf", sections = ["Selection bias and sensitivity", "Extension to dynamic treatment regimes"] },
-  { title = "Sensitivity Analyses for Means or Proportions with Missing Outcome Data", year = 2023, doi = "10.1097/EDE.0000000000001627", url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/" },
+  { title = "A Selection Bias Approach to Sensitivity Analysis for Causal Effects", authors = ["Matthew Blackwell"], year = 2014, url = "https://www.mattblackwell.org/files/papers/sens.pdf", sections = ["Section 3, equations 4 and 9", "Time-varying treatment application, equations 23–25"] },
+  { title = "Sensitivity Analyses for Means or Proportions with Missing Outcome Data", year = 2023, doi = "10.1097/EDE.0000000000001627", url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/", sections = ["Theorem 1 and equations 1–4 (outcome-dependent selection, methodological contrast)"] },
 ]
 
 implementation_deviations = [
+  "The missing-outcome citation presents an outcome-dependent selection model. This route uses a conditional pattern-mixture mean difference and does not estimate the cited selection model.",
   "For schedule aa and treatment stage k the declared difference in the mean of that schedule's potential outcome between off-schedule and on-schedule subjects, given stage history and earlier adherence, is -(2a-1) times the stage departure. Final missing-minus-recorded conditional means use the analogous signed shift. These are additive mean restrictions, independent of marginal propensity-odds sensitivity models.",
   "With outcome support, the fitted box is admitted only if each corner implies feasible conditional means. Affinity then guarantees feasibility throughout the box. The original fit is checked, and the sampling law uses untruncated refits.",
   "A bootstrap replicate estimates treatment probabilities, the intermediate history distribution, response fractions and recorded-outcome means from the same resampled subjects. The supremum of the absolute affine error surface is attained at a corner. Project the common radius onto both extrema and compare the resulting interval to the prespecified threshold.",
@@ -31,16 +32,16 @@ assumptions = [
   "The two histories and treatment decisions are binary and completely recorded. Only the final outcome may be missing. Subjects are independent, each required treatment and recorded-outcome cell has support, and consistency connects recorded outcomes to their realized schedule.",
   "The two additive treatment-selection departures are defined within observed history and earlier schedule adherence. The final additive pattern-mixture departure compares the missing and observed conditional means within the two realized schedule cells. A named release design adds a caller declaration about the sampling law.",
 ]
-historical_exposure = "Review followed the nested conditional expectations and source-fixed experiment directly from the implementation and the named methodological papers. Historical author exposure is not established."
+historical_exposure = "The review followed Blackwell equations 23–25 for the history-specific selection contrast and reviewed Zivich et al. Theorem 1 and equations 1–4 as a distinct observation model. The route and its reference fixtures use the repository’s own additive mean restrictions and an affine subject-bootstrap construction. Historical author exposure is unknown."
 redistribution = "Repository-authored implementation and fixtures. Linked literature is not redistributed."
-limitations = "The scientific target is the named two-decision mean contrast under a rectangular region of three common additive departures. The admissibility check constrains implied conditional means only within the bounded outcome model. The subject bootstrap requires every sampled fit to retain observed support. Its nominal simultaneous level does not establish coverage beyond a matching current repeated-experiment receipt. The comparison addresses only the predeclared scalar threshold."
+limitations = "The scientific target is the named two-decision mean contrast under a rectangular region of three common additive departures. The admissibility check constrains implied conditional means only within the bounded outcome model. The subject bootstrap requires every sampled fit to retain observed support. The repeated-study design separately scores the entire surface and both extrema, and includes refusals in the denominator. Its nominal simultaneous level does not establish coverage beyond a matching current receipt. The comparison addresses only the predeclared scalar threshold."
 sources = ["https://www.mattblackwell.org/files/papers/sens.pdf", "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/"]
 findings_resolved = [
-  "The conditional completion yields an affine contrast, so an independent enumerated full-data reference checks the extreme corners and two off-axis departures. Two distinct complete-data laws yield the same observed trajectory distribution but contrasts on opposite sides of the declared action threshold.",
+  "The conditional completion yields an affine contrast. An independent enumerated full-data reference checks all eight vertices, and setting either mechanism to zero recovers its corresponding single-mechanism minimum. Two distinct complete-data laws yield the same observed trajectory distribution but contrasts on opposite sides of the declared action threshold.",
   "A shared whole-subject bootstrap estimates every mechanism exactly once per resample. The maximum absolute error over the box is the maximum over its vertices, and one radius covers both extrema jointly.",
   "The standalone consumer, generic Python carrier and standard composition verifier replay from the same retained plan, seed and raw trajectories. Published sampling bounds and their current calibration reading are computed live.",
 ]
-record_sha256 = "68ead956188cd59e532647812059b021d16f4b48d4447976f0530396a4920041"
+record_sha256 = "24cd1c6390307bbf778b1bf607134797ae674b1cb1a7427799082f82d1f0a99f"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -61,13 +62,13 @@ items = ["fn describe"]
 sha256 = "d3c0c17af31997b988b7a82800684e27d4704ed6ddcce3c7dbf920bc87b0f2cb"
 
 [[method_review.artifacts]]
-role = "test"
+role = "assertion"
 path = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
 items = ["fn complete_world", "fn two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision", "fn repeated_studies_cover_the_entire_surface_and_both_decision_extrema_jointly"]
 sha256 = "9e2e0ee02f52db7a89d36cabd0c348d1f9069dda72b7f6bff201f914b9c707f8"
 
 [[method_review.artifacts]]
-role = "test"
+role = "assertion"
 path = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
 items = ["fn measure", "fn bind", "fn longitudinal_two_decision_joint_box_and_extrema_l95"]
 sha256 = "93ee0814661f01593a1ee5bb6b7cf9f9144815740d0926670e7bd57b150633a5"

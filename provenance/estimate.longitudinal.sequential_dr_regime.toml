@@ -6,7 +6,7 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["sequential doubly robust score for a longitudinal regime, augmenting inverse-probability weights with conditional outcome predictions"] },
+ { title = "Doubly Robust Estimation in Missing Data and Causal Inference Models", doi = "10.1111/j.1541-0420.2005.00377.x", sections = ["Section 3 (longitudinal monotone missing data); Section 4 (longitudinal causal models)"] },
 ]
 
 implementation_deviations = [
@@ -26,20 +26,20 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "evaluate_sequential_dr_value_with_subject_scores in antecedent-stats longitudinal_regime.rs: the backward recursion V_t = Q_t + 1[observed and following at t] (V_{t+1} - Q_t) / (pi_t c_t) with V_T the terminal outcome (zero when unobserved), the resulting per-subject augmentation scores, their mean, the maximum cumulative weight along each subject's followed prefix, the observed fraction, and the monotone-observation and terminal-agreement checks. Not the fitting or subject exclusion of the Q predictions, the interval support floors, or the marginal structural model."
+scope = "The original comparison covers the backward augmented recursion with supplied Q, treatment and censoring probabilities, per-subject scores, outcome masking and maximum cumulative weights. The four-decision extension adds a fixed-schedule support check, a normal interval based on the independent-subject score variance, independent forward-score evidence and source-bearing replay."
 assumptions = ["Sequential randomization (no unmeasured confounding of any period's treatment given the recorded history), positivity at the declared floor and exchangeable censoring are identification assumptions taken as given.", "Sequential treatment and censoring probabilities and, where used, the period predictions are supplied inputs; subjects are independent histories. The kernel does not fit or verify them."]
-historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the shared helpers in the same file, and compared results with definitions evaluated by executing references written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
+historical_exposure = "The historical rational reference was written against mathematical definitions without copying upstream implementation. The present scope review compared the four-period interval with the backward score source and the independent forward-score fixture. Bang and Robins Sections 3 and 4 provide the longitudinal augmentation context; the supported normal-band geometry and measured design are repository-specific."
 redistribution = "Primary work is cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); the script uses mpmath (BSD-3-Clause), imported at run time and not redistributed here. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
 limitations = "Five synthetic cohorts of 50 to 80 subjects and one to four decision periods: a static regime at two periods, a regime followed by about half the subjects with action and censoring probabilities at 0.02 and 0.05 (cumulative weights near 2.5e4), a history-dependent regime, an alternating regime and an outcome offset of 1e8. Values are asserted to 1e-10 to 1e-12 relative, the IPW standard error to 1e-9, and each sequential-DR subject score to 1e-9. The pointwise interval functions apply support floors and a sample-size gate to these quantities; their coverage is measured by the module's repeated-sample tests, not here. The reference script is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
-sources = ["https://mpmath.org/"]
-findings_resolved = ["No defect found: the value, the maximum weight, the observed fraction and each of the subject scores equal the telescoped form Q_0 + sum G_{t-1}(Q_t - Q_{t-1}) + G_{T-1}(Y - Q_{T-1}) evaluated in exact rationals, which is not the recursion the product runs."]
-record_sha256 = "af539b5aeed06f6816a716de51cd2eecfd0b3a68d3b89e29d6cd03382085fd70"
+sources = ["https://mpmath.org/", "https://doi.org/10.1111/j.1541-0420.2005.00377.x"]
+findings_resolved = ["No defect found: the value, the maximum weight, the observed fraction and each of the subject scores equal the telescoped form Q_0 + sum G_{t-1}(Q_t - Q_{t-1}) + G_{T-1}(Y - Q_{T-1}) evaluated in exact rationals, which is not the recursion the product runs.", "For four periods, the forward-score fixture checks the estimate, subject standard error and normal endpoints; the reported reading also binds the declared fair-coin assignment, censoring survival, supplied Q and source evidence. Its independent repeated-study receipt has a separately declared Gaussian outcome law."]
+record_sha256 = "86bdbe9ce0c206cf5c02cc13806b3205d4900047ae6b678889f32355cfd0c1db"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/longitudinal_regime.rs"
-items = ["fn evaluate_g_formula_value", "fn evaluate_regime_value", "fn evaluate_sequential_dr_value_with_subject_scores", "fn from_message", "fn message", "fn route", "struct RegimeKernelError", "struct RegimeValueSummary", "struct SequentialDrInputs", "struct SubjectHistories"]
-sha256 = "e4883f3338b84a4fb04688ee05a8fdebbfa7a116f999ae9e05dfa8c95862e237"
+items = ["fn evaluate_g_formula_value", "fn evaluate_regime_value", "fn evaluate_sequential_dr_value_with_subject_scores", "fn four_period_sequential_dr_support", "fn sequential_dr_pointwise_interval_95", "fn from_message", "fn message", "fn route", "struct RegimeKernelError", "struct RegimeValueSummary", "struct SequentialDrInputs", "struct SubjectHistories"]
+sha256 = "7fca756342e13504090460159089fd593f787aecac461f6ccf99e7f4a770f58a"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -56,3 +56,15 @@ sha256 = "93fc02a91ffc32a2b5d77e93658dcb044236ae00bcbbd4a32f70f90066f4ab92"
 role = "fixture"
 path = "crates/antecedent-stats/tests/oracle_data/longitudinal_regime_reference.json"
 sha256 = "60f311b89d5a0a2195a12d885eedf2267dd5129c24ca94e015b4cf2271491fe1"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/longitudinal_regime_route.rs"
+items = ["fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays"]
+sha256 = "6aece0f3f69e60966e80ee1074ddac7348c2d488797fb361e3dba8ab9e1a126f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/longitudinal_regime_calibration.rs"
+items = ["fn four_period_sequential_dr_coverage", "fn four_period_sequential_dr_coverage_and_publication"]
+sha256 = "132b43def2d529992d0f4d50c45aef2ff2a651d3b14aef6f64a7566684b76176"
