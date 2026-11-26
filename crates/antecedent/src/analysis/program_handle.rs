@@ -37,7 +37,10 @@ pub(crate) trait CompiledProgramHandle {
     fn result_method_provenance<'a>(
         &self,
         inputs: impl IntoIterator<Item = &'a MethodProvenanceWire>,
-    ) -> MethodProvenanceWire {
+    ) -> MethodProvenanceWire
+    where
+        Self: Sized,
+    {
         let mut provenance = self.lowered().method_provenance();
         provenance.inherit(inputs);
         provenance
