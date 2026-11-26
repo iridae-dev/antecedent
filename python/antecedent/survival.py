@@ -533,6 +533,9 @@ class CumulativeIncidenceEstimate:
     Fields:
 
     * ``target_cause`` -- the reported event code.
+    * ``minimum_horizon_risk_set`` -- the smaller arm count at risk at ``tau`` for
+      delayed-entry incidence. Subjects enter strictly before ``tau`` and remain observed
+      through it.
     * ``times`` -- event-time grid, including zero and ``tau``.
     * ``control_incidence``, ``treated_incidence`` -- arm cumulative incidence at each time.
     * ``incidence_difference`` -- treated minus control at ``tau``.
@@ -567,6 +570,7 @@ class CumulativeIncidenceEstimate:
         "consistency",
         "no_interference",
     )
+    minimum_horizon_risk_set: int | None = None
 
 
 def difference_at_tau(

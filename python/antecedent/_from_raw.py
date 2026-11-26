@@ -904,6 +904,7 @@ def _survival_from_raw(
     if isinstance(query, CompetingRisksOutcome) or section.target_cause is not None:
         return CumulativeIncidenceEstimate(
             target_cause=int(section.target_cause),
+            minimum_horizon_risk_set=section.minimum_horizon_risk_set,
             times=times,
             control_incidence=control,
             treated_incidence=treated,

@@ -722,6 +722,7 @@ class SurvivalSection:
     target_cause: int | None
     tau: float
     minimum_event_risk_set: int | None
+    minimum_horizon_risk_set: int | None
     uncertainty: str
     rmst_difference_interval: list[float] | None
     difference_at_tau_interval: list[float] | None

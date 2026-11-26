@@ -141,6 +141,9 @@ def test_delayed_entry_incidence_support_round_trips(fixed_known: bool) -> None:
     )
     section = result.survival
     assert section.target_cause == query.target_cause
+    at_risk = (data["entry"] < query.tau) & (data["duration"] >= query.tau)
+    expected_risk = int(at_risk.groupby(data["treatment"]).sum().min())
+    assert section.minimum_horizon_risk_set == expected_risk
     assert section.tau == query.tau
     assert section.support_status == "supported"
     assert section.difference_band is None
@@ -172,6 +175,7 @@ print(json.dumps(dict(loaded.decoded_artifact.payload["survival"])))
     )
     curve = json.loads(retained.stdout)
     assert curve["target_cause"] == query.target_cause
+    assert curve["minimum_horizon_risk_set"] == expected_risk
     assert curve["tau"] == query.tau
     assert curve["graphless_support_status"] == "supported"
     assert curve["difference_at_tau_interval"] == pytest.approx(section.incidence_difference_interval)

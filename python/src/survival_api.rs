@@ -29,6 +29,7 @@ pub struct SurvivalSection {
     pub target_cause: Option<i64>,
     pub tau: f64,
     pub minimum_event_risk_set: Option<usize>,
+    pub minimum_horizon_risk_set: Option<usize>,
     pub uncertainty: String,
     pub rmst_difference_interval: Option<Vec<f64>>,
     pub difference_at_tau_interval: Option<Vec<f64>>,
@@ -52,6 +53,7 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
             target_cause: value.target_cause,
             tau: value.tau,
             minimum_event_risk_set: value.minimum_event_risk_set,
+            minimum_horizon_risk_set: value.minimum_horizon_risk_set,
             uncertainty: value.uncertainty.to_string(),
             rmst_difference_interval: value
                 .rmst_difference_interval
