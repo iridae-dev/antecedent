@@ -40,8 +40,11 @@ pub struct BridgeIntervalDecision {
 #[serde(rename_all = "snake_case")]
 /// Reported direction at the declared cutoff. Equality with a bound is unresolved.
 pub enum ThresholdVerdict {
+    /// The lower endpoint exceeds the cutoff.
     Above,
+    /// The upper endpoint lies below the cutoff.
     Below,
+    /// The interval contains the cutoff.
     Unresolved,
 }
 
@@ -49,7 +52,9 @@ pub enum ThresholdVerdict {
 #[serde(rename_all = "snake_case")]
 /// Interpretation of the threshold decision's input.
 pub enum BridgeIntervalReading {
+    /// The interval summarizes a declared joint posterior.
     PosteriorCredible,
+    /// The trial interval has current repeated-experiment coverage evidence.
     SamplingConfidence,
     /// Numerically verified trial bounds without current coverage evidence.
     SamplingNominal,

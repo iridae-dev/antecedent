@@ -1,6 +1,6 @@
 //! Selected pooled results expire with their own study evidence.
 
-use antecedent::Study;
+use antecedent::StudyBuilder;
 use antecedent::analysis::composition::{
     BundleBuilder, BundleStage, CompositionBundle, NodeKind, SuppliedSources, consume,
     export_bundle,
@@ -208,7 +208,7 @@ fn inherited_ledger_replays_a_selected_point_and_refuses_an_assumption_range() {
 #[test]
 fn changed_studies_expire_their_decision_without_invalidating_the_other_pool() {
     let ctx = ExecutionContext::for_tests(14);
-    let mut session = Study::evidence_ledger();
+    let mut session = StudyBuilder::evidence_ledger();
     let a = session.add_source(observation("a", &[0])).unwrap();
     let b = session.add_source(observation("b", &[1])).unwrap();
     let c = session.add_source(observation("c", &[2])).unwrap();
@@ -285,7 +285,7 @@ fn changed_studies_expire_their_decision_without_invalidating_the_other_pool() {
 fn ledger_binding_refuses_swapped_study_summaries_even_when_the_mean_is_identical() {
     let ctx = ExecutionContext::for_tests(15);
     let produce = |left, right| {
-        let mut ledger = Study::evidence_ledger();
+        let mut ledger = StudyBuilder::evidence_ledger();
         let a = ledger.add_source(observation("a", &[0])).unwrap();
         let b = ledger.add_source(observation("b", &[1])).unwrap();
         let result = pooled(
