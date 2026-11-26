@@ -254,7 +254,14 @@ pub fn delayed_entry_incidence_support_profile(
         && completed.is_some_and(|completed| completed >= 299)
 }
 
-/// Calibration target for a delayed-entry incidence contrast at an exact cause and horizon.
+/// Calibration target for the audited delayed-entry incidence study.
+///
+/// The benchmark uses 299 requested and completed draws at three balanced arm
+/// sizes. The weighted benchmark uses the fixed six-knot censoring grid and
+/// its recorded positivity floor. These are narrower than the executable
+/// graphless support conditions. The study covers all attempted draws of the
+/// data-generating law, with withheld publications counted as misses. It does
+/// not measure coverage conditional on a particular realized risk-set size.
 #[doc(hidden)]
 #[must_use]
 pub fn incidence_calibration_functional(
@@ -272,20 +279,32 @@ pub fn incidence_calibration_functional(
     query.delayed_entry?;
     let fixed_known = !query.censoring_columns.is_empty();
     let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
-    let support = if delayed_entry_incidence_support_profile(
+    let minimum_arm = incidence_min_arm(fixed_known);
+    let supported = delayed_entry_incidence_support_profile(
         minimum_event_risk_set,
         minimum_horizon_risk_set,
         replicates_requested,
         replicates_ok,
     ) && assignment_counts
-        .is_some_and(|[control, treated]| control.min(treated) >= incidence_min_arm(fixed_known))
-    {
+        .is_some_and(|[control, treated]| control.min(treated) >= minimum_arm);
+    let measured_design = replicates_requested == Some(299)
+        && replicates_ok == Some(299)
+        && assignment_counts.is_some_and(|[control, treated]| {
+            control == treated && [minimum_arm, 2 * minimum_arm, 4 * minimum_arm].contains(&control)
+        })
+        && (!fixed_known
+            || (query.censoring_times == [0.0, 1.0, 1.5, 2.0, 2.5, 3.0]
+                && query.censoring_probability_floor.map(f64::to_bits)
+                    == Some(0.01_f64.to_bits())));
+    let scope = if !supported {
+        "+scope=insufficient"
+    } else if measured_design {
         ""
     } else {
-        "+scope=insufficient"
+        "+scope=unmeasured_design"
     };
     Some(format!(
-        "incidence_difference+entry=delayed+censoring={censoring}+cause={cause}+tau={:016x}{support}",
+        "incidence_difference+entry=delayed+censoring={censoring}+cause={cause}+tau={:016x}{scope}",
         query.tau.to_bits(),
     ))
 }

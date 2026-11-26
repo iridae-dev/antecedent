@@ -984,7 +984,10 @@ fn delayed_entry_incidence_support_checks_horizon_risk_and_scalar_design() {
                 assert!(key.starts_with("difference_band+"));
             } else {
                 assert!(key.starts_with("incidence_difference+"));
-                assert_eq!(key.ends_with("+scope=insufficient"), !scalar_supported);
+                // This test's 200 subjects per arm is off the unweighted benchmark grid.
+                // Its fixed-G variant uses a different grid and positivity floor.
+                let scope = if scalar_supported { "unmeasured_design" } else { "insufficient" };
+                assert_eq!(key.rsplit_once("+scope=").map(|(_, suffix)| suffix), Some(scope));
             }
         }
     }

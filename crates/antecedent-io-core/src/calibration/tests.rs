@@ -214,6 +214,107 @@ fn record(id: &'static str) -> CoverageRecord {
 }
 
 #[test]
+fn delayed_entry_incidence_coverage_stays_with_the_measured_design() {
+    use crate::graphless_support::incidence_calibration_functional;
+    use crate::query_wire::SurvivalQueryWire;
+
+    let base_query = SurvivalQueryWire {
+        duration: 0,
+        event: 1,
+        treatment: 2,
+        tau: 3.0,
+        delayed_entry: Some(3),
+        target_cause: Some(1),
+        independent_observation: true,
+        independent_given: vec![],
+        censoring_times: vec![],
+        censoring_columns: vec![],
+        censoring_probability_floor: None,
+        stratified_censoring: None,
+    };
+    for (minimum_arm, measured_functional) in [
+        (
+            160,
+            "incidence_difference+entry=delayed+censoring=unweighted+cause=1+tau=4008000000000000",
+        ),
+        (
+            200,
+            "incidence_difference+entry=delayed+censoring=fixed_known+cause=1+tau=4008000000000000",
+        ),
+    ] {
+        let mut query = base_query.clone();
+        if minimum_arm == 200 {
+            query.censoring_times = vec![0.0, 1.0, 1.5, 2.0, 2.5, 3.0];
+            query.censoring_columns = (4..10).collect();
+            query.censoring_probability_floor = Some(0.01);
+        }
+        // A synthetic passing record deliberately covers the larger total-row span and would
+        // admit more than 299 completed draws under the generic lower-bound scope matcher.
+        let measured = CoverageRecord {
+            id: "incidence_test.v2_validation_not_applicable",
+            validation: "not_applicable",
+            query: "Survival",
+            graph_class: "RandomizedTrial",
+            structure: "design",
+            estimator: "randomized.survival_product_limit",
+            interval_method: "percentile_bootstrap",
+            functional: measured_functional,
+            n_min: 2 * minimum_arm as u64,
+            n_max: 8 * minimum_arm as u64,
+            replicates_min: 299,
+            ..record("incidence_test")
+        };
+        let resolve = |query: &SurvivalQueryWire, arms: [usize; 2], risk: [usize; 2], draws, ok| {
+            let mut key = key_from(&measured);
+            key.functional = incidence_calibration_functional(
+                query,
+                Some(risk[0]),
+                Some(risk[1]),
+                Some(draws),
+                Some(ok),
+                Some(arms),
+            )
+            .unwrap();
+            calibration_slot_in(
+                &CalibrationBasisWire {
+                    key,
+                    scope: CalibrationScopeWire {
+                        row_count: (arms[0] + arms[1]) as u64,
+                        replicates_ok: Some(ok),
+                        posterior_draws: None,
+                        unidentified_mass: 0.0,
+                    },
+                },
+                std::slice::from_ref(&measured),
+            )
+        };
+        for arm in [minimum_arm, 2 * minimum_arm, 4 * minimum_arm] {
+            assert_eq!(resolve(&query, [arm; 2], [25; 2], 299, 299).status, "calibrated");
+        }
+        let arms = [2 * minimum_arm; 2];
+        for (counts, risk, requested, completed) in [
+            (arms, [25; 2], 300, 299),
+            (arms, [25; 2], 300, 300),
+            (arms, [25; 2], 398, 398),
+            (arms, [25, 24], 299, 299),
+            (arms, [24, 25], 299, 299),
+            ([minimum_arm + 1; 2], [25; 2], 299, 299),
+            ([arms[0] - 1, arms[1] + 1], [25; 2], 299, 299),
+        ] {
+            assert_eq!(resolve(&query, counts, risk, requested, completed).status, "not_measured");
+        }
+        if minimum_arm == 200 {
+            let mut different_floor = query.clone();
+            different_floor.censoring_probability_floor = Some(0.05);
+            assert_eq!(resolve(&different_floor, arms, [25; 2], 299, 299).status, "not_measured");
+            let mut different_grid = query.clone();
+            different_grid.censoring_times[4] = 2.75;
+            assert_eq!(resolve(&different_grid, arms, [25; 2], 299, 299).status, "not_measured");
+        }
+    }
+}
+
+#[test]
 fn legacy_wire_omits_unestablished_validation() {
     let mut original = basis();
     original.key.validation.clear();
