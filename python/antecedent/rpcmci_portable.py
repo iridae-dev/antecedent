@@ -13,6 +13,7 @@ from ._artifact_protocol import (
     artifact_consumer,
     artifact_export,
     container_bytes,
+    inspect_artifact,
 )
 from ._coerce import coerce_data
 from ._refusal import raise_refusal
@@ -79,10 +80,9 @@ class LearnedRpcmciArtifact(ScientificResult):
     @artifact_export
     def export(self) -> ExportedArtifact[LearnedRpcmciArtifact]:
         """Serialize the native configuration, raw series and verified report."""
-        kind = "learned_rpcmci_v1"
-        return ExportedArtifact(
-            self._handle.export(), kind, ArtifactExpectation(kind, self.identity)
-        )
+        data = self._handle.export()
+        kind = inspect_artifact(data).kind
+        return ExportedArtifact(data, kind, ArtifactExpectation(kind, self.identity))
 
     @outcome_operation
     def regime_scope(self, regime: int) -> LearnedRpcmciRegimeScope:

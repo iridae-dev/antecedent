@@ -291,17 +291,18 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
     from . import _native
 
     data = container_bytes(value)
-    for magic, kind in (
-        (b"ANTE-PAG-ID-1\0", "pag_identification_v1"),
-        (b"ANTE-RPCMCI-LEARNED-1\0", "learned_rpcmci_v1"),
-        (b"ANTE-JOINT-SCENARIOS-1", "joint_scenarios_v1"),
-        (b"ANTE-COMPILED-ROBUST-1", "compiled_robust_decision_v1"),
-        (b"ANTECEDENT-LATENT-SOFT-INTERVENTION-1", "latent_soft_intervention_forecast_v1"),
+    for magic, kind, version in (
+        (b"ANTE-PAG-ID-1\0", "pag_identification_v1", 1),
+        (b"ANTE-RPCMCI-LEARNED-1\0", "learned_rpcmci_v1", 1),
+        (b"ANTE-RPCMCI-LEARNED-2\0", "learned_rpcmci_v2", 2),
+        (b"ANTE-JOINT-SCENARIOS-1", "joint_scenarios_v1", 1),
+        (b"ANTE-COMPILED-ROBUST-1", "compiled_robust_decision_v1", 1),
+        (b"ANTECEDENT-LATENT-SOFT-INTERVENTION-1", "latent_soft_intervention_forecast_v1", 1),
     ):
         if data.startswith(magic):
             return ArtifactInspection(
                 kind,
-                {"artifact_kind": kind, "format_version": 1},
+                {"artifact_kind": kind, "format_version": version},
                 {},
                 ArtifactAcceptance("unavailable", False, False, False),
                 data,
@@ -507,6 +508,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "patient_surrogate_identification_v1": ("patient_surrogate", "consume_patient_surrogate"),
     "pag_identification_v1": ("pag_identification", "consume_pag_identification"),
     "learned_rpcmci_v1": ("rpcmci_portable", "consume_learned_rpcmci"),
+    "learned_rpcmci_v2": ("rpcmci_portable", "consume_learned_rpcmci"),
     "array_fit_replay_v1": ("nuisance_scores", "load_artifact"),
     "staleness_baseline_v1": ("drift", "consume_baseline"),
     "causal_posterior": ("_posterior_artifact", "consume_posterior"),

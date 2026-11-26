@@ -10,6 +10,7 @@ papers = [
 ]
 
 implementation_deviations = [
+ "New portable artifacts declare the continuous context-column schema used in ordinary numeric ingestion. Legacy framing preserves the original role-free schema and source identity when replayed.",
  "Known labels retain the reviewed per-regime PCMCI+ route. The optional learned route alternates masked PCMCI+ discovery and model-based hard assignment for one fully observed finite series.",
  "A versioned native unweighted partial-correlation route retains the complete source and canonical scalar execution law. Replay independently compiles and reproduces labels, temporal graph digests and stability. The acceptance consumer may explicitly select one verified regime.",
  "The learned route uses seeded contiguous and recurrent starts, a minimum duration, and a switch cost with hard-path dynamic programming. The published algorithm uses a persistence-constrained membership relaxation and PCMCI. The implemented count policy fixes a count or compares classification BIC for a common Gaussian residual variance by variable and fitted lagged coefficients by regime.",
@@ -28,6 +29,7 @@ test_sources = [
  "crates/antecedent/tests/rpcmci_regime_learning.rs (simulation truth, graph recovery and compiled replay)",
  "python/tests/test_rpcmci_regime_learning.py (independent simulation, replay and short-count diagnostics)",
  "conformance/discovery/rpcmci_shared_portable.json (identical Rust and Python oracle series)",
+ "crates/antecedent/src/analysis/rpcmci_portable.rs source schema tests and conformance/discovery/rpcmci_learned_v1.artifact (repository-produced v1 bytes, historical identity and versioned replay)",
  "crates/antecedent-discovery/src/rpcmci/learn.rs::duration_updates_match_independent_exhaustive_path_cost (brute-force cost reference under minimum duration)",
  "crates/antecedent-discovery/tests/rpcmci_fixed_regime_oracle.rs (fixed caller labels, alternating disabled, per-regime PCMCI+ skeleton equality)",
  "conformance/discovery/rpcmci_two_regime (library structure pin; external RPCMCI unavailable on the pinned version)",

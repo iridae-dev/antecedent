@@ -5,8 +5,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use antecedent_core::execution::{KernelPolicy, RngFactory};
-use antecedent_core::{CanonicalWriter, ExecutionContext, RegimeId, VariableId};
-use antecedent_data::TimeSeriesData;
+use antecedent_core::{
+    CanonicalWriter, CausalSchemaBuilder, ExecutionContext, MeasurementSpec, RegimeId, RoleHint,
+    SmallRoleSet, ValueType, VariableId,
+};
+use antecedent_data::{DataError, SamplingRegularity, TabularData, TimeIndex, TimeSeriesData};
 use antecedent_io::{IoError, from_cbor, to_cbor};
 use antecedent_stats::FdrAdjustment;
 use serde::{Deserialize, Serialize};
@@ -25,7 +28,8 @@ use crate::{
     AcceptedGraph, CausalError, CompiledExecution, DiscoveredStructure, DiscoverySpec, Study,
 };
 
-const MAGIC: &[u8] = b"ANTE-RPCMCI-LEARNED-1\0";
+const LEGACY_MAGIC: &[u8] = b"ANTE-RPCMCI-LEARNED-1\0";
+const SCHEMA_MAGIC: &[u8] = b"ANTE-RPCMCI-LEARNED-2\0";
 const MAX_BYTES: usize = 16 * 1024 * 1024;
 const MAX_CELLS: usize = 1_000_000;
 
@@ -146,10 +150,24 @@ struct Wire {
     report: LearnedRpcmciReport,
 }
 
+#[derive(Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum SourceSchema {
+    ContinuousContextV1,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct SchemaWire<T> {
+    source_schema: SourceSchema,
+    result: T,
+}
+
 /// Replayed discovery with the raw evidence needed by the independent reader.
 pub struct LearnedRpcmciArtifact {
     result: RpcmciDiscoveryResult,
     wire: Wire,
+    source_schema: Option<SourceSchema>,
     identity: String,
     plan: crate::planner::PlanView,
 }
@@ -159,10 +177,7 @@ impl LearnedRpcmciRequest {
         let width = self.names.len();
         let rows = self.columns.first().map_or(0, Vec::len);
         if !(1..=64).contains(&width)
-            || self
-                .names
-                .iter()
-                .any(|name| name.trim().is_empty() || name.len() > 256)
+            || self.names.iter().any(|name| name.trim().is_empty() || name.len() > 256)
             || self.names.iter().collect::<BTreeSet<_>>().len() != width
             || self.columns.len() != width
             || rows < 10
@@ -185,11 +200,48 @@ impl LearnedRpcmciRequest {
         Ok(())
     }
 
+    fn source_series(&self, schema: Option<SourceSchema>) -> Result<TimeSeriesData, DataError> {
+        let columns =
+            self.names.iter().map(String::as_str).zip(self.columns.iter().map(Vec::as_slice));
+        match schema {
+            None => TimeSeriesData::from_f64_columns(columns, self.interval_ns),
+            Some(SourceSchema::ContinuousContextV1) => {
+                let mut builder = CausalSchemaBuilder::new();
+                for name in &self.names {
+                    builder.add_variable(
+                        name.as_str(),
+                        ValueType::Continuous,
+                        SmallRoleSet::from_hint(RoleHint::Context),
+                        None,
+                        None,
+                        MeasurementSpec::default(),
+                    )?;
+                }
+                let table = TabularData::try_from_schema_f64(builder.build()?, columns)?;
+                let index = TimeIndex {
+                    regularity: SamplingRegularity::Regular { interval_ns: self.interval_ns },
+                    length: self.columns[0].len(),
+                };
+                TimeSeriesData::try_new(table.storage().clone(), index)
+            }
+        }
+    }
+
     /// Invoke the normal causal compiler and retain its full learned-regime report.
+    ///
+    /// Continuous columns carry the same context role as ordinary numeric ingestion.
     ///
     /// # Errors
     /// Invalid declaration, unsupported route, failed discovery or resource stop.
     pub fn run(self, ctx: &ExecutionContext) -> Result<LearnedRpcmciArtifact, RpcmciReplayError> {
+        self.run_with_schema(Some(SourceSchema::ContinuousContextV1), ctx)
+    }
+
+    fn run_with_schema(
+        self,
+        source_schema: Option<SourceSchema>,
+        ctx: &ExecutionContext,
+    ) -> Result<LearnedRpcmciArtifact, RpcmciReplayError> {
         self.validate()?;
         let bytes = (self.columns[0].len() as u64)
             .saturating_mul(self.columns.len() as u64)
@@ -215,9 +267,7 @@ impl LearnedRpcmciRequest {
         };
         let options = RpcmciLearning {
             count: if self.select_count {
-                RegimeCountPolicy::Bic {
-                    max_regimes: self.count,
-                }
+                RegimeCountPolicy::Bic { max_regimes: self.count }
             } else {
                 RegimeCountPolicy::Fixed(self.count)
             },
@@ -226,17 +276,8 @@ impl LearnedRpcmciRequest {
             switch_penalty: self.switch_penalty,
         };
         let spec = DiscoverySpec::rpcmci_learn(params, self.min_regime_len, options, "parcorr")?;
-        let data = TimeSeriesData::from_f64_columns(
-            self.names
-                .iter()
-                .map(String::as_str)
-                .zip(self.columns.iter().map(Vec::as_slice)),
-            self.interval_ns,
-        )
-        .map_err(CausalError::rejected)?;
-        let variables = (0..self.names.len() as u32)
-            .map(VariableId::from_raw)
-            .collect::<Vec<_>>();
+        let data = self.source_series(source_schema).map_err(CausalError::rejected)?;
+        let variables = (0..self.names.len() as u32).map(VariableId::from_raw).collect::<Vec<_>>();
         let study = Study::series(data).discovery(spec, variables).build()?;
         let execution = CompiledExecution::run(&study, &portable).map_err(|error| match error {
             CausalError::Cancelled { .. } => RpcmciReplayError::Cancelled,
@@ -248,22 +289,16 @@ impl LearnedRpcmciRequest {
         })?;
         let program_identity = execution
             .lowered_identity()
-            .ok_or(RpcmciReplayError::Invalid(
-                "compiled discovery identity is absent",
-            ))?
+            .ok_or(RpcmciReplayError::Invalid("compiled discovery identity is absent"))?
             .to_hex();
         let data_identity = execution
             .result()
             .executed_contract()
-            .ok_or(RpcmciReplayError::Invalid(
-                "compiled discovery snapshot is absent",
-            ))?
+            .ok_or(RpcmciReplayError::Invalid("compiled discovery snapshot is absent"))?
             .inspection_data_snapshot
             .to_hex();
         let Some(discovery) = execution.result().discovery() else {
-            return Err(RpcmciReplayError::Invalid(
-                "compiled discovery produced no structure",
-            ));
+            return Err(RpcmciReplayError::Invalid("compiled discovery produced no structure"));
         };
         let DiscoveredStructure::Regimes(result) = &discovery.structure else {
             return Err(RpcmciReplayError::Invalid(
@@ -291,12 +326,7 @@ impl LearnedRpcmciRequest {
             program_identity,
             data_identity,
             seed: learning.seed,
-            assignments: result
-                .assignments
-                .regimes
-                .iter()
-                .map(|regime| regime.raw())
-                .collect(),
+            assignments: result.assignments.regimes.iter().map(|regime| regime.raw()).collect(),
             graphs,
             selected_count: learning.selected_count,
             candidate_scores: learning.candidate_scores.clone(),
@@ -313,24 +343,26 @@ impl LearnedRpcmciRequest {
                 .collect(),
         };
         let plan = execution.prepared().plan_view()?;
-        let wire = Wire {
-            request: self,
-            report,
-        };
-        let identity = wire_identity(&wire)?;
-        Ok(LearnedRpcmciArtifact {
-            wire,
-            identity,
-            result: result.clone(),
-            plan,
-        })
+        let wire = Wire { request: self, report };
+        let identity = wire_identity(&wire, source_schema)?;
+        Ok(LearnedRpcmciArtifact { wire, source_schema, identity, result: result.clone(), plan })
     }
 }
 
-fn wire_identity(wire: &Wire) -> Result<String, IoError> {
-    Ok(CanonicalWriter::new("antecedent.rpcmci.learned_result.v1")
-        .bytes(&to_cbor(wire)?)
-        .finish_hex())
+fn encode_wire(wire: &Wire, source_schema: Option<SourceSchema>) -> Result<Vec<u8>, IoError> {
+    match source_schema {
+        Some(source_schema) => to_cbor(&SchemaWire { source_schema, result: wire }),
+        None => to_cbor(wire),
+    }
+}
+
+fn wire_identity(wire: &Wire, source_schema: Option<SourceSchema>) -> Result<String, IoError> {
+    let tag = if source_schema.is_some() {
+        "antecedent.rpcmci.learned_result.v2"
+    } else {
+        "antecedent.rpcmci.learned_result.v1"
+    };
+    Ok(CanonicalWriter::new(tag).bytes(&encode_wire(wire, source_schema)?).finish_hex())
 }
 
 impl LearnedRpcmciArtifact {
@@ -378,9 +410,7 @@ impl LearnedRpcmciArtifact {
             .iter()
             .enumerate()
             .find(|(_, (id, _))| *id == regime)
-            .ok_or(RpcmciReplayError::Invalid(
-                "choose a regime id from the retained report",
-            ))?;
+            .ok_or(RpcmciReplayError::Invalid("choose a regime id from the retained report"))?;
         let lookback = 2 * self.wire.request.max_lag as usize;
         let assigned_rows = report
             .assignments
@@ -393,10 +423,7 @@ impl LearnedRpcmciArtifact {
             .windows(lookback + 1)
             .enumerate()
             .filter_map(|(start, window)| {
-                window
-                    .iter()
-                    .all(|&id| id == regime)
-                    .then_some(start + lookback)
+                window.iter().all(|&id| id == regime).then_some(start + lookback)
             })
             .collect();
         Ok(LearnedRpcmciRegimeScope {
@@ -421,9 +448,7 @@ impl LearnedRpcmciArtifact {
     /// Unknown regime or unresolved conflict marks in its graph.
     pub fn accept_regime(&self, regime: u32) -> Result<AcceptedGraph, RpcmciReplayError> {
         let Some(graph) = self.result.graphs.get(RegimeId::from_raw(regime)) else {
-            return Err(RpcmciReplayError::Invalid(
-                "choose a regime id from the retained report",
-            ));
+            return Err(RpcmciReplayError::Invalid("choose a regime id from the retained report"));
         };
         Ok(AcceptedGraph::temporal_cpdag(graph.clone())?.with_discovery_algorithm("rpcmci"))
     }
@@ -433,8 +458,9 @@ impl LearnedRpcmciArtifact {
     /// # Errors
     /// Codec failure or artifact byte limit.
     pub fn to_bytes(&self) -> Result<Vec<u8>, RpcmciReplayError> {
-        let mut bytes = MAGIC.to_vec();
-        bytes.extend(to_cbor(&self.wire)?);
+        let magic = if self.source_schema.is_some() { SCHEMA_MAGIC } else { LEGACY_MAGIC };
+        let mut bytes = magic.to_vec();
+        bytes.extend(encode_wire(&self.wire, self.source_schema)?);
         if bytes.len() > MAX_BYTES {
             return Err(IoError::TooLarge.into());
         }
@@ -455,7 +481,18 @@ pub fn consume_learned_rpcmci(
 }
 
 pub(super) fn recognizes(bytes: &[u8]) -> bool {
-    bytes.starts_with(MAGIC)
+    bytes.starts_with(SCHEMA_MAGIC) || bytes.starts_with(LEGACY_MAGIC)
+}
+
+fn decode_wire(bytes: &[u8]) -> Result<(Wire, Option<SourceSchema>), RpcmciReplayError> {
+    if let Some(body) = bytes.strip_prefix(SCHEMA_MAGIC) {
+        let wire: SchemaWire<Wire> = from_cbor(body)?;
+        Ok((wire.result, Some(wire.source_schema)))
+    } else if let Some(body) = bytes.strip_prefix(LEGACY_MAGIC) {
+        Ok((from_cbor(body)?, None))
+    } else {
+        Err(RpcmciReplayError::Invalid("unknown artifact version"))
+    }
 }
 
 fn replay(
@@ -466,21 +503,16 @@ fn replay(
     if bytes.len() > MAX_BYTES {
         return Err(IoError::TooLarge.into());
     }
-    let _lease = ctx
-        .acquire_admission(0, (bytes.len() as u64).saturating_mul(4))
-        .map_err(|error| {
+    let _lease =
+        ctx.acquire_admission(0, (bytes.len() as u64).saturating_mul(4)).map_err(|error| {
             if ctx.cancellation.is_cancelled() {
                 RpcmciReplayError::Cancelled
             } else {
                 RpcmciReplayError::Resource(error.to_string())
             }
         })?;
-    let wire: Wire = from_cbor(
-        bytes
-            .strip_prefix(MAGIC)
-            .ok_or(RpcmciReplayError::Invalid("unknown artifact version"))?,
-    )?;
-    let identity = wire_identity(&wire)?;
+    let (wire, source_schema) = decode_wire(bytes)?;
+    let identity = wire_identity(&wire, source_schema)?;
     if expected.is_some_and(|retained| retained != identity) {
         return Err(RpcmciReplayError::Invalid(
             "the bundle differs from the retained RPCMCI artifact identity",
@@ -488,7 +520,7 @@ fn replay(
     }
     let mut replay_context = ctx.clone();
     replay_context.rng = RngFactory::from_seed(wire.report.seed);
-    let live = wire.request.run(&replay_context)?;
+    let live = wire.request.run_with_schema(source_schema, &replay_context)?;
     if live.identity != identity || live.report() != &wire.report {
         return Err(RpcmciReplayError::Invalid(
             "the regime graphs or diagnostic report differ on replay",
@@ -513,10 +545,7 @@ pub(super) fn describe(
             RpcmciReplayError::Io(IoError::TooLarge) => BundleStage::Oversized,
             _ => BundleStage::SwappedEvidence,
         };
-        NodeFailure {
-            stage,
-            reason: error.to_string(),
-        }
+        NodeFailure { stage, reason: error.to_string() }
     })?;
     let report = artifact.report();
     let mut values = vec![("regime_count".into(), f64::from(report.selected_count))];
@@ -556,5 +585,60 @@ impl NodeVerifier for Verifier {
             facts: artifact.facts,
             values: artifact.values,
         })
+    }
+}
+
+#[cfg(test)]
+mod source_schema_tests {
+    use super::*;
+
+    const OLD_BYTES: &[u8] =
+        include_bytes!("../../../../conformance/discovery/rpcmci_learned_v1.artifact");
+    const OLD_ID: &str = "d1873b241ac72b140a2b06ab6d8494396d7ddb3ab3863d60027bd93a3fb57b10";
+    const OLD_DATA: &str = "7a299295a8283a4c75afa108418a6b96895821504a38a6be02c476b2b279b87e";
+    const CONTEXT_DATA: &str = "2918d6e1d9d1c7e529c80f9295b463bfbf3908e7c4a98bde88d1a942c74ddbcf";
+
+    #[test]
+    fn v1_wire_keeps_its_original_layout_and_identity() {
+        let (wire, schema) = decode_wire(OLD_BYTES).unwrap();
+        assert!(schema.is_none());
+        assert_eq!(wire_identity(&wire, schema).unwrap(), OLD_ID);
+        assert_eq!(wire.report.data_identity, OLD_DATA);
+        assert_eq!(encode_wire(&wire, schema).unwrap(), &OLD_BYTES[LEGACY_MAGIC.len()..]);
+
+        let mut wrong_magic = SCHEMA_MAGIC.to_vec();
+        wrong_magic.extend_from_slice(&OLD_BYTES[LEGACY_MAGIC.len()..]);
+        assert!(decode_wire(&wrong_magic).is_err());
+    }
+
+    #[test]
+    fn both_retained_schema_versions_replay_without_rebinding_data() {
+        let (frozen, schema) = decode_wire(OLD_BYTES).unwrap();
+        let ctx = ExecutionContext::production(frozen.report.seed, 1);
+        // Compute the legacy diagnostic bits on this target before independently
+        // serializing its original envelope. The frozen test above pins framing
+        // without depending on the platform's floating-point logarithm.
+        let old = frozen.request.clone().run_with_schema(schema, &ctx).unwrap();
+        let mut bytes = LEGACY_MAGIC.to_vec();
+        bytes.extend(to_cbor(&old.wire).unwrap());
+        let old_id = CanonicalWriter::new("antecedent.rpcmci.learned_result.v1")
+            .bytes(&bytes[LEGACY_MAGIC.len()..])
+            .finish_hex();
+        let legacy = consume_learned_rpcmci(&bytes, &old_id, &ctx).unwrap();
+        assert_eq!(legacy.report().data_identity, OLD_DATA);
+        assert_eq!(legacy.to_bytes().unwrap(), bytes);
+
+        let new = frozen.request.run(&ctx).unwrap();
+        assert_eq!(new.report().data_identity, CONTEXT_DATA);
+        assert_eq!(new.report().program_identity, old.report().program_identity);
+        assert_eq!(new.report().assignments, old.report().assignments);
+        assert_eq!(new.report().graphs, old.report().graphs);
+        let bytes = new.to_bytes().unwrap();
+        assert!(bytes.starts_with(SCHEMA_MAGIC));
+        assert!(consume_learned_rpcmci(&bytes, &old_id, &ctx).is_err());
+        assert_eq!(
+            consume_learned_rpcmci(&bytes, new.identity(), &ctx).unwrap().report(),
+            new.report()
+        );
     }
 }

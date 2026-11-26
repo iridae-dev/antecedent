@@ -99,6 +99,7 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     assert first != second
     raw = config.run(series, execution=policy)
     assert raw.program_identity == report["program_identity"]
+    assert raw.data_identity == "2918d6e1d9d1c7e529c80f9295b463bfbf3908e7c4a98bde88d1a942c74ddbcf"
     assert raw.data_identity == report["data_identity"]
     assert raw.assignments == report["assignments"]
     assert _lagged_link(raw.marked_edges[first])
@@ -135,6 +136,7 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     from antecedent import load
 
     artifact = fit.export()
+    assert artifact.kind == "learned_rpcmci_v2"
     assert artifact.expectation is not None
     restored = require_success(load(artifact, expected=artifact.expectation))
     assert restored.identity == fit.identity
