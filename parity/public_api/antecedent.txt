@@ -16979,6 +16979,7 @@ pub field antecedent::SurvivalEstimate::control: alloc::sync::Arc<[f64]>
 pub field antecedent::SurvivalEstimate::difference_at_tau_interval: core::option::Option<[f64; 2]>
 pub field antecedent::SurvivalEstimate::difference_band: core::option::Option<antecedent::result::SurvivalDifferenceBand>
 pub field antecedent::SurvivalEstimate::minimum_event_risk_set: core::option::Option<usize>
+pub field antecedent::SurvivalEstimate::minimum_horizon_risk_set: core::option::Option<usize>
 pub field antecedent::SurvivalEstimate::rmst_control: core::option::Option<f64>
 pub field antecedent::SurvivalEstimate::rmst_difference_interval: core::option::Option<[f64; 2]>
 pub field antecedent::SurvivalEstimate::rmst_treated: core::option::Option<f64>

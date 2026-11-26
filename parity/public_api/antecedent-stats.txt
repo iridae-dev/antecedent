@@ -3880,6 +3880,7 @@ pub const antecedent_stats::propagation_chain::MIN_UPDATE_EFFECTIVE_SIZE: f64
 pub const antecedent_stats::survival::DELAYED_ENTRY_BAND_MIN_RISK_SET: usize
 pub const antecedent_stats::survival::STRATIFIED_CENSORING_BAND: &str
 pub const antecedent_stats::survival::STRATIFIED_CENSORING_PROVENANCE: &str
+pub const antecedent_stats::survival::SURVIVAL_BAND_MIN_REPLICATES: u32
 pub const antecedent_stats::synthesis::MAX_STUDIES: usize
 pub const antecedent_stats::synthesis::MAX_TAU_SUPPORT: usize
 pub const antecedent_stats::synthesis_transport::MAX_TRANSPORTED_SUMMARIES: usize
@@ -5702,6 +5703,7 @@ pub fn antecedent_stats::response::silverman_normal_reference_factor(n: usize, d
 pub fn antecedent_stats::special::beta_quantile(p: f64, a: f64, b: f64) -> f64
 pub fn antecedent_stats::special::student_t_ppf(p: f64, df: f64) -> f64
 pub fn antecedent_stats::special::student_t_sf(t: f64, df: f64) -> f64
+pub fn antecedent_stats::survival::delayed_entry_horizon_risk_set(rows: &antecedent_stats::survival::SurvivalRows<'_>, tau: f64) -> core::option::Option<usize>
 pub fn antecedent_stats::survival::randomized_survival_bootstrap_difference_band(duration: &[f64], event_code: &[i64], treated: &[bool], tau: f64, endpoint: antecedent_stats::survival::SurvivalEndpoint, replicates: u32, seed: u64) -> core::result::Result<antecedent_stats::survival::SurvivalDifferenceBand, &'static str>
 pub fn antecedent_stats::survival::randomized_survival_bootstrap_difference_band_with_observation(rows: &antecedent_stats::survival::SurvivalRows<'_>, known_censoring: core::option::Option<&antecedent_stats::survival::KnownCensoring<'_>>, tau: f64, endpoint: antecedent_stats::survival::SurvivalEndpoint, replicates: u32, seed: u64, cancelled: impl core::ops::function::Fn() -> bool) -> core::result::Result<antecedent_stats::survival::SurvivalDifferenceBand, &'static str>
 pub fn antecedent_stats::survival::randomized_survival_bootstrap_intervals(rows: &antecedent_stats::survival::SurvivalRows<'_>, known_censoring: core::option::Option<&antecedent_stats::survival::KnownCensoring<'_>>, tau: f64, endpoint: antecedent_stats::survival::SurvivalEndpoint, replicates: u32, seed: u64) -> core::result::Result<antecedent_stats::survival::SurvivalBootstrapIntervals, &'static str>
