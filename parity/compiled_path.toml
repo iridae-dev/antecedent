@@ -5719,7 +5719,15 @@ path = "antecedent_io_core::bridge_image_artifact::StoredBridgeImage::decode_wit
 disposition = "consume"
 
 [[row]]
+path = "antecedent_io_core::bridge_image_artifact::StoredBridgeImage::decode_with_context_expecting"
+disposition = "consume"
+
+[[row]]
 path = "antecedent_io_core::bridge_image_artifact::StoredBridgeImage::open_with_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::bridge_image_artifact::StoredBridgeImage::open_with_context_expecting"
 disposition = "consume"
 
 [[row]]
@@ -5744,6 +5752,10 @@ reason = "Computes the percentile interval for the compiled trial bridge."
 
 [[row]]
 path = "antecedent_io_core::pag_identification::PagIdentificationArtifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::pag_identification::PagIdentificationArtifact::consume_expecting"
 disposition = "consume"
 
 [[row]]
