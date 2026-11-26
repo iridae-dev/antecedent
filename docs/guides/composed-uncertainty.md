@@ -100,7 +100,7 @@ Each draw reruns the full calculation with the same allowed range for bias. Read
 
 Run `cargo run -p antecedent --example whole_cluster_uncertainty`.
 
-[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/whole_cluster_uncertainty.rs).
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/whole_cluster_uncertainty.rs).
 
 ## Uncertainty of an adaptive procedure
 

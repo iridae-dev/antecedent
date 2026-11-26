@@ -108,7 +108,7 @@ How to complete or accept a graph:
    [`AcceptedGraph`](artifacts.md) handle (version bumps; the old handle stays).
 2. **Supply an explicit DAG** you are willing to defend
    (`AcceptedGraph.from_graph(dag)` or `graph=[(u, v), ...]`), as in
-   [`examples/python/discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discover_then_estimate.py).
+   [`examples/python/discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/discover_then_estimate.py).
 3. **Keep the class and use an envelope / posterior route** when you are not
    ready to orient—do not silently pick a MAP orientation to “unblock” the
    pipeline.
@@ -399,7 +399,7 @@ attempt named.
 ## Worked vignette: marketing channel structural uncertainty
 
 Full walkthrough:
-[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
+[`examples/notebooks/marketing_channel_structural_uncertainty.ipynb`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb).
 
 Synthetic weekly spend / demand / pipeline data are generated so the true effect
 of paid-search spend on qualified pipeline is **1.5** (£k pipeline per £k
@@ -466,7 +466,7 @@ Codes and remedies are in the [refusal reference](reference/refusal-codes.md).
 
 ## Further reading
 
-- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
+- Notebook: [marketing channel structural uncertainty](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/marketing_channel_structural_uncertainty.ipynb)
 - Conformance: [graph effect envelope](conformance/bayesian__graph_effect_envelope.md),
   [PAG envelope unidentified mass](conformance/pag__envelope_unidentified_mass.md),
   [known-truth mixtures](conformance/bayesian__known_truth_mixtures.md)

@@ -4,7 +4,7 @@ A retailer can spend six units a week on advertising. Should it split the money 
 
 You’ll use weekly data from four simulated markets to choose a proposal, then use a geographic experiment to revise its predicted gain. The same estimate goes into two decisions. Is the proposal worth its cost? Is another experiment worth paying for?
 
-Run `python examples/python/beyond_marketing_mix.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/beyond_marketing_mix.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/beyond_marketing_mix.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/beyond_marketing_mix.ipynb). See the [complete example](#the-complete-example).
 
 This example builds on two shorter tutorials about [spending schedules](joint-interventions.md) and [updating a fit with an experiment](experiment-to-next-study.md).
 

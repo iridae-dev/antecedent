@@ -167,4 +167,4 @@ claim.
 - [Adaptive and group-sequential inference](../adaptive-inference.md) when the plan stops early or adapts.
 - [Design ranking](../design-ranking.md) to compare planned designs by information value and cost.
 
-For a connected HCI investigation spanning planning, follow-up selection and a final claim audit, see [from day zero to publication](../tutorials/research-from-day-zero.md); its runnable script, [`examples/python/research_from_day_zero.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/research_from_day_zero.py), plans participant recruitment with this planner.
+For a connected HCI investigation spanning planning, follow-up selection and a final claim audit, see [from day zero to publication](../tutorials/research-from-day-zero.md); its runnable script, [`examples/python/research_from_day_zero.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/research_from_day_zero.py), plans participant recruitment with this planner.

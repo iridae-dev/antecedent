@@ -113,7 +113,7 @@ held[0] = 0.0                                              # hold a's noise at z
 conditioned = chain.replay_noise(held).draws
 ```
 
-With `a`'s noise held at zero every unit shares one `a`, so `b` varies only through its own noise; [`examples/python/noise_replay.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/noise_replay.py) checks that against its closed form ([`examples/rust/noise_replay.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/noise_replay.rs) does the same with `NoiseReplayer` over declared, not fitted, mechanisms). Noise whose width does not match the model is refused, not reshaped. In Rust the same steps are `antecedent::gcm::{sample_with_noise, noise_table_from_columns, replay_noise}` over `antecedent_model::{NoiseTable, NoiseReplayer}`: a noise table records where each column came from (sampled, fixed, abduced, assumed or unused), `fix` and `randomize` set or redraw chosen coordinates, and a replay evaluates every node in topological order with the same precedence forward sampling uses, so the two cannot diverge. A categorical node's abduced noise is reported as a posterior, which carries its rank-preservation assumption. Replay observes cancellation once per node, and the memory check runs before allocating.
+With `a`'s noise held at zero every unit shares one `a`, so `b` varies only through its own noise; [`examples/python/noise_replay.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/noise_replay.py) checks that against its closed form ([`examples/rust/noise_replay.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/noise_replay.rs) does the same with `NoiseReplayer` over declared, not fitted, mechanisms). Noise whose width does not match the model is refused, not reshaped. In Rust the same steps are `antecedent::gcm::{sample_with_noise, noise_table_from_columns, replay_noise}` over `antecedent_model::{NoiseTable, NoiseReplayer}`: a noise table records where each column came from (sampled, fixed, abduced, assumed or unused), `fix` and `randomize` set or redraw chosen coordinates, and a replay evaluates every node in topological order with the same precedence forward sampling uses, so the two cannot diverge. A categorical node's abduced noise is reported as a posterior, which carries its rank-preservation assumption. Replay observes cancellation once per node, and the memory check runs before allocating.
 
 ## Evaluate the graph
 
@@ -140,9 +140,9 @@ A candidate list or constraint the fit cannot honour is `mechanism_candidates_in
 
 ## Examples
 
-- [`examples/python/root_cause_attribution.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/root_cause_attribution.py) attributes a change in an outcome's distribution to the mechanisms of a declared graph, fitting them internally.
-- [`examples/python/noise_replay.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/noise_replay.py) and [`examples/rust/noise_replay.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/noise_replay.rs) keep, edit and replay noise.
-- [`examples/rust/gcm_do.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/gcm_do.rs) fits the mechanisms and samples under `do` in Rust as a compiled simulation study (`CompiledExecution::run`).
+- [`examples/python/root_cause_attribution.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/root_cause_attribution.py) attributes a change in an outcome's distribution to the mechanisms of a declared graph, fitting them internally.
+- [`examples/python/noise_replay.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/noise_replay.py) and [`examples/rust/noise_replay.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/noise_replay.rs) keep, edit and replay noise.
+- [`examples/rust/gcm_do.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/gcm_do.rs) fits the mechanisms and samples under `do` in Rust as a compiled simulation study (`CompiledExecution::run`).
 
 ## Related
 

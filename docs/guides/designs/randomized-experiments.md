@@ -35,7 +35,7 @@ fit = result.value.randomized_effect
 fit.effect, fit.interval_95, fit.uncertainty, fit.support_status
 ```
 
-The runnable version is [`examples/python/experiment_randomized_effect.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/experiment_randomized_effect.py). The same study then accepts outcome-only data without changing the design:
+The runnable version is [`examples/python/experiment_randomized_effect.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/experiment_randomized_effect.py). The same study then accepts outcome-only data without changing the design:
 
 ```python
 fresh = 2.0 * assigned.astype(float) + rng.normal(size=n)
@@ -79,7 +79,7 @@ factorial = antecedent.experiment.FactorialRandomization(
 
 `design` is then an `ExperimentDesign` built on `factorial` as its assignment, as in the example above. With very small cells the result is point-only.
 
-If both factors were assigned by independent Bernoulli draws, `antecedent.factorial.estimate` is a direct utility for the cell means, both main effects and the interaction. The fixture in [`examples/python/factorial_cell_means.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/factorial_cell_means.py) is balanced with known cell means, so its main effects (4 and 5) and interaction (4) are exact:
+If both factors were assigned by independent Bernoulli draws, `antecedent.factorial.estimate` is a direct utility for the cell means, both main effects and the interaction. The fixture in [`examples/python/factorial_cell_means.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/factorial_cell_means.py) is balanced with known cell means, so its main effects (4 and 5) and interaction (4) are exact:
 
 ```python
 from antecedent import factorial
@@ -146,7 +146,7 @@ A `SwitchbackModel` must name its carryover (`"none"`, `"first_order"`) and its 
 
 ## Variants
 
-Runnable example: [`examples/python/experiment_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/experiment_designs.py).
+Runnable example: [`examples/python/experiment_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/experiment_designs.py).
 
 - **Precision adjustment.** `RandomizedEffect(..., cuped=FixedCUPED(...))` and `ancova_covariates=(...)` use pre-assignment covariates to reduce variance under independent Bernoulli assignment. The covariates must be measured before assignment; they cannot be post-treatment variables. ANCOVA reports an independent-row HC0 variance. Multi-arm designs do not combine with either.
 - **Exact randomization test.** `exact_randomization_test=True` (or `experiment.exact_randomization_test` directly, up to 20 units) tests the sharp null of no effect for any unit by enumerating assignments. It is a test, not a confidence interval.

@@ -4,7 +4,7 @@ Suppose A raises B and B, in turn, raises A. When you see a high value of A, wha
 
 Two linear equations are enough to work out all three answers by hand. You’ll then ask Antecedent for each answer and examine a second loop in which an intervention leaves the equations with no solution.
 
-Run `python examples/python/feedback_three_questions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/feedback_three_questions.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/feedback_three_questions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/feedback_three_questions.ipynb). See the [complete example](#the-complete-example).
 
 You can check the calculations by solving two linear equations by substitution.
 
@@ -197,7 +197,7 @@ assert replayed.to_dict() == result.to_dict()
 
 A successful replay shows that the consumer reproduced the calculation from the saved equations. Testing whether those equations describe an actual feedback loop takes observations or experiments.
 
-To learn a feedback law from data instead of declaring it, see [`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recovered_feedback_law.py): it recovers the same two-variable law from a passive sample and two randomized clamp experiments, and attaches fit uncertainty to the answers. The [cyclic systems guide](../guides/cyclic-systems.md) covers nonlinear loops, shared disturbances and experiment-based fitting.
+To learn a feedback law from data instead of declaring it, see [`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/recovered_feedback_law.py): it recovers the same two-variable law from a passive sample and two randomized clamp experiments, and attaches fit uncertainty to the answers. The [cyclic systems guide](../guides/cyclic-systems.md) covers nonlinear loops, shared disturbances and experiment-based fitting.
 
 ## Compare actions after fitting the feedback
 
@@ -207,7 +207,7 @@ Read the fitting diagnostics and the number of paired outcome draws before inter
 
 Run `cargo run -p antecedent --example fitted_feedback_decision`.
 
-[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/fitted_feedback_decision.rs).
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/fitted_feedback_decision.rs).
 
 ## What this established
 
@@ -227,7 +227,7 @@ The next question is where the equations come from. Experiments that clamp one v
 
 [Open the Python script](../../examples/python/feedback_three_questions.py)
 
-The same computation is available in Rust as [`examples/rust/feedback_three_questions.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/feedback_three_questions.rs) through the cyclic world API of `antecedent-model`. It asserts the same three values and the same failed mass.
+The same computation is available in Rust as [`examples/rust/feedback_three_questions.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/feedback_three_questions.rs) through the cyclic world API of `antecedent-model`. It asserts the same three values and the same failed mass.
 
 ```sh
 cargo run -p antecedent --example feedback_three_questions

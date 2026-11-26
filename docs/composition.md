@@ -156,7 +156,7 @@ infers the node kind from the container when you do not name it, and an artifact
 object whose `export(artifact_id=...)` returns container bytes may be passed instead
 of bytes. A bundle never claims that a serialized result recreates an executable study.
 The runnable version is
-[`composition_bundle.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/composition_bundle.py).
+[`composition_bundle.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/composition_bundle.py).
 
 ## Read where an imported source came from
 

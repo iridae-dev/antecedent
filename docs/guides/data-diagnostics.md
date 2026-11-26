@@ -38,7 +38,7 @@ as non-finite. Undefined moments stay absent (`None`). Severities are `review`,
 for preflight execution requirements, such as a rank-deficient
 regression design. Collecting that finding never itself refuses preparation.
 
-Runnable example: [`examples/python/data_diagnostics.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/data_diagnostics.py).
+Runnable example: [`examples/python/data_diagnostics.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/data_diagnostics.py).
 
 Prepared inspection and `repr(study)` show bounded finding counts. Python emits
 no warnings. Reports and their nested collections are immutable Python values.

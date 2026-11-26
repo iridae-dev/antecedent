@@ -448,7 +448,7 @@ call `ant.prepare` again with the new declarations. A branch never silently
 substitutes another scientific method. Streaming and adaptive sessions keep
 their explicitly stateful domain interfaces.
 
-Runnable example: [`examples/python/branch_and_reuse.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/branch_and_reuse.py).
+Runnable example: [`examples/python/branch_and_reuse.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/branch_and_reuse.py).
 
 ## Software and agent consumers
 

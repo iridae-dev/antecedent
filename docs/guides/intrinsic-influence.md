@@ -157,7 +157,7 @@ The fields of a structured refusal are described in
 
 ## Examples
 
-[`examples/rust/intrinsic_influence.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/intrinsic_influence.rs) and [`examples/python/intrinsic_influence.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/intrinsic_influence.py) attribute the
+[`examples/rust/intrinsic_influence.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/intrinsic_influence.rs) and [`examples/python/intrinsic_influence.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/intrinsic_influence.py) attribute the
 variance of `z` on `x -> y -> z` to the three noise terms (closed form 9, 2.25 and 0.25), show
 which uncertainty components are quantified, not applicable or unquantified, and refuse a call
 that does not declare independent noise. Both assert their results and run in the example suites.

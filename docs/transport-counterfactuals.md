@@ -86,7 +86,7 @@ except TransportedCounterfactualRefusal as refusal:
     w.target_contrast_b - w.target_contrast_a    # 1.5
 ```
 
-`effect.export()` is a checksummed artifact and `effect.identity` the digests a consumer retains. `consume_transported_counterfactual_artifact(data, expected_identity=effect.identity)` replays it and refuses a resealed change to any field. The maintained example is [`transported_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transported_counterfactual.py).
+`effect.export()` is a checksummed artifact and `effect.identity` the digests a consumer retains. `consume_transported_counterfactual_artifact(data, expected_identity=effect.identity)` replays it and refuses a resealed change to any field. The maintained example is [`transported_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transported_counterfactual.py).
 
 ## Transport a nested counterfactual probability from labelled laws
 
@@ -242,7 +242,7 @@ report.extreme("y", "lower")
 report.to_dict()
 ```
 
-`scenario_set`, `catalog` and `laws` are the fixtures of `python/tests/test_scenario_invariance.py`; the runnable version is [`scenario_invariance.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/scenario_invariance.py). The report is derived, not stored: it is a function of the decided scenario set and the estimated report, so it is recomputed on demand. Calling it before `estimate()` raises `ScenarioInvarianceRefusal` (`scenario_invariance.not_estimated`).
+`scenario_set`, `catalog` and `laws` are the fixtures of `python/tests/test_scenario_invariance.py`; the runnable version is [`scenario_invariance.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/scenario_invariance.py). The report is derived, not stored: it is a function of the decided scenario set and the estimated report, so it is recomputed on demand. Calling it before `estimate()` raises `ScenarioInvarianceRefusal` (`scenario_invariance.not_estimated`).
 
 ## Learned joint transport
 

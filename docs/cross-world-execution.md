@@ -46,8 +46,8 @@ point with no interval. Quantities are built with `cw.probability`, `cw.joint_pr
 `cw.mean_contrast`; a `cw.World` may carry `cw.WorldRoute`s for natural and path-specific
 contrasts. `cw.seal(request)` executes and returns an exportable `CrossWorldExecution`
 ([export and resume](#export-and-resume)). The complete script is
-[`examples/python/shared_exogenous_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/shared_exogenous_counterfactual.py)
-([`examples/rust/shared_exogenous_counterfactual.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/shared_exogenous_counterfactual.rs) in Rust).
+[`examples/python/shared_exogenous_counterfactual.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/shared_exogenous_counterfactual.py)
+([`examples/rust/shared_exogenous_counterfactual.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/shared_exogenous_counterfactual.rs) in Rust).
 
 ## Stages and reuse
 

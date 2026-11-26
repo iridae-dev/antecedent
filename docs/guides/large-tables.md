@@ -8,7 +8,7 @@ bounded chunks, and only for the columns an analysis needs. The estimate from a 
 the estimate from the same rows in memory; the file changes how rows are read, not what
 is estimated or assumed.
 
-Runnable example: [`examples/python/parquet_e2e.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/parquet_e2e.py)
+Runnable example: [`examples/python/parquet_e2e.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/parquet_e2e.py)
 analyzes a Parquet file, compares the result with the in-memory one, and streams a
 summary through a memory pool smaller than the table.
 

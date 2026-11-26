@@ -100,8 +100,8 @@ An estimand is the quantity a scientific question asks for: an average effect in
 
 | Evidence | The question it answers | Where to inspect it |
 | --- | --- | --- |
-| Method provenance | Which method is implemented, under which assumptions and deviations? | [Algorithm provenance](https://github.com/iridae-dev/antecedent/blob/v3.0.0/provenance/README.md), and `result.method_provenance` on each result |
-| Independent numerical checks | Does a named calculation agree with a reference derived separately? | [Evidence and oracle rules](https://github.com/iridae-dev/antecedent/blob/v3.0.0/parity/README.md) |
+| Method provenance | Which method is implemented, under which assumptions and deviations? | [Algorithm provenance](https://github.com/iridae-dev/antecedent/blob/v3.1.0/provenance/README.md), and `result.method_provenance` on each result |
+| Independent numerical checks | Does a named calculation agree with a reference derived separately? | [Evidence and oracle rules](https://github.com/iridae-dev/antecedent/blob/v3.1.0/parity/README.md) |
 | Supported | Which combination of question, structure, inference and estimator has provenance and a currently passing independent scientific check, so it runs? | [Support matrix](../support-matrix.md) |
 | Calibration status (annotation) | How did the uncertainty procedure behave across repeated simulated datasets in a measured setting? | [Coverage records](../development.md#coverage-records) |
 
@@ -119,17 +119,17 @@ score = μ₁(X) − μ₀(X)
 
 Here, `e(X)` is the fitted treatment probability, and `μ₁(X)` and `μ₀(X)` are fitted outcome means under treatment and control. Identification still requires assumptions such as unconfoundedness given the adjustment variables and adequate treatment overlap. The score itself cannot establish those assumptions from observations.
 
-Open [estimate.aipw.toml](https://github.com/iridae-dev/antecedent/blob/v3.0.0/provenance/estimate.aipw.toml). Its paper entries name the source literature; its implementation deviations explain which parts of that literature apply to the actual routes.
+Open [estimate.aipw.toml](https://github.com/iridae-dev/antecedent/blob/v3.1.0/provenance/estimate.aipw.toml). Its paper entries name the source literature; its implementation deviations explain which parts of that literature apply to the actual routes.
 
 The distinction matters here. The untrimmed, all-observed ATE route uses five-fold cross-fitting: nuisance models are fitted on other folds before scoring a held-out row. The treated-population, untreated-population, trimmed and predicate-target routes fit their nuisances on the full sample. The record explicitly withholds the cross-fitting guarantees for those full-sample routes. It also names the fixed logistic-propensity and linear-outcome families rather than implying support for arbitrary machine-learning nuisances.
 
-That is what provenance contributes beyond a citation: it connects a method's premises to specific implementation choices. The [provenance rules](https://github.com/iridae-dev/antecedent/blob/v3.0.0/provenance/README.md) also require disclosure of implementation exposure, source attribution and material deviations. A record's presence alone does not show that someone has checked every theorem against every code path.
+That is what provenance contributes beyond a citation: it connects a method's premises to specific implementation choices. The [provenance rules](https://github.com/iridae-dev/antecedent/blob/v3.1.0/provenance/README.md) also require disclosure of implementation exposure, source attribution and material deviations. A record's presence alone does not show that someone has checked every theorem against every code path.
 
 The AIPW record makes its own review boundary explicit. Its `method_review.status` is `reviewed_with_limits`; the review did not retrieve the cited publications. It compared the scoped implementation with standard definitions evaluated by separately written numerical references. This is a bounded implementation review, with that limitation recorded.
 
 ## Reconstruct the numerical answer independently
 
-The AIPW review links a [reference generator](https://github.com/iridae-dev/antecedent/blob/v3.0.0/crates/antecedent-estimate/tests/oracle_data/aipw_reference.py), its [frozen numerical output](https://github.com/iridae-dev/antecedent/blob/v3.0.0/crates/antecedent-estimate/tests/oracle_data/aipw_reference.json), and the [Rust assertions that consume it](https://github.com/iridae-dev/antecedent/blob/v3.0.0/crates/antecedent-estimate/tests/aipw_reference.rs).
+The AIPW review links a [reference generator](https://github.com/iridae-dev/antecedent/blob/v3.1.0/crates/antecedent-estimate/tests/oracle_data/aipw_reference.py), its [frozen numerical output](https://github.com/iridae-dev/antecedent/blob/v3.1.0/crates/antecedent-estimate/tests/oracle_data/aipw_reference.json), and the [Rust assertions that consume it](https://github.com/iridae-dev/antecedent/blob/v3.1.0/crates/antecedent-estimate/tests/aipw_reference.rs).
 
 The reference uses 60-digit arithmetic through mpmath. It fits its own logistic propensity model and arm-specific least-squares outcome models without importing Antecedent. Higher precision helps distinguish rounding from a formula discrepancy; the separate calculation provides the comparison.
 
@@ -145,7 +145,7 @@ The Rust test `trimmed_ate_matches_the_refit_and_its_case_mass_derivative` reads
 
 Separate assertions check treated- and untreated-population estimates against their stated efficient influence functions. Another uses recorded folds to compare the cross-fitted ATE. Those tests answer distinct questions: the treated-population variance check is not presented as the case-mass derivative of the estimator under arbitrary misspecification.
 
-The record reports a defect found through this review. The trimmed estimator's propensity correction originally used only retained rows, even though all rows shaped the propensity fit. The corrected influence accounts for every row. The recorded standard errors changed by about 0.3–0.9% on the reference tables. The [resolved finding and its scope](https://github.com/iridae-dev/antecedent/blob/v3.0.0/provenance/estimate.aipw.toml) remain beside the evidence.
+The record reports a defect found through this review. The trimmed estimator's propensity correction originally used only retained rows, even though all rows shaped the propensity fit. The corrected influence accounts for every row. The recorded standard errors changed by about 0.3–0.9% on the reference tables. The [resolved finding and its scope](https://github.com/iridae-dev/antecedent/blob/v3.1.0/provenance/estimate.aipw.toml) remain beside the evidence.
 
 The example shows why a close point estimate can coexist with an incorrect standard error, and why checking the refitted procedure can reveal more than comparing two implementations of the same influence formula.
 
@@ -153,15 +153,15 @@ The example shows why a close point estimate can coexist with an incorrect stand
 
 This AIPW review excludes bootstrap inference, penalized propensities, sampling weights, custom targets, cluster-DML, and cluster, multiway and HAC standard errors. Its multiprecision generator has retained output, but the record says the generator is not run in a locked isolated environment or wired into a gate. The Rust tests compare against its frozen output.
 
-There is also a separate [AIPW conformance fixture](https://github.com/iridae-dev/antecedent/blob/v3.0.0/conformance/estimate/aipw/expected.json). It checks an estimate against the known effect of a simulated structural model. Its historical DoWhy block ran propensity-score weighting, not AIPW, and the executing assertion does not compare that block. The fixture therefore labels it as context rather than external AIPW evidence.
+There is also a separate [AIPW conformance fixture](https://github.com/iridae-dev/antecedent/blob/v3.1.0/conformance/estimate/aipw/expected.json). It checks an estimate against the known effect of a simulated structural model. Its historical DoWhy block ran propensity-score weighting, not AIPW, and the executing assertion does not compare that block. The fixture therefore labels it as context rather than external AIPW evidence.
 
 These are useful checks with different propositions. Combining their names into a general “externally validated AIPW” claim would lose the distinction the records preserve.
 
 ## Arrow strength: derive the same quantity two ways
 
-The [arrow-strength reference](https://github.com/iridae-dev/antecedent/blob/v3.0.0/conformance/attribution/arrow_strength/reference.py) checks linear-Gaussian structural models. An edge's coefficient alone does not describe the variation it transmits: the parent's variance matters too.
+The [arrow-strength reference](https://github.com/iridae-dev/antecedent/blob/v3.1.0/conformance/attribution/arrow_strength/reference.py) checks linear-Gaussian structural models. An edge's coefficient alone does not describe the variation it transmits: the parent's variance matters too.
 
-In the [fixture](https://github.com/iridae-dev/antecedent/blob/v3.0.0/conformance/attribution/arrow_strength/expected.json), one parent has variance 100 and coefficient 0.75; another has variance 0.001 and coefficient 2.5. Their variance contributions are respectively:
+In the [fixture](https://github.com/iridae-dev/antecedent/blob/v3.1.0/conformance/attribution/arrow_strength/expected.json), one parent has variance 100 and coefficient 0.75; another has variance 0.001 and coefficient 2.5. Their variance contributions are respectively:
 
 ```text
 0.75² × 100   = 56.25
@@ -176,7 +176,7 @@ The reference also derives the edge's causal strength as a divergence between th
 strength = ½ ln(1 + β² Var(parent) / σ²_child)
 ```
 
-Here `σ²_child` is the child's disturbance variance. The two calculations agree to `1e-40` on the reference cases, including a model with correlated parents. The [executing attribution tests](https://github.com/iridae-dev/antecedent/blob/v3.0.0/crates/antecedent-attribution/src/anomaly.rs) compare the product with those expected values.
+Here `σ²_child` is the child's disturbance variance. The two calculations agree to `1e-40` on the reference cases, including a model with correlated parents. The [executing attribution tests](https://github.com/iridae-dev/antecedent/blob/v3.1.0/crates/antecedent-attribution/src/anomaly.rs) compare the product with those expected values.
 
 This reference uses only the Python standard library and retains a locked script environment. Its review still names a shared premise: both derivations use the same definition of the edge cut. Agreement cannot independently rule out a shared misunderstanding of that definition. The fixture also distinguishes asserted outputs from contextual fields and makes no uncertainty or calibration claim.
 
@@ -184,7 +184,7 @@ This reference uses only the Python standard library and retains a locked script
 
 Evidence can become stale when an implementation, a reference or an assertion changes. Method-review records bind the provenance content and named artifacts with content digests. Fixture reference reviews similarly record their generators, comparison helpers, environment locks, assertions and numerical payloads.
 
-For example, [the provenance checker](https://github.com/iridae-dev/antecedent/blob/v3.0.0/scripts/provenance_links.py) compares a method review's stored artifact digests with the files currently present. Source and test artifacts bind the named items the review read, so editing one of those items without updating its review produces a stale-artifact problem, and editing another function in the same file does not. Changing citation or deviation content can also invalidate the recorded review. The [evidence rules](https://github.com/iridae-dev/antecedent/blob/v3.0.0/parity/README.md) describe the corresponding fixture checks.
+For example, [the provenance checker](https://github.com/iridae-dev/antecedent/blob/v3.1.0/scripts/provenance_links.py) compares a method review's stored artifact digests with the files currently present. Source and test artifacts bind the named items the review read, so editing one of those items without updating its review produces a stale-artifact problem, and editing another function in the same file does not. Changing citation or deviation content can also invalidate the recorded review. The [evidence rules](https://github.com/iridae-dev/antecedent/blob/v3.1.0/parity/README.md) describe the corresponding fixture checks.
 
 A digest establishes which bytes were reviewed. A reviewer must still determine whether the reference is independent, the assertion exercises the claimed behavior, and the scientific correspondence is justified. Updating a hash alone does not perform that review.
 

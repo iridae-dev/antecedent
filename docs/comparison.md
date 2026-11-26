@@ -187,7 +187,7 @@ black-box outputs from pinned external packages:
 
 Each external claim has an immutable record under `parity/baselines`, a frozen
 fixture, and an executing conformance test. See
-[ADR 0009](https://github.com/iridae-dev/antecedent/blob/v3.0.0/adr/0009-parity-baselines.md), the parity manifests, and each
+[ADR 0009](https://github.com/iridae-dev/antecedent/blob/v3.1.0/adr/0009-parity-baselines.md), the parity manifests, and each
 supported row's evidence kind and limitations. A shared algorithm name is not
 evidence of equivalent behavior.
 
@@ -253,7 +253,7 @@ results refuse rather than pretending they are a set. The adapter does not
 wrap EconML learners or absorb an external CATE.
 
 A worked handoff is in
-[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/econml_cate_handoff.py):
+[`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/econml_cate_handoff.py):
 Antecedent identifies and estimates ATE, then the caller optionally fits
 EconML `LinearDML` on `spec.columns(data)` when `econml` is installed.
 

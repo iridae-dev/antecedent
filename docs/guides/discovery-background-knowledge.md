@@ -149,7 +149,7 @@ for the estimands, normalization and what the receipt verifies.
 
 ## Example
 
-[`examples/python/discovery_methods.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discovery_methods.py)
+[`examples/python/discovery_methods.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/discovery_methods.py)
 runs GES on five variables whose equivalence class leaves the chain `u - y - z` undirected:
 tiers orient the chain, one forbidden link orients the pair it names, and a required link
 that contradicts a tier is refused with `invalid_argument`.

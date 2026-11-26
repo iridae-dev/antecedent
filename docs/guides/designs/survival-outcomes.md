@@ -27,7 +27,7 @@ result.value.survival.times, result.value.survival.control_survival, result.valu
 
 A row with `event_observed=False` is right-censored: it stays in the risk set through its recorded duration and does not count as an event. Both arms need observed follow-up through `tau`. Antecedent reports, and cannot verify, the assumptions of individual random assignment, independent right censoring within each arm, consistency and no interference. There is no scalar average treatment effect: the contrasts are the RMST difference and the survival difference at `tau`.
 
-[`examples/python/survival_rmst.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/survival_rmst.py) is the maintained executing example.
+[`examples/python/survival_rmst.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/survival_rmst.py) is the maintained executing example.
 
 ### Intervals and a simultaneous band
 
@@ -57,7 +57,7 @@ The band uses one critical radius from the bootstrap distribution of the maximum
 
 ## Censoring that depends on covariates
 
-Runnable example: [`examples/python/survival_ipcw.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/survival_ipcw.py).
+Runnable example: [`examples/python/survival_ipcw.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/survival_ipcw.py).
 
 If censoring depends on baseline covariates, supply the probability that each subject is still uncensored at each time (the censoring survival `G`) and the estimator weights by its inverse. You must fit and check `G`; Antecedent does not estimate censoring models or verify where the probabilities came from.
 

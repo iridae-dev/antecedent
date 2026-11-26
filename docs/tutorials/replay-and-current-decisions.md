@@ -4,7 +4,7 @@ Last quarter your team decided to run a programme. Now the trial behind that dec
 
 You’ll use `antecedent.mixed_decision` to answer both questions. It combines a trial, a change over time and a cost estimate, and records which conclusions depend on each source.
 
-Run `python examples/python/replay_and_current_decisions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/replay_and_current_decisions.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/replay_and_current_decisions.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/replay_and_current_decisions.ipynb). See the [complete example](#the-complete-example).
 
 ## The task
 

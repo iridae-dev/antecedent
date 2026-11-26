@@ -290,7 +290,7 @@ From Python, `antecedent.intervention_programs` builds programs (`transform`, `a
 
 ## Examples
 
-[`examples/rust/intervention_programs.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/intervention_programs.rs) and [`examples/python/intervention_programs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/intervention_programs.py) apply the
+[`examples/rust/intervention_programs.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/intervention_programs.rs) and [`examples/python/intervention_programs.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/intervention_programs.py) apply the
 price floor `max(10, 0.85 * price)` to a fitted model: sampled forward, replayed on each factual
 unit's own noise, supported per route and valued against the unintervened model, saved as a portable
 artifact, and written as a batch callback (refused as portable while it is an in-process function,

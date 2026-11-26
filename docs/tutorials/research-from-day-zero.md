@@ -6,7 +6,7 @@ You’ll plan two experiments. The first compares the redesigned interface with 
 
 Both experiments use simulated participants. At the end you’ll write up three results from their task records, including how much longer people took and how uncertain the explanation’s effect remains.
 
-Run `python examples/python/research_from_day_zero.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/research_from_day_zero.ipynb). See the [complete example](#run-the-complete-example).
+Run `python examples/python/research_from_day_zero.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/research_from_day_zero.ipynb). See the [complete example](#run-the-complete-example).
 
 The sample-size calculation uses statistical power for a difference in means.
 

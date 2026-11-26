@@ -6,7 +6,7 @@ You’ll build the part of the service that makes those decisions. Antecedent co
 
 In the simulated data, users receive reminders at random. A reminder adds two weekly sessions on average. Prior activity helps predict weekly sessions, so the analysis uses it to improve precision.
 
-Run `python examples/python/application_component.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/application_component.ipynb). See the [complete example](#complete-runnable-source).
+Run `python examples/python/application_component.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/application_component.ipynb). See the [complete example](#complete-runnable-source).
 
 For a first look at the objects the service will handle, see [your first analysis](../start/first-analysis.md) and [reading a result](../start/reading-a-result.md).
 

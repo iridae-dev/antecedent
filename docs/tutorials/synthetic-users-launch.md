@@ -8,7 +8,7 @@ The script simulates two pilots. In one, 32 people provide enough evidence to la
 
 All sessions in this example are simulated, including those labeled human. The two pilots illustrate how different observations can change the decision under the same rule.
 
-Run `python examples/python/synthetic_users_launch.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/synthetic_users_launch.ipynb). See the [complete example](#run-the-complete-investigation).
+Run `python examples/python/synthetic_users_launch.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/synthetic_users_launch.ipynb). See the [complete example](#run-the-complete-investigation).
 
 The pilot analysis uses posterior probabilities and a binomial model for the number of successful checkouts.
 

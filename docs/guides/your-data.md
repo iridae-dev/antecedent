@@ -2,7 +2,7 @@
 
 Use this guide to run a first analysis on a table of your own: a CSV, a pandas frame, a mapping of column name to NumPy array, or an Arrow table. You need Antecedent installed ([installation](../start/installation.md)), a causal graph you can defend for the treatment and outcome, and a table whose analysis columns are numeric. If you have not run an analysis before, read [your first analysis](../start/first-analysis.md) first.
 
-The recipe below writes a temporary CSV so that it runs without a shipped dataset; replace that path with your own file. Source: [`examples/python/your_data.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/your_data.py).
+The recipe below writes a temporary CSV so that it runs without a shipped dataset; replace that path with your own file. Source: [`examples/python/your_data.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/your_data.py).
 
 ## Declare the meaning before estimating
 

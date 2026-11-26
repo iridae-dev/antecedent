@@ -124,4 +124,4 @@ If the recorded action was randomized and the way it was delivered is missing, s
 - [Estimate an effect when treatment has several levels](treatment-levels.md) for categorical and joint treatments.
 - [Heterogeneous effects and policies](heterogeneous-effects-and-policies.md) when the variation is by observed covariates.
 - [Reading a result](../start/reading-a-result.md) for how to read a not_measured calibration status.
-- [`staged_static_kinds.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/staged_static_kinds.py) runs the graph-identified linear counterpart, `MediationEffect` with the `mediation.linear` estimator, on a declared DAG.
+- [`staged_static_kinds.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/staged_static_kinds.py) runs the graph-identified linear counterpart, `MediationEffect` with the `mediation.linear` estimator, on a declared DAG.

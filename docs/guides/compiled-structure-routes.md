@@ -154,13 +154,13 @@ How refusals reach your code, and the fields to branch on, are in
 
 ## Examples
 
-- [`examples/rust/gcm_do.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/gcm_do.rs)
+- [`examples/rust/gcm_do.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/gcm_do.rs)
   and
-  [`examples/rust/intrinsic_influence.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/intrinsic_influence.rs)
+  [`examples/rust/intrinsic_influence.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/intrinsic_influence.rs)
   run a simulation and an attribution study through `CompiledExecution::run`.
-- [`examples/rust/discover_then_estimate.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/discover_then_estimate.rs)
+- [`examples/rust/discover_then_estimate.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/discover_then_estimate.rs)
   and
-  [`examples/python/discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discover_then_estimate.py)
+  [`examples/python/discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/discover_then_estimate.py)
   run discovery once, then estimate repeatedly from an accepted graph without rediscovering.
   Both write the accepted DAG by hand to stand in for a reviewer's decision, so neither passes
   through the review gate.

@@ -34,9 +34,9 @@ To choose a policy:
    for, and [intervals](#intervals) for what uncertainty is published under the policy.
 
 The policy changes which rows enter and what is assumed about the rest; the estimand and its
-identifying assumptions stay those of the query. [`examples/python/observational_study.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/observational_study.py)
+identifying assumptions stay those of the query. [`examples/python/observational_study.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/observational_study.py)
 declares `missing="complete_case"` and reads the accounting;
-[`examples/python/missing_outcome_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/missing_outcome_sensitivity.py)
+[`examples/python/missing_outcome_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/missing_outcome_sensitivity.py)
 bounds an effect when outcomes are missing not at random.
 
 ## Defaults and policies

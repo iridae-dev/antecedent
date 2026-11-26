@@ -4,7 +4,7 @@ A marketing team is considering 24 weeks of advertising in two channels. How muc
 
 You’ll fit both spending schedules to data from four simulated markets. Because the same model predicts both outcomes, its errors can cancel when you subtract one prediction from the other.
 
-Run `python examples/python/joint_intervention_program.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/joint_intervention_program.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/joint_intervention_program.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/joint_intervention_program.ipynb). See the [complete example](#the-complete-example).
 
 The uncertainty calculation uses the variance and covariance of the two predicted outcomes.
 
@@ -168,4 +168,4 @@ For one connected marketing investigation, [beyond the marketing mix](beyond-mar
 
 [Open the Python script](../../examples/python/joint_intervention_program.py)
 
-The script reads the fixture from a repository checkout and, without one, downloads it from the matching release tag. A Rust version of the panel workflow is in [`examples/rust/joint_panel_workflow.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/joint_panel_workflow.rs).
+The script reads the fixture from a repository checkout and, without one, downloads it from the matching release tag. A Rust version of the panel workflow is in [`examples/rust/joint_panel_workflow.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/joint_panel_workflow.rs).

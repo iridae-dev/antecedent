@@ -8,7 +8,7 @@ Two estimators are available in `antecedent.regimes`. The sequential g-formula s
 
 If you want Antecedent to fit the treatment and outcome models, see [Sequentially randomized designs and regime survival](../temporal-designs.md): its observational regime contrast fits them and puts the fits inside the interval.
 
-Runnable example: [`examples/python/sequential_regimes.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/sequential_regimes.py).
+Runnable example: [`examples/python/sequential_regimes.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/sequential_regimes.py).
 
 ## Sequential g-formula value
 

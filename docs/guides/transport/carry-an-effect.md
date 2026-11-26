@@ -38,7 +38,7 @@ Declaring which mechanisms differ is a scientific assumption. The data cannot te
 
 ## Run a transport question
 
-`antecedent.transport.Transport` wraps an ordinary question (a `ResponseCurve` or an `AverageEffect`) with the target population and the evidence you hold. It runs on the ordinary lifecycle: analyze, inspect, rebind to new data, export. The call below is the one in [`transport_exact.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transport_exact.py); `data` there is an `ExactTransportData` holding the source experiment's law of `y` under `do(x = 0)` and `do(x = 1)`.
+`antecedent.transport.Transport` wraps an ordinary question (a `ResponseCurve` or an `AverageEffect`) with the target population and the evidence you hold. It runs on the ordinary lifecycle: analyze, inspect, rebind to new data, export. The call below is the one in [`transport_exact.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_exact.py); `data` there is an `ExactTransportData` holding the source experiment's law of `y` under `do(x = 0)` and `do(x = 1)`.
 
 ```python
 import antecedent as ant
@@ -69,9 +69,9 @@ Three runnable examples use this call on models with known answers:
 
 | Example | Evidence | What it shows |
 | --- | --- | --- |
-| [`transport_exact.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transport_exact.py) (Rust: [`transport_exact.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/transport_exact.rs)) | Exact supplied laws | A point with no sampling interval; rebinding to replacement laws |
-| [`transport_statistical.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transport_statistical.py) (Rust: [`transport_statistical.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/transport_statistical.rs)) | One counted source table | The empirical plug-in of the same formula |
-| [`transport_meta_grid.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transport_meta_grid.py) (Rust: [`transport_meta_grid.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/transport_meta_grid.rs)) | Two complementary sources | A curve neither source identifies alone, and unsupported grid points under a partial catalog |
+| [`transport_exact.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_exact.py) (Rust: [`transport_exact.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/transport_exact.rs)) | Exact supplied laws | A point with no sampling interval; rebinding to replacement laws |
+| [`transport_statistical.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_statistical.py) (Rust: [`transport_statistical.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/transport_statistical.rs)) | One counted source table | The empirical plug-in of the same formula |
+| [`transport_meta_grid.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_meta_grid.py) (Rust: [`transport_meta_grid.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/transport_meta_grid.rs)) | Two complementary sources | A curve neither source identifies alone, and unsupported grid points under a partial catalog |
 
 Count-based estimation uses `EmpiricalTable` by default. `LearnedCategorical` and `TrialAipw` change the assumption set and are passed explicitly; see [estimation assumptions](../transport-scope.md#estimation-assumptions).
 

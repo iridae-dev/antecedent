@@ -312,4 +312,4 @@ changing the posterior's scientific identity. Use an explicit `Admg` with
 retain such a graph; identification can still refuse an unidentifiable effect.
 This encoding limit does not prohibit bows in the native ADMG graph model.
 
-For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent/3.0.0/antecedent/).
+For Rust, use `cargo doc -p antecedent --open` for this checkout, or visit the [published crate reference](https://docs.rs/antecedent/3.1.0/antecedent/).

@@ -2,7 +2,7 @@
 
 A programme needs to improve its outcome by 1.1 units to pay for itself. Your first trial puts the gain just below that threshold. A second experiment reports a larger gain. How should you combine the two results, and does the programme now look worth running?
 
-Run `python examples/python/experiment_to_next_study.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/experiment_to_next_study.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/experiment_to_next_study.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/experiment_to_next_study.ipynb). See the [complete example](#the-complete-example).
 
 For an introduction to expected utility and the value of another study, see [stop, continue or run longer](decide-under-uncertainty.md).
 

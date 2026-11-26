@@ -41,7 +41,7 @@ assert spec.confounders == ("z",)
 cols = spec.columns(data)  # Y, T and W (the adjustment columns) for the learner you fit
 ```
 
-Here `data` is a table with columns `z`, `t` and `y`; the maintained example, [`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/econml_cate_handoff.py), generates one with a known effect of 2 and fits `LinearDML` on `cols` when `econml` is installed. The learner and its CATE are yours; Antecedent supplies the adjustment columns and the identification status.
+Here `data` is a table with columns `z`, `t` and `y`; the maintained example, [`examples/python/econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/econml_cate_handoff.py), generates one with a known effect of 2 and fits `LinearDML` on `cols` when `econml` is installed. The learner and its CATE are yours; Antecedent supplies the adjustment columns and the identification status.
 
 The handoff is supported for point-identified backdoor and generalized-adjustment estimands on an explicit or accepted graph. Front-door, instrumental-variable, general-identification, partial-identification and graph-posterior results refuse instead of being flattened into a single adjustment set. Temporal columns are lag-aligned when the identification carries offsets.
 
@@ -67,7 +67,7 @@ From DoWhy to Antecedent:
 
 Discovery stays outside the estimate path: discover once, accept a graph, then estimate. Passing `discovery=` into `analyze` with `accept_discovered=False` raises a review error instead of inventing an adjustment set.
 
-The runnable recipe, [`examples/python/dowhy_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/dowhy_handoff.py), runs the Antecedent half always and the DoWhy half when `dowhy` is installed. The full cookbook and the semantic differences are in [DoWhy interoperability](../../interop_dowhy.md). Four task guides compare an Antecedent route with the matching DoWhy function at the version recorded in `parity/baselines/dowhy.toml`: [intervention programs](../intervention-programs.md#differences-from-dowhy), [mechanism selection](../mechanism-selection.md#differences-from-dowhy), [intrinsic influence](../intrinsic-influence.md#differences-from-dowhy) and [graph falsification](../graph-falsification.md#differences-from-dowhy).
+The runnable recipe, [`examples/python/dowhy_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/dowhy_handoff.py), runs the Antecedent half always and the DoWhy half when `dowhy` is installed. The full cookbook and the semantic differences are in [DoWhy interoperability](../../interop_dowhy.md). Four task guides compare an Antecedent route with the matching DoWhy function at the version recorded in `parity/baselines/dowhy.toml`: [intervention programs](../intervention-programs.md#differences-from-dowhy), [mechanism selection](../mechanism-selection.md#differences-from-dowhy), [intrinsic influence](../intrinsic-influence.md#differences-from-dowhy) and [graph falsification](../graph-falsification.md#differences-from-dowhy).
 
 ## Choose a library for the question
 

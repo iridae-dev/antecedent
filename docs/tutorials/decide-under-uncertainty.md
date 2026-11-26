@@ -4,7 +4,7 @@ A retailer runs a geographic experiment with an advertising platform to measure 
 
 Should the retailer keep advertising, stop, or buy more evidence? At the estimated effect, the campaign makes money. To choose among those options, the retailer also needs to know how much it could lose and what another experiment would cost.
 
-Run `python examples/python/decide_under_uncertainty.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/decide_under_uncertainty.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/decide_under_uncertainty.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/decide_under_uncertainty.ipynb). See the [complete example](#the-complete-example).
 
 ## The task
 

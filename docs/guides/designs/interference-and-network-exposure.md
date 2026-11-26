@@ -8,7 +8,7 @@ You supply the network as directed edges between row indexes (`(from, to)`, `(fr
 
 The estimand of a contrast from level `e0` to level `e1` is `mu(e1) - mu(e0)`, where `mu(e)` is the average over units of the potential outcome `Y_i(e)` under exposure `e`. Horvitz-Thompson and Hajek estimators weight each unit observed at `e` by the inverse of its probability of being at `e` under the design.
 
-Runnable example: [`examples/python/network_interference.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/network_interference.py) runs a ring of 400 units under Bernoulli assignment and sixteen clusters under a two-stage saturation design, checks each contrast against its known value and shows two refusals.
+Runnable example: [`examples/python/network_interference.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/network_interference.py) runs a ring of 400 units under Bernoulli assignment and sixteen clusters under a two-stage saturation design, checks each contrast against its known value and shows two refusals.
 
 ## Bernoulli assignment on a fixed network
 

@@ -25,7 +25,7 @@ The query names the outcome, subject, stable treatment indicator, pre/post indic
 
 When parallel trends hold only after adjusting for baseline covariates, use `CovariateAdjustedDiD` with `nuisance` set to `outcome_regression`, `inverse_probability_weighting` or `doubly_robust`.
 
-[`examples/python/quasi_difference_in_differences.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/quasi_difference_in_differences.py) runs a repeated cross section and a balanced panel on simulated data with a known effect of 4.
+[`examples/python/quasi_difference_in_differences.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/quasi_difference_in_differences.py) runs a repeated cross section and a balanced panel on simulated data with a known effect of 4.
 
 ### Augmented panel DiD with your own nuisance models
 
@@ -147,7 +147,7 @@ For example, with 40 donors and 40 pre-treatment periods, 95% is the nominal mod
 
 `SyntheticDifferenceInDifferences` weights both donor units and pre-periods on the simplex, then computes the weighted difference-in-differences contrast. It needs a balanced panel with one treated unit, at least two donors, two pre-periods and one post-period, and reports `result.value.synthetic_did` including both weight vectors. With one treated unit it returns no interval or standard error, and refuses a fabricated one in a saved artifact. As for synthetic control, `adoptions=[(unit, period), ...]` with `placebo_replicates` fits several adopting units and reports placebo-variance intervals. `uniform_unit_randomization=True` adds the exact Fisher tail fraction as `randomization_p_value`, as for synthetic control; ridge augmentation is not available here.
 
-Runnable example: [`examples/python/panel_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/panel_designs.py) runs synthetic control, synthetic difference-in-differences and a staggered event study on one simulated panel with a known, growing effect.
+Runnable example: [`examples/python/panel_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/panel_designs.py) runs synthetic control, synthetic difference-in-differences and a staggered event study on one simulated panel with a known, growing effect.
 
 ## Boundaries
 

@@ -6,11 +6,11 @@ This page covers the declared-graph transport question of [Carry an effect to an
 
 | Outcome | Where to read it | A neighbouring success |
 | --- | --- | --- |
-| Not certified | `ident.certificate["identification_status"] == "not_certified"`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transport_exact.py) |
-| Theorem-scoped impossibility | `ident.certificate["identification_status"] == "proven_non_transportable"` | Complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transport_meta_grid.py) |
+| Not certified | `ident.certificate["identification_status"] == "not_certified"`, `ident.inspect().identification` | [Exact-law success](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_exact.py) |
+| Theorem-scoped impossibility | `ident.certificate["identification_status"] == "proven_non_transportable"` | Complementary sources in [the meta-grid example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_meta_grid.py) |
 | Missing evidence | `ident.inspect().support`, `answer.kind == "unavailable"` | Full versus partial catalog in the same meta-grid example |
 | Local support or positivity | `result.support` | A supported assignment on the same grid |
-| Uncalibrated or unavailable interval | `result.inspect().calibration`, `result.inspect().uncertainty` | Exact law (no interval) beside the [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/transport_statistical.rs) |
+| Uncalibrated or unavailable interval | `result.inspect().calibration`, `result.inspect().uncertainty` | Exact law (no interval) beside the [statistical bootstrap](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/transport_statistical.rs) |
 | Budget exhaustion | a raised `transport.identification_budget`, or a stage whose `identification_status` is `budget_cancel` | The same query under default `SidLimits` |
 
 ## One identification-status vocabulary

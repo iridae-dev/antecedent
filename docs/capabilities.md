@@ -13,7 +13,7 @@ are the maintained implementation inventory; the [support matrix](support-matrix
 is the public **support** for analysis cells. Support is one count of supported
 units (matrix cells, graphless rows and capabilities outside the matrix); API
 routes named here are entry points of those units and are not counted. Inspect / claim / reuse /
-handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/parity/compiler.toml)
+handoff compositions live in [`parity/compiler.toml`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/parity/compiler.toml)
 and are not analysis-matrix coordinates. Presence here does not mean every
 query × graph class × structure × inference × validation combination runs.
 For selection guidance and product boundaries, see [Comparison](comparison.md).
@@ -311,7 +311,7 @@ CBOR artifacts.
 * J-PCMCI+
 * regime-specific RPCMCI workflows
 
-Runnable example: [`examples/python/temporal_discovery.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/temporal_discovery.py).
+Runnable example: [`examples/python/temporal_discovery.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/temporal_discovery.py).
 
 ### Bayesian structure learning
 

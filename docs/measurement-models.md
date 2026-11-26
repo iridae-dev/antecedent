@@ -40,7 +40,7 @@ failed check; `estimate` returns an `Outcome` whose refusal (for example a
 Youden index at or below `min_youden`, `measurement_not_identified`) carries the
 same code. Codes, details and remedies are listed under
 [measurement model refusals](reference/refusal-codes.md#measurement-models).
-The [transported measurement example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/transported_measurement.py)
+The [transported measurement example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transported_measurement.py)
 carries a measurement model into another population.
 
 ## Kinds

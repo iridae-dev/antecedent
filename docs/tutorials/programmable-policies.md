@@ -4,7 +4,7 @@ A retailer orders stock a week before it arrives. A discount might sell surplus 
 
 You’ll compare three rules over the same 12 weeks in 24 simulated stores. One fixes the price at 10, one discounts when stock is high, and one uses stock and recent sales to set both price and the next order.
 
-Run `python examples/python/programmable_policies.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/programmable_policies.ipynb). See the [complete example](#run-the-complete-example).
+Run `python examples/python/programmable_policies.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/programmable_policies.ipynb). See the [complete example](#run-the-complete-example).
 
 If interventions are new to you, start with [interventions and worlds](../concepts/interventions-and-worlds.md).
 
@@ -189,7 +189,7 @@ The Rust example submits two fixed rules and a separate synthetic log. Anteceden
 
 Run `cargo run -p antecedent --example evaluate_fixed_policies`.
 
-[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/evaluate_fixed_policies.rs).
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/evaluate_fixed_policies.rs).
 
 ## What this established
 

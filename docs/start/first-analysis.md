@@ -160,7 +160,7 @@ println!("effect = {:.4}", result.effect());
 println!("status = {:?}", result.identification.status);
 ```
 
-This is an excerpt: `t`, `y` and `z` are `Vec<f64>` columns, the names come from `use antecedent::prelude::*;` and `use antecedent::RefuteSuite;`, and `?` propagates a `CausalError`. Read the [complete source](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/ate_quickstart.rs), which includes the data generation and asserts the result.
+This is an excerpt: `t`, `y` and `z` are `Vec<f64>` columns, the names come from `use antecedent::prelude::*;` and `use antecedent::RefuteSuite;`, and `?` propagates a `CausalError`. Read the [complete source](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/ate_quickstart.rs), which includes the data generation and asserts the result.
 
 | Step | What it declares or does |
 | --- | --- |

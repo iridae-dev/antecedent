@@ -4,7 +4,7 @@ Compare several coordinated interventions, such as a channel mix held over a hor
 
 If you have not seen a joint comparison before, start with the [joint intervention tutorial](../tutorials/joint-interventions.md), which builds one on simulated data with a known answer. For what a world is, see [interventions and worlds](../concepts/interventions-and-worlds.md). This page is the task reference for the panel and static joint workflows in `antecedent.joint_panel`. Choosing among programs is covered in [search and certify intervention programs](joint-program-search.md); experimental updates and whole-program designs are in [update a joint response with experiments and designs](joint-program-designs.md). Joint binary interventions on cross-sectional data are in [joint cells](joint-cells.md).
 
-Runnable examples: [`joint_intervention_program.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/joint_intervention_program.py) compares a two-channel program with its baseline over a 24-week horizon on a simulated panel with a known terminal-week effect, and [`joint_panel_workflow.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/joint_panel_workflow.rs) runs the same kind of question from Rust.
+Runnable examples: [`joint_intervention_program.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/joint_intervention_program.py) compares a two-channel program with its baseline over a 24-week horizon on a simulated panel with a known terminal-week effect, and [`joint_panel_workflow.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/joint_panel_workflow.rs) runs the same kind of question from Rust.
 
 ## Declare channels and interactions
 

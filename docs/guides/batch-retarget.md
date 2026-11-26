@@ -286,7 +286,7 @@ inferred from a CATE prediction. Quantile and exceedance claims keep the single-
 ## Related pages
 
 - Runnable example of preparing, rebinding and reconfiguring a batch:
-  [`examples/python/branch_and_reuse.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/branch_and_reuse.py).
+  [`examples/python/branch_and_reuse.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/branch_and_reuse.py).
 - [Reuse DML scores to retarget](dml-scores.md): the score table a DML, DR-Learner or CausalForest plan contributes.
 - [Clusters](clustered-dml.md): the cluster-DML plans a clustered family is built from.
 - [Penalized propensity for AIPW](penalized-aipw.md): the penalized configurations a batch accepts.

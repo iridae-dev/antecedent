@@ -230,7 +230,7 @@ In the synthetic example, treatment adds one unit to the first step, and the sec
 
 Run `cargo run -p antecedent --example transport_selected_path`.
 
-[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/transport_selected_path.rs).
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/transport_selected_path.rs).
 
 ## What is refused, and the remedy
 

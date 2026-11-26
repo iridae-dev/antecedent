@@ -194,6 +194,6 @@ Related references:
 | Gates, records and the release procedure | [development.md](../development.md) |
 | Artifact wire format | [artifacts.md](../artifacts.md) |
 | Hot-path benches / budgets | [hot_paths.md](../hot_paths.md) |
-| Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/v3.0.0/parity/README.md) |
-| ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/v3.0.0/adr/README.md) |
+| Capability inventories | [parity/](https://github.com/iridae-dev/antecedent/blob/v3.1.0/parity/README.md) |
+| ADRs | [adr/](https://github.com/iridae-dev/antecedent/blob/v3.1.0/adr/README.md) |
 | Conformance fixtures | [conformance/](../conformance/README.md) |

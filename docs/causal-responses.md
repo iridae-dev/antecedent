@@ -43,9 +43,9 @@ print(view.support.status, view.support.warnings)
 The grid must be explicit and increasing. Each returned value estimates `m(a)` at one grid point,
 and the interval beside it is pointwise: it covers that one point, not the whole curve. The
 runnable script
-[`continuous_causal_response.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/continuous_causal_response.py)
+[`continuous_causal_response.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/continuous_causal_response.py)
 walks through supported doses, response values and derivatives, and
-[`temporal_response_curve.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/temporal_response_curve.py)
+[`temporal_response_curve.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/temporal_response_curve.py)
 does the same over dose and horizon.
 
 The same complete-observation curve can use the staged workflow
@@ -992,8 +992,8 @@ censoring, and other unsupported mechanism/assumption/estimator combinations
 fail closed rather than returning the response of the observed proxy.
 
 See the runnable, deterministic notebooks for a
-[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/continuous_causal_response.ipynb)
-and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/pricing_availability_latent_demand.ipynb).
+[complete-observation response](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/continuous_causal_response.ipynb)
+and the [pricing/availability distinction](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/pricing_availability_latent_demand.ipynb).
 
 ### Static intervention-level uncertainty
 
@@ -1029,7 +1029,7 @@ Read `reason_code`, `detail` and `remedy` on the raised error; the codes are lis
 
 ## Next steps
 
-- [Answer and retarget a family of effects](guides/batch-retarget.md) and [reuse DML scores to retarget](guides/dml-scores.md) build on the retargeting shown above; [`retarget_adjusted_fit.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/retarget_adjusted_fit.py) is the matching script.
+- [Answer and retarget a family of effects](guides/batch-retarget.md) and [reuse DML scores to retarget](guides/dml-scores.md) build on the retargeting shown above; [`retarget_adjusted_fit.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/retarget_adjusted_fit.py) is the matching script.
 - [Heterogeneous effects and policies](guides/heterogeneous-effects-and-policies.md) covers a dose response within baseline groups.
 - [Several treatment levels](guides/treatment-levels.md) covers a discrete treatment with more than two levels.
 - [Read a result](start/reading-a-result.md) explains calibration statuses and the uncertainty kinds named here.

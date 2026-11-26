@@ -39,7 +39,7 @@ estimate = transported.mean_contrast(tmt.MeanContrast.mean_at("demand", {"price"
 transported.receipt             # which mechanisms were carried and which refitted
 ```
 
-The contrast is `sum_k w_k E[outcome | do(arm_k)]` in the target composition, here the single mean `E[demand | do(price = 2)]`, computed by Monte Carlo over the structural model. `transported.receipt` lists the carried and the refitted variables; support is `extrapolative` and inference `point_only`. `transported.interval(contrast)` returns the first-order interval with calibration `not_measured`. The rules behind each step are in [nonlinear and non-Gaussian mechanism transport](#nonlinear-and-non-gaussian-mechanism-transport). A runnable use of this route, including the refusal of a shifted mechanism with no target fit, is [`synthetic_users_launch.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/synthetic_users_launch.py).
+The contrast is `sum_k w_k E[outcome | do(arm_k)]` in the target composition, here the single mean `E[demand | do(price = 2)]`, computed by Monte Carlo over the structural model. `transported.receipt` lists the carried and the refitted variables; support is `extrapolative` and inference `point_only`. `transported.interval(contrast)` returns the first-order interval with calibration `not_measured`. The rules behind each step are in [nonlinear and non-Gaussian mechanism transport](#nonlinear-and-non-gaussian-mechanism-transport). A runnable use of this route, including the refusal of a shifted mechanism with no target fit, is [`synthetic_users_launch.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/synthetic_users_launch.py).
 
 ## Mechanism transport
 

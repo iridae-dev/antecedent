@@ -2,7 +2,7 @@
 
 How much weight would the same smokers have gained if they had all quit, compared with continuing to smoke? A US survey followed smokers from the 1970s into the 1980s. They chose whether to quit, so a simple comparison mixes the effect of quitting with differences between the people who made each choice.
 
-Run `python examples/python/observational_study.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/observational_study.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/observational_study.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/observational_study.ipynb). See the [complete example](#the-complete-example).
 
 ## The question
 
@@ -16,7 +16,7 @@ The question and the data follow Hernán and Robins, *Causal Inference: What If*
 
 ## Where the data come from
 
-The manifest [`examples/data/nhefs.toml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/nhefs.toml) records the origin, citation, SHA-256, retrieval date, preprocessing and the columns used. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the file when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/README.md) describes the cache and the offline path.
+The manifest [`examples/data/nhefs.toml`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/data/nhefs.toml) records the origin, citation, SHA-256, retrieval date, preprocessing and the columns used. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the file when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/data/README.md) describes the cache and the offline path.
 
 Without the verified file, the script generates a table with the same columns, 1,629 people and 63 missing follow-up weights. The simulation makes quitting add 3.0 kg for each person, which gives you a known effect to check. The first line of output identifies the data you are using.
 

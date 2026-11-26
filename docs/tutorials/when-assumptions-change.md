@@ -4,7 +4,7 @@ In January, a subscription service estimates that customers who use the product 
 
 You’ll investigate the change using two simulated customer cohorts. The simulation lets you check when an apparent change in the effect is actually a change in who is being compared.
 
-Run `python examples/python/when_assumptions_change.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/when_assumptions_change.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/when_assumptions_change.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/when_assumptions_change.ipynb). See the [complete example](#the-complete-example).
 
 The graph checks use conditional independence and adjustment for a common cause. For a worked example of adjustment, see [estimate an effect from observational data](observational-study.md).
 

@@ -129,7 +129,7 @@ Provide unique evaluation subject IDs and one of two ownership contracts: traini
 
 The route evaluates a precomputed policy and does not train it. Identification requires the declared randomized assignment, consistency and no interference. It creates no support-matrix support. When propensities are unknown or the policy may have been learned from the same rows, use the observational route above.
 
-The example [`policy_value_evaluation.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/policy_value_evaluation.py) scores a fixed policy under known propensities with the inverse-propensity form, `policy.evaluate_policy`, which needs no outcome predictions and reports a point value only.
+The example [`policy_value_evaluation.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/policy_value_evaluation.py) scores a fixed policy under known propensities with the inverse-propensity form, `policy.evaluate_policy`, which needs no outcome predictions and reports a point value only.
 
 ## Conditional dose-response at chosen doses
 
@@ -176,4 +176,4 @@ This is a Rust API on `antecedent_estimate::DrLearner`; Python has no binding fo
 - [Learner-backed estimation with DML scores](dml-scores.md)
 - [Estimate an effect when treatment has several levels](treatment-levels.md) for contrasts between levels rather than the value of a rule.
 - [Split an effect into latent classes](mediation-and-latent-classes.md) when the variation is by unobserved groups.
-- [`econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/econml_cate_handoff.py) compares adjusted average effects with EconML CATE predictions (optional dependency).
+- [`econml_cate_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/econml_cate_handoff.py) compares adjusted average effects with EconML CATE predictions (optional dependency).

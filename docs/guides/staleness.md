@@ -20,7 +20,7 @@ The diagnostic decides and explains; it changes nothing. No scheduler or
 alerting service ships with it: a host calls it when new data arrives and acts
 on the recommendation. The tutorial [when assumptions change](../tutorials/when-assumptions-change.md)
 walks through a staleness assessment end to end
-([`when_assumptions_change.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/when_assumptions_change.py)).
+([`when_assumptions_change.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/when_assumptions_change.py)).
 
 ## Python
 

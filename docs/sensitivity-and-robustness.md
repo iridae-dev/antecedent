@@ -40,7 +40,7 @@ Every route here keeps these apart, and refuses to add them together:
 
 ## Missing outcomes not at random: `mnar_ate_sensitivity`
 
-Runnable example: [`examples/python/missing_outcome_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/missing_outcome_sensitivity.py).
+Runnable example: [`examples/python/missing_outcome_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/missing_outcome_sensitivity.py).
 
 Complete-case analysis and multiple imputation both assume the missing outcomes follow the
 observed ones given what the model conditions on. Nothing in the data tests that, so
@@ -386,8 +386,8 @@ calibration not_measured. It is reported so it can be
 inspected, not as a confidence statement.
 
 Runnable examples:
-[`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/msm_sensitivity.py) and
-[`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/mechanism_discrepancy.py).
+[`msm_sensitivity.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/msm_sensitivity.py) and
+[`mechanism_discrepancy.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/mechanism_discrepancy.py).
 
 Related: [target-native validation](guides/target-native-validation.md) (refutations and sensitivity ranges for the quantity a result reports), [evaluating actions with a decision contract](decisions.md),
 [transport and counterfactuals](transport-counterfactuals.md).

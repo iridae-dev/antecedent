@@ -413,14 +413,14 @@ portable artifact. Bounds use `max_cost` and `max_sample_budget`; unrelated valu
 or gate arguments refuse rather than being silently applied. Calibration is
 `not_measured` for every objective.
 
-Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs.py)
-(identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/rank_designs_evsi.py)
-(net value) and [`experiment_to_next_study.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/experiment_to_next_study.py)
+Runnable examples: [`rank_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/rank_designs.py)
+(identification basis), [`rank_designs_evsi.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/rank_designs_evsi.py)
+(net value) and [`experiment_to_next_study.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/experiment_to_next_study.py)
 (experiment to ranked next studies).
 
 ## From a failed identification to a ranked evidence plan
 
-Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/evidence_plan.py).
+Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/evidence_plan.py).
 
 A not-identified result owes evidence, and several kinds of study can supply it.
 `repair.FailureContract` freezes the failure (graph, treatment, outcome, the variables

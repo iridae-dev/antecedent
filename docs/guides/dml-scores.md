@@ -163,7 +163,7 @@ recalculation session.
 The `score_table_unavailable` code and the fields every refusal carries are described in
 [refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
 For a retarget of a single adjusted fit (a GLM adjustment fit rather than a DML table), see the runnable example
-[`examples/python/retarget_adjusted_fit.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/retarget_adjusted_fit.py).
+[`examples/python/retarget_adjusted_fit.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/retarget_adjusted_fit.py).
 
 ## Tests
 

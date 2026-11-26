@@ -16,7 +16,7 @@ Use the same small backdoor SCM in both libraries:
   selection on `z`)
 
 The runnable recipe is
-[`examples/python/dowhy_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/dowhy_handoff.py).
+[`examples/python/dowhy_handoff.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/dowhy_handoff.py).
 `dowhy` is a **soft dependency**: the Antecedent half always runs; the DoWhy
 half is skipped when `dowhy` is not installed.
 
@@ -53,7 +53,7 @@ intervals.
 
 Unreviewed discovery stays outside the estimate path: discover once, accept a
 DAG, then estimate (see
-[`discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discover_then_estimate.py)). Passing
+[`discover_then_estimate.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/discover_then_estimate.py)). Passing
 `discovery=` into `analyze` with `accept_discovered=False` raises a review
 error rather than inventing an adjustment set.
 

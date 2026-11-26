@@ -4,7 +4,7 @@ How much did a job-training programme change participants’ earnings? One way t
 
 The National Supported Work (NSW) participants had very low earnings before the programme. Most people in the comparison survey, the Panel Study of Income Dynamics (PSID), earned more. You’ll see what happens when you limit the weights given to unusual cases, then when you restrict the analysis to people with comparable histories.
 
-Run `python examples/python/when_overlap_fails.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/notebooks/when_overlap_fails.ipynb). See the [complete example](#the-complete-example).
+Run `python examples/python/when_overlap_fails.py`, or open the [notebook](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/notebooks/when_overlap_fails.ipynb). See the [complete example](#the-complete-example).
 
 For a comparison where both groups are well represented, see [estimate an effect from observational data](observational-study.md).
 
@@ -21,7 +21,7 @@ NSW also assigned people at random, so a randomised estimate of the same effect 
 
 ## Where the data come from
 
-The manifest [`examples/data/nsw_psid.toml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/nsw_psid.toml) records the origin, citations, per-file SHA-256, retrieval date, preprocessing and columns. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the files when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/data/README.md) describes the cache and the offline path.
+The manifest [`examples/data/nsw_psid.toml`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/data/nsw_psid.toml) records the origin, citations, per-file SHA-256, retrieval date, preprocessing and columns. The publisher states no support, so Antecedent ships no copy. `examples/data/fetch.py` downloads the files when you set `ANTECEDENT_DATA=download` and refuses any file that fails its checksum; the [data README](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/data/README.md) describes the cache and the offline path.
 
 Without the verified files, the script generates the same ten columns for 185 participants and 2,490 comparison respondents. The simulation reproduces the overlap problem and gives you a known training effect to check. The first line of output identifies the dataset.
 

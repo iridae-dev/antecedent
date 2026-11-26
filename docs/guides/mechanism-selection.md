@@ -163,7 +163,7 @@ A candidate that fails without being required does not refuse the fit: it is lis
 
 ## Examples
 
-[`examples/rust/mechanism_selection.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/mechanism_selection.rs) and [`examples/python/mechanism_selection.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/mechanism_selection.py) fit a quadratic
+[`examples/rust/mechanism_selection.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/mechanism_selection.rs) and [`examples/python/mechanism_selection.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/mechanism_selection.py) fit a quadratic
 mechanism against linear, spline and tree candidates, read the scores, the failed families and the
 selection rule, require a family for one node, refuse a contradictory constraint, and (Python)
 cut the scores by forward chaining for serially dependent rows. Both assert their results and run

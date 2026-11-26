@@ -1,6 +1,6 @@
 # Development
 
-This page is the contributor and maintainer reference for the checks that guard the repository: what CI runs, which gate to run locally for which change, how scientific and calibration records are earned, and how a release is cut. Read [CONTRIBUTING.md](https://github.com/iridae-dev/antecedent/blob/v3.0.0/CONTRIBUTING.md) first for the clone-to-pull-request path. [How Antecedent checks its scientific methods](guides/scientific-verification.md) explains how provenance, independent references, executing assertions and calibration support a claim; this page describes the procedures that maintain that evidence.
+This page is the contributor and maintainer reference for the checks that guard the repository: what CI runs, which gate to run locally for which change, how scientific and calibration records are earned, and how a release is cut. Read [CONTRIBUTING.md](https://github.com/iridae-dev/antecedent/blob/v3.1.0/CONTRIBUTING.md) first for the clone-to-pull-request path. [How Antecedent checks its scientific methods](guides/scientific-verification.md) explains how provenance, independent references, executing assertions and calibration support a claim; this page describes the procedures that maintain that evidence.
 
 Names: the product is **Antecedent**. The Python distribution and import name is `antecedent`. The Rust
 facade crate is `antecedent` (`cargo add antecedent`); the supporting crates are `antecedent-*` on
@@ -33,7 +33,7 @@ python scripts/build_python_api_docs.py site/python
 mkdocs serve
 ```
 
-These are the checks the `docs` workflow (`.github/workflows/docs.yml`) runs on every pull request, against a wheel it builds from the commit; it then verifies the built HTML with `python scripts/check_docs_site.py site`. `scripts/run_doc_examples.py` executes the documented Python snippets and embedded examples against the installed package. Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v3.0.0/docs/README.md) for editorial conventions.
+These are the checks the `docs` workflow (`.github/workflows/docs.yml`) runs on every pull request, against a wheel it builds from the commit; it then verifies the built HTML with `python scripts/check_docs_site.py site`. `scripts/run_doc_examples.py` executes the documented Python snippets and embedded examples against the installed package. Notebook rendering executes setup cells and code in real isolated kernels. It produces HTML in `target/doc-notebook-previews`; source notebooks keep no saved outputs. Avoid running calibration or release-registry generators just to preview prose. The publication manifest (`scripts/docs_publication.toml`) keeps evidence-linked sources at their paths and out of the published site. See [documentation sources](https://github.com/iridae-dev/antecedent/blob/v3.1.0/docs/README.md) for editorial conventions.
 
 `scripts/example_coverage.py` prints, for every example-catalog entry, whether each of its Python, Rust and notebook sources is executed, compiled only, or skipped and why. It reads what the runners select (the Python suite, the documentation build and the Rust example suite) and runs nothing; `--check` fails on a source no runner selects unless its catalog entry states the reason in an `unexecuted` table.
 
@@ -807,7 +807,7 @@ CI_RUN_ID=<ci run on HEAD> bash scripts/tag_release.sh   # runs gate_release_can
 git push origin vX.Y.Z
 ```
 
-Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/.github/workflows/publish-release.yml)
+Workflow [`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/.github/workflows/publish-release.yml)
 reuses the 16 wheels built and fully tested by the green `main` CI run on the
 exact tag commit, then publishes to public PyPI and the GitHub Release as
 **independent jobs**. It builds the docs bundle from that run's Python 3.12
@@ -844,7 +844,7 @@ bash scripts/publish_crates.sh --execute
 ```
 
 The `crates-dry-run` and `publish-crates` jobs of
-[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/.github/workflows/publish-release.yml)
+[`.github/workflows/publish-release.yml`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/.github/workflows/publish-release.yml)
 publish the crates as part of the same tagged release as the wheels: every crate is
 dry-run before PyPI is touched, and the upload runs after PyPI succeeded, in the
 `release` environment. Set repository secret `CRATES_IO_TOKEN`.

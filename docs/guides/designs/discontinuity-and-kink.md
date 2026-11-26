@@ -4,7 +4,7 @@ Estimate the effect of a treatment that switches on, or changes its dependence o
 
 You need a table with an outcome column, a treatment column and a running-variable column, the cutoff `c`, and a bandwidth `h` (the half-width of the window around `c` that the fit reads). The answer is local. It describes units near the cutoff and, for a fuzzy design, the units whose treatment the cutoff changes (local compliers). Antecedent does not extend it to the rest of the range.
 
-Runnable example: [`examples/python/discontinuity_and_iv.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/discontinuity_and_iv.py) simulates a sharp jump of 2, a fuzzy design with a treatment effect of 3 and a kink with a dose effect of 3, and checks each estimate against its known value.
+Runnable example: [`examples/python/discontinuity_and_iv.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/discontinuity_and_iv.py) simulates a sharp jump of 2, a fuzzy design with a treatment effect of 3 and a kink with a dose effect of 3, and checks each estimate against its known value.
 
 ## Sharp design
 

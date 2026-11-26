@@ -82,7 +82,7 @@ The choice uses the target average effect. A decision about the chance that an i
 
 Run `cargo run -p antecedent --example trial_to_target_decision`.
 
-[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/trial_to_target_decision.rs).
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/trial_to_target_decision.rs).
 
 ## Check an early measure in both populations
 
@@ -92,7 +92,7 @@ Read the discrepancy over the grid alongside the equivalence flag. The script th
 
 Run `cargo run -p antecedent --example check_trial_proxy`.
 
-[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/check_trial_proxy.rs).
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/check_trial_proxy.rs).
 
 ## Fit a joint error table from labelled readings
 
@@ -102,7 +102,7 @@ The example starts with counts of all four reading pairs in specimens with a kno
 
 Run `cargo run -p antecedent --example shared_measurement_errors`.
 
-[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/shared_measurement_errors.rs).
+[Read the complete Rust example](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/shared_measurement_errors.rs).
 
 ## What is refused, and what to do
 

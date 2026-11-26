@@ -79,13 +79,13 @@ result.to_dict()["fit"]["converged"]
 
 In this fragment `template` is an `EquilibriumModel` holding the starting parameter values,
 `joint_clamps` a list of `{"variable": index, "value": number}` clamps and `rows` the
-training rows. [`examples/python/general_cyclic_systems.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/general_cyclic_systems.py) is the complete runnable
+training rows. [`examples/python/general_cyclic_systems.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/general_cyclic_systems.py) is the complete runnable
 version: an independent generator of overlapping loops, a held-out joint intervention and a
-shared-noise counterfactual. [`examples/python/cyclic_paper_experiments.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/cyclic_paper_experiments.py)
+shared-noise counterfactual. [`examples/python/cyclic_paper_experiments.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/cyclic_paper_experiments.py)
 reproduces the published synthetic protocols with their deviations stated. For a
 linear law recovered from clamp experiments, use `prepare_experimental_recovery`
 with an explicit draw origin
-([`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/recovered_feedback_law.py)); `inspect()` reports the rows a clamp
+([`examples/python/recovered_feedback_law.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/recovered_feedback_law.py)); `inspect()` reports the rows a clamp
 design leaves unresolved before any fit.
 
 ## Fit a continuous-time OU model from trajectories
@@ -287,7 +287,7 @@ a decision. See [decisions](../decisions.md) and [composition](../composition.md
 
 Rust uses `Study::prepare_cyclic` and `Study::prepare_cyclic_family` on the same
 `PreparedStudy` handle; see [cyclic systems for developers](../development/cyclic-systems.md)
-and [`examples/rust/feedback_three_questions.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/feedback_three_questions.rs).
+and [`examples/rust/feedback_three_questions.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/feedback_three_questions.rs).
 
 ## Refusals and failed worlds
 

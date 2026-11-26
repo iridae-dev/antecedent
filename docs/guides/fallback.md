@@ -93,7 +93,7 @@ map, with `antecedent.design.evidence_plan(outcome.evidence_plan.contract, ...)`
 the plan itself are listed under
 [ranked evidence plans](../reference/refusal-codes.md#ranked-evidence-plans).
 
-Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/evidence_plan.py)
+Runnable example: [`examples/python/evidence_plan.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/evidence_plan.py)
 orders declared studies for a not-identified effect, values them net of cost and checks the
 plan against a hand computation.
 

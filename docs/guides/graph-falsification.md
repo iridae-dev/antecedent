@@ -119,9 +119,9 @@ different questions and share no statistic.
 
 ## Examples
 
-[`examples/python/graph_falsification.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/graph_falsification.py)
+[`examples/python/graph_falsification.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/graph_falsification.py)
 and
-[`examples/rust/graph_falsification.rs`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/rust/graph_falsification.rs)
+[`examples/rust/graph_falsification.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/graph_falsification.rs)
 compare a graph of four dependent pairs with 300 relabellings: the matching graph is not rejected, a graph that
 pairs independent variables is rejected, a complete graph is uninformative, and (Python) a
 nonlinear dependence needs the nonlinear test and a test budget too small to cover the

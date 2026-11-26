@@ -18,7 +18,7 @@ how far an untestable assumption can be relaxed before that quantity changes.
 Every number here is a diagnostic. Pass thresholds are conventions with no
 measured error rate, and none of these checks supports an interval.
 
-Runnable example: [`examples/python/refute_and_bound.py`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/examples/python/refute_and_bound.py)
+Runnable example: [`examples/python/refute_and_bound.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/refute_and_bound.py)
 refutes an adjusted estimate and then bounds the hidden confounding the refuters could not
 detect.
 

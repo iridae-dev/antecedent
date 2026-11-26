@@ -44,7 +44,7 @@ A contract has one canonical, versioned identity
 (`InterfaceContract::canonical_identity`): a length-framed `CanonicalWriter`
 stream under the tag `antecedent.interface_contract`, independent of port
 declaration order. The exact rules are in
-[`spec/canonicalization-and-identity.md`](https://github.com/iridae-dev/antecedent/blob/v3.0.0/spec/canonicalization-and-identity.md).
+[`spec/canonicalization-and-identity.md`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/spec/canonicalization-and-identity.md).
 
 ## Checking a connection
 
