@@ -900,6 +900,8 @@ pub struct UpstreamNode<'a> {
     /// Effective facts: verified ones for a verified node, declared ones for a
     /// reference.
     pub facts: &'a BTreeMap<String, String>,
+    /// Values read by an embedded verifier. References do not supply verified values.
+    pub values: &'a [(String, f64)],
 }
 
 /// What a verifier established about an embedded artifact.
@@ -1464,6 +1466,18 @@ impl BundleConsumer {
         for &position in &derived.order {
             let state = {
                 let node = &nodes[position];
+                if node.kind == NodeKind::ScientificBridgeImage
+                    && derived.parents[position].iter().any(|&parent| {
+                        nodes[parent].kind == NodeKind::PatientSurrogateIdentification
+                            && states[parent].is_failed()
+                    })
+                {
+                    states[position] = NodeState::failed(
+                        BundleStage::SwappedEvidence,
+                        "the declared patient-surrogate source failed verification".into(),
+                    );
+                    continue;
+                }
                 let upstream: Vec<UpstreamNode<'_>> = derived.parents[position]
                     .iter()
                     .filter(|p| !states[**p].is_failed())
@@ -1480,6 +1494,7 @@ impl BundleConsumer {
                         kind: nodes[p].kind,
                         identity: &nodes[p].identity,
                         facts: &states[p].facts,
+                        values: &states[p].values,
                     })
                     .collect();
                 let mut state = match &node.source {

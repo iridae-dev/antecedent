@@ -156,3 +156,83 @@ fn empirical_joint_counts_cannot_license_a_population_point_or_decision() {
         Err(P::Scientific(E::Declaration(_)))
     ));
 }
+
+#[test]
+fn identified_set_bridge_requires_the_replayed_patient_bounds() {
+    use antecedent::analysis::composition::NodeStatus;
+    use antecedent::analysis::kernel_programs::bridge_images::BridgeImageRequest;
+    use antecedent_contract::bridge::{
+        AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeKind,
+        BridgeMapping, BridgeScope, FixedBridgeDomain, QuantityClass, ValueInterval, ValueKind,
+    };
+
+    let ctx = ExecutionContext::for_tests(16);
+    let plan = Study::compile_patient_surrogate(law([3, 0, 1, 0], [0, 0, 1, 3]), &ctx).unwrap();
+    let patient = plan.export("original-patient", &ctx).unwrap();
+    let identified = plan.execute(&ctx).unwrap().identified_set_source().unwrap();
+    let mut utility = identified.quantity.clone();
+    utility.variable_id = "utility".into();
+    utility.variable_name = "utility".into();
+    utility.units = "score".into();
+    let contract = BridgeContract {
+        kind: BridgeKind::ScientificDecisionUtility,
+        source: BridgeEndpoint {
+            quantity: identified.quantity.clone(),
+            class: QuantityClass::ScientificEndpoint,
+        },
+        target: BridgeEndpoint { quantity: utility, class: QuantityClass::DecisionUtility },
+        source_value: ValueKind::IdentifiedSet,
+        target_value: ValueKind::IdentifiedSet,
+        evidence_scope: BridgeScope {
+            population_id: identified.quantity.population_id.clone(),
+            regime_id: identified.quantity.regime_id.clone(),
+        },
+        mapping: BridgeMapping::Affine { intercept: 1.0, slope: 3.0 },
+        assumptions: vec![BridgeAssumption {
+            id: "utility-scale".into(),
+            kind: AssumptionKind::UtilityMapping,
+            statement: "one unit of the endpoint contributes three units of utility".into(),
+            evidence: Some("declared-choice-rule".into()),
+        }],
+        transport: None,
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
+    };
+    for changed in [false, true] {
+        let mut source = identified.clone();
+        if changed {
+            source.set.lower = 0.5;
+        }
+        let image = Study::compile_bridge_image(
+            BridgeImageRequest::IdentifiedSet {
+                bridge: Box::new(contract.clone()),
+                source,
+                domain: FixedBridgeDomain(ValueInterval { low: 0.0, high: 1.0 }),
+            },
+            &ctx,
+        )
+        .unwrap()
+        .export("mapped-patient", &ctx)
+        .unwrap();
+
+        let mut builder = BundleBuilder::new();
+        builder.add_detected_artifact(Some("patient"), &patient).unwrap();
+        builder.add_detected_artifact(Some("image"), &image).unwrap();
+        builder.connect("patient", "image").unwrap();
+        let bundle = builder.build().unwrap();
+        let replayed = composition::consume(
+            &composition::export_bundle(&bundle, "patient-image").unwrap(),
+            bundle.identity(),
+            &SuppliedSources::default(),
+        )
+        .unwrap();
+        if changed {
+            assert!(matches!(replayed.node("image").unwrap().status, NodeStatus::Failed { .. }));
+        } else {
+            assert!(replayed.all_replayed());
+            assert_eq!(replayed.value("image", "lower"), Some(3.0));
+            assert_eq!(replayed.value("image", "upper"), Some(4.0));
+        }
+    }
+}

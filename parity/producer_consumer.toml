@@ -2924,3 +2924,24 @@ status = "DIRECT"
 detail = "Both assumption extrema and the jointly covered threshold comparison are recovered from source observations and the retained seed."
 evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
 evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"
+
+[[rust_consumer]]
+key = "identified_set_bridge_bundle"
+entry = "`analysis::composition::consume` with a declared edge from patient-surrogate bounds to a scientific bridge image"
+note = "The bridge uses the exact population coordinate and both endpoints from the verified patient-surrogate result."
+
+[[rust_cell]]
+producer = "patient_surrogate_bounds"
+consumer = "identified_set_bridge_bundle"
+status = "DIRECT"
+detail = "The bundle independently replays the sharp bounds and the affine utility image."
+evidence_test = "crates/antecedent/tests/patient_surrogate.rs"
+evidence_assertion = "identified_set_bridge_requires_the_replayed_patient_bounds"
+
+[[rust_cell]]
+producer = "patient_surrogate_bounds"
+consumer = "identified_set_bridge_bundle"
+status = "REFUSED"
+detail = "Changed retained endpoints under the same patient claim identity invalidate the bridge edge."
+evidence_test = "crates/antecedent/tests/patient_surrogate.rs"
+evidence_assertion = "identified_set_bridge_requires_the_replayed_patient_bounds"

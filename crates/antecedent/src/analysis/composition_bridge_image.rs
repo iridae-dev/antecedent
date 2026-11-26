@@ -23,6 +23,7 @@ pub(super) fn describe(
     upstream: &[UpstreamNode<'_>],
 ) -> Result<ArtifactDescription, NodeFailure> {
     let stored = StoredBridgeImage::decode(bytes).map_err(failure)?;
+    check_patient_source(&stored.request, upstream)?;
     let source = match &stored.request {
         BridgeImageRequest::IntervalThreshold { .. } => String::new(),
         BridgeImageRequest::TrialConfidence(_) => {
@@ -122,6 +123,44 @@ pub(super) fn describe(
     facts.insert("image_program".into(), program.to_hex());
     facts.insert("image_source".into(), source);
     Ok(ArtifactDescription { kind: NodeKind::ScientificBridgeImage, identity, facts, values })
+}
+
+fn check_patient_source(
+    request: &BridgeImageRequest,
+    upstream: &[UpstreamNode<'_>],
+) -> Result<(), NodeFailure> {
+    for patient in
+        upstream.iter().filter(|node| node.kind == NodeKind::PatientSurrogateIdentification)
+    {
+        let BridgeImageRequest::IdentifiedSet { source, .. } = request else {
+            return Err(NodeFailure {
+                stage: BundleStage::UnsupportedLaw,
+                reason: "a population patient-surrogate result supplies an identified set".into(),
+            });
+        };
+        if patient.facts.get(super::FACT_LAW).map(String::as_str) != Some("identified_set") {
+            return Err(NodeFailure {
+                stage: BundleStage::UnsupportedLaw,
+                reason: "a patient-surrogate source needs a verified population identified set"
+                    .into(),
+            });
+        }
+        let coordinate =
+            antecedent_design::composition_verifiers::coordinate_id(&(&source.quantity).into());
+        let bound = |name| {
+            patient.values.iter().find_map(|(key, value)| (key == name).then_some(value.to_bits()))
+        };
+        if patient.identity != source.claim_identity.to_hex()
+            || patient.facts.get(super::FACT_COORDINATES) != Some(&coordinate)
+            || bound("lower") != Some(source.set.lower.to_bits())
+            || bound("upper") != Some(source.set.upper.to_bits())
+        {
+            return Err(failure(
+                "the image source coordinate or bounds differ from the verified patient-surrogate result",
+            ));
+        }
+    }
+    Ok(())
 }
 
 pub(super) struct BridgeImageVerifier(pub(super) ExecutionContext);
