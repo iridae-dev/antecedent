@@ -104,8 +104,21 @@ impl CompiledPatientSurrogate {
         artifact_id: &str,
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, PatientSurrogateProgramError> {
+        Ok(self.export_with_identity(artifact_id, ctx)?.0)
+    }
+
+    /// Seal the bytes and independently retainable result identity from one execution.
+    ///
+    /// # Errors
+    /// Identification, resource admission or artifact encoding failed.
+    pub fn export_with_identity(
+        &self,
+        artifact_id: &str,
+        ctx: &ExecutionContext,
+    ) -> Result<(Vec<u8>, SemanticDigest), PatientSurrogateProgramError> {
         let result = self.execute(ctx)?;
-        Ok(self.0.input().export(&result, self.lowered().identity(), artifact_id, ctx)?)
+        let bytes = self.0.input().export(&result, self.lowered().identity(), artifact_id, ctx)?;
+        Ok((bytes, result.identity()))
     }
 }
 

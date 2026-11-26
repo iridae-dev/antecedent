@@ -14455,7 +14455,7 @@ class PatientSurrogatePlanHandle:
         threads: int | None = None,
         cancel: CancellationToken | None = None,
         memory_bytes: int | None = None,
-    ) -> tuple[bytes | None, str | None]: ...
+    ) -> tuple[tuple[bytes, str] | None, str | None]: ...
 
 def patient_surrogate_compile(
     request: str,

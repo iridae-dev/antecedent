@@ -7,8 +7,15 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal, TypeVar, cast
 
 from . import _native
-from ._artifact_protocol import container_bytes
+from ._artifact_protocol import (
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    container_bytes,
+)
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._unit_support import read_unit_support
 from ._validate import count
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
@@ -116,7 +123,7 @@ class SurrogateThresholdDecision:
     identity: str
 
 
-class PatientSurrogateResult:
+class PatientSurrogateResult(ScientificResult):
     """Verified exact identified interval or empirical plug-in bounds, according to provenance."""
 
     def __init__(self, handle: _native.PatientSurrogateResultHandle, program_identity: str) -> None:
@@ -210,13 +217,21 @@ class CompiledPatientSurrogate:
         result = _checked(policy._call(self._handle.execute, **_controls(policy)))
         return PatientSurrogateResult(result, self.program_identity)
 
-    @outcome_operation
+    @artifact_export
     def export(
         self, artifact_id: str = "patient-surrogate", *, execution: Execution | None = None
-    ) -> bytes:
-        """Retain the original joint evidence and verified numerical result."""
+    ) -> ExportedArtifact[PatientSurrogateResult]:
+        """Retain the joint evidence and both identities needed to verify its result."""
         policy = resolve_execution(execution) if execution is not None else self._execution
-        return _checked(policy._call(self._handle.export, artifact_id, **_controls(policy)))
+        data, identity = _checked(policy._call(self._handle.export, artifact_id, **_controls(policy)))
+        kind = "patient_surrogate_identification_v1"
+        return ExportedArtifact(
+            bytes(data),
+            kind,
+            ArtifactExpectation(
+                kind, {"expected_program": self.program_identity, "expected_result": identity}
+            ),
+        )
 
 
 @outcome_operation
@@ -247,6 +262,11 @@ def compile_patient_surrogate(
 
 
 @outcome_operation
+@artifact_consumer(
+    proof="Recompile the retained design and joint patient evidence and recompute both exact bounds.",
+    identity=("expected_program", "expected_result"),
+    replayable=True,
+)
 def consume_patient_surrogate(
     artifact: bytes,
     *,

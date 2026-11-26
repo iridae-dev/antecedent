@@ -47,6 +47,13 @@ def test_patient_surrogate_replays_bounds_and_threshold_in_a_fresh_process() -> 
     with pytest.raises(PatientSurrogateRefusal, match="does not identify one point"):
         require_success(result.point())
 
+    from antecedent import load
+
+    artifact = plan.export()
+    assert artifact.expectation is not None
+    reopened = require_success(load(artifact, expected=artifact.expectation))
+    assert reopened.exact_bounds == result.exact_bounds
+    assert reopened.identity == result.identity
     small_program = """
 import json
 import sys
@@ -65,7 +72,7 @@ print(json.dumps([decision.identity, bundle.value("surrogate", "lower"), decisio
 """
     completed = subprocess.run(
         [sys.executable, "-c", small_program, plan.program_identity, result.identity],
-        input=require_success(plan.export()), capture_output=True, check=True, timeout=30,
+        input=bytes(artifact), capture_output=True, check=True, timeout=30,
     )
     decision = require_success(result.decide(2, 3))
     assert json.loads(completed.stdout) == [decision.identity, 2 / 3, "all_at_or_above"]
