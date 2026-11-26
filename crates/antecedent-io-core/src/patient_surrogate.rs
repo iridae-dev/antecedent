@@ -3,8 +3,9 @@
 
 use std::collections::BTreeSet;
 
+use antecedent_contract::bridge::IdentifiedSetSource;
 use antecedent_contract::{QuantityCondition, QuantityRole, ScientificQuantity};
-use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
+use antecedent_core::{CanonicalWriter, ExecutionContext, IdentifiedSet, SemanticDigest};
 use antecedent_identify::principal_surrogate::monotone_principal_surrogate_bounds;
 pub use antecedent_identify::principal_surrogate::{
     PrincipalSurrogateBounds, PrincipalSurrogateError,
@@ -213,6 +214,20 @@ impl PatientSurrogateResult {
     #[must_use]
     pub const fn quantity(&self) -> &ScientificQuantity {
         &self.quantity
+    }
+
+    /// Use this result directly as the source of a fixed identified-set image.
+    ///
+    /// # Errors
+    /// An empirical plug-in has no population identification authority.
+    pub fn identified_set_source(&self) -> Result<IdentifiedSetSource, PatientSurrogateError> {
+        self.require_population()?;
+        let [lower, upper] = self.bounds.endpoints();
+        Ok(IdentifiedSetSource {
+            quantity: self.quantity.clone(),
+            set: IdentifiedSet { lower, upper },
+            claim_identity: self.identity,
+        })
     }
 
     /// Return the exact single value when the retained population set degenerates.

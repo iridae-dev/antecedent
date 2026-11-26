@@ -72,6 +72,8 @@ pub enum ContractOperation {
     /// Predict from a fitted artifact on the rows the consumer supplies.
     /// Implies no other operation.
     Predict,
+    /// A set of causal values compatible with the identifying evidence.
+    IdentifiedSet,
 }
 
 named_variants! {
@@ -86,6 +88,7 @@ named_variants! {
         Posterior => "posterior",
         Fit => "fit",
         Predict => "predict",
+        IdentifiedSet => "identified_set",
     }
 }
 
@@ -104,13 +107,14 @@ impl ContractOperation {
             Self::Posterior => 8,
             Self::Fit => 9,
             Self::Predict => 10,
+            Self::IdentifiedSet => 11,
         }
     }
 
     /// Whether the operation carries uncertainty whose meaning must be stated.
     #[must_use]
     pub const fn carries_uncertainty(self) -> bool {
-        !matches!(self, Self::Point | Self::Mean | Self::Fit | Self::Predict)
+        !matches!(self, Self::Point | Self::Mean | Self::Fit | Self::Predict | Self::IdentifiedSet)
     }
 
     /// The contract operation a provider capability discloses, when it

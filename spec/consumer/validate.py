@@ -951,6 +951,7 @@ KIND_STAGE = {
     "distribution": "distribution_artifact",
     "integrated_schedule_evidence": "evidence",
     "integrated_schedule_decision": "claim",
+    "longitudinal_regime_result": "distribution_artifact",
     "delayed_entry_incidence_result": "distribution_artifact",
     "delayed_entry_survival_band_result": "distribution_artifact",
     "patient_surrogate_identification": "distribution_artifact",

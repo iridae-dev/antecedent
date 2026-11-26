@@ -99,6 +99,9 @@ fn operation_remedy(operation: ContractOperation) -> &'static str {
         ContractOperation::Interval => {
             "supply a producer that offers an interval of the meaning the consumer states, with measured calibration where its coverage is relied on"
         }
+        ContractOperation::IdentifiedSet => {
+            "supply the identified values and their identifying evidence"
+        }
         ContractOperation::Posterior => {
             "a posterior needs a producer in the posterior paradigm; an interval or draws of another paradigm are not a posterior"
         }
