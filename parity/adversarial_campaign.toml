@@ -1545,8 +1545,8 @@ caught_by = ["identity_sites.graph_identity_binds_labels", "identity_sites.graph
 [[mutations]]
 id = "graph_identity_keeps_dense_order"
 file = "crates/antecedent-io-core/src/identity/graph.rs"
-old = "        sort_by_order(&mut order, before);"
-new = "        let _ = &before;"
+old = "    sort_by_order(order, |a, b| labels[a].cmp(&labels[b]).then(a.cmp(&b)).is_lt());"
+new = "    let _ = labels;"
 caught_by = ["identity_sites.graph_dense_order_keeps_identity", "identity_sites.graph_exhaustive_three_nodes_dag", "identity_sites.dag_dense_order_bound"]
 
 [[mutations]]
@@ -2557,8 +2557,10 @@ caught_by = ["identity_sites.facade.lowering.transported_component_framing"]
 [[mutations]]
 id = "planner_cyclic_family_name_dropped"
 file = "crates/antecedent/src/planner/lowered.rs"
-old = "writer.text(cell.as_str()).text(self.family).text(depth.as_str());"
-new = "writer.text(cell.as_str()).text(depth.as_str());"
+old = """
+                .text(ProgramCell::CyclicFamily(family).as_str())
+                .text(family)"""
+new = "                .text(ProgramCell::CyclicFamily(family).as_str())"
 caught_by = ["identity_sites.facade.planner.builder_cells"]
 
 [[mutations]]
@@ -2572,18 +2574,15 @@ caught_by = ["identity_sites.facade.planner.query_variable_order"]
 id = "planner_retained_caches_sorted"
 file = "crates/antecedent/src/planner/lowered.rs"
 old = """
-                for cache in &*retained.caches {
-                    writer.text(cache.kind());
-                }
-"""
+            for cache in caches.iter() {
+                writer.text(cache.kind());
+            }"""
 new = """
-                let mut kinds: Vec<&str> =
-                    retained.caches.iter().map(IdentificationCache::kind).collect();
-                kinds.sort_unstable();
-                for kind in kinds {
-                    writer.text(kind);
-                }
-"""
+            let mut kinds: Vec<_> = caches.iter().map(IdentificationCache::kind).collect();
+            kinds.sort_unstable();
+            for kind in kinds {
+                writer.text(kind);
+            }"""
 caught_by = ["identity_sites.facade.planner.retained_cache_order"]
 
 [[mutations]]
