@@ -6,9 +6,16 @@ import json
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from . import _native
-from ._artifact_protocol import container_bytes
+from ._artifact_protocol import (
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    container_bytes,
+)
 from ._coerce import coerce_data
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._validate import count
 from .accepted_graph import AcceptedGraph
 from .errors import CausalValueError, StructuredRefusal
@@ -33,7 +40,7 @@ def _checked(pair: tuple[T | None, str | None]) -> T:
     return result
 
 
-class LearnedRpcmciArtifact:
+class LearnedRpcmciArtifact(ScientificResult):
     """The original data-driven labels, graphs and stability report as replayable evidence."""
 
     def __init__(self, handle: _native.LearnedRpcmciHandle) -> None:
@@ -53,9 +60,13 @@ class LearnedRpcmciArtifact:
         """Read the regular causal compiler plan reconstructed from the source."""
         return dict(json.loads(self._handle.plan_view_json()))
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[LearnedRpcmciArtifact]:
         """Serialize the native configuration, raw series and verified report."""
-        return self._handle.export()
+        kind = "learned_rpcmci_v1"
+        return ExportedArtifact(
+            self._handle.export(), kind, ArtifactExpectation(kind, self.identity)
+        )
 
     @outcome_operation
     def accept_regime(self, regime: int) -> AcceptedGraph:
@@ -97,6 +108,11 @@ def _run(config: RPCMCI, data: Any, execution: Execution | None) -> LearnedRpcmc
 
 
 @outcome_operation
+@artifact_consumer(
+    proof="Recompile the raw time series and rerun the seeded regime search to recover the assignments, graphs and stability report.",
+    replayable=True,
+    input="data",
+)
 def consume_learned_rpcmci(
     data: Any,
     *,

@@ -115,7 +115,13 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     verified = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
     assert verified.all_replayed
     path = tmp_path / "learned-rpcmci.bin"
-    path.write_bytes(fit.export())
+    from antecedent import load
+
+    artifact = fit.export()
+    assert artifact.expectation is not None
+    restored = require_success(load(artifact, expected=artifact.expectation))
+    assert restored.identity == fit.identity
+    path.write_bytes(bytes(artifact))
     fresh = subprocess.run(
         [
             sys.executable, "-c",
