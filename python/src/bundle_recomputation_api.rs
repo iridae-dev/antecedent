@@ -10,7 +10,7 @@
 
 use antecedent::analysis::cohort_decision::{CohortDecisionSource, CohortExpectation};
 use antecedent::analysis::composition::{
-    BundleBuilder, BundleError, BundleLimits, ChainBundleRecomputationReceipt,
+    BundleBuilder, BundleError, ChainBundleRecomputationReceipt,
     ChainBundleRecomputeError, CompiledChainBundleRecomputation,
     CompiledPredictiveFitDecisionBundle, CompositionBundle, NodeKind, NodeSource,
     PredictiveFitDecisionBundleError, PredictiveFitDecisionBundleReceipt, ReplayedBundleDependency,
