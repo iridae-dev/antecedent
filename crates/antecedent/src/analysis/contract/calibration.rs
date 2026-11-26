@@ -391,8 +391,7 @@ impl StudyResult {
                                 curve.bootstrap_replicates_requested,
                                 curve.bootstrap_replicates_ok,
                                 counts,
-                            )
-                        }
+                            ),
                         _ => None,
                     }
                 });

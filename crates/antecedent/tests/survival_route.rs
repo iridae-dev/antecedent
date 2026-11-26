@@ -787,7 +787,7 @@ fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
             // The 40 late entrants per arm are outside the first risk set.
             // At time 2 they are the only failures and are all the competing
             // cause for the incidence functional.
-            let horizon = |first_failures, survivors| {
+            let horizon = |first_failures: f64, survivors: f64| {
                 let [failure_weight, survivor_weight] =
                     if fixed_known { [2.0, 1.25] } else { [1.0, 1.0] };
                 let first = failure_weight * first_failures;
