@@ -75,6 +75,7 @@ def joint_cells_learner_fit(
     min_cell_ess: float = 10.0,
     normalization_tolerance: float = 1e-9,
     ordering_tolerance_sd: float = 0.05,
+    contrasts: Sequence[str] | None = None,
     cancel: CancellationToken | None = None,
     memory_limit_bytes: int | None = None,
 ) -> tuple[str, list[tuple[int, Any, Any]]]: ...

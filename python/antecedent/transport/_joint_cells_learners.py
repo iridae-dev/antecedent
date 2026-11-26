@@ -18,7 +18,17 @@ from typing import Any
 
 from .. import _native
 from .._data import ingest_columns
-from ..derived import CellRefusal, DerivedTreatment, JointCell
+from ..derived import (
+    CellRefusal,
+    ContrastValue,
+    DerivedTreatment,
+    DerivedTreatmentPlan,
+    JointCell,
+    NormalizationCheck,
+    OrderingSensitivity,
+    OrderingSpread,
+    _plan,
+)
 from ..errors import CausalTypeError, CausalValueError
 from ..execution import Execution, native_controls, resolve_execution
 from ..external_learners import (
@@ -51,10 +61,13 @@ def _cell(raw: Mapping[str, Any]) -> JointCell:
 class JointCellsLearnersEstimate:
     """The joint cells fitted with the caller's learners, from its compiled program.
 
-    ``cells`` are the family under the declared ordering. ``external_nuisances_unverified`` is
-    always true. ``route`` is ``JointCellsLearnerFit``, ``program_identity`` the lowered program
-    identity, ``claim`` is ``point_only`` and ``calibration`` ``not_measured``. ``receipts``
-    holds one ``(fit id, fit receipt)`` per provider fit.
+    ``cells`` are the family under the declared ordering. ``contrasts`` are the family
+    contrasts requested at the fit (empty when none were asked).     ``normalization``, ``sensitivity``, ``degenerate_conditionals`` and ``plan`` are the
+    same records as :class:`~antecedent.derived.JointCellsResult`.
+    ``external_nuisances_unverified`` is always true. ``route`` is ``JointCellsLearnerFit``,
+    ``program_identity`` the lowered program identity, ``claim`` is ``point_only`` and
+    ``calibration`` ``not_measured``. ``receipts`` holds one ``(fit id, fit receipt)`` per
+    provider fit.
     """
 
     treatments: tuple[str, ...]
@@ -67,6 +80,11 @@ class JointCellsLearnersEstimate:
     claim: str
     calibration: str
     provenance: str
+    contrasts: tuple[ContrastValue, ...]
+    normalization: tuple[NormalizationCheck, ...]
+    sensitivity: OrderingSensitivity
+    degenerate_conditionals: int
+    plan: DerivedTreatmentPlan
     receipts: tuple[tuple[int, Any], ...] = field(repr=False, compare=False)
 
     @property
@@ -95,6 +113,7 @@ def analyze_joint_cells(
     min_cell_ess: float = 10.0,
     normalization_tolerance: float = 1e-9,
     ordering_tolerance_sd: float = 0.05,
+    contrasts: Sequence[str] = (),
     execution: Execution | None = None,
 ) -> JointCellsLearnersEstimate:
     """Fit the joint cells of a declared joint-cell treatment with the caller's learners.
@@ -105,15 +124,23 @@ def analyze_joint_cells(
     predict needs live process state is refused with ``dose_response.learner_not_portable``.
     ``ordering`` lists the construction columns in the declared factorization order (default:
     the declared source order); ``all_orderings`` re-estimates the family under every
-    permutation. The learners' names, specifications and configurations enter the program
-    identity.
+    permutation. ``contrasts`` may hold ``"interaction"`` (two components, every cell
+    supported) and ``"cell_minus_control:<cell>"``; a contrast that needs an unsupported cell
+    comes back with its refusal code rather than a value. The learners' names, specifications
+    and configurations enter the program identity. A contrast does not.
     """
     if not isinstance(declaration, DerivedTreatment):
         raise CausalTypeError("declaration must be a DerivedTreatment")
     if not isinstance(learners, Learners):
         raise CausalTypeError("learners must be a Learners declaration")
-    if isinstance(adjustment, str) or (ordering is not None and isinstance(ordering, str)):
-        raise CausalTypeError("adjustment and ordering must be sequences of names, not a string")
+    if (
+        isinstance(adjustment, str)
+        or isinstance(contrasts, str)
+        or (ordering is not None and isinstance(ordering, str))
+    ):
+        raise CausalTypeError(
+            "adjustment, contrasts and ordering must be sequences of names, not a string"
+        )
     if isinstance(folds, bool) or not isinstance(folds, int):
         raise CausalTypeError("folds must be an integer")
     declare_portable_route("joint_cells", learners)
@@ -146,12 +173,19 @@ def analyze_joint_cells(
         min_cell_ess=min_cell_ess,
         normalization_tolerance=normalization_tolerance,
         ordering_tolerance_sd=ordering_tolerance_sd,
+        contrasts=list(contrasts),
         **native_controls(policy, seed="seed", cancel="cancel", memory="memory_limit_bytes"),
     )
     raw = json.loads(payload)
     fit = raw["fit"]
+    treatments = tuple(fit["treatments"])
+
+    def named(ordering: Sequence[int]) -> tuple[str, ...]:
+        return tuple(treatments[index] for index in ordering)
+
+    sensitivity = fit["sensitivity"]
     return JointCellsLearnersEstimate(
-        treatments=tuple(fit["treatments"]),
+        treatments=treatments,
         n_rows=int(fit["n_rows"]),
         folds=int(fit["folds"]),
         cells=tuple(_cell(cell) for cell in fit["cells"]),
@@ -161,6 +195,40 @@ def analyze_joint_cells(
         claim=str(raw["claim"]),
         calibration=str(raw["calibration"]),
         provenance=str(fit["provenance"]),
+        contrasts=tuple(
+            ContrastValue(
+                name=item["name"],
+                value=item["value"],
+                refusal_code=item.get("code"),
+                message=item.get("message"),
+            )
+            for item in fit["contrasts"]
+        ),
+        normalization=tuple(
+            NormalizationCheck(
+                ordering=named(item["ordering"]),
+                cells_enumerated=item["cells_enumerated"],
+                max_abs_error=item["max_abs_error"],
+                max_row_sum=item["max_row_sum"],
+            )
+            for item in fit["normalization"]
+        ),
+        sensitivity=OrderingSensitivity(
+            orderings=tuple(named(ordering) for ordering in sensitivity["orderings"]),
+            tolerance=sensitivity["tolerance"],
+            cells=tuple(
+                OrderingSpread(
+                    cell=item["cell"],
+                    estimates=tuple(item["estimates"]),
+                    spread=item["spread"],
+                    flagged=item["flagged"],
+                )
+                for item in sensitivity["cells"]
+            ),
+            disagreement=sensitivity["disagreement"],
+        ),
+        degenerate_conditionals=int(fit["degenerate_conditionals"]),
+        plan=_plan(fit["plan"]),
         receipts=tuple((int(fit_id), receipt) for fit_id, receipt, _ in receipts),
     )
 

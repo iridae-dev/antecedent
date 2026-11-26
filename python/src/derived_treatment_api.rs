@@ -60,7 +60,7 @@ fn derived_treatment_check_json(
     })
 }
 
-fn parse_contrast(text: &str) -> PyResult<JointContrast> {
+pub(crate) fn parse_contrast(text: &str) -> PyResult<JointContrast> {
     if text == "interaction" {
         return Ok(JointContrast::Interaction);
     }
@@ -166,11 +166,10 @@ fn factorized_joint_cells_json(
         None => DEFAULT_RIDGE_GRID.to_vec(),
     };
     let tuning = RidgeTuning::new(&grid, inner_folds).map_err(estimation_err)?;
-    let requested = contrasts
-        .unwrap_or_default()
-        .iter()
-        .map(|text| parse_contrast(text).map(|c| (text.clone(), c)))
-        .collect::<PyResult<Vec<_>>>()?;
+    let requested = contrasts.unwrap_or_default();
+    for text in &requested {
+        parse_contrast(text)?;
+    }
     let components: Vec<&str> = declaration
         .sources
         .iter()
@@ -213,17 +212,7 @@ fn factorized_joint_cells_json(
             &ctx,
         )
         .map_err(py_err)?;
-        let mut contrast_values = Vec::with_capacity(requested.len());
-        for (name, contrast) in &requested {
-            contrast_values.push(match fit.contrast_point(*contrast) {
-                Ok(value) => json!({"name": name, "value": value}),
-                Err(EstimationError::Refused { code, message }) => {
-                    json!({"name": name, "value": null, "code": code, "message": message})
-                }
-                Err(other) => return Err(estimation_err(other)),
-            });
-        }
-        let mut value = fit_value(&fit, contrast_values);
+        let mut value = joint_fit_json(&fit, &requested)?;
         value["plan"] = serde_json::to_value(&plan).map_err(|e| value_err(e.to_string()))?;
         value["treatments"] = json!(plan.treatment_columns);
         json_text(&value)
@@ -286,6 +275,7 @@ pub(crate) struct JointCallerParts {
     pub orderings: Vec<Vec<usize>>,
     pub config: FactorizedJointConfig,
     pub treatment_names: Vec<String>,
+    pub plan: Value,
 }
 
 /// Check the declaration and bind the columns, orderings and configuration.
@@ -347,6 +337,8 @@ pub(crate) fn prepare_joint_caller(
     config.min_cell_ess = min_cell_ess;
     config.normalization_tolerance = normalization_tolerance;
     config.ordering_tolerance_sd = ordering_tolerance_sd;
+    let treatment_names = plan.treatment_columns.clone();
+    let plan = serde_json::to_value(&plan).map_err(|error| value_err(error.to_string()))?;
     Ok(JointCallerParts {
         data,
         treatments,
@@ -354,13 +346,35 @@ pub(crate) fn prepare_joint_caller(
         adjustment,
         orderings,
         config,
-        treatment_names: plan.treatment_columns,
+        treatment_names,
+        plan,
     })
 }
 
-/// The cell family as the JSON `factorized_joint_cells_json` returns, without contrasts.
-pub(crate) fn joint_fit_json(fit: &FactorizedJointFit) -> Value {
-    fit_value(fit, Vec::new())
+/// Family contrasts in the JSON shape `factorized_joint_cells_json` returns.
+///
+/// A contrast that needs an unsupported cell is a refusal on that contrast, not a failed fit.
+pub(crate) fn contrast_values(
+    fit: &FactorizedJointFit,
+    contrasts: &[String],
+) -> PyResult<Vec<Value>> {
+    let mut values = Vec::with_capacity(contrasts.len());
+    for name in contrasts {
+        let contrast = parse_contrast(name)?;
+        values.push(match fit.contrast_point(contrast) {
+            Ok(value) => json!({"name": name, "value": value}),
+            Err(EstimationError::Refused { code, message }) => {
+                json!({"name": name, "value": null, "code": code, "message": message})
+            }
+            Err(other) => return Err(estimation_err(other)),
+        });
+    }
+    Ok(values)
+}
+
+/// The cell family as the JSON `factorized_joint_cells_json` returns, including contrasts.
+pub(crate) fn joint_fit_json(fit: &FactorizedJointFit, contrasts: &[String]) -> PyResult<Value> {
+    Ok(fit_value(fit, contrast_values(fit, contrasts)?))
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

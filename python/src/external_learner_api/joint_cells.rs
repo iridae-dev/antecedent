@@ -22,7 +22,8 @@ use super::{callback_context, smoothed_dose::portable_factories, PythonReceipt};
 #[pyo3(signature = (
     names, columns, declaration, outcome, adjustment, outcome_learner, treatment, *,
     identity, ordering=None, all_orderings=true, folds=5, seed=1, clip=0.01, min_cell_ess=10.0,
-    normalization_tolerance=1e-9, ordering_tolerance_sd=0.05, cancel=None, memory_limit_bytes=None
+    normalization_tolerance=1e-9, ordering_tolerance_sd=0.05, contrasts=None, cancel=None,
+    memory_limit_bytes=None
 ))]
 #[allow(
     clippy::too_many_arguments,
@@ -46,9 +47,14 @@ pub(super) fn joint_cells_learner_fit(
     min_cell_ess: f64,
     normalization_tolerance: f64,
     ordering_tolerance_sd: f64,
+    contrasts: Option<Vec<String>>,
     cancel: Option<crate::PyCancellationToken>,
     memory_limit_bytes: Option<u64>,
 ) -> PyResult<(String, Vec<PythonReceipt>)> {
+    let contrasts = contrasts.unwrap_or_default();
+    for text in &contrasts {
+        crate::derived_treatment_api::parse_contrast(text)?;
+    }
     let (learners, state) = portable_factories(py, outcome_learner, treatment, identity)?;
     let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
     let parts = crate::derived_treatment_api::prepare_joint_caller(
@@ -68,6 +74,7 @@ pub(super) fn joint_cells_learner_fit(
         &ctx,
     )?;
     let treatment_names = parts.treatment_names.clone();
+    let plan = parts.plan.clone();
     let result = py.detach(|| {
         let compiled = Study::compile_joint_cells_learners(JointCellsLearnersRequest::new(
             parts.data,
@@ -80,8 +87,9 @@ pub(super) fn joint_cells_learner_fit(
         ))
         .map_err(crate::transport_common::error)?;
         let run = compiled.execute(&ctx).map_err(crate::transport_common::error)?;
-        let mut fit = crate::derived_treatment_api::joint_fit_json(&run.fit);
+        let mut fit = crate::derived_treatment_api::joint_fit_json(&run.fit, &contrasts)?;
         fit["treatments"] = json!(treatment_names);
+        fit["plan"] = plan;
         fit["external_nuisances_unverified"] = json!(run.fit.external_nuisances_unverified);
         Ok(serde_json::json!({
             "fit": fit,

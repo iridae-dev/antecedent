@@ -35,6 +35,7 @@ def test_caller_learners_recover_the_known_cell_means():
         learners=_learners(),
         all_orderings=False,
         folds=2,
+        contrasts=["interaction"],
         execution=ac.Execution(seed=7),
     )
     assert result.route == "JointCellsLearnerFit"
@@ -47,6 +48,22 @@ def test_caller_learners_recover_the_known_cell_means():
     assert result.receipts
     for cell in result.cells:
         assert cell.estimate == pytest.approx(truth(cell.cell), abs=0.05)
+    (interaction,) = result.contrasts
+    by_hand = (
+        result.cells[0].estimate
+        - result.cells[1].estimate
+        - result.cells[2].estimate
+        + result.cells[3].estimate
+    )
+    assert interaction.name == "interaction"
+    assert interaction.value == pytest.approx(by_hand, abs=1e-9)
+    assert interaction.value == pytest.approx(1.0, abs=0.2)
+    assert result.normalization
+    assert result.sensitivity.orderings == (("t0", "t1"),)
+    assert not result.sensitivity.disagreement
+    assert result.degenerate_conditionals >= 0
+    assert result.plan.adjustment_basis == "declared"
+    assert result.plan.treatment_columns == ("t0", "t1")
     again = advanced.analyze_joint_cells(
         draw(4000, 1, [[0.4, 0.2, 0.2, 0.2], [0.1, 0.3, 0.2, 0.4]]),
         declaration(),
