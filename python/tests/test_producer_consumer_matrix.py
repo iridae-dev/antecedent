@@ -40,8 +40,8 @@ the standard error is not carried.
 from __future__ import annotations
 
 import hashlib
-import sys
 import json
+import sys
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -3983,10 +3983,15 @@ def test_producer_consumer_matrix_every_boundary_rejects_neighbours_with_typed_e
 def test_producer_consumer_matrix_invalid_export_signatures_are_typed_but_callback_errors_propagate(
     objs: Objs,
 ) -> None:
-    # The fitted export's no-argument callback is outside the bundle exporter
-    # protocol. Refuse before invoking it rather than leaking a binding TypeError.
-    with pytest.raises(cb.UnknownNodeKindRefusal):
-        cb.Bundle.builder().add_artifact("auto", objs.compact)
+    direct = cb.Bundle.builder().add_artifact(objs.compact)
+    assert direct.last_node_id.startswith("compact_fitted_effect_model:")
+
+    class UnselectedExporter:
+        def export(self, *, selector: str) -> bytes:
+            pytest.fail("bundle called an exporter that requires an explicit selector")
+
+    with pytest.raises(CausalTypeError, match="requires explicit query or record arguments"):
+        cb.Bundle.builder().add_artifact(UnselectedExporter())
 
     class BrokenExporter:
         def export(self, *, artifact_id: str) -> bytes:
