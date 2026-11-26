@@ -8,6 +8,10 @@ use super::{
     ReplayTolerance, SAMPLING_WEIGHTED_DID_UNCERTAINTY, graphless_admits, graphless_status_ok,
     interval_bound_replay,
 };
+use crate::graphless_support::{
+    GraphlessResampleSupport, INCIDENCE_MIN_EVENT_RISK_SET, graphless_admits_resampled,
+    survival_pointwise_key,
+};
 
 /// Uncertainty label of the augmented panel's unsupported whole-cluster resample interval.
 const AUGMENTED_RESAMPLE_UNCERTAINTY: &str =
@@ -418,43 +422,36 @@ fn survival_support(
     pointwise_bootstrap: bool,
     band_valid: bool,
 ) -> (bool, bool) {
-    // The paired RMST + horizon survival scalar route is fixed by the
-    // query's entry and censoring facets. Delayed entry, fixed-known-G IPCW,
-    // and the combined route each have a distinct (design, method) supported
-    // row; cumulative incidence has no RMST companion and is never supported.
-    let scalar_design = if query.delayed_entry.is_some() {
-        "delayed_entry_two_arm_individual_randomized"
-    } else {
-        "two_arm_individual_randomized"
-    };
-    let scalar_method = if query.censoring_columns.is_empty() {
-        "arm_stratified_subject_bootstrap_product_limit"
-    } else {
-        "arm_stratified_subject_bootstrap_ipcw_product_limit"
-    };
-    let scalar_supported = query.target_cause.is_none()
-        && pointwise_bootstrap
-        && curve.bootstrap_replicates_ok.is_some_and(|ok| ok >= 299)
+    let incidence = query.target_cause.is_some();
+    let ipcw = !query.censoring_columns.is_empty();
+    let scalar_key = survival_pointwise_key(query.delayed_entry.is_some(), ipcw, incidence);
+    let replicates_ok = curve.bootstrap_replicates_ok.unwrap_or(0);
+    let scalar_supported = pointwise_bootstrap
+        && replicates_ok >= 299
+        && (!incidence
+            || (curve.difference_band.is_none()
+                && curve.minimum_event_risk_set.unwrap_or(0) >= INCIDENCE_MIN_EVENT_RISK_SET))
         && curve.assignment_counts.is_some_and(|[control, treated]| {
-            graphless_admits(
-                GraphlessSupportKey {
-                    family: "survival",
-                    design: scalar_design,
-                    method: scalar_method,
-                    inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
-                },
-                GraphlessAssignmentSupport {
-                    assignment_unit: "unit",
-                    treated,
-                    control,
-                    interval_95_published: true,
-                    rows: control.saturating_add(treated),
-                    reported_intervals: 2,
-                    all_reported_intervals: true,
-                    known_density: !query.censoring_columns.is_empty(),
-                    ..GraphlessAssignmentSupport::default()
-                },
-            )
+            scalar_key.is_some_and(|key| {
+                graphless_admits_resampled(
+                    key,
+                    GraphlessAssignmentSupport {
+                        assignment_unit: "unit",
+                        treated,
+                        control,
+                        interval_95_published: true,
+                        rows: control.saturating_add(treated),
+                        reported_intervals: 1 + usize::from(curve.rmst_difference_interval.is_some()),
+                        all_reported_intervals: true,
+                        known_density: ipcw,
+                        ..GraphlessAssignmentSupport::default()
+                    },
+                    GraphlessResampleSupport {
+                        interval_resamples: replicates_ok as usize,
+                        ..GraphlessResampleSupport::default()
+                    },
+                )
+            })
         });
     // The simultaneous band is its own supported claim, carried on the band's
     // own `graphless_support_status`. It publishes only for the unweighted,
@@ -594,7 +591,11 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
             != (!query.censoring_columns.is_empty())
                 .then_some("caller_supplied_fixed_not_fitted_or_verified")
         || !(point_only || pointwise_bootstrap)
-        || !graphless_status_ok(curve.graphless_support_status.as_deref(), scalar_supported, false)
+        || !graphless_status_ok(
+            curve.graphless_support_status.as_deref(),
+            scalar_supported,
+            query.target_cause.is_some(),
+        )
         || !graphless_status_ok(
             curve
                 .difference_band

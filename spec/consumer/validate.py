@@ -949,6 +949,7 @@ KIND_STAGE = {
     "sequential_policy_reliability_fit": "distribution_artifact",
     "sequential_decision_draws": "distribution_artifact",
     "distribution": "distribution_artifact",
+    "delayed_entry_incidence_result": "distribution_artifact",
     "cohort_decision_source": "distribution_artifact",
     "frozen_scores": "distribution_artifact",
     "external_claim": "external_provider",

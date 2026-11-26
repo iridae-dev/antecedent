@@ -8,6 +8,8 @@ pub enum IntervalMethod {
     AnalyticSe,
     /// Bootstrap standard error.
     BootstrapSe,
+    /// Equal-tailed interval formed from the empirical bootstrap quantiles.
+    PercentileBootstrap,
     /// Posterior quantile interval.
     PosteriorQuantile,
     /// Per-unit posterior quantile interval: equal-tailed quantiles of one
@@ -33,9 +35,10 @@ pub enum IntervalMethod {
 
 impl IntervalMethod {
     /// Closed set of methods. A new variant fails calibration tests until listed.
-    pub const ALL: [IntervalMethod; 10] = [
+    pub const ALL: [IntervalMethod; 11] = [
         Self::AnalyticSe,
         Self::BootstrapSe,
+        Self::PercentileBootstrap,
         Self::PosteriorQuantile,
         Self::UnitPosteriorQuantile,
         Self::IdentifiedSet,
@@ -52,6 +55,7 @@ impl IntervalMethod {
         match self {
             Self::AnalyticSe => "analytic_se",
             Self::BootstrapSe => "bootstrap_se",
+            Self::PercentileBootstrap => "percentile_bootstrap",
             Self::PosteriorQuantile => "posterior_quantile",
             Self::PosteriorAbsoluteDeviation => "posterior_absolute_deviation",
             Self::UnitPosteriorQuantile => "unit_posterior_quantile",

@@ -633,10 +633,7 @@ impl AnalysisResultLoad {
             };
         };
         // The witness is read only for a contract that declares an operation to replay with it.
-        let held: Option<HeldSource> = contract
-            .program
-            .as_ref()
-            .is_some_and(|program| program.checked_dr_lowering.is_some())
+        let held: Option<HeldSource> = declares_source_replay(contract, &self.body)
             .then(|| hold_source_section(&self.artifact, &options.source.witness))
             .flatten();
         let source = held.as_ref().map(|held| held.replay(&options.source));
@@ -651,6 +648,14 @@ impl AnalysisResultLoad {
             publish_reasons(replayed).into_iter().partition(is_gap);
         ReplayReport { integrity: publish_reasons(integrity), not_replayable, mismatches }
     }
+}
+
+fn declares_source_replay(
+    contract: &AnalysisResultContractWire,
+    body: &AnalysisResultWire,
+) -> bool {
+    contract.program.as_ref().is_some_and(|program| program.checked_dr_lowering.is_some())
+        || super::survival_replay::declares_incidence_replay(contract, body)
 }
 
 /// Reasons that name a retained lowering or fit the artifact does not carry, besides every
@@ -900,9 +905,7 @@ fn consume_with_source_bounds(
     // The witness is read only for a contract that declares an operation to replay with it.
     let held: Option<HeldSource> = contract
         .as_ref()
-        .filter(|contract| {
-            contract.program.as_ref().is_some_and(|program| program.checked_dr_lowering.is_some())
-        })
+        .filter(|contract| declares_source_replay(contract, &body))
         .and_then(|_| hold_source_section(&artifact, &bounds.witness));
     let source = held.as_ref().map(|held| held.replay(bounds));
     let acceptance = accept_contract(&header, &body, contract.as_ref(), limits, source.as_ref());

@@ -12769,6 +12769,22 @@ ignored = true
 grid = true
 
 [[group]]
+label = "delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_percentile_coverage"
+package = "antecedent"
+target = "delayed_entry_incidence_calibration"
+tests = ["delayed_entry_unweighted_incidence_percentile_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "delayed_entry_incidence_calibration: delayed_entry_fixed_known_incidence_percentile_coverage"
+package = "antecedent"
+target = "delayed_entry_incidence_calibration"
+tests = ["delayed_entry_fixed_known_incidence_percentile_coverage"]
+ignored = true
+grid = true
+
+[[group]]
 label = "temporal_design_range_calibration: temporal_design_regime_survival_horizon_one_bootstrap_interval"
 package = "antecedent"
 target = "temporal_design_range_calibration"

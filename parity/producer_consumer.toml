@@ -2669,3 +2669,29 @@ status = "REFUSED"
 detail = "Marginal-only dependence, Bayes policy, missing joint structure, incompatible owner, tampered readout, insufficient admission and cancellation refuse."
 evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs"
 evidence_assertion = "joint_policy_identity_admission_and_cancellation_refusals_preserve_the_owner"
+
+[[rust_producer]]
+key = "delayed_entry_competing_incidence_interval"
+object = "a source-bearing pointwise delayed-entry target-cause cumulative incidence difference"
+built_from = "`SurvivalQuery` with a declared target cause, checked subject bootstrap, and contracted export with the original subject rows"
+
+[[rust_consumer]]
+key = "delayed_entry_incidence_bundle"
+entry = "`BundleBuilder::add_detected_artifact` and `antecedent::analysis::composition::consume`"
+note = "Replays both arms' risk sets and the scalar interval before exposing the target cause, horizon and endpoints."
+
+[[rust_cell]]
+producer = "delayed_entry_competing_incidence_interval"
+consumer = "delayed_entry_incidence_bundle"
+status = "DIRECT"
+detail = "The source-bearing competing-incidence interval and target coordinates replay under the bundle identity in the unweighted and fixed-known censoring designs."
+evidence_test = "crates/antecedent/tests/survival_route.rs"
+evidence_assertion = "supported_delayed_entry_incidence_round_trips_and_refuses_forgery"
+
+[[rust_cell]]
+producer = "delayed_entry_competing_incidence_interval"
+consumer = "delayed_entry_incidence_bundle"
+status = "REFUSED"
+detail = "Compact exports name the missing source data and changed subject rows cannot satisfy an earlier contract."
+evidence_test = "crates/antecedent/tests/survival_route.rs"
+evidence_assertion = "supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery"

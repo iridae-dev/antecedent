@@ -16,10 +16,10 @@ use antecedent_core::{
 };
 use antecedent_estimate::survival::{
     KnownCensoring, RandomizedSurvivalSummary, SurvivalBootstrapIntervals, SurvivalEndpoint,
-    SurvivalRows, randomized_survival_bootstrap_difference_band,
-    randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary,
+    SurvivalRows, randomized_survival_bootstrap_difference_band, randomized_survival_ipcw_summary,
     randomized_survival_summary,
 };
+use antecedent_stats::survival::randomized_survival_bootstrap_intervals_controlled;
 
 mod bayesian;
 
@@ -154,6 +154,8 @@ impl CheckedSurvivalOperation {
                     DiagnosticSeverity::Info,
                     if intervals.is_some() && minimum_censoring_survival.is_some() {
                         "arm-stratified subject bootstrap with caller-supplied censoring survival held fixed; scalar intervals are pointwise and do not include nuisance-model uncertainty"
+                    } else if intervals.is_some() && matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }) {
+                        "arm-stratified subject bootstrap for the target-cause cumulative-incidence difference at the declared horizon"
                     } else if intervals.is_some() {
                         "arm-stratified subject bootstrap for RMST and restriction-horizon contrasts; scalar intervals are pointwise, not curve bands"
                     } else if minimum_censoring_survival.is_some() {
@@ -187,7 +189,8 @@ impl CheckedSurvivalOperation {
             assignment_counts,
             (difference_band, band_unavailable_reason),
         ));
-        self.support_survival_intervals(&mut result, intervals.as_ref(), assignment_counts);
+        self.support_survival_intervals(&mut result, intervals.as_ref());
+        result.rebind_interval(false);
         Ok(result)
     }
 
@@ -281,7 +284,7 @@ impl CheckedSurvivalOperation {
         let bootstrap_replicates = self.extra.0;
         Ok(if bootstrap_replicates > 0 {
             Some(
-                randomized_survival_bootstrap_intervals(
+                randomized_survival_bootstrap_intervals_controlled(
                     rows,
                     censoring_grid
                         .map(|(times, probabilities, floor)| KnownCensoring {
@@ -294,8 +297,17 @@ impl CheckedSurvivalOperation {
                     endpoint,
                     bootstrap_replicates,
                     ctx.rng.master_seed(),
+                    || ctx.cancellation.is_cancelled(),
                 )
-                .map_err(|message| CausalError::Unsupported { message })?,
+                .map_err(|message| {
+                    if ctx.cancellation.is_cancelled() {
+                        CausalError::Cancelled {
+                            stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                        }
+                    } else {
+                        CausalError::Unsupported { message }
+                    }
+                })?,
             )
         } else {
             None
@@ -390,6 +402,7 @@ impl CheckedSurvivalOperation {
     ) -> crate::SurvivalEstimate {
         let (difference_band, band_unavailable_reason) = band;
         crate::SurvivalEstimate {
+            has_delayed_entry: self.query.delayed_entry.is_some(),
             times: summary.times.into(),
             control: summary.control.into(),
             treated: summary.treated.into(),
@@ -420,56 +433,48 @@ impl CheckedSurvivalOperation {
         }
     }
 
-    /// Grants the graphless scalar support when the paired RMST and horizon intervals clear their support gate.
+    /// Grants the exact pointwise claim when the reported interval(s) clear the support gate.
     fn support_survival_intervals(
         &self,
         result: &mut StudyResult,
         intervals: Option<&SurvivalBootstrapIntervals>,
-        assignment_counts: [usize; 2],
     ) {
-        // The paired RMST + horizon survival intervals carry a graphless scalar
-        // support once their own route clears its support gate. Delayed entry,
-        // fixed-known-G IPCW, and the combined route each have a distinct
-        // (design, method) key and its own known-truth coverage row; cause-specific
-        // cumulative incidence has no RMST companion and stays off-axis.
-        if matches!(self.query.functional, SurvivalFunctional::SurvivalAndRmst)
-            && intervals.is_some_and(|value| value.replicates_ok >= 299)
+        use antecedent_io::graphless_support::{
+            GraphlessResampleSupport, INCIDENCE_MIN_EVENT_RISK_SET, graphless_admits_resampled,
+            survival_pointwise_key,
+        };
+        let (Some(intervals), Some(curve)) = (intervals, result.survival()) else { return };
+        let incidence = curve.target_cause.is_some();
+        let ipcw = self.query.known_censoring.is_some();
+        let Some(key) = survival_pointwise_key(self.query.delayed_entry.is_some(), ipcw, incidence)
+        else {
+            return;
+        };
+        if intervals.replicates_ok < 299
+            || (incidence
+                && curve.minimum_event_risk_set.unwrap_or(0) < INCIDENCE_MIN_EVENT_RISK_SET)
         {
-            let delayed = self.query.delayed_entry.is_some();
-            let ipcw = self.query.known_censoring.is_some();
-            let design = if delayed {
-                "delayed_entry_two_arm_individual_randomized"
-            } else {
-                "two_arm_individual_randomized"
-            };
-            let method = if ipcw {
-                "arm_stratified_subject_bootstrap_ipcw_product_limit"
-            } else {
-                "arm_stratified_subject_bootstrap_product_limit"
-            };
-            if crate::support::support_if_graphless(
-                crate::support::GraphlessSupportKey {
-                    family: "survival",
-                    design,
-                    method,
-                    inference_claim: "rmst_and_horizon_survival_pointwise_95_percentile_intervals",
-                },
-                crate::support::GraphlessAssignmentSupport {
-                    assignment_unit: "unit",
-                    treated: assignment_counts[1],
-                    control: assignment_counts[0],
-                    rows: self.rows,
-                    interval_95_published: intervals.is_some(),
-                    reported_intervals: 2,
-                    all_reported_intervals: true,
-                    known_density: ipcw,
-                    ..Default::default()
-                },
-            )
-            .is_some()
-            {
-                result.support_status = Some(crate::support::CellStatus::Supported);
-            }
+            return;
+        }
+        if graphless_admits_resampled(
+            key,
+            crate::support::GraphlessAssignmentSupport {
+                assignment_unit: "unit",
+                treated: curve.assignment_counts[1],
+                control: curve.assignment_counts[0],
+                rows: self.rows,
+                interval_95_published: true,
+                reported_intervals: 1 + usize::from(intervals.rmst_difference.is_some()),
+                all_reported_intervals: intervals.rmst_difference.is_some() != incidence,
+                known_density: ipcw,
+                ..Default::default()
+            },
+            GraphlessResampleSupport {
+                interval_resamples: intervals.replicates_ok as usize,
+                ..Default::default()
+            },
+        ) {
+            result.support_status = Some(crate::support::CellStatus::Supported);
         }
     }
 }

@@ -1479,6 +1479,9 @@ name = "panel_did_range_calibration"
 name = "synthetic_control_range_calibration"
 
 [[test]]
+name = "delayed_entry_incidence_calibration"
+
+[[test]]
 name = "temporal_design_range_calibration"
 
 [[test]]

@@ -428,12 +428,30 @@ fn delayed_entry_subject_bootstrap_retains_interval_and_refuses_forgery() {
 
 #[test]
 fn delayed_entry_fixed_censoring_competing_risk_interval_is_retained() {
+    retained_delayed_entry_incidence(80, true, false);
+}
+
+#[test]
+fn supported_delayed_entry_incidence_round_trips_and_refuses_forgery() {
+    retained_delayed_entry_incidence(160, false, true);
+}
+
+#[test]
+fn supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery() {
+    retained_delayed_entry_incidence(200, true, true);
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "the fixture checks the same public route through execution and replay"
+)]
+fn retained_delayed_entry_incidence(arm_size: usize, fixed_known: bool, supported: bool) {
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
     let mut entry = Vec::new();
     for arm in [false, true] {
-        for i in 0..80 {
+        for i in 0..arm_size {
             let left = if i % 3 == 0 { 1.0 } else { 0.0 };
             let (exit, cause) = if left == 0.0 && i % 7 == 0 {
                 (1.0, 1.0)
@@ -454,22 +472,25 @@ fn delayed_entry_fixed_censoring_competing_risk_interval_is_retained() {
     }
     let g0 = vec![1.0; duration.len()];
     let g2 = vec![0.8; duration.len()];
-    let data = TabularData::from_f64_columns([
-        ("duration", duration.as_slice()),
-        ("event", event.as_slice()),
-        ("treatment", treatment.as_slice()),
-        ("entry", entry.as_slice()),
-        ("g0", g0.as_slice()),
-        ("g1", g0.as_slice()),
-        ("g15", g0.as_slice()),
-        ("g2", g2.as_slice()),
-        ("g3", g2.as_slice()),
-    ])
-    .unwrap();
+    let table = |duration: &[f64], event: &[f64]| {
+        TabularData::from_f64_columns([
+            ("duration", duration),
+            ("event", event),
+            ("treatment", treatment.as_slice()),
+            ("entry", entry.as_slice()),
+            ("g0", g0.as_slice()),
+            ("g1", g0.as_slice()),
+            ("g15", g0.as_slice()),
+            ("g2", g2.as_slice()),
+            ("g3", g2.as_slice()),
+        ])
+        .unwrap()
+    };
+    let data = table(&duration, &event);
     let mut q = query(SurvivalFunctional::CumulativeIncidence { target_cause: 1 });
     q.tau = 3.0;
     q.delayed_entry = Some(VariableId::from_raw(3));
-    q.known_censoring = Some(KnownCensoringSurvival {
+    q.known_censoring = fixed_known.then_some(KnownCensoringSurvival {
         times: Arc::from([0.0, 1.0, 1.5, 2.0, 3.0]),
         columns: Arc::from([
             VariableId::from_raw(4),
@@ -490,20 +511,139 @@ fn delayed_entry_fixed_censoring_competing_risk_interval_is_retained() {
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
     let curve = result.survival().unwrap();
+    if supported {
+        assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    } else {
+        assert_eq!(result.support_status(), None);
+    }
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.rmst_difference_interval.is_none());
     assert_eq!(
         curve.censoring_survival_provenance.as_deref(),
-        Some("caller_supplied_fixed_not_fitted_or_verified")
+        fixed_known.then_some("caller_supplied_fixed_not_fitted_or_verified")
     );
     assert!(curve.difference_band.is_none());
     let encoded =
         prepared.encode_contracted_result(&result, "delayed-entry-fixed-g", &ctx).unwrap();
     let (_, header, body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "delayed-entry-incidence",
+        &prepared,
+        &result,
+        &ctx,
+    );
+    let identity = antecedent_io::RetainedArtifactIdentity::of_bytes(&encoded);
+    let replayed = antecedent_io::replay_analysis_result_expecting(&encoded, &identity).unwrap();
+    assert!(
+        replayed.acceptance.unresolved.iter().any(|reason| {
+            reason.as_ref() == "dependencies.checked_survival_incidence_operation"
+        })
+    );
+    let replayed_curve = replayed.body.survival.as_ref().unwrap();
+    assert_eq!(replayed_curve.target_cause, Some(1));
+    assert_eq!(replayed_curve.tau, 3.0);
+    assert_eq!(
+        replayed_curve.graphless_support_status.as_deref(),
+        supported.then_some("supported")
+    );
+    let replayed_contract = replayed.contract.as_ref().unwrap();
+    let basis = replayed_contract.claim.as_ref().unwrap().calibration.basis.as_ref().unwrap();
+    assert_eq!(basis.key.query, "Survival");
+    assert_eq!(basis.key.interval_method, "percentile_bootstrap");
+    assert_eq!(basis.scope.replicates_ok, Some(299));
+    assert!(basis.key.functional.contains(if fixed_known {
+        "censoring=fixed_known"
+    } else {
+        "censoring=unweighted"
+    }));
+    if supported {
+        let with_source = prepared
+            .encode_contracted_result_with_source(&result, &data, "incidence-with-subjects", &ctx)
+            .unwrap();
+        let consumed = antecedent_io::load_analysis_result(&with_source).unwrap();
+        assert!(consumed.replay(&antecedent_io::ReplayOptions::default()).replayed());
+        use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+        let mut builder = BundleBuilder::new();
+        assert!(builder.add_detected_artifact(Some("compact"), &encoded).is_err());
+        builder.add_detected_artifact(Some("incidence"), &with_source).unwrap();
+        let bundle = builder.build().unwrap();
+        let bundle_bytes = composition::export_bundle(&bundle, "delayed-incidence-bundle").unwrap();
+        let bundled =
+            composition::consume(&bundle_bytes, bundle.identity(), &SuppliedSources::default())
+                .unwrap();
+        assert_eq!(bundled.value("incidence", "horizon"), Some(3.0));
+        assert_eq!(
+            bundled.value("incidence", "lower_95"),
+            curve.difference_at_tau_interval.map(|limits| limits[0]),
+        );
+        let mut bounded = antecedent_io::ReplayOptions::default();
+        bounded.limits.max_operations = 0;
+        assert!(
+            consumed
+                .replay(&bounded)
+                .mismatches
+                .iter()
+                .any(|reason| { reason.as_ref() == "survival_incidence_replay.resource" })
+        );
+        duration[1] = 2.0;
+        event[1] = 1.0;
+        let revised_data = table(&duration, &event);
+        assert!(
+            prepared
+                .encode_contracted_result_with_source(
+                    &result,
+                    &revised_data,
+                    "swapped-subjects",
+                    &ctx
+                )
+                .is_err()
+        );
+        let revised = prepared.rebind_data(revised_data.clone(), &ctx).unwrap();
+        let revised_result = revised.estimate(&revised_data, &ctx).unwrap();
+        let revised_bytes = revised
+            .encode_contracted_result(&revised_result, "revised-delayed-entry-incidence", &ctx)
+            .unwrap();
+        assert!(
+            antecedent_io::replay_analysis_result_expecting(&revised_bytes, &identity).is_err()
+        );
+        let revised_replay = antecedent_io::replay_analysis_result(&revised_bytes).unwrap();
+        assert_ne!(revised_replay.body.survival.unwrap().control, replayed_curve.control);
+        assert_ne!(
+            revised_replay.contract.unwrap().identities.data_snapshot,
+            replayed_contract.identities.data_snapshot,
+        );
+    }
     assert_eq!(
         body.survival.as_ref().unwrap().difference_at_tau_interval,
         curve.difference_at_tau_interval
     );
+    for (cause, tau) in [(2, 3.0), (1, 2.0)] {
+        let mut forged = body.clone();
+        let curve = forged.survival.as_mut().unwrap();
+        curve.target_cause = Some(cause);
+        curve.tau = tau;
+        assert!(
+            antecedent_io::encode_analysis_result_artifact(
+                &forged,
+                header.variable_names.clone(),
+                "forged-incidence-target",
+            )
+            .is_err()
+        );
+    }
+    if fixed_known {
+        let mut forged = body.clone();
+        forged.survival.as_mut().unwrap().censoring_survival_provenance =
+            Some("fitted_censoring_model".into());
+        assert!(
+            antecedent_io::encode_analysis_result_artifact(
+                &forged,
+                header.variable_names.clone(),
+                "forged-fitted-censoring",
+            )
+            .is_err()
+        );
+    }
     let mut forged = body.clone();
     if let antecedent_io::CausalQueryWire::Survival(ref mut wire) = forged.query {
         wire.independent_given.push(VariableId::from_raw(2).raw());
@@ -1036,7 +1176,7 @@ fn supported_competing_incidence_band_round_trips_and_refuses_forgery() {
         &result,
         &ctx,
     );
-    // Cumulative incidence never carries the scalar RMST+horizon support.
+    // The no-entry design only has a band row for competing incidence.
     assert!(result.support_status().is_none());
     let curve = result.survival().unwrap();
     assert!(curve.rmst_difference_interval.is_none());
@@ -1058,6 +1198,16 @@ fn supported_competing_incidence_band_round_trips_and_refuses_forgery() {
             .as_deref(),
         Some("supported")
     );
+    let mut forged_scalar = body.clone();
+    forged_scalar.survival.as_mut().unwrap().graphless_support_status = Some("supported".into());
+    assert!(
+        antecedent_io::encode_analysis_result_artifact(
+            &forged_scalar,
+            header.variable_names.clone(),
+            "forged-incidence-band-as-pointwise",
+        )
+        .is_err()
+    );
     let mut forged = body;
     forged.survival.as_mut().unwrap().difference_band.as_mut().unwrap().graphless_support_status =
         None;
@@ -1073,28 +1223,23 @@ fn supported_competing_incidence_band_round_trips_and_refuses_forgery() {
 
 #[test]
 fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_support() {
-    // Cause-specific cumulative incidence has a single scalar and no RMST
-    // companion, so the RMST-shaped graphless survival evidence gate cannot
-    // certify it. The estimator still publishes the calibrated interval, but it
-    // stays off the graphless axis. Delayed entry suppresses the band so the
-    // scalar decision is isolated.
+    // Large arms can have a thin risk set at an early failure time after delayed entry.
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
     let mut entry = Vec::new();
     for arm in [false, true] {
         for i in 0..170 {
-            let left = if i % 4 == 0 { 1.0 } else { 0.0 };
-            let (mut exit, cause) = if i % (if arm { 5 } else { 3 }) == 0 {
+            let left = if i < 15 { 0.0 } else { 1.0 };
+            let (exit, cause) = if i < 4 {
+                (1.0, 1.0)
+            } else if i % (if arm { 5 } else { 3 }) == 0 {
                 (2.0, 1.0)
             } else if i % 7 == 0 {
                 (2.0, 2.0)
             } else {
                 (3.0, 0.0)
             };
-            if left >= exit {
-                exit = 3.0;
-            }
             duration.push(exit);
             event.push(if exit < 3.0 { cause } else { 0.0 });
             treatment.push(f64::from(arm));
@@ -1125,6 +1270,7 @@ fn competing_incidence_scalar_interval_is_off_axis_and_refuses_forged_support() 
     assert!(curve.difference_at_tau_interval.is_some());
     assert!(curve.rmst_difference_interval.is_none());
     assert!(curve.difference_band.is_none());
+    assert_eq!(curve.minimum_event_risk_set, Some(15));
     let encoded = prepared.encode_contracted_result(&result, "incidence-off-axis", &ctx).unwrap();
     let (_, header, mut body) = antecedent_io::decode_analysis_result_artifact(&encoded).unwrap();
     assert_eq!(body.survival.as_ref().unwrap().graphless_support_status, None);

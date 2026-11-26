@@ -331,6 +331,121 @@ fn delayed_entry_fixed_known_censoring_scalar_intervals_match_the_exact_weighted
     late_entry_scenario(true);
 }
 
+/// Enumerate the four-category arm laws, conditioned on exactly the two scientific support
+/// conditions the bootstrap can lose in this fixture: follow-up to tau in each arm and
+/// observing both competing causes across the trial.
+fn delayed_entry_incidence_law(weighted: bool, observed: [[usize; 4]; 2]) -> Law {
+    let arm_atoms = |counts: [usize; 4]| {
+        let n: usize = counts.iter().sum();
+        let log_factorials = ln_factorials(n);
+        let probabilities = counts.map(|count| count as f64 / n as f64);
+        let [
+            early_target_weight,
+            early_competing_weight,
+            early_survivor_weight,
+            late_target_weight,
+        ] = if weighted { [2.0, 1.25, 1.0, 2.0] } else { [1.0; 4] };
+        let mut atoms = Vec::new();
+        for early_target in 0..=n {
+            for early_competing in 0..=n - early_target {
+                for early_survivor in 1..=n - early_target - early_competing {
+                    let late_target = n - early_target - early_competing - early_survivor;
+                    let drawn = [early_target, early_competing, early_survivor, late_target];
+                    let log_p = log_factorials[n]
+                        + drawn
+                            .iter()
+                            .zip(probabilities)
+                            .map(|(&count, prob)| count as f64 * prob.ln() - log_factorials[count])
+                            .sum::<f64>();
+                    let d1 = early_target as f64 * early_target_weight;
+                    let c1 = early_competing as f64 * early_competing_weight;
+                    let remain = early_survivor as f64 * early_survivor_weight;
+                    let d2 = late_target as f64 * late_target_weight;
+                    let incidence = (d1 + remain * d2 / (remain + d2)) / (d1 + c1 + remain);
+                    atoms.push((
+                        incidence,
+                        log_p.exp(),
+                        early_target + late_target > 0,
+                        early_competing > 0,
+                    ));
+                }
+            }
+        }
+        atoms
+    };
+    let control = arm_atoms(observed[0]);
+    let treated = arm_atoms(observed[1]);
+    let mut joint = Vec::new();
+    for &(control_cif, pc, target_c, competing_c) in &control {
+        for &(treated_cif, pt, target_t, competing_t) in &treated {
+            if (target_c || target_t) && (competing_c || competing_t) {
+                joint.push((treated_cif - control_cif, pc * pt));
+            }
+        }
+    }
+    let acceptance_probability: f64 = joint.iter().map(|(_, probability)| probability).sum();
+    assert!(acceptance_probability > 0.95);
+    for (_, probability) in &mut joint {
+        *probability /= acceptance_probability;
+    }
+    Law::new(joint)
+}
+
+fn delayed_entry_incidence_scenario(weighted: bool) {
+    // Early target and competing failures at 1, early survivors censored at tau, and
+    // a second cohort entering at 1 that can contribute only to the target jump at 2.
+    let observed = [[4, 3, 5, 2], [2, 4, 5, 3]];
+    let grid = [0.0, 1.0, 2.0, TAU];
+    let (mut duration, mut event, mut treated, mut entry, mut g) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for (arm, counts) in observed.into_iter().enumerate() {
+        for (kind, count) in counts.into_iter().enumerate() {
+            let (exit, cause, left, probability) =
+                [(1.0, 1, 0.0, 0.5), (1.0, 2, 0.0, 0.8), (TAU, 0, 0.0, 1.0), (2.0, 1, 1.0, 0.5)]
+                    [kind];
+            for _ in 0..count {
+                duration.push(exit);
+                event.push(cause);
+                treated.push(arm == 1);
+                entry.push(left);
+                g.extend([1.0, probability, probability, probability]);
+            }
+        }
+    }
+    let interval = randomized_survival_bootstrap_intervals(
+        &SurvivalRows {
+            duration: &duration,
+            event_code: &event,
+            treated: &treated,
+            delayed_entry: Some(&entry),
+        },
+        weighted.then_some(&KnownCensoring {
+            times: &grid,
+            survival: &g,
+            minimum_probability: 0.05,
+        }),
+        TAU,
+        SurvivalEndpoint::CumulativeIncidence { target_cause: 1 },
+        DRAWS,
+        20_261_126,
+    )
+    .unwrap();
+    assert!(interval.rmst_difference.is_none());
+    let exact = delayed_entry_incidence_law(weighted, observed);
+    exact.assert_quantile(interval.difference_at_tau[0], 0.025, "delayed incidence lower");
+    exact.assert_quantile(interval.difference_at_tau[1], 0.975, "delayed incidence upper");
+}
+
+#[test]
+fn delayed_entry_incidence_interval_matches_the_exact_bootstrap_law() {
+    delayed_entry_incidence_scenario(false);
+}
+
+#[test]
+fn delayed_entry_fixed_known_censoring_incidence_interval_matches_the_exact_bootstrap_law() {
+    delayed_entry_incidence_scenario(true);
+}
+
 fn band_radius_check(
     endpoint: SurvivalEndpoint,
     event: &[i64],

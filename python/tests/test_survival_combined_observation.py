@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
+import sys
+
 import antecedent as ant
 import pandas as pd
 import pytest
@@ -11,10 +15,10 @@ from antecedent.outcomes import require_success
 from antecedent.survival import CompetingRisksOutcome, KnownCensoringSurvival, SurvivalOutcome
 
 
-def _data() -> pd.DataFrame:
+def _data(arm_size: int = 80) -> pd.DataFrame:
     rows = []
     for arm in (0, 1):
-        for i in range(80):
+        for i in range(arm_size):
             entry = 1.0 if i % 3 == 0 else 0.0
             if entry == 0.0 and i % 7 == 0:
                 duration, cause = 1.0, 1
@@ -99,6 +103,87 @@ def test_combined_entry_fixed_g_pointwise_interval_round_trip(competing: bool) -
     assert body["query"]["survival"]["delayed_entry"] is not None
     assert len(body["query"]["survival"]["censoring_columns"]) == 5
     assert body["survival"]["difference_at_tau_interval"] is not None
+
+
+@pytest.mark.parametrize("fixed_known", [False, True])
+def test_delayed_entry_incidence_support_round_trips(fixed_known: bool) -> None:
+    # Mirrors the Rust retained route fixture, including the seed and subject-bootstrap size.
+    data = (
+        _data(200 if fixed_known else 160)
+        .drop(columns="event")
+        .rename(columns={"cause": "event", "treated": "treatment"})
+        .astype(float)
+    )
+    query = CompetingRisksOutcome(
+        "duration",
+        "event",
+        "treatment",
+        target_cause=1,
+        tau=3.0,
+        randomized=True,
+        delayed_entry="entry",
+        known_censoring=_g() if fixed_known else None,
+        observation_assumption=IndependentGiven(()),
+    )
+    result = require_success(
+        ant.analyze(
+            data,
+            query=query,
+            inference=ant.Frequentist(bootstrap=299),
+            execution=ant.Execution(seed=297),
+        )
+    )
+    section = result.survival
+    assert section.target_cause == query.target_cause
+    assert section.tau == query.tau
+    assert section.support_status == "supported"
+    assert section.difference_band is None
+    assert section.incidence_difference_interval is not None
+    compact = require_success(ant.load(bytes(result.export()))).replay()
+    assert "dependencies.checked_survival_incidence_operation" in compact.acceptance.not_replayable
+    reader = """
+import json
+import sys
+import antecedent as ant
+from antecedent.composition_bundle import Bundle, consume_bundle
+from antecedent.outcomes import require_success
+raw = sys.stdin.buffer.read()
+loaded = require_success(ant.load(raw)).replay()
+assert loaded.acceptance.recognized
+assert loaded.acceptance.replayed, loaded.acceptance
+bundle = Bundle.builder().add_artifact(raw, node_id="incidence").build()
+consumed = require_success(consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+consumed.require_verified()
+assert consumed.value("incidence", "horizon") == 3.0
+print(json.dumps(dict(loaded.decoded_artifact.payload["survival"])))
+"""
+    retained = subprocess.run(
+        [sys.executable, "-c", reader],
+        input=bytes(result.export(source_data=data)),
+        capture_output=True,
+        check=True,
+        timeout=30,
+    )
+    curve = json.loads(retained.stdout)
+    assert curve["target_cause"] == query.target_cause
+    assert curve["tau"] == query.tau
+    assert curve["graphless_support_status"] == "supported"
+    assert curve["difference_at_tau_interval"] == pytest.approx(section.incidence_difference_interval)
+
+
+def test_fitted_censoring_arrays_cannot_enter_delayed_entry_incidence_support() -> None:
+    with pytest.raises(CausalValueError, match="known_censoring must be KnownCensoringSurvival"):
+        CompetingRisksOutcome(
+            "duration",
+            "cause",
+            "treated",
+            target_cause=1,
+            tau=3.0,
+            randomized=True,
+            delayed_entry="entry",
+            observation_assumption=IndependentGiven(()),
+            known_censoring=_data()[["g0", "g1", "g15", "g2", "g3"]].to_numpy(),
+        )
 
 
 def test_combined_entry_fixed_g_refuses_conditional_entry_and_bad_g() -> None:

@@ -154,6 +154,19 @@ impl StudyResult {
     #[must_use]
     pub fn primary_interval_binding(&self, bayesian: bool) -> IntervalBinding {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
+        if let Some(curve) = self.survival()
+            && curve.has_delayed_entry
+            && curve.target_cause.is_some()
+            && curve.difference_at_tau_interval.is_some()
+        {
+            let mut binding = IntervalBinding::new(M::PercentileBootstrap, 0.95, "iid");
+            binding.replicates_ok = curve.bootstrap_replicates_ok;
+            binding.replicates_failed = curve
+                .bootstrap_replicates_requested
+                .zip(curve.bootstrap_replicates_ok)
+                .map(|(requested, ok)| requested.saturating_sub(ok));
+            return binding;
+        }
         let panel_interval = self.panel_did().is_some_and(|did| did.interval_95.is_some());
         let randomized_cluster_interval = self.randomized_effect().is_some_and(|fit| {
             fit.interval_95.is_some() && fit.assignment_design.as_ref() == "cluster"

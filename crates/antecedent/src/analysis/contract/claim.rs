@@ -181,7 +181,11 @@ impl StudyResult {
         );
         let execution =
             execution_digest(&execution_identity_from_context(ctx)).map_err(|err| io_err(&err))?;
-        let calibration = if reports_calibrated_effect_interval(&self.payload) {
+        let calibration = if reports_calibrated_effect_interval(&self.payload)
+            || (matches!(&contract.body.query, CausalQueryWire::Survival(query)
+                if query.delayed_entry.is_some() && query.target_cause.is_some())
+                && self.survival().is_some_and(|curve| curve.difference_at_tau_interval.is_some()))
+        {
             antecedent_io::calibration::calibration_slots(
                 &self.calibration_bases_with(contract, reasoning.identification.as_ref()),
             )

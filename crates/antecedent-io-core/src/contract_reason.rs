@@ -20,6 +20,8 @@ pub enum ContractReason {
     BodyIdentificationProduct,
     /// `body.interventional_distribution`.
     BodyInterventionalDistribution,
+    /// `body.survival_incidence`: source replay disagreed with the retained interval or curve.
+    BodySurvivalIncidence,
     /// `body.nested_counterfactual_estimate`.
     BodyNestedCounterfactualEstimate,
     /// `body.query`.
@@ -68,6 +70,8 @@ pub enum ContractReason {
     DependenciesCheckedBatchFamilyOperation,
     /// `dependencies.checked_estimator_operation`.
     DependenciesCheckedEstimatorOperation,
+    /// `dependencies.checked_survival_incidence_operation`: provide the subject table witness.
+    DependenciesCheckedSurvivalIncidenceOperation,
     /// `dependencies.checked_bayesian_basis_ate_operation`.
     DependenciesCheckedBayesianBasisAteOperation,
     /// `dependencies.checked_bayesian_basis_cate_operation`.
@@ -125,6 +129,10 @@ pub enum ContractReason {
     /// `dependencies.checked_dr_replay_unsupported`: the declaration or the witnessed table lies
     /// outside the operation the replay supports.
     DependenciesCheckedDrReplayUnsupported,
+    /// `survival_incidence_replay.source`: the witness differs from the declared source.
+    SurvivalIncidenceReplaySource,
+    /// `survival_incidence_replay.resource`: the witness or replay exceeded its bounds.
+    SurvivalIncidenceReplayResource,
     /// `dependencies.checked_glm_operation`.
     DependenciesCheckedGlmOperation,
     /// `dependencies.checked_graph_posterior_effect_operation`.
@@ -469,6 +477,7 @@ impl ContractReason {
             Self::BodyIdentificationQuery => "body.identification.query",
             Self::BodyIdentificationProduct => "body.identification_product",
             Self::BodyInterventionalDistribution => "body.interventional_distribution",
+            Self::BodySurvivalIncidence => "body.survival_incidence",
             Self::BodyNestedCounterfactualEstimate => "body.nested_counterfactual_estimate",
             Self::BodyQuery => "body.query",
             Self::BodyResponse => "body.response",
@@ -500,6 +509,10 @@ impl ContractReason {
             }
             Self::DependenciesCheckedEstimatorOperation => {
                 "dependencies.checked_estimator_operation"
+            }
+            }
+            Self::DependenciesCheckedSurvivalIncidenceOperation => {
+                "dependencies.checked_survival_incidence_operation"
             }
             Self::DependenciesCheckedBayesianBasisAteOperation => {
                 "dependencies.checked_bayesian_basis_ate_operation"
@@ -570,6 +583,8 @@ impl ContractReason {
             Self::DependenciesCheckedDrReplayUnsupported => {
                 "dependencies.checked_dr_replay_unsupported"
             }
+            Self::SurvivalIncidenceReplaySource => "survival_incidence_replay.source",
+            Self::SurvivalIncidenceReplayResource => "survival_incidence_replay.resource",
             Self::DependenciesCheckedDerivativeResponseOperation => {
                 "dependencies.checked_derivative_response_operation"
             }
@@ -877,6 +892,7 @@ impl ContractReason {
                 | Self::DependenciesCheckedBayesianDagAteOperation
                 | Self::DependenciesCheckedBatchFamilyOperation
                 | Self::DependenciesCheckedEstimatorOperation
+                | Self::DependenciesCheckedSurvivalIncidenceOperation
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -953,6 +969,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::BodyIdentificationQuery,
     ContractReason::BodyIdentificationProduct,
     ContractReason::BodyInterventionalDistribution,
+    ContractReason::BodySurvivalIncidence,
     ContractReason::BodyNestedCounterfactualEstimate,
     ContractReason::BodyQuery,
     ContractReason::BodyResponse,
@@ -977,6 +994,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedAttributionOperation,
     ContractReason::DependenciesCheckedBatchFamilyOperation,
     ContractReason::DependenciesCheckedEstimatorOperation,
+    ContractReason::DependenciesCheckedSurvivalIncidenceOperation,
     ContractReason::DependenciesCheckedBayesianBasisAteOperation,
     ContractReason::DependenciesCheckedBayesianBasisCateOperation,
     ContractReason::DependenciesCheckedBayesianClassConditionalOperation,
@@ -1003,6 +1021,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedDrReplayResource,
     ContractReason::DependenciesCheckedDrReplaySource,
     ContractReason::DependenciesCheckedDrReplayUnsupported,
+    ContractReason::SurvivalIncidenceReplaySource,
+    ContractReason::SurvivalIncidenceReplayResource,
     ContractReason::DependenciesCheckedGlmOperation,
     ContractReason::DependenciesCheckedGraphPosteriorEffectOperation,
     ContractReason::DependenciesCheckedGraphPosteriorResponseOperation,
@@ -1180,6 +1200,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "body.query",
     "body.response",
     "body.standard_error",
+    "body.survival_incidence",
     "body.temporal_nested_point",
     "checked_aipw.row_binding",
     "claim.calibration",
@@ -1235,6 +1256,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_response_grid_operation",
     "dependencies.checked_static_class_effect_operation",
     "dependencies.checked_static_class_response_operation",
+    "dependencies.checked_survival_incidence_operation",
     "dependencies.checked_temporal_class_effect_operation",
     "dependencies.checked_temporal_class_response_operation",
     "dependencies.checked_temporal_dag_effect_operation",
@@ -1384,6 +1406,8 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "reasoning.uncertainty",
     "score_reuse.data_snapshot",
     "score_reuse.identification",
+    "survival_incidence_replay.resource",
+    "survival_incidence_replay.source",
     "target.population",
     "target_payload",
     "target_weights.data_snapshot",

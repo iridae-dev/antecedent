@@ -108,6 +108,39 @@ limitations = "Individually randomized independent subjects with both a marginal
 
 [[support]]
 family = "survival"
+design = "delayed_entry_two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_product_limit"
+inference_claim = "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+assignment_unit = "unit"
+min_rows = 320
+min_assignment_units_per_arm = 160
+min_reported_intervals = 1
+min_interval_resamples = 299
+all_reported_intervals = true
+known_truth_test = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_incidence_interval_matches_the_exact_bootstrap_law"
+independent_check = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_incidence_interval_matches_the_exact_bootstrap_law"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::supported_delayed_entry_incidence_round_trips_and_refuses_forgery"
+limitations = "Individually randomized independent subjects with marginally independent entry and right censoring. Each observed event risk set must contain at least 25 subjects. The single pointwise percentile interval covers the treatment-minus-control target-cause cumulative incidence at the declared horizon. Repeated-sampling calibration measures cause 1 at horizon 3 with independent entry at times 0 and 1 and administrative censoring."
+
+[[support]]
+family = "survival"
+design = "delayed_entry_two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_ipcw_product_limit"
+inference_claim = "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+assignment_unit = "unit"
+min_rows = 400
+min_assignment_units_per_arm = 200
+min_reported_intervals = 1
+min_interval_resamples = 299
+all_reported_intervals = true
+requires_known_density = true
+known_truth_test = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_fixed_known_censoring_incidence_interval_matches_the_exact_bootstrap_law"
+independent_check = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_fixed_known_censoring_incidence_interval_matches_the_exact_bootstrap_law"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery"
+limitations = "Individually randomized independent subjects with marginally independent entry and caller-declared fixed known censoring survival. Each observed event risk set must contain at least 25 subjects. The single pointwise percentile interval covers the treatment-minus-control target-cause cumulative incidence at the declared horizon, conditional on the fixed censoring law. Repeated-sampling calibration measures cause 1 at horizon 3 with independent entry at times 0 and 1 and known independent stratum-specific censoring. Fitted censoring survival and simultaneous curve bands have different uncertainty claims."
+
+[[support]]
+family = "survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_supremum_band"
 inference_claim = "simultaneous_95_survival_difference_band"

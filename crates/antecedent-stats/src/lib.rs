@@ -48,6 +48,7 @@ pub mod response;
 mod sparse_discrete;
 pub mod special;
 pub use sparse_discrete::SparseDiscreteCi;
+pub mod survival;
 pub mod synthesis;
 pub mod synthesis_transport;
 #[cfg(test)]

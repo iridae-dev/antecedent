@@ -230,10 +230,12 @@ impl super::super::Study {
         q: &SurvivalQuery,
     ) -> Result<LogicalAnalysisPlan, CausalError> {
         q.validate()?;
-        for id in [Some(q.duration), Some(q.event), Some(q.treatment), q.delayed_entry]
+        let variables = [q.duration, q.event, q.treatment]
             .into_iter()
-            .flatten()
-        {
+            .chain(q.delayed_entry)
+            .chain(q.known_censoring.iter().flat_map(|known| known.columns.iter().copied()))
+            .collect::<Arc<[_]>>();
+        for &id in variables.iter() {
             data.schema().get(id).map_err(CausalError::rejected)?;
         }
         let (plan, estimator) = if self.settings.inference.is_bayesian() {
@@ -253,7 +255,7 @@ impl super::super::Study {
             plan,
             "randomized.design",
             estimator,
-            Arc::from([q.duration, q.event, q.treatment]),
+            variables,
         ))
     }
 

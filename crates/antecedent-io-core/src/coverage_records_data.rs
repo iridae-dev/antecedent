@@ -378,6 +378,7 @@ fn interval_method(name: &str) -> IntervalMethod {
     match name {
         "AnalyticSe" => IntervalMethod::AnalyticSe,
         "BootstrapSe" => IntervalMethod::BootstrapSe,
+        "PercentileBootstrap" => IntervalMethod::PercentileBootstrap,
         "PosteriorQuantile" => IntervalMethod::PosteriorQuantile,
         "PosteriorAbsoluteDeviation" => IntervalMethod::PosteriorAbsoluteDeviation,
         "UnitPosteriorQuantile" => IntervalMethod::UnitPosteriorQuantile,

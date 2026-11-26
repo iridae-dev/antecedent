@@ -228,7 +228,18 @@ fn unresolved_after(
             false
         }
     };
-    note_checked_estimator_operation(contract, body, &mut unresolved, replayed);
+    let incidence_replayed = match super::survival_replay::replay_delayed_entry_incidence(
+        header, body, contract, source, limits,
+    ) {
+        Ok(replayed) => replayed,
+        Err(refusal) => {
+            unresolved.push(refusal);
+            false
+        }
+    };
+    note_checked_estimator_operation(
+        contract, body, &mut unresolved, replayed, incidence_replayed,
+    );
     unresolved
 }
 
@@ -240,6 +251,7 @@ fn note_checked_estimator_operation(
     body: &AnalysisResultWire,
     unresolved: &mut Vec<ContractReason>,
     dr_replayed: bool,
+    incidence_replayed: bool,
 ) {
     let supported = contract.program.as_ref().is_some_and(|program| {
         let resolved = program.commitments.resolved_estimator.as_deref();
@@ -288,6 +300,9 @@ fn note_checked_estimator_operation(
             // witness has replayed it and reproduced the body.
             (Some("dr.learner"), CausalQueryWire::AverageEffect { .. }) => {
                 program.checked_dr_lowering.is_some() && dr_replayed
+            }
+            (Some("randomized.survival_product_limit"), CausalQueryWire::Survival(_)) => {
+                incidence_replayed
             }
             (Some("functional.effect"), CausalQueryWire::Response(_)) => {
                 program.checked_functional_response_grid.is_some()
@@ -1338,6 +1353,22 @@ pub(in crate::contract_section) fn note_published_claim(
             if slot.empirical != empirical {
                 unresolved.push(ContractReason::ReasoningSupportEmpirical);
             }
+            if let (CausalQueryWire::Survival(query), Some(curve)) = (&body.query, &body.survival)
+                && query.target_cause.is_some()
+            {
+                let coordinate = crate::graphless_support::survival_pointwise_key(
+                    query.delayed_entry.is_some(), !query.censoring_columns.is_empty(), true,
+                ).map(|key| format!(
+                    "graphless:{}/{}/{}/{}", key.family, key.design, key.method, key.inference_claim
+                ));
+                let claimed = slot.matrix_status == "supported"
+                    && coordinate.is_some()
+                    && slot.matrix_coordinate == coordinate;
+                let carried = curve.graphless_support_status.as_deref() == Some("supported");
+                if carried != claimed || (slot.matrix_status == "supported" && !claimed) {
+                    unresolved.push(ContractReason::ReasoningSupport);
+                }
+            }
         }
         let domains = claim_domains_of_section(support, &contract.reasoning.identification);
         if claim.identification_domain != domains.identification
@@ -1350,6 +1381,26 @@ pub(in crate::contract_section) fn note_published_claim(
             unresolved.push(ContractReason::IdentitiesExecution);
         }
         verify_claim_calibration(contract, claim, unresolved);
+        if let (CausalQueryWire::Survival(query), Some(curve)) = (&body.query, &body.survival)
+            && query.delayed_entry.is_some()
+            && query.target_cause.is_some()
+            && curve.difference_at_tau_interval.is_some()
+            && (claim.calibration.basis.as_ref().is_none_or(|basis| {
+                basis.key.query != "Survival"
+                || crate::graphless_support::incidence_calibration_functional(
+                    query,
+                    curve.minimum_event_risk_set,
+                    curve.bootstrap_replicates_ok,
+                    curve.assignment_counts,
+                ).as_deref() != Some(basis.key.functional.as_str())
+                || basis.scope.replicates_ok != curve.bootstrap_replicates_ok
+                || curve.assignment_counts.is_none_or(|[control, treated]| {
+                    u64::try_from(control.saturating_add(treated)).ok() != Some(basis.scope.row_count)
+                })
+            }) || !claim.calibration.secondary.is_empty())
+        {
+            unresolved.push(ContractReason::ClaimCalibrationBasis);
+        }
     }
 }
 
@@ -1559,6 +1610,21 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             && matches!(&contract.target.query, crate::CausalQueryWire::SyntheticControl(q)
                 if q.average_calibration_design().is_some_and(|(functional, pre)|
                     functional == key.functional && pre == basis.scope.row_count)))
+        || (graphless_validation_ok
+            && key.validation == "not_applicable"
+            && key.query == "Survival"
+            && key.structure == "design"
+            && key.graph_class == "RandomizedTrial"
+            && contract.graph_class == key.graph_class
+            && contract.structure_source == "randomized_trial"
+            && key.inference == "Frequentist"
+            && key.estimator == "randomized.survival_product_limit"
+            && key.interval_method == "percentile_bootstrap"
+            && key.level.to_bits() == 0.95_f64.to_bits()
+            && key.se_kind.is_empty()
+            && key.dependence == "iid"
+            && matches!(&contract.target.query, CausalQueryWire::Survival(query)
+                if query.delayed_entry.is_some() && query.target_cause.is_some()))
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {
             matches!(&contract.target.query, crate::CausalQueryWire::SequentialContrast(q) if q.matches_wide_overlap_study())
                 && graphless_validation_ok && key.validation == "not_applicable"

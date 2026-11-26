@@ -129,9 +129,11 @@ cif = antecedent.analyze(data, query=query).value.survival
 cif.incidence_difference
 ```
 
-The target cumulative incidence uses the Aalen-Johansen risk-set recursion. At least two distinct causes must appear, the target must be present and both arms need follow-up through `tau`. The route is point-only by default; with `bootstrap` it gives the pointwise incidence-difference interval and, for the unweighted route, the simultaneous difference band under the same 80-subject, 399-draw gate. Assumptions: random assignment, complete and distinct cause coding, independent censoring within each arm, consistency and no interference. Cause misclassification and covariate-adjusted censoring are unsupported.
+The target cumulative incidence uses the Aalen-Johansen risk-set recursion. At least two distinct causes must appear, the target must be present and both arms need follow-up through `tau`. Request a subject bootstrap to report the pointwise incidence-difference interval. The unweighted route without delayed entry can also report a simultaneous difference band at 80 subjects per arm and 399 valid draws. Assumptions include random assignment, complete and distinct cause coding, the declared censoring law, consistency and no interference.
 
-With supplied `G`, `estimate_cumulative_incidence_ipcw(data, competing_query, times=..., censoring_survival=...)` weights target-cause failures and all-cause event-free survival by inverse `G` inside the same recursion. It reports the minimum supplied `G` and event-time risk-set sizes. Fixed known-`G` weights and delayed entry have no simultaneous band.
+Set `delayed_entry` and declare `IndependentGiven(())` to report the left-truncated interval. The unweighted support row requires 160 observed subjects per arm. With `KnownCensoringSurvival`, the separate weighted row requires 200 per arm and holds each subject's probabilities fixed across bootstrap samples. Both rows require at least 25 subjects in every observed event risk set and 299 valid draws. The claim records calibration for the particular censoring design, cause and horizon. See the [graphless support matrix](../../graphless-support-matrix.md).
+
+For independent numerical replay, export with `result.value.export(source_data=data)` and call `replay()` on the loaded result. This adds the original table to the artifact, so the reader can recompute both curves and the interval under the recorded seed. A compact export records which subject table the replay needs.
 
 ### Declare the hazard partition for a posterior
 

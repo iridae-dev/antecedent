@@ -24722,6 +24722,13 @@ path = "crates/antecedent/tests/synthetic_control_range_calibration.rs"
 gates = ["inventory"]
 
 [[test]]
+id = "delayed-entry-incidence-calibration"
+crate = "antecedent"
+cargo_target = "delayed_entry_incidence_calibration"
+path = "crates/antecedent/tests/delayed_entry_incidence_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
 id = "temporal-design-range-calibration"
 crate = "antecedent"
 cargo_target = "temporal_design_range_calibration"

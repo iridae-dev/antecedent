@@ -98,6 +98,15 @@ impl StudyResult {
                     && executed.refute == crate::RefuteSuite::None
                     && contract.graph_class == GraphClass::RandomizedTrial
                     && contract.structure_source == StructureSource::RandomizedTrial
+                    && matches!(&contract.body.query, antecedent_io::CausalQueryWire::Survival(query)
+                        if query.delayed_entry.is_some() && query.target_cause.is_some())
+                    && self.survival().is_some_and(|curve| curve.difference_at_tau_interval.is_some())
+                    => "not_applicable",
+            (Some(executed), None)
+                if executed_from(&executed)
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
                     && self.posterior.is_some()
                     && self.logical_plan.estimator.as_deref() == Some("bayesian.synthetic_control")
                     && synthetic_average => "not_applicable",
@@ -212,6 +221,7 @@ impl StudyResult {
                 _ if synthetic_average.is_some() => "SyntheticControl",
                 ResultPayload::SequentialContrast(_) => "SequentialContrast",
                 ResultPayload::PanelDid(_) => "PanelDid",
+                ResultPayload::Survival(_) => "Survival",
                 ResultPayload::RandomizedEffect(_) | ResultPayload::PosteriorRow(_) => {
                     "RandomizedEffect"
                 }
@@ -238,12 +248,28 @@ impl StudyResult {
             identification: label.clone(),
         };
         let row_count = analysis_row_count(self, contract);
+        let incidence = match &contract.body.query {
+            antecedent_io::CausalQueryWire::Survival(query) if shared.query == "Survival" => {
+                self.survival().and_then(|curve| {
+                    antecedent_io::graphless_support::incidence_calibration_functional(
+                        query,
+                        curve.minimum_event_risk_set,
+                        curve.bootstrap_replicates_ok,
+                        Some(curve.assignment_counts),
+                    )
+                })
+            }
+            _ => None,
+        };
         self.reported_interval_bindings(bayesian)
             .into_iter()
             .map(|binding| {
                 let (interval_method, functional, dependence) =
                     cluster_reference_key(self, &binding, contract);
-                let (functional, row_count) = if shared.query == "SyntheticControl"
+                let (functional, row_count) = if let Some(incidence) = &incidence {
+                    // Include the exact declared horizon, cause and censoring design in the key.
+                    (incidence.clone(), row_count)
+                } else if shared.query == "SyntheticControl"
                     && binding.method == IntervalMethod::PosteriorQuantile
                 {
                     synthetic_average.clone().unwrap_or((functional, row_count))

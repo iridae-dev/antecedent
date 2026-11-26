@@ -41,6 +41,7 @@
 //! content and the bundle refuses a node whose recomputation differs.
 
 mod artifact_inspection;
+mod incidence_source_inspection;
 mod cohort_source_inspection;
 mod replay_inspection;
 
@@ -139,12 +140,13 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 20] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 21] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
     NodeKind::Transformation,
     NodeKind::Distribution,
+    NodeKind::DelayedEntryIncidenceResult,
     NodeKind::CohortDecisionSource,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
@@ -188,6 +190,7 @@ fn failure(stage: BundleStage, reason: impl Into<String>) -> NodeFailure {
 const fn default_stage(kind: NodeKind) -> BundleStage {
     match kind {
         NodeKind::QuantityCoordinates
+        | NodeKind::DelayedEntryIncidenceResult
         | NodeKind::DecisionResult
         | NodeKind::Sensitivity
         | NodeKind::StudyRanking
@@ -407,6 +410,7 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             })
         }
         NodeKind::Distribution => inspect_distribution(bytes),
+        NodeKind::DelayedEntryIncidenceResult => incidence_source_inspection::inspect(bytes),
         NodeKind::CohortDecisionSource => {
             cohort_source_inspection::inspect(bytes, &ExecutionContext::production_default(0))
         }
@@ -814,6 +818,11 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
         return detect_record(bytes);
     };
     match label.as_str() {
+        "analysis_result" => {
+            let (_, _, body) = antecedent_io_core::decode_analysis_result_artifact(bytes).ok()?;
+            incidence_source_inspection::is_delayed_entry_incidence(&body)
+                .then_some(NodeKind::DelayedEntryIncidenceResult)
+        }
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
         KIND_DISTRIBUTION => Some(NodeKind::Distribution),
         COHORT_DECISION_ARTIFACT_KIND => Some(NodeKind::CohortDecisionSource),
@@ -958,6 +967,12 @@ kind_verifier!(
     NodeKind::FrozenScores
 );
 
+kind_verifier!(
+    /// Verifies the source-bearing target-cause cumulative incidence interval.
+    DelayedEntryIncidenceResultVerifier,
+    NodeKind::DelayedEntryIncidenceResult
+);
+
 /// The verifier of one node kind, when it has one.
 #[must_use]
 pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
@@ -967,6 +982,7 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         | NodeKind::QuantityCoordinates
         | NodeKind::Transformation => Box::new(SourceProjectionVerifier(kind)),
         NodeKind::Distribution => Box::new(DistributionVerifier),
+        NodeKind::DelayedEntryIncidenceResult => Box::new(DelayedEntryIncidenceResultVerifier),
         NodeKind::CohortDecisionSource => {
             Box::new(CohortDecisionSourceVerifier::new(&ExecutionContext::production_default(0)))
         }

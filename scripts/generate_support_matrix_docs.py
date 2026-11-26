@@ -678,6 +678,7 @@ def _interval_method_reasons(records: list[dict]) -> list[dict]:
     methods = [
         ("AnalyticSe", "analytic_se"),
         ("BootstrapSe", "bootstrap_se"),
+        ("PercentileBootstrap", "percentile_bootstrap"),
         ("PosteriorQuantile", "posterior_quantile"),
         ("PosteriorAbsoluteDeviation", "posterior_absolute_deviation"),
         ("UnitPosteriorQuantile", "unit_posterior_quantile"),

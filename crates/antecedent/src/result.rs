@@ -637,6 +637,8 @@ pub struct SurvivalDifferenceBand {
 /// Randomized survival or competing-risk result on a shared time grid.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SurvivalEstimate {
+    /// Whether the risk sets use observed entry times.
+    pub(crate) has_delayed_entry: bool,
     /// Event-time grid including zero and the restriction horizon.
     pub times: Arc<[f64]>,
     /// Control-arm survival or target-cause cumulative incidence.

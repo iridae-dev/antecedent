@@ -55,6 +55,8 @@ pub enum NodeKind {
     SupportTrustCalibration,
     /// A portable distribution artifact.
     Distribution,
+    /// A delayed-entry target-cause incidence interval replayed on its subject table.
+    DelayedEntryIncidenceResult,
     /// A retained fitted model and weighted cohort replayed as one contrast mean.
     CohortDecisionSource,
     /// A named transformation.
@@ -111,6 +113,7 @@ named_variants! {
         QuantityCoordinates => "quantity_coordinates",
         SupportTrustCalibration => "support_trust_calibration",
         Distribution => "distribution",
+        DelayedEntryIncidenceResult => "delayed_entry_incidence_result",
         CohortDecisionSource => "cohort_decision_source",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
@@ -147,6 +150,7 @@ impl NodeKind {
             | Self::SequentialPolicyReliabilityFit
             | Self::SequentialDecisionDraws
             | Self::Distribution
+            | Self::DelayedEntryIncidenceResult
             | Self::CohortDecisionSource
             | Self::FrozenScores => CompositionStage::DistributionArtifact,
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
@@ -174,6 +178,7 @@ impl NodeKind {
     pub(super) const fn identity_mismatch_stage(self) -> BundleStage {
         match self {
             Self::QuantityCoordinates
+            | Self::DelayedEntryIncidenceResult
             | Self::DecisionResult
             | Self::Sensitivity
             | Self::StudyRanking

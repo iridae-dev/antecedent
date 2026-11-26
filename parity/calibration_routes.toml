@@ -13,6 +13,24 @@
 # Hand-edited; nothing here is an attestation. Calibration annotates, it never gates a route.
 
 [[route]]
+record = "estimate.survival.delayed_entry_incidence"
+routes = [
+  "graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_product_limit.cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval",
+]
+groups = [
+  "delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_percentile_coverage",
+]
+
+[[route]]
+record = "estimate.survival.delayed_entry_fixed_known_incidence"
+routes = [
+  "graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_ipcw_product_limit.cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval",
+]
+groups = [
+  "delayed_entry_incidence_calibration: delayed_entry_fixed_known_incidence_percentile_coverage",
+]
+
+[[route]]
 record = "sequential_evaluation.policy_evaluation"
 routes = [
   "antecedent.sequential_evaluation.evaluate_off_policy",

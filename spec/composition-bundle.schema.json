@@ -79,6 +79,7 @@
             "quantity_coordinates",
             "support_trust_calibration",
             "distribution",
+            "delayed_entry_incidence_result",
             "cohort_decision_source",
             "transformation",
             "decision_contract",

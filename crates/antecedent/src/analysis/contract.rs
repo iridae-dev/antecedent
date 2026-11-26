@@ -231,24 +231,16 @@ fn graphless_coordinate(
         ));
     }
     if result.survival().is_some() {
-        // The supported scalar route is fixed by the query's entry and
-        // censoring facets. Cumulative incidence never reaches this arm; only
-        // the paired RMST + horizon survival scalar intervals carry a
-        // graphless matrix coordinate. The simultaneous band is a separate
-        // claim carried on the band's own `graphless_support_status`.
         let CausalQuery::Survival(query) = query else { return Err(MISMATCH) };
-        let design = if query.delayed_entry.is_some() {
-            "delayed_entry_two_arm_individual_randomized"
-        } else {
-            "two_arm_individual_randomized"
-        };
-        let method = if query.known_censoring.is_some() {
-            "arm_stratified_subject_bootstrap_ipcw_product_limit"
-        } else {
-            "arm_stratified_subject_bootstrap_product_limit"
-        };
+        let key = antecedent_io::graphless_support::survival_pointwise_key(
+            query.delayed_entry.is_some(),
+            query.known_censoring.is_some(),
+            matches!(query.functional, antecedent_core::SurvivalFunctional::CumulativeIncidence { .. }),
+        )
+        .ok_or(MISMATCH)?;
         coordinate = Some(format!(
-            "graphless:survival/{design}/{method}/rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+            "graphless:{}/{}/{}/{}",
+            key.family, key.design, key.method, key.inference_claim
         ));
     }
     if result.randomized_effect().is_some() {

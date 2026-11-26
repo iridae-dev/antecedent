@@ -1377,6 +1377,34 @@ retained_route_test = "crates/antecedent/tests/survival_route.rs::supported_dela
 notes = "method=arm_stratified_subject_bootstrap_ipcw_product_limit; assignment_unit=unit. Support row in parity/support_graphless.toml. Individually randomized independent subjects with both a marginally independent left-truncation entry time and a caller-supplied, subject-fixed censoring survival grid held fixed with each bootstrap subject (combined delayed-entry fixed-known-G IPCW), at least 200 observed subjects per arm, at least 299 valid arm-stratified subject-bootstrap draws, and both pointwise 95% scalar intervals for the RMST and survival difference at the fixed horizon. One 2,000-study known-truth coverage check runs..."
 
 [[route]]
+id = "graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_product_limit.cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+target = "survival"
+graph_class = "RandomizedTrial"
+design_time_model = "delayed_entry_two_arm_individual_randomized"
+inference = "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+decision_ports = "unlisted"
+artifact_consumer = "antecedent_io_core::load_analysis_result"
+status = "graphless"
+owning_module = "crates/antecedent-estimate/src/survival.rs"
+retained_operation = "survival"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::supported_delayed_entry_incidence_round_trips_and_refuses_forgery"
+notes = "The retained competing-risks result binds the declared target cause and horizon to the single arm-stratified subject bootstrap interval."
+
+[[route]]
+id = "graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_ipcw_product_limit.cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+target = "survival"
+graph_class = "RandomizedTrial"
+design_time_model = "delayed_entry_two_arm_individual_randomized"
+inference = "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+decision_ports = "unlisted"
+artifact_consumer = "antecedent_io_core::load_analysis_result"
+status = "graphless"
+owning_module = "crates/antecedent-estimate/src/survival.rs"
+retained_operation = "survival"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery"
+notes = "The retained competing-risks result binds the declared target cause, horizon and fixed known censoring grid to the single arm-stratified subject bootstrap interval."
+
+[[route]]
 id = "graphless.survival.two_arm_individual_randomized.arm_stratified_subject_bootstrap_supremum_band.simultaneous_95_survival_difference_band"
 target = "survival"
 graph_class = "RandomizedTrial"

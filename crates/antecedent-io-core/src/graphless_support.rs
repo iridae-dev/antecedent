@@ -203,6 +203,77 @@ pub const FACTORIAL_BERNOULLI_KEY: GraphlessSupportKey<'static> = GraphlessSuppo
 /// Assignment-design label of a randomized result read as independent-factor 2×2 contrasts.
 pub const FACTORIAL_BERNOULLI_DESIGN: &str = "factorial_2x2_bernoulli";
 
+/// Smallest observed risk set at any event in the delayed-entry
+/// target-cause cumulative incidence support rows.
+#[doc(hidden)]
+pub const INCIDENCE_MIN_EVENT_RISK_SET: usize = 25;
+
+/// Minimum observed subjects per arm for a delayed-entry incidence interval.
+#[doc(hidden)]
+#[must_use]
+pub const fn incidence_min_arm(fixed_known_censoring: bool) -> usize {
+    if fixed_known_censoring { 200 } else { 160 }
+}
+
+/// Calibration target for a delayed-entry incidence contrast at an exact cause and horizon.
+#[doc(hidden)]
+#[must_use]
+pub fn incidence_calibration_functional(
+    query: &crate::query_wire::SurvivalQueryWire,
+    minimum_event_risk_set: Option<usize>,
+    replicates_ok: Option<u32>,
+    assignment_counts: Option<[usize; 2]>,
+) -> Option<String> {
+    let cause = query.target_cause?;
+    query.delayed_entry?;
+    let fixed_known = !query.censoring_columns.is_empty();
+    let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
+    let support = if minimum_event_risk_set.unwrap_or(0) >= INCIDENCE_MIN_EVENT_RISK_SET
+        && replicates_ok.unwrap_or(0) >= 299
+        && assignment_counts.is_some_and(|[control, treated]| {
+            control.min(treated) >= incidence_min_arm(fixed_known)
+        }) {
+        ""
+    } else {
+        "+scope=insufficient"
+    };
+    Some(format!(
+        "incidence_difference+entry=delayed+censoring={censoring}+cause={cause}+tau={:016x}{support}",
+        query.tau.to_bits(),
+    ))
+}
+
+/// Exact scalar-interval claim of a randomized survival query.
+#[doc(hidden)]
+#[must_use]
+pub const fn survival_pointwise_key(
+    delayed_entry: bool,
+    fixed_known_censoring: bool,
+    competing_incidence: bool,
+) -> Option<GraphlessSupportKey<'static>> {
+    if competing_incidence && !delayed_entry {
+        return None;
+    }
+    Some(GraphlessSupportKey {
+        family: "survival",
+        design: if delayed_entry {
+            "delayed_entry_two_arm_individual_randomized"
+        } else {
+            "two_arm_individual_randomized"
+        },
+        method: if fixed_known_censoring {
+            "arm_stratified_subject_bootstrap_ipcw_product_limit"
+        } else {
+            "arm_stratified_subject_bootstrap_product_limit"
+        },
+        inference_claim: if competing_incidence {
+            "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+        } else {
+            "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+        },
+    })
+}
+
 /// Fewest observed rows in every cell before the three pointwise intervals are published.
 pub const FACTORIAL_BERNOULLI_MIN_CELL_ROWS: usize = 30;
 
