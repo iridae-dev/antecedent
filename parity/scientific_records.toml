@@ -2467,6 +2467,16 @@ recorded_at = "2026-11-09T21:11:37Z"
 dependency_manifest = "2a98b1e81dcf72db9b6c95e1b150b4c1a26a99495085d2ac3d2a10c7d5a0e66c"
 
 [[record]]
+test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_fixed_known_censoring_incidence_interval_matches_the_exact_bootstrap_law"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f744209c25e05ee2efff7834554d82174897954d08bf0eab83ac807ef2bb1e37"
+recorded_at = "2026-11-26T05:24:42Z"
+dependency_manifest = "cf02287063ece2d9a5f1653417dcc48216555e4e0d80fb15ed7cf80cb1df8fb1"
+
+[[record]]
 test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_fixed_known_censoring_scalar_intervals_match_the_exact_weighted_bootstrap_law"
 roles = ["scientific"]
 passed = true
@@ -2477,6 +2487,36 @@ recorded_at = "2026-11-09T21:20:44Z"
 dependency_manifest = "3ab947cb3427e94035dd2685e382328beb607cac96e7337eb3e8358397f51315"
 
 [[record]]
+test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_fixed_known_incidence_band_matches_reference"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f744209c25e05ee2efff7834554d82174897954d08bf0eab83ac807ef2bb1e37"
+recorded_at = "2026-11-26T05:24:42Z"
+dependency_manifest = "b7024c6fd5f76cc3bda3e2bb066cebab73ec2fcc6609c08caeabe370fa1955ef"
+
+[[record]]
+test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_fixed_known_survival_band_matches_reference"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f744209c25e05ee2efff7834554d82174897954d08bf0eab83ac807ef2bb1e37"
+recorded_at = "2026-11-26T05:24:42Z"
+dependency_manifest = "a23ebe57ebbb2ab24bef4d51b042073bb98ff3ddfab35b17cfc53231c4173c62"
+
+[[record]]
+test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_incidence_interval_matches_the_exact_bootstrap_law"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f744209c25e05ee2efff7834554d82174897954d08bf0eab83ac807ef2bb1e37"
+recorded_at = "2026-11-26T05:24:42Z"
+dependency_manifest = "647a3005632bc73c162d2fcd9c81104d9bfb115f404f8bbc8aae4eab7a6636bd"
+
+[[record]]
 test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_scalar_intervals_match_the_exact_bootstrap_law"
 roles = ["scientific"]
 passed = true
@@ -2485,6 +2525,26 @@ dirty = false
 fingerprint = "c4bae38507c378bc6385e59f79b000b6d45208d742c4cd4b163969903c0cd8e0"
 recorded_at = "2026-11-09T21:20:44Z"
 dependency_manifest = "d990cdd7fc9a23b336da738dfafa244b2802d3e5fc2a474b2066b5dbc8843d58"
+
+[[record]]
+test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_unweighted_incidence_band_matches_reference"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f744209c25e05ee2efff7834554d82174897954d08bf0eab83ac807ef2bb1e37"
+recorded_at = "2026-11-26T05:24:42Z"
+dependency_manifest = "86ae3ece97e5cf37ff288598df851bae509afd1c800a49b1b0c1b86921f67e65"
+
+[[record]]
+test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_unweighted_survival_band_matches_reference"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "f744209c25e05ee2efff7834554d82174897954d08bf0eab83ac807ef2bb1e37"
+recorded_at = "2026-11-26T05:24:42Z"
+dependency_manifest = "30410eb6a29c67dc5f90877545a38e63fe1a176a80a7fff8057f359e33baeb39"
 
 [[record]]
 test = "antecedent-estimate::graphless_survival_bootstrap_known_truth::fixed_known_censoring_scalar_intervals_match_the_exact_weighted_bootstrap_law"
