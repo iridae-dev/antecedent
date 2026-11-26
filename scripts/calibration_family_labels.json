@@ -2070,7 +2070,7 @@
     },
     {
       "path": "crates/antecedent/tests/longitudinal_regime_calibration.rs",
-      "sha256": "5d33217d61e565deb49860d6d612988be6c82d83f4bd375f5fe0efbc6346cf9a",
+      "sha256": "addc9822b455d4b73e2a4fb23ff72c0da7c27c0f60d999252bf44bc224c973d7",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2088,7 +2088,7 @@
     },
     {
       "path": "crates/antecedent/tests/longitudinal_schedule_calibration.rs",
-      "sha256": "94c499e9dcf65895d0eb2aeb943db32625615c09312af227a4d74fee1441c5a1",
+      "sha256": "8d26e019ee2cd02d589badcd8f0874c3c550535e591ccb3ce3a68b72ad1823b4",
       "labelled_calls": [
         {
           "line": 170,
