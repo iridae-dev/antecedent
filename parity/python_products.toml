@@ -1191,11 +1191,12 @@ binding = "execution_control"
 reason = ""
 test = "python/tests/test_parameter_bindings.py::test_data_diagnostics_reaches_plan"
 
+# Unit identifiers let a decision detect shared evidence across study inputs.
 [[parameter]]
 name = "unit_key"
 entry_points = ["prepare", "PreparedAnalysis.prepare"]
 binding = "execution_control"
-reason = "declares the unit identifiers a decision judges shared evidence by; it is not a contract field of the study"
+reason = ""
 test = "python/tests/test_parameter_bindings.py::test_unit_key_reaches_plan"
 
 [[parameter]]
