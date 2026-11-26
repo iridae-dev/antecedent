@@ -6,9 +6,11 @@ mod common;
 
 use std::sync::Arc;
 
-use antecedent::Study;
+use antecedent::{CausalError, Study};
+use antecedent_estimate::error::EstimationError;
+use antecedent_stats::StatsError;
 use antecedent_core::{
-    CausalQuery, ExecutionContext, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
+    CausalQuery, ExecutionContext, LongitudinalCalibrationDesign, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
     LongitudinalScheduleFamily, LongitudinalScheduleTarget, VariableId,
 };
 use antecedent_data::TabularData;
@@ -22,8 +24,9 @@ fn evaluate(
     subjects: usize,
     means: [f64; 4],
     target: LongitudinalScheduleTarget,
+    design: LongitudinalCalibrationDesign,
     seed: u64,
-) -> (antecedent::PreparedStudy, antecedent::StudyResult) {
+) -> Option<(antecedent::PreparedStudy, antecedent::StudyResult)> {
     let mut assigned = uniform(seed, 211);
     let mut noise = gaussian(seed, 212);
     let mut histories = Vec::with_capacity(subjects * 2);
@@ -35,6 +38,7 @@ fn evaluate(
         endpoint.push(means[2 * usize::from(first) + usize::from(second)] + noise());
     }
     let query = LongitudinalRegimeQuery {
+        calibration_design: Some(design),
         outcome: VariableId::from_raw(0),
         method: LongitudinalRegimeMethod::ScheduleFamily(LongitudinalScheduleFamily {
             schedules: 0b1111,
@@ -70,8 +74,11 @@ fn evaluate(
         .unwrap()
         .prepare(&ctx)
         .unwrap();
-    let result = prepared.estimate(&table, &ctx).unwrap();
-    (prepared, result)
+    match prepared.estimate(&table, &ctx) {
+        Ok(result) => Some((prepared, result)),
+        Err(CausalError::Estimate(EstimationError::Stats(StatsError::Unsupported { .. }))) => None,
+        Err(error) => panic!("unexpected schedule calibration failure: {error}"),
+    }
 }
 
 #[test]
@@ -84,8 +91,9 @@ fn fixed_longitudinal_schedule_family_joint_coverage() {
             subjects,
             means,
             LongitudinalScheduleTarget::Contrasts { reference: 0, contrasts: 0b1110 },
+            LongitudinalCalibrationDesign::FixedScheduleFamily,
             seed ^ 0x5319_1020,
-        );
+        )?;
         let family = result.longitudinal_regime().unwrap().schedule_family.as_ref().unwrap();
         let statistic = family
             .contrasts
@@ -96,7 +104,7 @@ fn fixed_longitudinal_schedule_family_joint_coverage() {
             })
             .fold(0.0_f64, f64::max);
         let reported = constructions(&prepared.contract_for_result(&result).unwrap(), &result);
-        (family.critical_value, statistic, reported)
+        Some((family.critical_value, statistic, reported))
     });
     let mut tally = CoverageTally::for_record(
         RecordKey {
@@ -106,10 +114,14 @@ fn fixed_longitudinal_schedule_family_joint_coverage() {
         },
         REPORTED_LEVEL,
     );
-    for (critical, statistic, reported) in observations {
-        bind_reported(&mut tally, &reported);
-        // This event is exactly coverage of all three contrasts by the reported family.
-        tally.record(Some((0.0, critical)), statistic);
+    for observation in observations {
+        if let Some((critical, statistic, reported)) = observation {
+            bind_reported(&mut tally, &reported);
+            // This event is exactly coverage of all three contrasts by the reported family.
+            tally.record(Some((0.0, critical)), statistic);
+        } else {
+            tally.skip();
+        }
     }
     tally.assert();
 }
@@ -121,8 +133,13 @@ fn learned_coverage(test: &'static str, dgp: &'static str, means: [f64; 4], true
             subjects,
             means,
             LongitudinalScheduleTarget::Learn { training_fold: 0 },
+            if true_optima.len() > 1 {
+                LongitudinalCalibrationDesign::LearnedScheduleTiedOptima
+            } else {
+                LongitudinalCalibrationDesign::LearnedScheduleUniqueOptimum
+            },
             seed ^ 0x5320_1020,
-        );
+        )?;
         let fit = result.longitudinal_regime().unwrap();
         let family = fit.schedule_family.as_ref().unwrap();
         let learning = family.learning.as_ref().unwrap();
@@ -140,13 +157,13 @@ fn learned_coverage(test: &'static str, dgp: &'static str, means: [f64; 4], true
             true_optima.iter().all(|optimum| learning.optimum_set.contains(optimum))
         );
         let reported = constructions(&prepared.contract_for_result(&result).unwrap(), &result);
-        (
+        Some((
             fit.value_interval_95.unwrap(),
             means[learning.selected_schedule as usize],
             family.critical_value,
             maximum,
             reported,
-        )
+        ))
     });
     let mut selected =
         CoverageTally::for_record(RecordKey { test, dgp, interval: "analytic_se" }, REPORTED_LEVEL)
@@ -156,11 +173,16 @@ fn learned_coverage(test: &'static str, dgp: &'static str, means: [f64; 4], true
         REPORTED_LEVEL,
     )
     .labelled("all_true_optima");
-    for ([lower, upper], truth, critical, maximum, reported) in observations {
-        bind_reported(&mut selected, &reported);
-        selected.record(Some((lower, upper)), truth);
-        bind_reported(&mut optima, &reported);
-        optima.record(Some((0.0, critical)), maximum);
+    for observation in observations {
+        if let Some(([lower, upper], truth, critical, maximum, reported)) = observation {
+            bind_reported(&mut selected, &reported);
+            selected.record(Some((lower, upper)), truth);
+            bind_reported(&mut optima, &reported);
+            optima.record(Some((0.0, critical)), maximum);
+        } else {
+            selected.skip();
+            optima.skip();
+        }
     }
     selected.assert();
     optima.assert_one_sided(

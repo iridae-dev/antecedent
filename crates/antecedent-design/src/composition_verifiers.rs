@@ -563,6 +563,8 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
                 if let Some(record_id) = &calibration.record_id {
                     publish(&mut inspected.facts, "optimum_set.calibration_record", record_id.clone());
                 }
+            } else {
+                publish(&mut inspected.facts, "optimum_set.calibration", "not_measured");
             }
             push_value(
                 &mut inspected.values,

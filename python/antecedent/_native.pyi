@@ -2369,6 +2369,7 @@ class PreparedAnalysis:
         known_fixed_outcome_predictions: bool = False,
         fitted_q: tuple[str, int | None, int] | None = None,
         schedule_family: tuple[int, int, tuple[int, int] | None, int | None] | None = None,
+        calibration_design: str | None = None,
         stabilizing_numerator_probabilities: list[float] = [],
         q_predictions: list[float] = [],
         observation_history: list[bool] = [],

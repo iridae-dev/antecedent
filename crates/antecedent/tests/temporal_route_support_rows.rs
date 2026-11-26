@@ -368,6 +368,7 @@ fn regime_trial(n: usize, seed: u64) -> (TabularData, LongitudinalRegimeQuery) {
     let folds: Vec<u32> = (0..n).map(|i| u32::from(i % 2 == 1)).collect();
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())]).unwrap();
     let query = LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: v(0),
         method: LongitudinalRegimeMethod::SequentialDoublyRobust,
         period_outcome_predictions: None,

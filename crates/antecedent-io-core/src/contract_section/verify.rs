@@ -1405,8 +1405,12 @@ pub(in crate::contract_section) fn note_published_claim(
         if let CausalQueryWire::LongitudinalRegime(query) = &body.query
             && matches!(query.method.as_str(), "compare_schedules" | "learn_schedule")
         {
-            let declared = query.schedule_calibration_coordinates();
             let actual = claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str());
+            let declared = query.schedule_calibration_coordinates().or_else(|| {
+                (query.calibration_design.is_none() && actual.is_some())
+                    .then(|| query.schedule_calibration_geometry())
+                    .flatten()
+            });
             let secondary = claim.calibration.secondary.as_slice();
             let actual_secondary = secondary.first().and_then(|slot| slot.basis.as_ref())
                 .map(|basis| basis.key.functional.as_str());
@@ -1421,7 +1425,12 @@ pub(in crate::contract_section) fn note_published_claim(
             && query.method == "fitted_g_formula"
         {
             let basis = claim.calibration.basis.as_ref();
-            if basis.map(|basis| basis.key.functional.as_str()) != query.fitted_q_calibration_design()
+            let declared = query.fitted_q_calibration_design().or_else(|| {
+                (query.calibration_design.is_none() && basis.is_some())
+                    .then(|| query.fitted_q_calibration_geometry())
+                    .flatten()
+            });
+            if basis.map(|basis| basis.key.functional.as_str()) != declared
                 || basis.is_some_and(|basis| {
                     basis.scope.replicates_ok != body.longitudinal_regime.as_ref()
                         .and_then(|fit| fit.fitted_q_bootstrap_replicates_ok)
@@ -1436,9 +1445,11 @@ pub(in crate::contract_section) fn note_published_claim(
             && query.method == "sequential_dr"
         {
             let fit = body.longitudinal_regime.as_ref();
-            let design = query.four_period_dr_calibration_design().filter(|_| {
-                fit.is_some_and(|fit| fit.value_interval_95.is_some())
-            });
+            let design = query.four_period_dr_calibration_design().or_else(|| {
+                (query.calibration_design.is_none() && claim.calibration.basis.is_some())
+                    .then(|| query.four_period_dr_calibration_geometry())
+                    .flatten()
+            }).filter(|_| fit.is_some_and(|fit| fit.value_interval_95.is_some()));
             if claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str()) != design {
                 unresolved.push(ContractReason::ClaimCalibrationBasis);
             }
@@ -1719,7 +1730,8 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {
             matches!(&contract.target.query, crate::CausalQueryWire::LongitudinalRegime(q)
-                if q.four_period_dr_calibration_design() == Some(key.functional.as_str())
+                if (q.four_period_dr_calibration_design() == Some(key.functional.as_str())
+                        || (q.calibration_design.is_none() && q.four_period_dr_calibration_geometry() == Some(key.functional.as_str())))
                     && u64::try_from(q.subject_ids.len()) == Ok(basis.scope.row_count))
                 && graphless_validation_ok && key.validation == "not_applicable"
                 && key.query == "LongitudinalRegime" && key.structure == "design"
@@ -1731,7 +1743,8 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {
             matches!(&contract.target.query, crate::CausalQueryWire::LongitudinalRegime(q)
-                if q.fitted_q_calibration_design() == Some(key.functional.as_str())
+                if (q.fitted_q_calibration_design() == Some(key.functional.as_str())
+                        || (q.calibration_design.is_none() && q.fitted_q_calibration_geometry() == Some(key.functional.as_str())))
                     && u64::try_from(q.subject_ids.len()) == Ok(basis.scope.row_count))
                 && graphless_validation_ok && key.validation == "not_applicable"
                 && key.query == "LongitudinalRegime" && key.structure == "design"
@@ -1743,7 +1756,10 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {
             let CausalQueryWire::LongitudinalRegime(query) = &contract.target.query else { return false };
-            let Some((primary, secondary)) = query.schedule_calibration_coordinates() else { return false };
+            let declared = query.schedule_calibration_coordinates().or_else(|| {
+                query.calibration_design.is_none().then(|| query.schedule_calibration_geometry()).flatten()
+            });
+            let Some((primary, secondary)) = declared else { return false };
             let Some(family) = query.schedule_family else { return false };
             let evaluated = match family.target {
                 crate::query_wire::LongitudinalScheduleTargetWire::Contrasts { .. } => query.subject_ids.len(),

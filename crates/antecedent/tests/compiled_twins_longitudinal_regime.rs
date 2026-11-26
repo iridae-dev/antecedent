@@ -91,6 +91,7 @@ fn histories(fixture: &Fixture) -> SubjectHistories<'_> {
 
 fn query(fixture: &Fixture, method: LongitudinalRegimeMethod) -> LongitudinalRegimeQuery {
     LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: VariableId::from_raw(0),
         method,
         period_outcome_predictions: None,

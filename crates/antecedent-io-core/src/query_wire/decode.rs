@@ -559,7 +559,12 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
         }
         _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
     };
+    let calibration_design = w.calibration_design.as_deref().map(|name| {
+        antecedent_core::LongitudinalCalibrationDesign::from_name(name)
+            .ok_or_else(|| IoError::Convert("unknown longitudinal calibration design".into()))
+    }).transpose()?;
     let q = antecedent_core::LongitudinalRegimeQuery {
+        calibration_design,
         outcome: VariableId::from_raw(w.outcome),
         periods: w.periods,
         method,

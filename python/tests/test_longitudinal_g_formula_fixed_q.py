@@ -89,13 +89,8 @@ def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bo
     assert value.effective_sample_size == len(predictions)
     assert value.fitted_q_bootstrap_replicates_ok == 199
     assert value.uncertainty == "pointwise_whole_subject_refit_percentile_95"
-    expected_scope = (
-        "fitted_q_binary_baseline_h2_external_split"
-        if external else "fitted_q_binary_baseline_h2_internal_crossfit"
-    )
-    assert result.calibration.functional == expected_scope
-    if result.calibration.status == "calibrated":
-        assert result.calibration.scope_n <= n <= result.calibration.scope_n_max
+    assert result.calibration.functional is None
+    assert result.calibration.status == "not_measured"
     sourced = bytes(result.export(source_data=data))
     artifact = require_success(ant.load(sourced)).replay()
     assert artifact.acceptance.replayed

@@ -127,6 +127,7 @@ fn the_remaining_design_cells_round_trip() {
     round_trip(
         Study::tabular(table(&[("outcome", &[0.0, 1.0])]))
             .query(LongitudinalRegimeQuery {
+                calibration_design: None,
                 outcome: v(0),
                 method: LongitudinalRegimeMethod::Ipw,
                 period_outcome_predictions: None,

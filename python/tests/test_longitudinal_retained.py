@@ -526,8 +526,8 @@ def test_four_period_sequential_dr_matches_forward_interval_and_replays(tmp_path
     assert artifact.program_id == result.program_id
     assert artifact.claim_id == result.claim_id
     assert artifact.calibration.status == result.calibration.status
-    basis = artifact.decoded_artifact.contract["claim"]["calibration"]["basis"]["key"]
-    assert basis["functional"] == "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q"
+    assert result.calibration.status == "not_measured"
+    assert artifact.decoded_artifact.contract["claim"]["calibration"].get("basis") is None
     path = tmp_path / "four-period-dr.bin"
     path.write_bytes(artifact_bytes)
     bundle = cb.BundleBuilder().add_artifact(artifact_bytes, node_id="regime").build()

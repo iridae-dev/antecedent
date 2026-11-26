@@ -740,6 +740,7 @@ fn one_period_switchback_reproduces_the_bernoulli_horvitz_thompson_contrast() {
 fn ipw_regime(outcomes: &[f64], assigned: &[bool], action: bool) -> LongitudinalRegimeQuery {
     let n = outcomes.len();
     LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: id(0),
         method: LongitudinalRegimeMethod::Ipw,
         period_outcome_predictions: None,

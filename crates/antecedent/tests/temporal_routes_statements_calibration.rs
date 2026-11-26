@@ -159,6 +159,7 @@ fn crossfit_regime_trial(n: usize, seed: u64) -> Option<(TabularData, Longitudin
     let data = TabularData::from_f64_columns([("outcome", outcome.as_slice())])
         .expect("the simulated column is finite");
     let query = LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: VariableId::from_raw(0),
         method: LongitudinalRegimeMethod::SequentialDoublyRobust,
         period_outcome_predictions: None,

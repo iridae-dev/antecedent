@@ -506,6 +506,7 @@ fn survival_to_wire(q: &antecedent_core::SurvivalQuery) -> CausalQueryWire {
 /// Encode the [`CausalQuery::LongitudinalRegime`] payload.
 fn longitudinal_regime_to_wire(q: &antecedent_core::LongitudinalRegimeQuery) -> CausalQueryWire {
     CausalQueryWire::LongitudinalRegime(LongitudinalRegimeQueryWire {
+        calibration_design: q.calibration_design.map(|design| design.as_str().to_owned()),
         outcome: q.outcome.raw(),
         method: match q.method {
             antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",

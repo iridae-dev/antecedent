@@ -27,6 +27,7 @@ fn fixture(
         .map(|&row| means[row % 4] + 0.125 * ((row / 8 % 3) as f64 - 1.0))
         .collect();
     let q = LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: VariableId::from_raw(0),
         method: LongitudinalRegimeMethod::ScheduleFamily(LongitudinalScheduleFamily {
             schedules: 0b1111,
@@ -151,10 +152,7 @@ fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajector
         let prepared = compiled(&table, query, &ctx);
         let result = prepared.estimate(&table, &ctx).unwrap();
         let scopes = result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
-        assert_eq!(scopes.len(), 2);
-        assert_eq!(scopes[0].key.functional, "learned_h2_four_schedules_selected_value");
-        assert_eq!(scopes[1].key.functional, "learned_h2_four_schedules_all_true_optima");
-        assert_eq!(scopes[0].scope.row_count, (SUBJECTS / 2) as u64);
+        assert!(scopes.is_empty(), "the deterministic oracle has no measured-law declaration");
 
         let fit = result.longitudinal_regime().unwrap();
         let learned = fit.schedule_family.as_ref().unwrap().learning.as_ref().unwrap();

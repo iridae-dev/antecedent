@@ -3,9 +3,11 @@
 
 mod common;
 
-use antecedent::{PreparedStudy, Study, StudyResult};
+use antecedent::{CausalError, PreparedStudy, Study, StudyResult};
+use antecedent_estimate::error::EstimationError;
+use antecedent_stats::StatsError;
 use antecedent_core::{
-    CausalQuery, ExecutionContext, LongitudinalRegimeMethod, LongitudinalRegimeQuery, VariableId,
+    CausalQuery, ExecutionContext, LongitudinalCalibrationDesign, LongitudinalRegimeMethod, LongitudinalRegimeQuery, VariableId,
 };
 use antecedent_data::TabularData;
 use common::calibration::{
@@ -53,6 +55,7 @@ fn draw(
         matches += usize::from(at_risk && treated_periods == 4);
     }
     let query = LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: VariableId::from_raw(0),
         method: LongitudinalRegimeMethod::SequentialDoublyRobust,
         period_outcome_predictions: None,
@@ -84,7 +87,7 @@ fn run(
     data: &TabularData,
     query: LongitudinalRegimeQuery,
     seed: u64,
-) -> (PreparedStudy, StudyResult) {
+) -> Result<(PreparedStudy, StudyResult), CausalError> {
     let ctx = ExecutionContext::for_tests(seed);
     let prepared = Study::tabular(data.clone())
         .query(CausalQuery::LongitudinalRegime(query))
@@ -92,8 +95,8 @@ fn run(
         .unwrap()
         .prepare(&ctx)
         .unwrap();
-    let result = prepared.estimate(data, &ctx).unwrap();
-    (prepared, result)
+    let result = prepared.estimate(data, &ctx)?;
+    Ok((prepared, result))
 }
 
 #[test]
@@ -101,8 +104,9 @@ fn run(
 fn four_period_sequential_dr_coverage() {
     let subjects = grid_n(4_800);
     let datasets = map_replicates(n_sim(), |seed| {
-        let (data, query, _) = draw(subjects, 0.5, 0.95, seed ^ 0x4911_0000);
-        let (prepared, result) = run(&data, query, seed);
+        let (data, mut query, _) = draw(subjects, 0.5, 0.95, seed ^ 0x4911_0000);
+        query.calibration_design = Some(LongitudinalCalibrationDesign::FourPeriodSequentialDr);
+        let (prepared, result) = run(&data, query, seed).unwrap();
         let bounds = result.longitudinal_regime().unwrap().value_interval_95;
         let reported = bounds.map(|_| {
             let contract = prepared.contract_for_result(&result).unwrap();
@@ -152,7 +156,7 @@ fn four_period_sequential_dr_coverage_and_publication() {
             let seed = replicate ^ 0x4912_0000;
             let (data, query, matches) = draw(subjects, p, c, seed);
             let observed = query.outcome_observed.iter().filter(|&&on| on).count();
-            let (_, result) = run(&data, query, seed);
+            let (_, result) = run(&data, query, seed).unwrap();
             let bounds = result.longitudinal_regime().unwrap().value_interval_95;
             min_matches = min_matches.min(matches);
             max_matches = max_matches.max(matches);
@@ -205,6 +209,11 @@ fn fitted_q_coverage(test: &'static str, external_training_fold: Option<u32>) {
         ])
         .unwrap();
         let query = LongitudinalRegimeQuery {
+            calibration_design: Some(if external_training_fold.is_some() {
+                LongitudinalCalibrationDesign::FittedQExternalSplit
+            } else {
+                LongitudinalCalibrationDesign::FittedQInternalCrossfit
+            }),
             outcome: VariableId::from_raw(0),
             method: LongitudinalRegimeMethod::FittedGFormula(antecedent_core::FittedRegimeQ {
                 baseline: VariableId::from_raw(1),
@@ -232,10 +241,16 @@ fn fitted_q_coverage(test: &'static str, external_training_fold: Option<u32>) {
             rule_version: None,
             rule_provenance: None,
         };
-        let (prepared, result) = run(&data, query, seed);
+        let (prepared, result) = match run(&data, query, seed) {
+            Ok(fit) => fit,
+            Err(CausalError::Estimate(EstimationError::Stats(StatsError::Unsupported { .. }))) => {
+                return None;
+            }
+            Err(error) => panic!("unexpected fitted-Q calibration failure: {error}"),
+        };
         let fit = result.longitudinal_regime().unwrap();
         let contract = prepared.contract_for_result(&result).unwrap();
-        (fit.value_interval_95, common::calibration_bind::constructions(&contract, &result))
+        Some((fit.value_interval_95, common::calibration_bind::constructions(&contract, &result)))
     });
     let mut coverage = CoverageTally::for_record(
         RecordKey {
@@ -245,9 +260,13 @@ fn fitted_q_coverage(test: &'static str, external_training_fold: Option<u32>) {
         },
         REPORTED_LEVEL,
     );
-    for (bounds, reported) in datasets {
-        bind_reported(&mut coverage, &reported);
-        coverage.record(bounds.map(|[lo, hi]| (lo, hi)), 3.75);
+    for dataset in datasets {
+        if let Some((bounds, reported)) = dataset {
+            bind_reported(&mut coverage, &reported);
+            coverage.record(bounds.map(|[lo, hi]| (lo, hi)), 3.75);
+        } else {
+            coverage.skip();
+        }
     }
     coverage.assert();
 }

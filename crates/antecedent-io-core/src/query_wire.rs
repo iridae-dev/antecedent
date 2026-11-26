@@ -1108,6 +1108,9 @@ pub struct LongitudinalRegimeQueryWire {
     /// Compiler-owned Q fit and bootstrap declaration, present for the fitted method.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fitted_q: Option<FittedRegimeQWire>,
+    /// Prespecified outcome and sampling law for an empirical coverage receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calibration_design: Option<String>,
     /// Predeclared fixed comparison or learned schedule class.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schedule_family: Option<LongitudinalScheduleFamilyWire>,
@@ -1208,6 +1211,20 @@ impl LongitudinalRegimeQueryWire {
     /// Calibration coordinates of the full four-schedule class under the registered designs.
     #[must_use]
     pub fn schedule_calibration_coordinates(&self) -> Option<(&'static str, Option<&'static str>)> {
+        match (self.calibration_design.as_deref()?, self.schedule_calibration_geometry()?) {
+            ("fixed_schedule_family", (_, None)) =>
+                Some(("fixed_h2_four_schedules_vs_never_treat_gaussian_v1", None)),
+            ("learned_schedule_unique_optimum", (_, Some(_))) =>
+                Some(("learned_h2_four_schedules_selected_value_unique_gaussian_v1",
+                    Some("learned_h2_four_schedules_all_true_optima_unique_gaussian_v1"))),
+            ("learned_schedule_tied_optima", (_, Some(_))) =>
+                Some(("learned_h2_four_schedules_selected_value_tied_gaussian_v1",
+                    Some("learned_h2_four_schedules_all_true_optima_tied_gaussian_v1"))),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn schedule_calibration_geometry(&self) -> Option<(&'static str, Option<&'static str>)> {
         let family = self.schedule_family?;
         if self.periods != 2 || family.schedules != 0b1111 || family.draws != 199 {
             return None;
@@ -1237,6 +1254,16 @@ impl LongitudinalRegimeQueryWire {
     /// Match the fitted-Q interval's declared split and resample design to its coverage study.
     #[must_use]
     pub fn fitted_q_calibration_design(&self) -> Option<&'static str> {
+        match (self.calibration_design.as_deref()?, self.fitted_q_calibration_geometry()?) {
+            ("fitted_q_internal_crossfit", "fitted_q_binary_baseline_h2_internal_crossfit") =>
+                Some("fitted_q_binary_baseline_h2_internal_crossfit_gaussian_v1"),
+            ("fitted_q_external_split", "fitted_q_binary_baseline_h2_external_split") =>
+                Some("fitted_q_binary_baseline_h2_external_split_gaussian_v1"),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn fitted_q_calibration_geometry(&self) -> Option<&'static str> {
         let fit = self.fitted_q?;
         let cells = self.subject_ids.len().checked_mul(2)?;
         if self.method != "fitted_g_formula"
@@ -1260,6 +1287,12 @@ impl LongitudinalRegimeQueryWire {
     /// Four-decision assignment and observation laws in the calibration study.
     #[must_use]
     pub fn four_period_dr_calibration_design(&self) -> Option<&'static str> {
+        (self.calibration_design.as_deref() == Some("four_period_sequential_dr")
+            && self.four_period_dr_calibration_geometry().is_some())
+            .then_some("fixed_all_treated_h4_fair_coin_censor_survival_095_external_q_gaussian_v1")
+    }
+
+    pub(crate) fn four_period_dr_calibration_geometry(&self) -> Option<&'static str> {
         let cells = self.subject_ids.len().checked_mul(4)?;
         (self.periods == 4
             && self.method == "sequential_dr"

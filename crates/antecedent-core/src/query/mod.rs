@@ -96,7 +96,7 @@ pub use iv_bounds::IvBoundsQuery;
 pub use local_polynomial_ratio::{
     LocalBandwidthRule, LocalPolynomialRatioQuery, LocalRatioOptions,
 };
-pub use longitudinal_regime::{FittedRegimeQ, LongitudinalRegimeMethod, LongitudinalRegimeQuery, LongitudinalScheduleFamily, LongitudinalScheduleTarget};
+pub use longitudinal_regime::{FittedRegimeQ, LongitudinalCalibrationDesign, LongitudinalRegimeMethod, LongitudinalRegimeQuery, LongitudinalScheduleFamily, LongitudinalScheduleTarget};
 pub use mediation::{ConditionalEffectQuery, MediationContrast, MediationQuery};
 pub use model_operations::{
     ArrowStrengthsTarget, DoSamplerMethod, DoSamplerTarget, ModelEvaluationTarget, ModelOperation,

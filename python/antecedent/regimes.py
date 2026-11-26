@@ -106,6 +106,16 @@ class LearnedScheduleClass:
         return family, self.draws, None, self.training_fold
 
 
+LongitudinalCalibrationDesign = Literal[
+    "four_period_sequential_dr",
+    "fitted_q_internal_crossfit",
+    "fitted_q_external_split",
+    "fixed_schedule_family",
+    "learned_schedule_unique_optimum",
+    "learned_schedule_tied_optima",
+]
+
+
 @dataclass(frozen=True, slots=True)
 class LongitudinalRegime:
     """Prespecified binary regime over complete subject histories.
@@ -143,6 +153,9 @@ class LongitudinalRegime:
     #: ``antecedent.validation.sensitivity_range(study, "msm_parameters_refit", ...)``). No
     #: estimator of the regime reads them; a study that declares none retains the outcome alone.
     covariates: Sequence[str] = ()
+    #: Name the prespecified study law only if it applies to these data and this fit.
+    #: Undeclared or mismatched designs retain a nominal reading.
+    calibration_design: LongitudinalCalibrationDesign | None = None
     kind: Literal["longitudinal_regime"] = field(
         default="longitudinal_regime", init=False, repr=False
     )
@@ -163,6 +176,12 @@ class LongitudinalRegime:
             return
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must name a non-empty column")
+        if self.calibration_design not in (
+            None, "four_period_sequential_dr", "fitted_q_internal_crossfit",
+            "fitted_q_external_split", "fixed_schedule_family",
+            "learned_schedule_unique_optimum", "learned_schedule_tied_optima",
+        ):
+            raise CausalValueError("unknown longitudinal calibration design")
         covariates = (
             (self.covariates,) if isinstance(self.covariates, str) else tuple(self.covariates)
         )
@@ -1461,6 +1480,7 @@ def trajectory_hazard_credible_interval(
 
 
 __all__ = [
+    "LongitudinalCalibrationDesign",
     "FittedRegimeQ",
     "FixedScheduleContrasts",
     "LearnedScheduleClass",

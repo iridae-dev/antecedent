@@ -177,6 +177,7 @@ fn binary_policy_posterior_names_its_estimator_and_refuses_unread_shapes() {
 
 fn regime_query() -> LongitudinalRegimeQuery {
     LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: VariableId::from_raw(0),
         method: antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
         period_outcome_predictions: None,

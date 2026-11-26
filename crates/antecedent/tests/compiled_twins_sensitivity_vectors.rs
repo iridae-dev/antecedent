@@ -679,6 +679,7 @@ impl Regime {
             probabilities.extend([p1, p2]);
         }
         let query = LongitudinalRegimeQuery {
+            calibration_design: None,
             outcome: v(0),
             method: LongitudinalRegimeMethod::MarginalStructuralModel,
             period_outcome_predictions: None,

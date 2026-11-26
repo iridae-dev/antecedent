@@ -622,7 +622,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
         excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
-        *, method="ipw", period_outcome_predictions=Vec::new(), known_fixed_outcome_predictions=false, fitted_q=None, schedule_family=None, stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
+        *, method="ipw", period_outcome_predictions=Vec::new(), known_fixed_outcome_predictions=false, fitted_q=None, schedule_family=None, calibration_design=None, stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_longitudinal_regime(
         py: Python<'_>,
@@ -645,6 +645,7 @@ impl PyPreparedAnalysis {
         known_fixed_outcome_predictions: bool,
         fitted_q: Option<(String, Option<u32>, u32)>,
         schedule_family: Option<(u8, u32, Option<(u8, u8)>, Option<u32>)>,
+        calibration_design: Option<String>,
         stabilizing_numerator_probabilities: Vec<f64>,
         q_predictions: Vec<f64>,
         observation_history: Vec<bool>,
@@ -706,7 +707,12 @@ impl PyPreparedAnalysis {
                         }));
                     }
                 };
+                let calibration_design = calibration_design.as_deref().map(|design| {
+                    antecedent::query::LongitudinalCalibrationDesign::from_name(design)
+                        .ok_or_else(|| crate::value_err("unknown longitudinal calibration design"))
+                }).transpose()?;
                 let query = antecedent::query::LongitudinalRegimeQuery {
+                    calibration_design,
                     outcome: outcome_id,
                     method,
                     period_outcome_predictions: if period_outcome_predictions.is_empty() {

@@ -1,5 +1,8 @@
 """Public schedule class comparison, honest learning and artifact replay."""
 
+from dataclasses import replace
+from random import Random
+
 import antecedent as ant
 import pytest
 from antecedent import composition_bundle as cb
@@ -58,7 +61,8 @@ def test_paired_longitudinal_comparisons_replay_and_bind_the_class():
         SCHEDULES, SCHEDULES[0], SCHEDULES[1:], draws=199,
     ))
     measured = require_success(ant.analyze(full_data, query=full_query))
-    assert measured.calibration.functional == "fixed_h2_four_schedules_vs_never_treat"
+    assert measured.calibration.functional is None
+    assert measured.calibration.status == "not_measured"
     assert not measured.calibration.secondary
 
     revised_data = {
@@ -94,12 +98,9 @@ def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selec
     assert selected_fit.optimum_set == optima
     assert sum(count for _, count in selected_fit.refit_selections) == 199
     assert fit.value_interval_95[0] <= means[selected] <= fit.value_interval_95[1]
-    assert result.calibration.functional == "learned_h2_four_schedules_selected_value"
-    assert len(result.calibration.secondary) == 1
-    optimum_calibration = result.calibration.secondary[0]
-    assert optimum_calibration.functional == "learned_h2_four_schedules_all_true_optima"
-    if optimum_calibration.status == "calibrated":
-        assert optimum_calibration.scope_n <= 400 <= optimum_calibration.scope_n_max
+    assert result.calibration.functional is None
+    assert result.calibration.status == "not_measured"
+    assert not result.calibration.secondary
 
     source = bytes(result.export(source_data=data))
     artifact = require_success(ant.load(source)).replay()
@@ -107,8 +108,8 @@ def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selec
     assert artifact.decoded_artifact.payload["longitudinal_regime"]["schedule_family"]["learning"]["optimum_set"] == list(optima)
     bundle = cb.BundleBuilder().add_artifact(source, node_id="learned").build()
     verified = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
-    assert verified.node("learned").facts["optimum_set.calibration"] == optimum_calibration.status
-    assert verified.node("learned").facts["optimum_set.calibration_functional"] == optimum_calibration.functional
+    assert verified.node("learned").facts["optimum_set.calibration"] == "not_measured"
+    assert "optimum_set.calibration_functional" not in verified.node("learned").facts
     assert verified.node("learned").facts["optimum_set"] == ",".join(map(str, optima))
 
     changed_data = {
@@ -127,3 +128,28 @@ def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selec
     replayed = require_success(cb.consume_bundle(new_bytes, expected_identity=replacement.identity))
     assert replayed.value("learned", "selected_schedule") == 0.0
     assert replayed.node("learned").facts["optimum_set"] == ",".join(map(str, optima))
+
+@pytest.mark.parametrize(
+    "design,means,suffix",
+    [
+        ("learned_schedule_unique_optimum", (1.0, 2.0, 3.0, 5.0), "unique_gaussian_v1"),
+        ("learned_schedule_tied_optima", (1.0, 2.0, 5.0, 5.0), "tied_gaussian_v1"),
+    ],
+)
+def test_learned_schedule_empirical_receipts_bind_the_declared_law(design, means, suffix):
+    _, query = _study(means, LearnedScheduleClass(SCHEDULES, training_fold=0, draws=199))
+    rng = Random(913)
+    codes = [rng.randrange(4) for _ in query.subject_ids]
+    query = replace(query, treatment_history=[SCHEDULES[code] for code in codes])
+    data = {"outcome": [rng.gauss(means[code], 1.0) for code in codes]}
+    nominal = require_success(ant.analyze(data, query=query))
+    scoped = require_success(ant.analyze(data, query=replace(query, calibration_design=design)))
+    assert nominal.calibration.functional is None
+    assert scoped.calibration.functional == f"learned_h2_four_schedules_selected_value_{suffix}"
+    assert scoped.calibration.secondary[0].functional == (
+        f"learned_h2_four_schedules_all_true_optima_{suffix}"
+    )
+    assert scoped.program_id != nominal.program_id
+    archived = require_success(ant.load(bytes(scoped.export(source_data=data)))).replay()
+    assert archived.acceptance.replayed
+    assert archived.calibration.functional == scoped.calibration.functional

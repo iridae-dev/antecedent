@@ -103,6 +103,53 @@ impl CanonicalEncode for LongitudinalRegimeMethod {
     }
 }
 
+/// Caller declaration of a specific repeated-study law. Outcome-law membership
+/// is a scientific premise. Executable design geometry is checked separately.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LongitudinalCalibrationDesign {
+    /// Four fair-coin decisions with fixed excluded-fold Q and additive Gaussian reward.
+    FourPeriodSequentialDr,
+    /// Two fair-coin decisions, binary baseline, additive Gaussian reward and internal cross-fitting.
+    FittedQInternalCrossfit,
+    /// The fitted-Q study with separate training and evaluation samples.
+    FittedQExternalSplit,
+    /// Four fixed fair-coin schedules with the registered Gaussian reward vector.
+    FixedScheduleFamily,
+    /// The registered held-out study with a unique best Gaussian reward schedule.
+    LearnedScheduleUniqueOptimum,
+    /// The registered held-out Gaussian study with two equally best schedules.
+    LearnedScheduleTiedOptima,
+}
+
+impl LongitudinalCalibrationDesign {
+    /// Stable spelling for the public wire.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FourPeriodSequentialDr => "four_period_sequential_dr",
+            Self::FittedQInternalCrossfit => "fitted_q_internal_crossfit",
+            Self::FittedQExternalSplit => "fitted_q_external_split",
+            Self::FixedScheduleFamily => "fixed_schedule_family",
+            Self::LearnedScheduleUniqueOptimum => "learned_schedule_unique_optimum",
+            Self::LearnedScheduleTiedOptima => "learned_schedule_tied_optima",
+        }
+    }
+
+    /// Decode one registered study declaration.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "four_period_sequential_dr" => Some(Self::FourPeriodSequentialDr),
+            "fitted_q_internal_crossfit" => Some(Self::FittedQInternalCrossfit),
+            "fitted_q_external_split" => Some(Self::FittedQExternalSplit),
+            "fixed_schedule_family" => Some(Self::FixedScheduleFamily),
+            "learned_schedule_unique_optimum" => Some(Self::LearnedScheduleUniqueOptimum),
+            "learned_schedule_tied_optima" => Some(Self::LearnedScheduleTiedOptima),
+            _ => None,
+        }
+    }
+}
+
 /// Prespecified binary static or history-dependent actions, resolved before
 /// analysis on the frozen subject histories. Nuisance probabilities are supplied
 /// by the caller and subject-level prediction ownership remains explicit.
@@ -112,6 +159,8 @@ pub struct LongitudinalRegimeQuery {
     pub outcome: VariableId,
     /// Evaluation method; both routes are point-only.
     pub method: LongitudinalRegimeMethod,
+    /// Optional prespecified study law for empirical calibration.
+    pub calibration_design: Option<LongitudinalCalibrationDesign>,
     /// Prespecified conditional period rewards under the regime, subject-major.
     /// Required for g-formula and absent for IPW.
     pub period_outcome_predictions: Option<Arc<[f64]>>,
@@ -200,6 +249,9 @@ impl CanonicalEncode for LongitudinalRegimeQuery {
             .opt_text(self.rule_id.as_deref())
             .opt_text(self.rule_version.as_deref())
             .opt_text(self.rule_provenance.as_deref());
+        if let Some(design) = self.calibration_design {
+            writer.text("longitudinal-calibration-design-v1").text(design.as_str());
+        }
     }
 }
 
@@ -432,6 +484,7 @@ mod tests {
     #[test]
     fn refuses_split_subject_ownership_and_bad_probability() {
         let mut q = LongitudinalRegimeQuery {
+            calibration_design: None,
             outcome: VariableId::from_raw(0),
             method: LongitudinalRegimeMethod::Ipw,
             period_outcome_predictions: None,

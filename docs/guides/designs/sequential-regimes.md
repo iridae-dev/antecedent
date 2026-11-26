@@ -79,3 +79,24 @@ If you need an interval, move to the observational regime contrast in [temporal 
 
 - [Sequentially randomized designs and regime survival](../temporal-designs.md)
 - [Observational policy value](../heterogeneous-effects-and-policies.md#observational-policy-value) for static, single-decision policies.
+
+### Empirical calibration of longitudinal intervals
+
+The nominal interval and its measured status are separate. In Rust use
+`LongitudinalRegimeQuery.calibration_design` with `LongitudinalCalibrationDesign`.
+In Python use the corresponding `calibration_design` keyword on
+`LongitudinalRegime`. Leave it unset for other data-generating laws. A named
+design states an assumption about the study's law. The compiler checks the
+execution settings, including folds, draw count and schedule coordinates. It
+cannot prove a population's outcome distribution from a finite sample.
+
+- `four_period_sequential_dr` measures four fair-coin decisions, conditional retention 0.95, the fixed excluded-fold Q vector in the calibration fixture, and an endpoint of two plus the number of realized treatments plus independent standard Gaussian noise.
+- `fitted_q_internal_crossfit` and `fitted_q_external_split` measure the two-decision fair-coin regression with an independent fair-coin baseline, terminal mean (2+0.5A_0+0.75A_1+X), and standard Gaussian noise. The first refits within its internal folds. The second uses an independent training fold and averages predictions over the evaluation fold.
+- `fixed_schedule_family` measures the three contrasts to never treat under two fair-coin decisions and conditional Gaussian endpoint means ((1,2,3,4)) with standard deviation one.
+- `learned_schedule_unique_optimum` and `learned_schedule_tied_optima` measure the held-out procedure under the same fair-coin design with respective means ((1,2,3,5)) and ((1,2,5,5)). Each outcome law has its own selected-value and all-optima receipt.
+
+A matching current receipt applies only within its measured sample scope.
+Existing query artifacts without a named law remain readable with nominal
+intervals. The fitted-Q interval repeats fitting and evaluation on resampled
+subjects. The four-period sequential DR interval conditions on the supplied Q
+predictions.

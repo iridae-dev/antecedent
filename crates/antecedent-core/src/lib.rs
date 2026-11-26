@@ -174,7 +174,7 @@ pub use query::{
     HistoryMatchQuery, InterferenceFault, InterferenceFunctional, InterferenceQuery,
     InterventionAssignment, InterventionFault, InterventionalDistributionQuery, IvBoundsFault,
     IvBoundsQuery, KnownCensoringSurvival, StratifiedCensoringSurvival, LawOrigin, LocalPolynomialRatioFault,
-    LocalPolynomialRatioQuery, LongitudinalRegimeFault, LongitudinalRegimeMethod,
+    LocalPolynomialRatioQuery, LongitudinalCalibrationDesign, LongitudinalRegimeFault, LongitudinalRegimeMethod,
     LongitudinalRegimeQuery, LongitudinalScheduleFamily, LongitudinalScheduleTarget, MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,
     NestedCounterfactualQuery, ObservationAssumption, ObservationSpec, OrderedFloatBits,

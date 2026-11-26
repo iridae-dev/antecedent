@@ -16,6 +16,7 @@ mod retained_graphless;
 
 fn query() -> LongitudinalRegimeQuery {
     LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: VariableId::from_raw(0),
         method: antecedent_core::LongitudinalRegimeMethod::Ipw,
         period_outcome_predictions: None,
@@ -642,11 +643,7 @@ fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays() {
     let fit = result.longitudinal_regime().unwrap();
     let contract = prepared.contract_for_result(&result).unwrap();
     let bases = result.calibration_bases(&contract).unwrap();
-    assert_eq!(bases.len(), 1);
-    assert_eq!(
-        bases[0].key.functional,
-        "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q"
-    );
+    assert!(bases.is_empty(), "the oracle has no measured-law declaration");
     let unit = antecedent_io::graphless_support::sequential_dr_key(4).unwrap();
     let row_earned = antecedent_io::graphless_support::graphless_admits(
         unit,
@@ -1277,13 +1274,7 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
             .unwrap();
         let result = prepared.estimate(&data, &ctx).unwrap();
         let bases = result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
-        assert_eq!(bases.len(), 1);
-        assert_eq!(bases[0].key.functional, if external {
-            "fitted_q_binary_baseline_h2_external_split"
-        } else {
-            "fitted_q_binary_baseline_h2_internal_crossfit"
-        });
-        assert_eq!(bases[0].scope.row_count, n as u64);
+        assert!(bases.is_empty(), "the refit oracle has no measured-law declaration");
         let fit = result.longitudinal_regime().unwrap();
         assert_close(fit.value, reference(&members, external), 1e-12, "full-refit point");
         assert_eq!(fit.fitted_q_bootstrap_replicates_ok, Some(replicates as usize));

@@ -365,6 +365,7 @@ fn survival() -> SurvivalQuery {
 
 fn longitudinal() -> LongitudinalRegimeQuery {
     LongitudinalRegimeQuery {
+        calibration_design: None,
         outcome: v(0),
         method: LongitudinalRegimeMethod::Ipw,
         period_outcome_predictions: None,
@@ -1292,6 +1293,7 @@ fn every_longitudinal_and_survival_field_reaches_the_encoding() {
             &|q| q.rule_id = Some(Arc::from("rule")),
             &|q| q.rule_version = Some(Arc::from("rule")),
             &|q| q.rule_provenance = Some(Arc::from("rule")),
+            &|q| q.calibration_design = Some(crate::LongitudinalCalibrationDesign::FixedScheduleFamily),
         ],
     );
     check(

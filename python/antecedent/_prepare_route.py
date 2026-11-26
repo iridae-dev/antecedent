@@ -2307,6 +2307,7 @@ class _PrepareRoute:
             if query.period_outcome_predictions is not None
             else [],
             known_fixed_outcome_predictions=query.known_fixed_outcome_predictions,
+            calibration_design=query.calibration_design,
             fitted_q=(query.fitted_q.baseline, query.fitted_q.external_training_fold, query.fitted_q.bootstrap_replicates)
             if query.fitted_q is not None else None,
             schedule_family=query.schedule_family._wire() if query.schedule_family is not None else None,
