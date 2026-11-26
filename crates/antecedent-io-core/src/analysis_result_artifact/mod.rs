@@ -18,6 +18,9 @@ use crate::{
 const ARTIFACT_KIND: &str = crate::artifact_kinds::ANALYSIS_RESULT;
 const HEADER_SECTION: &str = "analysis_result.header";
 const BODY_SECTION: &str = "analysis_result.body";
+mod longitudinal_schedule;
+pub use longitudinal_schedule::{LongitudinalScheduleContrastWire, LongitudinalScheduleLearningWire, LongitudinalScheduleResultWire};
+
 // Only composite analysis results with an unreported mediation point use this
 // extension. Other artifacts retain the stable 0.5 container format.
 pub(crate) const ABSENT_MEDIATION_POINT_FORMAT: crate::FormatVersion =
@@ -1182,7 +1185,9 @@ pub struct LongitudinalRegimeWire {
     /// Completed fitted Q subject-bootstrap refits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fitted_q_bootstrap_replicates_ok: Option<usize>,
-
+    /// Paired fixed or learned two-decision schedule results.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schedule_family: Option<LongitudinalScheduleResultWire>,
     /// Pointwise 95% subject-clustered intervals for additive MSM period effects.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub period_intervals_95: Vec<[f64; 2]>,

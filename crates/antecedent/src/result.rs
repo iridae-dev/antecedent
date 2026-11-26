@@ -548,6 +548,8 @@ pub struct LongitudinalRegimeEstimate {
     pub value_interval_95: Option<[f64; 2]>,
     /// Completed full-procedure subject bootstrap refits for the fitted Q method.
     pub fitted_q_bootstrap_replicates_ok: Option<usize>,
+    /// Simultaneous fixed-schedule contrasts or an honestly learned schedule summary.
+    pub schedule_family: Option<antecedent_io_core::analysis_result_artifact::LongitudinalScheduleResultWire>,
     /// Pointwise 95% intervals for additive MSM period coefficients.
     pub period_intervals_95: Option<Arc<[[f64; 2]]>>,
     /// Specific reason the regime value has no interval, when applicable.

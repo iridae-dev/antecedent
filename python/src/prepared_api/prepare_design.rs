@@ -622,7 +622,7 @@ impl PyPreparedAnalysis {
     #[pyo3(signature = (names, columns, outcome, periods, treatment_history, regime_actions,
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
         excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
-        *, method="ipw", period_outcome_predictions=Vec::new(), known_fixed_outcome_predictions=false, fitted_q=None, stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
+        *, method="ipw", period_outcome_predictions=Vec::new(), known_fixed_outcome_predictions=false, fitted_q=None, schedule_family=None, stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_longitudinal_regime(
         py: Python<'_>,
@@ -644,6 +644,7 @@ impl PyPreparedAnalysis {
         period_outcome_predictions: Vec<f64>,
         known_fixed_outcome_predictions: bool,
         fitted_q: Option<(String, Option<u32>, u32)>,
+        schedule_family: Option<(u8, u32, Option<(u8, u8)>, Option<u32>)>,
         stabilizing_numerator_probabilities: Vec<f64>,
         q_predictions: Vec<f64>,
         observation_history: Vec<bool>,
@@ -665,6 +666,9 @@ impl PyPreparedAnalysis {
                 if fitted_q.is_some() != (method == "fitted_g_formula") {
                     return Err(crate::value_err("fitted Q declaration must match the fitted_g_formula method"));
                 }
+                if schedule_family.is_some() != matches!(method, "compare_schedules" | "learn_schedule") {
+                    return Err(crate::value_err("schedule class must match its longitudinal method"));
+                }
                 let method = match method {
                     "ipw" => antecedent::query::LongitudinalRegimeMethod::Ipw,
                     "g_formula" => antecedent::query::LongitudinalRegimeMethod::GFormula,
@@ -676,6 +680,19 @@ impl PyPreparedAnalysis {
                             external_training_fold,
                             bootstrap_replicates,
                         })
+                    }
+                    "compare_schedules" | "learn_schedule" => {
+                        use antecedent::query::{LongitudinalScheduleFamily, LongitudinalScheduleTarget};
+                        let (schedules, draws, contrast, training) = schedule_family
+                            .ok_or_else(|| crate::value_err("the schedule class must be declared"))?;
+                        let target = match (method, contrast, training) {
+                            ("compare_schedules", Some((reference, contrasts)), None) =>
+                                LongitudinalScheduleTarget::Contrasts { reference, contrasts },
+                            ("learn_schedule", None, Some(training_fold)) =>
+                                LongitudinalScheduleTarget::Learn { training_fold },
+                            _ => return Err(crate::value_err("declare the fixed contrasts or the independent training fold")),
+                        };
+                        antecedent::query::LongitudinalRegimeMethod::ScheduleFamily(LongitudinalScheduleFamily { schedules, draws, target })
                     }
                     "sequential_dr" => {
                         antecedent::query::LongitudinalRegimeMethod::SequentialDoublyRobust

@@ -241,6 +241,10 @@ impl StudyResult {
             binding.replicates_ok = draws_u32(completed);
             return binding;
         }
+        if let Some(family) = self.longitudinal_regime().and_then(|fit| fit.schedule_family.as_ref()) {
+            let method = if family.learning.is_some() { M::AnalyticSe } else { M::SimultaneousBand };
+            return IntervalBinding::new(method, REPORTED_SE_INTERVAL_LEVEL, base);
+        }
         if self.posterior.is_some() {
             let method = if self
                 .sequential_contrast()
@@ -426,6 +430,14 @@ impl StudyResult {
             self.identified_set_interval_binding(),
             self.simultaneous_band_binding(bayesian),
             self.unit_effect_interval_binding(),
+            self.longitudinal_regime().and_then(|fit| {
+                fit.schedule_family.as_ref()?.learning.as_ref()?;
+                Some(IntervalBinding::new(
+                    antecedent_core::IntervalMethod::SimultaneousBand,
+                    REPORTED_SE_INTERVAL_LEVEL,
+                    self.base_dependence(),
+                ))
+            }),
         ]
         .into_iter()
         .flatten()

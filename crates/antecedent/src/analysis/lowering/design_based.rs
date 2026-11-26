@@ -841,6 +841,7 @@ impl DesignLowering for LongitudinalRegimeQuery {
         )];
         let outcome_family = match query.method {
             antecedent_core::LongitudinalRegimeMethod::Ipw => None,
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(_) => None,
             antecedent_core::LongitudinalRegimeMethod::GFormula => Some("supplied_period_rewards"),
             antecedent_core::LongitudinalRegimeMethod::FittedGFormula(_) => None,
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
@@ -860,7 +861,15 @@ impl DesignLowering for LongitudinalRegimeQuery {
                 replicates: fit.bootstrap_replicates,
                 unit: ResampleUnit::Subject,
             })
-        } else { None };
+        } else if let antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) = query.method {
+            Some(ResamplingPlan {
+                method: ResamplingMethod::Bootstrap,
+                replicates: family.draws,
+                unit: ResampleUnit::Subject,
+            })
+        } else {
+            None
+        };
         let folds = query.fold_ids.iter().collect::<BTreeSet<_>>().len();
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::RegimeValue, query.outcome),

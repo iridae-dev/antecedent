@@ -1108,6 +1108,9 @@ pub struct LongitudinalRegimeQueryWire {
     /// Compiler-owned Q fit and bootstrap declaration, present for the fitted method.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fitted_q: Option<FittedRegimeQWire>,
+    /// Predeclared fixed comparison or learned schedule class.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schedule_family: Option<LongitudinalScheduleFamilyWire>,
     /// Caller-supplied conditional period rewards for g-formula.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub period_outcome_predictions: Vec<f64>,
@@ -1171,7 +1174,66 @@ pub struct FittedRegimeQWire {
     pub bootstrap_replicates: u32,
 }
 
+/// Wire encoding of the ordered action class and its inference procedure.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct LongitudinalScheduleFamilyWire {
+    /// Mask of candidate binary schedules.
+    pub schedules: u8,
+    /// Multiplier and learning resample count.
+    pub draws: u32,
+    /// Reduction requested over the class.
+    pub target: LongitudinalScheduleTargetWire,
+}
+
+/// Fixed contrast coordinates or an honest training split.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum LongitudinalScheduleTargetWire {
+    /// Compare to a declared reference.
+    Contrasts {
+        /// Two-bit reference code.
+        reference: u8,
+        /// Mask of schedule codes to compare against the reference.
+        contrasts: u8,
+    },
+    /// Train on one whole-subject fold and evaluate on the other fold.
+    Learn {
+        /// The training fold ID.
+        training_fold: u32,
+    },
+}
+
 impl LongitudinalRegimeQueryWire {
+    /// Calibration coordinates of the full four-schedule class under the registered designs.
+    #[must_use]
+    pub fn schedule_calibration_coordinates(&self) -> Option<(&'static str, Option<&'static str>)> {
+        let family = self.schedule_family?;
+        if self.periods != 2 || family.schedules != 0b1111 || family.draws != 199 {
+            return None;
+        }
+        match (self.method.as_str(), family.target) {
+            (
+                "compare_schedules",
+                LongitudinalScheduleTargetWire::Contrasts { reference: 0, contrasts: 0b1110 },
+            ) => Some(("fixed_h2_four_schedules_vs_never_treat", None)),
+            ("learn_schedule", LongitudinalScheduleTargetWire::Learn { training_fold: 0 })
+                if self.fold_ids.len() == self.subject_ids.len()
+                    && self
+                        .fold_ids
+                        .iter()
+                        .enumerate()
+                        .all(|(i, &fold)| i % 2 == fold as usize) =>
+            {
+                Some((
+                    "learned_h2_four_schedules_selected_value",
+                    Some("learned_h2_four_schedules_all_true_optima"),
+                ))
+            }
+            _ => None,
+        }
+    }
+
     /// Match the fitted-Q interval's declared split and resample design to its coverage study.
     #[must_use]
     pub fn fitted_q_calibration_design(&self) -> Option<&'static str> {

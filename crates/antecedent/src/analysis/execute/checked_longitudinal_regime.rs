@@ -10,12 +10,15 @@ use super::{
     RefuteSuite, Strategy, Study, StudyResult, TableView, TabularData,
     finish_identified_execute_with_context,
 };
-use antecedent_core::LongitudinalRegimeMethod;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
+use antecedent_core::{LongitudinalRegimeMethod, LongitudinalScheduleTarget};
 use antecedent_estimate::fitted_regime_q::{
     FittedRegimeQSummary, FittedRegimeRows, estimate_fitted_regime_q,
+};
+use antecedent_estimate::longitudinal_policy::{
+    compare_longitudinal_schedules, learn_longitudinal_schedule,
 };
 use antecedent_estimate::longitudinal_regime::{
     RegimeKernelError, RegimeValueSummary, common_regime_schedule, evaluate_g_formula_value,
@@ -23,6 +26,7 @@ use antecedent_estimate::longitudinal_regime::{
     g_formula_fixed_q_pointwise_interval_95, sequential_dr_pointwise_interval_95,
 };
 use antecedent_estimate::marginal_structural_model::{MsmIntervals95, MsmSummary, fit_binary_msm};
+use antecedent_io_core::analysis_result_artifact::LongitudinalScheduleResultWire;
 
 pub(crate) type CheckedLongitudinalRegimeOperation = RandomizedTrialOperation<
     antecedent_core::LongitudinalRegimeQuery,
@@ -100,6 +104,7 @@ impl CheckedLongitudinalRegimeOperation {
         } else {
             match query.method {
                 LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
+                LongitudinalRegimeMethod::ScheduleFamily(_) => EstimatorId::LongitudinalIpwRegime,
                 LongitudinalRegimeMethod::GFormula
                 | LongitudinalRegimeMethod::FittedGFormula(_) => {
                     EstimatorId::LongitudinalGFormulaRegime
@@ -242,6 +247,8 @@ impl CheckedLongitudinalRegimeOperation {
         let mut msm: Option<MsmSummary> = None;
         let mut dr_scores: Option<Vec<f64>> = None;
         let mut fitted_q = None;
+        let mut schedule_family = None;
+        let mut schedule_interval = None;
         // `LongitudinalRegimeQuery::validate`, run in the prepare pipeline,
         // refuses any query whose method-conditional fields (g-formula
         // `period_outcome_predictions`, sequential-DR `q_predictions` and
@@ -313,6 +320,76 @@ impl CheckedLongitudinalRegimeOperation {
                     "fixed two-decision regime value from fold-owned baseline-stratified terminal Q means, with a pointwise percentile interval that repeats fit and evaluation within each subject resample",
                 )
             }
+            LongitudinalRegimeMethod::ScheduleFamily(family) => {
+                let (value, se, method, diagnostic, description, fit) = match family.target {
+                    LongitudinalScheduleTarget::Contrasts { reference, contrasts } => {
+                        let fit = compare_longitudinal_schedules(
+                            &self.query.treatment_history,
+                            outcome,
+                            family.schedules,
+                            reference,
+                            contrasts,
+                            family.draws as usize,
+                            ctx,
+                        )
+                        .map_err(|error| CausalError::Estimate(error.into()))?;
+                        let value = fit
+                            .values
+                            .iter()
+                            .find(|&&(schedule, _)| schedule == reference)
+                            .map(|&(_, value)| value)
+                            .ok_or(CausalError::Unsupported {
+                                message: "reference schedule is missing",
+                            })?;
+                        (
+                            value,
+                            None,
+                            "compare_schedules",
+                            "estimate.longitudinal.simultaneous_fixed_schedule_contrasts",
+                            "paired regime-minus-reference subject scores with a shared max-t multiplier critical value",
+                            LongitudinalScheduleResultWire::from(&fit),
+                        )
+                    }
+                    LongitudinalScheduleTarget::Learn { training_fold } => {
+                        let fit = learn_longitudinal_schedule(
+                            &self.query.treatment_history,
+                            outcome,
+                            &self.query.fold_ids,
+                            family.schedules,
+                            training_fold,
+                            family.draws as usize,
+                            ctx,
+                        )
+                        .map_err(|error| CausalError::Estimate(error.into()))?;
+                        schedule_interval = Some(fit.selected_interval);
+                        (
+                            fit.selected_value,
+                            Some(fit.selected_standard_error),
+                            "learn_schedule",
+                            "estimate.longitudinal.learned_schedule_and_optimum_set",
+                            "learn a fixed schedule on its declared training subjects, evaluate it on held-out subjects, and construct an optimum confidence set using all paired schedule contrasts",
+                            LongitudinalScheduleResultWire::from(&fit),
+                        )
+                    }
+                };
+                let evaluation_subjects = fit.evaluation_subjects;
+                schedule_family = Some(fit);
+                (
+                    Ok(RegimeValueSummary {
+                        value,
+                        effective_sample_size: evaluation_subjects as f64,
+                        matched_observed_fraction: 1.0,
+                        maximum_weight: 4.0,
+                        minimum_action_probability: 0.5,
+                        minimum_censoring_probability: 1.0,
+                        score_standard_error: se,
+                    }),
+                    EstimatorId::LongitudinalIpwRegime,
+                    method,
+                    diagnostic,
+                    description,
+                )
+            }
             LongitudinalRegimeMethod::SequentialDoublyRobust => {
                 let result = self.sequential_dr_value(outcome).map(|(summary, scores)| {
                     dr_scores = Some(scores);
@@ -364,6 +441,8 @@ impl CheckedLongitudinalRegimeOperation {
             msm,
             dr_scores,
             fitted_q,
+            schedule_family,
+            schedule_interval,
         })
     }
 
@@ -565,8 +644,10 @@ impl CheckedLongitudinalRegimeOperation {
                 .or_else(|| intervals.msm.as_ref().map(|intervals| intervals.intercept))
                 .or_else(|| intervals.dr.map(|(_, bounds)| bounds))
                 .or_else(|| estimation.fitted_q.map(|fit| fit.interval))
+                .or(estimation.schedule_interval)
                 .or_else(|| intervals.g_formula.map(|(_, bounds)| bounds)),
             fitted_q_bootstrap_replicates_ok: estimation.fitted_q.map(|fit| fit.replicates_ok),
+            schedule_family: estimation.schedule_family.clone(),
             period_intervals_95: intervals
                 .msm
                 .as_ref()
@@ -587,6 +668,10 @@ impl CheckedLongitudinalRegimeOperation {
                 "pointwise_subject_score_conditional_fixed_known_q_95"
             } else if estimation.fitted_q.is_some() {
                 "pointwise_whole_subject_refit_percentile_95"
+            } else if estimation.schedule_interval.is_some() {
+                "held_out_schedule_value_95_and_simultaneous_optimum_set"
+            } else if estimation.schedule_family.is_some() {
+                "simultaneous_fixed_schedule_contrasts_95"
             } else if intervals.ipw.is_some() {
                 "pointwise_subject_score_95"
             } else {
@@ -631,6 +716,8 @@ struct RegimeEstimation {
     msm: Option<MsmSummary>,
     dr_scores: Option<Vec<f64>>,
     fitted_q: Option<FittedRegimeQSummary>,
+    schedule_family: Option<LongitudinalScheduleResultWire>,
+    schedule_interval: Option<[f64; 2]>,
 }
 
 /// Pointwise 95% intervals each method may publish for the regime value.
@@ -746,6 +833,20 @@ fn longitudinal_assumptions(
             );
         }
     }
+    if let LongitudinalRegimeMethod::ScheduleFamily(family) = query.method {
+        declare_custom(
+            &mut assumptions,
+            "prespecified_two_decision_schedule_class",
+            "the candidate schedules are fixed before evaluating outcomes, each subject is independent, and both binary treatment decisions use known fair coins",
+        );
+        if matches!(family.target, LongitudinalScheduleTarget::Learn { .. }) {
+            declare_custom(
+                &mut assumptions,
+                "independent_schedule_training_and_evaluation",
+                "the declared training and evaluation subjects are independent draws from the same target law, and individual schedule actions use no learned subject covariate rule",
+            );
+        }
+    }
     if query.method == LongitudinalRegimeMethod::SequentialDoublyRobust {
         for (id, description) in [
             (
@@ -803,12 +904,21 @@ fn longitudinal_identification(
         LongitudinalRegimeMethod::Ipw => "longitudinal.sequential_randomization",
         LongitudinalRegimeMethod::GFormula => "longitudinal.g_formula",
         LongitudinalRegimeMethod::FittedGFormula(_) => "longitudinal.fitted_g_formula",
+        LongitudinalRegimeMethod::ScheduleFamily(family) => match family.target {
+            LongitudinalScheduleTarget::Contrasts { .. } => "longitudinal.fixed_schedule_contrast_family",
+            LongitudinalScheduleTarget::Learn { .. } => "longitudinal.honest_schedule_selection",
+        },
         LongitudinalRegimeMethod::SequentialDoublyRobust => "longitudinal.sequential_dr",
         LongitudinalRegimeMethod::MarginalStructuralModel => {
             "longitudinal.marginal_structural_model"
         }
     };
-    arena.set_derivation(functional, DerivationMeta::rule(rule, Some(Arc::from("known sequential assignment, observation, and valid supplied conditional rewards identify the prescribed regime mean"))));
+    let premise = match query.method {
+        LongitudinalRegimeMethod::FittedGFormula(_) => "known sequential randomization identifies the fixed-schedule value after standardizing fitted conditional means to evaluation subjects",
+        LongitudinalRegimeMethod::ScheduleFamily(_) => "known probabilities identify paired mean scores over every schedule in the declared class",
+        _ => "known sequential assignment, observation, and valid supplied conditional rewards identify the prescribed regime mean",
+    };
+    arena.set_derivation(functional, DerivationMeta::rule(rule, Some(Arc::from(premise))));
     let estimand = IdentifiedEstimand::new(
         rule,
         Arc::from([]),

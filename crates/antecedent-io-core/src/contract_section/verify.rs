@@ -314,7 +314,7 @@ fn note_checked_estimator_operation(
             (Some("randomized.survival_product_limit"), CausalQueryWire::Survival(_)) => {
                 survival_replayed
             }
-            (Some("longitudinal.sequential_dr_regime" | "longitudinal.g_formula_regime"), CausalQueryWire::LongitudinalRegime(_)) => longitudinal_replayed,
+            (Some("longitudinal.sequential_dr_regime" | "longitudinal.g_formula_regime" | "longitudinal.ipw_regime"), CausalQueryWire::LongitudinalRegime(_)) => longitudinal_replayed,
             (Some("functional.effect"), CausalQueryWire::Response(_)) => {
                 program.checked_functional_response_grid.is_some()
                     && contract
@@ -1403,6 +1403,21 @@ pub(in crate::contract_section) fn note_published_claim(
             unresolved.push(ContractReason::ClaimCalibrationBasis);
         }
         if let CausalQueryWire::LongitudinalRegime(query) = &body.query
+            && matches!(query.method.as_str(), "compare_schedules" | "learn_schedule")
+        {
+            let declared = query.schedule_calibration_coordinates();
+            let actual = claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str());
+            let secondary = claim.calibration.secondary.as_slice();
+            let actual_secondary = secondary.first().and_then(|slot| slot.basis.as_ref())
+                .map(|basis| basis.key.functional.as_str());
+            if actual != declared.map(|(primary, _)| primary)
+                || actual_secondary != declared.and_then(|(_, secondary)| secondary)
+                || secondary.len() != usize::from(actual_secondary.is_some())
+            {
+                unresolved.push(ContractReason::ClaimCalibrationBasis);
+            }
+        }
+        if let CausalQueryWire::LongitudinalRegime(query) = &body.query
             && query.method == "fitted_g_formula"
         {
             let basis = claim.calibration.basis.as_ref();
@@ -1725,6 +1740,30 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                 && key.interval_method == "percentile_bootstrap" && key.inference == "Frequentist"
                 && key.se_kind.is_empty() && key.estimator == "longitudinal.g_formula_regime"
                 && key.level.to_bits() == 0.95_f64.to_bits()
+        })
+        || contract.reasoning.support.value.as_ref().is_some_and(|_| {
+            let CausalQueryWire::LongitudinalRegime(query) = &contract.target.query else { return false };
+            let Some((primary, secondary)) = query.schedule_calibration_coordinates() else { return false };
+            let Some(family) = query.schedule_family else { return false };
+            let evaluated = match family.target {
+                crate::query_wire::LongitudinalScheduleTargetWire::Contrasts { .. } => query.subject_ids.len(),
+                crate::query_wire::LongitudinalScheduleTargetWire::Learn { training_fold } =>
+                    query.fold_ids.iter().filter(|&&fold| fold != training_fold).count(),
+            };
+            let construction = if key.functional == primary && secondary.is_some() {
+                key.interval_method == "analytic_se" && key.se_kind == "subject_score"
+                    && basis.scope.replicates_ok.is_none()
+            } else {
+                (secondary == Some(key.functional.as_str()) || secondary.is_none() && key.functional == primary)
+                    && key.interval_method == "simultaneous_band" && key.se_kind.is_empty()
+                    && basis.scope.replicates_ok == Some(family.draws)
+            };
+            construction && u64::try_from(evaluated) == Ok(basis.scope.row_count)
+                && graphless_validation_ok && key.validation == "not_applicable"
+                && key.query == "LongitudinalRegime" && key.structure == "design"
+                && key.graph_class == "RandomizedTrial" && contract.graph_class == key.graph_class
+                && contract.structure_source == "randomized_trial" && key.inference == "Frequentist"
+                && key.estimator == "longitudinal.ipw_regime" && key.level.to_bits() == 0.95_f64.to_bits()
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {
             // Exact graphless DiD supports are bound to the executed result.

@@ -37,7 +37,7 @@ pub use antecedent_core::EvidenceCatalogDelta;
 /// Randomized interference queries.
 pub use antecedent_core::ExposurePropensityProvenance;
 /// Longitudinal regime value contract for one outcome row per subject.
-pub use antecedent_core::{FittedRegimeQ, LongitudinalRegimeMethod};
+pub use antecedent_core::{FittedRegimeQ, LongitudinalRegimeMethod, LongitudinalScheduleFamily, LongitudinalScheduleTarget};
 /// A narrowly supported natural direct effect query.
 pub use antecedent_core::NestedCounterfactualQuery;
 /// Stable node identity before dense graph indexing.

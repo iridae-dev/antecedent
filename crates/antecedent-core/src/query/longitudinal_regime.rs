@@ -17,6 +17,8 @@ pub enum LongitudinalRegimeMethod {
     GFormula,
     /// Fit a baseline-stratified terminal Q model and refit it in each subject bootstrap.
     FittedGFormula(FittedRegimeQ),
+    /// Compare a declared class of schedules or learn one on a separate subject fold.
+    ScheduleFamily(LongitudinalScheduleFamily),
     /// Backward-recursive augmented value using supplied subject-owned Q scores.
     SequentialDoublyRobust,
     /// Additive binary marginal structural mean with stabilized IPTW.
@@ -33,6 +35,34 @@ pub struct FittedRegimeQ {
     pub external_training_fold: Option<u32>,
     /// Number of whole-subject bootstrap replicates, preserving the declared folds.
     pub bootstrap_replicates: u32,
+}
+
+/// Two-decision policy class, declared before estimation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LongitudinalScheduleFamily {
+    /// Bitmask of candidate schedules: bit k encodes the two ordered actions in k.
+    pub schedules: u8,
+    /// Fixed comparison coordinates or a held-out learning rule.
+    pub target: LongitudinalScheduleTarget,
+    /// Whole-subject multiplier draws and, for learning, training/evaluation bootstrap refits.
+    pub draws: u32,
+}
+
+/// The declared reduction of a two-decision schedule family.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LongitudinalScheduleTarget {
+    /// Simultaneously compare a declared subset to its reference schedule.
+    Contrasts {
+        /// Two-bit reference schedule.
+        reference: u8,
+        /// Mask of the schedules contrasted with that reference.
+        contrasts: u8,
+    },
+    /// Choose the maximum training score, with ties going to the smallest schedule code.
+    Learn {
+        /// Training subject fold; the other fold is an independent evaluation sample.
+        training_fold: u32,
+    },
 }
 
 impl CanonicalEncode for LongitudinalRegimeMethod {
@@ -54,6 +84,18 @@ impl CanonicalEncode for LongitudinalRegimeMethod {
                     }
                 }
                 writer.word(u64::from(fit.bootstrap_replicates));
+                return;
+            }
+            Self::ScheduleFamily(family) => {
+                writer.word(6).word(u64::from(family.schedules)).word(u64::from(family.draws));
+                match family.target {
+                    LongitudinalScheduleTarget::Contrasts { reference, contrasts } => {
+                        writer.word(1).word(u64::from(reference)).word(u64::from(contrasts));
+                    }
+                    LongitudinalScheduleTarget::Learn { training_fold } => {
+                        writer.word(2).word(u64::from(training_fold));
+                    }
+                }
                 return;
             }
         };
@@ -240,6 +282,27 @@ impl LongitudinalRegimeQuery {
                         .all(|actions| actions == &self.regime_actions[..2])
                     && (99..=100_000).contains(&fit.bootstrap_replicates)
                     && fitted_fold_ownership(&self.fold_ids, fit.external_training_fold) => {}
+            (LongitudinalRegimeMethod::ScheduleFamily(family), None)
+                if self.periods == 2
+                    && self.rule_id.is_none()
+                    && self.probabilities_known_by_design
+                    && self.outcome_observed.iter().all(|&observed| observed)
+                    && self
+                        .censoring_probabilities
+                        .iter()
+                        .all(|p| p.to_bits() == 1_f64.to_bits())
+                    && self
+                        .treatment_probabilities
+                        .iter()
+                        .all(|p| p.to_bits() == 0.5_f64.to_bits())
+                    && self
+                        .regime_actions
+                        .chunks_exact(2)
+                        .all(|actions| actions == &self.regime_actions[..2])
+                    && family.schedules <= 0b1111
+                    && family.schedules.count_ones() >= 2
+                    && (199..=100_000).contains(&family.draws)
+                    && self.valid_schedule_target(family) => {}
             (LongitudinalRegimeMethod::MarginalStructuralModel, None)
                 if self.stabilizing_numerator_probabilities.as_ref().is_some_and(|v| {
                     v.len() == self.periods
@@ -335,6 +398,20 @@ impl LongitudinalRegimeQuery {
             ));
         }
         Ok(())
+    }
+
+    fn valid_schedule_target(&self, family: LongitudinalScheduleFamily) -> bool {
+        match family.target {
+            LongitudinalScheduleTarget::Contrasts { reference, contrasts } => {
+                reference < 4
+                    && family.schedules & (1 << reference) != 0
+                    && contrasts != 0
+                    && contrasts & !family.schedules == 0
+                    && contrasts & (1 << reference) == 0
+                    && self.regime_actions[..2] == [reference & 2 != 0, reference & 1 != 0]
+            }
+            LongitudinalScheduleTarget::Learn { .. } => false,
+        }
     }
 }
 

@@ -63,6 +63,17 @@ pub(super) fn fitted_q_design(result: &StudyResult, contract: &CausalContract) -
     query.fitted_q_calibration_design()
 }
 
+pub(super) fn longitudinal_schedule_design(
+    result: &StudyResult,
+    contract: &CausalContract,
+) -> Option<(&'static str, Option<&'static str>, u32, u64)> {
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query) = &contract.body.query else { return None };
+    let evaluated = result.longitudinal_regime()?.schedule_family.as_ref()?.evaluation_subjects;
+    let draws = query.schedule_family?.draws;
+    let (primary, secondary) = query.schedule_calibration_coordinates()?;
+    Some((primary, secondary, draws, evaluated as u64))
+}
+
 impl StudyResult {
     /// Calibration match bases of every interval this execution reported
     /// ([`StudyResult::reported_interval_bindings`]), primary first: the keys
@@ -150,6 +161,12 @@ impl StudyResult {
                     && contract.graph_class == GraphClass::RandomizedTrial
                     && contract.structure_source == StructureSource::RandomizedTrial
                     && fitted_q_design(self, contract).is_some() => "not_applicable",
+            (Some(executed), None)
+                if executed_from(&executed)
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
+                    && longitudinal_schedule_design(self, contract).is_some() => "not_applicable",
             // These checked graphless routes refuse a validation suite at
             // preparation. Only an exact execution stamp and the supported,
             // result-bound route coordinate establish that fact; a detached or
@@ -281,6 +298,30 @@ impl StudyResult {
             identification: label.clone(),
         };
         let row_count = analysis_row_count(self, contract);
+        if let Some((primary, secondary, draws, evaluated)) = longitudinal_schedule_design(self, contract)
+            .filter(|_| validation == "not_applicable")
+        {
+            let basis = |functional: &str, method: IntervalMethod, se_kind: &str, replicates_ok| CalibrationBasisWire {
+                key: CalibrationKeyWire {
+                    interval_method: method.as_str().to_owned(),
+                    se_kind: se_kind.to_owned(),
+                    dependence: "iid".to_owned(),
+                    functional: functional.to_owned(),
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    ..shared.clone()
+                },
+                scope: CalibrationScopeWire {
+                    row_count: evaluated, replicates_ok, posterior_draws: None, unidentified_mass,
+                },
+            };
+            return match secondary {
+                None => vec![basis(primary, IntervalMethod::SimultaneousBand, "", Some(draws))],
+                Some(optima) => vec![
+                    basis(primary, IntervalMethod::AnalyticSe, "subject_score", None),
+                    basis(optima, IntervalMethod::SimultaneousBand, "", Some(draws)),
+                ],
+            };
+        }
         if let Some(design) = fitted_q_design(self, contract).filter(|_| validation == "not_applicable") {
             return vec![CalibrationBasisWire {
                 key: CalibrationKeyWire {

@@ -1065,6 +1065,7 @@ fn facet_of(query: &CausalQuery, site: Option<Site>) -> Facet {
         }),
         CausalQuery::LongitudinalRegime(regime) => Facet::Longitudinal(match regime.method {
             LongitudinalRegimeMethod::FittedGFormula(_) => LongitudinalRegimeMethod::GFormula,
+            LongitudinalRegimeMethod::ScheduleFamily(_) => LongitudinalRegimeMethod::Ipw,
             method => method,
         }),
         CausalQuery::TemporalDesign(design) => Facet::TemporalDesign(

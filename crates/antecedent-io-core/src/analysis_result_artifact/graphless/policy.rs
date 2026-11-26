@@ -133,6 +133,8 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
             completed >= 99 && completed <= requested && (requested - completed) * 20 <= requested
         }) && regime.value_standard_error.is_some_and(|se| se.is_finite() && se >= 0.0)
     });
+    let eligible_schedule = validate_schedule_family(query, regime);
+    let eligible_learned = query.method == "learn_schedule" && eligible_schedule;
     let expected_reason = match query.method.as_str() {
         "ipw" if regime.value_interval_95.is_none() => {
             Some("insufficient_independent_subject_support_or_degenerate_score")
@@ -166,6 +168,10 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
         "pointwise_subject_score_conditional_fixed_known_q_95"
     } else if fitted_q.is_some() {
         "pointwise_whole_subject_refit_percentile_95"
+    } else if query.method == "compare_schedules" {
+        "simultaneous_fixed_schedule_contrasts_95"
+    } else if query.method == "learn_schedule" {
+        "held_out_schedule_value_95_and_simultaneous_optimum_set"
     } else if regime.value_interval_95.is_some() {
         "pointwise_subject_score_95"
     } else {
@@ -195,7 +201,11 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
             let se = regime.value_standard_error.unwrap_or(f64::NAN);
             let span = antecedent_stats::normal_ppf(0.975) * se;
             let tolerance = interval_bound_replay(INTERVAL_BOUND_RELATIVE, regime.value, span);
-            (eligible_ipw || eligible_msm || eligible_dr || g_formula_expected.is_some())
+            (eligible_ipw
+                || eligible_msm
+                || eligible_dr
+                || eligible_learned
+                || g_formula_expected.is_some())
                 && g_formula_expected.is_none_or(|(value, (expected_se, expected_bounds))| {
                     REPLAY_ABSOLUTE.close(regime.value, value)
                         && REPLAY_ABSOLUTE.close(se, expected_se)
@@ -206,7 +216,7 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
                 && tolerance.close(bounds[0], regime.value - span)
                 && tolerance.close(bounds[1], regime.value + span)
         }
-        None => fitted_q.is_none(),
+        None => fitted_q.is_none() && query.method != "learn_schedule",
     };
     let period_intervals_valid = if regime.period_intervals_95.is_empty() {
         regime.value_interval_95.is_none() || query.method != "marginal_structural_model"
@@ -314,9 +324,11 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
                 || !(matches!(query.method.as_str(), "ipw" | "marginal_structural_model")
                     || query.method == "g_formula" && g_formula_expected.is_some()
                     || eligible_fitted_q
+                    || eligible_learned
                     || query.method == "sequential_dr" && regime.value_interval_95.is_some())
         })
         || !interval_valid
+        || !eligible_schedule
         || regime.fitted_q_bootstrap_replicates_ok.is_some() != fitted_q.is_some()
         || !period_intervals_valid
         || query.method == "sequential_dr" && regime.interval_reason.as_deref() != expected_reason
@@ -367,6 +379,74 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
         return Err(IoError::Convert("MSM-only result fields attached to a regime value".into()));
     }
     Ok(())
+}
+
+fn validate_schedule_family(
+    query: &crate::query_wire::LongitudinalRegimeQueryWire,
+    regime: &crate::analysis_result_artifact::LongitudinalRegimeWire,
+) -> bool {
+    use crate::query_wire::LongitudinalScheduleTargetWire;
+    let (Some(declared), Some(reported)) = (query.schedule_family, &regime.schedule_family) else {
+        return query.schedule_family.is_none() && regime.schedule_family.is_none();
+    };
+    let schedules: Vec<_> = (0..4).filter(|&code| declared.schedules & (1 << code) != 0).collect();
+    if !reported.critical_value.is_finite()
+        || reported.critical_value < 0.0
+        || !reported.values.iter().map(|&(code, _)| code).eq(schedules.iter().copied())
+        || reported.values.iter().any(|&(_, value)| !value.is_finite())
+        || reported.evaluation_subjects < 200
+        || !REPLAY_ABSOLUTE.close(regime.effective_sample_size, reported.evaluation_subjects as f64)
+        || reported.contrasts.iter().any(|contrast| {
+            let radius = contrast.standard_error * reported.critical_value;
+            !contrast.difference.is_finite()
+                || !contrast.standard_error.is_finite()
+                || contrast.standard_error < 0.0
+                || !radius.is_finite()
+                || !REPLAY_ABSOLUTE.close(contrast.interval[0], contrast.difference - radius)
+                || !REPLAY_ABSOLUTE.close(contrast.interval[1], contrast.difference + radius)
+        })
+    {
+        return false;
+    }
+    let pairs = reported.contrasts.iter().map(|contrast| (contrast.schedule, contrast.reference));
+    match declared.target {
+        LongitudinalScheduleTargetWire::Contrasts { reference, contrasts } => {
+            reported.learning.is_none()
+                && regime.value_interval_95.is_none()
+                && reported.evaluation_subjects == query.subject_ids.len()
+                && pairs.eq(schedules
+                    .iter()
+                    .copied()
+                    .filter(|&code| contrasts & (1 << code) != 0)
+                    .map(|code| (code, reference)))
+        }
+        LongitudinalScheduleTargetWire::Learn { training_fold } => {
+            let expected = schedules
+                .iter()
+                .enumerate()
+                .flat_map(|(i, &b)| schedules[i + 1..].iter().map(move |&a| (a, b)));
+            regime.value_interval_95.is_some()
+                && pairs.eq(expected)
+                && reported.evaluation_subjects
+                    == query.fold_ids.iter().filter(|&&fold| fold != training_fold).count()
+                && reported.learning.as_ref().is_some_and(|learning| {
+                    schedules.contains(&learning.selected_schedule)
+                        && learning.optimum_set.iter().all(|schedule| schedules.contains(schedule))
+                        && learning
+                            .refit_selections
+                            .iter()
+                            .map(|&(schedule, _)| schedule)
+                            .eq(schedules)
+                        && learning
+                            .refit_selections
+                            .iter()
+                            .try_fold(0_usize, |total, &(_, count)| total.checked_add(count))
+                            == Some(declared.draws as usize)
+                        && learning.refit_value_sd.is_finite()
+                        && learning.refit_value_sd >= 0.0
+                })
+        }
+    }
 }
 
 // A flat sequence of independent field checks; splitting would scatter the contract.

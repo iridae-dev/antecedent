@@ -188,6 +188,7 @@ impl StudyResult {
                     || (curve.target_cause.is_some() && curve.difference_at_tau_interval.is_some())))
             || super::calibration::four_period_dr_design(self, contract).is_some()
             || super::calibration::fitted_q_design(self, contract).is_some()
+            || super::calibration::longitudinal_schedule_design(self, contract).is_some()
         {
             antecedent_io::calibration::calibration_slots(
                 &self.calibration_bases_with(contract, reasoning.identification.as_ref()),

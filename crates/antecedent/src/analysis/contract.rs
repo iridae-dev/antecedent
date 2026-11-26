@@ -285,7 +285,7 @@ fn graphless_coordinate(
                 "intercept_and_period_effects_pointwise_95_normal_intervals",
             ),
             // Only calibrated graphless rows carry support.
-            Method::Ipw | Method::FittedGFormula(_) => return Err(MISMATCH),
+            Method::Ipw | Method::FittedGFormula(_) | Method::ScheduleFamily(_) => return Err(MISMATCH),
         };
         coordinate = Some(format!("graphless:longitudinal_regime/{design}/{method}/{claim}"));
     }

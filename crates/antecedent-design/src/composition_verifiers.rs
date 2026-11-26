@@ -499,8 +499,13 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             "a replayed longitudinal interval is required",
         ));
     };
-    if !(query.periods == 4 && query.method == "sequential_dr" || query.periods == 2 && query.method == "fitted_g_formula") || fit.value_interval_95.is_none() {
-        return Err(failure(BundleStage::SwappedEvidence, "a source-backed four-decision DR interval is required"));
+    if !(query.periods == 4 && query.method == "sequential_dr"
+        || query.periods == 2 && matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule"))
+    {
+        return Err(failure(
+            BundleStage::SwappedEvidence,
+            "a source-backed longitudinal interval family is required",
+        ));
     }
     let digest = |bytes| antecedent_core::SemanticDigest::from_bytes(bytes).to_hex();
     let mut inspected = Inspected { identity: digest(claim.claim_id), ..Inspected::default() };
@@ -513,6 +518,18 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     if let Some([lo, hi]) = fit.value_interval_95 {
         push_value(&mut inspected.values, "lower_95".into(), lo);
         push_value(&mut inspected.values, "upper_95".into(), hi);
+    }
+    if let Some(family) = &fit.schedule_family {
+        for contrast in &family.contrasts {
+            let key = format!("schedule.{}.versus.{}", contrast.schedule, contrast.reference);
+            push_value(&mut inspected.values, format!("{key}.difference"), contrast.difference);
+            push_value(&mut inspected.values, format!("{key}.lower_95"), contrast.interval[0]);
+            push_value(&mut inspected.values, format!("{key}.upper_95"), contrast.interval[1]);
+        }
+        if let Some(learning) = &family.learning {
+            push_value(&mut inspected.values, "selected_schedule".into(), f64::from(learning.selected_schedule));
+            publish(&mut inspected.facts, "optimum_set", learning.optimum_set.iter().map(u8::to_string).collect::<Vec<_>>().join(","));
+        }
     }
     Ok(inspected)
 }
@@ -919,7 +936,7 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
                     .then_some(NodeKind::DelayedEntryIncidenceResult)
                     .or_else(|| matches!(&body.query, antecedent_io_core::CausalQueryWire::LongitudinalRegime(query)
                         if query.periods == 4 && query.method == "sequential_dr"
-                            || query.periods == 2 && query.method == "fitted_g_formula")
+                            || query.periods == 2 && matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule"))
                         .then_some(NodeKind::LongitudinalRegimeResult))
             }
         }

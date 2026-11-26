@@ -15421,3 +15421,11 @@ target = "longitudinal_regime_calibration"
 tests = ["two_period_fitted_q_external_split_coverage"]
 ignored = true
 grid = true
+
+[[group]]
+label = "longitudinal_schedule_calibration: fixed_longitudinal_schedule_family_joint_coverage"
+package = "antecedent"
+target = "longitudinal_schedule_calibration"
+tests = ["fixed_longitudinal_schedule_family_joint_coverage"]
+ignored = true
+grid = true

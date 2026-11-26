@@ -511,6 +511,10 @@ fn longitudinal_regime_to_wire(q: &antecedent_core::LongitudinalRegimeQuery) -> 
             antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
             antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
             antecedent_core::LongitudinalRegimeMethod::FittedGFormula(_) => "fitted_g_formula",
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) => match family.target {
+                antecedent_core::LongitudinalScheduleTarget::Contrasts { .. } => "compare_schedules",
+                antecedent_core::LongitudinalScheduleTarget::Learn { .. } => "learn_schedule",
+            },
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => "sequential_dr",
             antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
                 "marginal_structural_model"
@@ -522,6 +526,17 @@ fn longitudinal_regime_to_wire(q: &antecedent_core::LongitudinalRegimeQuery) -> 
                 baseline: fit.baseline.raw(),
                 external_training_fold: fit.external_training_fold,
                 bootstrap_replicates: fit.bootstrap_replicates,
+            }),
+            _ => None,
+        },
+        schedule_family: match q.method {
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(family) => Some(super::LongitudinalScheduleFamilyWire {
+                schedules: family.schedules,
+                draws: family.draws,
+                target: match family.target {
+                    antecedent_core::LongitudinalScheduleTarget::Contrasts { reference, contrasts } => super::LongitudinalScheduleTargetWire::Contrasts { reference, contrasts },
+                    antecedent_core::LongitudinalScheduleTarget::Learn { training_fold } => super::LongitudinalScheduleTargetWire::Learn { training_fold },
+                },
             }),
             _ => None,
         },

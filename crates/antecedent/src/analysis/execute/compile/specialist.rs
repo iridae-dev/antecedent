@@ -435,6 +435,7 @@ impl super::super::Study {
         let method_id = match q.method {
             _ if bayesian => PlanId::BayesianSequentialRegimeValue,
             antecedent_core::LongitudinalRegimeMethod::Ipw => PlanId::LongitudinalIpwRegime,
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(_) => PlanId::LongitudinalIpwRegime,
             antecedent_core::LongitudinalRegimeMethod::GFormula => {
                 PlanId::LongitudinalGFormulaRegime
             }

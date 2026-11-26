@@ -2854,3 +2854,17 @@ evidence_assertion = "fitted_two_period_q_repeats_training_and_evaluation_in_bot
 key = "two_period_fitted_q"
 object = "two-period fitted g-formula value with a whole-subject percentile interval"
 built_from = "`LongitudinalRegimeMethod::FittedGFormula(FittedRegimeQ)` and contracted export with the baseline and endpoint source table"
+
+[[rust_cell]]
+producer = "fixed_two_decision_schedule_contrasts"
+consumer = "longitudinal_interval_bundle"
+status = "DIRECT"
+detail = "The bundle replays the paired score contrasts and their common multiplier critical value. Candidate membership enters the original program identity."
+evidence_test = "crates/antecedent/tests/longitudinal_schedule_route.rs"
+evidence_assertion = "simultaneous_schedule_intervals_use_paired_subject_scores_and_bound_the_contrast_family"
+
+
+[[rust_producer]]
+key = "fixed_two_decision_schedule_contrasts"
+object = "simultaneous fixed-schedule contrasts from common subject scores"
+built_from = "`LongitudinalRegimeMethod::ScheduleFamily` with a fixed reference and contrast subset"

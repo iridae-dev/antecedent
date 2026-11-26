@@ -761,6 +761,7 @@ class LongitudinalRegimeSection:
     value_standard_error: float | None
     value_interval_95: tuple[float, float] | None
     fitted_q_bootstrap_replicates_ok: int | None
+    schedule_family_json: str | None
     period_intervals_95: list[tuple[float, float]] | None
     interval_reason: str | None
     effective_sample_size: float
@@ -2353,6 +2354,7 @@ class PreparedAnalysis:
         period_outcome_predictions: list[float] = [],
         known_fixed_outcome_predictions: bool = False,
         fitted_q: tuple[str, int | None, int] | None = None,
+        schedule_family: tuple[int, int, tuple[int, int] | None, int | None] | None = None,
         stabilizing_numerator_probabilities: list[float] = [],
         q_predictions: list[float] = [],
         observation_history: list[bool] = [],

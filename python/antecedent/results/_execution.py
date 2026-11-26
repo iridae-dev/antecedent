@@ -357,7 +357,11 @@ def answer_from_artifact(contract: Mapping[str, Any], payload: Mapping[str, Any]
         )
     regime = payload.get("longitudinal_regime")
     if kind == "point" and isinstance(regime, Mapping):
-        if regime.get("method") == "marginal_structural_model":
+        if regime.get("method") == "compare_schedules":
+            detail = "longitudinal_simultaneous_schedule_contrasts"
+        elif regime.get("method") == "learn_schedule":
+            detail = "longitudinal_held_out_schedule_and_optimum_set"
+        elif regime.get("method") == "marginal_structural_model":
             detail = (
                 "longitudinal_msm_pointwise_cr1_interval"
                 if regime.get("value_interval_95") is not None
@@ -635,7 +639,11 @@ class ResultAPI:
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
-            if regime.method == "marginal_structural_model":
+            if regime.method == "compare_schedules":
+                detail = "longitudinal_simultaneous_schedule_contrasts"
+            elif regime.method == "learn_schedule":
+                detail = "longitudinal_held_out_schedule_and_optimum_set"
+            elif regime.method == "marginal_structural_model":
                 detail = (
                     "longitudinal_msm_pointwise_cr1_interval"
                     if regime.value_interval_95 is not None
@@ -827,6 +835,15 @@ class ResultAPI:
             )
         regime = getattr(self, "longitudinal_regime", None)
         if regime is not None:
+            if regime.method == "compare_schedules":
+                count = len(regime.schedule_family.contrasts)
+                return (f"Simultaneous 95% intervals for {count} prespecified schedule contrasts "
+                        "using paired subject scores and common multipliers.")
+            if regime.method == "learn_schedule":
+                choice = regime.schedule_family.learning
+                return (f"Schedule {choice.selected_schedule} was selected on the training fold. "
+                        f"Held-out regime value {regime.value:g}. "
+                        f"Compatible optimum schedules: {', '.join(map(str, choice.optimum_set))}.")
             if regime.method == "marginal_structural_model":
                 effects = ", ".join(f"{effect:g}" for effect in (regime.period_effects or ()))
                 interval = regime.value_interval_95

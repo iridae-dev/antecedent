@@ -364,6 +364,7 @@ impl From<&LongitudinalRegimeEstimate> for LongitudinalRegimeWire {
             value_standard_error: regime.value_standard_error,
             value_interval_95: regime.value_interval_95,
             fitted_q_bootstrap_replicates_ok: regime.fitted_q_bootstrap_replicates_ok,
+            schedule_family: regime.schedule_family.clone(),
             period_intervals_95: regime
                 .period_intervals_95
                 .as_ref()

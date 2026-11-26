@@ -1710,3 +1710,11 @@ path = "tests/patient_surrogate.rs"
 [[test]]
 name = "longitudinal_regime_calibration"
 path = "tests/longitudinal_regime_calibration.rs"
+
+[[test]]
+name = "longitudinal_schedule_route"
+path = "tests/longitudinal_schedule_route.rs"
+
+[[test]]
+name = "longitudinal_schedule_calibration"
+path = "tests/longitudinal_schedule_calibration.rs"

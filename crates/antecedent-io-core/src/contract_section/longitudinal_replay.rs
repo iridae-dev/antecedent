@@ -4,10 +4,15 @@
 
 use super::AnalysisResultContractWire;
 use super::dr_replay::{SourceReplay, SourceWitnessState};
+use crate::analysis_result_artifact::LongitudinalScheduleResultWire;
 use crate::contract_reason::ContractReason;
+use crate::query_wire::LongitudinalScheduleTargetWire;
 use crate::source_witness::{verify_source_witness, verify_source_witness_schema};
 use crate::{AnalysisResultHeader, AnalysisResultWire, CausalQueryWire};
 use antecedent_stats::fitted_regime_q::{FittedRegimeRows, estimate_fitted_regime_q};
+use antecedent_stats::longitudinal_policy::{
+    compare_longitudinal_schedules, learn_longitudinal_schedule,
+};
 use antecedent_stats::longitudinal_regime::{
     SequentialDrInputs, SubjectHistories, evaluate_sequential_dr_value_with_subject_scores,
     sequential_dr_pointwise_interval_95,
@@ -19,8 +24,11 @@ pub(super) fn declares_longitudinal_replay(
 ) -> bool {
     matches!(&contract.target.query, CausalQueryWire::LongitudinalRegime(query)
         if query.periods == 4 && query.method == "sequential_dr"
-            || query.periods == 2 && query.method == "fitted_g_formula")
-        && body.longitudinal_regime.as_ref().is_some_and(|fit| fit.value_interval_95.is_some())
+            || query.periods == 2 && matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule"))
+        && body
+            .longitudinal_regime
+            .as_ref()
+            .is_some_and(|fit| fit.value_interval_95.is_some() || fit.schedule_family.is_some())
 }
 
 pub(super) fn replay_longitudinal_interval(
@@ -37,7 +45,6 @@ pub(super) fn replay_longitudinal_interval(
     else {
         return Ok(false);
     };
-    let Some(reported_bounds) = fit.value_interval_95 else { return Ok(false) };
     let source = source.ok_or(ContractReason::DependenciesCheckedLongitudinalRegimeOperation)?;
     let SourceWitnessState::Present(witness) = source.state else {
         return Err(ContractReason::LongitudinalRegimeReplaySource);
@@ -61,6 +68,58 @@ pub(super) fn replay_longitudinal_interval(
         .columns
         .get(query.outcome as usize)
         .ok_or(ContractReason::LongitudinalRegimeReplaySource)?;
+    if let Some(declaration) = query.schedule_family {
+        let execution = contract.execution.as_ref().ok_or(ContractReason::IdentitiesExecution)?;
+        let mut ctx = antecedent_core::ExecutionContext::production(execution.seed, 1)
+            .with_memory_limit(Some(source.bounds.memory_bytes));
+        ctx.cancellation = source.bounds.cancellation.clone();
+        let (result, value, se, interval) = match declaration.target {
+            LongitudinalScheduleTargetWire::Contrasts { reference, contrasts } => {
+                let comparison = compare_longitudinal_schedules(
+                    &query.treatment_history,
+                    &outcomes.values,
+                    declaration.schedules,
+                    reference,
+                    contrasts,
+                    declaration.draws as usize,
+                    &ctx,
+                )
+                .map_err(schedule_replay_error)?;
+                let value = comparison
+                    .values
+                    .iter()
+                    .find(|&&(code, _)| code == reference)
+                    .map(|&(_, value)| value)
+                    .ok_or(ContractReason::BodyLongitudinalRegime)?;
+                (LongitudinalScheduleResultWire::from(&comparison), value, None, None)
+            }
+            LongitudinalScheduleTargetWire::Learn { training_fold } => {
+                let learned = learn_longitudinal_schedule(
+                    &query.treatment_history,
+                    &outcomes.values,
+                    &query.fold_ids,
+                    declaration.schedules,
+                    training_fold,
+                    declaration.draws as usize,
+                    &ctx,
+                )
+                .map_err(schedule_replay_error)?;
+                (
+                    LongitudinalScheduleResultWire::from(&learned),
+                    learned.selected_value,
+                    Some(learned.selected_standard_error),
+                    Some(learned.selected_interval),
+                )
+            }
+        };
+        let agrees = fit.schedule_family.as_ref() == Some(&result)
+            && fit.value.to_bits() == value.to_bits()
+            && fit.value_standard_error.map(f64::to_bits) == se.map(f64::to_bits)
+            && fit.value_interval_95.map(|bounds| bounds.map(f64::to_bits))
+                == interval.map(|bounds| bounds.map(f64::to_bits));
+        return agrees.then_some(true).ok_or(ContractReason::BodyLongitudinalRegime);
+    }
+    let reported_bounds = fit.value_interval_95.ok_or(ContractReason::BodyLongitudinalRegime)?;
     if let Some(declaration) = query.fitted_q {
         let baseline = witness
             .columns
@@ -151,4 +210,13 @@ pub(super) fn replay_longitudinal_interval(
         return Err(ContractReason::BodyLongitudinalRegime);
     }
     Ok(true)
+}
+
+fn schedule_replay_error(error: antecedent_stats::StatsError) -> ContractReason {
+    match error {
+        antecedent_stats::StatsError::Admission(_) | antecedent_stats::StatsError::Cancelled => {
+            ContractReason::LongitudinalRegimeReplayResource
+        }
+        _ => ContractReason::BodyLongitudinalRegime,
+    }
 }

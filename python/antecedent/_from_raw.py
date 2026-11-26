@@ -50,7 +50,8 @@ from .quasi import (
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferencesEstimate,
 )
-from .regimes import LongitudinalRegimeEstimate, SequentialContrastEstimate
+from .regimes import (LongitudinalRegimeEstimate, LongitudinalScheduleResult, ScheduleContrast,
+                      ScheduleLearningResult, SequentialContrastEstimate)
 from .results import (
     AnalysisResult,
     ConflictSummaryView,
@@ -1062,11 +1063,30 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
     section = getattr(raw, "longitudinal_regime", None)
     if section is None:
         return None
+    schedule_family = None
+    if section.schedule_family_json is not None:
+        family = json.loads(section.schedule_family_json)
+        learning = family.get("learning")
+        schedule_family = LongitudinalScheduleResult(
+            values=tuple(map(tuple, family["values"])),
+            contrasts=tuple(ScheduleContrast(
+                schedule=row["schedule"], reference=row["reference"], difference=row["difference"],
+                standard_error=row["standard_error"], interval=tuple(row["interval"]),
+            ) for row in family["contrasts"]),
+            critical_value=family["critical_value"],
+            evaluation_subjects=family["evaluation_subjects"],
+            learning=None if learning is None else ScheduleLearningResult(
+                selected_schedule=learning["selected_schedule"], optimum_set=tuple(learning["optimum_set"]),
+                refit_selections=tuple(map(tuple, learning["refit_selections"])),
+                refit_value_sd=learning["refit_value_sd"],
+            ),
+        )
     return LongitudinalRegimeEstimate(
         value=section.value,
         value_standard_error=section.value_standard_error,
         value_interval_95=section.value_interval_95,
         fitted_q_bootstrap_replicates_ok=section.fitted_q_bootstrap_replicates_ok,
+        schedule_family=schedule_family,
         period_intervals_95=(
             tuple(tuple(bounds) for bounds in section.period_intervals_95)
             if section.period_intervals_95 is not None

@@ -52,6 +52,60 @@ class FittedRegimeQ:
             raise CausalValueError("external_training_fold must be a nonnegative 32-bit fold ID")
 
 
+Schedule = tuple[bool, bool]
+
+
+def _schedule_code(schedule: Schedule) -> int:
+    if len(schedule) != 2 or any(action not in (False, True) for action in schedule):
+        raise CausalValueError("each candidate schedule must have two binary actions")
+    return 2 * int(schedule[0]) + int(schedule[1])
+
+
+def _schedule_mask(schedules: Sequence[Schedule]) -> int:
+    codes = tuple(map(_schedule_code, schedules))
+    if len(set(codes)) != len(codes):
+        raise CausalValueError("schedule declarations may name each schedule once")
+    return sum(1 << code for code in codes)
+
+
+@dataclass(frozen=True, slots=True)
+class FixedScheduleContrasts:
+    """Prespecified candidates and simultaneous differences from one reference."""
+
+    schedules: tuple[Schedule, ...]
+    reference: Schedule
+    contrasts: tuple[Schedule, ...]
+    draws: int = 399
+
+    def _wire(self) -> tuple[int, int, tuple[int, int], None]:
+        family = _schedule_mask(self.schedules)
+        reference = _schedule_code(self.reference)
+        contrasts = _schedule_mask(self.contrasts)
+        if family.bit_count() < 2 or not family & (1 << reference) or not contrasts or contrasts & ~family or contrasts & (1 << reference):
+            raise CausalValueError("declare a candidate reference and distinct nonreference contrasts from the class")
+        return family, self.draws, (reference, contrasts), None
+
+
+@dataclass(frozen=True, slots=True)
+class LearnedScheduleClass:
+    """Choose a fixed schedule using only outcomes from the declared training fold.
+
+    Candidate actions are fixed sequences, so the selection uses no subject information at
+    the individual treatment decisions. The other fold evaluates the selected regime and
+    all prespecified pairs. Selection breaks training-score ties by binary schedule order.
+    """
+
+    schedules: tuple[Schedule, ...]
+    training_fold: int
+    draws: int = 399
+
+    def _wire(self) -> tuple[int, int, None, int]:
+        family = _schedule_mask(self.schedules)
+        if family.bit_count() < 2 or type(self.training_fold) is not int or not 0 <= self.training_fold < 2**32:
+            raise CausalValueError("declare at least two schedules and one training fold")
+        return family, self.draws, None, self.training_fold
+
+
 @dataclass(frozen=True, slots=True)
 class LongitudinalRegime:
     """Prespecified binary regime over complete subject histories.
@@ -66,10 +120,11 @@ class LongitudinalRegime:
     actions: Sequence[bool] | Sequence[Sequence[bool]]
     treatment_probabilities: Sequence[Sequence[float]]
     subject_ids: Sequence[str] | str
-    method: Literal["ipw", "g_formula", "fitted_g_formula", "sequential_dr", "marginal_structural_model"] = "ipw"
+    method: Literal["ipw", "g_formula", "fitted_g_formula", "compare_schedules", "learn_schedule", "sequential_dr", "marginal_structural_model"] = "ipw"
     period_outcome_predictions: Sequence[Sequence[float]] | None = None
     known_fixed_outcome_predictions: bool = False
     fitted_q: FittedRegimeQ | None = None
+    schedule_family: FixedScheduleContrasts | LearnedScheduleClass | None = None
     stabilizing_numerator_probabilities: Sequence[float] | None = None
     q_predictions: Sequence[Sequence[float]] | None = None
     observation_history: Sequence[Sequence[bool]] | None = None
@@ -136,13 +191,22 @@ class LongitudinalRegime:
                 raise CausalValueError(
                     "dynamic rule identity is not applicable to marginal_structural_model"
                 )
-        if self.method not in ("ipw", "g_formula", "fitted_g_formula", "sequential_dr", "marginal_structural_model"):
+        if self.method not in ("ipw", "g_formula", "fitted_g_formula", "compare_schedules", "learn_schedule", "sequential_dr", "marginal_structural_model"):
             raise CausalValueError("unknown longitudinal method")
         if self.method == "fitted_g_formula":
             if not isinstance(self.fitted_q, FittedRegimeQ) or self.fitted_q.baseline == self.outcome:
                 raise CausalValueError("fitted_g_formula needs a fitted Q declaration with a distinct baseline")
         elif self.fitted_q is not None:
             raise CausalValueError("fitted_q requires fitted_g_formula")
+        if self.method in ("compare_schedules", "learn_schedule"):
+            expected = FixedScheduleContrasts if self.method == "compare_schedules" else LearnedScheduleClass
+            if not isinstance(self.schedule_family, expected):
+                raise CausalValueError("schedule_family must match the comparison or learning method")
+            if type(self.schedule_family.draws) is not int or not 199 <= self.schedule_family.draws <= 100_000:
+                raise CausalValueError("schedule inference needs 199 to 100000 whole-subject draws")
+            self.schedule_family._wire()
+        elif self.schedule_family is not None:
+            raise CausalValueError("schedule_family requires compare_schedules or learn_schedule")
         numerator = (
             None
             if self.stabilizing_numerator_probabilities is None
@@ -469,6 +533,38 @@ class LongitudinalRegime:
 
 
 @dataclass(frozen=True, slots=True)
+class ScheduleContrast:
+    """One coordinate of the paired simultaneous schedule interval."""
+
+    schedule: int
+    reference: int
+    difference: float
+    standard_error: float
+    interval: tuple[float, float]
+
+
+@dataclass(frozen=True, slots=True)
+class ScheduleLearningResult:
+    """Selected schedule, compatible optima and training-refit variability."""
+
+    selected_schedule: int
+    optimum_set: tuple[int, ...]
+    refit_selections: tuple[tuple[int, int], ...]
+    refit_value_sd: float
+
+
+@dataclass(frozen=True, slots=True)
+class LongitudinalScheduleResult:
+    """Paired candidate values and simultaneous contrasts in two-bit schedule order."""
+
+    values: tuple[tuple[int, float], ...]
+    contrasts: tuple[ScheduleContrast, ...]
+    critical_value: float
+    evaluation_subjects: int
+    learning: ScheduleLearningResult | None
+
+
+@dataclass(frozen=True, slots=True)
 class LongitudinalRegimeEstimate:
     """Regime mean and bounded IPW uncertainty, or an additive MSM summary."""
 
@@ -481,6 +577,7 @@ class LongitudinalRegimeEstimate:
     value_standard_error: float | None = None
     value_interval_95: tuple[float, float] | None = None
     fitted_q_bootstrap_replicates_ok: int | None = None
+    schedule_family: LongitudinalScheduleResult | None = None
     period_intervals_95: tuple[tuple[float, float], ...] | None = None
     interval_reason: str | None = None
     method: str = "ipw"
@@ -1365,6 +1462,9 @@ def trajectory_hazard_credible_interval(
 
 __all__ = [
     "FittedRegimeQ",
+    "FixedScheduleContrasts",
+    "LongitudinalScheduleResult",
+    "ScheduleContrast",
     "TrajectorySurvivalIntervals",
     "trajectory_hazard_credible_interval",
     "trajectory_survival_bootstrap",

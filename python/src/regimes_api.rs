@@ -21,6 +21,7 @@ pub struct LongitudinalRegimeSection {
     pub value_standard_error: Option<f64>,
     pub value_interval_95: Option<(f64, f64)>,
     pub fitted_q_bootstrap_replicates_ok: Option<usize>,
+    pub schedule_family_json: Option<String>,
     pub period_intervals_95: Option<Vec<(f64, f64)>>,
     pub interval_reason: Option<String>,
     pub effective_sample_size: f64,
@@ -50,6 +51,7 @@ impl From<&antecedent::LongitudinalRegimeEstimate> for LongitudinalRegimeSection
             value_standard_error: value.value_standard_error,
             value_interval_95: value.value_interval_95.map(|bounds| (bounds[0], bounds[1])),
             fitted_q_bootstrap_replicates_ok: value.fitted_q_bootstrap_replicates_ok,
+            schedule_family_json: value.schedule_family.as_ref().and_then(|family| serde_json::to_string(family).ok()),
             period_intervals_95: value
                 .period_intervals_95
                 .as_ref()

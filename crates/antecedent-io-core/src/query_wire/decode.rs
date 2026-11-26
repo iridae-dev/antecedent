@@ -528,6 +528,9 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
     if w.fitted_q.is_some() != (w.method == "fitted_g_formula") {
         return Err(IoError::Convert("fitted longitudinal Q declaration must match its method".into()));
     }
+    if w.schedule_family.is_some() != matches!(w.method.as_str(), "compare_schedules" | "learn_schedule") {
+        return Err(IoError::Convert("longitudinal schedule declaration must match its method".into()));
+    }
     let method = match w.method.as_str() {
         "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
         "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
@@ -537,6 +540,17 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
                 baseline: VariableId::from_raw(fit.baseline),
                 external_training_fold: fit.external_training_fold,
                 bootstrap_replicates: fit.bootstrap_replicates,
+            })
+        }
+        "compare_schedules" | "learn_schedule" => {
+            let family = w.schedule_family.ok_or_else(|| IoError::Convert("missing schedule class".into()))?;
+            let target = match (w.method.as_str(), family.target) {
+                ("compare_schedules", super::LongitudinalScheduleTargetWire::Contrasts { reference, contrasts }) => antecedent_core::LongitudinalScheduleTarget::Contrasts { reference, contrasts },
+                ("learn_schedule", super::LongitudinalScheduleTargetWire::Learn { training_fold }) => antecedent_core::LongitudinalScheduleTarget::Learn { training_fold },
+                _ => return Err(IoError::Convert("longitudinal schedule target disagrees with method".into())),
+            };
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(antecedent_core::LongitudinalScheduleFamily {
+                schedules: family.schedules, draws: family.draws, target,
             })
         }
         "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,

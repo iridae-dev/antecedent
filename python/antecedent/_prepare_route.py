@@ -2308,6 +2308,7 @@ class _PrepareRoute:
             known_fixed_outcome_predictions=query.known_fixed_outcome_predictions,
             fitted_q=(query.fitted_q.baseline, query.fitted_q.external_training_fold, query.fitted_q.bootstrap_replicates)
             if query.fitted_q is not None else None,
+            schedule_family=query.schedule_family._wire() if query.schedule_family is not None else None,
             stabilizing_numerator_probabilities=list(query.stabilizing_numerator_probabilities)
             if query.stabilizing_numerator_probabilities is not None
             else [],
