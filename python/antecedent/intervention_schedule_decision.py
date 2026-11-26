@@ -21,6 +21,23 @@ from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .execution import Execution, native_controls, resolve_execution
 from .outcomes import outcome_operation, require_success
 
+__all__ = [
+    "CompiledIntegratedScheduleDecision",
+    "IntegratedScheduleBundle",
+    "IntegratedScheduleDecision",
+    "ScheduleCalibrationDesign",
+    "ScheduleCalibrationEvidence",
+    "ScheduleDecisionDeclaration",
+    "ScheduleDecisionRefusal",
+    "ScheduleScenarioResult",
+    "ScheduleSourceSubject",
+    "ScheduleStructure",
+    "ScheduleUtilityDifference",
+    "compile_integrated_schedule_decision",
+    "compile_schedule_decision_bundle",
+    "consume_schedule_decision_bundle",
+]
+
 ScheduleStructure = Literal["both_actions_causal", "first_action_only"]
 ScheduleCalibrationDesign = Literal["example_unique_optima", "example_tied_optima"]
 

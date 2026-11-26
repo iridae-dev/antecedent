@@ -9474,6 +9474,14 @@ routes = [
 id = "design.integrated_schedule_decision"
 status = "supported"
 refusals = [
+  { code = "invalid_argument", detail = "integrated_schedule.artifact_refused" },
+  { code = "cancelled_no_claim", detail = "integrated_schedule.cancelled" },
+  { code = "invalid_argument", detail = "integrated_schedule.changed_program" },
+  { code = "route_not_supported", detail = "integrated_schedule.inadequate_overlap" },
+  { code = "invalid_argument", detail = "integrated_schedule.invalid_declaration" },
+  { code = "route_not_supported", detail = "integrated_schedule.missing_joint_evidence" },
+  { code = "route_not_supported", detail = "integrated_schedule.resource_refused" },
+  { code = "route_not_supported", detail = "integrated_schedule.unsupported" },
 ]
 routes = [
   { route = "antecedent.design.compile_integrated_schedule_decision", stage = "prepare", status = "supported", claim = "interval" },

@@ -27067,15 +27067,26 @@ wire_changes = ["Source, target and declaration children bind a compiled-program
 compatibility = "Additive composition route. Other schedule and decision artifacts retain their existing readers."
 search = false
 bounds = { cancellation = true, memory_limit = "ExecutionContext.admission", max_artifact_bytes = 33554432 }
-surface = ["crates/antecedent/src/analysis/composition_integrated_schedule.rs", "python/antecedent/intervention_schedule_decision.py"]
-surface_pyo3 = ["python/src/bundle_recomputation_api.rs"]
-surface_rust = ["crates/antecedent-design/src/intervention_schedule_decision.rs", "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs"]
-surface_values = ["CompiledIntegratedScheduleDecision", "IntegratedScheduleBundle", "IntegratedScheduleDecision", "ScheduleDecisionDeclaration", "ScheduleCalibrationDesign"]
+surface = ["python/antecedent/intervention_schedule_decision.py"]
+surface_pyo3 = ["python/src/integrated_schedule_api.rs"]
+surface_rust = ["crates/antecedent/src/analysis/composition_integrated_schedule.rs", "crates/antecedent-design/src/intervention_schedule_decision.rs", "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs"]
+surface_values = ["CompiledIntegratedScheduleDecision", "CompiledScheduleEvidence", "IntegratedScheduleBundle", "IntegratedScheduleDecision", "IntegratedSchedulePlanHandle", "PreparedIntegratedScheduleDecision", "ScheduleBundleError", "ScheduleCalibrationDesign", "ScheduleCalibrationEvidence", "ScheduleDecisionDeclaration", "ScheduleDecisionError", "ScheduleDecisionRefusal", "ScheduleEvidence", "ScheduleReplayInputs", "ScheduleScenarioResult", "ScheduleSourceFit", "ScheduleSourceSubject", "ScheduleStructure", "ScheduleTargetCohort", "ScheduleUtilityDifference"]
 routes = [
-  { name = "antecedent.design.compile_integrated_schedule_decision", stage = "prepare", status = "supported", claim = "interval", covers = ["compile_schedule_decision_bundle", "CompiledIntegratedScheduleDecision.execute"] },
-  { name = "antecedent.design.consume_schedule_decision_bundle", stage = "consume", status = "supported", claim = "interval", covers = ["consume_schedule_decision_bundle_with_context"] },
+  { name = "antecedent.design.compile_integrated_schedule_decision", stage = "prepare", status = "supported", claim = "interval", covers = ["compile_schedule_decision_bundle", "CompiledIntegratedScheduleDecision.execute", "compile_program_schedule_bundle", "PreparedIntegratedScheduleDecision.compile", "PreparedIntegratedScheduleDecision.execute", "CompiledScheduleEvidence.compile", "ScheduleSourceFit.fit", "ScheduleTargetCohort.fit", "integrated_schedule_decision_compile", "IntegratedSchedulePlanHandle.execute"] },
+  { name = "antecedent.design.consume_schedule_decision_bundle", stage = "consume", status = "supported", claim = "interval", covers = ["consume_schedule_decision_bundle_with_context", "consume_program_schedule_bundle", "consume_program_schedule_bundle_expecting", "inspect_program_schedule_bundle", "inspect_program_schedule_bundle_expecting", "integrated_schedule_decision_consume"] },
+]
+refusals = [
+  { detail = "integrated_schedule.artifact_refused" },
+  { detail = "integrated_schedule.cancelled" },
+  { detail = "integrated_schedule.changed_program" },
+  { detail = "integrated_schedule.inadequate_overlap" },
+  { detail = "integrated_schedule.invalid_declaration" },
+  { detail = "integrated_schedule.missing_joint_evidence" },
+  { detail = "integrated_schedule.resource_refused" },
+  { detail = "integrated_schedule.unsupported" },
 ]
 fixtures = [
+  { id = "design.integrated_schedule_decision.joint_region.construction", role = "construction", intent = "Compare all 48 pairwise confidence bounds and each optimum set with all 8192 vertices of the joint Hoeffding region.", evidence_test = "python/tests/test_integrated_schedule_decision.py", evidence_assertion = "test_schedule_confidence_bounds_match_all_joint_region_corners" },
   { id = "design.integrated_schedule_decision.oracle.positive", role = "positive", intent = "The compiled children agree with a rational eight-cell oracle under both structures and preference states. The tied optimum is present and revisions recompile only the affected evidence child.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal", shared_evidence = true },
   { id = "design.integrated_schedule_decision.oracle.truth", role = "truth", intent = "The independent rational utilities reproduce all candidate values and every maximizing schedule in the tied world.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal", shared_evidence = true },
   { id = "design.integrated_schedule_decision.scope.negative", role = "negative", intent = "An incomplete structure declaration, thin support and an inadequate resource budget produce actionable refusals.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "insufficient_scope_and_budget_are_refused" },
