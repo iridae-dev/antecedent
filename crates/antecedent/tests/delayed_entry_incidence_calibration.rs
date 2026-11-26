@@ -100,6 +100,7 @@ fn trial(fixed_known: bool, incidence: bool, seed: u64) -> (TabularData, Surviva
         treatment: VariableId::from_raw(2),
         tau: 3.0,
         delayed_entry: Some(VariableId::from_raw(3)),
+        stratified_censoring: None,
         known_censoring: fixed_known.then(|| KnownCensoringSurvival {
             times: Arc::from(TIMES),
             columns: (4..10).map(VariableId::from_raw).collect(),
@@ -274,4 +275,69 @@ fn delayed_entry_fixed_known_survival_band_coverage() {
 #[ignore = "coverage: measure with scripts/measure_calibration.sh"]
 fn delayed_entry_fixed_known_incidence_band_coverage() {
     measure_band("delayed_entry_fixed_known_incidence_band_coverage", true, true, 0xD3E6_0000);
+}
+
+#[path = "common/conditional_survival_fixture.rs"]
+mod conditional_survival_fixture;
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn jointly_conditional_entry_and_censoring_survival_band_coverage() {
+    use conditional_survival_fixture as fixture;
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test: "jointly_conditional_entry_and_censoring_survival_band_coverage",
+            dgp: "binary_baseline_entry_and_conditional_loss_pre_entry_survival_source",
+            interval: "simultaneous_band",
+        },
+        REPORTED_LEVEL,
+    );
+    let run = |rep| -> Option<((f64, f64), f64, Construction, ScopeFacts)> {
+        let seed = 0xD3E7_0000 + rep;
+        let data =
+            fixture::table(&fixture::sampled(grid_n(fixture::MIN_ARM), uniform(seed, 0xED0F)));
+        let ctx = ExecutionContext::for_tests(seed);
+        let prepared = Study::tabular(data.clone())
+            .query(CausalQuery::Survival(fixture::query(true)))
+            .bootstrap_replicates(fixture::DRAWS)
+            .build()
+            .ok()?
+            .prepare(&ctx)
+            .ok()?;
+        let result = prepared.estimate(&data, &ctx).ok()?;
+        let band = result.survival()?.difference_band.as_ref()?;
+        let slack = |(lower, upper, truth): (f64, f64, f64)| (truth - lower).min(upper - truth);
+        let (lower, upper, truth) = band
+            .times
+            .iter()
+            .zip(&*band.lower)
+            .zip(&*band.upper)
+            .map(|((&time, &lower), &upper)| {
+                (lower, upper, fixture::truth(1, time) - fixture::truth(0, time))
+            })
+            .min_by(|&left, &right| slack(left).total_cmp(&slack(right)))?;
+        let contract = prepared.contract_for_result(&result).ok()?;
+        let (construction, scope, validation) = constructions(&contract, &result)
+            .into_iter()
+            .find(|(construction, _, _)| construction.interval_method == "simultaneous_band")?;
+        assert_eq!(validation, "not_applicable");
+        assert_eq!(scope.replicates_ok, Some(fixture::DRAWS));
+        assert_eq!(
+            construction.functional,
+            concat!(
+                "difference_band+entry=standardized+censoring=stratified_refit+endpoint=survival",
+                "+tau=4008000000000000+population=3fe0000000000000/3fe0000000000000+floor=3fa999999999999a"
+            )
+        );
+        Some(((lower, upper), truth, construction, scope))
+    };
+    for run in map_replicates(n_sim(), run) {
+        if let Some((interval, truth, construction, scope)) = run {
+            tally.bind_validation(&construction, scope, "not_applicable");
+            tally.record(Some(interval), truth);
+        } else {
+            tally.skip();
+        }
+    }
+    tally.assert();
 }

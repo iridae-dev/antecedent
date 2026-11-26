@@ -137,6 +137,14 @@ Set `delayed_entry` and declare `IndependentGiven(())` to report the left-trunca
 
 For independent numerical replay, export with `result.value.export(source_data=data)` and call `replay()` on the loaded result. This adds the original table to the artifact, so the reader can recompute both curves and the interval under the recorded seed. A compact export records which subject table the replay needs.
 
+### Standardize to a population with baseline-dependent entry
+
+Use `StratifiedCensoringSurvival("entry_history", "censor_history", (0.5, 0.5))` as `stratified_censoring=` with the two binary baseline columns in `IndependentGiven(("entry_history", "censor_history"))`. The proportions refer to the randomized population before delayed entry. Declare that entry is independent of event time, cause, censoring time and the censoring stratum given arm and entry stratum. Declare that censoring is independent of event time and cause given arm and both baseline strata. Each history in each arm needs time-zero entrants and positive follow-up and censoring survival through the horizon.
+
+The reverse product-limit fit estimates the censoring survival left limit in each arm and history. Within each entry stratum, the ratio of weighted event counts to weighted risk counts uses each subject's inverse censoring left limit. Counting entry in both terms cancels the common conditional entry probability. The product-limit recursion gives a survival curve per arm and entry stratum. Averaging those curves with the declared pre-entry proportions gives the arm curves and their treatment contrast.
+
+The simultaneous band resamples whole subjects within arm and refits all censoring models on the same resampled analysis subjects in each draw. It reports full-grid uncertainty. The release row initially covers equal proportions at horizon three, censoring floor 0.05, at least 1,000 subjects per arm, and at least 25 initially at risk in each arm and history at every knot. The quantile needs at least 399 valid refits. A source-bearing export retains the original fitting subjects and replays the complete operation. A compact export names the original fitting subjects as required evidence.
+
 ### Declare the hazard partition for a posterior
 
 For a Bayesian answer, `design_models.PiecewiseHazards` states the model: hazards are constant on each interval of a partition and independent a priori, with a Gamma prior. `cuts` is the partition (its last cut is the restriction horizon and must equal `tau`), `prior_shape` is the prior event count and `prior_rate` the prior time at risk, in the unit of the durations. The partition and prior are part of the answer. The twelve rows below are a small hand-checkable fixture.

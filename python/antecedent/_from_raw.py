@@ -842,6 +842,7 @@ def _survival_from_raw(
     control = tuple(section.control)
     treated = tuple(section.treated)
     fixed_g = getattr(query, "known_censoring", None) is not None
+    fitted_g = section.censoring_survival_provenance == "same_subject_stratified_reverse_product_limit_refit"
     has_interval = section.difference_at_tau_interval is not None
     native_band = section.difference_band
     # The band support is the sixth tuple element on builds that carry it; older
@@ -869,7 +870,15 @@ def _survival_from_raw(
         if fixed_g
         else ("independent_right_censoring_within_arm",)
     )
-    if getattr(query, "delayed_entry", None) is not None:
+    if fitted_g:
+        observation_assumptions = (
+            "independent_censoring_given_arm_and_baseline_strata",
+            "fixed_pre_entry_source_population",
+            "entry_and_censoring_positivity_in_each_arm_and_baseline_history",
+        )
+        if getattr(query, "delayed_entry", None) is not None:
+            observation_assumptions += ("independent_delayed_entry_given_arm_and_entry_stratum",)
+    elif getattr(query, "delayed_entry", None) is not None:
         observation_assumptions += (
             "marginal_independent_delayed_entry_and_censoring_within_arm"
             if fixed_g

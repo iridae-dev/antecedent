@@ -9,6 +9,13 @@ use std::collections::BTreeSet;
 
 use antecedent_core::splitmix64;
 
+mod conditional_observation;
+
+pub use conditional_observation::{
+    ConditionalObservationEstimate, ConditionalObservationRows, STRATIFIED_CENSORING_BAND,
+    STRATIFIED_CENSORING_PROVENANCE, standardized_conditional_survival,
+};
+
 /// Outcome summarized over randomized treatment arms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SurvivalEndpoint {

@@ -489,6 +489,7 @@ fn survival_from_wire(w: &SurvivalQueryWire) -> Result<CausalQuery, IoError> {
         treatment: VariableId::from_raw(w.treatment),
         tau: w.tau,
         delayed_entry: w.delayed_entry.map(VariableId::from_raw),
+        stratified_censoring: w.stratified_censoring.as_ref().map(super::StratifiedCensoringWire::to_core),
         known_censoring: w.censoring_probability_floor.map(|minimum_probability| {
             antecedent_core::KnownCensoringSurvival {
                 times: Arc::from(w.censoring_times.clone()),

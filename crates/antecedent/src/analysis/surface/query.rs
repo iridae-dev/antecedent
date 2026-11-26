@@ -93,7 +93,7 @@ pub use antecedent_core::{
     TemporalBudget, TemporalMaterializationError, TemporalMaterializationLimits,
 };
 /// Randomized survival and competing-risk query contract.
-pub use antecedent_core::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
+pub use antecedent_core::{KnownCensoringSurvival, StratifiedCensoringSurvival, SurvivalFunctional, SurvivalQuery};
 /// Declared local-polynomial fuzzy discontinuity and regression kink design.
 pub use antecedent_core::{LocalBandwidthRule, LocalRatioOptions};
 /// Query submodule.

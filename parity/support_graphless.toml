@@ -207,6 +207,22 @@ limitations = "Independent randomized subjects, marginally independent entry and
 
 [[support]]
 family = "survival"
+design = "binary_entry_and_censoring_strata_two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_stratified_censoring_refit"
+inference_claim = "simultaneous_95_standardized_survival_difference_band"
+assignment_unit = "unit"
+min_rows = 2000
+min_assignment_units_per_arm = 1000
+min_reported_intervals = 1
+min_interval_resamples = 399
+all_reported_intervals = true
+known_truth_test = "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_identifies_the_pre_entry_population"
+independent_check = "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_identifies_the_pre_entry_population"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_band_replays_training_and_refuses_overlap"
+limitations = "Two binary baseline strata, equal pre-entry population proportions, horizon 3, fitted censoring survival floor 0.05, 1000 observed independent subjects per randomized arm, and 25 at risk in each arm and baseline history at every observed event or censoring knot through the horizon. At least 399 arm-stratified whole-subject refits with at most 10% draw loss. Coverage refers to the whole standardized survival difference grid."
+
+[[support]]
+family = "survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_supremum_band"
 inference_claim = "simultaneous_95_survival_difference_band"

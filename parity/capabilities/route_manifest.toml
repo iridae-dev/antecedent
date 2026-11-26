@@ -1461,6 +1461,20 @@ retained_route_test = "crates/antecedent/tests/survival_route.rs::delayed_entry_
 notes = "Delayed-entry cumulative incidence difference band on the observed analysis grid using fixed-known censoring weights kept with the subject in each draw."
 
 [[route]]
+id = "graphless.survival.binary_entry_and_censoring_strata_two_arm_individual_randomized.arm_stratified_subject_bootstrap_stratified_censoring_refit.simultaneous_95_standardized_survival_difference_band"
+target = "survival"
+graph_class = "RandomizedTrial"
+design_time_model = "binary_entry_and_censoring_strata_two_arm_individual_randomized"
+inference = "simultaneous_95_standardized_survival_difference_band"
+decision_ports = "unlisted"
+artifact_consumer = "antecedent::analysis::composition::consume"
+status = "graphless"
+owning_module = "crates/antecedent-stats/src/survival/conditional_observation.rs"
+retained_operation = "survival"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_band_replays_training_and_refuses_overlap"
+notes = "The same-sample reverse product-limit censoring learner is refit on every whole-subject bootstrap and the two arm curves are standardized to prespecified pre-entry proportions."
+
+[[route]]
 id = "graphless.survival.two_arm_individual_randomized.arm_stratified_subject_bootstrap_supremum_band.simultaneous_95_survival_difference_band"
 target = "survival"
 graph_class = "RandomizedTrial"

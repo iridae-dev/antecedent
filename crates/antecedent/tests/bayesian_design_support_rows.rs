@@ -454,6 +454,7 @@ fn survival_study(n: usize, seed: u64) -> (TabularData, StudyBuilder) {
         treatment: v(2),
         tau: HORIZON,
         delayed_entry: None,
+        stratified_censoring: None,
         known_censoring: None,
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
         functional: SurvivalFunctional::SurvivalAndRmst,

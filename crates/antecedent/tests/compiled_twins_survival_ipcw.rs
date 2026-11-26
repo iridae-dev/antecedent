@@ -106,6 +106,7 @@ fn query(event: u32, functional: SurvivalFunctional) -> SurvivalQuery {
         treatment: VariableId::from_raw(2),
         tau: TAU,
         delayed_entry: None,
+        stratified_censoring: None,
         known_censoring: Some(KnownCensoringSurvival {
             times: Arc::from(GRID),
             columns: Arc::from([4, 5, 6, 7].map(VariableId::from_raw)),

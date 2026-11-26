@@ -76,6 +76,8 @@ pub enum ContractReason {
     DependenciesCheckedSurvivalIncidenceOperation,
     /// Provide the band subject table witness.
     DependenciesCheckedSurvivalBandOperation,
+    /// Conditional survival needs the original censoring training subjects.
+    DependenciesCheckedSurvivalConditionalTraining,
     /// `dependencies.checked_bayesian_basis_ate_operation`.
     DependenciesCheckedBayesianBasisAteOperation,
     /// `dependencies.checked_bayesian_basis_cate_operation`.
@@ -520,6 +522,9 @@ impl ContractReason {
                 "dependencies.checked_survival_incidence_operation"
             }
             Self::DependenciesCheckedSurvivalBandOperation => "dependencies.checked_survival_band_operation",
+            Self::DependenciesCheckedSurvivalConditionalTraining => {
+                "dependencies.checked_survival_conditional_training"
+            }
             Self::DependenciesCheckedBayesianBasisAteOperation => {
                 "dependencies.checked_bayesian_basis_ate_operation"
             }
@@ -900,6 +905,7 @@ impl ContractReason {
                 | Self::DependenciesCheckedEstimatorOperation
                 | Self::DependenciesCheckedSurvivalIncidenceOperation
                 | Self::DependenciesCheckedSurvivalBandOperation
+                | Self::DependenciesCheckedSurvivalConditionalTraining
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -1004,6 +1010,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedEstimatorOperation,
     ContractReason::DependenciesCheckedSurvivalIncidenceOperation,
     ContractReason::DependenciesCheckedSurvivalBandOperation,
+    ContractReason::DependenciesCheckedSurvivalConditionalTraining,
     ContractReason::DependenciesCheckedBayesianBasisAteOperation,
     ContractReason::DependenciesCheckedBayesianBasisCateOperation,
     ContractReason::DependenciesCheckedBayesianClassConditionalOperation,
@@ -1267,6 +1274,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_static_class_effect_operation",
     "dependencies.checked_static_class_response_operation",
     "dependencies.checked_survival_band_operation",
+    "dependencies.checked_survival_conditional_training",
     "dependencies.checked_survival_incidence_operation",
     "dependencies.checked_temporal_class_effect_operation",
     "dependencies.checked_temporal_class_response_operation",

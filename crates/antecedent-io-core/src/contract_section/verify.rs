@@ -1382,7 +1382,7 @@ pub(in crate::contract_section) fn note_published_claim(
         }
         verify_claim_calibration(contract, claim, unresolved);
         if let (CausalQueryWire::Survival(query), Some(curve)) = (&body.query, &body.survival)
-            && (query.delayed_entry.is_some()
+            && ((query.delayed_entry.is_some() || query.stratified_censoring.is_some())
                 && (curve.difference_band.is_some()
                     || (query.target_cause.is_some() && curve.difference_at_tau_interval.is_some())))
             && (claim.calibration.basis.as_ref().is_none_or(|basis| {
@@ -1643,7 +1643,7 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             && key.se_kind.is_empty()
             && key.dependence == "iid"
             && matches!(&contract.target.query, CausalQueryWire::Survival(query)
-                if query.delayed_entry.is_some()
+                if (query.delayed_entry.is_some() || query.stratified_censoring.is_some())
                     && (key.interval_method == "simultaneous_band"
                         || (key.interval_method == "percentile_bootstrap" && query.target_cause.is_some()))))
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {

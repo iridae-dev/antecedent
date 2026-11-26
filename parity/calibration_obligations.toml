@@ -145,6 +145,9 @@ prospective = [
 ]
 
 [claims]
+"survival / binary_entry_and_censoring_strata_two_arm_individual_randomized / arm_stratified_subject_bootstrap_stratified_censoring_refit / simultaneous_95_standardized_survival_difference_band" = [
+  "delayed_entry_incidence_calibration: jointly_conditional_entry_and_censoring_survival_band_coverage",
+]
 "survival / delayed_entry_two_arm_individual_randomized / arm_stratified_subject_bootstrap_supremum_band / simultaneous_95_survival_difference_band" = [
   "delayed_entry_incidence_calibration: delayed_entry_unweighted_survival_band_coverage",
 ]

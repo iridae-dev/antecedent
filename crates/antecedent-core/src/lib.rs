@@ -173,7 +173,7 @@ pub use query::{
     FixedCandidateRegretInputs, FixedGroupDosePolicy, GridSpec, HistoryMatchFault,
     HistoryMatchQuery, InterferenceFault, InterferenceFunctional, InterferenceQuery,
     InterventionAssignment, InterventionFault, InterventionalDistributionQuery, IvBoundsFault,
-    IvBoundsQuery, KnownCensoringSurvival, LawOrigin, LocalPolynomialRatioFault,
+    IvBoundsQuery, KnownCensoringSurvival, StratifiedCensoringSurvival, LawOrigin, LocalPolynomialRatioFault,
     LocalPolynomialRatioQuery, LongitudinalRegimeFault, LongitudinalRegimeMethod,
     LongitudinalRegimeQuery, MAX_NONPARAMETRIC_RESPONSE_DIM, MAX_TEMPORAL_RESPONSE_CELLS,
     MechanismChangeQuery, MediationContrast, MediationQuery, MultiActionPolicyInputs,

@@ -33,6 +33,32 @@ impl CanonicalEncode for KnownCensoringSurvival {
     }
 }
 
+/// Fit reverse product-limit censoring on the analysis subjects, refitting each subject draw.
+///
+/// Entry is independent of event, cause, censoring and the censoring stratum given the arm
+/// and entry stratum. The declared source population is the randomized population before
+/// entry, with fixed proportions for the two entry strata. Censoring is independent of the
+/// latent event and cause given the arm and both baseline strata.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StratifiedCensoringSurvival {
+    /// Binary baseline stratum that determines the conditional entry law.
+    pub entry_stratum: VariableId,
+    /// Binary baseline stratum distinguishing censoring laws within each entry stratum.
+    pub censoring_stratum: VariableId,
+    /// Fixed probabilities of entry stratum zero and one in the pre-entry population.
+    pub population_weights: [f64; 2],
+    /// Minimum fitted censoring survival before each time through the horizon.
+    pub minimum_probability: f64,
+}
+
+impl CanonicalEncode for StratifiedCensoringSurvival {
+    fn encode(&self, writer: &mut CanonicalWriter) {
+        self.entry_stratum.encode(writer);
+        self.censoring_stratum.encode(writer);
+        writer.reals(&self.population_weights).real(self.minimum_probability);
+    }
+}
+
 /// Requested functional of a right-censored event-time distribution.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SurvivalFunctional {
@@ -80,6 +106,8 @@ pub struct SurvivalQuery {
     pub delayed_entry: Option<VariableId>,
     /// Optional known conditional censoring survival, aligned by data row.
     pub known_censoring: Option<KnownCensoringSurvival>,
+    /// Fit a named, arm/stratum reverse product-limit learner on retained subjects.
+    pub stratified_censoring: Option<StratifiedCensoringSurvival>,
     /// Explicit independent-censoring and entry assumption.
     pub observation_assumption: ObservationAssumption,
     /// Requested curve or competing-risk functional.
@@ -97,6 +125,10 @@ impl CanonicalEncode for SurvivalQuery {
         encode_option(writer, self.known_censoring.as_ref());
         self.observation_assumption.encode(writer);
         self.functional.encode(writer);
+        if let Some(learner) = &self.stratified_censoring {
+            writer.text("stratified_reverse_product_limit");
+            learner.encode(writer);
+        }
     }
 }
 
@@ -127,6 +159,25 @@ impl SurvivalQuery {
         if matches!(self.functional, SurvivalFunctional::CumulativeIncidence { target_cause } if target_cause <= 0)
         {
             return Err(QueryError::InvalidSurvival(SurvivalFault::TargetCause));
+        }
+        if let Some(learner) = &self.stratified_censoring {
+            let strata = [learner.entry_stratum, learner.censoring_stratum];
+            let [p0, p1] = learner.population_weights;
+            if self.known_censoring.is_some()
+                || strata[0] == strata[1]
+                || strata.iter().any(|id| {
+                    [self.duration, self.event, self.treatment].contains(id)
+                        || self.delayed_entry == Some(*id)
+                })
+                || !matches!(&self.observation_assumption,
+                    ObservationAssumption::IndependentGiven(vars) if vars.as_ref() == strata)
+                || !p0.is_finite() || !p1.is_finite() || p0 <= 0.0 || p1 <= 0.0
+                || (p0 + p1 - 1.0).abs() > 1e-12
+                || !(learner.minimum_probability > 0.0 && learner.minimum_probability <= 1.0)
+            {
+                return Err(QueryError::InvalidSurvival(SurvivalFault::ConditionalObservation));
+            }
+            return Ok(());
         }
         if let Some(known) = &self.known_censoring {
             if self.delayed_entry.is_some()
@@ -178,6 +229,7 @@ mod tests {
             treatment: VariableId::from_raw(2),
             tau: 2.0,
             delayed_entry: None,
+            stratified_censoring: None,
             known_censoring: None,
             observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
             functional: SurvivalFunctional::SurvivalAndRmst,

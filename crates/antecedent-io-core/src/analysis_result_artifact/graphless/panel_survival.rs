@@ -454,7 +454,14 @@ fn survival_support(
                 )
             })
         });
-    let band_key = survival_band_key(query.delayed_entry.is_some(), ipcw, incidence);
+    let band_key = if let Some(fit) = &query.stratified_censoring {
+        crate::graphless_support::conditional_survival_band_key(
+            query.delayed_entry.is_some(), incidence, query.tau, fit.population_weights,
+            fit.minimum_probability,
+        )
+    } else {
+        survival_band_key(query.delayed_entry.is_some(), ipcw, incidence)
+    };
     let band_supported = curve.difference_band.as_ref().is_some_and(|band| {
         band_valid
             && band.replicates_ok >= 399
@@ -485,12 +492,20 @@ fn survival_support(
 fn survival_band_valid(
     curve: &crate::analysis_result_artifact::SurvivalWire,
     query: &crate::query_wire::SurvivalQueryWire,
-    pointwise_bootstrap: bool,
+    bootstrapped: bool,
 ) -> bool {
     match (&curve.difference_band, &curve.band_unavailable_reason) {
         (Some(band), None) => {
             let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
-            let design_valid = if query.delayed_entry.is_some() {
+            let design_valid = if query.stratified_censoring.is_some() {
+                let minimum_risk = band.minimum_horizon_risk_set;
+                if query.delayed_entry.is_some() {
+                    minimum_risk.is_some_and(|risk| risk >= DELAYED_ENTRY_BAND_MIN_RISK_SET
+                        && curve.assignment_counts.is_some_and(|[a, b]| risk <= a.min(b) / 4))
+                } else {
+                    minimum_risk.is_none()
+                }
+            } else if query.delayed_entry.is_some() {
                 curve.minimum_event_risk_set.unwrap_or(0) >= DELAYED_ENTRY_BAND_MIN_RISK_SET
                     && band.minimum_horizon_risk_set.is_some_and(|risk| {
                         risk >= DELAYED_ENTRY_BAND_MIN_RISK_SET
@@ -502,7 +517,7 @@ fn survival_band_valid(
             } else {
                 band.minimum_horizon_risk_set.is_none() && query.censoring_columns.is_empty()
             };
-            design_valid && pointwise_bootstrap
+            design_valid && bootstrapped
                 && requested >= 399
                 && band.replicates_ok >= 399
                 && band.replicates_ok >= requested.saturating_sub(requested / 10)
@@ -528,7 +543,7 @@ fn survival_band_valid(
                     },
                 )
         }
-        (None, Some(reason)) => pointwise_bootstrap && !reason.trim().is_empty(),
+        (None, Some(reason)) => bootstrapped && !reason.trim().is_empty(),
         (None, None) => true,
         (Some(_), Some(_)) => false,
     }
@@ -580,7 +595,17 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
                     && limits[1] <= curve.tau
             })
         };
-    let band_valid = survival_band_valid(curve, query, pointwise_bootstrap);
+    use antecedent_stats::survival::{STRATIFIED_CENSORING_BAND, STRATIFIED_CENSORING_PROVENANCE};
+    let conditional = query.stratified_censoring.is_some();
+    let fitted_band = conditional
+        && curve.uncertainty == STRATIFIED_CENSORING_BAND
+        && curve.difference_band.as_ref().is_some_and(|band| Some(band.replicates_ok) == curve.bootstrap_replicates_ok)
+        && curve.rmst_difference_interval.is_none()
+        && curve.difference_at_tau_interval.is_none();
+    let provenance = if conditional { Some(STRATIFIED_CENSORING_PROVENANCE) } else {
+        (!query.censoring_columns.is_empty()).then_some("caller_supplied_fixed_not_fitted_or_verified")
+    };
+    let band_valid = survival_band_valid(curve, query, pointwise_bootstrap || fitted_band);
     let (scalar_supported, band_supported) =
         survival_support(curve, query, pointwise_bootstrap, band_valid);
     #[allow(
@@ -591,10 +616,8 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
         || result.standard_error.is_some()
         || result.interval_lower.is_some()
         || result.interval_upper.is_some()
-        || curve.censoring_survival_provenance.as_deref()
-            != (!query.censoring_columns.is_empty())
-                .then_some("caller_supplied_fixed_not_fitted_or_verified")
-        || !(point_only || pointwise_bootstrap)
+        || curve.censoring_survival_provenance.as_deref() != provenance
+        || !(point_only || (pointwise_bootstrap && !conditional) || fitted_band)
         || !graphless_status_ok(
             curve.graphless_support_status.as_deref(),
             scalar_supported,

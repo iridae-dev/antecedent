@@ -428,6 +428,7 @@ fn a_randomized_survival_contrast_refuses_declared_weights() {
         treatment: VariableId::from_raw(2),
         tau: 3.0,
         delayed_entry: None,
+        stratified_censoring: None,
         known_censoring: None,
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
         functional: SurvivalFunctional::SurvivalAndRmst,

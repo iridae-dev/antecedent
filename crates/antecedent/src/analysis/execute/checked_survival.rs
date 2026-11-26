@@ -16,10 +16,13 @@ use antecedent_core::{
 };
 use antecedent_estimate::survival::{
     KnownCensoring, RandomizedSurvivalSummary, SurvivalBootstrapIntervals, SurvivalEndpoint,
-    SurvivalRows, randomized_survival_bootstrap_difference_band_with_observation, randomized_survival_ipcw_summary,
-    randomized_survival_summary,
+    SurvivalRows, randomized_survival_bootstrap_difference_band_with_observation,
+    randomized_survival_ipcw_summary, randomized_survival_summary,
 };
-use antecedent_stats::survival::randomized_survival_bootstrap_intervals_controlled;
+use antecedent_stats::survival::{
+    ConditionalObservationRows, STRATIFIED_CENSORING_BAND, STRATIFIED_CENSORING_PROVENANCE,
+    randomized_survival_bootstrap_intervals_controlled, standardized_conditional_survival,
+};
 
 mod bayesian;
 
@@ -60,6 +63,12 @@ impl CheckedSurvivalOperation {
         let bayesian = match &study.settings.inference {
             InferenceMode::Frequentist => None,
             InferenceMode::Bayesian(config) => {
+                if query.stratified_censoring.is_some() {
+                    return Err(conditional_refusal(
+                        "survival.conditional_observation.inference",
+                        "the fitted conditional survival route requires frequentist inference",
+                    ));
+                }
                 bayesian::require_scope(query, config, study.settings.bootstrap_replicates)?;
                 Some(config.clone())
             }
@@ -79,6 +88,14 @@ impl CheckedSurvivalOperation {
         if let Some(known) = &query.known_censoring {
             for id in known.columns.iter().copied() {
                 data.schema().get(id).map_err(CausalError::rejected)?;
+            }
+        }
+        if let Some(learner) = &query.stratified_censoring {
+            for id in [learner.entry_stratum, learner.censoring_stratum] {
+                data.schema().get(id).map_err(|_| conditional_refusal(
+                    "survival.conditional_observation.identification_inputs",
+                    "conditional survival requires both declared baseline columns in the subject table",
+                ))?;
             }
         }
         let estimator = if bayesian.is_some() {
@@ -130,32 +147,95 @@ impl CheckedSurvivalOperation {
             treated: &columns.treated,
             delayed_entry: columns.entry.as_deref(),
         };
-        let _scratch = if rows.delayed_entry.is_some() && self.extra.0 > 0 {
-            let grid_width =
-                self.query.known_censoring.as_ref().map_or(0, |known| known.times.len());
+        let conditional = self.query.stratified_censoring.is_some();
+        let (
+            summary,
+            minimum_censoring_survival,
+            intervals,
+            difference_band,
+            band_unavailable_reason,
+        ) = if let Some(learner) = &self.query.stratified_censoring {
             let bytes = (self.rows as u64)
-                .saturating_mul(240_u64.saturating_add((grid_width as u64).saturating_mul(24)))
-                .saturating_add(u64::from(self.extra.0).saturating_mul(16));
-            Some(ctx.admit_scratch(1, bytes).map_err(|error| {
-                if ctx.cancellation.is_cancelled() {
-                    CausalError::Cancelled {
-                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
-                    }
-                } else {
-                    CausalError::Resource { message: error.to_string() }
-                }
-            })?)
+                .saturating_mul(240)
+                .saturating_add(u64::from(self.extra.0).saturating_mul(8));
+            let _scratch = ctx.admit_scratch(1, bytes).map_err(|_| {
+                conditional_error(
+                    ctx,
+                    "survival.conditional_observation.resource",
+                    "insufficient scratch for conditional survival refits",
+                )
+            })?;
+            let fitted = standardized_conditional_survival(
+                &ConditionalObservationRows {
+                    survival: rows,
+                    entry_stratum: &numeric_column(data, learner.entry_stratum)?,
+                    censoring_stratum: &numeric_column(data, learner.censoring_stratum)?,
+                    population_weights: learner.population_weights,
+                    censoring_floor: learner.minimum_probability,
+                },
+                self.query.tau,
+                endpoint,
+                self.extra.0,
+                ctx.rng.master_seed(),
+                || ctx.cancellation.is_cancelled(),
+            )
+            .map_err(|message| {
+                conditional_error(ctx, "survival.conditional_observation.support", message)
+            })?;
+            let key = antecedent_io::graphless_support::conditional_survival_band_key(
+                rows.delayed_entry.is_some(),
+                endpoint != SurvivalEndpoint::Survival,
+                self.query.tau,
+                learner.population_weights,
+                learner.minimum_probability,
+            );
+            (
+                fitted.summary,
+                Some(fitted.minimum_censoring_survival),
+                None,
+                fitted.band.map(|band| {
+                    let support =
+                        self.band_support(key, assignment_counts, false, band.replicates_ok);
+                    result_band(band, support)
+                }),
+                None,
+            )
         } else {
-            None
+            let _scratch = if rows.delayed_entry.is_some() && self.extra.0 > 0 {
+                let grid_width =
+                    self.query.known_censoring.as_ref().map_or(0, |known| known.times.len());
+                let bytes = (self.rows as u64)
+                    .saturating_mul(240_u64.saturating_add((grid_width as u64).saturating_mul(24)))
+                    .saturating_add(u64::from(self.extra.0).saturating_mul(16));
+                Some(ctx.admit_scratch(1, bytes).map_err(|error| {
+                    if ctx.cancellation.is_cancelled() {
+                        CausalError::Cancelled {
+                            stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                        }
+                    } else {
+                        CausalError::Resource { message: error.to_string() }
+                    }
+                })?)
+            } else {
+                None
+            };
+            let (summary, minimum_censoring_survival, censoring_grid) =
+                self.point_summary(data, &rows, endpoint)?;
+            let intervals =
+                self.bootstrap_intervals(&rows, censoring_grid.as_ref(), endpoint, ctx)?;
+            let (band, reason) = self.difference_band(
+                &rows,
+                censoring_grid.as_ref(),
+                endpoint,
+                assignment_counts,
+                ctx,
+            );
+            (summary, minimum_censoring_survival, intervals, band, reason)
         };
-        let (summary, minimum_censoring_survival, censoring_grid) =
-            self.point_summary(data, &rows, endpoint)?;
-        let intervals = self.bootstrap_intervals(&rows, censoring_grid.as_ref(), endpoint, ctx)?;
-        let (difference_band, band_unavailable_reason) = self.difference_band(
-            &rows, censoring_grid.as_ref(), endpoint, assignment_counts, ctx,
-        );
         if ctx.cancellation.is_cancelled() {
-            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT });
+            return Err(CausalError::Cancelled {
+                stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+            });
         }
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
@@ -166,10 +246,12 @@ impl CheckedSurvivalOperation {
                     self.identification.required_assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
                 ), Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit), self.query.treatment, self.query.duration).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
-                    if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
+                    if conditional { "estimate.survival.standardized_conditional" } else if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    if intervals.is_some() && minimum_censoring_survival.is_some() {
+                    if conditional {
+                        "standardizes the arm curves to the declared pre-entry population using stratified fitted censoring survival; each requested band draw refits the censoring learner on resampled subjects"
+                    } else if intervals.is_some() && minimum_censoring_survival.is_some() {
                         "arm-stratified subject bootstrap with caller-supplied censoring survival held fixed; scalar intervals are pointwise and do not include nuisance-model uncertainty"
                     } else if intervals.is_some() && matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }) {
                         "arm-stratified subject bootstrap for the target-cause cumulative-incidence difference at the declared horizon"
@@ -184,7 +266,7 @@ impl CheckedSurvivalOperation {
                     "estimate.survival.censoring_support",
                     DiagnosticKind::Scientific,
                     DiagnosticSeverity::Info,
-                    format!("minimum supplied censoring survival: {minimum:.6}"),
+                    format!("minimum {ownership} censoring survival: {minimum:.6}", ownership = if conditional { "fitted" } else { "supplied" }),
                 ))).chain(minimum_censoring_survival.map(|_| {
                     // Every row's supplied censoring survival cleared the positivity floor on the
                     // whole grid (a row below it is a refusal), so no mass was left unevaluated.
@@ -344,7 +426,12 @@ impl CheckedSurvivalOperation {
         if bootstrap_replicates == 0 {
             (None, None)
         } else if rows.delayed_entry.is_some() && bootstrap_replicates < 399 {
-            (None, Some(Arc::from("simultaneous survival band with delayed entry requires 399 valid draws")))
+            (
+                None,
+                Some(Arc::from(
+                    "simultaneous survival band with delayed entry requires 399 valid draws",
+                )),
+            )
         } else if censoring_grid.is_some() && rows.delayed_entry.is_none() {
             (
                 None,
@@ -368,43 +455,55 @@ impl CheckedSurvivalOperation {
                 || ctx.cancellation.is_cancelled(),
             ) {
                 Ok(band) => {
-                    use antecedent_io::graphless_support::{
-                        GraphlessResampleSupport, graphless_admits_resampled, survival_band_key,
-                    };
-                    let key = survival_band_key(
+                    let key = antecedent_io::graphless_support::survival_band_key(
                         rows.delayed_entry.is_some(),
                         known.is_some(),
                         matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }),
                     );
-                    let band_support = key.is_some_and(|key| {
-                        graphless_admits_resampled(
-                            key,
-                            crate::support::GraphlessAssignmentSupport {
-                                assignment_unit: "unit",
-                                treated: assignment_counts[1],
-                                control: assignment_counts[0],
-                                rows: self.rows,
-                                interval_95_published: true,
-                                reported_intervals: 1,
-                                all_reported_intervals: true,
-                                known_density: known.is_some(),
-                                ..Default::default()
-                            },
-                            GraphlessResampleSupport {
-                                interval_resamples: band.replicates_ok as usize,
-                                ..Default::default()
-                            },
-                        )
-                    })
-                    .then_some(crate::support::CellStatus::Supported);
-                    (
-                        Some(result_band(band, band_support)),
-                        None,
-                    )
+                    let band_support = self.band_support(
+                        key,
+                        assignment_counts,
+                        known.is_some(),
+                        band.replicates_ok,
+                    );
+                    (Some(result_band(band, band_support)), None)
                 }
                 Err(reason) => (None, Some(Arc::from(reason))),
             }
         }
+    }
+
+    fn band_support(
+        &self,
+        key: Option<antecedent_io::graphless_support::GraphlessSupportKey<'_>>,
+        [control, treated]: [usize; 2],
+        fixed_known: bool,
+        replicates: u32,
+    ) -> Option<crate::support::CellStatus> {
+        use antecedent_io::graphless_support::{
+            GraphlessResampleSupport, graphless_admits_resampled,
+        };
+        key.is_some_and(|key| {
+            graphless_admits_resampled(
+                key,
+                crate::support::GraphlessAssignmentSupport {
+                    assignment_unit: "unit",
+                    treated,
+                    control,
+                    rows: self.rows,
+                    interval_95_published: true,
+                    reported_intervals: 1,
+                    all_reported_intervals: true,
+                    known_density: fixed_known,
+                    ..Default::default()
+                },
+                GraphlessResampleSupport {
+                    interval_resamples: replicates as usize,
+                    ..Default::default()
+                },
+            )
+        })
+        .then_some(crate::support::CellStatus::Supported)
     }
 
     /// Assembles the retained survival estimate from the point summary, bootstrap intervals, and band.
@@ -417,6 +516,9 @@ impl CheckedSurvivalOperation {
         band: (Option<crate::result::SurvivalDifferenceBand>, Option<Arc<str>>),
     ) -> crate::SurvivalEstimate {
         let (difference_band, band_unavailable_reason) = band;
+        let conditional = self.query.stratified_censoring.is_some();
+        let conditional_draws =
+            conditional.then(|| difference_band.as_ref()).flatten().map(|band| band.replicates_ok);
         crate::SurvivalEstimate {
             has_delayed_entry: self.query.delayed_entry.is_some(),
             times: summary.times.into(),
@@ -430,7 +532,9 @@ impl CheckedSurvivalOperation {
             },
             tau: self.query.tau,
             minimum_event_risk_set: summary.minimum_event_risk_set,
-            uncertainty: Arc::from(if intervals.is_some() {
+            uncertainty: Arc::from(if conditional_draws.is_some() {
+                STRATIFIED_CENSORING_BAND
+            } else if intervals.is_some() {
                 "subject_stratified_percentile_bootstrap_pointwise_95"
             } else {
                 "point_only_no_interval"
@@ -439,11 +543,19 @@ impl CheckedSurvivalOperation {
             difference_at_tau_interval: intervals.map(|value| value.difference_at_tau),
             bootstrap_replicates_requested: intervals
                 .as_ref()
-                .map(|value| value.replicates_requested),
-            bootstrap_replicates_ok: intervals.map(|value| value.replicates_ok),
+                .map(|value| value.replicates_requested)
+                .or(conditional_draws.map(|_| self.extra.0)),
+            bootstrap_replicates_ok: intervals
+                .map(|value| value.replicates_ok)
+                .or(conditional_draws),
             assignment_counts,
-            censoring_survival_provenance: minimum_censoring_survival
-                .map(|_| Arc::from("caller_supplied_fixed_not_fitted_or_verified")),
+            censoring_survival_provenance: minimum_censoring_survival.map(|_| {
+                Arc::from(if conditional {
+                    STRATIFIED_CENSORING_PROVENANCE
+                } else {
+                    "caller_supplied_fixed_not_fitted_or_verified"
+                })
+            }),
             difference_band,
             band_unavailable_reason,
         }
@@ -511,6 +623,22 @@ fn result_band(
     }
 }
 
+fn conditional_refusal(detail: &str, message: &str) -> CausalError {
+    CausalError::Estimate(antecedent_estimate::EstimationError::refused_detail(
+        antecedent_core::reason_code!("route_not_supported"),
+        detail,
+        message,
+    ))
+}
+
+fn conditional_error(ctx: &ExecutionContext, detail: &str, message: &str) -> CausalError {
+    if ctx.cancellation.is_cancelled() {
+        CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT }
+    } else {
+        conditional_refusal(detail, message)
+    }
+}
+
 /// Validated survival columns the estimators and bootstrap read.
 struct SurvivalColumns {
     duration: Vec<f64>,
@@ -570,7 +698,9 @@ pub(crate) fn survival_identification(
         ),
         (
             "independent_censoring_and_entry",
-            if query.known_censoring.is_some() && query.delayed_entry.is_some() {
+            if query.stratified_censoring.is_some() {
+                "given arm and entry stratum, entry is independent of event, cause, censoring and the censoring stratum; given arm and both baseline strata, censoring is independent of event and cause"
+            } else if query.known_censoring.is_some() && query.delayed_entry.is_some() {
                 "left entry and censoring are marginally independent of potential event times within treatment arms, and the caller-supplied censoring survival is correct"
             } else if query.known_censoring.is_some() {
                 "censoring is independent of potential event times within treatment arms conditional on declared variables, and the caller-supplied censoring survival is correct"
@@ -604,6 +734,17 @@ pub(crate) fn survival_identification(
             status: AssumptionStatus::Declared,
         });
     }
+    if query.stratified_censoring.is_some() {
+        assumptions.push(AssumptionRecord {
+            assumption: Assumption::Custom {
+                id: Arc::from("pre_entry_standardization_population"),
+                description: Arc::from("the declared probabilities describe the two entry strata in the randomized population before truncation; each arm and baseline history has positive risk and censoring survival through the horizon"),
+            },
+            source: AssumptionSource::UserDeclared,
+            scope: AssumptionScope::Identification,
+            status: AssumptionStatus::Declared,
+        });
+    }
     let mut arena = CausalExprArena::new();
     let outcomes = arena.intern_var_set([query.duration]);
     let empty = arena.empty_var_set();
@@ -614,7 +755,12 @@ pub(crate) fn survival_identification(
         function: OutcomeExprId::identity(query.duration),
         distribution,
     });
-    arena.set_derivation(functional, DerivationMeta::rule("randomized.survival_product_limit", Some(Arc::from("randomized assignment and independent observation identify arm event-time functionals"))));
+    let derivation_text = if query.stratified_censoring.is_some() {
+        "weight entry-stratum risk sets by inverse fitted censoring left limits, then mix the reconstructed arm distributions using the fixed pre-entry population probabilities"
+    } else {
+        "arm survival or cause-specific cumulative incidence is identified under random assignment and independent censoring/entry"
+    };
+    arena.set_derivation(functional, DerivationMeta::rule("randomized.survival_product_limit", Some(Arc::from(if query.stratified_censoring.is_some() { derivation_text } else { "randomized assignment and independent observation identify arm event-time functionals" }))));
     let estimand = IdentifiedEstimand::new(
         "randomized.survival_product_limit",
         Arc::from([]),
@@ -624,7 +770,7 @@ pub(crate) fn survival_identification(
         None,
     );
     let mut derivation = DerivationTrace::default();
-    derivation.push("randomized.survival_product_limit", "arm survival or cause-specific cumulative incidence is identified under random assignment and independent censoring/entry");
+    derivation.push("randomized.survival_product_limit", derivation_text);
     let identification = IdentificationResult::identified(
         CausalQuery::Survival(query.clone()),
         vec![estimand.clone()],

@@ -796,8 +796,10 @@ impl DesignLowering for SurvivalQuery {
         let (identification, _) = survival_identification(query);
         let mut inputs = vec![query.treatment];
         inputs.extend(query.delayed_entry);
-        let family =
-            if query.known_censoring.is_some() { "ipcw_product_limit" } else { "product_limit" };
+        let family = if let Some(fit) = &query.stratified_censoring {
+            inputs.extend([fit.entry_stratum, fit.censoring_stratum]);
+            "ipcw_entry_stratum_standardization"
+        } else if query.known_censoring.is_some() { "ipcw_product_limit" } else { "product_limit" };
         let mut models = vec![slot(ModelRole::Outcome, family, &inputs, Some(query.duration))];
         if let Some(known) = &query.known_censoring {
             models.push(slot(
@@ -807,13 +809,23 @@ impl DesignLowering for SurvivalQuery {
                 None,
             ));
         }
+        let resampling = query.stratified_censoring.as_ref().and_then(|fit| {
+            models.push(slot(ModelRole::Nuisance, "stratified_reverse_product_limit_same_subject",
+                &[query.treatment, fit.entry_stratum, fit.censoring_stratum], Some(query.event)));
+            let replicates = env.study.settings.bootstrap_replicates;
+            (replicates > 0).then_some(ResamplingPlan {
+                method: ResamplingMethod::Bootstrap,
+                replicates,
+                unit: ResampleUnit::Subject,
+            })
+        });
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::SurvivalContrast, query.duration),
             identification,
             models,
             WidthSource::NotDesignBased("arm product-limit estimators fit no design matrix"),
             ClaimKind::Response,
-        ))
+        ).with_randomization_test(resampling))
     }
 }
 

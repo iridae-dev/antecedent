@@ -736,7 +736,7 @@ impl PyPreparedAnalysis {
 
     /// Freeze a graphless randomized survival or competing-risk analysis.
     #[staticmethod]
-    #[pyo3(signature = (names, columns, duration, event, treatment, tau, target_cause=None, delayed_entry=None, *, independent_given=Vec::new(), censoring_times=Vec::new(), censoring_columns=Vec::new(), censoring_probability_floor=None, accepted=false, seed=1, threads=None, options=None))]
+    #[pyo3(signature = (names, columns, duration, event, treatment, tau, target_cause=None, delayed_entry=None, *, independent_given=Vec::new(), censoring_times=Vec::new(), censoring_columns=Vec::new(), censoring_probability_floor=None, stratified_censoring=None, accepted=false, seed=1, threads=None, options=None))]
     #[allow(clippy::too_many_arguments)]
     fn prepare_survival(
         py: Python<'_>,
@@ -752,6 +752,7 @@ impl PyPreparedAnalysis {
         censoring_times: Vec<f64>,
         censoring_columns: Vec<String>,
         censoring_probability_floor: Option<f64>,
+        stratified_censoring: Option<(String, String, [f64; 2], f64)>,
         accepted: bool,
         seed: u64,
         threads: Option<u32>,
@@ -780,6 +781,16 @@ impl PyPreparedAnalysis {
                     treatment: id(&treatment)?,
                     tau,
                     delayed_entry: delayed_entry.as_deref().map(id).transpose()?,
+                    stratified_censoring: if let Some((entry, censor, weights, floor)) = stratified_censoring {
+                        Some(antecedent::query::StratifiedCensoringSurvival {
+                            entry_stratum: id(&entry)?,
+                            censoring_stratum: id(&censor)?,
+                            population_weights: weights,
+                            minimum_probability: floor,
+                        })
+                    } else {
+                        None
+                    },
                     known_censoring: censoring_probability_floor.map(|minimum_probability| {
                         antecedent::query::KnownCensoringSurvival {
                             times: Arc::from(censoring_times),

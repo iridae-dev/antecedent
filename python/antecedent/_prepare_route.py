@@ -19,7 +19,7 @@ from ._native import PreparedAnalysis as _NativePreparedAnalysis
 from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_keywords
 from .descriptive import Association
 from .discovery import DbnPosterior, ExactDagPosterior, GraphPosterior
-from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
+from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError, StructuredRefusal
 from .estimation import _RESPONSE_FAMILY, _not_applicable, _static_edges
 from .experiment import (
     BernoulliAssignment,
@@ -2111,14 +2111,25 @@ class _PrepareRoute:
                 reason_code="route_not_supported",
             )
         assumption = query.observation_assumption
+        learner = query.stratified_censoring
         if not isinstance(assumption, IndependentGiven) or (
-            query.known_censoring is None and tuple(assumption.variables)
+            query.known_censoring is None and learner is None and tuple(assumption.variables)
         ):
             raise CausalUnsupportedError(
                 "survival requires IndependentGiven; conditional censoring also requires known censoring survival",
                 reason_code="route_not_supported",
             )
         known = query.known_censoring
+        if learner is not None:
+            missing = [name for name in (learner.entry_stratum, learner.censoring_stratum)
+                       if name not in self.names]
+            if missing:
+                raise StructuredRefusal({
+                    "code": "route_not_supported",
+                    "detail": "survival.conditional_observation.identification_inputs",
+                    "stage": "prepare",
+                    "message": f"conditional survival identification columns are missing: {missing}",
+                })
         if known is not None:
             missing = [
                 name for name in (*known.columns, *assumption.variables) if name not in self.names
@@ -2145,6 +2156,9 @@ class _PrepareRoute:
             censoring_times=list(known.times) if known is not None else [],
             censoring_columns=list(known.columns) if known is not None else [],
             censoring_probability_floor=known.minimum_probability if known is not None else None,
+            stratified_censoring=(learner.entry_stratum, learner.censoring_stratum,
+                                  learner.population_weights, learner.minimum_probability)
+            if learner is not None else None,
             accepted=False,
             **self._common(),
         )

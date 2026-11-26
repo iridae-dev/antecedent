@@ -2325,6 +2325,7 @@ class PreparedAnalysis:
         censoring_times: list[float] = [],
         censoring_columns: list[str] = [],
         censoring_probability_floor: float | None = None,
+        stratified_censoring: tuple[str, str, tuple[float, float], float] | None = None,
         accepted: bool = False,
         seed: int = 1,
         threads: int | None = None,

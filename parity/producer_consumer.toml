@@ -2697,6 +2697,45 @@ evidence_test = "crates/antecedent/tests/survival_route.rs"
 evidence_assertion = "delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g"
 
 [[rust_producer]]
+key = "standardized_conditional_survival_band"
+object = "a source-bearing pre-entry standardized survival band with owned conditional censoring refits"
+built_from = "`SurvivalQuery::stratified_censoring`, checked survival execution and contracted export with the training subjects"
+
+[[rust_cell]]
+producer = "standardized_conditional_survival_band"
+consumer = "delayed_entry_band_bundle"
+status = "DIRECT"
+detail = "The bundle verifies the training subject snapshot and refits censoring on every reproduced draw before publishing endpoints."
+evidence_test = "crates/antecedent/tests/survival_route.rs"
+evidence_assertion = "fitted_conditional_survival_band_replays_training_and_refuses_overlap"
+
+[[rust_cell]]
+producer = "standardized_conditional_survival_band"
+consumer = "delayed_entry_band_bundle"
+status = "REFUSED"
+detail = "A compact export names the missing censoring training subjects. An empty baseline stratum prevents estimation."
+evidence_test = "crates/antecedent/tests/survival_route.rs"
+evidence_assertion = "fitted_conditional_survival_band_replays_training_and_refuses_overlap"
+
+[[rust_producer]]
+key = "two_decision_treatment_mnar_surface"
+object = "Two-decision sensitivity box with a simultaneous subject-bootstrap band."
+built_from = "The compiled longitudinal joint sensitivity program on unique and independent subject trajectories."
+
+[[rust_consumer]]
+key = "two_decision_treatment_mnar_replay"
+entry = "consume_longitudinal_joint_sensitivity"
+note = "Rebuilds both mechanisms and the threshold decision by the same subject refits."
+
+[[rust_cell]]
+producer = "two_decision_treatment_mnar_surface"
+consumer = "two_decision_treatment_mnar_replay"
+status = "DIRECT"
+detail = "Both assumption extrema and the jointly covered threshold comparison are recovered from source observations and the retained seed."
+evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
+evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"
+
+[[rust_producer]]
 key = "delayed_entry_competing_incidence_interval"
 object = "a source-bearing pointwise delayed-entry target-cause cumulative incidence difference"
 built_from = "`SurvivalQuery` with a declared target cause, checked subject bootstrap, and contracted export with the original subject rows"

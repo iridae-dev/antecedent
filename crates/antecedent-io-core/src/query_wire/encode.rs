@@ -494,6 +494,12 @@ fn survival_to_wire(q: &antecedent_core::SurvivalQuery) -> CausalQueryWire {
             .known_censoring
             .as_ref()
             .map(|known| known.minimum_probability),
+        stratified_censoring: q.stratified_censoring.as_ref().map(|fit| super::StratifiedCensoringWire {
+            entry_stratum: fit.entry_stratum.raw(),
+            censoring_stratum: fit.censoring_stratum.raw(),
+            population_weights: fit.population_weights,
+            minimum_probability: fit.minimum_probability,
+        }),
     })
 }
 

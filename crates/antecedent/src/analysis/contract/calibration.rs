@@ -99,7 +99,7 @@ impl StudyResult {
                     && contract.graph_class == GraphClass::RandomizedTrial
                     && contract.structure_source == StructureSource::RandomizedTrial
                     && matches!(&contract.body.query, antecedent_io::CausalQueryWire::Survival(query)
-                        if query.delayed_entry.is_some())
+                        if query.delayed_entry.is_some() || query.stratified_censoring.is_some())
                     && self.survival().is_some_and(|curve| curve.difference_band.is_some()
                         || (curve.target_cause.is_some() && curve.difference_at_tau_interval.is_some()))
                     => "not_applicable",

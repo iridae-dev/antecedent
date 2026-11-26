@@ -114,6 +114,7 @@ fn the_remaining_design_cells_round_trip() {
             treatment: v(2),
             tau: 5.0,
             delayed_entry: None,
+            stratified_censoring: None,
             known_censoring: None,
             observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
             functional: SurvivalFunctional::SurvivalAndRmst,

@@ -52,6 +52,7 @@ fn survival_query(tau: f64, functional: SurvivalFunctional) -> SurvivalQuery {
         treatment: VariableId::from_raw(2),
         tau,
         delayed_entry: None,
+        stratified_censoring: None,
         known_censoring: None,
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
         functional,

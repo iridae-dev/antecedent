@@ -1190,6 +1190,34 @@ pub struct SurvivalQueryWire {
     /// Minimum accepted censoring survival, when a grid is present.
     #[serde(default)]
     pub censoring_probability_floor: Option<f64>,
+    /// Source population and owned conditional censoring learner.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stratified_censoring: Option<StratifiedCensoringWire>,
+}
+
+/// Same-sample reverse product-limit learner and fixed pre-entry proportions.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct StratifiedCensoringWire {
+    /// Binary baseline entry stratum.
+    pub entry_stratum: u32,
+    /// Binary baseline censoring stratum.
+    pub censoring_stratum: u32,
+    /// Pre-entry population proportions for entry stratum zero and one.
+    pub population_weights: [f64; 2],
+    /// Floor on the fitted censoring left limit.
+    pub minimum_probability: f64,
+}
+
+impl StratifiedCensoringWire {
+    pub(crate) fn to_core(&self) -> antecedent_core::StratifiedCensoringSurvival {
+        antecedent_core::StratifiedCensoringSurvival {
+            entry_stratum: antecedent_core::VariableId::from_raw(self.entry_stratum),
+            censoring_stratum: antecedent_core::VariableId::from_raw(self.censoring_stratum),
+            population_weights: self.population_weights,
+            minimum_probability: self.minimum_probability,
+        }
+    }
 }
 
 /// Frozen design vectors for a retained panel `DiD` query.

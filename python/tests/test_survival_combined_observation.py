@@ -9,10 +9,15 @@ import sys
 import antecedent as ant
 import pandas as pd
 import pytest
-from antecedent.errors import CausalValueError
+from antecedent.errors import CausalValueError, StructuredRefusal
 from antecedent.observation import IndependentGiven
 from antecedent.outcomes import require_success
-from antecedent.survival import CompetingRisksOutcome, KnownCensoringSurvival, SurvivalOutcome
+from antecedent.survival import (
+    CompetingRisksOutcome,
+    KnownCensoringSurvival,
+    StratifiedCensoringSurvival,
+    SurvivalOutcome,
+)
 
 
 def _data(arm_size: int = 80) -> pd.DataFrame:
@@ -248,6 +253,72 @@ def test_fitted_censoring_arrays_cannot_enter_delayed_entry_incidence_support() 
             observation_assumption=IndependentGiven(()),
             known_censoring=_data()[["g0", "g1", "g15", "g2", "g3"]].to_numpy(),
         )
+
+
+def test_conditional_censoring_refits_the_pre_entry_population_in_a_bundle() -> None:
+    # Exact finite product law shared with the Rust fixture.
+    events = ((((2, 1), (3, 2)), ((1, 1), (2, 1))),
+              (((1, 1), (2, 1)), ((2, 2), (4, 2))))
+    rows = []
+    for arm in range(2):
+        for left in range(2):
+            for censor in range(2):
+                early, later = events[arm][left][censor]
+                for event_draw in range(8):
+                    event_time = 1.0 if event_draw < early else 2.0 if event_draw < early + later else 3.0
+                    for entry_draw in range(8):
+                        entry_time = float(entry_draw < (1, 6)[left])
+                        for censor_draw in range(8):
+                            censor_time = 1.5 if censor_draw < (1, 3)[censor] else 3.0
+                            exit_time = min(event_time, censor_time)
+                            if entry_time < exit_time:
+                                rows.append((exit_time, float(event_time < 3.0 and event_time <= censor_time),
+                                             float(arm), entry_time, float(left), float(censor)))
+    data = pd.DataFrame(rows, columns=("duration", "event", "treatment", "entry", "entry_history", "censor_history"))
+    learner = StratifiedCensoringSurvival("entry_history", "censor_history", (0.5, 0.5))
+    assumption = IndependentGiven(("entry_history", "censor_history"))
+    query = SurvivalOutcome("duration", "event", "treatment", 3.0, randomized=True,
+                            delayed_entry="entry", observation_assumption=assumption,
+                            stratified_censoring=learner)
+    inference = ant.Frequentist(bootstrap=399)
+    context = ant.Execution(seed=9_732)
+    result = require_success(ant.analyze(data, query=query, inference=inference, execution=context))
+    curve = result.survival
+    band = curve.difference_band
+    assert curve.censoring_survival_provenance == "same_subject_stratified_reverse_product_limit_refit"
+    assert curve.support_status == "supported_simultaneous_band"
+    assert "fixed_pre_entry_source_population" in curve.assumptions
+    assert band.times == (0.0, 1.0, 2.0, 3.0)
+    assert band.difference == pytest.approx((0.0, -0.03125, -0.0625, -0.0625))
+    compact = require_success(ant.load(bytes(result.export()))).replay()
+    assert "dependencies.checked_survival_conditional_training" in compact.acceptance.not_replayable
+    replay = """
+import json
+import sys
+from antecedent.composition_bundle import Bundle, consume_bundle
+from antecedent.outcomes import require_success
+source = sys.stdin.buffer.read()
+bundle = Bundle.builder().add_artifact(source, node_id="fit").build()
+consumed = require_success(consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+consumed.require_verified()
+print(json.dumps(consumed.value("fit", "horizon_lower_95")))
+"""
+    printed = subprocess.run(
+        [sys.executable, "-c", replay], input=bytes(result.export(source_data=data)),
+        capture_output=True, check=True, timeout=30,
+    )
+    assert json.loads(printed.stdout) == pytest.approx(band.lower[-1])
+
+    with pytest.raises(CausalValueError, match="conditional delayed entry"):
+        SurvivalOutcome("duration", "event", "treatment", 3.0, randomized=True,
+                        delayed_entry="entry", observation_assumption=assumption)
+    with pytest.raises(StructuredRefusal) as missing:
+        require_success(ant.analyze(data.drop(columns="censor_history"), query=query, inference=inference))
+    assert missing.value.detail == "survival.conditional_observation.identification_inputs"
+    revised = data.copy()
+    revised.loc[(revised["treatment"] == 1.0) & (revised["entry_history"] == 1.0), "censor_history"] = 0.0
+    with pytest.raises(Exception, match="inadequate entry or follow-up overlap"):
+        require_success(ant.analyze(revised, query=query, inference=inference, execution=context))
 
 
 def test_combined_entry_fixed_g_refuses_conditional_entry_and_bad_g() -> None:

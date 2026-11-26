@@ -121,6 +121,60 @@ class KnownCensoringSurvival:
 
 
 @dataclass(frozen=True, slots=True)
+class StratifiedCensoringSurvival:
+    """Fit a stratified reverse product-limit censoring learner on the evaluation subjects.
+
+    Supply two binary baseline columns and the pre-entry population probabilities for entry
+    stratum 0 and 1. Entry is independent of event, cause, censoring and the censoring stratum
+    given arm and entry stratum. Censoring is independent of event and cause given arm and both
+    strata. Inference resamples whole subjects within arms and refits the learner each time.
+    """
+
+    entry_stratum: str
+    censoring_stratum: str
+    population_weights: tuple[float, float]
+    minimum_probability: float = 0.05
+
+    def __post_init__(self) -> None:
+        columns = (self.entry_stratum, self.censoring_stratum)
+        weights = tuple(float(value) for value in self.population_weights)
+        if (
+            any(not isinstance(column, str) or not column.strip() for column in columns)
+            or self.entry_stratum == self.censoring_stratum
+            or len(weights) != 2
+            or any(not np.isfinite(weight) or weight <= 0.0 for weight in weights)
+            or abs(sum(weights) - 1.0) > 1e-12
+            or not 0.0 < self.minimum_probability <= 1.0
+        ):
+            raise CausalValueError(
+                "conditional survival requires distinct baseline strata, two positive "
+                "source-population proportions summing to one, and a positive probability floor"
+            )
+        coerce_fields(self, population_weights=weights)
+
+
+def _validate_stratified_censoring(query: SurvivalOutcome | CompetingRisksOutcome, event: str) -> None:
+    learner = query.stratified_censoring
+    if not isinstance(learner, StratifiedCensoringSurvival):
+        raise CausalValueError("stratified_censoring must be StratifiedCensoringSurvival")
+    strata = (learner.entry_stratum, learner.censoring_stratum)
+    assumption = query.observation_assumption
+    if (
+        query.known_censoring is not None
+        or not isinstance(assumption, IndependentGiven)
+        or tuple(assumption.variables) != strata
+        or any(name in (query.duration, event, query.treatment, query.delayed_entry) for name in strata)
+        or (query.delayed_entry is not None and (
+            not isinstance(query.delayed_entry, str) or not query.delayed_entry.strip()
+        ))
+    ):
+        raise CausalValueError(
+            "conditional survival requires distinct entry and censoring strata and their "
+            "ordered IndependentGiven declaration with the fitted learner"
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class SurvivalOutcome:
     """A two-arm randomized survival query on right-censored follow-up, restricted to ``tau``.
 
@@ -166,6 +220,7 @@ class SurvivalOutcome:
     delayed_entry: str | None = None
     observation_assumption: IndependentGiven | None = None
     known_censoring: KnownCensoringSurvival | None = None
+    stratified_censoring: StratifiedCensoringSurvival | None = None
 
     def __post_init__(self) -> None:
         for name in ("duration", "event_observed", "treatment"):
@@ -186,7 +241,9 @@ class SurvivalOutcome:
         coerce_fields(self, tau=float(self.tau))
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
-        if self.known_censoring is None:
+        if self.stratified_censoring is not None:
+            _validate_stratified_censoring(self, self.event_observed)
+        elif self.known_censoring is None:
             _validate_entry_contract(self.delayed_entry, self.observation_assumption)
         else:
             if not isinstance(self.known_censoring, KnownCensoringSurvival):
@@ -421,6 +478,7 @@ class CompetingRisksOutcome:
     delayed_entry: str | None = None
     observation_assumption: IndependentGiven | None = None
     known_censoring: KnownCensoringSurvival | None = None
+    stratified_censoring: StratifiedCensoringSurvival | None = None
 
     def __post_init__(self) -> None:
         for name in ("duration", "event_cause", "treatment"):
@@ -446,7 +504,9 @@ class CompetingRisksOutcome:
         coerce_fields(self, tau=float(self.tau))
         if not isinstance(self.randomized, bool):
             raise CausalValueError("randomized must be bool")
-        if self.known_censoring is None:
+        if self.stratified_censoring is not None:
+            _validate_stratified_censoring(self, self.event_cause)
+        elif self.known_censoring is None:
             _validate_entry_contract(self.delayed_entry, self.observation_assumption)
         else:
             if not isinstance(self.known_censoring, KnownCensoringSurvival):
@@ -595,9 +655,9 @@ def _estimate_survival_ipcw_direct(
     """
     if not isinstance(query, SurvivalOutcome):
         raise CausalValueError("query must be a SurvivalOutcome")
-    if query.known_censoring is not None:
+    if query.known_censoring is not None or query.stratified_censoring is not None:
         raise CausalValueError(
-            "query already carries known censoring columns; use analyze(data, query=...)"
+            "query already declares a censoring procedure; use analyze(data, query=...)"
         )
     if not query.randomized:
         raise CausalValueError(
@@ -743,9 +803,9 @@ def _estimate_cumulative_incidence_ipcw_direct(
     """
     if not isinstance(query, CompetingRisksOutcome):
         raise CausalValueError("query must be a CompetingRisksOutcome")
-    if query.known_censoring is not None:
+    if query.known_censoring is not None or query.stratified_censoring is not None:
         raise CausalValueError(
-            "query already carries known censoring columns; use analyze(data, query=...)"
+            "query already declares a censoring procedure; use analyze(data, query=...)"
         )
     if not query.randomized:
         raise CausalValueError(
@@ -806,6 +866,7 @@ __all__ = [
     "IPCWCumulativeIncidenceEstimate",
     "IPCWSurvivalEstimate",
     "KnownCensoringSurvival",
+    "StratifiedCensoringSurvival",
     "SurvivalDifferenceBand",
     "SurvivalEstimate",
     "SurvivalOutcome",

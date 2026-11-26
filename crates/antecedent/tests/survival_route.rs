@@ -25,6 +25,7 @@ fn query(functional: SurvivalFunctional) -> SurvivalQuery {
         treatment: VariableId::from_raw(2),
         tau: 2.0,
         delayed_entry: None,
+        stratified_censoring: None,
         known_censoring: None,
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
         functional,
@@ -1570,4 +1571,164 @@ fn rebind_estimate(
     let result = branch.estimate_retained(ctx)?;
     *prepared = branch;
     Ok(result)
+}
+
+#[path = "common/conditional_survival_fixture.rs"]
+mod conditional_survival_fixture;
+
+#[test]
+fn fitted_conditional_survival_identifies_the_pre_entry_population() {
+    use antecedent_stats::survival::{SurvivalEndpoint, SurvivalRows, randomized_survival_summary};
+    use conditional_survival_fixture as fixture;
+    let ctx = ExecutionContext::for_tests(9_732);
+    let estimate = |rows: &[[f64; 6]], declare_entry| {
+        let data = fixture::table(rows);
+        Study::tabular(data.clone())
+            .query(CausalQuery::Survival(fixture::query(declare_entry)))
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap()
+            .estimate(&data, &ctx)
+            .unwrap()
+    };
+    for delayed in [false, true] {
+        for censor in [false, true] {
+            let rows = fixture::exact(delayed, censor);
+            let result = estimate(&rows, delayed);
+            let curve = result.survival().unwrap();
+            for (position, &time) in curve.times.iter().enumerate() {
+                assert!((curve.control[position] - fixture::truth(0, time)).abs() < 1e-12);
+                assert!((curve.treated[position] - fixture::truth(1, time)).abs() < 1e-12);
+            }
+        }
+    }
+    let rows = fixture::exact(true, true);
+    let ignore_entry = estimate(&rows, false);
+    let curve = ignore_entry.survival().unwrap();
+    assert!(
+        (curve.treated[1] - curve.control[1] - (fixture::truth(1, 1.0) - fixture::truth(0, 1.0)))
+            .abs()
+            > 0.01
+    );
+
+    let mut ignore_censor = [0.0; 2];
+    for baseline in [0.0, 1.0] {
+        let (mut duration, mut event, mut treated, mut entry) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for row in rows.iter().filter(|row| row[4] == baseline) {
+            duration.push(row[0]);
+            event.push(i64::from(row[1] == 1.0));
+            treated.push(row[2] == 1.0);
+            entry.push(row[3]);
+        }
+        let unweighted = randomized_survival_summary(
+            &SurvivalRows {
+                duration: &duration,
+                event_code: &event,
+                treated: &treated,
+                delayed_entry: Some(&entry),
+            },
+            3.0,
+            SurvivalEndpoint::Survival,
+        )
+        .unwrap();
+        ignore_censor[0] += unweighted.control.last().unwrap() / 2.0;
+        ignore_censor[1] += unweighted.treated.last().unwrap() / 2.0;
+    }
+    assert!(
+        (ignore_censor[1] - ignore_censor[0] - (fixture::truth(1, 3.0) - fixture::truth(0, 3.0)))
+            .abs()
+            > 0.001
+    );
+}
+
+#[test]
+fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
+    use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+    use conditional_survival_fixture as fixture;
+    let rows = fixture::exact(true, true);
+    let data = fixture::table(&rows);
+    let ctx = ExecutionContext::for_tests(9_732);
+    let query = fixture::query(true);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::Survival(query.clone()))
+        .bootstrap_replicates(fixture::DRAWS)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let expected = fixture::truth(1, 3.0) - fixture::truth(0, 3.0);
+    let curve = result.survival().unwrap();
+    let band = curve.difference_band.as_ref().unwrap();
+    assert_eq!(
+        curve.censoring_survival_provenance.as_deref(),
+        Some("same_subject_stratified_reverse_product_limit_refit")
+    );
+    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(band.replicates_ok, fixture::DRAWS);
+    assert!((band.difference.last().unwrap() - expected).abs() < 1e-12);
+    assert_eq!(curve.difference_at_tau_interval, None);
+    let compact = prepared.encode_contracted_result(&result, "compact-fit", &ctx).unwrap();
+    assert!(
+        antecedent_io::replay_analysis_result(&compact)
+            .unwrap()
+            .acceptance
+            .unresolved
+            .iter()
+            .any(|reason| reason.as_ref() == "dependencies.checked_survival_conditional_training")
+    );
+    let bytes = prepared
+        .encode_contracted_result_with_source(&result, &data, "retained-fit", &ctx)
+        .unwrap();
+    let mut builder = BundleBuilder::new();
+    builder.add_detected_artifact(Some("standardized"), &bytes).unwrap();
+    let bundle = builder.build().unwrap();
+    let bytes = composition::export_bundle(&bundle, "standardized-band").unwrap();
+    let checked =
+        composition::consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap();
+    checked.require_verified().unwrap();
+    assert_eq!(checked.value("standardized", "horizon_lower_95"), band.lower.last().copied());
+
+    let mut revised = rows.clone();
+    let subject = revised.iter_mut().find(|row| row[0] == 3.0 && row[2] == 0.0).unwrap();
+    subject[0] = 2.0;
+    subject[1] = 1.0;
+    let revised_data = fixture::table(&revised);
+    assert!(
+        prepared
+            .encode_contracted_result_with_source(
+                &result,
+                &revised_data,
+                "swapped-censoring-training",
+                &ctx,
+            )
+            .is_err()
+    );
+    let mut rebound = prepared.clone();
+    let revised_result = rebind_estimate(&mut rebound, revised_data.clone(), &ctx).unwrap();
+    let revised_curve = revised_result.survival().unwrap().difference_band.as_ref().unwrap();
+    assert_ne!(revised_curve.difference, band.difference);
+    let revised_bytes = rebound
+        .encode_contracted_result_with_source(
+            &revised_result,
+            &revised_data,
+            "revised-censoring-training",
+            &ctx,
+        )
+        .unwrap();
+    let replacement = antecedent_io::replay_analysis_result(&revised_bytes).unwrap();
+    assert!(replacement.acceptance.accepts_as_claim());
+
+    let mut missing = query;
+    missing.stratified_censoring = None;
+    assert!(missing.validate().is_err());
+    let mut bad = rows;
+    for row in bad.iter_mut().filter(|row| row[2] == 1.0 && row[4] == 1.0) {
+        row[5] = 0.0;
+    }
+    let bad = fixture::table(&bad);
+    let refusal = prepared.estimate(&bad, &ctx).unwrap_err();
+    assert!(refusal.to_string().contains("inadequate entry or follow-up overlap"));
 }

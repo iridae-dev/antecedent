@@ -12817,6 +12817,14 @@ ignored = true
 grid = true
 
 [[group]]
+label = "delayed_entry_incidence_calibration: jointly_conditional_entry_and_censoring_survival_band_coverage"
+package = "antecedent"
+target = "delayed_entry_incidence_calibration"
+tests = ["jointly_conditional_entry_and_censoring_survival_band_coverage"]
+ignored = true
+grid = true
+
+[[group]]
 label = "temporal_design_range_calibration: temporal_design_regime_survival_horizon_one_bootstrap_interval"
 package = "antecedent"
 target = "temporal_design_range_calibration"

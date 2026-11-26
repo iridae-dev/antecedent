@@ -224,6 +224,9 @@ pub fn incidence_calibration_functional(
     replicates_ok: Option<u32>,
     assignment_counts: Option<[usize; 2]>,
 ) -> Option<String> {
+    if query.stratified_censoring.is_some() {
+        return None;
+    }
     let cause = query.target_cause?;
     query.delayed_entry?;
     let fixed_known = !query.censoring_columns.is_empty();
@@ -250,6 +253,19 @@ pub fn survival_band_calibration_functional(
     query: &crate::query_wire::SurvivalQueryWire,
     assignment_counts: Option<[usize; 2]>,
 ) -> Option<String> {
+    if let Some(fit) = &query.stratified_censoring {
+        let scope = if assignment_counts.is_some_and(|[a, b]| a.min(b) >= 1_000) {
+            ""
+        } else {
+            "+scope=insufficient"
+        };
+        let entry = if query.delayed_entry.is_some() { "standardized" } else { "none" };
+        let endpoint = query.target_cause.map_or_else(|| "survival".to_owned(), |cause| format!("incidence:{cause}"));
+        return Some(format!(
+            "difference_band+entry={entry}+censoring=stratified_refit+endpoint={endpoint}+tau={:016x}+population={:016x}/{:016x}+floor={:016x}{scope}",
+            query.tau.to_bits(), fit.population_weights[0].to_bits(), fit.population_weights[1].to_bits(), fit.minimum_probability.to_bits(),
+        ));
+    }
     query.delayed_entry?;
     let fixed_known = !query.censoring_columns.is_empty();
     let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
@@ -265,6 +281,30 @@ pub fn survival_band_calibration_functional(
         "difference_band+entry=delayed+censoring={censoring}+endpoint={endpoint}+tau={:016x}{scope}",
         query.tau.to_bits(),
     ))
+}
+
+/// Coordinate earned for the pre-entry standardized survival band with an owned censoring fit.
+#[doc(hidden)]
+pub const STANDARDIZED_CONDITIONAL_SURVIVAL_BAND: GraphlessSupportKey<'static> = GraphlessSupportKey {
+    family: "survival",
+    design: "binary_entry_and_censoring_strata_two_arm_individual_randomized",
+    method: "arm_stratified_subject_bootstrap_stratified_censoring_refit",
+    inference_claim: "simultaneous_95_standardized_survival_difference_band",
+};
+
+/// The initial standardized release scope with a fixed horizon, target and censoring floor.
+#[doc(hidden)]
+pub fn conditional_survival_band_key(
+    delayed_entry: bool,
+    incidence: bool,
+    tau: f64,
+    population_weights: [f64; 2],
+    censoring_floor: f64,
+) -> Option<GraphlessSupportKey<'static>> {
+    (delayed_entry && !incidence && tau.to_bits() == 3.0_f64.to_bits()
+        && population_weights.map(f64::to_bits) == [0.5_f64.to_bits(); 2]
+        && censoring_floor.to_bits() == 0.05_f64.to_bits())
+        .then_some(STANDARDIZED_CONDITIONAL_SURVIVAL_BAND)
 }
 
 /// Exact scalar-interval claim of a randomized survival query.

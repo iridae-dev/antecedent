@@ -390,7 +390,9 @@ impl StudyResult {
 
     fn delayed_survival_band_binding(&self) -> Option<IntervalBinding> {
         let curve = self.survival()?;
-        if !curve.has_delayed_entry {
+        if !curve.has_delayed_entry && curve.censoring_survival_provenance.as_deref()
+            != Some(antecedent_stats::survival::STRATIFIED_CENSORING_PROVENANCE)
+        {
             return None;
         }
         let band = curve.difference_band.as_ref()?;

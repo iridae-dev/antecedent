@@ -122,7 +122,7 @@ pub use response::{
 pub use sequential_contrast::SequentialContrastQuery;
 pub use simulate::{SimulateQuery, SimulationTarget};
 pub use smoothed_dose::{SmoothedDoseTransportQuery, SmoothingKernel};
-pub use survival::{KnownCensoringSurvival, SurvivalFunctional, SurvivalQuery};
+pub use survival::{KnownCensoringSurvival, StratifiedCensoringSurvival, SurvivalFunctional, SurvivalQuery};
 pub use synthetic_control::{
     SyntheticControlQuery, SyntheticInterval, SyntheticPanelMethod, SyntheticRollout,
 };

@@ -234,6 +234,9 @@ impl super::super::Study {
             .into_iter()
             .chain(q.delayed_entry)
             .chain(q.known_censoring.iter().flat_map(|known| known.columns.iter().copied()))
+            .chain(q.stratified_censoring.iter().flat_map(|learner| {
+                [learner.entry_stratum, learner.censoring_stratum]
+            }))
             .collect::<Arc<[_]>>();
         for &id in variables.iter() {
             data.schema().get(id).map_err(CausalError::rejected)?;

@@ -17,7 +17,8 @@ pub(super) fn is_delayed_entry_incidence(body: &AnalysisResultWire) -> bool {
 }
 
 pub(super) fn is_delayed_entry_band(body: &AnalysisResultWire) -> bool {
-    matches!(&body.query, CausalQueryWire::Survival(query) if query.delayed_entry.is_some())
+    matches!(&body.query, CausalQueryWire::Survival(query)
+        if query.delayed_entry.is_some() || query.stratified_censoring.is_some())
         && body.survival.as_ref().is_some_and(|curve| curve.difference_band.is_some())
 }
 
@@ -87,7 +88,8 @@ pub(super) fn inspect_band(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     }
     if !consumed.acceptance.accepts_as_claim() {
         let missing = consumed.acceptance.unresolved.iter().any(|reason| {
-            reason.as_ref() == "dependencies.checked_survival_band_operation"
+            matches!(reason.as_ref(), "dependencies.checked_survival_band_operation"
+                | "dependencies.checked_survival_conditional_training")
         });
         return Err(failure(
             if missing { BundleStage::CallbackUnavailable } else { BundleStage::TamperedQuantity },
@@ -107,6 +109,9 @@ pub(super) fn inspect_band(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     publish(&mut inspected.facts, "program_identity", digest(contract.identities.program));
     publish(&mut inspected.facts, "calibration", claim.calibration.status.as_str());
     publish(&mut inspected.facts, "inference_scope", "simultaneous_95_difference_band");
+    if let Some(provenance) = &curve.censoring_survival_provenance {
+        publish(&mut inspected.facts, "censoring_survival_provenance", provenance);
+    }
     publish(&mut inspected.facts, "support", band.graphless_support_status.as_deref().unwrap_or("off_axis"));
     if let Some(cause) = curve.target_cause {
         publish(&mut inspected.facts, "target_cause", cause.to_string());

@@ -10,11 +10,10 @@ use crate::distribution_replay::ReplayLimits;
 use crate::source_witness::{verify_source_witness, verify_source_witness_schema};
 use crate::{AnalysisResultHeader, AnalysisResultWire, CausalQueryWire};
 use antecedent_stats::survival::{
-    KnownCensoring, RandomizedSurvivalSummary, SurvivalDifferenceBand,
-    SurvivalEndpoint, SurvivalRows,
-    randomized_survival_bootstrap_difference_band_with_observation,
+    ConditionalObservationRows, KnownCensoring, RandomizedSurvivalSummary, SurvivalDifferenceBand,
+    SurvivalEndpoint, SurvivalRows, randomized_survival_bootstrap_difference_band_with_observation,
     randomized_survival_bootstrap_intervals_controlled, randomized_survival_ipcw_summary,
-    randomized_survival_summary,
+    randomized_survival_summary, standardized_conditional_survival,
 };
 
 pub(super) fn declares_survival_replay(
@@ -23,10 +22,11 @@ pub(super) fn declares_survival_replay(
 ) -> bool {
     contract.estimator.as_deref() == Some("randomized.survival_product_limit")
         && matches!(&contract.target.query, CausalQueryWire::Survival(query)
-            if query.delayed_entry.is_some() && body.survival.as_ref().is_some_and(|curve| {
-                    curve.difference_band.is_some()
-                        || (curve.target_cause.is_some() && curve.difference_at_tau_interval.is_some())
-                }))
+        if query.stratified_censoring.is_some() && body.survival.is_some()
+            || query.delayed_entry.is_some() && body.survival.as_ref().is_some_and(|curve| {
+                curve.difference_band.is_some()
+                    || (curve.target_cause.is_some() && curve.difference_at_tau_interval.is_some())
+            }))
 }
 
 #[allow(
@@ -51,7 +51,10 @@ pub(super) fn replay_delayed_entry_survival(
     else {
         return Err(BodySurvivalIncidence);
     };
-    let source = source.ok_or(if curve.difference_band.is_some() {
+    let learner = query.stratified_censoring.as_ref();
+    let source = source.ok_or(if learner.is_some() {
+        ContractReason::DependenciesCheckedSurvivalConditionalTraining
+    } else if curve.difference_band.is_some() {
         ContractReason::DependenciesCheckedSurvivalBandOperation
     } else {
         DependenciesCheckedSurvivalIncidenceOperation
@@ -98,7 +101,7 @@ pub(super) fn replay_delayed_entry_survival(
     let event_knots = duration
         .iter()
         .zip(event)
-        .filter(|&(&time, &cause)| cause > 0.0 && time <= query.tau)
+        .filter(|&(&time, &cause)| (learner.is_some() || cause > 0.0) && time <= query.tau)
         .map(|(&time, _)| time.to_bits())
         .collect::<BTreeSet<_>>()
         .len() as u64;
@@ -148,15 +151,48 @@ pub(super) fn replay_delayed_entry_survival(
             minimum_probability: query.censoring_probability_floor.ok_or(BodySurvivalIncidence)?,
         })
     };
-    let rows = SurvivalRows {
-        duration,
-        event_code: &events,
-        treated: &treated,
-        delayed_entry: entry,
-    };
+    let rows =
+        SurvivalRows { duration, event_code: &events, treated: &treated, delayed_entry: entry };
     let endpoint = query.target_cause.map_or(SurvivalEndpoint::Survival, |target_cause| {
         SurvivalEndpoint::CumulativeIncidence { target_cause }
     });
+    if let Some(learner) = learner {
+        let fit = standardized_conditional_survival(
+            &ConditionalObservationRows {
+                survival: rows,
+                entry_stratum: column(learner.entry_stratum)?,
+                censoring_stratum: column(learner.censoring_stratum)?,
+                population_weights: learner.population_weights,
+                censoring_floor: learner.minimum_probability,
+            },
+            query.tau,
+            endpoint,
+            requested,
+            seed,
+            cancelled,
+        )
+        .map_err(|_| {
+            if cancelled() {
+                SurvivalIncidenceReplayResource
+            } else {
+                ContractReason::BodySurvivalBand
+            }
+        })?;
+        let band_matches = match (&fit.band, &curve.difference_band) {
+            (Some(actual), Some(stored)) => same_band(actual, stored),
+            (None, None) => true,
+            _ => false,
+        };
+        return if same_summary(&fit.summary, curve)
+            && band_matches
+            && curve.bootstrap_replicates_ok == fit.band.as_ref().map(|band| band.replicates_ok)
+            && curve.assignment_counts == Some([duration.len() - active_count, active_count])
+        {
+            Ok(true)
+        } else {
+            Err(ContractReason::BodySurvivalBand)
+        };
+    }
     let summary = match known {
         Some(known) => randomized_survival_ipcw_summary(&rows, &known, query.tau, endpoint)
             .map(|value| value.0),
@@ -215,7 +251,10 @@ fn same(replayed: &[f64], stored: &[f64]) -> bool {
         && replayed.iter().zip(stored).all(|(left, right)| left.to_bits() == right.to_bits())
 }
 
-fn same_band(replayed: &SurvivalDifferenceBand, stored: &crate::analysis_result_artifact::SurvivalDifferenceBandWire) -> bool {
+fn same_band(
+    replayed: &SurvivalDifferenceBand,
+    stored: &crate::analysis_result_artifact::SurvivalDifferenceBandWire,
+) -> bool {
     replayed.replicates_ok == stored.replicates_ok
         && replayed.minimum_horizon_risk_set == stored.minimum_horizon_risk_set
         && same(&replayed.times, &stored.times)
@@ -224,7 +263,10 @@ fn same_band(replayed: &SurvivalDifferenceBand, stored: &crate::analysis_result_
         && same(&replayed.upper, &stored.upper)
 }
 
-fn same_summary(replayed: &RandomizedSurvivalSummary, stored: &crate::analysis_result_artifact::SurvivalWire) -> bool {
+fn same_summary(
+    replayed: &RandomizedSurvivalSummary,
+    stored: &crate::analysis_result_artifact::SurvivalWire,
+) -> bool {
     same(&replayed.times, &stored.times)
         && same(&replayed.control, &stored.control)
         && same(&replayed.treated, &stored.treated)

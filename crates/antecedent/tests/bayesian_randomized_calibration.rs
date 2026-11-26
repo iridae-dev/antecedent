@@ -481,6 +481,7 @@ fn survival_replicate(n: usize, coordinate: usize, seed: u64) -> Option<Replicat
         treatment: v(2),
         tau: HORIZON,
         delayed_entry: None,
+        stratified_censoring: None,
         known_censoring: None,
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
         functional: SurvivalFunctional::SurvivalAndRmst,

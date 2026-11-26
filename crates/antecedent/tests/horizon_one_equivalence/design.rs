@@ -416,6 +416,7 @@ fn horizon_one_regime_survival_is_the_arm_event_share_of_the_static_two_arm_surv
         treatment: id(2),
         tau: 1.0,
         delayed_entry: None,
+        stratified_censoring: None,
         known_censoring: None,
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
         functional: SurvivalFunctional::SurvivalAndRmst,
