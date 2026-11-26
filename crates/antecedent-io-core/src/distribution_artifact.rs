@@ -48,6 +48,15 @@ impl Default for DistributionIntakeLimits {
 const ARTIFACT_KIND: &str = crate::artifact_kinds::JOINT_DISTRIBUTION;
 const META_SECTION: &str = "distribution.meta";
 const DRAW_SECTION: &str = "distribution.draws";
+const METHOD_SECTION: &str = "distribution.method_provenance";
+const LAYOUT_ERROR: &str = "unsupported distribution artifact layout";
+
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DistributionMethods {
+    evidence_digest: String,
+    provenance: crate::MethodProvenanceWire,
+}
 
 /// Whether equal draw indices are a paired joint realization.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -254,10 +263,17 @@ pub struct DistributionMetadata {
 }
 
 /// A validated finite draw set plus its bound metadata.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct DistributionArtifact {
     metadata: DistributionMetadata,
     draws: Vec<f64>,
+    method_provenance: Option<crate::MethodProvenanceWire>,
+}
+
+impl PartialEq for DistributionArtifact {
+    fn eq(&self, other: &Self) -> bool {
+        self.metadata == other.metadata && self.draws == other.draws
+    }
 }
 
 /// Explicit source-to-target quantity binding for a posterior-draw conversion.
@@ -405,7 +421,7 @@ impl DistributionArtifact {
         limits: &DistributionIntakeLimits,
     ) -> Result<Self, IoError> {
         validate(&metadata, &draws, limits)?;
-        Ok(Self { metadata, draws })
+        Ok(Self { metadata, draws, method_provenance: None })
     }
 
     /// Bound metadata, including semantic tag, axes and provenance.
@@ -499,6 +515,28 @@ impl DistributionArtifact {
         &self.draws
     }
 
+    /// The source producer's retained method snapshot.
+    #[must_use]
+    pub const fn method_provenance(&self) -> Option<&crate::MethodProvenanceWire> {
+        self.method_provenance.as_ref()
+    }
+
+    /// Attach the producer's descriptive method records to this evidence.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_method_provenance(mut self, provenance: crate::MethodProvenanceWire) -> Self {
+        self.method_provenance = Some(provenance);
+        self
+    }
+
+    fn method_binding(&self, draw_bytes: &[u8]) -> Result<String, IoError> {
+        let metadata = crate::to_cbor(&self.metadata)?;
+        Ok(antecedent_core::CanonicalWriter::new("antecedent.distribution_methods.v1")
+            .bytes(&metadata)
+            .bytes(draw_bytes)
+            .finish_hex())
+    }
+
     /// Serialize through the existing checksummed sectioned container.
     ///
     /// # Errors
@@ -522,6 +560,23 @@ impl DistributionArtifact {
         for value in &self.draws {
             draw_bytes.extend_from_slice(&value.to_le_bytes());
         }
+        let mut sections = vec![crate::OutSection {
+            id: DRAW_SECTION,
+            content_type: crate::CONTENT_BYTES,
+            bytes: &draw_bytes,
+        }];
+        let method_bytes;
+        if let Some(provenance) = self.method_provenance() {
+            method_bytes = crate::to_cbor(&DistributionMethods {
+                evidence_digest: self.method_binding(&draw_bytes)?,
+                provenance: provenance.clone(),
+            })?;
+            sections.push(crate::OutSection {
+                id: METHOD_SECTION,
+                content_type: crate::CONTENT_CBOR,
+                bytes: &method_bytes,
+            });
+        }
         crate::artifact_codec::encode_sectioned_io(
             &crate::ArtifactContainer {
                 kind: ARTIFACT_KIND,
@@ -532,12 +587,8 @@ impl DistributionArtifact {
             },
             META_SECTION,
             &self.metadata,
-            &[crate::OutSection {
-                id: DRAW_SECTION,
-                content_type: crate::CONTENT_BYTES,
-                bytes: &draw_bytes,
-            }],
-            "unsupported distribution artifact layout",
+            &sections,
+            LAYOUT_ERROR,
         )
     }
 
@@ -587,15 +638,26 @@ impl DistributionArtifact {
             return Err(IoError::TooLarge);
         }
         expected.validate_within(limits.max_coordinates)?;
-        let (metadata, [draw_bytes]): (DistributionMetadata, _) =
-            crate::artifact_codec::decode_sectioned_io(
+        let mut sections = match crate::decode_container(
+            ARTIFACT_KIND,
+            limits.max_bytes,
+            &[META_SECTION, DRAW_SECTION, METHOD_SECTION],
+            bytes,
+        ) {
+            Err(crate::CodecError::Layout) => crate::decode_container(
                 ARTIFACT_KIND,
                 limits.max_bytes,
-                META_SECTION,
-                &[DRAW_SECTION],
-                "unsupported distribution artifact layout",
+                &[META_SECTION, DRAW_SECTION],
                 bytes,
-            )?;
+            ),
+            other => other,
+        }
+        .map_err(|error| error.into_io(LAYOUT_ERROR))?
+        .into_iter();
+        let metadata: DistributionMetadata = crate::from_cbor(
+            &sections.next().ok_or_else(|| IoError::Convert(LAYOUT_ERROR.into()))?,
+        )?;
+        let draw_bytes = sections.next().ok_or_else(|| IoError::Convert(LAYOUT_ERROR.into()))?;
         if metadata.identity != *expected {
             return Err(IoError::Refused {
                 code: antecedent_core::reason_code!("quantity_semantics_mismatch"),
@@ -607,7 +669,17 @@ impl DistributionArtifact {
             return Err(IoError::Convert("distribution draw payload length mismatch".into()));
         }
         let draws = crate::artifact_codec::f64s_from_le_bytes(&draw_bytes);
-        Self::new_within(metadata, draws, limits)
+        let mut artifact = Self::new_within(metadata, draws, limits)?;
+        if let Some(method_bytes) = sections.next()
+            && let Ok(methods) = crate::from_cbor::<DistributionMethods>(&method_bytes)
+            && methods.provenance.format == crate::METHOD_PROVENANCE_FORMAT
+            && artifact
+                .method_binding(&draw_bytes)
+                .is_ok_and(|digest| digest == methods.evidence_digest)
+        {
+            artifact.method_provenance = Some(methods.provenance);
+        }
+        Ok(artifact)
     }
 
     /// As [`Self::from_bytes_within`], admitting only the artifact the consumer retained.
@@ -1040,6 +1112,30 @@ mod tests {
         assert!((loaded.covariance(0, 1).unwrap() - 0.5).abs() < 1e-12);
         assert!((loaded.joint_expectation(0, 1, |x, y| x * y).unwrap() - 1.0).abs() < 1e-12);
         assert!((loaded.interventional_probability_above(1, 1.0).unwrap() - 0.5).abs() < 1e-12);
+    }
+
+    #[test]
+    fn method_snapshot_round_trips_only_with_its_draws() {
+        let original = fixture(DrawAlignment::Joint);
+        let methods = crate::method_provenance(Some("backdoor.adjustment"), Some("aipw"));
+        let published = original.clone().with_method_provenance(methods.clone());
+        let bytes = published.to_bytes("joint-fixture").unwrap();
+        let loaded = DistributionArtifact::from_bytes(&bytes, &original.metadata.identity).unwrap();
+        assert_eq!(loaded, original);
+        assert_eq!(loaded.method_provenance(), Some(&methods));
+
+        let mut resealed = EncodedArtifact::read_from(bytes.as_slice()).unwrap();
+        let mut draws = resealed.sections[1].data.to_vec();
+        draws[..8].copy_from_slice(&0.25_f64.to_le_bytes());
+        resealed.manifest.sections[1] =
+            section_descriptor(DRAW_SECTION, crate::CONTENT_BYTES, &draws);
+        resealed.sections[1] = SectionBytes::new(DRAW_SECTION, draws);
+        let mut changed = Vec::new();
+        resealed.write_to(&mut changed).unwrap();
+        let loaded =
+            DistributionArtifact::from_bytes(&changed, &original.metadata.identity).unwrap();
+        assert_eq!(loaded.draws()[0].to_bits(), 0.25_f64.to_bits());
+        assert!(loaded.method_provenance().is_none());
     }
 
     #[test]

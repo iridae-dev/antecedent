@@ -193,8 +193,9 @@ pub struct SourceReceipt {
 }
 
 /// Decision result with the evidence behind it.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct DecisionResult {
+    pub(crate) method_provenance: Option<antecedent_io_core::MethodProvenanceWire>,
     /// Identity of the contract that was evaluated.
     pub contract_identity: String,
     /// Criterion that ranked the actions.
@@ -220,6 +221,52 @@ pub struct DecisionResult {
     pub source: SourceReceipt,
     /// Assumptions the result stands on.
     pub assumptions: Vec<String>,
+}
+
+impl DecisionResult {
+    /// Method records carried by this result, when published by the compiler.
+    #[must_use]
+    pub const fn method_provenance(&self) -> Option<&antecedent_io_core::MethodProvenanceWire> {
+        self.method_provenance.as_ref()
+    }
+
+    /// Published sources behind the decision and the evidence it used.
+    #[must_use]
+    pub fn citations(&self) -> Vec<antecedent_io_core::CitationWire> {
+        self.method_provenance().map_or_else(Vec::new, |provenance| provenance.citations())
+    }
+
+    /// Attach the compiler's descriptive method snapshot to the evaluated result.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_method_provenance(
+        mut self,
+        provenance: antecedent_io_core::MethodProvenanceWire,
+    ) -> Self {
+        self.set_method_provenance(provenance);
+        self
+    }
+
+    /// Attach the compiler's descriptive method snapshot in place.
+    #[doc(hidden)]
+    pub fn set_method_provenance(&mut self, provenance: antecedent_io_core::MethodProvenanceWire) {
+        self.method_provenance = Some(provenance);
+    }
+}
+
+impl PartialEq for DecisionResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.contract_identity == other.contract_identity
+            && self.criterion == other.criterion
+            && self.criterion_label == other.criterion_label
+            && self.actions == other.actions
+            && self.verdict == other.verdict
+            && self.evpi == other.evpi
+            && self.n_draws == other.n_draws
+            && self.effective_draws == other.effective_draws
+            && self.source == other.source
+            && self.assumptions == other.assumptions
+    }
 }
 
 pub(crate) struct Table {
@@ -647,6 +694,7 @@ pub(crate) fn rank_table(
         });
     }
     Ok(DecisionResult {
+        method_provenance: None,
         contract_identity: identity,
         criterion: contract.criterion,
         actions: outcomes,
@@ -1148,6 +1196,7 @@ fn evaluate_contract_on_means_validated(
         Verdict::Indistinguishable(tied)
     };
     Ok(DecisionResult {
+        method_provenance: None,
         contract_identity: identity,
         criterion: contract.criterion,
         actions: outcomes,

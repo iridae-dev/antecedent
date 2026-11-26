@@ -78,6 +78,8 @@ pub enum ProvenanceRole {
     Capability,
     /// A record whose numerics a cited wrapper record delegates to.
     CoveredBy,
+    /// An input that supplied evidence without a method snapshot.
+    EvidenceSource,
 }
 
 impl ProvenanceRole {
@@ -89,6 +91,7 @@ impl ProvenanceRole {
             Self::Estimator => "estimator",
             Self::Capability => "capability",
             Self::CoveredBy => "covered_by",
+            Self::EvidenceSource => "evidence_source",
         }
     }
 }
@@ -271,7 +274,7 @@ pub fn linked_records(role: ProvenanceRole, key: &str) -> Option<&'static [Strin
         ProvenanceRole::Identifier => &table.identifier,
         ProvenanceRole::Estimator => &table.estimator,
         ProvenanceRole::Capability => &table.capability,
-        ProvenanceRole::CoveredBy => return None,
+        ProvenanceRole::CoveredBy | ProvenanceRole::EvidenceSource => return None,
     };
     keyed.get(key).map(Vec::as_slice)
 }
@@ -367,6 +370,39 @@ fn cite(cited: &mut BTreeMap<String, Vec<CitedForWire>>, id: &str, for_this: &Ci
 }
 
 impl MethodProvenanceWire {
+    /// Add the method records carried by accepted inputs, preserving the producer's snapshots.
+    ///
+    /// A record revised between producer executions can appear under more than one digest.
+    /// Shared input records retain the union of their component roles and are cited once.
+    pub fn inherit<'a>(&mut self, inputs: impl IntoIterator<Item = &'a Self>) {
+        for input in inputs {
+            for record in &input.records {
+                if let Some(existing) = self
+                    .records
+                    .iter_mut()
+                    .find(|existing| existing.id == record.id && existing.digest == record.digest)
+                {
+                    existing.cited_for.extend(record.cited_for.iter().cloned());
+                    existing.cited_for.sort();
+                    existing.cited_for.dedup();
+                } else {
+                    self.records.push(record.clone());
+                }
+            }
+            self.unlinked.extend(input.unlinked.iter().cloned());
+        }
+        self.unlinked.sort();
+        self.unlinked.dedup();
+    }
+
+    /// Register an admitted input for which no producer methods were available.
+    pub fn note_unlinked_source(&mut self, key: impl Into<String>) {
+        let source = CitedForWire { role: ProvenanceRole::EvidenceSource, key: key.into() };
+        if !self.unlinked.contains(&source) {
+            self.unlinked.push(source);
+        }
+    }
+
     /// Whether no record is cited.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -537,6 +573,25 @@ pub fn check_bound(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn inheritance_preserves_distinct_editions_and_deduplicates_shared_records() {
+        let original = method_provenance(Some("backdoor.adjustment"), Some("aipw"));
+        let mut older = original.clone();
+        older.records[1].digest = "earlier-digest".to_owned();
+        let mut result = capability_provenance("decision.contract");
+        result.inherit([&original, &older, &original]);
+        let editions: Vec<_> =
+            result.records.iter().filter(|record| record.id == "estimate.aipw").collect();
+        assert_eq!(editions, [&original.records[1], &older.records[1]]);
+        assert_eq!(
+            result.records.iter().filter(|record| record.id == "identify.backdoor").count(),
+            1
+        );
+        assert!(result.citations().iter().any(|citation| {
+            citation.records.contains(&("estimate.aipw".to_owned(), "earlier-digest".to_owned()))
+        }));
+    }
 
     #[test]
     fn backdoor_aipw_cites_its_records_and_deviations() {
