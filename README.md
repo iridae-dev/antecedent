@@ -91,6 +91,8 @@ Each tutorial follows one scientific task from declaration to what the computati
 | [From day zero to publication](docs/tutorials/research-from-day-zero.md) | Plan an HCI study, choose a targeted follow-up, audit the paper's claims against its designs, outcomes and evidence, and cite the methods behind every number. |
 | [From a new experiment to the next study](docs/tutorials/experiment-to-next-study.md) | Map experimental evidence into a retained response law, see the response and the decision change, and rank further studies by information value and cost, without treating the result as identified. |
 | [Stop, continue or run longer](docs/tutorials/decide-under-uncertainty.md) | Decide when p = 0.07: a retailer's experiment, a decision contract and the value of more evidence. |
+| [Choose a discount when the cost of a return is a range](docs/tutorials/decide-across-trade-offs.md) | Decide with a trade-off stated as a range, read where the choice switches, and optionally narrow the range from past decisions. |
+| [Choose an email frequency when the cost of an unsubscribe is a range](docs/tutorials/email-frequency.md) | Decide a sending frequency from the arm means of a three-arm experiment when the cost of an unsubscribe is a range. |
 | [Replay and current decisions](docs/tutorials/replay-and-current-decisions.md) | Change a utility without refitting, export a decision, then withdraw a source: historical replay remains possible while current decision use refuses. |
 | [Estimate an effect from observational data](docs/tutorials/observational-study.md) | Analyze a real public dataset end to end. |
 | [When the comparison group does not overlap](docs/tutorials/when-overlap-fails.md) | Follow a refusal when the comparison group does not overlap. |

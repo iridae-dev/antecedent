@@ -137,7 +137,15 @@ if TYPE_CHECKING:
         JointLawPlan,
         TradeOffRange,
     )
-    from ._decision_sources import chain_law, experiment_means, experiment_quantity, joint_law
+    from ._decision_sources import (
+        MultiArmEvidence,
+        chain_law,
+        experiment_means,
+        experiment_quantity,
+        joint_law,
+        multi_arm_means,
+        multi_arm_quantity,
+    )
     from ._decision_tradeoff_results import (
         ActionRecord,
         ClassSampling,
@@ -941,7 +949,11 @@ class Contract:
         * a :class:`~antecedent.external.BoundExternalClaim` or a :class:`MeanSource` (one
           mean per coordinate: the expectation of an affine utility only), or the
           :class:`~antecedent.decision_evidence.JointEvidence` of one experiment (its arm
-          means, :func:`experiment_means`);
+          means, :func:`experiment_means`), or the :class:`MultiArmEvidence` of one
+          multi-arm randomized experiment (one ``RandomizedEffect`` result per outcome,
+          :func:`multi_arm_means`): one mean per arm, variances left behind, and the
+          results must share one assignment. Passing one multi-arm result directly still
+          reads its scalar contrast and refuses;
         * a checked static AverageEffect result: its single ``mean_difference`` contrast
           coordinate is an affine mean input, never two reconstructed outcome means;
         * a response-curve analysis result (the :class:`~antecedent.results.CausalResponseView`
@@ -1700,8 +1712,11 @@ _LAZY: dict[str, tuple[str, str]] = {
     "DesignLawPlan": ("_decision_compile", "DesignLawPlan"),
     "joint_law": ("_decision_sources", "joint_law"),
     "chain_law": ("_decision_sources", "chain_law"),
+    "MultiArmEvidence": ("_decision_sources", "MultiArmEvidence"),
     "experiment_means": ("_decision_sources", "experiment_means"),
     "experiment_quantity": ("_decision_sources", "experiment_quantity"),
+    "multi_arm_means": ("_decision_sources", "multi_arm_means"),
+    "multi_arm_quantity": ("_decision_sources", "multi_arm_quantity"),
 }
 
 
@@ -1746,6 +1761,7 @@ __all__ = [
     "JointLawPlan",
     "MeanSource",
     "Measure",
+    "MultiArmEvidence",
     "PreferenceRefusal",
     "PublishedScore",
     "Region",
@@ -1777,6 +1793,8 @@ __all__ = [
     "ln",
     "maximum",
     "minimum",
+    "multi_arm_means",
+    "multi_arm_quantity",
     "relation",
     "replay",
     "score_published_answer",

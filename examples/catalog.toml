@@ -112,6 +112,17 @@ runtime = "under 1 min"
 claim = "A decision across a declared range of one trade-off on randomized arm means, exact for those means, against a simulated truth in which the choice switches at 30 and 50 dollars per return. The narrowed range is what the recorded choices imply under the declared value model and the recorded forecasts; it is not a statement of what a return should cost."
 
 [[example]]
+id = "email_frequency"
+title = "Choose an email frequency when the cost of an unsubscribe is a range"
+summary = "Estimate margin and unsubscribe rate under three email frequencies, decide with the cost of an unsubscribe declared as a range, and read where the choice switches."
+python = "examples/python/email_frequency.py"
+topic = "Tutorials"
+level = "intermediate"
+dependencies = []
+runtime = "under 1 min"
+claim = "A decision across a declared range of one trade-off on the Horvitz-Thompson arm means of a three-arm frequency experiment. Exact for those means, against a simulated truth in which two emails leads above 15 euros per unsubscribe and four leads below it, and silence is never best between 5 and 80. A linear dose model on the same table decides a different threshold."
+
+[[example]]
 id = "replay_and_current_decisions"
 title = "Withdraw a source and separate replay from current use"
 summary = "Build one decision from three evidence routes, change its utility without refitting, export it, then withdraw a source."

@@ -656,6 +656,13 @@ python = "antecedent.joint_distribution.ScientificQuantity.from_effect"
 reason = "The native effect_source_json method projects the original checked effect; Contract.evaluate also uses it when reading a static effect."
 
 [[entry]]
+rust = "antecedent::analysis::decision_result::project_multi_arm_means"
+kind = "fn"
+status = "bound"
+python = "antecedent.decision.multi_arm_means"
+reason = "Projects one mean per arm of a multi-arm randomized experiment. Contract.evaluate reads MultiArmEvidence through it and leaves the variances behind."
+
+[[entry]]
 rust = "antecedent::analysis::decision_result::supplied_child_identity"
 kind = "fn"
 status = "internal"

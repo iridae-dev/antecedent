@@ -339,6 +339,8 @@ pub(crate) fn ate_result_from_analysis(
 ) -> PyResult<AteAnalysisResult> {
     let effect_authority =
         crate::scalar_decision_api::NativeEffectAuthority::from_result(result, names);
+    let multi_arm_authority =
+        crate::multi_arm_decision_api::MultiArmAuthority::from_result(result, names);
     let effect = result.estimate().as_effect();
     let certificate_json = crate::identification_details::analysis_to_json(result, names, ctx)?;
     // A single-outcome counterfactual answers with its own unit result; one with several
@@ -705,6 +707,7 @@ pub(crate) fn ate_result_from_analysis(
             .map(|entry| (entry.code.to_owned(), entry.detail.clone(), entry.missing.clone()))
             .collect(),
         effect_authority,
+        multi_arm_authority,
     })
 }
 

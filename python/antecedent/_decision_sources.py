@@ -7,8 +7,9 @@ experiment, or several causal structures. Public names are exported from
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Literal, NoReturn
 
 from ._decision_value import Structures, _raise
 from ._native import preference_chain_joint_law as _chain_joint_law
@@ -160,7 +161,8 @@ def resolve_source(
 
     :class:`~antecedent.decision.Structures` stay as they are; a sequence of laws becomes one
     law (:func:`joint_law`), a propagation chain its joint output law (:func:`chain_law`) and
-    the evidence of one experiment its arm means (:func:`experiment_means`). A mean producer
+    the evidence of one experiment its arm means (:func:`experiment_means`) and a multi-arm
+    experiment its arm means (:func:`multi_arm_means`). A mean producer
     is adapted to its mean source and an analysis result is read through its native claim,
     which ``decision_source`` asks for the representation the contract needs. Anything else is
     returned unchanged for the caller to accept or refuse.
@@ -180,6 +182,8 @@ def resolve_source(
             converted = source.distribution
         elif isinstance(source, JointEvidence):
             converted = experiment_means(source, execution=execution)
+        elif isinstance(source, MultiArmEvidence):
+            converted = multi_arm_means(source)
         elif isinstance(source, PropagationChain):
             converted = chain_law(source)
     if converted is not None:
@@ -279,6 +283,154 @@ def experiment_quantity(
     return ScientificQuantity._from_wire(json.loads(body))
 
 
+@dataclass(frozen=True, slots=True)
+class MultiArmEvidence:
+    """Arm means of one multi-arm experiment, one randomized result per outcome.
+
+    Each result is a multi-arm ``RandomizedEffect`` estimated under the same assignment.
+    ``units`` maps each outcome name to its units and ``regimes`` maps each arm label to the
+    regime the decision uses. Evaluation reads the retained arm means (one mean per arm,
+    variances left behind) and refuses when the assignments differ. A value that needs a
+    joint law still refuses: these means are not a law. Passing one result to a contract
+    directly still reads the scalar contrast and refuses.
+    """
+
+    results: tuple[Any, ...]
+    population: str
+    units: Mapping[str, str]
+    regimes: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        results = tuple(self.results)
+        if not results:
+            raise CausalValueError("a multi-arm decision reads at least one outcome")
+        if not isinstance(self.population, str) or not _declared(self.population):
+            raise CausalValueError("population is declared, non-empty and at most 256 bytes")
+        object.__setattr__(self, "results", results)
+
+
+def _declared(text: str) -> bool:
+    return bool(text) and text.strip() == text and len(text.encode()) <= 256
+
+
+def _string_map(mapping: object, name: str) -> dict[str, str]:
+    if not isinstance(mapping, Mapping) or not mapping:
+        raise CausalValueError(f"{name} is a non-empty mapping of strings")
+    converted: dict[str, str] = {}
+    for key, value in mapping.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise CausalValueError(f"{name} is a mapping of strings")
+        converted[key] = value
+    return converted
+
+
+def _invalid_claims(expected: str) -> NoReturn:
+    from ._reason_details import decision_adapters
+    from .external import ExternalRefusal
+
+    raise ExternalRefusal(
+        {
+            "code": "invalid_argument",
+            "stage": "adapt",
+            "detail": decision_adapters.INVALID_CLAIMS,
+            "expected": expected,
+        }
+    )
+
+
+def multi_arm_quantity(evidence: MultiArmEvidence, outcome: str, label: str) -> ScientificQuantity:
+    """The coordinate of one outcome of a multi-arm experiment in one arm.
+
+    ``evidence`` is the :class:`MultiArmEvidence` of one experiment, ``outcome`` is one of
+    its outcomes and ``label`` is one of its arm labels. The coordinate is that arm's mean
+    (functional ``mean``) in the population and regime the evidence declares, as
+    :func:`multi_arm_means` carries it.
+    """
+    if not isinstance(evidence, MultiArmEvidence):
+        raise CausalTypeError(
+            f"a multi-arm experiment is a decision.MultiArmEvidence, not {type(evidence).__name__}"
+        )
+    regimes = _string_map(evidence.regimes, "regimes")
+    if label not in regimes:
+        _invalid_claims("the outcome and arm are coordinates of this multi-arm evidence")
+    regime = regimes[label]
+    source = multi_arm_means(evidence)
+    for quantity in source.coordinates:
+        if quantity.variable_name == outcome and quantity.regime_id == regime:
+            return quantity
+    _invalid_claims("the outcome and arm are coordinates of this multi-arm evidence")
+
+
+def multi_arm_means(evidence: MultiArmEvidence) -> MeanSource:
+    """The arm means of every outcome of one multi-arm experiment, as one mean source.
+
+    Means are read from each result's retained arm means, in arm order and then in the
+    order of ``evidence.results``. Outcomes join only when their assignments are the same
+    assignment. A mean source carries no joint law, so it answers only the expectation of
+    a value affine in its inputs.
+    """
+    from .external import ExternalRefusal
+    from .results import AnalysisResult
+
+    if not isinstance(evidence, MultiArmEvidence):
+        raise CausalTypeError(
+            f"a multi-arm experiment is a decision.MultiArmEvidence, not {type(evidence).__name__}"
+        )
+    results = tuple(require_success(result) for result in evidence.results)
+    units = _string_map(evidence.units, "units")
+    regimes = _string_map(evidence.regimes, "regimes")
+    projected: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for result in results:
+        if not isinstance(result, AnalysisResult):
+            raise CausalTypeError(
+                f"each multi-arm outcome is an analysis result, not {type(result).__name__}"
+            )
+        native = getattr(result._raw, "multi_arm_means_json", None)
+        if native is None:
+            raise CausalUnsupportedError(
+                "this result retains no multi-arm means",
+                reason_code="route_not_supported",
+            )
+        wire, refusal = native(evidence.population, json.dumps(units), json.dumps(regimes))
+        if refusal is not None:
+            raise ExternalRefusal(json.loads(refusal))
+        fields = json.loads(wire)
+        outcome = str(fields["outcome"])
+        if outcome in seen:
+            _invalid_claims("each outcome of a multi-arm decision is estimated once")
+        seen.add(outcome)
+        projected.append(fields)
+    if set(units) != seen:
+        _invalid_claims("units are declared for exactly the outcomes being decided")
+    design_ids = {fields["design_id"] for fields in projected}
+    labels = projected[0]["labels"]
+    if len(design_ids) != 1 or any(fields["labels"] != labels for fields in projected):
+        _invalid_claims("outcomes of one multi-arm decision share one assignment")
+    coordinates: list[ScientificQuantity] = []
+    means: list[float] = []
+    for index, _label in enumerate(labels):
+        for fields in projected:
+            coordinates.append(ScientificQuantity._from_wire(fields["coordinates"][index]))
+            means.append(float(fields["means"][index]))
+    design_id = str(projected[0]["design_id"])
+    return MeanSource(
+        coordinates=tuple(coordinates),
+        means=tuple(means),
+        provider_id=str(projected[0]["provider_id"]),
+        snapshot_id=design_id,
+        causal_contract_id=design_id,
+        rng_id=str(projected[0]["rng_id"]),
+        evidence=(
+            design_id,
+            *(
+                f"{fields['outcome']}:{fields['snapshot_id']}:{fields['program_id']}"
+                for fields in projected
+            ),
+        ),
+    )
+
+
 def experiment_means(evidence: Any, *, execution: Any = None) -> MeanSource:
     """The arm means of every outcome of one experiment, as one mean source.
 
@@ -305,4 +457,12 @@ def experiment_means(evidence: Any, *, execution: Any = None) -> MeanSource:
     )
 
 
-__all__ = ["chain_law", "experiment_means", "experiment_quantity", "joint_law"]
+__all__ = [
+    "MultiArmEvidence",
+    "chain_law",
+    "experiment_means",
+    "experiment_quantity",
+    "joint_law",
+    "multi_arm_means",
+    "multi_arm_quantity",
+]

@@ -50,6 +50,7 @@ nav:
   - From a new experiment to the next study: tutorials/experiment-to-next-study.md
   - Stop, continue or run longer: tutorials/decide-under-uncertainty.md
   - Choose a discount when the cost of a return is a range: tutorials/decide-across-trade-offs.md
+  - Choose an email frequency when the cost of an unsubscribe is a range: tutorials/email-frequency.md
   - Replay and current decisions: tutorials/replay-and-current-decisions.md
   - Estimate an effect from observational data: tutorials/observational-study.md
   - When the comparison group does not overlap: tutorials/when-overlap-fails.md

@@ -452,7 +452,9 @@ a cohort of high-leverage rows are recorded boundaries, not claims.
 ## Values over several outcomes
 
 A decision often weighs benefit against harm or cost. Declare the value once, over named
-attributes, and give each action its quantities by name:
+attributes, and give each action its quantities by name. The arm means of one multi-arm
+experiment are those quantities through `decision.MultiArmEvidence`: one randomized result
+per outcome, the same assignment, one mean per arm.
 
 ```python
 from antecedent import decision
@@ -794,5 +796,6 @@ cancellation and execution memory limits.
 - [Decide from mixed evidence](guides/mixed-decisions.md) and [inverse queries](guides/inverse-outcome.md)
 - [Trade-off ranges in depth](preference-decisions.md) and [learn trade-off ranges](preference-learning.md)
 - [Decide across trade-offs](tutorials/decide-across-trade-offs.md): a worked example
+- [Choose an email frequency](tutorials/email-frequency.md): arm means of a three-arm experiment, with the cost of an unsubscribe left as a range
 - [Rank the next study](design-ranking.md) and [decision reliability](decision-reliability.md)
 - [Beyond the marketing mix](tutorials/beyond-marketing-mix.md): a complete investigation using a shared panel fit

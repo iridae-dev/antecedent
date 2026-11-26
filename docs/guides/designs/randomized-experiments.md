@@ -65,6 +65,8 @@ The design you declare chooses the variance construction. Name the one that matc
 
 Interval thresholds differ by design (for example, about 30 units per arm for a complete randomization and about 30 independent clusters per arm for a cluster design). Intervals are pointwise, never simultaneous across several contrasts.
 
+The published point of a multi-arm result is the contrast of the second action against the first. The arm means are a separate decision source, one mean per arm: [Choose an email frequency when the cost of an unsubscribe is a range](../../tutorials/email-frequency.md).
+
 ### A 2x2 factorial experiment
 
 For two binary factors randomized in four fixed cells, `FactorialRandomization` runs through the same `RandomizedEffect` query. It reports the primary main effect as `effect`, the second factor's main effect as `second_factor_effect`, and the interaction as `factorial_interaction`.
