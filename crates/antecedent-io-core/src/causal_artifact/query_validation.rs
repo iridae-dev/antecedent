@@ -590,71 +590,10 @@ pub(crate) fn validate_query_ids(
         }
         Q::LongitudinalRegime(wire) => {
             validate_id(wire.outcome, variable_count)?;
-            let method = match wire.method.as_str() {
-                "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
-                "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
-                "sequential_dr" => {
-                    antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
-                }
-                "marginal_structural_model" => {
-                    antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
-                }
-                _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
-            };
-            antecedent_core::LongitudinalRegimeQuery {
-                outcome: antecedent_core::VariableId::from_raw(wire.outcome),
-                method,
-                period_outcome_predictions: if wire.period_outcome_predictions.is_empty() {
-                    None
-                } else {
-                    Some(wire.period_outcome_predictions.clone().into())
-                },
-                known_fixed_outcome_predictions: wire.known_fixed_outcome_predictions,
-                stabilizing_numerator_probabilities: if wire
-                    .stabilizing_numerator_probabilities
-                    .is_empty()
-                {
-                    None
-                } else {
-                    Some(wire.stabilizing_numerator_probabilities.clone().into())
-                },
-                q_predictions: if wire.q_predictions.is_empty() {
-                    None
-                } else {
-                    Some(wire.q_predictions.clone().into())
-                },
-                observation_history: if wire.observation_history.is_empty() {
-                    None
-                } else {
-                    Some(wire.observation_history.clone().into())
-                },
-                prediction_fold_ids: if wire.prediction_fold_ids.is_empty() {
-                    None
-                } else {
-                    Some(wire.prediction_fold_ids.clone().into())
-                },
-                periods: wire.periods,
-                treatment_history: wire.treatment_history.clone().into(),
-                regime_actions: wire.regime_actions.clone().into(),
-                treatment_probabilities: wire.treatment_probabilities.clone().into(),
-                censoring_probabilities: wire.censoring_probabilities.clone().into(),
-                outcome_observed: wire.outcome_observed.clone().into(),
-                subject_ids: wire
-                    .subject_ids
-                    .iter()
-                    .map(|s| std::sync::Arc::<str>::from(s.as_str()))
-                    .collect::<Vec<_>>()
-                    .into(),
-                fold_ids: wire.fold_ids.clone().into(),
-                excluded_fold_predictions: wire.excluded_fold_predictions,
-                probabilities_known_by_design: wire.probabilities_known_by_design,
-                minimum_probability: wire.minimum_probability,
-                rule_id: wire.rule_id.as_deref().map(std::sync::Arc::<str>::from),
-                rule_version: wire.rule_version.as_deref().map(std::sync::Arc::<str>::from),
-                rule_provenance: wire.rule_provenance.as_deref().map(std::sync::Arc::<str>::from),
+            if let Some(fit) = wire.fitted_q {
+                validate_id(fit.baseline, variable_count)?;
             }
-            .validate()
-            .map_err(|e| IoError::Convert(e.to_string()))
+            causal_query_from_wire(query).map(|_| ())
         }
         Q::HistoryMatch(wire) => {
             validate_ids(

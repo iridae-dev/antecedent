@@ -78,6 +78,7 @@ pub mod estimator;
 pub mod experimental_fit;
 pub mod external_cyclic_fit;
 pub mod factorial_bernoulli;
+pub use antecedent_stats::fitted_regime_q;
 pub mod frontdoor;
 pub(crate) mod frontdoor_functional;
 pub mod functional_distribution;

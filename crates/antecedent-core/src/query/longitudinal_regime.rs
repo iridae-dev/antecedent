@@ -15,10 +15,24 @@ pub enum LongitudinalRegimeMethod {
     Ipw,
     /// Plug-in g-formula using supplied period reward predictions.
     GFormula,
+    /// Fit a baseline-stratified terminal Q model and refit it in each subject bootstrap.
+    FittedGFormula(FittedRegimeQ),
     /// Backward-recursive augmented value using supplied subject-owned Q scores.
     SequentialDoublyRobust,
     /// Additive binary marginal structural mean with stabilized IPTW.
     MarginalStructuralModel,
+}
+
+/// Compiler-owned two-period cell-mean Q regression and its resampling design.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FittedRegimeQ {
+    /// Complete binary pre-treatment baseline column.
+    pub baseline: VariableId,
+    /// If set, this fold is an independent external training sample and the other fold is the target.
+    /// Otherwise each fold is held out in turn and scored using the other folds.
+    pub external_training_fold: Option<u32>,
+    /// Number of whole-subject bootstrap replicates, preserving the declared folds.
+    pub bootstrap_replicates: u32,
 }
 
 impl CanonicalEncode for LongitudinalRegimeMethod {
@@ -28,6 +42,20 @@ impl CanonicalEncode for LongitudinalRegimeMethod {
             Self::GFormula => 2,
             Self::SequentialDoublyRobust => 3,
             Self::MarginalStructuralModel => 4,
+            Self::FittedGFormula(fit) => {
+                writer.word(5);
+                fit.baseline.encode(writer);
+                match fit.external_training_fold {
+                    Some(fold) => {
+                        writer.word(1).word(u64::from(fold));
+                    }
+                    None => {
+                        writer.word(0);
+                    }
+                }
+                writer.word(u64::from(fit.bootstrap_replicates));
+                return;
+            }
         };
         writer.word(tag);
     }
@@ -192,6 +220,26 @@ impl LongitudinalRegimeQuery {
             (LongitudinalRegimeMethod::Ipw, None) => {}
             (LongitudinalRegimeMethod::GFormula, Some(q))
                 if q.len() == cells && q.iter().all(|v| v.is_finite()) => {}
+            (LongitudinalRegimeMethod::FittedGFormula(fit), None)
+                if self.periods == 2
+                    && fit.baseline != self.outcome
+                    && self.rule_id.is_none()
+                    && self.probabilities_known_by_design
+                    && self.outcome_observed.iter().all(|&observed| observed)
+                    && self
+                        .censoring_probabilities
+                        .iter()
+                        .all(|p| p.to_bits() == 1_f64.to_bits())
+                    && self
+                        .treatment_probabilities
+                        .iter()
+                        .all(|p| p.to_bits() == 0.5_f64.to_bits())
+                    && self
+                        .regime_actions
+                        .chunks_exact(2)
+                        .all(|actions| actions == &self.regime_actions[..2])
+                    && (99..=100_000).contains(&fit.bootstrap_replicates)
+                    && fitted_fold_ownership(&self.fold_ids, fit.external_training_fold) => {}
             (LongitudinalRegimeMethod::MarginalStructuralModel, None)
                 if self.stabilizing_numerator_probabilities.as_ref().is_some_and(|v| {
                     v.len() == self.periods
@@ -287,6 +335,14 @@ impl LongitudinalRegimeQuery {
             ));
         }
         Ok(())
+    }
+}
+
+fn fitted_fold_ownership(folds: &[u32], external: Option<u32>) -> bool {
+    let assigned: std::collections::HashSet<_> = folds.iter().copied().collect();
+    match external {
+        Some(training_fold) => assigned.len() == 2 && assigned.contains(&training_fold),
+        None => assigned.len() >= 2,
     }
 }
 

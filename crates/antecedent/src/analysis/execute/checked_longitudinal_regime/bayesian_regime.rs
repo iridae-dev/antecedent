@@ -80,7 +80,7 @@ impl CheckedLongitudinalRegimeOperation {
         config: &BayesianConfig,
         ctx: &ExecutionContext,
     ) -> Result<StudyResult, CausalError> {
-        let estimation = self.estimate_regime_value(outcome)?;
+        let estimation = self.estimate_regime_value(outcome, data, ctx)?;
         let (Some(observation_history), Some(q_predictions)) =
             (self.query.observation_history.as_deref(), self.query.q_predictions.as_deref())
         else {

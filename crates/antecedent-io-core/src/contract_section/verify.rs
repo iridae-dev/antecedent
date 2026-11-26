@@ -314,7 +314,7 @@ fn note_checked_estimator_operation(
             (Some("randomized.survival_product_limit"), CausalQueryWire::Survival(_)) => {
                 survival_replayed
             }
-            (Some("longitudinal.sequential_dr_regime"), CausalQueryWire::LongitudinalRegime(_)) => longitudinal_replayed,
+            (Some("longitudinal.sequential_dr_regime" | "longitudinal.g_formula_regime"), CausalQueryWire::LongitudinalRegime(_)) => longitudinal_replayed,
             (Some("functional.effect"), CausalQueryWire::Response(_)) => {
                 program.checked_functional_response_grid.is_some()
                     && contract
@@ -1403,6 +1403,20 @@ pub(in crate::contract_section) fn note_published_claim(
             unresolved.push(ContractReason::ClaimCalibrationBasis);
         }
         if let CausalQueryWire::LongitudinalRegime(query) = &body.query
+            && query.method == "fitted_g_formula"
+        {
+            let basis = claim.calibration.basis.as_ref();
+            if basis.map(|basis| basis.key.functional.as_str()) != query.fitted_q_calibration_design()
+                || basis.is_some_and(|basis| {
+                    basis.scope.replicates_ok != body.longitudinal_regime.as_ref()
+                        .and_then(|fit| fit.fitted_q_bootstrap_replicates_ok)
+                        .and_then(|completed| u32::try_from(completed).ok())
+                })
+            {
+                unresolved.push(ContractReason::ClaimCalibrationBasis);
+            }
+        }
+        if let CausalQueryWire::LongitudinalRegime(query) = &body.query
             && query.periods == 4
             && query.method == "sequential_dr"
         {
@@ -1698,6 +1712,18 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
                 && contract.structure_source == "randomized_trial"
                 && key.interval_method == "analytic_se" && key.inference == "Frequentist"
                 && key.se_kind == "subject_score" && key.estimator == "longitudinal.sequential_dr_regime"
+                && key.level.to_bits() == 0.95_f64.to_bits()
+        })
+        || contract.reasoning.support.value.as_ref().is_some_and(|_| {
+            matches!(&contract.target.query, crate::CausalQueryWire::LongitudinalRegime(q)
+                if q.fitted_q_calibration_design() == Some(key.functional.as_str())
+                    && u64::try_from(q.subject_ids.len()) == Ok(basis.scope.row_count))
+                && graphless_validation_ok && key.validation == "not_applicable"
+                && key.query == "LongitudinalRegime" && key.structure == "design"
+                && key.graph_class == "RandomizedTrial" && contract.graph_class == key.graph_class
+                && contract.structure_source == "randomized_trial"
+                && key.interval_method == "percentile_bootstrap" && key.inference == "Frequentist"
+                && key.se_kind.is_empty() && key.estimator == "longitudinal.g_formula_regime"
                 && key.level.to_bits() == 0.95_f64.to_bits()
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|slot| {

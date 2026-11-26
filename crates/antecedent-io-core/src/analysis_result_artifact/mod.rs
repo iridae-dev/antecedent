@@ -1179,6 +1179,10 @@ pub struct LongitudinalRegimeWire {
     /// Pointwise 95% randomized IPW value or MSM intercept interval, when supported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub value_interval_95: Option<[f64; 2]>,
+    /// Completed fitted Q subject-bootstrap refits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fitted_q_bootstrap_replicates_ok: Option<usize>,
+
     /// Pointwise 95% subject-clustered intervals for additive MSM period effects.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub period_intervals_95: Vec<[f64; 2]>,

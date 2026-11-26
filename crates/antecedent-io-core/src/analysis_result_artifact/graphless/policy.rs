@@ -7,8 +7,9 @@ use super::{
     IoError, REPLAY_ABSOLUTE, REPLAY_ABSOLUTE_LOOSE, REPLAY_PAIR, graphless_admits,
     graphless_status_ok, interval_bound_replay,
 };
-
-use antecedent_stats::longitudinal_regime::{common_regime_schedule, four_period_sequential_dr_support};
+use antecedent_stats::longitudinal_regime::{
+    common_regime_schedule, four_period_sequential_dr_support,
+};
 
 // allow(too_many_lines): one family's full artifact validation is a single contract read top to bottom.
 #[allow(
@@ -125,6 +126,13 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
     } else {
         None
     };
+    let fitted_q = query.fitted_q.filter(|_| query.method == "fitted_g_formula");
+    let eligible_fitted_q = fitted_q.is_some_and(|fit| {
+        let requested = fit.bootstrap_replicates as usize;
+        regime.fitted_q_bootstrap_replicates_ok.is_some_and(|completed| {
+            completed >= 99 && completed <= requested && (requested - completed) * 20 <= requested
+        }) && regime.value_standard_error.is_some_and(|se| se.is_finite() && se >= 0.0)
+    });
     let expected_reason = match query.method.as_str() {
         "ipw" if regime.value_interval_95.is_none() => {
             Some("insufficient_independent_subject_support_or_degenerate_score")
@@ -156,6 +164,8 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
         "pointwise_subject_score_conditional_excluded_fold_q_95"
     } else if query.method == "g_formula" && regime.value_interval_95.is_some() {
         "pointwise_subject_score_conditional_fixed_known_q_95"
+    } else if fitted_q.is_some() {
+        "pointwise_whole_subject_refit_percentile_95"
     } else if regime.value_interval_95.is_some() {
         "pointwise_subject_score_95"
     } else {
@@ -178,6 +188,9 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
         reason = "wire interval bounds must equal the recomputed values exactly; drift is a real mismatch"
     )]
     let interval_valid = match regime.value_interval_95 {
+        Some([lo, hi]) if fitted_q.is_some() => {
+            eligible_fitted_q && lo.is_finite() && hi.is_finite() && lo <= hi
+        }
         Some(bounds) => {
             let se = regime.value_standard_error.unwrap_or(f64::NAN);
             let span = antecedent_stats::normal_ppf(0.975) * se;
@@ -193,7 +206,7 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
                 && tolerance.close(bounds[0], regime.value - span)
                 && tolerance.close(bounds[1], regime.value + span)
         }
-        None => true,
+        None => fitted_q.is_none(),
     };
     let period_intervals_valid = if regime.period_intervals_95.is_empty() {
         regime.value_interval_95.is_none() || query.method != "marginal_structural_model"
@@ -300,9 +313,11 @@ pub(in crate::analysis_result_artifact) fn validate_longitudinal_graphless(
                 || se < 0.0
                 || !(matches!(query.method.as_str(), "ipw" | "marginal_structural_model")
                     || query.method == "g_formula" && g_formula_expected.is_some()
+                    || eligible_fitted_q
                     || query.method == "sequential_dr" && regime.value_interval_95.is_some())
         })
         || !interval_valid
+        || regime.fitted_q_bootstrap_replicates_ok.is_some() != fitted_q.is_some()
         || !period_intervals_valid
         || query.method == "sequential_dr" && regime.interval_reason.as_deref() != expected_reason
         || regime.interval_reason.as_deref().is_some_and(|reason| Some(reason) != expected_reason)

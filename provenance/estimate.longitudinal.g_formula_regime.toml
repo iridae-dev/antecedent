@@ -12,6 +12,7 @@ papers = [
 implementation_deviations = [
  "Conditional period rewards are caller-supplied. When the query says they are fixed and known, the interval excludes all fitted, selected, or cross-fitted Q uncertainty. The caller attests that claim.",
  "The supported pointwise interval is for a short horizon of independent subjects under known sequential randomization. Longer horizons do not inherit it.",
+ "The fitted two-decision construction integrates a binary pre-treatment baseline with no evolving covariates or censoring. It learns conditional cell means under the fixed schedule and resamples whole subjects within the declared fold partitions. Internal evaluation excludes the fitted subject fold; external training uses a declared independent partition and standardizes to the other partition.",
  "This is not the marginal structural model and not the sequential doubly robust score.",
 ]
 
@@ -20,6 +21,7 @@ upstream_implementations_observed = []
 test_sources = [
  "crates/antecedent-stats/src/longitudinal_regime.rs",
  "crates/antecedent/tests/longitudinal_regime_route.rs",
+ "crates/antecedent/tests/longitudinal_regime_calibration.rs (separate coverage designs for internal and external fitted Q)",
   "crates/antecedent-stats/tests/longitudinal_regime_reference.rs (exact rational IPW, g-formula and telescoped sequential doubly robust values on five histories)",
 ]
 

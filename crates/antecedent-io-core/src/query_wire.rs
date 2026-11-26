@@ -1105,6 +1105,9 @@ pub struct LongitudinalRegimeQueryWire {
     /// Point estimator. Defaults to IPW for older artifacts.
     #[serde(default = "default_longitudinal_method")]
     pub method: String,
+    /// Compiler-owned Q fit and bootstrap declaration, present for the fitted method.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fitted_q: Option<FittedRegimeQWire>,
     /// Caller-supplied conditional period rewards for g-formula.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub period_outcome_predictions: Vec<f64>,
@@ -1156,7 +1159,42 @@ pub struct LongitudinalRegimeQueryWire {
     pub rule_provenance: Option<String>,
 }
 
+/// Fitted two-period g-formula declaration in a query artifact.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct FittedRegimeQWire {
+    /// Baseline stratum variable.
+    pub baseline: u32,
+    /// Independently collected training partition, when one is declared.
+    pub external_training_fold: Option<u32>,
+    /// Whole-subject refit replicate count.
+    pub bootstrap_replicates: u32,
+}
+
 impl LongitudinalRegimeQueryWire {
+    /// Match the fitted-Q interval's declared split and resample design to its coverage study.
+    #[must_use]
+    pub fn fitted_q_calibration_design(&self) -> Option<&'static str> {
+        let fit = self.fitted_q?;
+        let cells = self.subject_ids.len().checked_mul(2)?;
+        if self.method != "fitted_g_formula"
+            || self.periods != 2
+            || fit.bootstrap_replicates != 199
+            || cells == 0
+            || self.regime_actions.len() != cells
+            || self.regime_actions.iter().any(|&action| !action)
+            || self.fold_ids.len() != self.subject_ids.len()
+            || self.fold_ids.iter().enumerate().any(|(i, &fold)| i % 2 != fold as usize)
+        {
+            return None;
+        }
+        match fit.external_training_fold {
+            Some(0) => Some("fitted_q_binary_baseline_h2_external_split"),
+            None => Some("fitted_q_binary_baseline_h2_internal_crossfit"),
+            Some(_) => None,
+        }
+    }
+
     /// Four-decision assignment and observation laws in the calibration study.
     #[must_use]
     pub fn four_period_dr_calibration_design(&self) -> Option<&'static str> {

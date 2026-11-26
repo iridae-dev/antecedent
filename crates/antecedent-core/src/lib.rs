@@ -170,7 +170,7 @@ pub use query::{
     DistributionAvailability, EXPOSURE_LEVEL_TOLERANCE, Environment, EvidenceCatalog,
     EvidenceCatalogDelta, EvidenceKind, EvidenceProjection, EvidenceRegime, ExposureLevel,
     ExposureMapping, ExposurePropensityProvenance, FactorNeed, FeedbackDeclaration,
-    FixedCandidateRegretInputs, FixedGroupDosePolicy, GridSpec, HistoryMatchFault,
+    FittedRegimeQ, FixedCandidateRegretInputs, FixedGroupDosePolicy, GridSpec, HistoryMatchFault,
     HistoryMatchQuery, InterferenceFault, InterferenceFunctional, InterferenceQuery,
     InterventionAssignment, InterventionFault, InterventionalDistributionQuery, IvBoundsFault,
     IvBoundsQuery, KnownCensoringSurvival, StratifiedCensoringSurvival, LawOrigin, LocalPolynomialRatioFault,

@@ -14,11 +14,13 @@ use antecedent_core::LongitudinalRegimeMethod;
 use antecedent_core::{
     Assumption, AssumptionRecord, AssumptionScope, AssumptionSource, AssumptionStatus,
 };
+use antecedent_estimate::fitted_regime_q::{
+    FittedRegimeQSummary, FittedRegimeRows, estimate_fitted_regime_q,
+};
 use antecedent_estimate::longitudinal_regime::{
     RegimeKernelError, RegimeValueSummary, common_regime_schedule, evaluate_g_formula_value,
-    evaluate_regime_value,
-    evaluate_sequential_dr_value_with_subject_scores, g_formula_fixed_q_pointwise_interval_95,
-    sequential_dr_pointwise_interval_95,
+    evaluate_regime_value, evaluate_sequential_dr_value_with_subject_scores,
+    g_formula_fixed_q_pointwise_interval_95, sequential_dr_pointwise_interval_95,
 };
 use antecedent_estimate::marginal_structural_model::{MsmIntervals95, MsmSummary, fit_binary_msm};
 
@@ -98,7 +100,10 @@ impl CheckedLongitudinalRegimeOperation {
         } else {
             match query.method {
                 LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
-                LongitudinalRegimeMethod::GFormula => EstimatorId::LongitudinalGFormulaRegime,
+                LongitudinalRegimeMethod::GFormula
+                | LongitudinalRegimeMethod::FittedGFormula(_) => {
+                    EstimatorId::LongitudinalGFormulaRegime
+                }
                 LongitudinalRegimeMethod::SequentialDoublyRobust => {
                     EstimatorId::LongitudinalSequentialDrRegime
                 }
@@ -137,7 +142,7 @@ impl CheckedLongitudinalRegimeOperation {
         if let Some(config) = self.extra.as_ref() {
             return self.execute_bayesian(data, outcome, config, ctx);
         }
-        let estimation = self.estimate_regime_value(outcome)?;
+        let estimation = self.estimate_regime_value(outcome, data, ctx)?;
         let intervals = self.regime_intervals(&estimation);
         let (diagnostic, description) = published_diagnostic(&estimation, &intervals);
         let graphless_supported = self.graphless_supported(&estimation.summary, &intervals);
@@ -228,9 +233,15 @@ impl CheckedLongitudinalRegimeOperation {
     }
 
     /// Evaluates the method's point value and keeps the MSM fit or DR subject scores the interval phase needs.
-    fn estimate_regime_value(&self, outcome: &[f64]) -> Result<RegimeEstimation, CausalError> {
+    fn estimate_regime_value(
+        &self,
+        outcome: &[f64],
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<RegimeEstimation, CausalError> {
         let mut msm: Option<MsmSummary> = None;
         let mut dr_scores: Option<Vec<f64>> = None;
+        let mut fitted_q = None;
         // `LongitudinalRegimeQuery::validate`, run in the prepare pipeline,
         // refuses any query whose method-conditional fields (g-formula
         // `period_outcome_predictions`, sequential-DR `q_predictions` and
@@ -268,6 +279,38 @@ impl CheckedLongitudinalRegimeOperation {
                     "g_formula",
                     "estimate.longitudinal.g_formula_regime.point_only",
                     "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
+                )
+            }
+            LongitudinalRegimeMethod::FittedGFormula(fit) => {
+                let baseline = data.float64_values(fit.baseline).map_err(CausalError::from)?;
+                let summary = estimate_fitted_regime_q(
+                    &FittedRegimeRows {
+                        baseline: &baseline,
+                        actions: &self.query.treatment_history,
+                        outcomes: outcome,
+                        folds: &self.query.fold_ids,
+                    },
+                    [self.query.regime_actions[0], self.query.regime_actions[1]],
+                    fit.external_training_fold,
+                    fit.bootstrap_replicates as usize,
+                    ctx,
+                )
+                .map_err(|error| CausalError::Estimate(error.into()))?;
+                fitted_q = Some(summary);
+                (
+                    Ok(RegimeValueSummary {
+                        value: summary.value,
+                        effective_sample_size: summary.evaluation_subjects as f64,
+                        matched_observed_fraction: 1.0,
+                        maximum_weight: 1.0,
+                        minimum_action_probability: 0.5,
+                        minimum_censoring_probability: 1.0,
+                        score_standard_error: None,
+                    }),
+                    EstimatorId::LongitudinalGFormulaRegime,
+                    "fitted_g_formula",
+                    "estimate.longitudinal.g_formula_regime.whole_subject_refit_percentile_95",
+                    "fixed two-decision regime value from fold-owned baseline-stratified terminal Q means, with a pointwise percentile interval that repeats fit and evaluation within each subject resample",
                 )
             }
             LongitudinalRegimeMethod::SequentialDoublyRobust => {
@@ -320,6 +363,7 @@ impl CheckedLongitudinalRegimeOperation {
             description,
             msm,
             dr_scores,
+            fitted_q,
         })
     }
 
@@ -356,7 +400,6 @@ impl CheckedLongitudinalRegimeOperation {
             {
                 return None;
             }
-
             let matched = (0..self.rows)
                 .filter(|&i| {
                     self.query.outcome_observed[i]
@@ -514,13 +557,16 @@ impl CheckedLongitudinalRegimeOperation {
                 .as_ref()
                 .map(|fit| fit.intercept_standard_error)
                 .or(estimation.summary.score_standard_error)
+                .or_else(|| estimation.fitted_q.map(|fit| fit.standard_error))
                 .or_else(|| intervals.dr.map(|(se, _)| se))
                 .or_else(|| intervals.g_formula.map(|(se, _)| se)),
             value_interval_95: intervals
                 .ipw
                 .or_else(|| intervals.msm.as_ref().map(|intervals| intervals.intercept))
                 .or_else(|| intervals.dr.map(|(_, bounds)| bounds))
+                .or_else(|| estimation.fitted_q.map(|fit| fit.interval))
                 .or_else(|| intervals.g_formula.map(|(_, bounds)| bounds)),
+            fitted_q_bootstrap_replicates_ok: estimation.fitted_q.map(|fit| fit.replicates_ok),
             period_intervals_95: intervals
                 .msm
                 .as_ref()
@@ -539,6 +585,8 @@ impl CheckedLongitudinalRegimeOperation {
                 "pointwise_subject_score_conditional_excluded_fold_q_95"
             } else if intervals.g_formula.is_some() {
                 "pointwise_subject_score_conditional_fixed_known_q_95"
+            } else if estimation.fitted_q.is_some() {
+                "pointwise_whole_subject_refit_percentile_95"
             } else if intervals.ipw.is_some() {
                 "pointwise_subject_score_95"
             } else {
@@ -582,6 +630,7 @@ struct RegimeEstimation {
     description: &'static str,
     msm: Option<MsmSummary>,
     dr_scores: Option<Vec<f64>>,
+    fitted_q: Option<FittedRegimeQSummary>,
 }
 
 /// Pointwise 95% intervals each method may publish for the regime value.
@@ -683,6 +732,20 @@ fn longitudinal_assumptions(
             );
         }
     }
+    if let LongitudinalRegimeMethod::FittedGFormula(fit) = query.method {
+        declare_custom(
+            &mut assumptions,
+            "fitted_q_baseline_stratum",
+            "the declared binary variable is recorded before first assignment and the endpoint mean under the fixed schedule is learned within its strata",
+        );
+        if fit.external_training_fold.is_some() {
+            declare_custom(
+                &mut assumptions,
+                "external_q_training_sample",
+                "the declared training subjects are independently sampled, and their conditional endpoint mean under the schedule applies to target subjects at the same baseline stratum",
+            );
+        }
+    }
     if query.method == LongitudinalRegimeMethod::SequentialDoublyRobust {
         for (id, description) in [
             (
@@ -739,6 +802,7 @@ fn longitudinal_identification(
     let rule = match query.method {
         LongitudinalRegimeMethod::Ipw => "longitudinal.sequential_randomization",
         LongitudinalRegimeMethod::GFormula => "longitudinal.g_formula",
+        LongitudinalRegimeMethod::FittedGFormula(_) => "longitudinal.fitted_g_formula",
         LongitudinalRegimeMethod::SequentialDoublyRobust => "longitudinal.sequential_dr",
         LongitudinalRegimeMethod::MarginalStructuralModel => {
             "longitudinal.marginal_structural_model"

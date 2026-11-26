@@ -1194,6 +1194,129 @@ fn sequential_dr_refuses_split_q_fold_and_reappearing_subject() {
     assert!(q.validate().is_err());
 }
 
+#[test]
+#[allow(clippy::too_many_lines, reason = "one shared fixture") ]
+fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstraps() {
+    use antecedent::analysis::composition::{BundleBuilder, consume, export_bundle};
+    use antecedent_core::{FittedRegimeQ, LongitudinalRegimeMethod, StreamDomain};
+
+    let n = 800;
+    let replicates = 199;
+    let baseline: Vec<_> = (0..n).map(|i| ((i / 4) % 2) as f64).collect();
+    let outcomes: Vec<_> = (0..n)
+        .map(|i| {
+            1.0 + (i & 1) as f64
+                + 2.0 * f64::from(i & 2 != 0)
+                + 3.0 * baseline[i]
+                + 2.0 * ((i / 16 % 11) as f64 - 5.0)
+        })
+        .collect();
+    let data = TabularData::from_f64_columns([
+        ("outcome", outcomes.as_slice()),
+        ("baseline", baseline.as_slice()),
+    ])
+    .unwrap();
+    let mut q = query();
+    q.treatment_history = (0..n).flat_map(|i| [i & 1 != 0, i & 2 != 0]).collect();
+    q.regime_actions = vec![true; n * 2].into();
+    q.treatment_probabilities = vec![0.5; n * 2].into();
+    q.censoring_probabilities = vec![1.0; n * 2].into();
+    q.outcome_observed = vec![true; n].into();
+    q.subject_ids = (0..n).map(|i| Arc::<str>::from(format!("fitted-{i}"))).collect();
+    q.fold_ids = (0..n).map(|i| ((i / 8) % 2) as u32).collect();
+    let members: [Vec<_>; 2] =
+        std::array::from_fn(|fold| (0..n).filter(|&i| q.fold_ids[i] == fold as u32).collect());
+    let ctx = ExecutionContext::for_tests(195);
+
+    let reference = |groups: &[Vec<usize>; 2], external: bool| {
+        let mut predictions = Vec::new();
+        for eval_fold in if external { 1..2 } else { 0..2 } {
+            let training = &groups[1 - eval_fold];
+            for &i in &groups[eval_fold] {
+                let matching =
+                    training.iter().copied().filter(|&j| j % 4 == 3 && baseline[j] == baseline[i]);
+                let (sum, count) =
+                    matching.fold((0.0, 0), |(sum, count), j| (sum + outcomes[j], count + 1));
+                assert!(count > 0);
+                predictions.push(sum / f64::from(count));
+            }
+        }
+        predictions.iter().sum::<f64>() / predictions.len() as f64
+    };
+    let quantile = |values: &[f64], probability: f64| {
+        let rank = probability * (values.len() - 1) as f64;
+        let lower = values[rank.floor() as usize];
+        let upper = values[rank.ceil() as usize];
+        lower + rank.fract() * (upper - lower)
+    };
+    let mut fit_widths = Vec::new();
+    for external in [false, true] {
+        q.method = LongitudinalRegimeMethod::FittedGFormula(FittedRegimeQ {
+            baseline: VariableId::from_raw(1),
+            external_training_fold: external.then_some(0),
+            bootstrap_replicates: replicates,
+        });
+        let prepared = Study::tabular(data.clone())
+            .query(CausalQuery::LongitudinalRegime(q.clone()))
+            .build()
+            .unwrap()
+            .prepare(&ctx)
+            .unwrap();
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let fit = result.longitudinal_regime().unwrap();
+        assert_close(fit.value, reference(&members, external), 1e-12, "full-refit point");
+        assert_eq!(fit.fitted_q_bootstrap_replicates_ok, Some(replicates as usize));
+        let mut draws: Vec<_> = (0..replicates)
+            .map(|replicate| {
+                let mut rng = ctx.rng.stream_for(
+                    StreamDomain::Resample,
+                    0x5126_7740_0000_0000 | u64::from(replicate),
+                );
+                let selected = members.each_ref().map(|original| {
+                    (0..original.len())
+                        .map(|_| {
+                            original[antecedent_kernels::unbiased_index(&mut rng, original.len())]
+                        })
+                        .collect()
+                });
+                reference(&selected, external)
+            })
+            .collect();
+        draws.sort_by(f64::total_cmp);
+        let interval = fit.value_interval_95.unwrap();
+        assert_close(interval[0], quantile(&draws, 0.025), 1e-12, "full-refit lower percentile");
+        assert_close(interval[1], quantile(&draws, 0.975), 1e-12, "full-refit upper percentile");
+        fit_widths.push(interval[1] - interval[0]);
+        let sourced = prepared
+            .encode_contracted_result_with_source(&result, &data, "fitted-q", &ctx)
+            .unwrap();
+        let consumed = antecedent_io::replay_analysis_result(&sourced).unwrap();
+        assert!(consumed.acceptance.accepts_as_claim(), "{:?}", consumed.acceptance.unresolved);
+        assert_eq!(consumed.body.longitudinal_regime.unwrap().value_interval_95, Some(interval));
+        let mut builder = BundleBuilder::new();
+        builder.add_detected_artifact(Some("fit"), &sourced).unwrap();
+        let bundle = builder.build().unwrap();
+        let bytes = export_bundle(&bundle, "fitted-q-bundle").unwrap();
+        let replayed = consume(&bytes, bundle.identity(), &Default::default()).unwrap();
+        assert_eq!(replayed.value("fit", "upper_95"), Some(interval[1]));
+    }
+
+    q.method = LongitudinalRegimeMethod::GFormula;
+    q.known_fixed_outcome_predictions = true;
+    q.period_outcome_predictions =
+        Some(baseline.iter().flat_map(|x| [0.0, 4.0 + 3.0 * x]).collect());
+    let result = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(q))
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap()
+        .estimate(&data, &ctx)
+        .unwrap();
+    let fixed = result.longitudinal_regime().unwrap().value_interval_95.unwrap();
+    assert!(fit_widths.iter().all(|width| *width > 3.0 * (fixed[1] - fixed[0])));
+}
+
 /// Bind `data` on a new branch, materialize and estimate it, then adopt the branch as the handle.
 /// A failure leaves the handle unchanged, as the immutable lifecycle does.
 fn rebind_estimate(

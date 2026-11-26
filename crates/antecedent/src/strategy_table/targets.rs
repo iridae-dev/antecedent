@@ -1063,7 +1063,10 @@ fn facet_of(query: &CausalQuery, site: Option<Site>) -> Facet {
         } else {
             PolicyShape::DoublyRobust
         }),
-        CausalQuery::LongitudinalRegime(regime) => Facet::Longitudinal(regime.method),
+        CausalQuery::LongitudinalRegime(regime) => Facet::Longitudinal(match regime.method {
+            LongitudinalRegimeMethod::FittedGFormula(_) => LongitudinalRegimeMethod::GFormula,
+            method => method,
+        }),
         CausalQuery::TemporalDesign(design) => Facet::TemporalDesign(
             if matches!(design.assignment, TemporalAssignment::RegimeSurvival { .. }) {
                 TemporalDesignShape::RegimeSurvival

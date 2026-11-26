@@ -499,7 +499,7 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             "a replayed longitudinal interval is required",
         ));
     };
-    if query.periods != 4 || query.method != "sequential_dr" || fit.value_interval_95.is_none() {
+    if !(query.periods == 4 && query.method == "sequential_dr" || query.periods == 2 && query.method == "fitted_g_formula") || fit.value_interval_95.is_none() {
         return Err(failure(BundleStage::SwappedEvidence, "a source-backed four-decision DR interval is required"));
     }
     let digest = |bytes| antecedent_core::SemanticDigest::from_bytes(bytes).to_hex();
@@ -918,7 +918,8 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
                 incidence_source_inspection::is_delayed_entry_incidence(&body)
                     .then_some(NodeKind::DelayedEntryIncidenceResult)
                     .or_else(|| matches!(&body.query, antecedent_io_core::CausalQueryWire::LongitudinalRegime(query)
-                        if query.periods == 4 && query.method == "sequential_dr")
+                        if query.periods == 4 && query.method == "sequential_dr"
+                            || query.periods == 2 && query.method == "fitted_g_formula")
                         .then_some(NodeKind::LongitudinalRegimeResult))
             }
         }

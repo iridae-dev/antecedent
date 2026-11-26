@@ -1066,6 +1066,7 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         value=section.value,
         value_standard_error=section.value_standard_error,
         value_interval_95=section.value_interval_95,
+        fitted_q_bootstrap_replicates_ok=section.fitted_q_bootstrap_replicates_ok,
         period_intervals_95=(
             tuple(tuple(bounds) for bounds in section.period_intervals_95)
             if section.period_intervals_95 is not None

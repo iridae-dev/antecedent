@@ -2833,3 +2833,24 @@ status = "REFUSED"
 detail = "The embedded result needs its endpoint witness, and a replacement bundle refuses a consumer that retained the previous identity."
 evidence_test = "crates/antecedent/tests/longitudinal_regime_route.rs"
 evidence_assertion = "four_period_sequential_dr_interval_matches_the_forward_score_and_replays"
+
+[[rust_cell]]
+producer = "two_period_fitted_q"
+consumer = "longitudinal_interval_replay"
+status = "DIRECT"
+detail = "Source replay refits the baseline-stratified Q model on the declared training partitions and reruns every subject-bootstrap replicate from the retained seed."
+evidence_test = "crates/antecedent/tests/longitudinal_regime_route.rs"
+evidence_assertion = "fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstraps"
+
+[[rust_cell]]
+producer = "two_period_fitted_q"
+consumer = "longitudinal_interval_bundle"
+status = "DIRECT"
+detail = "The bundle reads the source-bearing two-period outcome regression and publishes the replayed estimate and percentile bounds."
+evidence_test = "crates/antecedent/tests/longitudinal_regime_route.rs"
+evidence_assertion = "fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstraps"
+
+[[rust_producer]]
+key = "two_period_fitted_q"
+object = "two-period fitted g-formula value with a whole-subject percentile interval"
+built_from = "`LongitudinalRegimeMethod::FittedGFormula(FittedRegimeQ)` and contracted export with the baseline and endpoint source table"

@@ -236,6 +236,11 @@ impl StudyResult {
         {
             return IntervalBinding::new(M::AnalyticSe, fit.coverage, base);
         }
+        if let Some(completed) = self.longitudinal_regime().and_then(|fit| fit.fitted_q_bootstrap_replicates_ok) {
+            let mut binding = IntervalBinding::new(M::PercentileBootstrap, REPORTED_SE_INTERVAL_LEVEL, base);
+            binding.replicates_ok = draws_u32(completed);
+            return binding;
+        }
         if self.posterior.is_some() {
             let method = if self
                 .sequential_contrast()

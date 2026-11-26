@@ -15405,3 +15405,19 @@ target = "longitudinal_regime_calibration"
 tests = ["four_period_sequential_dr_coverage"]
 ignored = true
 grid = true
+
+[[group]]
+label = "longitudinal_regime_calibration: two_period_fitted_q_internal_crossfit_coverage"
+package = "antecedent"
+target = "longitudinal_regime_calibration"
+tests = ["two_period_fitted_q_internal_crossfit_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "longitudinal_regime_calibration: two_period_fitted_q_external_split_coverage"
+package = "antecedent"
+target = "longitudinal_regime_calibration"
+tests = ["two_period_fitted_q_external_split_coverage"]
+ignored = true
+grid = true

@@ -510,12 +510,21 @@ fn longitudinal_regime_to_wire(q: &antecedent_core::LongitudinalRegimeQuery) -> 
         method: match q.method {
             antecedent_core::LongitudinalRegimeMethod::Ipw => "ipw",
             antecedent_core::LongitudinalRegimeMethod::GFormula => "g_formula",
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(_) => "fitted_g_formula",
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => "sequential_dr",
             antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel => {
                 "marginal_structural_model"
             }
         }
         .into(),
+        fitted_q: match q.method {
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) => Some(super::FittedRegimeQWire {
+                baseline: fit.baseline.raw(),
+                external_training_fold: fit.external_training_fold,
+                bootstrap_replicates: fit.bootstrap_replicates,
+            }),
+            _ => None,
+        },
         period_outcome_predictions: q
             .period_outcome_predictions
             .as_ref()

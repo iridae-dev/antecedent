@@ -27,12 +27,38 @@ Regime: TypeAlias = Sequence[bool] | HistoryPolicy
 
 
 @dataclass(frozen=True, slots=True)
+class FittedRegimeQ:
+    """A fitted terminal Q mean within a binary pre-treatment baseline stratum.
+
+    The fitted g-formula scope is a common two-decision schedule, fair-coin
+    randomization, and complete outcomes. Each replicate resamples whole subjects
+    in their folds and refits Q. An external training fold identifies a separate
+    sample and the other fold provides the target baseline distribution. Without
+    a training fold, every fold is held out in turn.
+    """
+
+    baseline: str
+    bootstrap_replicates: int = 399
+    external_training_fold: int | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.baseline, str) or not self.baseline.strip():
+            raise CausalValueError("fitted Q needs a named binary baseline column")
+        if type(self.bootstrap_replicates) is not int or not 99 <= self.bootstrap_replicates <= 100_000:
+            raise CausalValueError("fitted Q needs 99 to 100000 whole-subject bootstrap replicates")
+        if self.external_training_fold is not None and (
+            type(self.external_training_fold) is not int or not 0 <= self.external_training_fold < 2**32
+        ):
+            raise CausalValueError("external_training_fold must be a nonnegative 32-bit fold ID")
+
+
+@dataclass(frozen=True, slots=True)
 class LongitudinalRegime:
     """Prespecified binary regime over complete subject histories.
 
     Each outcome row belongs to one subject. Assignment probabilities are
-    known from the sequential randomized design; the retained route reports
-    a regime value without an interval.
+    known from the sequential randomized design. Interval construction and
+    support depend on the declared method and its subject histories.
     """
 
     outcome: str
@@ -40,9 +66,10 @@ class LongitudinalRegime:
     actions: Sequence[bool] | Sequence[Sequence[bool]]
     treatment_probabilities: Sequence[Sequence[float]]
     subject_ids: Sequence[str] | str
-    method: Literal["ipw", "g_formula", "sequential_dr", "marginal_structural_model"] = "ipw"
+    method: Literal["ipw", "g_formula", "fitted_g_formula", "sequential_dr", "marginal_structural_model"] = "ipw"
     period_outcome_predictions: Sequence[Sequence[float]] | None = None
     known_fixed_outcome_predictions: bool = False
+    fitted_q: FittedRegimeQ | None = None
     stabilizing_numerator_probabilities: Sequence[float] | None = None
     q_predictions: Sequence[Sequence[float]] | None = None
     observation_history: Sequence[Sequence[bool]] | None = None
@@ -109,8 +136,13 @@ class LongitudinalRegime:
                 raise CausalValueError(
                     "dynamic rule identity is not applicable to marginal_structural_model"
                 )
-        if self.method not in ("ipw", "g_formula", "sequential_dr", "marginal_structural_model"):
+        if self.method not in ("ipw", "g_formula", "fitted_g_formula", "sequential_dr", "marginal_structural_model"):
             raise CausalValueError("unknown longitudinal method")
+        if self.method == "fitted_g_formula":
+            if not isinstance(self.fitted_q, FittedRegimeQ) or self.fitted_q.baseline == self.outcome:
+                raise CausalValueError("fitted_g_formula needs a fitted Q declaration with a distinct baseline")
+        elif self.fitted_q is not None:
+            raise CausalValueError("fitted_q requires fitted_g_formula")
         numerator = (
             None
             if self.stabilizing_numerator_probabilities is None
@@ -144,7 +176,7 @@ class LongitudinalRegime:
                     "g_formula requires finite subject-by-period outcome predictions"
                 )
         elif predictions is not None:
-            raise CausalValueError("ipw does not accept period_outcome_predictions")
+            raise CausalValueError("period_outcome_predictions require g_formula")
         if not isinstance(self.known_fixed_outcome_predictions, bool) or (
             self.known_fixed_outcome_predictions and self.method != "g_formula"
         ):
@@ -448,6 +480,7 @@ class LongitudinalRegimeEstimate:
     minimum_censoring_probability: float
     value_standard_error: float | None = None
     value_interval_95: tuple[float, float] | None = None
+    fitted_q_bootstrap_replicates_ok: int | None = None
     period_intervals_95: tuple[tuple[float, float], ...] | None = None
     interval_reason: str | None = None
     method: str = "ipw"
@@ -1331,6 +1364,7 @@ def trajectory_hazard_credible_interval(
 
 
 __all__ = [
+    "FittedRegimeQ",
     "TrajectorySurvivalIntervals",
     "trajectory_hazard_credible_interval",
     "trajectory_survival_bootstrap",

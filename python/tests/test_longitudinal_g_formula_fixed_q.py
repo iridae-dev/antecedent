@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import antecedent as ant
 import pytest
+from antecedent import composition_bundle as cb
 from antecedent.outcomes import require_success
-from antecedent.regimes import LongitudinalRegime
+from antecedent.regimes import FittedRegimeQ, LongitudinalRegime
 
 
 def _query(subjects: int, *, known: bool) -> LongitudinalRegime:
@@ -50,3 +51,58 @@ def test_fixed_known_q_interval_withholds_thin_subjects() -> None:
     ).longitudinal_regime
     assert result.value_interval_95 is None
     assert "insufficient" in result.interval_reason
+
+
+@pytest.mark.parametrize("external", [False, True])
+def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bool) -> None:
+    n = 800
+    treatment = [[bool(i & 1), bool(i & 2)] for i in range(n)]
+    baseline = [float(i // 4 % 2) for i in range(n)]
+    folds = [i // 8 % 2 for i in range(n)]
+    outcomes = [
+        1.0 + row[0] + 2.0 * row[1] + 3.0 * baseline[i] + 2.0 * (i // 16 % 11 - 5)
+        for i, row in enumerate(treatment)
+    ]
+    data = {"outcome": outcomes, "baseline": baseline}
+    query = LongitudinalRegime(
+        outcome="outcome",
+        method="fitted_g_formula",
+        fitted_q=FittedRegimeQ("baseline", bootstrap_replicates=199,
+                              external_training_fold=0 if external else None),
+        treatment_history=treatment,
+        actions=[True, True],
+        treatment_probabilities=[[0.5] * 2] * n,
+        subject_ids=[f"fitted-{i}" for i in range(n)],
+        fold_ids=folds,
+    )
+    predictions = []
+    for i in range(n):
+        if external and folds[i] == 0:
+            continue
+        training = [outcomes[j] for j in range(n) if folds[j] != folds[i]
+                    and all(treatment[j]) and baseline[j] == baseline[i]]
+        predictions.append(sum(training) / len(training))
+    result = require_success(ant.analyze(data, query=query))
+    value = result.longitudinal_regime
+    assert value.value == pytest.approx(sum(predictions) / len(predictions))
+    assert value.effective_sample_size == len(predictions)
+    assert value.fitted_q_bootstrap_replicates_ok == 199
+    assert value.uncertainty == "pointwise_whole_subject_refit_percentile_95"
+    sourced = bytes(result.export(source_data=data))
+    artifact = require_success(ant.load(sourced)).replay()
+    assert artifact.acceptance.replayed
+    assert artifact.decoded_artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(
+        value.value_interval_95
+    )
+    bundle = cb.BundleBuilder().add_artifact(sourced, node_id="regime").build()
+    consumed = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+    assert consumed.value("regime", "upper_95") == value.value_interval_95[1]
+
+    revised_data = {"outcome": [y + 1000.0 * fold for y, fold in zip(outcomes, folds, strict=True)],
+                    "baseline": baseline}
+    revised = require_success(ant.analyze(revised_data, query=query)).longitudinal_regime
+    if external:
+        assert revised.value == value.value
+        assert revised.value_interval_95 == value.value_interval_95
+    else:
+        assert revised.value > value.value + 400.0

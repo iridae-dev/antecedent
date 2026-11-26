@@ -55,6 +55,14 @@ pub(super) fn four_period_dr_design(
     query.four_period_dr_calibration_design()
 }
 
+pub(super) fn fitted_q_design(result: &StudyResult, contract: &CausalContract) -> Option<&'static str> {
+    let antecedent_io::CausalQueryWire::LongitudinalRegime(query) = &contract.body.query else {
+        return None;
+    };
+    result.longitudinal_regime()?.fitted_q_bootstrap_replicates_ok?;
+    query.fitted_q_calibration_design()
+}
+
 impl StudyResult {
     /// Calibration match bases of every interval this execution reported
     /// ([`StudyResult::reported_interval_bindings`]), primary first: the keys
@@ -136,6 +144,12 @@ impl StudyResult {
                     && contract.graph_class == GraphClass::RandomizedTrial
                     && contract.structure_source == StructureSource::RandomizedTrial
                     && four_period_dr_design(self, contract).is_some() => "not_applicable",
+            (Some(executed), None)
+                if executed_from(&executed)
+                    && executed.refute == crate::RefuteSuite::None
+                    && contract.graph_class == GraphClass::RandomizedTrial
+                    && contract.structure_source == StructureSource::RandomizedTrial
+                    && fitted_q_design(self, contract).is_some() => "not_applicable",
             // These checked graphless routes refuse a validation suite at
             // preparation. Only an exact execution stamp and the supported,
             // result-bound route coordinate establish that fact; a detached or
@@ -267,6 +281,25 @@ impl StudyResult {
             identification: label.clone(),
         };
         let row_count = analysis_row_count(self, contract);
+        if let Some(design) = fitted_q_design(self, contract).filter(|_| validation == "not_applicable") {
+            return vec![CalibrationBasisWire {
+                key: CalibrationKeyWire {
+                    interval_method: IntervalMethod::PercentileBootstrap.as_str().to_owned(),
+                    dependence: "iid".to_owned(),
+                    functional: design.to_owned(),
+                    level: crate::result::REPORTED_SE_INTERVAL_LEVEL,
+                    ..shared
+                },
+                scope: CalibrationScopeWire {
+                    row_count,
+                    replicates_ok: self.longitudinal_regime()
+                        .and_then(|fit| fit.fitted_q_bootstrap_replicates_ok)
+                        .and_then(|completed| u32::try_from(completed).ok()),
+                    posterior_draws: None,
+                    unidentified_mass,
+                },
+            }];
+        }
         let delayed_survival = match (&contract.body.query, self.survival()) {
             (antecedent_io::CausalQueryWire::Survival(query), Some(curve)) if shared.query == "Survival" => {
                 Some((query, curve))

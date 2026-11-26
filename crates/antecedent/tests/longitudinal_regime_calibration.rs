@@ -181,3 +181,85 @@ fn four_period_sequential_dr_coverage_and_publication() {
     }
 }
 
+fn fitted_q_coverage(test: &'static str, external_training_fold: Option<u32>) {
+    let subjects = grid_n(800);
+    let datasets = map_replicates(n_sim(), |seed| {
+        let seed = seed ^ 0x4913_0000;
+        let mut assignment = uniform(seed, 121);
+        let mut baseline_draw = uniform(seed, 122);
+        let mut noise = gaussian(seed, 123);
+        let mut baseline = Vec::with_capacity(subjects);
+        let mut actions = Vec::with_capacity(subjects * 2);
+        let mut outcomes = Vec::with_capacity(subjects);
+        for _ in 0..subjects {
+            let x = f64::from(baseline_draw() < 0.5);
+            let a0 = assignment() < 0.5;
+            let a1 = assignment() < 0.5;
+            baseline.push(x);
+            actions.extend([a0, a1]);
+            outcomes.push(2.0 + 0.5 * f64::from(a0) + 0.75 * f64::from(a1) + x + noise());
+        }
+        let data = TabularData::from_f64_columns([
+            ("outcome", outcomes.as_slice()),
+            ("baseline", baseline.as_slice()),
+        ])
+        .unwrap();
+        let query = LongitudinalRegimeQuery {
+            outcome: VariableId::from_raw(0),
+            method: LongitudinalRegimeMethod::FittedGFormula(antecedent_core::FittedRegimeQ {
+                baseline: VariableId::from_raw(1),
+                external_training_fold,
+                bootstrap_replicates: 199,
+            }),
+            period_outcome_predictions: None,
+            known_fixed_outcome_predictions: false,
+            stabilizing_numerator_probabilities: None,
+            q_predictions: None,
+            observation_history: None,
+            prediction_fold_ids: None,
+            periods: 2,
+            treatment_history: actions.into(),
+            regime_actions: vec![true; subjects * 2].into(),
+            treatment_probabilities: vec![0.5; subjects * 2].into(),
+            censoring_probabilities: vec![1.0; subjects * 2].into(),
+            outcome_observed: vec![true; subjects].into(),
+            subject_ids: (0..subjects).map(|i| Arc::from(format!("fitted-{i}"))).collect(),
+            fold_ids: (0..subjects).map(|i| u32::try_from(i % 2).unwrap()).collect(),
+            excluded_fold_predictions: false,
+            probabilities_known_by_design: true,
+            minimum_probability: 0.01,
+            rule_id: None,
+            rule_version: None,
+            rule_provenance: None,
+        };
+        let (prepared, result) = run(&data, query, seed);
+        let fit = result.longitudinal_regime().unwrap();
+        let contract = prepared.contract_for_result(&result).unwrap();
+        (fit.value_interval_95, common::calibration_bind::constructions(&contract, &result))
+    });
+    let mut coverage = CoverageTally::for_record(
+        RecordKey {
+            test,
+            dgp: "two_fair_coin_decisions_binary_baseline_additive_normal_terminal_reward",
+            interval: "percentile_bootstrap",
+        },
+        REPORTED_LEVEL,
+    );
+    for (bounds, reported) in datasets {
+        bind_reported(&mut coverage, &reported);
+        coverage.record(bounds.map(|[lo, hi]| (lo, hi)), 3.75);
+    }
+    coverage.assert();
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn two_period_fitted_q_internal_crossfit_coverage() {
+    fitted_q_coverage("two_period_fitted_q_internal_crossfit_coverage", None);
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn two_period_fitted_q_external_split_coverage() {
+    fitted_q_coverage("two_period_fitted_q_external_split_coverage", Some(0));
+}

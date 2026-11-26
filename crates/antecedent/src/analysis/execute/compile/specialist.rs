@@ -438,6 +438,10 @@ impl super::super::Study {
             antecedent_core::LongitudinalRegimeMethod::GFormula => {
                 PlanId::LongitudinalGFormulaRegime
             }
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) => {
+                data.schema().get(fit.baseline).map_err(CausalError::rejected)?;
+                PlanId::LongitudinalGFormulaRegime
+            }
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
                 PlanId::LongitudinalSequentialDrRegime
             }
@@ -452,7 +456,10 @@ impl super::super::Study {
             method_id,
             "randomized.design",
             method_id,
-            Arc::from([q.outcome]),
+            match q.method {
+                antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) => Arc::from([q.outcome, fit.baseline]),
+                _ => Arc::from([q.outcome]),
+            },
         ))
     }
 }

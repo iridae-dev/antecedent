@@ -546,6 +546,8 @@ pub struct LongitudinalRegimeEstimate {
     /// Pointwise 95% interval for the IPW regime value or MSM intercept when
     /// independent-subject support passes the corresponding calibrated floor.
     pub value_interval_95: Option<[f64; 2]>,
+    /// Completed full-procedure subject bootstrap refits for the fitted Q method.
+    pub fitted_q_bootstrap_replicates_ok: Option<usize>,
     /// Pointwise 95% intervals for additive MSM period coefficients.
     pub period_intervals_95: Option<Arc<[[f64; 2]]>>,
     /// Specific reason the regime value has no interval, when applicable.

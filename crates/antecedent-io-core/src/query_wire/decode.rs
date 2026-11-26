@@ -525,9 +525,20 @@ fn survival_from_wire(w: &SurvivalQueryWire) -> Result<CausalQuery, IoError> {
 
 /// Decode the [`CausalQuery::LongitudinalRegime`] payload.
 fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<CausalQuery, IoError> {
+    if w.fitted_q.is_some() != (w.method == "fitted_g_formula") {
+        return Err(IoError::Convert("fitted longitudinal Q declaration must match its method".into()));
+    }
     let method = match w.method.as_str() {
         "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
         "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+        "fitted_g_formula" => {
+            let fit = w.fitted_q.ok_or_else(|| IoError::Convert("missing fitted Q declaration".into()))?;
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(antecedent_core::FittedRegimeQ {
+                baseline: VariableId::from_raw(fit.baseline),
+                external_training_fold: fit.external_training_fold,
+                bootstrap_replicates: fit.bootstrap_replicates,
+            })
+        }
         "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
         "marginal_structural_model" => {
             antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel

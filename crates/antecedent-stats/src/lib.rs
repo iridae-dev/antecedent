@@ -17,6 +17,7 @@ pub mod describe;
 pub mod design;
 pub mod divergence;
 pub mod error;
+pub mod fitted_regime_q;
 pub mod execution_quote;
 pub mod faer_backend;
 pub mod faer_scope;

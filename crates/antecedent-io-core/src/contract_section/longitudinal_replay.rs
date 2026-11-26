@@ -7,6 +7,7 @@ use super::dr_replay::{SourceReplay, SourceWitnessState};
 use crate::contract_reason::ContractReason;
 use crate::source_witness::{verify_source_witness, verify_source_witness_schema};
 use crate::{AnalysisResultHeader, AnalysisResultWire, CausalQueryWire};
+use antecedent_stats::fitted_regime_q::{FittedRegimeRows, estimate_fitted_regime_q};
 use antecedent_stats::longitudinal_regime::{
     SequentialDrInputs, SubjectHistories, evaluate_sequential_dr_value_with_subject_scores,
     sequential_dr_pointwise_interval_95,
@@ -17,7 +18,8 @@ pub(super) fn declares_longitudinal_replay(
     body: &AnalysisResultWire,
 ) -> bool {
     matches!(&contract.target.query, CausalQueryWire::LongitudinalRegime(query)
-        if query.periods == 4 && query.method == "sequential_dr")
+        if query.periods == 4 && query.method == "sequential_dr"
+            || query.periods == 2 && query.method == "fitted_g_formula")
         && body.longitudinal_regime.as_ref().is_some_and(|fit| fit.value_interval_95.is_some())
 }
 
@@ -59,6 +61,48 @@ pub(super) fn replay_longitudinal_interval(
         .columns
         .get(query.outcome as usize)
         .ok_or(ContractReason::LongitudinalRegimeReplaySource)?;
+    if let Some(declaration) = query.fitted_q {
+        let baseline = witness
+            .columns
+            .get(declaration.baseline as usize)
+            .ok_or(ContractReason::LongitudinalRegimeReplaySource)?;
+        let actions = query
+            .regime_actions
+            .first_chunk::<2>()
+            .copied()
+            .ok_or(ContractReason::BodyLongitudinalRegime)?;
+        let execution = contract.execution.as_ref().ok_or(ContractReason::IdentitiesExecution)?;
+        let mut ctx = antecedent_core::ExecutionContext::production(execution.seed, 1)
+            .with_memory_limit(Some(source.bounds.memory_bytes));
+        ctx.cancellation = source.bounds.cancellation.clone();
+        let estimated = estimate_fitted_regime_q(
+            &FittedRegimeRows {
+                baseline: &baseline.values,
+                actions: &query.treatment_history,
+                outcomes: &outcomes.values,
+                folds: &query.fold_ids,
+            },
+            actions,
+            declaration.external_training_fold,
+            declaration.bootstrap_replicates as usize,
+            &ctx,
+        )
+        .map_err(|error| match error {
+            antecedent_stats::StatsError::Admission(_)
+            | antecedent_stats::StatsError::Cancelled => {
+                ContractReason::LongitudinalRegimeReplayResource
+            }
+            _ => ContractReason::BodyLongitudinalRegime,
+        })?;
+        let agrees = estimated.value.to_bits() == fit.value.to_bits()
+            && Some(estimated.standard_error.to_bits())
+                == fit.value_standard_error.map(f64::to_bits)
+            && estimated.interval.map(f64::to_bits) == reported_bounds.map(f64::to_bits)
+            && Some(estimated.replicates_ok) == fit.fitted_q_bootstrap_replicates_ok
+            && (estimated.evaluation_subjects as f64).to_bits()
+                == fit.effective_sample_size.to_bits();
+        return agrees.then_some(true).ok_or(ContractReason::BodyLongitudinalRegime);
+    }
     let (summary, scores) = evaluate_sequential_dr_value_with_subject_scores(
         &outcomes.values,
         &SubjectHistories {

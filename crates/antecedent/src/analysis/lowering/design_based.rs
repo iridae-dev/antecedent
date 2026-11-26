@@ -842,6 +842,7 @@ impl DesignLowering for LongitudinalRegimeQuery {
         let outcome_family = match query.method {
             antecedent_core::LongitudinalRegimeMethod::Ipw => None,
             antecedent_core::LongitudinalRegimeMethod::GFormula => Some("supplied_period_rewards"),
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(_) => None,
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
                 Some("supplied_sequential_q_scores")
             }
@@ -852,6 +853,14 @@ impl DesignLowering for LongitudinalRegimeQuery {
         models.extend(
             outcome_family.map(|family| slot(ModelRole::Outcome, family, &[], Some(query.outcome))),
         );
+        let resampling = if let antecedent_core::LongitudinalRegimeMethod::FittedGFormula(fit) = query.method {
+            models.push(slot(ModelRole::Outcome, "baseline_stratified_regime_cell_mean", &[fit.baseline], Some(query.outcome)));
+            Some(ResamplingPlan {
+                method: ResamplingMethod::Bootstrap,
+                replicates: fit.bootstrap_replicates,
+                unit: ResampleUnit::Subject,
+            })
+        } else { None };
         let folds = query.fold_ids.iter().collect::<BTreeSet<_>>().len();
         Ok(DesignCell::new(
             functional(env.study, FunctionalKind::RegimeValue, query.outcome),
@@ -862,6 +871,7 @@ impl DesignLowering for LongitudinalRegimeQuery {
             ),
             ClaimKind::Point,
         )
+        .with_randomization_test(resampling)
         .with_folds((folds > 0).then_some(FoldPlan {
             folds,
             unit: ResampleUnit::Subject,

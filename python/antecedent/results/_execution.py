@@ -843,6 +843,13 @@ class ResultAPI:
                 )
             interval = regime.value_interval_95
             if interval is not None:
+                if regime.method == "fitted_g_formula":
+                    return (
+                        f"Fitted two-decision regime value {regime.value:g}. "
+                        f"Pointwise 95% whole-subject percentile interval [{interval[0]:g}, "
+                        f"{interval[1]:g}] from {regime.fitted_q_bootstrap_replicates_ok} "
+                        "replicates that refit and evaluate Q using the declared subject folds."
+                    )
                 if regime.method == "sequential_dr":
                     return (
                         f"Sequential randomized regime value {regime.value:g}. "
