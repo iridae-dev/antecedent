@@ -576,6 +576,13 @@ def test_native_response_retains_actual_joint_draws_and_refuses_uncertainty_subs
     assert result.actions[0].expected_utility == pytest.approx(
         source.source.joint_product_expectation(0, 1)
     )
+    assert view.method_provenance.records
+    assert source.source.method_provenance.records == view.method_provenance.records
+    artifact = result.export()
+    reopened = require_success(decision.replay(artifact, contract=contract, source=source.source))
+    assert reopened.method_provenance == result.method_provenance
+    for record in view.method_provenance.records:
+        assert reopened.method_provenance.record(record.id) == record
     tampered = view.model_copy(update={"uncertainty": ResponseUncertainty(kind="none")})
     error = _refusal(lambda: program_claims.native_claim(tampered, _native_program(view)))
     assert (error.reason_code, error.detail, error.stage) == (
