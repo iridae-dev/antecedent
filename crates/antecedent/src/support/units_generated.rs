@@ -19,6 +19,8 @@ pub(crate) const CATEGORICAL_TREATMENT_COMPILED_CANDIDATE: UnitId =
 pub(crate) const CHOICE_INFERENCE_INTERVAL_CANDIDATES: UnitId =
     UnitId::new("choice_inference.interval_candidates");
 pub(crate) const COHORT_DECISION_INTERVAL: UnitId = UnitId::new("cohort_decision.interval");
+pub(crate) const COHORT_DECISION_MEAN_CONTRAST: UnitId =
+    UnitId::new("cohort_decision.mean_contrast");
 pub(crate) const COMPOSITION_BOUNDARY: UnitId = UnitId::new("composition.boundary");
 pub(crate) const COMPOSITION_BUNDLE: UnitId = UnitId::new("composition.bundle");
 pub(crate) const COMPOSITION_PROPAGATION_CHAIN: UnitId =
@@ -222,11 +224,13 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "CategoricalPosteriorCandidate" => Some(CATEGORICAL_TREATMENT_COMPILED_CANDIDATE),
         "ChoiceResultInterval" => Some(CHOICE_INFERENCE_INTERVAL_CANDIDATES),
         "CohortMeanInterval" => Some(COHORT_DECISION_INTERVAL),
+        "NativeCohortFit" => Some(COHORT_DECISION_MEAN_CONTRAST),
         "SupportedInputDecision" => Some(COMPOSITION_BOUNDARY),
         "AssessedBridgePosteriorNodeDecisionBundleRecomputation"
         | "BridgeBundleRecomputation"
         | "BundleRecomputation"
         | "CohortDecisionBundleRecomputation"
+        | "CompactModelRefit"
         | "CyclicPosteriorBundleRecomputation"
         | "CyclicPosteriorNodeBundleRecomputation"
         | "CyclicTargetFeedbackNodeDecisionBundleRecomputation"

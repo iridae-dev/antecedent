@@ -831,6 +831,8 @@ const PINNED: &[(C, R, &str, F)] = &[
         F::Structural,
     ),
     (C::SurrogateBridge, R::SurrogateBridge, "SurrogateBridge", F::Structural),
+    (C::NativeCohortFit, R::NativeCohortFit, "NativeCohortFit", F::Structural),
+    (C::CompactModelRefit, R::CompactModelRefit, "CompactModelRefit", F::Structural),
 ];
 
 #[test]

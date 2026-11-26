@@ -102,6 +102,9 @@ fn fit_cohort_linear_effect_controlled(
     features: &[&[f64]],
     cancelled: &impl Fn() -> bool,
 ) -> Result<CohortLinearFit, EstimationError> {
+    if cancelled() {
+        return Err(antecedent_core::execution::AdmissionError::Cancelled.into());
+    }
     let n = outcome.len();
     let k = features.len();
     let basis = k + 1;
@@ -137,7 +140,7 @@ fn fit_cohort_linear_effect_controlled(
     let mut xty = vec![0.0; p];
     for i in 0..n {
         if i % 1024 == 0 && cancelled() {
-            return Err(unsupported("cohort linear effect: execution cancelled"));
+            return Err(antecedent_core::execution::AdmissionError::Cancelled.into());
         }
         let x = row(i);
         for a in 0..p {
@@ -155,7 +158,7 @@ fn fit_cohort_linear_effect_controlled(
     let mut max_leverage = 0.0_f64;
     for i in 0..n {
         if i % 1024 == 0 && cancelled() {
-            return Err(unsupported("cohort linear effect: execution cancelled"));
+            return Err(antecedent_core::execution::AdmissionError::Cancelled.into());
         }
         let x = row(i);
         let fitted: f64 = x.iter().zip(&beta).map(|(a, b)| a * b).sum();
@@ -462,6 +465,21 @@ impl NativeCohortFit {
         response: &ScientificQuantityWire,
         feature_quantities: &[ScientificQuantityWire],
     ) -> Result<Self, EstimationError> {
+        Self::fit_controlled(outcome, treatment, features, response, feature_quantities, || false)
+    }
+
+    /// Fit and export, checking cancellation between numerical row blocks.
+    ///
+    /// # Errors
+    /// A refused fit or cancellation.
+    pub fn fit_controlled(
+        outcome: &[f64],
+        treatment: &[f64],
+        features: &[&[f64]],
+        response: &ScientificQuantityWire,
+        feature_quantities: &[ScientificQuantityWire],
+        cancelled: impl Fn() -> bool,
+    ) -> Result<Self, EstimationError> {
         Self::fit_with_snapshot(
             outcome,
             treatment,
@@ -469,7 +487,7 @@ impl NativeCohortFit {
             response,
             feature_quantities,
             true,
-            &|| false,
+            &cancelled,
         )
     }
 
@@ -483,6 +501,9 @@ impl NativeCohortFit {
         cancelled: &impl Fn() -> bool,
     ) -> Result<Self, EstimationError> {
         let fit = fit_cohort_linear_effect_controlled(outcome, treatment, features, cancelled)?;
+        if cancelled() {
+            return Err(antecedent_core::execution::AdmissionError::Cancelled.into());
+        }
         let rows = NativeFitRows {
             outcome: outcome.to_vec(),
             treatment: treatment.to_vec(),

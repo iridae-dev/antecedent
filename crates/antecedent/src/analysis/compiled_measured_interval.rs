@@ -94,7 +94,8 @@ pub(crate) fn bayesian(
 
 impl MeasuredIntervalProgram {
     /// The lowered program: the question as a shared evidence contract, the measured
-    /// construction over the retained source, an interval claim, no decision.
+    /// construction over the retained source and no decision. A fit without a sampling
+    /// interval uses the same read and fit operators with `UncertaintyReading::None`.
     ///
     /// # Errors
     ///

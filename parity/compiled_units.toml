@@ -326,6 +326,18 @@ unit = "cohort_decision.interval"
 entry = { rust = "crates/antecedent/src/analysis/compiled_cohort_interval.rs", python = "python/antecedent/cohort_decision.py" }
 
 [[route]]
+lowering = "NativeCohortFit"
+unit_kind = "capability"
+unit = "cohort_decision.mean_contrast"
+entry = { rust = "crates/antecedent/src/analysis/compiled_native_cohort_fit.rs", python = "python/antecedent/cohort_decision.py" }
+
+[[route]]
+lowering = "CompactModelRefit"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition_compact_refit.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
 lowering = "CountFittedInterval"
 unit_kind = "capability"
 unit = "observation_query.calibrated_probability"

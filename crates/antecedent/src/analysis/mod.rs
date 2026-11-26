@@ -145,6 +145,7 @@ pub mod compiled_joint_cells_learners;
 pub mod compiled_linear;
 pub mod compiled_measured_interval;
 pub mod compiled_measurement_transport;
+pub mod compiled_native_cohort_fit;
 pub mod compiled_per_population_discovery;
 mod compiled_point_program;
 pub(crate) mod compiled_study;

@@ -39,7 +39,7 @@ pub use antecedent_design::decision_artifact::mean_result_to_bytes;
 mod bridge_image;
 #[path = "composition_compact_refit.rs"]
 mod compact_refit;
-pub use compact_refit::{refit_compact_bundle_model, refit_compact_model};
+pub use compact_refit::{CompiledCompactModelRefit, refit_compact_bundle_model, refit_compact_model};
 
 use super::composition_counterfactual_transport as counterfactual_bundle;
 #[path = "composition_patient_surrogate.rs"]

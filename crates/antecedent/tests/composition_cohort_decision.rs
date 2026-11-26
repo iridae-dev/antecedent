@@ -108,7 +108,7 @@ fn compact_prediction_replays_into_a_supported_cohort_and_names_missing_refit_in
             "contrast:do(t=1)-do(t=0)",
             "conditional_mean_difference",
         ))
-        .into(),
+            .into(),
         inputs: vec![ExportInput {
             quantity: (&quantity("z", "1", QuantityRole::Covariate, "observational", "feature"))
                 .into(),
@@ -334,10 +334,17 @@ fn cohort_bundle_recomputes_an_edited_terminal_and_obeys_execution_limits() {
 }
 
 #[test]
+#[allow(
+    clippy::too_many_lines,
+    reason = "one retained-model fixture checks plan identity, admission and artifact replay"
+)]
 fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
     use antecedent::analysis::cohort_decision::{NativeCohortFit, fit_cohort_effect};
     use antecedent::analysis::composition::{refit_compact_bundle_model, refit_compact_model};
+    use antecedent::analysis::execute::Study;
     use antecedent_contract::QuantityRole;
+    use antecedent_core::execution::AdmissionError;
+    use antecedent_estimate::EstimationError;
     use antecedent_estimate::cohort_linear_effect::{FIT_PROCEDURE_ID, FIT_TRAINING_VARIABLE};
     use antecedent_io_core::compact_export::{
         CompactExport, ExportQuery, ExportSpec, InputSupport, MaskCondition, MaskRegion,
@@ -357,10 +364,67 @@ fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
     let treatment = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
     let response = (&response).into();
     let modifiers = [(&modifier).into()];
-    let fit = fit_cohort_effect(&outcome, &treatment, &[&feature], &response, &modifiers).unwrap();
+    let columns: [&[f64]; 1] = [&feature];
+    let ctx = ExecutionContext::for_tests(9);
+    let plan =
+        Study::compile_native_cohort_fit(&outcome, &treatment, &columns, &response, &modifiers)
+            .unwrap();
+    assert_eq!(plan.plan_view().route().as_str(), "NativeCohortFit");
+    let run = plan.execute(&ctx).unwrap();
+    assert_eq!(run.lowered_program_identity, plan.lowered().identity());
+    let fit = fit_cohort_effect(&outcome, &treatment, &columns, &response, &modifiers).unwrap();
+    assert_eq!(run.fit, fit);
+    let mut changed_outcome = outcome;
+    changed_outcome.swap(0, 3);
+    let changed = Study::compile_native_cohort_fit(
+        &changed_outcome,
+        &treatment,
+        &columns,
+        &response,
+        &modifiers,
+    )
+    .unwrap();
+    assert_ne!(plan.lowered().identity(), changed.lowered().identity());
+    let limited = ExecutionContext::for_tests(9).with_memory_limit(Some(1));
+    assert!(matches!(
+        plan.execute(&limited),
+        Err(EstimationError::Admission(AdmissionError::ExceedsRemainder { .. }))
+    ));
+    let cancelled = ExecutionContext::for_tests(9);
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        plan.execute(&cancelled),
+        Err(EstimationError::Admission(AdmissionError::Cancelled))
+    ));
+
     let model = fit.export();
     let bytes = model.to_bytes("retained-native-model").unwrap();
-    let ctx = ExecutionContext::for_tests(9);
+    let refit = Study::compile_compact_model_refit(
+        &bytes,
+        model.identity(),
+        fit.rows().clone(),
+        FIT_PROCEDURE_ID,
+        &ctx,
+    )
+    .unwrap();
+    assert_eq!(refit.plan_view().route().as_str(), "CompactModelRefit");
+    let refit_run = refit.execute(&ctx).unwrap();
+    assert_eq!(refit_run.lowered_program_identity, refit.lowered().identity());
+    assert_eq!(refit_run.fit, fit);
+    assert!(matches!(
+        refit.execute(&limited),
+        Err(antecedent::analysis::composition::BundleError::Refused {
+            stage: BundleStage::ResourceRefused,
+            ..
+        })
+    ));
+    assert!(matches!(
+        refit.execute(&cancelled),
+        Err(antecedent::analysis::composition::BundleError::Refused {
+            stage: BundleStage::ExecutionCancelled,
+            ..
+        })
+    ));
     let checked =
         refit_compact_model(&bytes, model.identity(), fit.rows().clone(), FIT_PROCEDURE_ID, &ctx)
             .unwrap();
@@ -372,6 +436,17 @@ fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
     bundle.add_detected_artifact(Some("native-model"), &bytes).unwrap();
     let bundle = bundle.build().unwrap();
     let bundle_bytes = export_bundle(&bundle, "native-model-bundle").unwrap();
+    let bundle_refit = Study::compile_compact_bundle_refit(
+        &bundle_bytes,
+        bundle.identity(),
+        "native-model",
+        fit.rows().clone(),
+        FIT_PROCEDURE_ID,
+        &ctx,
+    )
+    .unwrap();
+    assert_ne!(bundle_refit.lowered().identity(), refit.lowered().identity());
+    assert_eq!(bundle_refit.execute(&ctx).unwrap().fit, fit);
     let from_bundle = refit_compact_bundle_model(
         &bundle_bytes,
         bundle.identity(),

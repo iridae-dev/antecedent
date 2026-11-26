@@ -170,7 +170,14 @@ pub fn fit_cohort_effect(
     response: &antecedent_io::quantity_wire::ScientificQuantityWire,
     feature_quantities: &[antecedent_io::quantity_wire::ScientificQuantityWire],
 ) -> Result<NativeCohortFit, antecedent_estimate::EstimationError> {
-    NativeCohortFit::fit(outcome, treatment, features, response, feature_quantities)
+    let plan = super::execute::Study::compile_native_cohort_fit(
+        outcome,
+        treatment,
+        features,
+        response,
+        feature_quantities,
+    )?;
+    plan.execute(&ExecutionContext::production(0, 1)).map(|run| run.fit)
 }
 
 /// The measured interval of `source`'s cohort mean: the Student-t interval of a native

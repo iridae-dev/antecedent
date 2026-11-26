@@ -410,6 +410,10 @@ macro_rules! program_families {
             SynthesisTransportedPrior => Structural, unit "transport.synthesis_transported_prior";
             /// A surrogate bridge carried outside the population where it was validated.
             SurrogateBridge => Structural, unit "transport.surrogate_bridge_premise";
+            /// Native conditional-effect OLS/HC3 over ordered training columns.
+            NativeCohortFit => Structural, unit "cohort_decision.mean_contrast";
+            /// Refit a retained compact effect under its original training and learner.
+            CompactModelRefit => Structural, unit "composition.bundle";
         }
     };
 }
