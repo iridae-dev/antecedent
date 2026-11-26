@@ -22,22 +22,6 @@ scope_fixture = { path = "crates/antecedent-io/tests/distribution_artifact.rs", 
 
 [[bound]]
 record = "transport.shared_scenario_covariance"
-key = "max_exact_rows"
-implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", constant = "MAX_EXACT_ROWS" }]
-guard = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "let\\ total\\ =\\ if\\ n\\ <=\\ MAX_EXACT_ROWS\\ \\{\\ composition_count\\(n\\)\\ \\}\\ else\\ \\{\\ None\\ \\};" }
-refusal = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "let\\ total\\ =\\ if\\ n\\ <=\\ MAX_EXACT_ROWS\\ \\{\\ composition_count\\(n\\)\\ \\}\\ else\\ \\{\\ None\\ \\};[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = "\\bindependent_rows_bounds_and_arguments_refuse\\b" }
-
-[[bound]]
-record = "transport.shared_scenario_covariance"
-key = "max_exact_compositions"
-implementation = [{ path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "min\\((EXACT_ENUMERATION_HARD_CAP)\\)" }]
-guard = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "min\\(EXACT_ENUMERATION_HARD_CAP\\)" }
-refusal = { path = "crates/antecedent-estimate/src/scenario_covariance.rs", pattern = "min\\(EXACT_ENUMERATION_HARD_CAP\\)[\\s\\S]{0,1800}?(?:\\bErr\\s*\\(|\\.map_err\\s*\\(|\\.ok_or\\s*\\()" }
-scope_fixture = { path = "crates/antecedent-estimate/tests/scenario_covariance.rs", pattern = "\\bindependent_rows_bounds_and_arguments_refuse\\b" }
-
-[[bound]]
-record = "transport.shared_scenario_covariance"
 key = "max_table_rows"
 implementation = [{ path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", constant = "MAX_TABLE_ROWS" }]
 guard = { path = "crates/antecedent-io/src/scenario_covariance_artifact.rs", pattern = 'self\.table\.rows\.len\(\) > limits\.max_rows' }
@@ -883,9 +867,9 @@ scope_fixture = { path = "python/tests/test_decision_flow_bridge.py", pattern = 
 [[bound]]
 record = "decision.contract"
 key = "max_effect_unit_bytes"
-implementation = [{ path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > (256)" }]
-guard = { path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > 256" }
-refusal = { path = "python/src/scalar_decision_api.rs", pattern = "units\\.len\\(\\) > 256[\\s\\S]{0,220}?return Err" }
+implementation = [{ path = "crates/antecedent/src/analysis/decision_result/static_effect.rs", pattern = "units\\.len\\(\\) > (256)" }]
+guard = { path = "crates/antecedent/src/analysis/decision_result/static_effect.rs", pattern = "units\\.len\\(\\) > 256" }
+refusal = { path = "crates/antecedent/src/analysis/decision_result/static_effect.rs", pattern = "units\\.len\\(\\) > 256[\\s\\S]{0,220}?return Err" }
 scope_fixture = { path = "python/tests/test_decision_flow_bridge.py", pattern = "\\btest_scalar_effect_evaluates_only_its_original_contrast_coordinate\\b" }
 
 [[bound]]
@@ -1301,51 +1285,11 @@ refusal = { path = "crates/antecedent-io-core/src/selective_discovery_artifact.r
 
 [[bound]]
 record = "adaptive_inference.procedure_law"
-key = "max_arms"
-implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", constant = "MAX_PROCEDURE_ARMS" }]
-guard = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ !\\(2\\.\\.=MAX_PROCEDURE_ARMS\\)\\.contains\\(\\&arms\\)\\ \\{" }
-refusal = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ !\\(2\\.\\.=MAX_PROCEDURE_ARMS\\)\\.contains\\(\\&arms\\)\\ \\{[\\s\\S]{0,500}?gaps\\.push\\(ContractGap::Invalid\\(" }
-scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_bounds.rs", pattern = "\\barms_are_bounded\\b" }
-
-[[bound]]
-record = "adaptive_inference.procedure_law"
-key = "max_contexts"
-implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", constant = "MAX_PROCEDURE_CONTEXTS" }]
-guard = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "\\|\\|\\ contexts\\.len\\(\\)\\ >\\ MAX_PROCEDURE_CONTEXTS" }
-refusal = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "\\|\\|\\ contexts\\.len\\(\\)\\ >\\ MAX_PROCEDURE_CONTEXTS[\\s\\S]{0,500}?gaps\\.push\\(ContractGap::Invalid\\(" }
-scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_bounds.rs", pattern = "\\bcontexts_and_cells_are_bounded\\b" }
-
-[[bound]]
-record = "adaptive_inference.procedure_law"
-key = "max_cells"
-implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", constant = "MAX_PROCEDURE_CELLS" }]
-guard = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "\\|\\|\\ contexts\\.len\\(\\)\\ \\*\\ arms\\ >\\ MAX_PROCEDURE_CELLS" }
-refusal = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "\\|\\|\\ contexts\\.len\\(\\)\\ \\*\\ arms\\ >\\ MAX_PROCEDURE_CELLS[\\s\\S]{0,500}?gaps\\.push\\(ContractGap::Invalid\\(" }
-scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_bounds.rs", pattern = "\\bcontexts_and_cells_are_bounded\\b" }
-
-[[bound]]
-record = "adaptive_inference.procedure_law"
-key = "max_looks"
-implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", constant = "MAX_PROCEDURE_LOOKS" }]
-guard = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ schedule\\.len\\(\\)\\ >\\ MAX_PROCEDURE_LOOKS\\ \\{" }
-refusal = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ schedule\\.len\\(\\)\\ >\\ MAX_PROCEDURE_LOOKS\\ \\{[\\s\\S]{0,500}?gaps\\.push\\(ContractGap::Capacity\\(" }
-scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_bounds.rs", pattern = "\\blooks_and_units_are_bounded\\b" }
-
-[[bound]]
-record = "adaptive_inference.procedure_law"
 key = "max_units"
 implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", constant = "MAX_PROCEDURE_UNITS" }]
 guard = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ total\\ >\\ u64::from\\(MAX_PROCEDURE_UNITS\\)\\ \\{" }
 refusal = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ total\\ >\\ u64::from\\(MAX_PROCEDURE_UNITS\\)\\ \\{[\\s\\S]{0,500}?gaps\\.push\\(ContractGap::Capacity\\(" }
 scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_bounds.rs", pattern = "\\blooks_and_units_are_bounded\\b" }
-
-[[bound]]
-record = "adaptive_inference.procedure_law"
-key = "max_outcome_lag"
-implementation = [{ path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", constant = "MAX_OUTCOME_LAG" }]
-guard = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ observation\\.lag_looks\\ >\\ MAX_OUTCOME_LAG" }
-refusal = { path = "crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs", pattern = "if\\ observation\\.lag_looks\\ >\\ MAX_OUTCOME_LAG[\\s\\S]{0,500}?gaps\\.push\\(ContractGap::Invalid\\(" }
-scope_fixture = { path = "crates/antecedent-stats/tests/adaptive_procedure_bounds.rs", pattern = "\\boutcome_delay_is_bounded\\b" }
 
 [[bound]]
 record = "adaptive_inference.procedure_ordered_p_value"
@@ -1550,8 +1494,8 @@ scope_fixture = { path = "crates/antecedent-validate/tests/mnar_sensitivity.rs",
 [[bound]]
 record = "graph_imputation.compiled_candidate"
 key = "depth_limit"
-implementation = [{ path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "most_atoms\\.saturating_add\\(64\\), depth: (1) \\}" }]
-guard = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "SearchLimits \\{ operations: most_atoms\\.saturating_add\\(64\\), depth: 1 \\}" }
+implementation = [{ path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "saturating_add\\(64\\),\\s*depth: (1)," }]
+guard = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "saturating_add\\(64\\),\\s*depth: 1," }
 refusal = { path = "crates/antecedent/src/analysis/graph_imputation.rs", pattern = "budget\\.charge\\(1, 25 \\* 1024 \\* 1024\\)[\\s\\S]{0,1800}?\\bErr\\s*\\(" }
 scope_fixture = { path = "crates/antecedent-discovery/src/graph_imputation_enumeration.rs", pattern = "\\bsearch_budget_depth_and_memory_bounds_refuse_one_past_and_admit_the_bound\\b" }
 
@@ -1746,3 +1690,77 @@ implementation = [{ path = "crates/antecedent-io-core/src/pag_identification.rs"
 guard = { path = "crates/antecedent-io-core/src/pag_identification.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES' }
 refusal = { path = "crates/antecedent-io-core/src/pag_identification.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES \{\s*return Err\(IoError::TooLarge\.into\(\)\)' }
 scope_fixture = { path = "python/tests/test_pag_direct_identification.py", pattern = 'def test_direct_pag_reader_checks_bytes_before_decoding\(' }
+
+[[bound]]
+record = "composition.sampling_assumption_union"
+key = "artifact_bytes"
+implementation = [{ path = "crates/antecedent/src/analysis/sampling_assumption_union.rs", constant = "MAX_ARTIFACT_BYTES" }]
+guard = { path = "crates/antecedent/src/analysis/sampling_assumption_union.rs", pattern = "source_bytes\\.len\\(\\) > MAX_ARTIFACT_BYTES" }
+refusal = { path = "crates/antecedent/src/analysis/sampling_assumption_union.rs", pattern = "source_bytes\\.len\\(\\) > MAX_ARTIFACT_BYTES[\\s\\S]{0,200}?return Err" }
+
+[[bound]]
+record = "preference_decision.exact"
+key = "vertex_cap"
+implementation = [{ path = "crates/antecedent-design/src/preference_decision.rs", pattern = "vertex_cap: (100_000)" }]
+guard = { path = "crates/antecedent-stats/src/linear_program.rs", pattern = "if candidate_bases > cap" }
+refusal = { path = "crates/antecedent-stats/src/linear_program.rs", pattern = "if candidate_bases > cap[\\s\\S]{0,200}?return Err\\(LpError::VertexCapExceeded" }
+scope_fixture = { path = "crates/antecedent-stats/tests/linear_program.rs", pattern = "\\bvertex_enumeration_of_empty_unbounded_and_oversized_regions\\b" }
+
+[[bound]]
+record = "preference_decision.exact"
+key = "max_structure_choices"
+implementation = [{ path = "crates/antecedent-design/src/preference_decision.rs", constant = "MAX_STRUCTURE_CHOICES" }]
+guard = { path = "crates/antecedent-design/src/preference_decision.rs", pattern = "count > MAX_STRUCTURE_CHOICES" }
+refusal = { path = "crates/antecedent-design/src/preference_decision.rs", pattern = "count > MAX_STRUCTURE_CHOICES[\\s\\S]{0,120}?return Ok\\(None\\)" }
+
+[[bound]]
+record = "preference_decision.exact"
+key = "max_pivots"
+implementation = [{ path = "crates/antecedent-stats/src/linear_program.rs", pattern = "max_pivots: (100_000)" }]
+guard = { path = "crates/antecedent-stats/src/linear_program.rs", pattern = "if \\*pivots > options\\.max_pivots" }
+refusal = { path = "crates/antecedent-stats/src/linear_program.rs", pattern = "if \\*pivots > options\\.max_pivots[\\s\\S]{0,200}?return Err\\(LpError::PivotLimit" }
+scope_fixture = { path = "crates/antecedent-stats/tests/linear_program.rs", pattern = "\\bevery_refusal_has_its_own_variant\\b" }
+
+[[bound]]
+record = "preference_decision.certified"
+key = "max_boxes"
+implementation = [{ path = "crates/antecedent-design/src/preference_certified.rs", pattern = "max_boxes: (4096)" }]
+guard = { path = "crates/antecedent-design/src/preference_certified/scoring.rs", pattern = "examined \\+ 2 > self\\.options\\.max_boxes" }
+refusal = { path = "crates/antecedent-design/src/preference_certified/scoring.rs", pattern = "examined \\+ 2 > self\\.options\\.max_boxes \\{ None \\}" }
+scope_fixture = { path = "crates/antecedent-design/tests/preference_certified.rs", pattern = "\\bdiscount_factor_switch_is_certified_on_each_side_and_shrinks_with_the_budget\\b" }
+
+[[bound]]
+record = "preference_learning.compatible_set"
+key = "conflict_search_size"
+implementation = [{ path = "crates/antecedent-design/src/preference_set_learning.rs", pattern = "conflict_search_size: (3)" }]
+guard = { path = "crates/antecedent-design/src/preference_set_learning.rs", pattern = "let size = self\\.options\\.conflict_search_size" }
+refusal = { path = "crates/antecedent-design/src/preference_set_learning.rs", pattern = "size == 0 \\|\\| subsets_exceed\\(by_id\\.len\\(\\), size, SMALLEST_CONFLICT_SUBSET_BUDGET\\)" }
+
+[[bound]]
+record = "preference_learning.compatible_set"
+key = "max_conflict_subsets"
+implementation = [{ path = "crates/antecedent-design/src/preference_set_learning.rs", constant = "SMALLEST_CONFLICT_SUBSET_BUDGET" }]
+guard = { path = "crates/antecedent-design/src/preference_set_learning.rs", pattern = "subsets_exceed\\(by_id\\.len\\(\\), size, SMALLEST_CONFLICT_SUBSET_BUDGET\\)" }
+refusal = { path = "crates/antecedent-design/src/preference_set_learning.rs", pattern = "subsets_exceed\\(by_id\\.len\\(\\), size, SMALLEST_CONFLICT_SUBSET_BUDGET\\) \\{" }
+
+[[bound]]
+record = "preference_learning.compatible_set"
+key = "max_pivots"
+implementation = [{ path = "crates/antecedent-stats/src/linear_program.rs", pattern = "max_pivots: (100_000)" }]
+guard = { path = "crates/antecedent-stats/src/linear_program.rs", pattern = "if \\*pivots > options\\.max_pivots" }
+refusal = { path = "crates/antecedent-stats/src/linear_program.rs", pattern = "if \\*pivots > options\\.max_pivots[\\s\\S]{0,200}?return Err\\(LpError::PivotLimit" }
+scope_fixture = { path = "crates/antecedent-stats/tests/linear_program.rs", pattern = "\\bevery_refusal_has_its_own_variant\\b" }
+
+[[bound]]
+record = "preference_learning.choice_model"
+key = "max_newton_iterations"
+implementation = [{ path = "crates/antecedent-stats/src/glm/conditional_logit.rs", pattern = "max_iterations: (200)" }]
+guard = { path = "crates/antecedent-stats/src/glm/conditional_logit.rs", pattern = "if iterations >= options\\.max_iterations" }
+refusal = { path = "crates/antecedent-stats/src/glm/conditional_logit.rs", pattern = "if iterations >= options\\.max_iterations[\\s\\S]{0,180}?return Err\\(ConditionalLogitError::NotConverged" }
+
+[[bound]]
+record = "preference_learning.choice_model"
+key = "measure_draws"
+implementation = [{ path = "crates/antecedent-design/src/preference_choice_model.rs", pattern = "n_draws: (2000)" }]
+guard = { path = "crates/antecedent-design/src/preference_choice_model.rs", pattern = "if options\\.n_draws == 0" }
+refusal = { path = "crates/antecedent-design/src/preference_choice_model.rs", pattern = "if options\\.n_draws == 0[\\s\\S]{0,250}?return Err" }

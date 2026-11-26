@@ -49,8 +49,6 @@ markers below and compares it. Prose outside those markers is not read.
 | --- | --- | ---: | --- |
 | distribution.joint_alignment | max_draws | 100000 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
 | distribution.joint_alignment | max_coordinates | 1024 | `crates/antecedent-io-core/src/distribution_artifact.rs` |
-| transport.shared_scenario_covariance | max_exact_rows | 24 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
-| transport.shared_scenario_covariance | max_exact_compositions | 4000000 | `crates/antecedent-estimate/src/scenario_covariance.rs` |
 | transport.shared_scenario_covariance | max_table_rows | 10000 | `crates/antecedent-io/src/scenario_covariance_artifact.rs` |
 | transport.joint_bayesian | max_draws | 100000 | `crates/antecedent-estimate/src/joint_bayesian_transport.rs` |
 | transport.joint_bayesian | max_model_parameters | 256 | `crates/antecedent-estimate/src/joint_bayesian_transport.rs` |
@@ -155,7 +153,7 @@ markers below and compares it. Prose outside those markers is not read.
 | composition.source_projection | max_action_id_bytes | 256 | `crates/antecedent-design/src/source_projection_artifact.rs` |
 | sensitivity.marginal_structural_model | max_sample_rows | 1000000 | `python/antecedent/msm_sensitivity.py` |
 | sensitivity.marginal_structural_model | max_outcomes_per_arm | 256 | `python/antecedent/msm_sensitivity.py` |
-| decision.contract | max_effect_unit_bytes | 256 | `python/src/scalar_decision_api.rs` |
+| decision.contract | max_effect_unit_bytes | 256 | `crates/antecedent/src/analysis/decision_result/static_effect.rs` |
 | inference.measured_scalar | max_bytes | 67108864 | `crates/antecedent-io/src/measured_inference.rs` |
 | counterfactual.transport_general | max_observed | 31 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
 | counterfactual.transport_general | max_worlds | 6 | `crates/antecedent-identify/src/sid/counterfactual_transport.rs` |
@@ -212,12 +210,7 @@ markers below and compares it. Prose outside those markers is not read.
 | provider_callback.law_posterior_protocol | max_points | 65536 | `crates/antecedent-contract/src/callback_protocol/query.rs` |
 | discovery.selective_reuse | max_portable_receipts | 250000 | `crates/antecedent-discovery/src/selective/store.rs` |
 | discovery.selective_reuse | max_structure_items | 65536 | `crates/antecedent-io-core/src/selective_discovery_artifact.rs` |
-| adaptive_inference.procedure_law | max_arms | 4 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
-| adaptive_inference.procedure_law | max_contexts | 4 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
-| adaptive_inference.procedure_law | max_cells | 8 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
-| adaptive_inference.procedure_law | max_looks | 24 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
 | adaptive_inference.procedure_law | max_units | 65535 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
-| adaptive_inference.procedure_law | max_outcome_lag | 4 | `crates/antecedent-stats/src/adaptive_inference/procedure_contract.rs` |
 | adaptive_inference.procedure_ordered_p_value | max_inversion_laws | 4096 | `crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs` |
 | adaptive_inference.procedure_weighting_simulation | max_replications | 1000000 | `crates/antecedent-stats/src/adaptive_inference/procedure_simulation.rs` |
 | adaptive_inference.procedure_law | max_law_states | 1000000 | `crates/antecedent-stats/src/adaptive_inference/procedure_law.rs` |
@@ -268,6 +261,16 @@ markers below and compares it. Prose outside those markers is not read.
 | identify.patient_surrogate | max_patients | 100000 | `crates/antecedent-io-core/src/patient_surrogate.rs` |
 | identify.patient_surrogate | max_artifact_bytes | 16777216 | `crates/antecedent-io-core/src/patient_surrogate.rs` |
 | identify.pag_direct | max_artifact_bytes | 16777216 | `crates/antecedent-io-core/src/pag_identification.rs` |
+| composition.sampling_assumption_union | artifact_bytes | 83886080 | `crates/antecedent/src/analysis/sampling_assumption_union.rs` |
+| preference_decision.exact | vertex_cap | 100000 | `crates/antecedent-design/src/preference_decision.rs` |
+| preference_decision.exact | max_structure_choices | 4096 | `crates/antecedent-design/src/preference_decision.rs` |
+| preference_decision.exact | max_pivots | 100000 | `crates/antecedent-stats/src/linear_program.rs` |
+| preference_decision.certified | max_boxes | 4096 | `crates/antecedent-design/src/preference_certified.rs` |
+| preference_learning.compatible_set | conflict_search_size | 3 | `crates/antecedent-design/src/preference_set_learning.rs` |
+| preference_learning.compatible_set | max_conflict_subsets | 50000 | `crates/antecedent-design/src/preference_set_learning.rs` |
+| preference_learning.compatible_set | max_pivots | 100000 | `crates/antecedent-stats/src/linear_program.rs` |
+| preference_learning.choice_model | max_newton_iterations | 200 | `crates/antecedent-stats/src/glm/conditional_logit.rs` |
+| preference_learning.choice_model | measure_draws | 2000 | `crates/antecedent-design/src/preference_choice_model.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

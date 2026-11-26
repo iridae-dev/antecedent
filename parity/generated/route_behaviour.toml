@@ -1374,7 +1374,6 @@ id = "transport.trial_aipw_caller_learners"
 status = "supported"
 refusals = [
   { code = "route_not_supported", detail = "trial_aipw_caller_learners.bootstrap_not_supported" },
-  { code = "route_not_supported", detail = "dose_response.learner_not_portable" },
 ]
 routes = [
   { route = "antecedent.transport.advanced.analyze_trial_aipw", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -1387,7 +1386,6 @@ id = "estimate.joint_cells_caller_learners"
 status = "supported"
 refusals = [
   { code = "option_not_applicable", detail = "joint_cells_caller_learners.built_in_learner_declared" },
-  { code = "route_not_supported", detail = "dose_response.learner_not_portable" },
 ]
 routes = [
   { route = "antecedent.transport.advanced.analyze_joint_cells", stage = "evaluate", status = "supported", claim = "point_only" },

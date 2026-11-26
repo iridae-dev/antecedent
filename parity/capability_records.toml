@@ -2410,7 +2410,7 @@ identity_inputs = ["ordered scenario identities", "common row snapshot", "unit I
 wire_changes = ["Additive covariance artifact v1 (feature scenario_shared_covariance_v1) carrying the row table, every scenario's declared functional, snapshot and dependence, the method and its options, the covariance result, a premises digest and a separate data digest. A fresh consumer recomputes the matrix from the declarations under its own limits and refuses a resealed change to the row snapshot, scenario order, functional or result."]
 compatibility = "The existing structural envelope remains a structural range without a sampling covariance or interval; this cell adds a separate artifact and changes no existing wire field."
 search = false
-bounds = { cancellation = true, memory_limit = "scenario covariance and bootstrap replicate allocations are bounded by the execution context admission", max_exact_rows = 24, max_exact_compositions = 4000000, max_table_rows = 10000 }
+bounds = { cancellation = true, memory_limit = "scenario covariance and bootstrap replicate allocations are bounded by the execution context admission", max_exact_rows = "quoted against the caller composition budget and the execution", max_exact_compositions = "the caller composition budget, admitted by the execution", max_table_rows = 10000 }
 surface_rust = ["crates/antecedent-estimate/src/scenario_covariance.rs", "crates/antecedent-io/src/scenario_covariance_artifact.rs"]
 surface_exports = ["python/antecedent/transport/advanced.py"]
 owned_exports = ["AdjustedContrast", "LinearScore", "RowTable", "ScenarioCovarianceRefusal", "ScenarioCovarianceResult", "ScenarioEstimator", "ScoreTerm", "consume_scenario_covariance_artifact", "scenario_shared_covariance"]
@@ -4717,7 +4717,6 @@ compatibility = "Additive. The direct estimate_trial_aipw_with_factories entry i
 search = false
 refusals = [
   { detail = "trial_aipw_caller_learners.bootstrap_not_supported" },
-  { detail = "dose_response.learner_not_portable" },
 ]
 inference_outputs = []
 bounds = { cancellation = true }
@@ -4769,7 +4768,6 @@ compatibility = "Additive. The direct fit_factorized_joint_cells_with_factories 
 search = false
 refusals = [
   { detail = "joint_cells_caller_learners.built_in_learner_declared" },
-  { detail = "dose_response.learner_not_portable" },
 ]
 inference_outputs = []
 bounds = { cancellation = true }
@@ -14154,7 +14152,7 @@ refusals = [
   { detail = "decision_reliability.combined_uncertainty", remedy = "Read the three components separately; a combined statement needs a whole-procedure calibration at the coordinate (candidate-set size, Monte Carlo budget, selection rule)." },
 ]
 routes = [
-  { name = "antecedent.decision_reliability.assess", stage = "evaluate", status = "supported", claim = "point_only", covers = ["decision_reliability_assess", "decision_reliability_rank", "decision_reliability_publish", "rank", "publish", "derive_decision_uncertainty", "derive_producer_uncertainty", "reach_decision_carrier", "decision_reliability_coverage_design", "publish_derived_route", "derive_uncertainty", "coverage_design", "reach_carrier", "decision_reliability_derive", "decision_reliability_derive_producer", "decision_reliability_assess_producer", "decision_reliability_reach_carrier", "decision_reliability_coverage_design_json", "decision_reliability_publish_derived", "sequential_policy_reliability"] },
+  { name = "antecedent.decision_reliability.assess", stage = "evaluate", status = "supported", claim = "point_only", covers = ["decision_reliability_assess", "decision_reliability_rank", "decision_reliability_rank_producer", "decision_reliability_publish", "rank", "publish", "derive_decision_uncertainty", "derive_producer_uncertainty", "reach_decision_carrier", "decision_reliability_coverage_design", "publish_derived_route", "derive_uncertainty", "coverage_design", "reach_carrier", "decision_reliability_derive", "decision_reliability_derive_producer", "decision_reliability_assess_producer", "decision_reliability_reach_carrier", "decision_reliability_coverage_design_json", "decision_reliability_publish_derived", "sequential_policy_reliability"] },
   { name = "antecedent.decision_reliability.export", stage = "representation", status = "supported", claim = "point_only" },
   { name = "antecedent.decision_reliability.consume_decision_reliability_artifact", stage = "consume", status = "supported", claim = "point_only", covers = ["consume_decision_reliability_artifact", "decision_reliability_consume", "consume_derived_uncertainty", "decision_reliability_consume_derived", "decision_reliability_verify_derived", "consume_sequential_policy_reliability"] },
   { name = "antecedent.decision_reliability.sampled_decision.interval", stage = "uncertainty", status = "supported", claim = "point_only" },
@@ -19927,7 +19925,7 @@ theorem = "The procedure is a finite-state Markov process over the observed stat
 reference = "provenance/adaptive_inference.procedure_law.toml"
 guarantee = "exact_finite_law_of_the_declared_procedure_under_a_hypothesized_truth_or_prior_predictive_no_interval_or_coverage_support"
 graph_class = "Not applicable: the result is a property of the declared collection procedure (assignment rule, enrolment schedule, outcome delay and loss, exposure failure, stopping rule, final selection) under a hypothesized truth or a prior predictive."
-population_semantics = "The experiment's own units; Bernoulli outcomes, at most 4 arms, 4 discrete contexts with known probabilities, 8 cells, 24 looks, 65535 units (counts are 16-bit) and a lag of at most 4 looks; a procedure beyond the exact-law state and work bounds is simulated under a work and memory budget."
+population_semantics = "The experiment's own units; Bernoulli outcomes. Arms, contexts, cells, looks and outcome lag are quoted against the execution rather than refused at a fixed count. Unit counts are 16-bit (at most 65535). A procedure beyond the exact-law state and work bounds is simulated under a work and memory budget."
 evidence_family = "A fully declared procedure (every element named, no defaults) and a hypothesized truth or a Beta prior; observed terminal counts where the report is conditional on them."
 provider = "antecedent_stats::adaptive_inference::procedure_law::enumerate_law"
 estimand = "The exact probability of each terminal atom of the declared procedure and the estimator laws derived from it, with the undefined mass."
@@ -19940,7 +19938,7 @@ compatibility = "Additive. The delivered matrix cells and the final-n analyses a
 search = false
 prerequisite_records = ["adaptive_inference.analysis_contract"]
 prerequisite_reason = "A procedure is consulted only for a validated adaptive design contract; each paradigm's own guarantee is stated by its record."
-bounds = { cancellation = true, max_arms = 4, max_contexts = 4, max_cells = 8, max_looks = 24, max_units = 65535, max_outcome_lag = 4, max_law_states = 1000000, max_law_work = 60000000 }
+bounds = { cancellation = true, max_arms = "quoted against the execution", max_contexts = "quoted against the execution", max_cells = "quoted against the execution", max_looks = "quoted against the execution", max_units = 65535, max_outcome_lag = "quoted against the execution", max_law_states = 1000000, max_law_work = 60000000 }
 refusals = [
   { detail = "adaptive_inference.selection_not_ignorable", remedy = "Model selection jointly with the outcome, or randomize independently of unobserved quantities." },
   { detail = "adaptive_inference.arm_not_observed", remedy = "Observe a completed unit in both contrast arms; a prior alone does not identify the contrast." },
@@ -19951,8 +19949,8 @@ refusals = [
   { detail = "adaptive_inference.exposure_history_missing", when = "No exposure model is declared.", remedy = "Declare the exposure model: the probability that an assigned arm is not delivered and what is delivered instead." },
   { detail = "adaptive_inference.stopping_rule_missing", when = "No stopping rule is declared.", remedy = "Declare the stopping rule, its parameters and what it decides at each look." },
   { detail = "adaptive_inference.policy_selection_missing", remedy = "Declare how the procedure selects an arm when no stopping rule decided, or declare no selection." },
-  { detail = "adaptive_inference.arms_invalid", when = "The number of arms is outside 2 to the maximum.", remedy = "Correct the declared element." },
-  { detail = "adaptive_inference.contexts_invalid", remedy = "Declare 1 to 4 contexts with known probabilities summing to one." },
+  { detail = "adaptive_inference.arms_invalid", when = "Fewer than two arms are declared.", remedy = "Declare at least two arms." },
+  { detail = "adaptive_inference.contexts_invalid", remedy = "Declare contexts with known probabilities summing to one." },
   { detail = "adaptive_inference.rule_mismatch", when = "An assignment or stopping rule has parameters outside its range (a probability vector of another length, an invalid prior, a threshold outside its interval) or needs a single context.", remedy = "Correct the declared element." },
   { detail = "adaptive_inference.looks_not_ordered", when = "The enrolment schedule is empty, starts with an empty look or enrols no unit.", remedy = "Declare a schedule whose first look enrols at least one unit." },
   { detail = "adaptive_inference.outcome_availability_invalid", remedy = "Correct the declared element." },
@@ -27005,7 +27003,7 @@ owners = ["antecedent", "antecedent-stats", "python/antecedent"]
 identity_inputs = ["model version, subject sampling unit and indexed bootstrap design, result seed", "named population, outcome, units, support, threshold, treatment and MNAR ranges, nominal level and replicate count", "ordered complete source trajectories and observed-outcome indicators"]
 wire_changes = ["Versioned longitudinal_joint_sensitivity result container carries original declarations, seed, subject rows, result and program identity.", "The same artifact is admitted as a longitudinal_joint_sensitivity node by the standard composition consumer and decoded by generic Python load."]
 compatibility = "Additive bounded scientific route."
-coverage_records = ["cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners", "cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema"]
+coverage_records = []
 search = false
 bounds = { cancellation = true, max_artifact_bytes = 16777216 }
 surface = ["python/antecedent/longitudinal_joint_sensitivity.py"]
@@ -27096,7 +27094,7 @@ estimand = "The union of all true optimal schedules under the declared structura
 provider = "Compiler-owned joint source fit, independent target prevalence fit and prespecified finite structural/preference world declaration."
 inference_claim = "interval"
 inference_notes = "The route reports a confidence set for the final optimum set, with a finite-sample false-publication guarantee under its premises and a separately resolved empirical calibration scope. The example calibration requires verified binary endpoints and its matching prespecified world declaration."
-coverage_records = ["cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_unique_optima_coverage.v2_validation_not_applicable", "cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_all_tied_optima_coverage.v2_validation_not_applicable"]
+coverage_records = []
 owners = ["antecedent-design", "antecedent", "python/antecedent"]
 identity_inputs = ["source trajectory rows and censoring indications", "independent target rows", "fixed finite schedule, structure and preference worlds", "each compiled child's premises and program identity", "explicit source-fixed calibration design where declared"]
 wire_changes = ["Source, target and declaration children bind a compiled-program identity to their replayed products, and the terminal binds all three child products to the outer program."]
@@ -27191,6 +27189,7 @@ routes = [
   { name = "antecedent.rpcmci_portable.LearnedRpcmciArtifact.accept_regime", stage = "evaluate", status = "supported", claim = "none", covers = ["LearnedRpcmciHandle.accept_regime"] },
 ]
 fixtures = [
+  { id = "discovery.learned_rpcmci_replay.planted_directions.truth", role = "truth", intent = "The compiled regime learner this replay retains, run on an independent linear series with a known change from x[t-1] causing y[t] to y[t-1] causing x[t], recovers both lagged links and at least 94 percent of the known split up to label permutation.", evidence_test = "crates/antecedent/tests/rpcmci_regime_learning.rs", evidence_assertion = "independent_changing_graphs_recover_labels_and_replay", shared_evidence = true },
   { id = "discovery.learned_rpcmci_replay.planted_regimes.positive", role = "positive", intent = "The Rust producer recovers both lag directions and at least 94 percent label agreement up to permutation. Its bundle consumer reproduces two regimes.", evidence_test = "crates/antecedent/tests/rpcmci_regime_learning.rs", evidence_assertion = "portable_shared_series_replays_and_accepts_explicit_regimes" },
   { id = "discovery.learned_rpcmci_replay.fresh_process.artifact", role = "artifact", intent = "A fresh Python process reconstructs the report. Both reviewed graphs use the exact original rows and uninterrupted lag windows.", evidence_test = "python/tests/test_rpcmci_regime_learning.py", evidence_assertion = "test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph" },
   { id = "discovery.learned_rpcmci_replay.operational_stops.negative", role = "negative", intent = "The public reader distinguishes an incorrect retained identity, insufficient memory and cancellation by code while preserving the portable refusal detail.", evidence_test = "python/tests/test_rpcmci_regime_learning.py", evidence_assertion = "test_portable_replay_distinguishes_identity_memory_and_cancellation" },
