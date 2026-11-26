@@ -7635,6 +7635,36 @@ recorded_at = "2026-11-26T05:09:43Z"
 dependency_manifest = "2d5d2262cace57286c68ee23ddd558dee8c4e55ff710e558f1e80c4c025c5e35"
 
 [[record]]
+test = "antecedent::longitudinal_regime_calibration::four_period_sequential_dr_coverage_and_publication"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "76a03db3932523b4fc47c1802156b926da5085176f559676a7c4e18103900f39"
+recorded_at = "2026-11-26T05:10:39Z"
+dependency_manifest = "f89b64a9305944616a02cb1571bb60ad8e434a3b1b927d6729f70de74cbe471b"
+
+[[record]]
+test = "antecedent::longitudinal_schedule_route::learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajectory_support"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "1a0822414bd677301798539bc7227757a22d72c5df2cdd2fbcd8a2c7df75401a"
+recorded_at = "2026-11-26T05:11:44Z"
+dependency_manifest = "92a4b19e2d6bb77c64d60b5b5832c0e70d7824498d10819adbf6e1c1b9096fe8"
+
+[[record]]
+test = "antecedent::longitudinal_schedule_route::simultaneous_schedule_intervals_use_paired_subject_scores_and_bound_the_contrast_family"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "1a0822414bd677301798539bc7227757a22d72c5df2cdd2fbcd8a2c7df75401a"
+recorded_at = "2026-11-26T05:11:44Z"
+dependency_manifest = "e8dc7221d65fecff64b8a13337f1b5d884ab7079ec67121fb2173065bcd9fd98"
+
+[[record]]
 test = "antecedent::measured_exposure_known_truth::covariate_dependent_detection_recovers_the_planted_effect"
 roles = ["scientific"]
 passed = true
@@ -8233,6 +8263,46 @@ dirty = false
 fingerprint = "f4b5e733a4a3bde0eb7732cebcfe6edaf7e1a73cf8578cd292f95e6fd41591a9"
 recorded_at = "2026-11-20T00:13:40Z"
 dependency_manifest = "af24a8242f2f0ab3a02accd80a03e99ec6d272455c1453e8a2e71b595924fbc5"
+
+[[record]]
+test = "antecedent::pag_direct_identification::all_three_vertex_pag_classes_match_the_path_and_collider_reference"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "74f3ae89a60c0b3291457326dd751aa929a710e6bf8c5606e07da9981364083d"
+recorded_at = "2026-11-26T05:13:29Z"
+dependency_manifest = "02682e77c69a4119b8f464f8eb884f8ab2827dc92333c01fbd9d0da09ab121ad"
+
+[[record]]
+test = "antecedent::pag_direct_identification::observationally_equal_two_vertex_models_have_different_do_laws"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "74f3ae89a60c0b3291457326dd751aa929a710e6bf8c5606e07da9981364083d"
+recorded_at = "2026-11-26T05:13:29Z"
+dependency_manifest = "b7e482521e6f8c380f73c9c14b3be0cfa66ae9063c049569372f3cc3fa76f3ee"
+
+[[record]]
+test = "antecedent::pag_direct_identification::published_beyond_adjustment_formula_replays_and_executes"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "74f3ae89a60c0b3291457326dd751aa929a710e6bf8c5606e07da9981364083d"
+recorded_at = "2026-11-26T05:13:29Z"
+dependency_manifest = "f30fb8768c1a48fee4c021601b663fcf02228c93af168c61d3481b1f16173609"
+
+[[record]]
+test = "antecedent::pag_direct_identification::visible_nonnull_effect_matches_the_completion_route_and_shared_oracle"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "74f3ae89a60c0b3291457326dd751aa929a710e6bf8c5606e07da9981364083d"
+recorded_at = "2026-11-26T05:13:29Z"
+dependency_manifest = "0b3116bd2a4baa7e654d783a0601fc9f267da76702b758c72b36725434ae8a69"
 
 [[record]]
 test = "antecedent::path_specific_admg_route::the_class_band_covers_the_identified_set_bayesian"
