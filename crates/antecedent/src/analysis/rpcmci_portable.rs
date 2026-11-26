@@ -531,22 +531,24 @@ fn replay(
 
 pub(super) struct Verifier(pub ExecutionContext);
 
+fn bundle_failure(error: RpcmciReplayError) -> NodeFailure {
+    let stage = match &error {
+        RpcmciReplayError::Cancelled | RpcmciReplayError::Causal(CausalError::Cancelled { .. }) => {
+            BundleStage::ExecutionCancelled
+        }
+        RpcmciReplayError::Resource(_)
+        | RpcmciReplayError::Causal(CausalError::Resource { .. }) => BundleStage::ResourceRefused,
+        RpcmciReplayError::Io(IoError::TooLarge) => BundleStage::Oversized,
+        _ => BundleStage::SwappedEvidence,
+    };
+    NodeFailure { stage, reason: error.to_string() }
+}
+
 pub(super) fn describe(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<ArtifactDescription, NodeFailure> {
-    let artifact = replay(bytes, None, ctx).map_err(|error| {
-        let stage = match error {
-            RpcmciReplayError::Cancelled => BundleStage::ExecutionCancelled,
-            RpcmciReplayError::Resource(_)
-            | RpcmciReplayError::Causal(CausalError::Resource { .. }) => {
-                BundleStage::ResourceRefused
-            }
-            RpcmciReplayError::Io(IoError::TooLarge) => BundleStage::Oversized,
-            _ => BundleStage::SwappedEvidence,
-        };
-        NodeFailure { stage, reason: error.to_string() }
-    })?;
+    let artifact = replay(bytes, None, ctx).map_err(bundle_failure)?;
     let report = artifact.report();
     let mut values = vec![("regime_count".into(), f64::from(report.selected_count))];
     if let Some(agreement) = report.assignment_agreement {
@@ -597,6 +599,32 @@ mod source_schema_tests {
     const OLD_ID: &str = "d1873b241ac72b140a2b06ab6d8494396d7ddb3ab3863d60027bd93a3fb57b10";
     const OLD_DATA: &str = "7a299295a8283a4c75afa108418a6b96895821504a38a6be02c476b2b279b87e";
     const CONTEXT_DATA: &str = "2918d6e1d9d1c7e529c80f9295b463bfbf3908e7c4a98bde88d1a942c74ddbcf";
+
+    #[test]
+    fn bundle_replay_preserves_cancellation_and_resource_stops() {
+        let ctx = ExecutionContext::for_tests(0);
+        ctx.cancellation.cancel();
+        assert_eq!(describe(OLD_BYTES, &ctx).unwrap_err().stage, BundleStage::ExecutionCancelled);
+
+        for (cause, stage) in [
+            (CausalError::Cancelled { stage: "discover" }, BundleStage::ExecutionCancelled),
+            (
+                CausalError::Resource { message: "insufficient memory".into() },
+                BundleStage::ResourceRefused,
+            ),
+        ] {
+            let error = RpcmciReplayError::Causal(cause);
+            let message = error.to_string();
+            let failure = bundle_failure(error);
+            assert_eq!(failure.stage, stage);
+            assert_eq!(failure.reason, message);
+        }
+        let ctx = ExecutionContext::for_tests(0);
+        assert_eq!(
+            describe(b"bad envelope", &ctx).unwrap_err().stage,
+            BundleStage::SwappedEvidence
+        );
+    }
 
     #[test]
     fn v1_wire_keeps_its_original_layout_and_identity() {
