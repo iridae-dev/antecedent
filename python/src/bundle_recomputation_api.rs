@@ -21,7 +21,7 @@ use antecedent::analysis::composition::{
     consume_portable_predictive_fit_decision_bundle,
 };
 use antecedent::analysis::composition_cohort_decision::{
-    CompiledCohortDecisionBundleRecomputation, cohort_decision_bytes,
+    CompiledAffineDecisionBundleRecomputation, cohort_decision_bytes,
     compile_cohort_decision_bundle_recomputation,
     consume_portable_cohort_decision_bundle_recomputation,
 };
@@ -32,10 +32,17 @@ use antecedent::analysis::composition_decision_terminal::{
     consume_portable_decision_bundle_recomputation,
     consume_portable_posterior_decision_bundle_recomputation,
 };
+use antecedent::analysis::composition_ledger_decision::{
+    LedgerPoolSelection, compile_ledger_pooled_decision_bundle_recomputation,
+    consume_portable_ledger_pooled_decision_bundle_recomputation, ledger_pooled_decision_bytes,
+    select_ledger_pooled_result,
+};
 use antecedent::analysis::propagation_chain::{
     PropagationChainRecordWire, compile_propagation_chain,
 };
+use antecedent::contract::evidence_ledger::ResultId;
 use antecedent::design::decision_artifact::contract_from_json_refusal;
+use antecedent::io::quantity_wire::ScientificQuantityWire;
 use antecedent::prelude::ExecutionContext;
 use antecedent::reason::reason_code;
 use antecedent::scientific::SemanticDigest;
@@ -44,7 +51,9 @@ use pyo3::types::PyBytes;
 use serde_json::{Value as Json, json};
 
 use crate::PyCancellationToken;
-use crate::bridge::{MAX_DATA_DECLARATION_BYTES, RefusalJson, external_refusal_json};
+use crate::bridge::{
+    MAX_DATA_DECLARATION_BYTES, RefusalJson, check_declared_size, external_refusal_json,
+};
 use crate::chain_decision_api::{chain_refusal_json, context, io_refusal_json};
 use crate::composition_bundle_api::{PyBundleBuilder, PyCompositionBundle, error_refusal};
 use crate::distribution_api::PyJointDistributionArtifact;
@@ -80,6 +89,7 @@ const CHAIN_ROUTE: &str = "chain";
 const PREDICTIVE_DECISION_ROUTE: &str = "predictive_decision";
 const POSTERIOR_DECISION_ROUTE: &str = "posterior_decision";
 const COHORT_DECISION_ROUTE: &str = "cohort_decision";
+const LEDGER_POOLED_DECISION_ROUTE: &str = "ledger_pooled_decision";
 const PREDICTIVE_FIT_ROUTE: &str = "predictive_fit_decision";
 
 fn cancelled() -> PyErr {
@@ -175,7 +185,7 @@ fn dependencies_json(dependencies: &[ReplayedBundleDependency]) -> Json {
 enum Plan {
     Chain(CompiledChainBundleRecomputation),
     Decision { plan: CompiledDecisionBundleRecomputation, posterior: bool },
-    Cohort(CompiledCohortDecisionBundleRecomputation),
+    Affine(CompiledAffineDecisionBundleRecomputation, &'static str),
     Predictive(CompiledPredictiveFitDecisionBundle),
 }
 
@@ -192,7 +202,7 @@ impl Plan {
             Self::Chain(_) => CHAIN_ROUTE,
             Self::Decision { posterior: false, .. } => PREDICTIVE_DECISION_ROUTE,
             Self::Decision { posterior: true, .. } => POSTERIOR_DECISION_ROUTE,
-            Self::Cohort(_) => COHORT_DECISION_ROUTE,
+            Self::Affine(_, route) => route,
             Self::Predictive(_) => PREDICTIVE_FIT_ROUTE,
         }
     }
@@ -201,7 +211,7 @@ impl Plan {
         match self {
             Self::Chain(plan) => plan.lowered().identity(),
             Self::Decision { plan, .. } => plan.lowered().identity(),
-            Self::Cohort(plan) => plan.lowered().identity(),
+            Self::Affine(plan, _) => plan.lowered().identity(),
             Self::Predictive(plan) => plan.lowered().identity(),
         }
     }
@@ -210,7 +220,7 @@ impl Plan {
         match self {
             Self::Chain(plan) => plan.plan_view().to_json().to_string(),
             Self::Decision { plan, .. } => plan.plan_view().to_json().to_string(),
-            Self::Cohort(plan) => plan.plan_view().to_json().to_string(),
+            Self::Affine(plan, _) => plan.plan_view().to_json().to_string(),
             Self::Predictive(plan) => plan.plan_view().to_json().to_string(),
         }
     }
@@ -219,7 +229,7 @@ impl Plan {
         match self {
             Self::Chain(plan) => crate::errors::unit_support_json(&plan.plan_view()),
             Self::Decision { plan, .. } => crate::errors::unit_support_json(&plan.plan_view()),
-            Self::Cohort(plan) => crate::errors::unit_support_json(&plan.plan_view()),
+            Self::Affine(plan, _) => crate::errors::unit_support_json(&plan.plan_view()),
             Self::Predictive(plan) => crate::errors::unit_support_json(&plan.plan_view()),
         }
     }
@@ -234,7 +244,7 @@ impl Plan {
                 .execute(ctx)
                 .map(Receipt::Decision)
                 .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
-            Self::Cohort(plan) => plan
+            Self::Affine(plan, _) => plan
                 .execute(ctx)
                 .map(Receipt::Decision)
                 .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
@@ -257,7 +267,7 @@ impl Plan {
             (Self::Decision { plan, .. }, Receipt::Decision(receipt)) => plan
                 .export_portable(receipt, ctx)
                 .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
-            (Self::Cohort(plan), Receipt::Decision(receipt)) => plan
+            (Self::Affine(plan, _), Receipt::Decision(receipt)) => plan
                 .export_portable(receipt, ctx)
                 .map_err(|error| decision_bundle_json(&error, Phase::Replay)),
             (Self::Predictive(plan), Receipt::Predictive(receipt)) => plan
@@ -566,7 +576,124 @@ fn cohort_decision_bundle_recomputation_compile(
         Ok(
             match compile_cohort_decision_bundle_recomputation(bundle.bundle.clone(), terminal_node)
             {
-                Ok(plan) => (Some(PyBundleRecomputationPlan { plan: Plan::Cohort(plan) }), None),
+                Ok(plan) => (
+                    Some(PyBundleRecomputationPlan {
+                        plan: Plan::Affine(plan, COHORT_DECISION_ROUTE),
+                    }),
+                    None,
+                ),
+                Err(error) => (
+                    None,
+                    Some(decision_bundle_json(
+                        &error,
+                        Phase::Compile(reason_code!("decision_contract_unsatisfied")),
+                    )),
+                ),
+            },
+        )
+    })
+}
+
+/// Independently validate the ledger and select one still-valid point pool.
+#[pyfunction]
+#[pyo3(signature = (ledger, expected_ledger, result, quantity_json, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+#[allow(clippy::too_many_arguments, reason = "the retained pool request and execution controls")]
+fn composition_select_ledger_pool(
+    py: Python<'_>,
+    ledger: &[u8],
+    expected_ledger: &str,
+    result: &str,
+    quantity_json: &str,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> PyResult<Refused<Py<PyBytes>>> {
+    let result = ResultId::from_hex(result)
+        .ok_or_else(|| crate::value_err("invalid ledger result identity"))?;
+    check_declared_size(quantity_json, MAX_DATA_DECLARATION_BYTES, "pooled quantity")?;
+    let wire: ScientificQuantityWire =
+        serde_json::from_str(quantity_json).map_err(|error| crate::value_err(error.to_string()))?;
+    let quantity = wire.try_into().map_err(crate::value_err)?;
+    let ctx = context(seed, threads, cancel, memory_bytes);
+    let (selected, stopped) = crate::detach_catch(py, move || {
+        let selected = select_ledger_pooled_result(ledger, expected_ledger, result, quantity, &ctx)
+            .map_err(|error| decision_bundle_json(&error, Phase::Replay))
+            .and_then(|selection| {
+                selection.to_bytes().map_err(|failure| {
+                    bundle_json(&BundleError::Refused {
+                        stage: failure.stage,
+                        reason: failure.reason,
+                        offending: None,
+                    })
+                })
+            });
+        Ok((selected, ctx.cancellation.is_cancelled()))
+    })?;
+    match selected {
+        Ok(bytes) => Ok((Some(PyBytes::new(py, &bytes).unbind()), None)),
+        Err(_) if stopped => Err(cancelled()),
+        Err(refusal) => Ok((None, Some(refusal))),
+    }
+}
+
+/// Export the affine result for a selected pool.
+#[pyfunction]
+fn composition_ledger_pooled_decision<'py>(
+    py: Python<'py>,
+    contract_json: &str,
+    source_bytes: &[u8],
+    artifact_id: &str,
+) -> PyResult<(Option<Bound<'py, PyBytes>>, Option<String>)> {
+    crate::catch_ffi(|| {
+        let contract = match contract_from_json_refusal(contract_json) {
+            Ok(contract) => contract,
+            Err(refusal) => return Ok((None, Some(external_refusal_json(&refusal)))),
+        };
+        let source = match LedgerPoolSelection::inspect(source_bytes) {
+            Ok(source) => source,
+            Err(failure) => {
+                return Ok((
+                    None,
+                    Some(bundle_json(&BundleError::Refused {
+                        stage: failure.stage,
+                        reason: failure.reason,
+                        offending: None,
+                    })),
+                ));
+            }
+        };
+        Ok(match ledger_pooled_decision_bytes(&contract, &source, artifact_id) {
+            Ok(bytes) => (Some(PyBytes::new(py, &bytes)), None),
+            Err(error) => (
+                None,
+                Some(decision_bundle_json(
+                    &error,
+                    Phase::Compile(reason_code!("decision_contract_unsatisfied")),
+                )),
+            ),
+        })
+    })
+}
+
+/// Compile an affine terminal for the selected pool and its retained ledger.
+#[pyfunction]
+fn ledger_pooled_decision_bundle_recomputation_compile(
+    bundle: PyRef<'_, PyCompositionBundle>,
+    terminal_node: &str,
+) -> PyResult<Refused<PyBundleRecomputationPlan>> {
+    crate::catch_ffi(|| {
+        Ok(
+            match compile_ledger_pooled_decision_bundle_recomputation(
+                bundle.bundle.clone(),
+                terminal_node,
+            ) {
+                Ok(plan) => (
+                    Some(PyBundleRecomputationPlan {
+                        plan: Plan::Affine(plan, LEDGER_POOLED_DECISION_ROUTE),
+                    }),
+                    None,
+                ),
                 Err(error) => (
                     None,
                     Some(decision_bundle_json(
@@ -739,6 +866,34 @@ fn cohort_decision_bundle_recomputation_consume(
     })
 }
 
+/// Replay the selected ledger dependencies and affine decision under retained identities.
+#[pyfunction]
+#[pyo3(signature = (data, expected_bundle, expected_program, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+#[allow(clippy::too_many_arguments, reason = "the artifact, its two identities and the controls")]
+fn ledger_pooled_decision_bundle_recomputation_consume(
+    py: Python<'_>,
+    data: &[u8],
+    expected_bundle: &str,
+    expected_program: &str,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> PyResult<Refused<PyBundleRecomputationRun>> {
+    let program = crate::digest::digest(expected_program, "expected_program")?;
+    let ctx = context(seed, threads, cancel, memory_bytes);
+    consume_run(py, LEDGER_POOLED_DECISION_ROUTE, ctx, move |ctx| {
+        consume_portable_ledger_pooled_decision_bundle_recomputation(
+            data,
+            expected_bundle,
+            program,
+            ctx,
+        )
+        .map(Receipt::Decision)
+        .map_err(|error| decision_bundle_json(&error, Phase::Replay))
+    })
+}
+
 /// Rebuild a portable producer -> chain -> decision bundle, refit the producer from its raw
 /// evidence, rescore the decision and require the live receipt.
 #[pyfunction]
@@ -855,6 +1010,16 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(composition_cohort_decision, module)?)?;
     module.add_function(wrap_pyfunction!(cohort_decision_bundle_recomputation_compile, module)?)?;
     module.add_function(wrap_pyfunction!(cohort_decision_bundle_recomputation_consume, module)?)?;
+    module.add_function(wrap_pyfunction!(composition_select_ledger_pool, module)?)?;
+    module.add_function(wrap_pyfunction!(composition_ledger_pooled_decision, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        ledger_pooled_decision_bundle_recomputation_compile,
+        module
+    )?)?;
+    module.add_function(wrap_pyfunction!(
+        ledger_pooled_decision_bundle_recomputation_consume,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(predictive_fit_decision_bundle_compile, module)?)?;
     module.add_function(wrap_pyfunction!(predictive_fit_decision_bundle_consume, module)?)?;
     Ok(())

@@ -13304,3 +13304,63 @@ calibration = "identified_set_no_sampling_coverage"
 artifact_consumer_fixture = "identify.patient_surrogate.verified_threshold.artifact"
 provider_trust = "Conditional on the declared population laws and randomized patient premises, numerical bounds and the threshold decision are independently replayed."
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.select_ledger_pooled_result"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/evidence_ledger.statistical_pooling.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.ledger_pool_decision.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The inherited evidence ledger with fixed-effect estimates 0, 2 and 6 and weights 4/7, 2/7 and 1/7; its point pool and assumption range; a separate four-study revision fixture with an independent branch."
+expected_values = "The ledger validates the method, contributing study summaries and current result standing. A pooled point of 10/7 is eligible; an assumption range refuses."
+tolerance = "1e-12 for closed-form arithmetic; exact equality for retained evidence and decision identities"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.ledger_pool_decision.artifact"
+provider_trust = "The ledger validates the retained calculations and standings; the scientific coordinate remains caller-declared."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.ledger_pooled_decision_bytes"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/evidence_ledger.statistical_pooling.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.ledger_pool_decision.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The inherited evidence ledger with fixed-effect estimates 0, 2 and 6 and weights 4/7, 2/7 and 1/7; its point pool and assumption range; a separate four-study revision fixture with an independent branch."
+expected_values = "The declared point unit is scored by the affine evaluator. The mean 10/7 gives a treatment value of 5/28 and a wait value of zero."
+tolerance = "1e-12 for closed-form arithmetic; exact equality for retained evidence and decision identities"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.ledger_pool_decision.artifact"
+provider_trust = "The ledger validates the retained calculations and standings; the scientific coordinate remains caller-declared."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.compile_ledger_pooled_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/evidence_ledger.statistical_pooling.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.ledger_pool_decision.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The inherited evidence ledger with fixed-effect estimates 0, 2 and 6 and weights 4/7, 2/7 and 1/7; its point pool and assumption range; a separate four-study revision fixture with an independent branch."
+expected_values = "The compiled terminal binds its selected result and direct ledger and contract dependencies. The dependent decision invalidates on revision while an independent terminal can still replay."
+tolerance = "1e-12 for closed-form arithmetic; exact equality for retained evidence and decision identities"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.ledger_pool_decision.artifact"
+provider_trust = "The ledger validates the retained calculations and standings; the scientific coordinate remains caller-declared."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "composition.bundle"
+route = "antecedent.composition.consume_portable_ledger_pooled_decision_bundle_recomputation"
+algorithm_provenance = ["provenance/composition.bundle.toml", "provenance/evidence_ledger.statistical_pooling.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "composition.bundle.ledger_pool_decision.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The inherited evidence ledger with fixed-effect estimates 0, 2 and 6 and weights 4/7, 2/7 and 1/7; its point pool and assumption range; a separate four-study revision fixture with an independent branch."
+expected_values = "A new process reconstructs the retained graph and program and reproduces the decision fingerprint from the verified selected result."
+tolerance = "1e-12 for closed-form arithmetic; exact equality for retained evidence and decision identities"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "composition.bundle.ledger_pool_decision.artifact"
+provider_trust = "The ledger validates the retained calculations and standings; the scientific coordinate remains caller-declared."
+exact_request_verification = "not_applicable_no_external_provider"

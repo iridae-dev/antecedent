@@ -1000,8 +1000,8 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 [[cell]]
 producer = "evidence_ledger"
 consumer = "bundle_node"
-status = "REFUSED"
-detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the ledger exports a typed artifact, but the bundle still refuses its unsupported scientific node kind; `ledger.export()` preserves carried/not-carried receipts in immutable metadata"
+status = "ADAPTER"
+detail = "The ledger validator replays the evidence history. `composition_bundle.select_ledger_pooled_result` binds a still-valid pooled point and its caller-declared quantity to a downstream affine decision. Revisions invalidate dependent selections, and an assumption range refuses a point request."
 
 [[cell]]
 producer = "evidence_ledger"

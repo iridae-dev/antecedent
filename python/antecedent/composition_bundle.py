@@ -90,7 +90,7 @@ from ._validate import name as _name
 from .decision import Contract
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .execution import Execution, native_controls, resolve_execution
-from .joint_distribution import JointDistributionArtifact
+from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 from .outcomes import outcome_operation, require_success
 
 if TYPE_CHECKING:
@@ -134,6 +134,8 @@ NodeKind = Literal[
     "counterfactual_transport_result",
     "compact_fitted_effect_model",
     "cohort_decision_source",
+    "evidence_ledger",
+    "ledger_pooled_result",
     "transformation",
     "decision_contract",
     "decision_result",
@@ -188,6 +190,8 @@ NODE_KINDS: tuple[str, ...] = (
     "counterfactual_transport_result",
     "compact_fitted_effect_model",
     "cohort_decision_source",
+    "evidence_ledger",
+    "ledger_pooled_result",
     "transformation",
     "decision_contract",
     "decision_result",
@@ -217,6 +221,8 @@ EMBEDDABLE_KINDS: tuple[str, ...] = (
     "counterfactual_transport_result",
     "compact_fitted_effect_model",
     "cohort_decision_source",
+    "evidence_ledger",
+    "ledger_pooled_result",
     "decision_contract",
     "decision_result",
     "sensitivity",
@@ -260,17 +266,18 @@ RecomputationRoute = Literal[
     "posterior_decision",
     "cohort_decision",
     "require_compact_refit_inputs",
+    "ledger_pooled_decision",
     "predictive_fit_decision",
 ]
-"""The terminal a :class:`CompiledBundleRecomputation` executes live: a propagation chain, a
-decision result scored on a predictive law or on a parameter posterior, or a predictive producer
--> chain -> decision path."""
+"""The terminal a :class:`CompiledBundleRecomputation` executes live, including an affine
+decision on a cohort or selected ledger pool."""
 #: Routes :func:`consume_bundle_recomputation` replays.
 RECOMPUTATION_ROUTES: tuple[str, ...] = (
     "chain",
     "predictive_decision",
     "posterior_decision",
     "cohort_decision",
+    "ledger_pooled_decision",
     "predictive_fit_decision",
 )
 STAGES: tuple[str, ...] = (
@@ -1485,6 +1492,88 @@ def cohort_decision(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class LedgerPooledResult:
+    """One replayed point pool and its caller-declared quantity."""
+
+    identity: str
+    result_id: str
+    operation_id: str
+    method: str
+    quantity: ScientificQuantity
+    estimate: float
+    _data: bytes = field(repr=False)
+
+    def export(self) -> bytes:
+        """Export the selected result as a node that needs its active ledger parent."""
+        return self._data
+
+
+@outcome_operation
+def select_ledger_pooled_result(
+    ledger: object,
+    *,
+    expected_ledger: str,
+    result: str,
+    quantity: ScientificQuantity,
+    execution: Execution | None = None,
+) -> LedgerPooledResult:
+    """Replay a retained ledger and select an active point pool by result identity.
+
+    The ledger validates the numerical synthesis. The caller supplies its scientific
+    quantity, including its units, intervention, and population.
+    """
+    if not isinstance(quantity, ScientificQuantity):
+        raise CausalTypeError("quantity must be a ScientificQuantity")
+    policy = resolve_execution(execution)
+    data = cast(
+        bytes,
+        _recomputed(
+            policy._call(
+                _native.composition_select_ledger_pool,
+                _bytes(ledger),
+                _name(expected_ledger, "expected_ledger"),
+                _name(result, "result"),
+                json.dumps(quantity._wire()),
+                **_controls(policy),
+            )
+        ),
+    )
+    checked = describe_artifact("ledger_pooled_result", data)
+    return LedgerPooledResult(
+        checked.identity,
+        checked.facts["ledger_result"],
+        checked.facts["pool_operation"],
+        checked.facts["pool_method"],
+        quantity,
+        checked.values["pooled_estimate"],
+        data,
+    )
+
+
+def ledger_pooled_decision(
+    contract: Contract,
+    selection: LedgerPooledResult,
+    *,
+    artifact_id: str = "ledger-pooled-decision",
+) -> bytes:
+    """Export an affine result that names its selected ledger pool and quantity."""
+    contract = require_success(contract)
+    selection = require_success(selection)
+    if not isinstance(contract, Contract):
+        raise CausalTypeError("contract must be a decision.Contract")
+    if not isinstance(selection, LedgerPooledResult):
+        raise CausalTypeError("selection must be a LedgerPooledResult")
+    return cast(
+        bytes,
+        _recomputed(
+            _native.composition_ledger_pooled_decision(
+                json.dumps(contract._wire()), _bytes(selection), artifact_id
+            )
+        ),
+    )
+
+
 # ------------------------------------------------------------------- recomputation
 
 
@@ -1512,8 +1601,8 @@ class BundleRecomputation(ScientificResult):
     Every embedded dependency passed its own consumer in this run (``dependencies``, in bundle
     order, with the recomputed identity and Merkle digest of each) and the terminal was executed
     by the program ``program_identity``. A ``chain`` route names the recomputed
-    ``terminal_identity``; a ``predictive_decision`` or ``posterior_decision`` route the
-    ``decision_fingerprint`` of the decision freshly scored on the bound source law; a
+    ``terminal_identity``; a predictive, posterior or affine decision route gives the
+    ``decision_fingerprint`` of the decision freshly scored on the bound source; a
     ``predictive_fit_decision`` route the refitted ``chain_identity``, the live
     ``decision_fingerprint`` and the ``producer_program_identity``. Nothing outside the embedded
     evidence is refitted and no calibration is earned. ``replayed`` is ``True`` for a receipt an
@@ -1594,8 +1683,7 @@ class CompiledBundleRecomputation:
 
     @property
     def route(self) -> RecomputationRoute:
-        """``chain``, ``predictive_decision``, ``posterior_decision`` or
-        ``predictive_fit_decision``."""
+        """The terminal and carrier declared by the compiled bundle."""
         route: RecomputationRoute = self._handle.route
         return route
 
@@ -1756,6 +1844,24 @@ def compile_cohort_decision_bundle_recomputation(
     built = _bundle(bundle)
     handle = _recomputed(
         _native.cohort_decision_bundle_recomputation_compile(
+            built._native, _node(terminal, "terminal")
+        )
+    )
+    return CompiledBundleRecomputation(handle, built.identity)
+
+
+@outcome_operation
+def compile_ledger_pooled_decision_bundle_recomputation(
+    bundle: Bundle, terminal: str
+) -> CompiledBundleRecomputation:
+    """Compile an affine decision from the active pool and contract upstream of it.
+
+    Live execution replays that terminal's dependency closure so a stale sibling pool
+    cannot stop an independent decision.
+    """
+    built = _bundle(bundle)
+    handle = _recomputed(
+        _native.ledger_pooled_decision_bundle_recomputation_compile(
             built._native, _node(terminal, "terminal")
         )
     )
@@ -1943,8 +2049,9 @@ def consume_bundle_recomputation(
     compared with ``expected_program``, every dependency replayed by its own consumer and the
     terminal executed again; the live receipt must equal the stored one. ``route`` is the
     :attr:`BundleRecomputation.route` the producer handed over with the two identities: a
-    ``predictive_decision`` or ``posterior_decision`` rebuilds the contract and the source law from
-    the bundle's own nodes, and a ``predictive_fit_decision`` refits its producer.
+    ``predictive_decision`` or ``posterior_decision`` rebuilds the contract and the source law,
+    a ``predictive_fit_decision`` refits its producer, and the cohort and ledger routes
+    reconstruct their bound point quantities before scoring the affine decision.
 
     Raises:
         CausalValueError: ``route`` is not one of :data:`RECOMPUTATION_ROUTES`, or
@@ -1985,6 +2092,14 @@ def consume_bundle_recomputation(
     elif route == "cohort_decision":
         pair = policy._call(
             _native.cohort_decision_bundle_recomputation_consume,
+            data,
+            expected_bundle,
+            expected_program,
+            **controls,
+        )
+    elif route == "ledger_pooled_decision":
+        pair = policy._call(
+            _native.ledger_pooled_decision_bundle_recomputation_consume,
             data,
             expected_bundle,
             expected_program,
@@ -2101,6 +2216,10 @@ __all__ = [
     "compile_decision_bundle_recomputation",
     "compile_cohort_decision_bundle_recomputation",
     "cohort_decision",
+    "LedgerPooledResult",
+    "select_ledger_pooled_result",
+    "ledger_pooled_decision",
+    "compile_ledger_pooled_decision_bundle_recomputation",
     "compile_predictive_fit_decision_bundle",
     "compile_sequential_reliability_node_bundle",
     "consume_bundle",

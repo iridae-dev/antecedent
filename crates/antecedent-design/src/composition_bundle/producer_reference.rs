@@ -44,12 +44,12 @@ pub enum ProducerCheck {
     },
 }
 
-/// Node kind already used for this producer. The kind table is unchanged.
+/// Node kind used for a new reference to this producer.
 #[must_use]
 pub fn node_kind_for_role(role: &str) -> Option<NodeKind> {
     Some(match role {
         PROPAGATION => NodeKind::PropagationChain,
-        LEDGER => NodeKind::EvidenceRelationship,
+        LEDGER => NodeKind::EvidenceLedger,
         COMPOSED_MODEL => NodeKind::ExecutionOrFit,
         MEASUREMENT => NodeKind::SupportTrustCalibration,
         DISCOVERY => NodeKind::CausalContract,

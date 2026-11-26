@@ -232,6 +232,12 @@ const PINNED: &[(C, R, &str, F)] = &[
         "PatientSurrogateIdentification",
         F::DesignBased,
     ),
+    (
+        C::LedgerPooledDecisionBundleRecomputation,
+        R::LedgerPooledDecisionBundleRecomputation,
+        "LedgerPooledDecisionBundleRecomputation",
+        F::PropagationChain,
+    ),
     (C::GraphImputation, R::GraphImputation, "GraphImputation", F::GraphImputation),
     (
         C::GraphImputationEffectDecision,

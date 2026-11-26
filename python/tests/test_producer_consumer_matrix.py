@@ -2279,6 +2279,35 @@ def _check_ledger_inverse(o: Objs) -> None:
 # ----------------------------------------------------- counterfactual transport result
 
 
+def _check_ledger_bundle(o: Objs) -> None:
+    ledgered = o.ledgered
+    quantity = _declared_ledger(o).quantities[0]
+    selection = require_success(
+        cb.select_ledger_pooled_result(
+            ledgered.export,
+            expected_ledger=ledgered.export.expectation.identity,
+            result=ledgered.pooled.result,
+            quantity=quantity,
+        )
+    )
+    assert cb.detect_kind(ledgered.export) == "evidence_ledger"
+    graph = (
+        cb.Bundle.builder()
+        .add_artifact(ledgered.export, node_id="ledger")
+        .add_artifact(selection, node_id="pooled")
+        .connect("ledger", "pooled")
+        .build()
+    )
+    consumed = require_success(
+        cb.consume_bundle(bytes(graph.export()), expected_identity=graph.identity)
+    )
+    assert consumed.all_replayed
+    assert consumed.value("pooled", "pooled_estimate") == pytest.approx(7.0 / 5.0)
+
+
+# ----------------------------------------------------- counterfactual transport result
+
+
 def _declared_transport(o: Objs, *, sampled: bool) -> Declared:
     t = o.transported
     # Oracle: P(Y=1 | X=1) = (3/8) / (1/2) = 3/4 and P(Y=1 | X=0) = (1/4) / (1/2) = 1/2.
@@ -3594,6 +3623,7 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("measurement_result", "inverse_query"): _check_measurement_inverse,
     ("composed_model", "decision"): _check_composition_decision,
     ("composed_model", "inverse_query"): _check_composition_inverse,
+    ("evidence_ledger", "bundle_node"): _check_ledger_bundle,
     ("evidence_ledger", "decision"): _check_ledger_decision,
     ("evidence_ledger", "inverse_query"): _check_ledger_inverse,
     ("scientific_bridge_claim", "decision"): _check_bridge_decision,
@@ -3630,7 +3660,6 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
     for producer in (
         "measurement_result",
         "composed_model",
-        "evidence_ledger",
         "decision_reliability_report",
         "adaptive_monitoring_contract",
         "adaptive_inference_result",
@@ -3674,8 +3703,8 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     cells = [status for row in STATUS.values() for status in row]
     assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 280
     assert cells.count("DIRECT") == 21
-    assert cells.count("ADAPTER") == 65
-    assert cells.count("REFUSED") == 194
+    assert cells.count("ADAPTER") == 66
+    assert cells.count("REFUSED") == 193
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:

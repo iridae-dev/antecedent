@@ -5125,6 +5125,10 @@ disposition = "kernel"
 reason = "kernel API; the bounded form of build"
 
 [[row]]
+path = "antecedent_io_core::cohort_decision::CohortDecisionSource::inspect_for_bundle"
+disposition = "consume"
+
+[[row]]
 path = "antecedent_io_core::cohort_decision::CohortDecisionSource::consume_with"
 disposition = "consume"
 

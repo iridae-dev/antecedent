@@ -955,6 +955,8 @@ KIND_STAGE = {
     "counterfactual_transport_result": "distribution_artifact",
     "compact_fitted_effect_model": "distribution_artifact",
     "cohort_decision_source": "distribution_artifact",
+    "evidence_ledger": "evidence",
+    "ledger_pooled_result": "distribution_artifact",
     "frozen_scores": "distribution_artifact",
     "external_claim": "external_provider",
     "attestation": "external_provider",

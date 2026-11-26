@@ -1,5 +1,6 @@
 //! Compiler replay of an affine decision over a retained, weighted cohort.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use antecedent_contract::DataClassification;
@@ -10,7 +11,7 @@ use antecedent_core::{
 use antecedent_design::cohort_decision_input::cohort_mean_binding;
 use antecedent_design::composition_boundary::SupportPolicy;
 use antecedent_design::composition_verifiers::{
-    CohortDecisionSourceVerifier, register_standard_verifiers,
+    CohortDecisionSourceVerifier, EvidenceLedgerVerifier, register_standard_verifiers,
 };
 use antecedent_design::decision_artifact::{
     DecisionContractArtifact, DecisionResultArtifact, bound_mean_result_to_bytes,
@@ -29,6 +30,7 @@ use super::composition::{
 use super::composition_decision_terminal::{
     DecisionBundleRecomputationReceipt, DecisionBundleRecomputeError,
 };
+use super::composition_ledger_decision::{self, LedgerPoolSelection, node_error, score_selection};
 use crate::planner::PlanView;
 use crate::planner::lowered::{
     CarrierDemand, ClaimDemand, Composition, DecisionProgram, DesignShape, EvidenceDecisionProgram,
@@ -49,18 +51,82 @@ const MAX_PORTABLE_BYTES: usize = 32 * 1024 * 1024;
 
 type Error = DecisionBundleRecomputeError;
 
+#[derive(Clone, Copy, Debug)]
+pub(super) enum AffineDecisionSource {
+    Cohort,
+    LedgerPool,
+}
+
+impl AffineDecisionSource {
+    const fn source_kind(self) -> NodeKind {
+        match self {
+            Self::Cohort => NodeKind::CohortDecisionSource,
+            Self::LedgerPool => NodeKind::LedgerPooledResult,
+        }
+    }
+
+    const fn compile_route(self) -> &'static str {
+        match self {
+            Self::Cohort => COMPILE,
+            Self::LedgerPool => composition_ledger_decision::COMPILE,
+        }
+    }
+
+    const fn consume_route(self) -> &'static str {
+        match self {
+            Self::Cohort => CONSUME,
+            Self::LedgerPool => composition_ledger_decision::CONSUME,
+        }
+    }
+
+    const fn feature(self) -> &'static str {
+        match self {
+            Self::Cohort => FEATURE,
+            Self::LedgerPool => "ledger_pooled_decision_bundle_recomputation_portable_v1",
+        }
+    }
+
+    const fn cell(self) -> ProgramCell {
+        match self {
+            Self::Cohort => ProgramCell::CohortDecisionBundleRecomputation,
+            Self::LedgerPool => ProgramCell::LedgerPooledDecisionBundleRecomputation,
+        }
+    }
+
+    const fn plan_id(self) -> &'static str {
+        match self {
+            Self::Cohort => "cohort_decision_bundle_recomputation.v1",
+            Self::LedgerPool => "ledger_pooled_decision_bundle_recomputation.v1",
+        }
+    }
+
+    const fn evaluator(self) -> &'static str {
+        match self {
+            Self::Cohort => "cohort_decision.affine",
+            Self::LedgerPool => "ledger_pooled_decision.affine",
+        }
+    }
+
+    const fn artifact_id(self) -> &'static str {
+        match self {
+            Self::Cohort => "portable-cohort-decision",
+            Self::LedgerPool => "portable-ledger-pooled-decision",
+        }
+    }
+}
+
 fn refused(stage: BundleStage, reason: impl Into<String>, node: Option<&str>) -> Error {
     BundleError::Refused { stage, reason: reason.into(), offending: node.map(str::to_owned) }.into()
 }
 
-fn check_mean_requirement(contract: &DecisionContract) -> Result<(), Error> {
+pub(super) fn check_mean_requirement(contract: &DecisionContract) -> Result<(), Error> {
     if contract
         .source_requirement()?
         .is_some_and(|r| !r.any_of.contains(&SourceRepresentation::Mean))
     {
         return Err(refused(
             BundleStage::UnsupportedLaw,
-            "a cohort contrast supports affine expectation only",
+            "a point mean supports affine expectation only",
             None,
         ));
     }
@@ -110,16 +176,20 @@ impl BundleBuilder {
     }
 }
 
-/// A composition with one supported cohort mean and one affine decision terminal.
+/// A composition with one verified mean and one affine decision terminal.
 #[derive(Clone, Debug)]
-pub struct CompiledCohortDecisionBundleRecomputation {
+pub struct CompiledAffineDecisionBundleRecomputation {
     bundle: CompositionBundle,
     source_node: String,
     terminal_node: String,
     contract: DecisionContract,
     contract_identity: String,
     lowered: Arc<LoweredProgram>,
+    carrier: AffineDecisionSource,
 }
+
+/// The compiled affine decision over an admitted cohort.
+pub type CompiledCohortDecisionBundleRecomputation = CompiledAffineDecisionBundleRecomputation;
 
 fn embedded(node: &BundleNode) -> Result<&[u8], Error> {
     match &node.source {
@@ -167,26 +237,38 @@ pub fn compile_cohort_decision_bundle_recomputation(
     bundle: CompositionBundle,
     terminal_node: &str,
 ) -> Result<CompiledCohortDecisionBundleRecomputation, Error> {
-    require_program_unscoped(&SupportKey::Unit(COMPOSITION_BUNDLE), COMPILE)?;
+    compile_affine_decision_bundle(bundle, terminal_node, AffineDecisionSource::Cohort)
+}
+
+pub(super) fn compile_affine_decision_bundle(
+    bundle: CompositionBundle,
+    terminal_node: &str,
+    carrier: AffineDecisionSource,
+) -> Result<CompiledAffineDecisionBundleRecomputation, Error> {
+    require_program_unscoped(&SupportKey::Unit(COMPOSITION_BUNDLE), carrier.compile_route())?;
     let terminal = by_id(&bundle, terminal_node)?;
     if terminal.kind != NodeKind::DecisionResult {
         return Err(Error::Invalid("the terminal must be a decision result node"));
     }
     embedded(terminal)?;
-    let source = direct_parent(&bundle, terminal_node, NodeKind::CohortDecisionSource)?;
+    let source = direct_parent(&bundle, terminal_node, carrier.source_kind())?;
+    if matches!(carrier, AffineDecisionSource::LedgerPool) {
+        direct_parent(&bundle, &source.id, NodeKind::EvidenceLedger)?;
+    }
     let contract_node = direct_parent(&bundle, terminal_node, NodeKind::DecisionContract)?;
     let contract =
         DecisionContractArtifact::from_bytes(embedded(contract_node)?, &contract_node.identity)?;
     check_mean_requirement(contract.contract())?;
-    let lowered = lower(&bundle, source, terminal_node, &contract)?;
+    let lowered = lower(&bundle, source, terminal_node, &contract, carrier)?;
     let source_node = source.id.clone();
-    Ok(CompiledCohortDecisionBundleRecomputation {
+    Ok(CompiledAffineDecisionBundleRecomputation {
         bundle,
         source_node,
         terminal_node: terminal_node.into(),
         contract: contract.contract().clone(),
         contract_identity: contract.identity().into(),
         lowered: Arc::new(lowered),
+        carrier,
     })
 }
 
@@ -196,12 +278,20 @@ fn lower(
     source: &BundleNode,
     terminal: &str,
     contract: &DecisionContractArtifact,
+    carrier: AffineDecisionSource,
 ) -> Result<LoweredProgram, Error> {
-    let source_digest = CanonicalWriter::digest_bytes(
-        "antecedent.cohort_decision_bundle.source.v1",
-        source.identity.as_bytes(),
-    );
-    let mut question = CanonicalWriter::new("antecedent.cohort_decision_bundle.question.v1");
+    let (source_tag, question_tag) = match carrier {
+        AffineDecisionSource::Cohort => (
+            "antecedent.cohort_decision_bundle.source.v1",
+            "antecedent.cohort_decision_bundle.question.v1",
+        ),
+        AffineDecisionSource::LedgerPool => (
+            "antecedent.ledger_pooled_decision_bundle.source.v1",
+            "antecedent.ledger_pooled_decision_bundle.question.v1",
+        ),
+    };
+    let source_digest = CanonicalWriter::digest_bytes(source_tag, source.identity.as_bytes());
+    let mut question = CanonicalWriter::new(question_tag);
     question.text(bundle.identity()).text(&source.id).text(terminal).text(contract.identity());
     let query = question.finish();
     let design = DesignShape::quoted(1, 1, true);
@@ -213,7 +303,7 @@ fn lower(
             outcome: None,
             query,
         },
-        plan_id: Arc::from("cohort_decision_bundle_recomputation.v1"),
+        plan_id: Arc::from(carrier.plan_id()),
         data: DataClassification::Tabular,
         graph_class: "bundle_decision_dependency_graph",
         query_variables: Arc::from([]),
@@ -228,7 +318,7 @@ fn lower(
     let statistical = StatisticalProgram {
         identifier: None,
         estimator: None,
-        realization: Realization::ExactPoint { evaluator: Arc::from("cohort_decision.affine") },
+        realization: Realization::ExactPoint { evaluator: Arc::from(carrier.evaluator()) },
         models: Arc::from([]),
         folds: None,
         resampling: None,
@@ -241,7 +331,12 @@ fn lower(
             role: EvidenceRole::ChainSource,
             digest: Some(source_digest),
         }]),
-        composition: Composition::Chained { stages: bundle.nodes().len() },
+        composition: Composition::Chained {
+            stages: match carrier {
+                AffineDecisionSource::Cohort => bundle.nodes().len(),
+                AffineDecisionSource::LedgerPool => ancestors(bundle, terminal).len(),
+            },
+        },
         decision: Some(DecisionProgram {
             carrier: CarrierDemand::Mean,
             utility: DecisionProgram::utility_form(None),
@@ -269,7 +364,7 @@ fn lower(
         design,
     };
     Ok(StandaloneCompositionLoweredParts {
-        cell: ProgramCell::CohortDecisionBundleRecomputation,
+        cell: carrier.cell(),
         scientific,
         identification,
         statistical,
@@ -282,27 +377,56 @@ fn lower(
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct PortableCohortDecisionBundle {
+struct PortableAffineDecisionBundle {
     version: u32,
     required_feature: String,
     bundle_bytes: Vec<u8>,
     receipt: DecisionBundleRecomputationReceipt,
 }
 
-impl CompiledCohortDecisionBundleRecomputation {
+fn ancestors<'a>(bundle: &'a CompositionBundle, terminal: &'a str) -> BTreeSet<&'a str> {
+    let mut found = BTreeSet::from([terminal]);
+    let mut pending = vec![terminal];
+    while let Some(id) = pending.pop() {
+        for edge in bundle.edges().iter().filter(|edge| edge.to == id) {
+            if found.insert(&edge.from) {
+                pending.push(&edge.from);
+            }
+        }
+    }
+    found
+}
+
+fn ancestry_subgraph(
+    bundle: &CompositionBundle,
+    terminal: &str,
+) -> Result<CompositionBundle, Error> {
+    let parents = ancestors(bundle, terminal);
+    let nodes =
+        bundle.nodes().iter().filter(|node| parents.contains(node.id.as_str())).cloned().collect();
+    let edges: Vec<_> = bundle
+        .edges()
+        .iter()
+        .filter(|edge| parents.contains(edge.to.as_str()))
+        .map(|edge| (edge.from.clone(), edge.to.clone()))
+        .collect();
+    Ok(CompositionBundle::new(nodes, &edges, &BundleLimits::default())?)
+}
+
+impl CompiledAffineDecisionBundleRecomputation {
     /// The inspectable six-layer program.
     #[must_use]
     pub fn lowered(&self) -> &LoweredProgram {
         &self.lowered
     }
 
-    /// Inspect the compiled route without evaluating the cohort.
+    /// Inspect the compiled route without evaluating the source.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {
         crate::analysis::program_handle::CompiledProgramHandle::plan_view(self)
     }
 
-    /// Replay the graph and score the affine decision from the model and cohort.
+    /// Replay the terminal's embedded evidence and score its affine decision.
     ///
     /// # Errors
     /// A failed dependency, resource stop, or a sealed result that differs from the live result.
@@ -311,67 +435,56 @@ impl CompiledCohortDecisionBundleRecomputation {
         ctx: &ExecutionContext,
     ) -> Result<DecisionBundleRecomputationReceipt, Error> {
         let scoped = ctx.enter_lowered_dispatch(self.lowered.identity());
-        require_program(&scoped, &SupportKey::Unit(COMPOSITION_BUNDLE), COMPILE)?;
+        require_program(
+            &scoped,
+            &SupportKey::Unit(COMPOSITION_BUNDLE),
+            self.carrier.compile_route(),
+        )?;
         if scoped.cancellation.is_cancelled() {
             return Err(refused(
                 BundleStage::ExecutionCancelled,
-                "cohort decision replay was cancelled",
+                "affine decision replay was cancelled",
                 Some(&self.source_node),
             ));
         }
         let limits = BundleLimits::default();
-        let bytes = export_bundle(&self.bundle, "cohort-decision-replay")?;
+        let selected;
+        let required = match self.carrier {
+            AffineDecisionSource::Cohort => &self.bundle,
+            AffineDecisionSource::LedgerPool => {
+                selected = ancestry_subgraph(&self.bundle, &self.terminal_node)?;
+                &selected
+            }
+        };
+        let bytes = export_bundle(required, "affine-decision-replay")?;
         let consumer = register_standard_verifiers(
-            BundleConsumer::new().register(Box::new(CohortDecisionSourceVerifier::new(&scoped))),
+            BundleConsumer::new()
+                .register(Box::new(CohortDecisionSourceVerifier::new(&scoped)))
+                .register(Box::new(EvidenceLedgerVerifier::new(&scoped))),
         );
-        let consumed = consumer.consume(
-            &bytes,
-            &limits,
-            self.bundle.identity(),
-            &SuppliedSources::default(),
-        )?;
+        let consumed =
+            consumer.consume(&bytes, &limits, required.identity(), &SuppliedSources::default())?;
         consumed.require_verified()?;
         if !consumed.all_replayed() {
-            return Err(Error::Invalid("every cohort decision dependency must replay"));
+            return Err(Error::Invalid("every affine decision dependency must replay"));
         }
-        let source_node = by_id(&self.bundle, &self.source_node)?;
-        let source_bytes = embedded(source_node)?;
-        let _lease = scoped.acquire_serial_numerical_admission(source_bytes.len() as u64).map_err(
-            |error| {
-                let stage = if scoped.cancellation.is_cancelled() {
-                    BundleStage::ExecutionCancelled
-                } else {
-                    BundleStage::ResourceRefused
-                };
-                refused(stage, error.to_string(), Some(&self.source_node))
-            },
-        )?;
-        let source = CohortDecisionSource::consume_with(
-            source_bytes,
-            &CohortExpectation::for_identity(&source_node.identity),
-            &scoped,
-        )
-        .map_err(|error| {
-            refused(BundleStage::SwappedEvidence, error.to_string(), Some(&self.source_node))
-        })?;
+        let (binding, live) = self.score_live(&scoped)?;
         let terminal = by_id(&self.bundle, &self.terminal_node)?;
-        let binding = cohort_mean_binding(&source);
         let stored = DecisionResultArtifact::from_bytes(
             embedded(terminal)?,
             &self.contract_identity,
             &binding,
         )?;
-        let live = score(&self.contract, &source)?;
         let fingerprint = decision_result_fingerprint(&live, &binding)?;
         if decision_result_fingerprint(stored.result(), &binding)? != fingerprint {
             return Err(refused(
                 BundleStage::TamperedQuantity,
-                "the retained decision differs from the live cohort decision",
+                "the retained decision differs from the live affine decision",
                 Some(&self.terminal_node),
             ));
         }
         Ok(DecisionBundleRecomputationReceipt {
-            bundle_identity: consumed.identity().to_owned(),
+            bundle_identity: self.bundle.identity().to_owned(),
             terminal_node: terminal.id.clone(),
             terminal_identity: terminal.identity.clone(),
             decision_fingerprint: fingerprint,
@@ -388,6 +501,41 @@ impl CompiledCohortDecisionBundleRecomputation {
         })
     }
 
+    fn score_live(&self, ctx: &ExecutionContext) -> Result<(String, DecisionResult), Error> {
+        let source_node = by_id(&self.bundle, &self.source_node)?;
+        let source_bytes = embedded(source_node)?;
+        let _lease =
+            ctx.acquire_serial_numerical_admission(source_bytes.len() as u64).map_err(|error| {
+                let stage = if ctx.cancellation.is_cancelled() {
+                    BundleStage::ExecutionCancelled
+                } else {
+                    BundleStage::ResourceRefused
+                };
+                refused(stage, error.to_string(), Some(&self.source_node))
+            })?;
+        match self.carrier {
+            AffineDecisionSource::Cohort => {
+                let source = CohortDecisionSource::consume_with(
+                    source_bytes,
+                    &CohortExpectation::for_identity(&source_node.identity),
+                    ctx,
+                )
+                .map_err(|error| {
+                    refused(
+                        BundleStage::SwappedEvidence,
+                        error.to_string(),
+                        Some(&self.source_node),
+                    )
+                })?;
+                Ok((cohort_mean_binding(&source), score(&self.contract, &source)?))
+            }
+            AffineDecisionSource::LedgerPool => {
+                let selection = LedgerPoolSelection::inspect(source_bytes).map_err(node_error)?;
+                Ok((selection.identity(), score_selection(&self.contract, &selection)?))
+            }
+        }
+    }
+
     /// Embed the graph and the independently reproduced receipt.
     ///
     /// # Errors
@@ -398,18 +546,18 @@ impl CompiledCohortDecisionBundleRecomputation {
         ctx: &ExecutionContext,
     ) -> Result<Vec<u8>, Error> {
         if self.execute(ctx)? != *receipt {
-            return Err(Error::Invalid("cohort decision bundle receipt differs"));
+            return Err(Error::Invalid("affine decision bundle receipt differs"));
         }
-        let bytes = antecedent_io::to_cbor(&PortableCohortDecisionBundle {
+        let bytes = antecedent_io::to_cbor(&PortableAffineDecisionBundle {
             version: 1,
-            required_feature: FEATURE.into(),
-            bundle_bytes: export_bundle(&self.bundle, "portable-cohort-decision")?,
+            required_feature: self.carrier.feature().into(),
+            bundle_bytes: export_bundle(&self.bundle, self.carrier.artifact_id())?,
             receipt: receipt.clone(),
         })?;
         if bytes.len() > MAX_PORTABLE_BYTES {
             return Err(refused(
                 BundleStage::Oversized,
-                "the portable cohort decision exceeds its byte bound",
+                "the portable affine decision exceeds its byte bound",
                 None,
             ));
         }
@@ -427,19 +575,35 @@ pub fn consume_portable_cohort_decision_bundle_recomputation(
     expected_program: SemanticDigest,
     ctx: &ExecutionContext,
 ) -> Result<DecisionBundleRecomputationReceipt, Error> {
-    require_program(ctx, &SupportKey::Unit(COMPOSITION_BUNDLE), CONSUME)?;
+    consume_portable_affine_decision_bundle(
+        bytes,
+        expected_bundle,
+        expected_program,
+        ctx,
+        AffineDecisionSource::Cohort,
+    )
+}
+
+pub(super) fn consume_portable_affine_decision_bundle(
+    bytes: &[u8],
+    expected_bundle: &str,
+    expected_program: SemanticDigest,
+    ctx: &ExecutionContext,
+    carrier: AffineDecisionSource,
+) -> Result<DecisionBundleRecomputationReceipt, Error> {
+    require_program(ctx, &SupportKey::Unit(COMPOSITION_BUNDLE), carrier.consume_route())?;
     if bytes.len() > MAX_PORTABLE_BYTES {
         return Err(refused(
             BundleStage::Oversized,
-            "the portable cohort decision exceeds its byte bound",
+            "the portable affine decision exceeds its byte bound",
             None,
         ));
     }
-    let wire: PortableCohortDecisionBundle = antecedent_io::from_cbor(bytes)?;
-    if wire.version != 1 || wire.required_feature != FEATURE {
+    let wire: PortableAffineDecisionBundle = antecedent_io::from_cbor(bytes)?;
+    if wire.version != 1 || wire.required_feature != carrier.feature() {
         return Err(refused(
             BundleStage::IncompatibleVersion,
-            "the portable cohort decision version differs",
+            "the portable affine decision version differs",
             None,
         ));
     }
@@ -448,19 +612,19 @@ pub fn consume_portable_cohort_decision_bundle_recomputation(
         expected_bundle,
         &BundleLimits::default(),
     )?;
-    let plan = compile_cohort_decision_bundle_recomputation(bundle, &wire.receipt.terminal_node)?;
+    let plan = compile_affine_decision_bundle(bundle, &wire.receipt.terminal_node, carrier)?;
     if plan.lowered.identity() != expected_program {
-        return Err(Error::Invalid("cohort decision bundle program differs"));
+        return Err(Error::Invalid("affine decision bundle program differs"));
     }
     let receipt = plan.execute(ctx)?;
     if receipt != wire.receipt {
-        return Err(Error::Invalid("cohort decision bundle live receipt differs"));
+        return Err(Error::Invalid("affine decision bundle live receipt differs"));
     }
     Ok(receipt)
 }
 
 impl crate::analysis::program_handle::CompiledProgramHandle
-    for CompiledCohortDecisionBundleRecomputation
+    for CompiledAffineDecisionBundleRecomputation
 {
     fn program(&self) -> &Arc<LoweredProgram> {
         &self.lowered

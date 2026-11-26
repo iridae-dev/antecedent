@@ -85,6 +85,8 @@
             "counterfactual_transport_result",
             "compact_fitted_effect_model",
             "cohort_decision_source",
+            "evidence_ledger",
+            "ledger_pooled_result",
             "transformation",
             "decision_contract",
             "decision_result",

@@ -67,6 +67,10 @@ pub enum NodeKind {
     CompactFittedEffectModel,
     /// A retained fitted model and weighted cohort replayed as one contrast mean.
     CohortDecisionSource,
+    /// A replayed evidence ledger with its current source and result standings.
+    EvidenceLedger,
+    /// A declared point quantity selected from a still-valid ledger pool.
+    LedgerPooledResult,
     /// A named transformation.
     Transformation,
     /// A decision contract.
@@ -127,6 +131,8 @@ named_variants! {
         CounterfactualTransportResult => "counterfactual_transport_result",
         CompactFittedEffectModel => "compact_fitted_effect_model",
         CohortDecisionSource => "cohort_decision_source",
+        EvidenceLedger => "evidence_ledger",
+        LedgerPooledResult => "ledger_pooled_result",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
         DecisionResult => "decision_result",
@@ -168,9 +174,11 @@ impl NodeKind {
             | Self::CounterfactualTransportResult
             | Self::CompactFittedEffectModel
             | Self::CohortDecisionSource
+            | Self::LedgerPooledResult
             | Self::FrozenScores => CompositionStage::DistributionArtifact,
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
             Self::EvidenceRelationship
+            | Self::EvidenceLedger
             | Self::QuantityCoordinates
             | Self::SupportTrustCalibration
             | Self::RepairReport
@@ -198,6 +206,7 @@ impl NodeKind {
             | Self::DelayedEntrySurvivalBandResult
             | Self::PatientSurrogateIdentification
             | Self::CounterfactualTransportResult
+            | Self::LedgerPooledResult
             | Self::DecisionResult
             | Self::Sensitivity
             | Self::StudyRanking

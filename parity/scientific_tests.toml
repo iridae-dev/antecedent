@@ -365,6 +365,13 @@ fixtures = []
 why = "The moving-block bootstrap's one hundred whole-chain reruns replay independently, a changed block design changes the program identity and an invalid block length is refused. This source assertion is unearned and the interval remains not_measured."
 
 [[test]]
+evidence_test = "crates/antecedent/tests/composition_ledger_decision.rs"
+evidence_assertion = "inherited_ledger_replays_a_selected_point_and_refuses_an_assumption_range"
+kind = "reference"
+fixtures = []
+why = "Independent inverse-variance weights 4/7, 2/7 and 1/7 give a pooled mean of 10/7 for study estimates 0, 2 and 6. The bound decision replays this point and refuses a range under the same request."
+
+[[test]]
 evidence_test = "crates/antecedent/tests/composition_cohort_decision.rs"
 evidence_assertion = "inherited_cohort_bundle_replays_affine_decision_and_reweights"
 kind = "reference"

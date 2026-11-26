@@ -5988,3 +5988,27 @@ rust = "antecedent::analysis::kernel_programs::patient_surrogate::consume_patien
 kind = "fn"
 status = "bound"
 python = "antecedent.patient_surrogate.consume_patient_surrogate"
+
+[[entry]]
+rust = "antecedent::analysis::composition_ledger_decision::select_ledger_pooled_result"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.select_ledger_pooled_result"
+
+[[entry]]
+rust = "antecedent::analysis::composition_ledger_decision::ledger_pooled_decision_bytes"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.ledger_pooled_decision"
+
+[[entry]]
+rust = "antecedent::analysis::composition_ledger_decision::compile_ledger_pooled_decision_bundle_recomputation"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.compile_ledger_pooled_decision_bundle_recomputation"
+
+[[entry]]
+rust = "antecedent::analysis::composition_ledger_decision::consume_portable_ledger_pooled_decision_bundle_recomputation"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.consume_bundle_recomputation"

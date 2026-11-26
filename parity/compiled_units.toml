@@ -1185,3 +1185,9 @@ lowering = "SurrogateBridge"
 unit_kind = "capability"
 unit = "transport.surrogate_bridge_premise"
 entry = { rust = "crates/antecedent/src/analysis/kernel_programs/surrogate_bridge.rs", python = "python/antecedent/transported_constructors.py" }
+
+[[route]]
+lowering = "LedgerPooledDecisionBundleRecomputation"
+unit_kind = "capability"
+unit = "composition.bundle"
+entry = { rust = "crates/antecedent/src/analysis/composition_ledger_decision.rs", python = "python/antecedent/composition_bundle.py" }

@@ -1377,6 +1377,10 @@ name = "composition_cohort_decision"
 path = "tests/composition_cohort_decision.rs"
 
 [[test]]
+name = "composition_ledger_decision"
+path = "tests/composition_ledger_decision.rs"
+
+[[test]]
 name = "weighted_target_effect_calibration"
 path = "tests/weighted_target_effect_calibration.rs"
 

@@ -703,6 +703,9 @@
   "identify.binary_nested_markov_fisher": [
    "identify.binary_nested_markov_fisher"
   ],
+  "identify.patient_surrogate": [
+   "identify.patient_surrogate"
+  ],
   "inference.measured_scalar": [
    "inference.measured_scalar"
   ],
@@ -2453,9 +2456,12 @@
     "External mean decisions are point-only attested: a decision resting on an external mean is labelled point_only_attested and the external trust stays 'externally_attested' unless the exact-request verification receipt is retained. Joint-draw decisions retain the aligned-law requirement: a decision that needs an aligned joint law over a mean-only upstream claim fails the dependent node at unsupported_law.",
     "A consumer holding no retained expected bundle identity checks only internal consistency; a resealed forgery passes only under the forger's own identity, so the consumer passes the identity it retained independently of the bytes. Container, version, size and count bounds are checked before any decode allocation.",
     "A node-level failure does not refuse the bundle: the node is reported failed at a named stage and the rest of the bundle keeps its inspected result. Graph defects (blank or repeated node, dangling or repeated edge, self-dependency, cycle) and a digest that differs from its recomputation share the edge_digest_mismatch stage.",
-    "The cohort source node delegates to the cohort artifact reader. Its affine decision compiler requires the cohort and contract as embedded parents and binds the terminal to the full cohort source identity. Replay rebuilds the cohort mean and scores the complete decision under the retained bundle and program identities."
+    "The cohort source node delegates to the cohort artifact reader. Its affine decision compiler requires the cohort and contract as embedded parents and binds the terminal to the full cohort source identity. Replay rebuilds the cohort mean and scores the complete decision under the retained bundle and program identities.",
+    "An exact or sampled plug-in counterfactual transport result is read by its own validating consumer. Its target event probability supplies an affine decision and retains the transport premises, target population, evidence snapshot and sampled construction where present.",
+    "A compact fitted-effect node validates the stored prediction basis, coefficients, covariance, feature support and mask. A retained cohort can consume the model under its recomputed identity. Refitting requires the original training data and learner declaration.",
+    "The ledger node delegates to the evidence ledger reader. A separate pool selection verifies its result, operation, retained synthesis input and value digest, and active standing against the replayed ledger. The affine terminal reads that branch's dependency closure; a stale sibling does not block the valid branch. Its scientific quantity remains caller-declared."
    ],
-   "digest": "751ee47c212f46d680490c34a53b84e8583017f2cddca82063c9ebdbdbe874dc",
+   "digest": "eb48b2781afa07d92eb592949c1ccd6fe17767191449dd837762dee611a71414",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
@@ -8945,14 +8951,12 @@
    "deviations": [
     "Curves are arm-stratified product limits on an already identified randomized contrast, plus restricted mean survival time to a declared horizon. A competing-risk endpoint uses the Aalen–Johansen cumulative incidence for one declared cause instead.",
     "Independent censoring and delayed entry are query assumptions. The module cannot verify them from the observed follow-up. When an inverse-probability-of-censoring weight is used, the censoring survival is caller-supplied and treated as correct.",
-    "Intervals, where supported, are arm-stratified subject bootstrap percentile intervals for the restricted mean and horizon survival. They are pointwise. The product-limit point itself carries no analytic variance from the 1958 paper."
+    "Pointwise intervals use an arm-stratified subject bootstrap for the restricted mean and horizon survival, or for the target-cause incidence contrast at the horizon. The product-limit point itself carries no analytic variance from the 1958 paper."
    ],
-   "digest": "8b4f98a5d1c4842ca02151e2b10241fb650c941c5d9e750d3ce9f0928e57c612",
+   "digest": "58baedeacf7beb1c044edfb58c36f853e4501542564b742a1faf1eb372d41233",
    "id": "estimate.survival.product_limit",
    "review": "method_review",
-   "scope_limits": [
-    "not covered by the method review: the inverse-probability-of-censoring variant (randomized_survival_ipcw_summary), the bootstrap intervals or difference band, the not_measured independent-censoring and entry assumptions, or any variance of the product-limit estimator (none is produced)"
-   ],
+   "scope_limits": [],
    "sources": [
     {
      "authors": [
@@ -10671,6 +10675,28 @@
       "edge g-formula"
      ],
      "title": "Counterfactual graphical models for longitudinal mediation analysis with unobserved confounding"
+    }
+   ]
+  },
+  {
+   "deviations": [
+    "The target is the probability of terminal benefit among patients whose binary surrogate would improve under treatment. The implementation derives bounds directly from the capacity constraints of the monotone 4-by-4 potential endpoint table.",
+    "The scientific identified set is conditional on declared exact population arm joint laws and identification premises. Empirical sample frequencies have a distinct reported reading and cannot license a population threshold decision. There is no coverage claim."
+   ],
+   "digest": "4c1d515632e44d9afb6b41c0593e4389b50a74a1af3ad26e8e21a1a884017015",
+   "id": "identify.patient_surrogate",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.1111/j.0006-341x.2002.00021.x",
+     "doi_verified": false,
+     "sections": [
+      "principal stratification",
+      "surrogate outcomes"
+     ],
+     "title": "Principal Stratification in Causal Inference",
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4137767/"
     }
    ]
   },

@@ -1118,28 +1118,30 @@ fn compute_identity(meta: &EvidenceLedgerMeta) -> String {
     }
     writer.word(meta.syntheses.len() as u64);
     for synthesis in &meta.syntheses {
-        writer.text(&synthesis.result);
-        writer.text(&synthesis.method);
-        writer.texts(&synthesis.sources);
-        for list in [
-            &synthesis.estimates,
-            &synthesis.variances,
-            &synthesis.covariance,
-            &synthesis.tau_support,
-            &synthesis.tau_probabilities,
-            &synthesis.values,
-        ] {
-            writer.word(list.len() as u64);
-            for value in list {
-                writer.word(*value);
-            }
-        }
-        writer.opt_word(synthesis.rho_lo);
-        writer.opt_word(synthesis.rho_hi);
-        writer.opt_word(synthesis.prior_mean);
-        writer.opt_word(synthesis.prior_variance);
+        write_synthesis(&mut writer, synthesis);
     }
     writer.finish_hex()
+}
+
+fn write_synthesis(writer: &mut CanonicalWriter, synthesis: &SynthesisWire) {
+    writer.text(&synthesis.result).text(&synthesis.method).texts(&synthesis.sources);
+    for list in [
+        &synthesis.estimates,
+        &synthesis.variances,
+        &synthesis.covariance,
+        &synthesis.tau_support,
+        &synthesis.tau_probabilities,
+        &synthesis.values,
+    ] {
+        writer.word(list.len() as u64);
+        for value in list {
+            writer.word(*value);
+        }
+    }
+    writer.opt_word(synthesis.rho_lo);
+    writer.opt_word(synthesis.rho_hi);
+    writer.opt_word(synthesis.prior_mean);
+    writer.opt_word(synthesis.prior_variance);
 }
 
 // -- consumption ---------------------------------------------------------------------------------
@@ -1196,6 +1198,7 @@ fn check(
     }
     // Syntheses: bound to ledger results and recomputed.
     let mut computed = Vec::with_capacity(meta.syntheses.len());
+    let mut retained = Vec::with_capacity(meta.syntheses.len());
     for stored in &meta.syntheses {
         let result = result_id(&stored.result)?;
         let sources = source_ids(&stored.sources)?;
@@ -1212,6 +1215,10 @@ fn check(
         {
             return Err(EvidenceLedgerArtifactError::SynthesisMismatch("values"));
         }
+        let mut synthesis_identity =
+            CanonicalWriter::new("antecedent.evidence_ledger.synthesis.v1");
+        write_synthesis(&mut synthesis_identity, stored);
+        retained.push((synthesis_identity.finish_hex(), stored_values.first().copied()));
         computed.push(ComputedSynthesis { result, method: name.to_owned(), values });
     }
     let identity = compute_identity(meta);
@@ -1221,7 +1228,12 @@ fn check(
     if expected_identity.is_some_and(|expected| expected != identity) {
         return Err(EvidenceLedgerArtifactError::IdentityMismatch { field: "retained_identity" });
     }
-    Ok(EvidenceLedgerArtifact { ledger, syntheses: computed, identity })
+    Ok(EvidenceLedgerArtifact {
+        ledger,
+        syntheses: computed,
+        retained_syntheses: retained,
+        identity,
+    })
 }
 
 fn encode_meta(
@@ -1265,6 +1277,7 @@ fn decode_meta(
 pub struct EvidenceLedgerArtifact {
     ledger: EvidenceLedger,
     syntheses: Vec<ComputedSynthesis>,
+    retained_syntheses: Vec<(String, Option<f64>)>,
     identity: String,
 }
 
@@ -1304,6 +1317,24 @@ impl EvidenceLedgerArtifact {
     #[must_use]
     pub fn syntheses(&self) -> &[ComputedSynthesis] {
         &self.syntheses
+    }
+
+    /// A unique synthesis's verified method, exact retained input/output digest, and first
+    /// retained value. The ledger reader has already matched this value against recomputation.
+    /// A caller must check the result's current standing and method meaning before using it.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn retained_synthesis_binding(&self, result: ResultId) -> Option<(&str, &str, f64)> {
+        let mut matches = self
+            .syntheses
+            .iter()
+            .zip(&self.retained_syntheses)
+            .filter(|(synthesis, _)| synthesis.result == result);
+        let (synthesis, (digest, first)) = matches.next()?;
+        if matches.next().is_some() {
+            return None;
+        }
+        Some((&synthesis.method, digest, (*first)?))
     }
 
     /// BLAKE3 identity (hex).

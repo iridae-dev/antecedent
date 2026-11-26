@@ -2124,6 +2124,10 @@ routes = [
   { route = "antecedent.composition.cohort_decision_bytes", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.compile_cohort_decision_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.consume_portable_cohort_decision_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.select_ledger_pooled_result", stage = "bind", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.ledger_pooled_decision_bytes", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.compile_ledger_pooled_decision_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.consume_portable_ledger_pooled_decision_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
 ]
 
 [[record]]
@@ -9400,4 +9404,23 @@ routes = [
   { route = "antecedent.decision_learning.AcceptedPreferences.relearn", stage = "prepare", status = "supported", claim = "assumption_range" },
   { route = "antecedent.decision_learning.AcceptedPreferences.export", stage = "representation", status = "supported", claim = "none" },
   { route = "antecedent.decision_learning.load", stage = "consume", status = "supported", claim = "none" },
+]
+
+[[record]]
+id = "identify.patient_surrogate"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "patient_surrogate.declaration" },
+  { code = "invalid_argument", detail = "patient_surrogate.empty_stratum" },
+  { code = "invalid_argument", detail = "patient_surrogate.monotonicity" },
+  { code = "route_not_supported", detail = "patient_surrogate.unsupported_reading" },
+  { code = "invalid_argument", detail = "patient_surrogate.replay" },
+  { code = "route_not_supported", detail = "patient_surrogate.resource" },
+  { code = "cancelled_no_claim", detail = "patient_surrogate.cancelled" },
+  { code = "route_not_supported", detail = "patient_surrogate.not_supported" },
+]
+routes = [
+  { route = "antecedent.identify.compile_patient_surrogate", stage = "identify", status = "supported", claim = "none" },
+  { route = "antecedent.identify.consume_patient_surrogate", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.patient_surrogate.PatientSurrogateResult.decide", stage = "evaluate", status = "supported", claim = "none" },
 ]

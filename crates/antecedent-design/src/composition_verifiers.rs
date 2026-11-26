@@ -44,6 +44,7 @@ mod artifact_inspection;
 mod incidence_source_inspection;
 mod cohort_source_inspection;
 mod compact_model_inspection;
+mod ledger_pool_inspection;
 mod replay_inspection;
 
 pub use artifact_inspection::{evidence_relationship_bytes, mean_decision_bytes, mean_source_of};
@@ -56,6 +57,9 @@ use artifact_inspection::{
 pub use cohort_source_inspection::CohortDecisionSourceVerifier;
 #[doc(hidden)]
 pub use compact_model_inspection::require_compact_model_refit_inputs;
+#[doc(hidden)]
+pub use ledger_pool_inspection::{EvidenceLedgerVerifier, consume_ledger_for_bundle};
+use ledger_pool_inspection::{LedgerPooledResultVerifier, inspect_ledger, inspect_selected};
 
 use replay_inspection::{
     inspect_frozen_scores, inspect_observation_query, inspect_propagation_chain,
@@ -74,6 +78,7 @@ use antecedent_io_core::distribution_artifact::{
     MAX_DISTRIBUTION_ARTIFACT_BYTES,
 };
 use antecedent_io_core::error::IoError;
+use antecedent_io_core::evidence_ledger_artifact::EVIDENCE_LEDGER_ARTIFACT_FEATURE;
 use antecedent_io_core::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimMetadata, ExternalClaimTrust,
     MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
@@ -111,6 +116,7 @@ use crate::design_ranking_artifact::{
 use crate::inverse_query_artifact::{
     INVERSE_QUERY_ARTIFACT_FEATURE, InverseQueryArtifact, MAX_INVERSE_QUERY_ARTIFACT_BYTES,
 };
+use crate::ledger_pool_selection::LedgerPoolSelection;
 use crate::repair_artifact::{
     REPAIR_ARTIFACT_KIND, RepairArtifactError, RepairConsumeLimits, RepairReportArtifact,
 };
@@ -143,7 +149,7 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 23] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 25] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
@@ -153,6 +159,8 @@ pub const VERIFIABLE_KINDS: [NodeKind; 23] = [
     NodeKind::DelayedEntrySurvivalBandResult,
     NodeKind::CompactFittedEffectModel,
     NodeKind::CohortDecisionSource,
+    NodeKind::EvidenceLedger,
+    NodeKind::LedgerPooledResult,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
     NodeKind::DecisionResult,
@@ -427,6 +435,8 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         NodeKind::CohortDecisionSource => {
             cohort_source_inspection::inspect(bytes, &ExecutionContext::production_default(0))
         }
+        NodeKind::EvidenceLedger => inspect_ledger(bytes, &ExecutionContext::production_default(0)),
+        NodeKind::LedgerPooledResult => inspect_selected(bytes),
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
         NodeKind::DecisionResult => inspect_result(bytes),
@@ -667,6 +677,7 @@ fn cross_check(
                 NodeKind::Distribution
                     | NodeKind::CohortDecisionSource
                     | NodeKind::CounterfactualTransportResult
+                    | NodeKind::LedgerPooledResult
                     | NodeKind::ExternalClaim
                     | NodeKind::ObservationQuery
                     | NodeKind::ScientificBridge
@@ -826,6 +837,9 @@ fn detect_record(bytes: &[u8]) -> Option<NodeKind> {
 /// The node kind a container's artifact fills, read from its manifest kind label.
 #[must_use]
 pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
+    if LedgerPoolSelection::recognizes(bytes) {
+        return Some(NodeKind::LedgerPooledResult);
+    }
     if bytes.starts_with(b"ANTE-SOURCE-PROJECTION-1\0") {
         return SourceProjectionArtifact::inspect(bytes).ok().map(|artifact| artifact.node_kind());
     }
@@ -854,6 +868,7 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
             Some(NodeKind::CompactFittedEffectModel)
         }
         KIND_EXTERNAL_CLAIM => Some(NodeKind::ExternalClaim),
+        EVIDENCE_LEDGER_ARTIFACT_FEATURE => Some(NodeKind::EvidenceLedger),
         KIND_CONTRACT | KIND_ADMISSIBLE => Some(NodeKind::DecisionContract),
         KIND_RESULT | KIND_ROBUST | KIND_STRUCTURAL => Some(NodeKind::DecisionResult),
         KIND_SENSITIVITY => Some(NodeKind::Sensitivity),
@@ -1027,6 +1042,8 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::CohortDecisionSource => {
             Box::new(CohortDecisionSourceVerifier::new(&ExecutionContext::production_default(0)))
         }
+        NodeKind::EvidenceLedger => Box::new(EvidenceLedgerVerifier::new(&ExecutionContext::production_default(0))),
+        NodeKind::LedgerPooledResult => Box::new(LedgerPooledResultVerifier),
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),

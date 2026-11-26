@@ -1011,12 +1011,12 @@ impl SuppliedSources {
         self
     }
 
-    fn check_producer(&self, role: &str, expected: &str) -> ProducerCheck {
+    fn check_producer(&self, role: &str, expected: &str) -> (ProducerCheck, Option<&[u8]>) {
         let mut outcome = ProducerCheck::Missing;
         for producer in self.producers.iter().filter(|producer| producer.role == role) {
             let check = check_producer(role, expected, Some(&producer.bytes));
             match check {
-                ProducerCheck::Match => return check,
+                ProducerCheck::Match => return (check, Some(&producer.bytes)),
                 ProducerCheck::Refused { stage: BundleStage::TamperedQuantity, .. } => {
                     outcome = check;
                 }
@@ -1024,7 +1024,7 @@ impl SuppliedSources {
                 _ => {}
             }
         }
-        outcome
+        (outcome, None)
     }
 }
 
@@ -1459,11 +1459,22 @@ impl BundleConsumer {
         let placeholder =
             NodeState::failed(BundleStage::EdgeDigestMismatch, "node was not evaluated".to_owned());
         let mut states = vec![placeholder; nodes.len()];
+        let verify_ledger_references =
+            self.verifiers.iter().any(|verifier| verifier.kind() == NodeKind::EvidenceLedger);
         for &position in &derived.order {
             let state = {
+                let node = &nodes[position];
                 let upstream: Vec<UpstreamNode<'_>> = derived.parents[position]
                     .iter()
                     .filter(|p| !states[**p].is_failed())
+                    .filter(|&&parent| {
+                        ledger_parent_checked(
+                            node,
+                            &nodes[parent],
+                            &states[parent],
+                            verify_ledger_references,
+                        )
+                    })
                     .map(|&p| UpstreamNode {
                         id: &nodes[p].id,
                         kind: nodes[p].kind,
@@ -1471,7 +1482,6 @@ impl BundleConsumer {
                         facts: &states[p].facts,
                     })
                     .collect();
-                let node = &nodes[position];
                 let mut state = match &node.source {
                     NodeSource::Embedded { bytes } => {
                         verify_embedded(node, bytes, &upstream, &self.verifiers)
@@ -1479,13 +1489,20 @@ impl BundleConsumer {
                     NodeSource::Reference { requires, .. } => {
                         if let Some(role) = node.facts.get(CATALOG_ROLE_FACT) {
                             match supplied.check_producer(role, &node.identity) {
-                                ProducerCheck::Match => NodeState {
+                                (ProducerCheck::Match, Some(bytes))
+                                    if node.kind == NodeKind::EvidenceLedger
+                                        && role == antecedent_io_core::catalog_role::LEDGER
+                                        && verify_ledger_references =>
+                                {
+                                    verify_embedded(node, bytes, &upstream, &self.verifiers)
+                                }
+                                (ProducerCheck::Match, _) => NodeState {
                                     status: NodeStatus::Verified,
                                     facts: node.facts.clone(),
                                     values: Vec::new(),
                                     label: None,
                                 },
-                                ProducerCheck::Missing => NodeState {
+                                (ProducerCheck::Missing, _) => NodeState {
                                     status: NodeStatus::ReferenceUnresolved {
                                         requires: requires.clone(),
                                     },
@@ -1493,7 +1510,7 @@ impl BundleConsumer {
                                     values: Vec::new(),
                                     label: None,
                                 },
-                                ProducerCheck::Refused { stage, reason } => {
+                                (ProducerCheck::Refused { stage, reason }, _) => {
                                     NodeState::failed(stage, reason)
                                 }
                             }
@@ -1519,6 +1536,23 @@ impl BundleConsumer {
         }
         states
     }
+}
+
+fn ledger_parent_checked(
+    node: &BundleNode,
+    parent: &BundleNode,
+    state: &NodeState,
+    verify_ledger_references: bool,
+) -> bool {
+    // A reference's declared facts are no evidence of a live synthesis. A matched
+    // catalog ledger is the one reference whose facts the ledger verifier derived.
+    node.kind != NodeKind::LedgerPooledResult
+        || parent.kind != NodeKind::EvidenceLedger
+        || matches!(parent.source, NodeSource::Embedded { .. })
+        || (verify_ledger_references
+            && state.status == NodeStatus::Verified
+            && parent.facts.get(CATALOG_ROLE_FACT).map(String::as_str)
+                == Some(antecedent_io_core::catalog_role::LEDGER))
 }
 
 #[cfg(test)]

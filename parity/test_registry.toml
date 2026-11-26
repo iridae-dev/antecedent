@@ -25208,6 +25208,21 @@ path = "crates/antecedent/tests/composition_chain.rs"
 gates = ["inventory", "named"]
 
 [[test]]
+id = "composition-ledger-pooled-decision"
+crate = "antecedent"
+cargo_target = "composition_ledger_decision"
+path = "crates/antecedent/tests/composition_ledger_decision.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "composition-ledger-pooled-decision-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_composition_ledger_decision.py"
+gates = ["inventory"]
+why = "Reopen a pooled decision in a new interpreter and isolate the consequences of a study revision."
+
+[[test]]
 id = "composition-cohort-affine-decision"
 crate = "antecedent"
 cargo_target = "composition_cohort_decision"

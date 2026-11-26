@@ -108,6 +108,7 @@ pub(crate) const IDENTIFY_BINARY_NESTED_MARKOV_FISHER: UnitId =
     UnitId::new("identify.binary_nested_markov_fisher");
 pub(crate) const IDENTIFY_MIXED_SOURCE_PROOF_SEARCH: UnitId =
     UnitId::new("identify.mixed_source_proof_search");
+pub(crate) const IDENTIFY_PATIENT_SURROGATE: UnitId = UnitId::new("identify.patient_surrogate");
 pub(crate) const JOINT_RESPONSE_INTERVAL_READINGS: UnitId =
     UnitId::new("joint_response.interval_readings");
 pub(crate) const MEASUREMENT_DETECTION_DEPENDENT_PREVALENCE: UnitId =
@@ -224,6 +225,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "GraphImputationTransportNodeBundleRecomputation"
         | "JointTransportEffectNodeBundleRecomputation"
         | "JointTransportPredictiveNodeDecisionBundleRecomputation"
+        | "LedgerPooledDecisionBundleRecomputation"
         | "PosteriorDecisionBundleRecomputation"
         | "SequentialPolicyReliabilityNodeBundleRecomputation"
         | "TrialIpwNodeBundleRecomputation"
@@ -301,6 +303,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "NestedMarkovPosterior" => Some(IDENTIFY_BINARY_NESTED_MARKOV),
         "NestedMarkovFisherInterval" => Some(IDENTIFY_BINARY_NESTED_MARKOV_FISHER),
         "MixedSourceIdentification" => Some(IDENTIFY_MIXED_SOURCE_PROOF_SEARCH),
+        "PatientSurrogateIdentification" => Some(IDENTIFY_PATIENT_SURROGATE),
         "JointDesign"
         | "JointPanelExperiment"
         | "JointPanelImputation"

@@ -13,6 +13,7 @@ pub mod candidate;
 pub mod candidate_generation;
 pub mod choice_evsi;
 pub mod choice_record;
+pub mod ledger_pool_selection;
 pub mod cohort_decision_input;
 pub mod composition_boundary;
 pub mod composition_bundle;
