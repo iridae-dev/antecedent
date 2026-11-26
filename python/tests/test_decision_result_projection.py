@@ -7,9 +7,20 @@ codes the Rust projection returns.
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
-from antecedent import AverageEffect, Frequentist, ResponseCurve, analyze, decision, prepare
+from antecedent import (
+    AverageEffect,
+    Frequentist,
+    ResponseCurve,
+    analyze,
+    decision,
+    experiment,
+    interference,
+    prepare,
+)
 from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalValueError
 from antecedent.external import ExternalRefusal
@@ -70,6 +81,35 @@ def test_static_average_effect_is_the_observed_mean_contrast() -> None:
     assert decided.actions[0].expected_utility == pytest.approx(2.0)
     assert decided.actions[1].expected_utility == pytest.approx(0.0)
     assert decided.evpi is None
+
+
+def test_a_binary_randomized_itt_is_that_one_assignment_contrast() -> None:
+    assigned = [False, False, True, True]
+    design = experiment.ExperimentDesign(
+        interference.BernoulliAssignment(0.5),
+        assigned,
+        [f"unit-{i}" for i in range(4)],
+        [f"row-{i}" for i in range(4)],
+    )
+    result = require_success(
+        analyze(
+            {"outcome": np.array([0.0, 0.0, 2.0, 2.0])},
+            query=experiment.RandomizedEffect("outcome", design),
+            refute="none",
+        )
+    )
+    wire, refusal = result._raw.effect_source_json("mmHg", "target", result.as_point())
+    assert refusal is None
+    source = json.loads(wire)
+    assert source["provider_id"] == "native:randomized_itt"
+    assert source["means"] == [pytest.approx(result.as_point())]
+    assert source["query"]["control"] == 0.0
+    assert source["query"]["active"] == 1.0
+    decided = require_success(
+        _contrast(result, decision.Criterion.expected_utility()).evaluate(result)
+    )
+    assert decided.selected == ("act",)
+    assert decided.actions[0].expected_utility == pytest.approx(result.as_point())
 
 
 def test_changed_effect_quantile_and_declaration_refuse() -> None:

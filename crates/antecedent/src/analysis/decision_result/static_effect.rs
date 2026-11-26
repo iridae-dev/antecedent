@@ -6,14 +6,14 @@ use antecedent_core::reason_details::native_claims::{
     NATIVE_STATE_UNAVAILABLE, PROJECTION_MISMATCH, UNSUPPORTED_ESTIMAND,
 };
 use antecedent_core::{
-    AverageEffectQuery, IdentificationStatus, Intervention, OutcomeFunctional, TargetPopulation,
-    VariableId,
+    AverageEffectQuery, CausalQuery, IdentificationStatus, Intervention, OutcomeFunctional,
+    RandomizationDesign, RandomizedEstimand, TargetPopulation, VariableId,
 };
 use antecedent_design::decision_eval::{MeanEstimate, MeanSource};
 
 use super::{
-    DecisionProjectionError, OUTCOME_NAME, TREATMENT_NAME, causal_source_identity,
-    mean_contrast_quantity, static_refusal,
+    causal_source_identity, mean_contrast_quantity, static_refusal, DecisionProjectionError,
+    OUTCOME_NAME, TREATMENT_NAME,
 };
 use crate::result::{ExecutedContract, StudyResult};
 use crate::support::CellStatus;
@@ -23,25 +23,64 @@ pub(super) const UNITS_POPULATION: &str = "effect units must be declared (at mos
 /// The original result fields needed to admit a static effect after execution.
 #[derive(Clone, Debug)]
 pub struct NativeEffectAuthority {
-    query: AverageEffectQuery,
+    query: Option<AverageEffectQuery>,
     status: IdentificationStatus,
     ate: f64,
     has_structural_response: bool,
     support_status: Option<CellStatus>,
     executed_contract: Option<ExecutedContract>,
+    /// Binary randomized ITT: outcome id, active-arm label, control value, active value.
+    randomized_itt: Option<(VariableId, String, f64, f64)>,
 }
 
 impl NativeEffectAuthority {
     /// Read the effect and query from the result before it crosses a binding.
+    ///
+    /// An identified average effect is read as before. A binary intention-to-treat
+    /// is the assignment contrast, with its variance left behind. Factorial,
+    /// multi-arm, and receipt-adjusted estimands stay unadmitted.
     #[must_use]
     pub fn from_result(result: &StudyResult) -> Option<Self> {
+        if let (Some(fit), CausalQuery::RandomizedEffect(query)) =
+            (result.randomized_effect(), &result.identification.query)
+        {
+            let binary = matches!(
+                query.design,
+                RandomizationDesign::Bernoulli
+                    | RandomizationDesign::Complete { .. }
+                    | RandomizationDesign::Cluster { .. }
+                    | RandomizationDesign::Stratified { .. }
+                    | RandomizationDesign::Switchback { .. }
+            );
+            if query.estimand == RandomizedEstimand::IntentionToTreat
+                && binary
+                && fit.effect.is_finite()
+            {
+                return Some(Self {
+                    query: None,
+                    status: result.identification.status,
+                    ate: fit.effect,
+                    has_structural_response: false,
+                    support_status: None,
+                    executed_contract: result.executed_contract().copied(),
+                    randomized_itt: Some((
+                        query.outcome,
+                        query.treatment_arms.1.to_string(),
+                        0.0,
+                        1.0,
+                    )),
+                });
+            }
+            return None;
+        }
         Some(Self {
-            query: result.identification.average_effect()?.clone(),
+            query: Some(result.identification.average_effect()?.clone()),
             status: result.identification.status,
             ate: result.estimate().as_effect()?.ate,
             has_structural_response: result.structural_response.is_some(),
             support_status: result.support_status(),
             executed_contract: result.executed_contract().copied(),
+            randomized_itt: None,
         })
     }
 }
@@ -84,7 +123,36 @@ pub fn project_static_effect(
     let Some(authority) = authority else {
         return Err(static_refusal(UNSUPPORTED_ESTIMAND).into());
     };
-    let query = &authority.query;
+    if let Some((outcome_id, treatment, control, active)) = &authority.randomized_itt {
+        if !authority.ate.is_finite() || supplied.to_bits() != authority.ate.to_bits() {
+            return Err(static_refusal(PROJECTION_MISMATCH).into());
+        }
+        let Some(executed) = &authority.executed_contract else {
+            return Err(static_refusal(NATIVE_STATE_UNAVAILABLE).into());
+        };
+        let outcome =
+            name(*outcome_id).ok_or(DecisionProjectionError::Declaration(OUTCOME_NAME))?;
+        let coordinate =
+            mean_contrast_quantity(treatment, &outcome, units, population, *control, *active);
+        return Ok(StaticEffectSource {
+            source: MeanSource {
+                coordinates: vec![coordinate],
+                means: vec![authority.ate],
+                estimate: MeanEstimate::Frequentist,
+                provider_id: "native:randomized_itt".to_owned(),
+                snapshot_id: executed.identities.data_snapshot.to_hex(),
+                causal_contract_id: causal_source_identity(executed),
+                rng_id: "none:mean_grid".to_owned(),
+            },
+            treatment: treatment.clone(),
+            outcome,
+            control: *control,
+            active: *active,
+        });
+    }
+    let Some(query) = authority.query.as_ref() else {
+        return Err(static_refusal(UNSUPPORTED_ESTIMAND).into());
+    };
     if authority.status != IdentificationStatus::NonparametricallyIdentified
         || query.target_population != TargetPopulation::AllObserved
         || query.outcome_functional != OutcomeFunctional::Mean
