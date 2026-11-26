@@ -183,6 +183,17 @@ runtime = "up to 1 min"
 claim = "Average effect of quitting on weight change under a declared no-unmeasured-confounding graph and a declared complete-case policy for 63 missing outcomes; multiple imputation and other estimators are cross-checks. On the verified real file the estimates are not known causal truth, and the published analysis is close to but not the same computation. Offline runs use a synthetic stand-in with a stated fixture effect. See examples/data/nhefs.toml for provenance and licence."
 
 [[example]]
+id = "external_learner"
+title = "Estimate an average effect with models you supply"
+summary = "Fit an average effect with a least-squares model and a logistic model, then with an in-context mean that sees only its own fit."
+python = "examples/python/external_learner.py"
+topic = "Tutorials"
+level = "intermediate"
+dependencies = ["numpy"]
+runtime = "up to 1 min"
+claim = "Average effect of a binary treatment is the fixture 2 under a declared graph, once with a caller-supplied least-squares outcome model and logistic propensity, and again with an in-context mean of the rows in that fit. The learners are externally attested nuisance fits. Prediction needs the fitted object, so they are not portable prediction maps. The graph is not tested."
+
+[[example]]
 id = "analysis_workflow"
 title = "Run a first analysis and branch it onto new data"
 summary = "Estimate, inspect, rebind and reload one synthetic average effect."

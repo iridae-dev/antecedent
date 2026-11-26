@@ -28,7 +28,7 @@ Support, refusal codes and calibration status keep their 3.0 meaning. Verificati
 | Release | Focus | What to expect |
 | --- | --- | --- |
 | 3.1 | Formal foundations and one compiled path | Proof and verification toolchains in CI. Identity, standing and acceptance properties machine-checked across every place they apply, against production Rust where the tools reach. An adversarial campaign that fails when a known defect is introduced. Every capability that produces a scientific result runs through the compiler under one support model. Decisions across trade-offs learned from recorded choices. |
-| 3.2 | Scientific state and contracts | Proved rules for evidence withdrawal, supersession, reuse and artifact acceptance. Model-checked operation sequences replayed against the Rust implementation. Composition that keeps unresolved assumptions. |
+| 3.2 | Scientific state and contracts | Proved rules for evidence withdrawal, supersession, reuse and artifact acceptance. Model-checked operation sequences replayed against the Rust implementation. Composition that keeps unresolved assumptions. External models admitted as relational learners, conditional laws and discovery proposals. |
 | 3.3 | Causal derivations | Proved identification rules tied to their Rust counterparts. Generated valid and invalid causal compositions checked against those rules. |
 | 3.4 | Statistical computation | Verified estimation building blocks and numerical kernels. Generated tests for invalid variance, dependence and positivity constructions. |
 | 3.5 | Proof-carrying results | Two end-to-end workflows whose results carry independently checkable assurance evidence. A dedicated adversarial release gate. |
@@ -79,6 +79,8 @@ If Aeneas cannot translate the chosen Rust code at a reasonable cost, use a dire
 
 3.2 applies the tools to the parts of Antecedent that track what a result is allowed to claim over time: the evidence ledger, reuse of prepared studies, and exported artifacts. These behave as state machines, so the main techniques are transition specifications and model checking, with generated traces replayed against the Rust code.
 
+3.2 also admits external models whose inputs or outputs are not a numeric matrix. The tabular factory, `learners.regressor` and `learners.classifier`, is 3.1: a scikit-learn-compatible model or an in-context model is a nuisance learner, each fold gets a fresh instance, and a live object is not a portable prediction map. What remains is a relational learner, a conditional law used as a mechanism, and a structural proposal. See [External models](#external-models).
+
 What it delivers:
 
 - Transition rules for creating, withdrawing and superseding evidence and for which evidence is current, with selected invariants verified against the Rust ledger.
@@ -96,6 +98,24 @@ Done when:
 4. Selected invariants are model-checked, and generated traces exercise the matching Rust operations.
 5. A deliberately introduced fault in identity checking, dependency tracking or authority transitions is caught by trace replay.
 6. Assurance records keep properties proved on the model apart from the finite set of traces run against the implementation.
+
+### External models
+
+A relational learner, a conditional law and a discovery proposal are one 3.2 deliverable. Each reuses the learner, mechanism, fold, provenance and execution contracts that already exist. Antecedent does not implement the model, and no foundation-model package becomes a dependency. Tests use deterministic stand-ins. Nori and Kumo are examples of the call shape in the tutorials.
+
+What it delivers:
+
+- A relational learner declares the tables, relationships and entity identities it may read, and a per-entity time cutoff. Each fold receives only that view. Held-out labels and post-treatment columns stay outside it. The snapshot and the information scope are part of the fit receipt. A counterfactual request names the inputs it changes.
+- A conditional law can be an executable mechanism inside a composed model. It supplies batched conditional means and samples, and a CDF, quantile or density when the provider declares that operation. The declaration names the parents, the support, what stays invariant across regimes, and how disturbances couple across worlds. Provider identity, uncertainty semantics and external trust stay on the result. This extends mechanism composition.
+- A learned model may propose an initial graph or rank candidate changes. Proposals are checked against the declared constraints and scored by the existing search. Where a sampler needs it, the proposal probability is the correction. A proposal is search guidance. Prior evidence and a discovered structure remain separate claims, and the receipt names the model that proposed the graph. An initialization-only proposal can land before transition proposals.
+
+Tutorials for a relational model, a probabilistic mechanism and a learned discovery model land with these contracts, including fold isolation, leakage, portability and scientific standing for those inputs. The tabular and in-context tutorials are the 3.1 half of that documentation.
+
+This part is done when:
+
+1. A relational fit cannot read a held-out label or a column past its cutoff, and that scope is in the receipt.
+2. A mechanism provider runs under an intervention only for operations it declared, and a missing operation is a typed refusal.
+3. A structural proposal can change which graphs are searched and cannot raise the standing of the graph it proposes.
 
 ## 3.3: Causal derivations
 

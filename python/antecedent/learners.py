@@ -8,6 +8,12 @@ learner by its registered name instead. :data:`LearnerSpec` is the union of thes
 
 Every declaration validates its settings when constructed and raises
 :class:`~antecedent.errors.CausalValueError` for a value out of range.
+
+:func:`regressor` and :func:`classifier` are a separate role. Each adapts a
+Python factory to :class:`~antecedent.external_learners.ExternalLearner` for
+:class:`~antecedent.external_learners.Learners`. A fresh model is fit on every
+fold. They are not :data:`LearnerSpec` values, and a native estimator such as
+:class:`~antecedent.estimators.DML` does not accept them as ``outcome=``.
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TypeAlias
 
+from ._factory_learners import classifier, regressor
 from ._validate import count, real
 from .errors import CausalValueError
 
@@ -225,4 +232,6 @@ __all__ = [
     "RandomForest",
     "NeuralNet",
     "LearnerSpec",
+    "classifier",
+    "regressor",
 ]

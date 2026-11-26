@@ -95,6 +95,7 @@ Each tutorial follows one scientific task from declaration to what the computati
 | [Choose an email frequency when the cost of an unsubscribe is a range](docs/tutorials/email-frequency.md) | Decide a sending frequency from the arm means of a three-arm experiment when the cost of an unsubscribe is a range. |
 | [Replay and current decisions](docs/tutorials/replay-and-current-decisions.md) | Change a utility without refitting, export a decision, then withdraw a source: historical replay remains possible while current decision use refuses. |
 | [Estimate an effect from observational data](docs/tutorials/observational-study.md) | Analyze a real public dataset end to end. |
+| [Use your own outcome and treatment models](docs/tutorials/external-learners.md) | Fit an average effect with a scikit-learn-compatible model or an in-context model. |
 | [When the comparison group does not overlap](docs/tutorials/when-overlap-fails.md) | Follow a refusal when the comparison group does not overlap. |
 | [When the causal assumptions stop holding](docs/tutorials/when-assumptions-change.md) | Decide what to do when new data stop fitting the graph behind an estimate. |
 | [Use an analysis inside an application](docs/tutorials/application-component.md) | Run a scientific component inside an application. |

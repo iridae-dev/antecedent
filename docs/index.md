@@ -39,6 +39,7 @@ Each tutorial follows one scientific task and pairs with a maintained [example](
 | [Choose an email frequency when the cost of an unsubscribe is a range](tutorials/email-frequency.md) | Decide a frequency from the arm means of a three-arm experiment when the cost of an unsubscribe is a range |
 | [Replay and current decisions](tutorials/replay-and-current-decisions.md) | Change a utility, export a decision, withdraw a source |
 | [Estimate an effect from observational data](tutorials/observational-study.md) | Analyze a real public dataset end to end |
+| [Use your own outcome and treatment models](tutorials/external-learners.md) | Fit an average effect with a scikit-learn-compatible model or an in-context model |
 | [When the comparison group does not overlap](tutorials/when-overlap-fails.md) | Follow a refusal when the comparison group does not overlap, and see how far the answer moves |
 | [When the causal assumptions stop holding](tutorials/when-assumptions-change.md) | Follow a claim when new data stop fitting its graph: check, rediscover, compare readings and plan the study that would settle it |
 | [Use an analysis inside an application](tutorials/application-component.md) | Use Antecedent as a component of an application |
