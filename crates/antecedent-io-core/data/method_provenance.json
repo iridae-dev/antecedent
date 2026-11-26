@@ -13553,10 +13553,10 @@
     "An exact fixed affine law transforms each source row, with no distributional reinterpretation or inference. An estimated trial-level map uses whole validation-pair bootstrap refits. In the shared design the source surrogate centroid and the least-squares fit use the same trial-pair indexes; replay validates the ordered centroid sequence and provenance. Independent-study refits use different deterministic streams.",
     "Monotone affine identified-set images use both extrema and preserve order even when the slope is negative or zero. Joint outcome images sum declared affine contributions to each output over each weighted, jointly aligned input row. Maps without a supported exact extrema rule refuse an identified-set reading.",
     "Posterior credible intervals use weighted generalized-inverse quantiles of the mapped joint posterior. The returned attained mass is the closed-interval mass including tied endpoints. The trial sampling interval uses type-7 percentile endpoints of the whole refit statistic and requires a current exact-scope coverage receipt.",
-    "Publication matches an explicit caller-declared shared or independent data-generating law, exact tuning, sample-size scope and current calibration record. A threshold decision preserves the interval reading and source calibration reference; it has no separately measured decision calibration.",
+    "Publication matches the declared shared or independent data-generating law, exactly 399 refits, the specific sample size measured and a current calibration record. A threshold decision preserves the interval reading and source calibration reference; it has no separately measured decision calibration.",
     "The numerical artifact binds declarations, source data, method, seed and result. Current coverage metadata is resolved during replay and its revision is excluded from numerical equality. A missing or stale current coverage record still refuses confidence-interval publication."
    ],
-   "digest": "6e0df8a9bbf9e8f6ab6d3dadeada68b1d4b67947b5db4f17421d18199d78d301",
+   "digest": "3a79ce6d21d0ff32435579aa5e24f45a0d3a9f894974bc3ca29a5dbd2edab661",
    "id": "scientific_bridge.distribution_bridges",
    "review": "method_review",
    "scope_limits": [],

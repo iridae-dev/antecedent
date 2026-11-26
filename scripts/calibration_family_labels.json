@@ -559,7 +559,7 @@
     },
     {
       "path": "crates/antecedent-io-core/src/calibration.rs",
-      "sha256": "c32509d3b971bf63a64bcef8bf5a7a82d024d264edcc032da480c35545a16c56",
+      "sha256": "775be67434ac5dd9024b8d567e18dddcf4a71f695a299e02ca6b635bfbf9e2df",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer."
