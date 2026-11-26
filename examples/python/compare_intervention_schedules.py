@@ -69,9 +69,7 @@ def main() -> None:
         Path(sys.argv[1]).write_bytes(bytes(portable))
         print("Retain this identity:", run.identity)
     try:
-        compile_schedule_decision_bundle(
-            source, target, replace(declaration, preference_costs=())
-        )
+        compile_schedule_decision_bundle(source, target, replace(declaration, preference_costs=()))
     except ScheduleDecisionRefusal as error:
         assert error.detail == "integrated_schedule.missing_joint_evidence"
         print("With preference evidence removed:", error)

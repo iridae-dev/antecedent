@@ -46,9 +46,7 @@ def main() -> None:
         read(Path(sys.argv[2]).read_bytes(), sys.argv[3])
         return
     if len(sys.argv) > 2:
-        raise SystemExit(
-            "usage: delayed_entry_incidence.py [FILE | --read FILE IDENTITY]"
-        )
+        raise SystemExit("usage: delayed_entry_incidence.py [FILE | --read FILE IDENTITY]")
     for thin in (False, True):
         data = cohort(thin)
         query = CompetingRisksOutcome(
@@ -74,9 +72,7 @@ def main() -> None:
         # Four versus two cause-1 events per block of eight randomized subjects.
         assert abs(curve.incidence_difference - 0.25) < 1e-12
         assert curve.minimum_horizon_risk_set == (20 if thin else 60)
-        assert curve.support_status == (
-            "unsupported_pointwise_interval" if thin else "supported"
-        )
+        assert curve.support_status == ("unsupported_pointwise_interval" if thin else "supported")
         print("At risk, support:", curve.minimum_horizon_risk_set, curve.support_status)
         if not thin:
             raw = bytes(result.export(source_data=data))
