@@ -372,11 +372,27 @@ pub const DETAIL_LEVEL_INVALID: &str =
     antecedent_core::reason_details::cohort_decision::INTERVAL_LEVEL_INVALID;
 /// Scope of the issued interval.
 pub const INTERVAL_SCOPE: &str = "interval for the declared-cohort mean of the true conditional effect under a correctly specified linear effect basis, ignorable or randomized treatment and independent rows, for a cohort of the fitted population; excludes support selection and a shifted target population";
-/// Reference size of a replayed fit's rows. Not enforced: the normal-equation sizes follow the
-/// rows and modifiers given.
+/// Earlier row ceiling. Not applied. A native fit is admitted by [`native_fit_working_bytes`]
+/// against the execution pool.
 pub const MAX_FIT_ROWS: usize = 1_000_000;
-/// Reference size of a replayed fit's modifier count. Not enforced.
+/// Earlier modifier-count ceiling. Not applied. The same working-set quote admits the fit.
 pub const MAX_FIT_FEATURES: usize = 32;
+
+/// Bytes to admit before fitting or replaying `value_count` retained `f64`s.
+///
+/// The quote covers the retained columns, the canonical training hash and the dense
+/// OLS/HC3 scratch. It is the only size limit on the live fit.
+///
+/// # Errors
+/// The product does not fit in `u64`.
+pub fn native_fit_working_bytes(
+    value_count: u64,
+) -> Result<u64, antecedent_core::execution::AdmissionError> {
+    value_count
+        .checked_mul(32)
+        .and_then(|bytes| bytes.checked_add(512 * 1024))
+        .ok_or(antecedent_core::execution::AdmissionError::Overflow)
+}
 
 /// The retained size of a native fit.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

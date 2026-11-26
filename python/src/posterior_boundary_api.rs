@@ -11,14 +11,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use antecedent::analysis::posterior_boundaries::{
-    SerialErrorModel, TrajectoryRows, require_ordinary_temporal_curve_posterior,
-    trajectory_hazard_credible_interval, trajectory_survival_bootstrap,
-    trajectory_survival_contrast,
+    require_ordinary_temporal_curve_posterior, trajectory_hazard_credible_interval,
+    trajectory_survival_bootstrap, trajectory_survival_contrast, SerialErrorModel, TrajectoryRows,
 };
 use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 
+use crate::chain_decision_api::context;
 use crate::ingest::snapshot_array;
+use crate::PyCancellationToken;
 
 use crate::{detach_catch, py_err, value_err};
 
@@ -118,7 +119,8 @@ fn trajectory_contrast_native(
 /// `(survival lower, survival upper, rmst lower, rmst upper, requested, ok)`.
 #[pyfunction]
 #[pyo3(signature = (subjects, periods, treatment, event, at_risk, treatment_probability,
-    censoring_weight, minimum_probability, active, control, replicates, seed))]
+    censoring_weight, minimum_probability, active, control, replicates, seed, *, threads=None,
+    cancel=None, memory_bytes=None))]
 #[allow(clippy::too_many_arguments)]
 fn trajectory_bootstrap_native(
     py: Python<'_>,
@@ -134,8 +136,10 @@ fn trajectory_bootstrap_native(
     control: Vec<bool>,
     replicates: u32,
     seed: u64,
+    threads: Option<u32>,
+    cancel: Option<PyCancellationToken>,
+    memory_bytes: Option<u64>,
 ) -> PyResult<(f64, f64, f64, f64, u32, u32)> {
-    crate::bridge::check_count("replicates", u64::from(replicates), crate::bridge::MAX_RESAMPLES)?;
     let data = Trajectories {
         subjects,
         periods,
@@ -146,9 +150,10 @@ fn trajectory_bootstrap_native(
         censoring_weight: snapshot_array(&censoring_weight),
         minimum_probability,
     };
+    let ctx = context(seed, threads, cancel, memory_bytes);
     detach_catch(py, move || {
         let intervals =
-            trajectory_survival_bootstrap(&data.rows(), &active, &control, replicates, seed)
+            trajectory_survival_bootstrap(&data.rows(), &active, &control, replicates, seed, &ctx)
                 .map_err(py_err)?;
         let [survival_low, survival_high] = intervals.survival_difference;
         let [rmst_low, rmst_high] = intervals.restricted_mean_difference;

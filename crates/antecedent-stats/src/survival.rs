@@ -217,8 +217,8 @@ pub fn randomized_survival_bootstrap_difference_band_with_observation(
     cancelled: impl Fn() -> bool,
 ) -> Result<SurvivalDifferenceBand, &'static str> {
     let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
-    if !(SURVIVAL_BAND_MIN_REPLICATES..=100_000).contains(&replicates) {
-        return Err("survival simultaneous band requires 399 to 100000 replicates");
+    if replicates < SURVIVAL_BAND_MIN_REPLICATES {
+        return Err("survival simultaneous band requires at least 399 replicates");
     }
     if duration.len() != event_code.len()
         || duration.len() != treated.len()
@@ -422,8 +422,8 @@ pub fn randomized_survival_bootstrap_intervals_controlled(
     cancelled: impl Fn() -> bool,
 ) -> Result<SurvivalBootstrapIntervals, &'static str> {
     let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
-    if !(199..=100_000).contains(&replicates) {
-        return Err("survival pointwise bootstrap requires 199 to 100000 replicates");
+    if replicates < 199 {
+        return Err("survival pointwise bootstrap requires at least 199 replicates");
     }
     if duration.len() != event_code.len()
         || duration.len() != treated.len()

@@ -83,9 +83,6 @@ impl CompiledScheduleEvidence {
                 if rows.is_empty() {
                     return Err(ScheduleDecisionError::MissingJointEvidence);
                 }
-                if rows.len() > super::MAX_SUBJECTS {
-                    return Err(ScheduleDecisionError::InvalidDeclaration);
-                }
                 raw.text("source").word(rows.len() as u64);
                 for row in rows {
                     raw.word(u64::from(row.baseline))
@@ -107,9 +104,6 @@ impl CompiledScheduleEvidence {
             ScheduleEvidence::Target { baseline } => {
                 if baseline.is_empty() {
                     return Err(ScheduleDecisionError::MissingJointEvidence);
-                }
-                if baseline.len() > super::MAX_SUBJECTS {
-                    return Err(ScheduleDecisionError::InvalidDeclaration);
                 }
                 raw.text("target").word(baseline.len() as u64);
                 for &marker in baseline {
@@ -476,7 +470,9 @@ pub fn inspect_program_schedule_bundle_expecting(
     expected_identity: &str,
     retained: &RetainedArtifactIdentity,
 ) -> Result<ScheduleReplayInputs, ScheduleBundleError> {
-    load_expecting(bytes, retained, |bytes| inspect_program_schedule_bundle(bytes, expected_identity))
+    load_expecting(bytes, retained, |bytes| {
+        inspect_program_schedule_bundle(bytes, expected_identity)
+    })
 }
 
 /// Independently replay a retained integrated schedule bundle from its embedded evidence.
@@ -524,7 +520,9 @@ pub fn consume_program_schedule_bundle_expecting(
     ctx: &ExecutionContext,
     retained: &RetainedArtifactIdentity,
 ) -> Result<IntegratedScheduleDecision, ScheduleBundleError> {
-    load_expecting(bytes, retained, |bytes| consume_program_schedule_bundle(bytes, expected_identity, program_identity, ctx))
+    load_expecting(bytes, retained, |bytes| {
+        consume_program_schedule_bundle(bytes, expected_identity, program_identity, ctx)
+    })
 }
 
 fn run(

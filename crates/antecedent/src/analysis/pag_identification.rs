@@ -33,9 +33,28 @@ pub struct CompiledPagIdentification {
 
 /// Lower marginal IDP or conditional CIDP from the declared causal premises.
 ///
+/// Compiling checks cancellation and refuses re-entry from a lowered dispatch. The
+/// lowered layers do not depend on `ctx`.
+///
 /// # Errors
-/// Invalid graph/query bindings or unavailable compiler support.
+/// The context is cancelled or already inside a lowered dispatch, the graph or query
+/// binding is invalid, or compiler support is unavailable.
 pub fn compile_pag_identification(
+    problem: PagIdentificationProblem,
+    ctx: &ExecutionContext,
+) -> Result<CompiledPagIdentification, PagReplayError> {
+    if ctx.cancellation.is_cancelled() {
+        return Err(PagReplayError::Identification(PagIdError::Cancelled));
+    }
+    if crate::analysis::lowering::refuse_reentry(ctx).is_err() {
+        return Err(PagReplayError::Invalid(
+            "a lowered dispatch executes its retained program; it does not compile another identification",
+        ));
+    }
+    lower_pag(problem)
+}
+
+fn lower_pag(
     problem: PagIdentificationProblem,
 ) -> Result<CompiledPagIdentification, PagReplayError> {
     require_program_unscoped(&SupportKey::Unit(UNIT), COMPILE)?;
@@ -182,7 +201,7 @@ pub fn consume_pag_identification(
     let scoped = ctx.enter_lowered_dispatch(expected_program);
     require_program(&scoped, &SupportKey::Unit(UNIT), CONSUME)?;
     let result = PagIdentificationArtifact::consume(bytes, Some(expected_result), &scoped)?;
-    let reconstructed = compile_pag_identification(result.problem().clone())?;
+    let reconstructed = lower_pag(result.problem().clone())?;
     if reconstructed.lowered().identity() != expected_program {
         return Err(PagReplayError::Invalid("unexpected retained PAG program"));
     }

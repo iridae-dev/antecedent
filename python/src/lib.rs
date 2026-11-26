@@ -235,6 +235,7 @@ mod interface_adapters_api;
 mod interface_contract_api;
 mod intervention_callback_api;
 mod intervention_program_api;
+mod multi_arm_decision_api;
 mod period_refresh_api;
 mod posterior_boundary_api;
 mod posterior_row_api;
@@ -475,6 +476,7 @@ pub(crate) fn evidence_status_name(status: Option<antecedent::CellStatus>) -> Op
 #[allow(clippy::struct_excessive_bools)] // FFI flat getters; effort flags are intentional
 pub(crate) struct AteAnalysisResult {
     pub(crate) effect_authority: Option<scalar_decision_api::NativeEffectAuthority>,
+    pub(crate) multi_arm_authority: Option<multi_arm_decision_api::MultiArmAuthority>,
     /// Held-out doubly robust policy answer.
     #[pyo3(get)]
     pub(crate) policy_value: Option<policy_api::PolicyValueSection>,

@@ -25,7 +25,7 @@ use antecedent_core::{
     ByteEstimates, CalibrationBasis, CanonicalWriter, ExecutionContext, PhysicalEffect,
     PhysicalOperator, SemanticDigest,
 };
-use antecedent_io::calibration::{CalibrationBasisWire, calibration_slots};
+use antecedent_io::calibration::{calibration_slots, CalibrationBasisWire};
 use antecedent_io::contract_section::CalibrationSlotWire;
 use serde::{Deserialize, Serialize};
 
@@ -46,8 +46,6 @@ use crate::planner::statistical::{
     Realization, ResampleUnit, ResamplingMethod, ResamplingPlan, StatisticalProgram,
 };
 
-const MAX_ROWS: usize = 100_000;
-const MAX_REPLICATES: u32 = 2_000;
 const MAX_WIRE_BYTES: usize = 16 * 1024 * 1024;
 const VERSION: u16 = 1;
 const ARTIFACT_KIND: &str = "longitudinal_joint_sensitivity";
@@ -152,10 +150,10 @@ impl LongitudinalSensitivitySpec {
     fn check(&self, rows: &[LongitudinalSubject]) -> Result<(), JointSensitivityError> {
         let named = |name: &str| !name.trim().is_empty() && name.len() <= 200;
         if ![&self.population, &self.outcome, &self.unit].iter().all(|name| named(name))
-            || !(199..=MAX_REPLICATES).contains(&self.replicates)
+            || self.replicates < 199
             || !(0.0 < self.level && self.level < 1.0)
             || self.decision_threshold.is_some_and(|value| !value.is_finite())
-            || !(16..=MAX_ROWS).contains(&rows.len())
+            || rows.len() < 16
         {
             return Err(JointSensitivityError::Invalid(
                 "target names, sampling design, or cohort size",
@@ -215,6 +213,33 @@ compiled_terminal! {
     }
 }
 
+fn admit_joint_work(
+    ctx: &ExecutionContext,
+    rows: &[LongitudinalSubject],
+    replicates: u32,
+) -> Result<antecedent_core::execution::AdmissionLease, JointSensitivityError> {
+    let rows = u64::try_from(rows.len()).map_err(|_| {
+        JointSensitivityError::Resource("longitudinal joint sensitivity quote overflowed".into())
+    })?;
+    let bytes = rows
+        .checked_mul(48)
+        .and_then(|body| {
+            u64::from(replicates).checked_mul(16).and_then(|draws| body.checked_add(draws))
+        })
+        .ok_or_else(|| {
+            JointSensitivityError::Resource(
+                "longitudinal joint sensitivity quote overflowed".into(),
+            )
+        })?;
+    ctx.acquire_serial_numerical_admission(bytes).map_err(|error| {
+        if ctx.cancellation.is_cancelled() {
+            JointSensitivityError::Cancelled
+        } else {
+            JointSensitivityError::Resource(error.to_string())
+        }
+    })
+}
+
 /// Compile schedule 11 minus schedule 00 with paired subject refits and a named joint region.
 ///
 /// # Errors
@@ -227,6 +252,7 @@ pub fn compile_longitudinal_joint_sensitivity(
     admit_compile(ctx)?;
     let rows = rows.into();
     spec.check(&rows)?;
+    let _lease = admit_joint_work(ctx, &rows, spec.replicates)?;
     let mut declaration = CanonicalWriter::new("antecedent.longitudinal.joint_sensitivity.v1");
     declaration.text(MODEL).text(CLAIM_METHOD).bytes(&antecedent_io::to_cbor(&spec)?);
     let mut source = CanonicalWriter::new("antecedent.longitudinal.joint_sensitivity.subjects.v1");
@@ -358,14 +384,7 @@ impl CompiledLongitudinalJointSensitivity {
         ctx: &ExecutionContext,
     ) -> Result<LongitudinalSensitivityArtifact, JointSensitivityError> {
         let scoped = self.enter(ctx)?;
-        let admission = (self.rows.len() as u64) * 48 + u64::from(self.spec.replicates) * 16;
-        let _lease = scoped.acquire_serial_numerical_admission(admission).map_err(|error| {
-            if scoped.cancellation.is_cancelled() {
-                JointSensitivityError::Cancelled
-            } else {
-                JointSensitivityError::Resource(error.to_string())
-            }
-        })?;
+        let _lease = admit_joint_work(&scoped, &self.rows, self.spec.replicates)?;
         let report = kernel::execute(&self.spec, &self.rows, &scoped)?;
         let wire = Portable {
             version: VERSION,

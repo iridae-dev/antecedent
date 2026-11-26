@@ -21,7 +21,7 @@ from antecedent import _reason_details as reason_details
 from antecedent import decision
 from antecedent._decision_value import StructuralPolicy as StructuralPolicyClass
 from antecedent.artifacts import artifact_identity
-from antecedent.errors import CausalError, CausalValueError
+from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
 from antecedent.joint_distribution import (
     DistributionIdentity,
     JointDistributionArtifact,
@@ -727,6 +727,159 @@ def test_one_experiment_cannot_answer_a_kinked_term_from_its_means():
     # part refuses the mean source.
     assert refused.value.reason_code == "decision_contract_unsatisfied"
     assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
+
+
+# --------------------------------------------------------------------------- one multi-arm experiment
+#
+# Three assigned frequencies. Margin diminishes and unsubscribe accelerates, so the
+# affine value margin - w * unsubscribe switches between "two" and "four" at w = 15.
+# The scalar result is the second arm minus the first; the decision reads the arm means.
+
+
+def _multi_arm_results():
+    labels = ("0", "2", "4")
+    design = ant.experiment.MultiArmExperimentDesign(
+        labels * 2,
+        labels,
+        [[1 / 3, 1 / 3, 1 / 3]] * 6,
+        [f"customer-{i}" for i in range(6)],
+        [f"row-{i}" for i in range(6)],
+    )
+    table = {
+        "margin": [0.0, 1.2, 1.5, 0.0, 1.2, 1.5],
+        "unsubscribe": [0.01, 0.02, 0.04, 0.01, 0.02, 0.04],
+    }
+
+    def fitted(outcome: str, assignment=labels * 2):
+        used = design
+        if assignment != labels * 2:
+            used = ant.experiment.MultiArmExperimentDesign(
+                assignment,
+                labels,
+                [[1 / 3, 1 / 3, 1 / 3]] * 6,
+                [f"customer-{i}" for i in range(6)],
+                [f"row-{i}" for i in range(6)],
+            )
+        return require_success(
+            ant.analyze(table, query=ant.experiment.RandomizedEffect(outcome, used), refute="none")
+        )
+
+    return fitted("margin"), fitted("unsubscribe"), fitted
+
+
+def _multi_arm_evidence(margin, unsubscribe):
+    return decision.MultiArmEvidence(
+        results=(margin, unsubscribe),
+        population="customers",
+        units={"margin": "EUR", "unsubscribe": "rate"},
+        regimes={"0": "do(emails=0)", "2": "do(emails=2)", "4": "do(emails=4)"},
+    )
+
+
+def _frequency_contract(evidence, model):
+    def arm(label: str) -> dict[str, ScientificQuantity]:
+        return {
+            "margin": decision.multi_arm_quantity(evidence, "margin", label),
+            "unsubscribe": decision.multi_arm_quantity(evidence, "unsubscribe", label),
+        }
+
+    return decision.Contract(
+        value=model,
+        actions=(
+            decision.Action("none", inputs=arm("0")),
+            decision.Action("two", inputs=arm("2")),
+            decision.Action("four", inputs=arm("4")),
+        ),
+        target_population="customers",
+    )
+
+
+def test_multi_arm_means_switch_at_the_ratio_of_the_arm_means():
+    margin, unsubscribe, _fitted = _multi_arm_results()
+    assert margin.answer.value == pytest.approx(1.2)
+    evidence = _multi_arm_evidence(margin, unsubscribe)
+    quantity = decision.multi_arm_quantity(evidence, "margin", "2")
+    assert quantity.functional_id == "mean"
+    assert quantity.regime_id == "do(emails=2)"
+    assert quantity.population_id == "customers"
+
+    source = decision.multi_arm_means(evidence)
+    assert source.provider_id == "native:multi_arm_means"
+    assert source.means == pytest.approx((0.0, 0.01, 1.2, 0.02, 1.5, 0.04))
+
+    loss = decision.tradeoff(
+        "unsubscribe_cost", units="EUR/rate", lower=5.0, upper=80.0, assumption="lifetime_value"
+    )
+    margin_attr = decision.attribute("margin", units="EUR")
+    churn = decision.attribute("unsubscribe", units="rate")
+    model = decision.Value(margin_attr - loss * churn, units="EUR")
+    result = require_success(_frequency_contract(evidence, model).evaluate(evidence))
+    assert result.kind == "preference_dependent"
+    assert result.choice is None
+    (two_four,) = [
+        item
+        for item in result.switches
+        if (item.first, item.second) == ("two", "four") and item.threshold is not None
+    ]
+    assert two_four.threshold.first_leads_above
+    assert two_four.threshold.value == pytest.approx(15.0)
+    by_id = {item.id: item for item in result.actions}
+    assert by_id["none"].possibly_best is False
+    assert by_id["two"].possibly_best is True
+    assert by_id["four"].possibly_best is True
+
+
+def test_multi_arm_means_cannot_answer_a_kinked_term():
+    margin, unsubscribe, _fitted = _multi_arm_results()
+    evidence = _multi_arm_evidence(margin, unsubscribe)
+    margin_attr = decision.attribute("margin", units="EUR")
+    churn = decision.attribute("unsubscribe", units="rate")
+    loss = decision.tradeoff(
+        "unsubscribe_cost", units="EUR/rate", lower=5.0, upper=80.0, assumption="lifetime_value"
+    )
+    kinked = decision.Value(margin_attr - loss * decision.excess(churn, 0.02), units="EUR")
+    with pytest.raises(decision.PreferenceRefusal) as refused:
+        require_success(_frequency_contract(evidence, kinked).evaluate(evidence))
+    assert refused.value.reason_code == "decision_contract_unsatisfied"
+    assert refused.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
+
+
+def test_multi_arm_outcomes_must_share_one_assignment():
+    margin, _unsubscribe, fitted = _multi_arm_results()
+    shifted = fitted("unsubscribe", ("2", "4", "0") * 2)
+    evidence = _multi_arm_evidence(margin, shifted)
+    with pytest.raises(CausalValueError) as refused:
+        decision.multi_arm_means(evidence)
+    assert refused.value.detail == reason_details.decision_adapters.INVALID_CLAIMS
+    assert refused.value.expected == "outcomes of one multi-arm decision share one assignment"
+
+
+def test_one_multi_arm_result_is_still_not_the_arm_means():
+    margin, unsubscribe, _fitted = _multi_arm_results()
+    evidence = _multi_arm_evidence(margin, unsubscribe)
+    margin_attr = decision.attribute("margin", units="EUR")
+    churn = decision.attribute("unsubscribe", units="rate")
+    loss = decision.tradeoff(
+        "unsubscribe_cost", units="EUR/rate", lower=5.0, upper=80.0, assumption="lifetime_value"
+    )
+    contract = _frequency_contract(
+        evidence, decision.Value(margin_attr - loss * churn, units="EUR")
+    )
+    with pytest.raises(CausalValueError, match="one declared unit/population"):
+        require_success(contract.evaluate(margin))
+
+    only = decision.Contract(
+        value=decision.Value(decision.attribute("margin", units="EUR"), units="EUR"),
+        actions=(
+            decision.Action("none", inputs={"margin": _quantity("margin", "EUR", "do(emails=0)")}),
+            decision.Action("four", inputs={"margin": _quantity("margin", "EUR", "do(emails=4)")}),
+        ),
+        target_population="target",
+    )
+    with pytest.raises(CausalUnsupportedError) as refused:
+        require_success(only.evaluate(margin))
+    assert refused.value.reason_code == "route_not_supported"
+    assert unsubscribe.answer.value == pytest.approx(0.01)
 
 
 # --------------------------------------------------------------------------- one compiled design

@@ -194,6 +194,7 @@ def compile_pag_identification(
     actions: Sequence[str] = (),
     given: Sequence[str] = (),
     population: str = "observed",
+    execution: Execution | None = None,
 ) -> CompiledPagIdentification:
     """Compile a static query from a declared, valid oracle PAG without selection.
 
@@ -203,14 +204,17 @@ def compile_pag_identification(
     """
     if not isinstance(pag, _native.Pag):
         raise CausalTypeError("pag must be a Pag")
+    policy = resolve_execution(execution)
     return CompiledPagIdentification(
         _checked(
-            _native.direct_pag_compile(
+            policy._call(
+                _native.direct_pag_compile,
                 pag,
                 list(actions),
                 list(outcomes),
                 list(given),
                 population,
+                **_controls(policy),
             )
         )
     )

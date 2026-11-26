@@ -142,22 +142,49 @@ fn lowered(
     .finish())
 }
 
-/// Compile the bounded source, transport and joint decision layers without fitting.
+fn schedule_working_bytes(
+    source_rows: usize,
+    target_rows: usize,
+) -> Result<u64, ScheduleBundleError> {
+    let source = u64::try_from(source_rows)
+        .ok()
+        .and_then(|rows| rows.checked_mul(64))
+        .ok_or_else(|| ScheduleBundleError::Resource("schedule source quote overflowed".into()))?;
+    let target = u64::try_from(target_rows)
+        .map_err(|_| ScheduleBundleError::Resource("schedule target quote overflowed".into()))?;
+    source.checked_add(target).ok_or_else(|| {
+        ScheduleBundleError::Resource("schedule working-set quote overflowed".into())
+    })
+}
+
+/// Compile the source, transport and joint decision layers without fitting.
+///
+/// The source and target rows are admitted against `ctx` by their working-set quote.
+/// Overlap floors stay on the fits. There is no fixed subject ceiling.
 ///
 /// # Errors
-/// The declared samples exceed the input bound or the finite scientific declaration is incomplete.
+/// The declaration is incomplete, a sample is empty, or the quote does not fit the execution.
 pub fn compile_integrated_schedule_decision(
     source: Vec<ScheduleSourceSubject>,
     target: Vec<bool>,
     declaration: ScheduleDecisionDeclaration,
+    ctx: &ExecutionContext,
 ) -> Result<CompiledIntegratedScheduleDecision, ScheduleBundleError> {
     declaration.check()?;
     if source.is_empty() || target.is_empty() {
         return Err(ScheduleDecisionError::MissingJointEvidence.into());
     }
-    if source.len() > 1_000_000 || target.len() > 1_000_000 {
-        return Err(ScheduleDecisionError::InvalidDeclaration.into());
+    if ctx.cancellation.is_cancelled() {
+        return Err(ScheduleDecisionError::Cancelled.into());
     }
+    let bytes = schedule_working_bytes(source.len(), target.len())?;
+    let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+        if ctx.cancellation.is_cancelled() {
+            ScheduleBundleError::Procedure(ScheduleDecisionError::Cancelled)
+        } else {
+            ScheduleBundleError::Resource(error.to_string())
+        }
+    })?;
     let (source_rows, target_rows, schedule_count) =
         (source.len(), target.len(), declaration.schedules.len());
     let children = [
@@ -220,7 +247,7 @@ pub fn compile_schedule_decision_bundle(
     declaration: ScheduleDecisionDeclaration,
     ctx: &ExecutionContext,
 ) -> Result<IntegratedScheduleBundle, ScheduleBundleError> {
-    compile_integrated_schedule_decision(source, target, declaration)?.execute(ctx)
+    compile_integrated_schedule_decision(source, target, declaration, ctx)?.execute(ctx)
 }
 
 /// Independently recompile and replay an integrated schedule decision under a caller's context.
@@ -240,7 +267,7 @@ pub fn consume_schedule_decision_bundle_with_context(
         .map_err(|error| ScheduleBundleError::Resource(error.to_string()))?;
     let inputs = inspect_program_schedule_bundle(bytes, expected_identity)?;
     let compiled =
-        compile_integrated_schedule_decision(inputs.source, inputs.target, inputs.problem)?;
+        compile_integrated_schedule_decision(inputs.source, inputs.target, inputs.problem, ctx)?;
     let identity = *compiled.lowered.identity().as_bytes();
     if identity != inputs.program_identity {
         return Err(ScheduleBundleError::ChangedProgram);

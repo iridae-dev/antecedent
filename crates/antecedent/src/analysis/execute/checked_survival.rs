@@ -156,9 +156,7 @@ impl CheckedSurvivalOperation {
             difference_band,
             band_unavailable_reason,
         ) = if let Some(learner) = &self.query.stratified_censoring {
-            let bytes = (self.rows as u64)
-                .saturating_mul(240)
-                .saturating_add(u64::from(self.extra.0).saturating_mul(8));
+            let bytes = survival_work_bytes(self.rows as u64, 240, self.extra.0, 8)?;
             let _scratch = survival_scratch(ctx, bytes)?;
             let fitted = standardized_conditional_survival(
                 &ConditionalObservationRows {
@@ -200,12 +198,18 @@ impl CheckedSurvivalOperation {
                 None,
             )
         } else {
-            let _scratch = if rows.delayed_entry.is_some() && self.extra.0 > 0 {
+            let _scratch = if self.extra.0 > 0 {
                 let grid_width =
                     self.query.known_censoring.as_ref().map_or(0, |known| known.times.len());
-                let bytes = (self.rows as u64)
-                    .saturating_mul(240_u64.saturating_add((grid_width as u64).saturating_mul(24)))
-                    .saturating_add(u64::from(self.extra.0).saturating_mul(16));
+                let stride = 240_u64
+                    .checked_add(
+                        u64::try_from(grid_width)
+                            .ok()
+                            .and_then(|width| width.checked_mul(24))
+                            .ok_or_else(survival_quote_overflow)?,
+                    )
+                    .ok_or_else(survival_quote_overflow)?;
+                let bytes = survival_work_bytes(self.rows as u64, stride, self.extra.0, 16)?;
                 Some(survival_scratch(ctx, bytes)?)
             } else {
                 None
@@ -612,6 +616,22 @@ fn result_band(
         minimum_horizon_risk_set: band.minimum_horizon_risk_set,
         support_status,
     }
+}
+
+fn survival_quote_overflow() -> CausalError {
+    CausalError::Resource { message: "survival work quote overflowed".into() }
+}
+
+fn survival_work_bytes(
+    rows: u64,
+    row_stride: u64,
+    replicates: u32,
+    per_replicate: u64,
+) -> Result<u64, CausalError> {
+    let body = rows.checked_mul(row_stride).ok_or_else(survival_quote_overflow)?;
+    let draws =
+        u64::from(replicates).checked_mul(per_replicate).ok_or_else(survival_quote_overflow)?;
+    body.checked_add(draws).ok_or_else(survival_quote_overflow)
 }
 
 fn survival_scratch(

@@ -102,7 +102,8 @@ def resolve_tradeoff_source(
     raise CausalTypeError(
         "a decision across trade-offs reads a JointDistributionArtifact (aligned draws), a "
         "sequence of them whose rows pair, a PropagationChain with joint outputs, the "
-        "JointEvidence of one experiment (its arm means), a MeanSource or BoundExternalClaim "
+        "JointEvidence of one experiment (its arm means), the MultiArmEvidence of one "
+        "multi-arm experiment (one mean per arm), a MeanSource or BoundExternalClaim "
         f"(means), Structures, or a supported analysis result, not {type(resolved).__name__}"
     )
 

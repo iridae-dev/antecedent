@@ -6,8 +6,7 @@ use std::sync::Arc;
 
 use antecedent_core::{CanonicalWriter, ExecutionContext, execution::AdmissionError};
 use antecedent_estimate::cohort_linear_effect::{
-    FIT_PROCEDURE_ID, FIT_PROCEDURE_VARIABLE, FIT_TRAINING_VARIABLE, MAX_FIT_FEATURES,
-    NativeCohortFit, NativeFitRows,
+    FIT_PROCEDURE_ID, FIT_PROCEDURE_VARIABLE, FIT_TRAINING_VARIABLE, NativeCohortFit, NativeFitRows,
 };
 use antecedent_io_core::compact_export::{CompactExport, ExportLimits};
 
@@ -69,9 +68,6 @@ fn compile_refit(
     bundle_node: Option<(&str, &str)>,
     ctx: &ExecutionContext,
 ) -> Result<CompiledCompactModelRefit, BundleError> {
-    if training.feature_ids.len() > MAX_FIT_FEATURES {
-        return Err(admission_refusal(AdmissionError::Overflow));
-    }
     let training_bytes = working_bytes(
         training.outcome.len(),
         training.treatment.len(),

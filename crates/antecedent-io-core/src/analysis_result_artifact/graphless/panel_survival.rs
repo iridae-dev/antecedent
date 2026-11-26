@@ -577,7 +577,7 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
         && curve.bootstrap_replicates_ok.is_none();
     let pointwise_bootstrap = curve.uncertainty
         == "subject_stratified_percentile_bootstrap_pointwise_95"
-        && curve.bootstrap_replicates_requested.is_some_and(|n| (199..=100_000).contains(&n))
+        && curve.bootstrap_replicates_requested.is_some_and(|n| n >= 199)
         && curve.bootstrap_replicates_ok.is_some_and(|ok| {
             let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
             ok >= 199 && ok >= requested.saturating_sub(requested / 10) && ok <= requested

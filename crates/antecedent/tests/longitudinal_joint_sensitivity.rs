@@ -3,9 +3,9 @@
 
 use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
 use antecedent::analysis::longitudinal_joint_sensitivity::{
+    compile_longitudinal_joint_sensitivity, consume_longitudinal_joint_sensitivity,
     JointSensitivityError, LongitudinalSensitivityChoice, LongitudinalSensitivityPoint,
-    LongitudinalSensitivitySpec, LongitudinalSubject, compile_longitudinal_joint_sensitivity,
-    consume_longitudinal_joint_sensitivity,
+    LongitudinalSensitivitySpec, LongitudinalSubject,
 };
 use antecedent_core::{CausalRng, ExecutionContext};
 
@@ -300,24 +300,31 @@ fn repeated_studies_cover_the_entire_surface_and_both_decision_extrema_jointly()
 
 #[test]
 fn public_compiler_checks_longitudinal_subject_and_refit_limits() {
+    use antecedent_core::execution::AdmissionPool;
+
     let ctx = ExecutionContext::for_tests(41);
     let template = observed_data();
-    let rows: Vec<_> = (0..100_000)
-        .map(|i| LongitudinalSubject { subject: i as u64, ..template[i % template.len()] })
-        .collect();
-    let max_refits = LongitudinalSensitivitySpec { replicates: 2000, ..declaration() };
-    compile_longitudinal_joint_sensitivity(max_refits.clone(), rows.clone(), &ctx).unwrap();
-
-    let excessive_refits = LongitudinalSensitivitySpec { replicates: 2001, ..max_refits.clone() };
+    let short = template[..15].to_vec();
     assert!(matches!(
-        compile_longitudinal_joint_sensitivity(excessive_refits, template.clone(), &ctx),
+        compile_longitudinal_joint_sensitivity(declaration(), short, &ctx),
         Err(JointSensitivityError::Invalid("target names, sampling design, or cohort size"))
     ));
-    let mut excessive_rows = rows;
-    excessive_rows.push(LongitudinalSubject { subject: 100_000, ..template[0] });
+    let few_refits = LongitudinalSensitivitySpec { replicates: 198, ..declaration() };
     assert!(matches!(
-        compile_longitudinal_joint_sensitivity(max_refits, excessive_rows, &ctx),
+        compile_longitudinal_joint_sensitivity(few_refits, template.clone(), &ctx),
         Err(JointSensitivityError::Invalid("target names, sampling design, or cohort size"))
+    ));
+
+    let former_ceiling = LongitudinalSensitivitySpec { replicates: 2_001, ..declaration() };
+    compile_longitudinal_joint_sensitivity(former_ceiling, template.clone(), &ctx).unwrap();
+    let rows: Vec<_> = (0..100_001)
+        .map(|i| LongitudinalSubject { subject: i as u64, ..template[i % template.len()] })
+        .collect();
+    compile_longitudinal_joint_sensitivity(declaration(), rows.clone(), &ctx).unwrap();
+    let limited = ctx.with_admission(AdmissionPool::fixed(1, 1024));
+    assert!(matches!(
+        compile_longitudinal_joint_sensitivity(declaration(), rows, &limited),
+        Err(JointSensitivityError::Resource(_))
     ));
 }
 
@@ -326,9 +333,7 @@ fn longitudinal_reader_checks_artifact_size_before_decoding() {
     let ctx = ExecutionContext::for_tests(1);
     let expected = antecedent_core::SemanticDigest::from_bytes([0; 32]);
     let bytes = vec![0; (16 << 20) + 1];
-    let read = |body: &[u8]| {
-        consume_longitudinal_joint_sensitivity(body, expected, expected, &ctx)
-    };
+    let read = |body: &[u8]| consume_longitudinal_joint_sensitivity(body, expected, expected, &ctx);
     // A malformed body at the limit reaches the codec. One more byte stops before decode.
     assert!(matches!(read(&bytes[..bytes.len() - 1]), Err(JointSensitivityError::Wire(_))));
     assert!(matches!(

@@ -5,7 +5,7 @@
 use antecedent_core::{ExecutionContext, StreamDomain};
 use antecedent_kernels::{standard_normal, unbiased_index};
 
-use crate::{NORMAL_Q975, QuantileRule, StatsError, quantile_sorted};
+use crate::{quantile_sorted, QuantileRule, StatsError, NORMAL_Q975};
 
 const SIMULTANEOUS_STREAM: u64 = 0x5319_0000_0000_0000;
 const POLICY_REFIT_STREAM: u64 = 0x5320_0000_0000_0000;
@@ -209,13 +209,29 @@ fn check_work(
     subjects: usize,
     draws: usize,
 ) -> Result<antecedent_core::execution::AdmissionLease, StatsError> {
-    if !(199..=100_000).contains(&draws) || subjects.saturating_mul(draws) > 40_000_000 {
-        return Err(shape("use 199 to 100000 multiplier draws within the trajectory work limit"));
+    if draws < 199 {
+        return Err(shape(
+            "longitudinal schedule inference requires at least 199 multiplier draws",
+        ));
     }
-    ctx.acquire_serial_numerical_admission(
-        (subjects as u64).saturating_mul(192).saturating_add((draws as u64).saturating_mul(16)),
-    )
-    .map_err(StatsError::Admission)
+    let subjects = u64::try_from(subjects).map_err(|_| schedule_quote_overflow(ctx))?;
+    let draws = u64::try_from(draws).map_err(|_| schedule_quote_overflow(ctx))?;
+    let bytes = subjects
+        .checked_mul(192)
+        .and_then(|body| draws.checked_mul(16).and_then(|tail| body.checked_add(tail)))
+        .ok_or_else(|| schedule_quote_overflow(ctx))?;
+    ctx.acquire_serial_numerical_admission(bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => StatsError::Cancelled,
+        other => StatsError::Admission(other),
+    })
+}
+
+fn schedule_quote_overflow(ctx: &ExecutionContext) -> StatsError {
+    StatsError::ResourceLimit {
+        message: "longitudinal schedule work quote overflowed",
+        required_bytes: u64::MAX,
+        limit_bytes: ctx.memory_limit_bytes().unwrap_or(u64::MAX),
+    }
 }
 
 /// Compare declared schedules in one paired, simultaneous analysis of all subjects.

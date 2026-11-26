@@ -155,7 +155,8 @@ law it read, when it read one, so the decision exports and replays as one evalua
 
 `Contract.evaluate(source)` decides on a source you already hold: aligned joint draws (a
 `JointDistributionArtifact`), a `MeanSource`, a bound external claim, `decision.Structures`, the
-arm means of one experiment, or a propagation chain with joint outputs. It runs a compiled
+arm means of one experiment, the arm means of one multi-arm experiment
+(`decision.MultiArmEvidence`), or a propagation chain with joint outputs. It runs a compiled
 program over that source: `TradeoffLawDecision` or `TradeoffCertifiedLawDecision` for draws or
 means, `TradeoffStructuralDecision` or `TradeoffCertifiedStructuralDecision` for claims and
 structures, the engine chosen by the contract as above. Use it when the numbers come from outside
@@ -438,6 +439,7 @@ each part of the value, and the certified route reads one aligned joint law.
 | Separate studies that share observations | `contract.compile([study_a, study_b], draws=..., shared={(0, 1): block})` | Studies that share observations (see [which studies share evidence](#which-studies-share-evidence)) are not distinct evidence and are refused (`evidence_double_counted`) unless the covariance between their estimates is declared. Each block is a 2-D array keyed by the studies' positions: one row per coordinate of study `i` and one column per coordinate of study `j`, both in grid order (a block keyed `(j, i)` is read as its transpose). A block of another shape raises `CausalValueError`. The block is the cross-study part of the chain's declared covariance, which the drawn law carries exactly. Only the pairs that share observations need a block. |
 | One static-regime design of several outcomes | `contract.compile(design, refits=99)` | Its arm means, or with `refits=` its aligned whole-subject bootstrap refits as one law of every outcome under both arms. |
 | One cluster-randomized design, or one matched-pair or switchback experiment | `contract.compile(design)`, or `contract.compile(design, refits=99, seed=..., sampling="assumption.units_sampled")` | Its arm means, under an exposure declared free of interference. A value that needs a joint law reads the independent-unit bootstrap of the arm means, and only under a declared premise (`sampling=`, with `refits=`) that the clusters, pairs or sequences were sampled independently from a larger population; see [a joint law of a randomized design](#a-joint-law-of-a-randomized-design). |
+| One multi-arm randomized experiment, one `RandomizedEffect` per outcome | `contract.evaluate(decision.MultiArmEvidence(results=..., population=..., units=..., regimes=...))` | One mean per arm per outcome, read from the retained arm means. The results must share one assignment (`decision_adapters.invalid_claims` otherwise). Variances are not a joint law; a value that needs one refuses. The result's scalar point is the contrast of the second arm against the first, and passing that result to `evaluate` still refuses. |
 | Laws you already hold whose rows pair | `contract.evaluate(decision.joint_law(a, b))` | As for a joint law. Rows of separately produced draws are never paired: they refuse with `joint_law_required`. |
 
 The compiled design carries the decision in its own program's evidence layer, so its plan view
@@ -899,5 +901,7 @@ provenance, with the documented deviations; see [citing a study](guides/citing-a
   inform the ranges
 - [Choose a discount when the cost of a return is a range](tutorials/decide-across-trade-offs.md):
   the worked story
+- [Choose an email frequency when the cost of an unsubscribe is a range](tutorials/email-frequency.md):
+  the same decision on the arm means of a three-arm experiment
 - [Evaluate actions with a decision contract](decisions.md) and
   [probe sensitivity to assumptions](sensitivity-and-robustness.md)

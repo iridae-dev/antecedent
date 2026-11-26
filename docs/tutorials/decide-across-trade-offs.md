@@ -325,8 +325,11 @@ under that range the 10% discount is best.
 For every declaration, verdict and route, see
 [trade-off ranges in depth](../preference-decisions.md). For records, the two learning
 methods and accepted preferences, see
-[learn trade-off ranges](../preference-learning.md). For decisions with one
-exact utility and every way to compile and read a result, see [Decisions](../decisions.md).
+[learn trade-off ranges](../preference-learning.md). For the same decision on the arm
+means of a three-arm experiment, see
+[Choose an email frequency when the cost of an unsubscribe is a range](email-frequency.md).
+For decisions with one exact utility and every way to compile and read a result, see
+[Decisions](../decisions.md).
 
 ## The complete example
 

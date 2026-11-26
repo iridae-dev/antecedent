@@ -22,7 +22,12 @@ use super::execute::CompiledPreferenceEvaluation;
 use super::native_claims::{NativeDecisionSource, NativeResponseClaim, NativeResponseContext};
 use crate::result::{ExecutedContract, ResultPayload, StudyResult};
 
+mod multi_arm;
 mod static_effect;
+pub use multi_arm::{
+    MultiArmDecisionAuthority, MultiArmMeanProjection, PROVIDER_ID as MULTI_ARM_PROVIDER_ID,
+    RNG_ID as MULTI_ARM_RNG_ID, project_multi_arm_means,
+};
 #[doc(hidden)]
 pub use static_effect::{NativeEffectAuthority, StaticEffectSource, project_static_effect};
 

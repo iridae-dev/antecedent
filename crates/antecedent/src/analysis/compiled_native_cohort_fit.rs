@@ -10,7 +10,7 @@ use antecedent_core::{
 };
 use antecedent_estimate::EstimationError;
 use antecedent_estimate::cohort_linear_effect::{
-    FIT_PROCEDURE_ID, MAX_FIT_FEATURES, MAX_FIT_ROWS, NativeCohortFit,
+    FIT_PROCEDURE_ID, NativeCohortFit, native_fit_working_bytes,
 };
 use antecedent_io::artifact_codec::CanonicalSize;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
@@ -58,18 +58,16 @@ pub(super) fn working_bytes(
     treatment: usize,
     features: impl ExactSizeIterator<Item = usize>,
 ) -> Result<u64, AdmissionError> {
-    if outcome > MAX_FIT_ROWS || treatment > MAX_FIT_ROWS || features.len() > MAX_FIT_FEATURES {
-        return Err(AdmissionError::Overflow);
-    }
-    let mut values = outcome + treatment;
+    let mut values = u64::try_from(outcome).map_err(|_| AdmissionError::Overflow)?;
+    values = values
+        .checked_add(u64::try_from(treatment).map_err(|_| AdmissionError::Overflow)?)
+        .ok_or(AdmissionError::Overflow)?;
     for length in features {
-        if length > MAX_FIT_ROWS {
-            return Err(AdmissionError::Overflow);
-        }
-        values += length;
+        values = values
+            .checked_add(u64::try_from(length).map_err(|_| AdmissionError::Overflow)?)
+            .ok_or(AdmissionError::Overflow)?;
     }
-    // Covers retained columns, canonical hashing and the bounded dense OLS/HC3 scratch.
-    Ok((values as u64) * 32 + 512 * 1024)
+    native_fit_working_bytes(values)
 }
 
 /// Both model routes use the same fit operator and do not request a sampling interval.
@@ -102,7 +100,8 @@ impl Study {
     /// Bind the ordered training columns and quantity declarations to a native fit plan.
     ///
     /// # Errors
-    /// An oversized table, mismatched columns or quantity declarations, or an invalid quantity.
+    /// A quote that does not fit in `u64`, mismatched columns or quantity declarations, or an
+    /// invalid quantity. The execution pool admits the working set when the plan runs.
     pub fn compile_native_cohort_fit<'a>(
         outcome: &'a [f64],
         treatment: &'a [f64],
@@ -110,9 +109,6 @@ impl Study {
         response: &'a ScientificQuantityWire,
         feature_quantities: &'a [ScientificQuantityWire],
     ) -> Result<CompiledNativeCohortFit<'a>, EstimationError> {
-        if features.len() > MAX_FIT_FEATURES {
-            return Err(AdmissionError::Overflow.into());
-        }
         FitInput {
             outcome: Cow::Borrowed(outcome),
             treatment: Cow::Borrowed(treatment),
@@ -134,9 +130,6 @@ impl Study {
         response: ScientificQuantityWire,
         feature_quantities: Vec<ScientificQuantityWire>,
     ) -> Result<CompiledNativeCohortFit<'static>, EstimationError> {
-        if features.len() > MAX_FIT_FEATURES {
-            return Err(AdmissionError::Overflow.into());
-        }
         FitInput {
             outcome: Cow::Owned(outcome),
             treatment: Cow::Owned(treatment),

@@ -1,9 +1,9 @@
 //! Longitudinal regime value contract for one outcome row per subject.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::QueryError;
 use super::fault::LongitudinalRegimeFault;
-use crate::canonical_encode::{CanonicalEncode, count, encode_flags, encode_u32s, flag};
+use super::QueryError;
+use crate::canonical_encode::{count, encode_flags, encode_u32s, flag, CanonicalEncode};
 use crate::identity::CanonicalWriter;
 use crate::ids::VariableId;
 use std::sync::Arc;
@@ -332,7 +332,7 @@ impl LongitudinalRegimeQuery {
                         .regime_actions
                         .chunks_exact(2)
                         .all(|actions| actions == &self.regime_actions[..2])
-                    && (99..=100_000).contains(&fit.bootstrap_replicates)
+                    && fit.bootstrap_replicates >= 99
                     && fitted_fold_ownership(&self.fold_ids, fit.external_training_fold) => {}
             (LongitudinalRegimeMethod::ScheduleFamily(family), None)
                 if self.periods == 2
@@ -353,7 +353,7 @@ impl LongitudinalRegimeQuery {
                         .all(|actions| actions == &self.regime_actions[..2])
                     && family.schedules <= 0b1111
                     && family.schedules.count_ones() >= 2
-                    && (199..=100_000).contains(&family.draws)
+                    && family.draws >= 199
                     && self.valid_schedule_target(family) => {}
             (LongitudinalRegimeMethod::MarginalStructuralModel, None)
                 if self.stabilizing_numerator_probabilities.as_ref().is_some_and(|v| {

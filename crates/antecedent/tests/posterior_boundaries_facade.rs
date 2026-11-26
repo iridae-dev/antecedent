@@ -13,11 +13,11 @@
 #![allow(clippy::cast_precision_loss, reason = "fixture counts are far below 2^52")]
 
 use antecedent::analysis::posterior_boundaries::{
-    SerialErrorModel, TemporalCurvePosteriorMeaning, TrajectoryRows,
     require_ordinary_temporal_curve_posterior, temporal_curve_posterior_meaning,
     trajectory_hazard_credible_interval, trajectory_survival_bootstrap,
-    trajectory_survival_contrast,
+    trajectory_survival_contrast, SerialErrorModel, TemporalCurvePosteriorMeaning, TrajectoryRows,
 };
+use antecedent::prelude::ExecutionContext;
 
 #[test]
 fn unmodeled_serial_dependence_refuses_the_ordinary_curve_posterior_with_the_next_attempt() {
@@ -88,8 +88,15 @@ impl OnePeriod {
 #[test]
 fn trajectory_bootstrap_interval_matches_the_binomial_standard_error() {
     let data = OnePeriod::new(600);
-    let intervals =
-        trajectory_survival_bootstrap(&data.rows(), &[true], &[false], 999, 17).unwrap();
+    let intervals = trajectory_survival_bootstrap(
+        &data.rows(),
+        &[true],
+        &[false],
+        999,
+        17,
+        &ExecutionContext::for_tests(0),
+    )
+    .unwrap();
     let (n1, p1) = data.share(true);
     let (n0, p0) = data.share(false);
     let standard_error = (p1 * (1.0 - p1) / n1 + p0 * (1.0 - p0) / n0).sqrt();
@@ -117,6 +124,14 @@ fn trajectory_credible_interval_always_refuses_naming_the_missing_likelihood() {
         trajectory_hazard_credible_interval(&data.rows(), &[false], &[false]).unwrap_err();
     assert_ne!(invalid.reason_code(), Some("not_supported"));
     // The replicate floor is a data error of the bootstrap.
-    let few = trajectory_survival_bootstrap(&data.rows(), &[true], &[false], 10, 1).unwrap_err();
-    assert!(few.to_string().contains("199 to 100000"), "{few}");
+    let few = trajectory_survival_bootstrap(
+        &data.rows(),
+        &[true],
+        &[false],
+        10,
+        1,
+        &ExecutionContext::for_tests(0),
+    )
+    .unwrap_err();
+    assert!(few.to_string().contains("at least 199"), "{few}");
 }

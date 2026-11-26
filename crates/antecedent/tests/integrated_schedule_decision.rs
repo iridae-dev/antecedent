@@ -85,7 +85,8 @@ fn point_oracle_replays_and_changed_parent_invalidates_terminal() {
     let target: Vec<bool> = (0..1024).map(|i| i % 4 != 0).collect();
     let problem = declaration(true);
     let compiled =
-        compile_integrated_schedule_decision(source.clone(), target, problem.clone()).unwrap();
+        compile_integrated_schedule_decision(source.clone(), target, problem.clone(), &ctx)
+            .unwrap();
     assert_eq!(compiled.plan_view().route().as_str(), "IntegratedScheduleDecision");
     assert!(compiled.plan_view().unit_support().is_some());
     let program_identity = *compiled.lowered().identity().as_bytes();

@@ -36,6 +36,7 @@ Each tutorial follows one scientific task and pairs with a maintained [example](
 | [From a new experiment to the next study](tutorials/experiment-to-next-study.md) | Update a response from an experiment and choose the next study |
 | [Stop, continue or run longer](tutorials/decide-under-uncertainty.md) | Decide when a result is suggestive but not significant |
 | [Choose a discount when the cost of a return is a range](tutorials/decide-across-trade-offs.md) | Decide with a trade-off stated as a range, read where the choice switches, and optionally narrow the range from past decisions |
+| [Choose an email frequency when the cost of an unsubscribe is a range](tutorials/email-frequency.md) | Decide a frequency from the arm means of a three-arm experiment when the cost of an unsubscribe is a range |
 | [Replay and current decisions](tutorials/replay-and-current-decisions.md) | Change a utility, export a decision, withdraw a source |
 | [Estimate an effect from observational data](tutorials/observational-study.md) | Analyze a real public dataset end to end |
 | [When the comparison group does not overlap](tutorials/when-overlap-fails.md) | Follow a refusal when the comparison group does not overlap, and see how far the answer moves |
