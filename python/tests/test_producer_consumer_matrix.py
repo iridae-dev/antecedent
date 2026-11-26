@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import sys
 import tomllib
 from collections.abc import Callable
@@ -2374,10 +2375,10 @@ def _check_transport_inverse(o: Objs) -> None:
     _check_raw_rejected(*_transport_objects(o), feeders=_INVERSE_FEEDERS)
 
 
-def _consume_transport_decision(
+def _transport_decision_bundle(
     source: object, contract: decision.Contract, terminal: object
-) -> cb.ConsumedBundle:
-    bundle = (
+) -> cb.Bundle:
+    return (
         cb.Bundle.builder()
         .add_artifact(source, node_id="transport")
         .add_artifact(contract, node_id="contract")
@@ -2385,9 +2386,6 @@ def _consume_transport_decision(
         .connect("transport", "decision")
         .connect("contract", "decision")
         .build()
-    )
-    return require_success(
-        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
     )
 
 
@@ -2413,11 +2411,37 @@ def _check_transport_bundle(o: Objs) -> None:
         )
         terminal = cb.mean_decision(contract, result)
 
-        consumed = _consume_transport_decision(result, contract, terminal)
-        consumed.require_verified()
-        assert consumed.value("transport", "probability") == pytest.approx(0.75)
-        assert consumed.value("decision", "act.expected_utility") == pytest.approx(2.0)
-        changed = _consume_transport_decision(replacement, contract, terminal)
+        bundle = _transport_decision_bundle(result, contract, terminal)
+        process = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                """
+import json, sys
+from antecedent import composition_bundle as cb
+from antecedent.outcomes import require_success
+consumed = require_success(cb.consume_bundle(sys.stdin.buffer.read(), expected_identity=sys.argv[1]))
+consumed.require_verified()
+print(json.dumps([consumed.node("transport").facts["construction"],
+                  consumed.value("transport", "probability"),
+                  consumed.value("decision", "act.expected_utility")]))
+""",
+                bundle.identity,
+            ],
+            input=bytes(bundle.export()),
+            capture_output=True,
+            check=True,
+        )
+        kind, probability, utility = json.loads(process.stdout)
+        assert kind == construction
+        assert probability == pytest.approx(0.75)
+        assert utility == pytest.approx(2.0)
+        revised_bundle = _transport_decision_bundle(replacement, contract, terminal)
+        changed = require_success(
+            cb.consume_bundle(
+                bytes(revised_bundle.export()), expected_identity=revised_bundle.identity
+            )
+        )
         assert changed.node("transport").facts["target_population"] == "revised-target"
         assert isinstance(changed.node("decision").status, cb.Failed)
         with pytest.raises(cb.CompositionBundleRefusal) as refusal:
