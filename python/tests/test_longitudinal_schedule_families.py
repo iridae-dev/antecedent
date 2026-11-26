@@ -13,20 +13,24 @@ SCHEDULES = ((False, False), (False, True), (True, False), (True, True))
 def _study(means, specification, *, remove_matches=False):
     subjects = 800
     training = isinstance(specification, LearnedScheduleClass)
+    original_rows = [
+        i // 8 * 8 + (i % 2) * 4 + i // 2 % 4 if training else i
+        for i in range(subjects)
+    ]
     query = LongitudinalRegime(
         outcome="outcome",
         method="learn_schedule" if training else "compare_schedules",
         schedule_family=specification,
         treatment_history=[
             SCHEDULES[2] if remove_matches and i % 4 == 3 else SCHEDULES[i % 4]
-            for i in range(subjects)
+            for i in original_rows
         ],
         actions=SCHEDULES[0],
         treatment_probabilities=[[0.5, 0.5]] * subjects,
         subject_ids=[f"schedule-{i}" for i in range(subjects)],
-        fold_ids=[i // 4 % 2 for i in range(subjects)],
+        fold_ids=[i % 2 if training else i // 4 % 2 for i in range(subjects)],
     )
-    data = {"outcome": [means[i % 4] + 0.125 * (i // 8 % 3 - 1) for i in range(subjects)]}
+    data = {"outcome": [means[i % 4] + 0.125 * (i // 8 % 3 - 1) for i in original_rows]}
     return data, query
 
 
@@ -90,6 +94,36 @@ def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selec
     assert selected_fit.optimum_set == optima
     assert sum(count for _, count in selected_fit.refit_selections) == 199
     assert fit.value_interval_95[0] <= means[selected] <= fit.value_interval_95[1]
-    artifact = require_success(ant.load(bytes(result.export(source_data=data)))).replay()
+    assert result.calibration.functional == "learned_h2_four_schedules_selected_value"
+    assert len(result.calibration.secondary) == 1
+    optimum_calibration = result.calibration.secondary[0]
+    assert optimum_calibration.functional == "learned_h2_four_schedules_all_true_optima"
+    if optimum_calibration.status == "calibrated":
+        assert optimum_calibration.scope_n <= 400 <= optimum_calibration.scope_n_max
+
+    source = bytes(result.export(source_data=data))
+    artifact = require_success(ant.load(source)).replay()
     assert artifact.acceptance.replayed
     assert artifact.decoded_artifact.payload["longitudinal_regime"]["schedule_family"]["learning"]["optimum_set"] == list(optima)
+    bundle = cb.BundleBuilder().add_artifact(source, node_id="learned").build()
+    verified = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+    assert verified.node("learned").facts["optimum_set.calibration"] == optimum_calibration.status
+    assert verified.node("learned").facts["optimum_set.calibration_functional"] == optimum_calibration.functional
+    assert verified.node("learned").facts["optimum_set"] == ",".join(map(str, optima))
+
+    changed_data = {
+        "outcome": [y + 20.0 * (i % 2 == 0 and i // 2 % 4 == 0) for i, y in enumerate(data["outcome"])]
+    }
+    changed = require_success(ant.analyze(changed_data, query=query))
+    changed_result = changed.longitudinal_regime.schedule_family.learning
+    assert changed_result.selected_schedule == 0
+    assert changed_result.optimum_set == optima
+    replacement = cb.BundleBuilder().add_artifact(
+        bytes(changed.export(source_data=changed_data)), node_id="learned",
+    ).build()
+    new_bytes = bytes(replacement.export())
+    with pytest.raises(cb.ExpectedIdentityMismatchRefusal):
+        require_success(cb.consume_bundle(new_bytes, expected_identity=bundle.identity))
+    replayed = require_success(cb.consume_bundle(new_bytes, expected_identity=replacement.identity))
+    assert replayed.value("learned", "selected_schedule") == 0.0
+    assert replayed.node("learned").facts["optimum_set"] == ",".join(map(str, optima))

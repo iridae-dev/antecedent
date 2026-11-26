@@ -553,6 +553,18 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             push_value(&mut inspected.values, format!("{key}.upper_95"), contrast.interval[1]);
         }
         if let Some(learning) = &family.learning {
+            if let Some(basis) = &claim.calibration.basis {
+                publish(&mut inspected.facts, "selected_value.calibration_functional", basis.key.functional.clone());
+            }
+            if let Some(calibration) = claim.calibration.secondary.first() {
+                publish(&mut inspected.facts, "optimum_set.calibration", calibration.status.as_str());
+                if let Some(basis) = &calibration.basis {
+                    publish(&mut inspected.facts, "optimum_set.calibration_functional", basis.key.functional.clone());
+                }
+                if let Some(record_id) = &calibration.record_id {
+                    publish(&mut inspected.facts, "optimum_set.calibration_record", record_id.clone());
+                }
+            }
             push_value(
                 &mut inspected.values,
                 "selected_schedule".into(),

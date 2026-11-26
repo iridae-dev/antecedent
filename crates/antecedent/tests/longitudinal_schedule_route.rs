@@ -19,8 +19,13 @@ fn fixture(
     means: [f64; 4],
     target: LongitudinalScheduleTarget,
 ) -> (TabularData, LongitudinalRegimeQuery, Vec<f64>) {
-    let outcomes: Vec<_> =
-        (0..SUBJECTS).map(|row| means[row % 4] + 0.125 * ((row / 8 % 3) as f64 - 1.0)).collect();
+    let learned = matches!(target, LongitudinalScheduleTarget::Learn { .. });
+    let original_rows: Vec<_> = (0..SUBJECTS).map(|row|
+        if learned { row / 8 * 8 + (row % 2) * 4 + row / 2 % 4 } else { row }
+    ).collect();
+    let outcomes: Vec<_> = original_rows.iter()
+        .map(|&row| means[row % 4] + 0.125 * ((row / 8 % 3) as f64 - 1.0))
+        .collect();
     let q = LongitudinalRegimeQuery {
         outcome: VariableId::from_raw(0),
         method: LongitudinalRegimeMethod::ScheduleFamily(LongitudinalScheduleFamily {
@@ -35,13 +40,13 @@ fn fixture(
         observation_history: None,
         prediction_fold_ids: None,
         periods: 2,
-        treatment_history: (0..SUBJECTS).flat_map(|row| [row & 2 != 0, row & 1 != 0]).collect(),
+        treatment_history: original_rows.iter().flat_map(|&row| [row & 2 != 0, row & 1 != 0]).collect(),
         regime_actions: vec![false; SUBJECTS * 2].into(),
         treatment_probabilities: vec![0.5; SUBJECTS * 2].into(),
         censoring_probabilities: vec![1.0; SUBJECTS * 2].into(),
         outcome_observed: vec![true; SUBJECTS].into(),
         subject_ids: (0..SUBJECTS).map(|i| Arc::from(format!("schedule-{i}"))).collect(),
-        fold_ids: (0..SUBJECTS).map(|row| u32::try_from((row / 4) % 2).unwrap()).collect(),
+        fold_ids: (0..SUBJECTS).map(|row| (if learned { row % 2 } else { row / 4 % 2 }) as u32).collect(),
         excluded_fold_predictions: false,
         probabilities_known_by_design: true,
         minimum_probability: 0.01,
@@ -141,8 +146,15 @@ fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajector
         [([1.0, 2.0, 3.0, 10.0], 3, vec![3]), ([1.0, 2.0, 10.0, 10.0], 2, vec![2, 3])]
     {
         let (table, query, outcomes) = fixture(means, target);
+        let training = query.fold_ids.clone();
+        let realized = query.treatment_history.clone();
         let prepared = compiled(&table, query, &ctx);
         let result = prepared.estimate(&table, &ctx).unwrap();
+        let scopes = result.calibration_bases(&prepared.contract_for_result(&result).unwrap()).unwrap();
+        assert_eq!(scopes.len(), 2);
+        assert_eq!(scopes[0].key.functional, "learned_h2_four_schedules_selected_value");
+        assert_eq!(scopes[1].key.functional, "learned_h2_four_schedules_all_true_optima");
+        assert_eq!(scopes[0].scope.row_count, (SUBJECTS / 2) as u64);
 
         let fit = result.longitudinal_regime().unwrap();
         let learned = fit.schedule_family.as_ref().unwrap().learning.as_ref().unwrap();
@@ -164,7 +176,7 @@ fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajector
             let revised: Vec<_> = outcomes
                 .iter()
                 .enumerate()
-                .map(|(i, &y)| if i / 4 % 2 == 0 && i % 4 == 0 { y + 30.0 } else { y })
+                .map(|(i, &y)| if training[i] == 0 && realized[i * 2..i * 2 + 2] == [false, false] { y + 30.0 } else { y })
                 .collect();
             let revised = TabularData::from_f64_columns([("outcome", revised.as_slice())]).unwrap();
             assert!(
@@ -184,8 +196,10 @@ fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajector
     }
     let (table, mut query, _) = fixture([1.0, 2.0, 3.0, 10.0], target);
     let rows = Arc::make_mut(&mut query.treatment_history);
-    for actions in rows.chunks_exact_mut(2).skip(3).step_by(4) {
-        actions[1] = false;
+    for actions in rows.chunks_exact_mut(2) {
+        if actions == [true, true] {
+            actions[1] = false;
+        }
     }
     let error = compiled(&table, query, &ctx).estimate(&table, &ctx).unwrap_err();
     assert!(matches!(

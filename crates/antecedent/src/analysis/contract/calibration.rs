@@ -367,7 +367,7 @@ impl StudyResult {
         }
         if matches!(&contract.body.query, antecedent_io::CausalQueryWire::LongitudinalRegime(query)
             if (query.periods == 4 && query.method == "sequential_dr")
-                || matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules"))
+                || matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule"))
         {
             // Publication and empirical calibration have distinct scopes. An otherwise
             // admissible interval outside these measured constructions has no fallback key.
