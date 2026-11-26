@@ -21,10 +21,10 @@ use antecedent::analysis::input_decision_programs::{
 use antecedent_core::ExecutionContext;
 use antecedent_design::decision_reliability::{
     BatchPlan, CandidateCoupling, CandidateDraws, CandidateOrigin, DecisionDraws,
-    DecisionReliabilityArtifact, DrawSegment, IntervalRequest, JointLawStanding, ProducerOutput,
-    RankingRequest, ReliabilityError, ReliabilityRequest, RolloutNoise, RolloutUtilityDraws,
-    SourceParadigm, SourceUncertainty, StreamId, StreamPurpose, WithinStreamDependence, assess,
-    derive_uncertainty, rank, reach_carrier,
+    DecisionReliabilityArtifact, DerivedUncertainty, DrawSegment, IntervalRequest,
+    JointLawStanding, ProducerOutput, RankingRequest, ReliabilityError, ReliabilityRequest,
+    RolloutNoise, RolloutUtilityDraws, SourceParadigm, SourceUncertainty, StreamId, StreamPurpose,
+    WithinStreamDependence, assess, derive_uncertainty, rank, reach_carrier,
 };
 
 fn ctx() -> ExecutionContext {
@@ -225,6 +225,20 @@ fn compiled_producer_carrier_assessment_equals_assess() {
     assert_eq!(compiled.decided_id, "A");
 }
 
+// A has twenty utilities of 2 and twenty of 3. Its mean is 2.5 and its
+// standard error is 0.5 / sqrt(39). The selected-value interval spends alpha
+// over both tails of all three candidates, giving z(1 - 0.05/6).
+fn check_three_candidate_selection(result: &DerivedUncertainty) {
+    let set = &result.selection.confidence_set;
+    assert_eq!(set.members, ["A"]);
+    assert_eq!(set.excluded, ["B", "C"]);
+    let selected = result.selection.corrected.as_ref().unwrap();
+    assert_eq!(selected.n_considered, 3);
+    let half_width = 2.393_979_799_818_51 * 0.5 / 39.0_f64.sqrt();
+    assert!((selected.lower - (2.5 - half_width)).abs() < 1e-8);
+    assert!((selected.upper - (2.5 + half_width)).abs() < 1e-8);
+}
+
 #[test]
 fn compiled_decision_reliability_derivation_equals_derive_uncertainty() {
     let ctx = ctx();
@@ -244,6 +258,7 @@ fn compiled_decision_reliability_derivation_equals_derive_uncertainty() {
     let compiled = program.execute(&ctx).unwrap();
     assert_eq!(compiled, direct);
     same(&compiled, &direct);
+    check_three_candidate_selection(&compiled);
     assert_eq!(compiled.decided_id, "A");
     let value = compiled.numerical.utilities.iter().find(|row| row.id == "A").unwrap();
     assert!((value.interval.estimate - 2.5).abs() < 1e-12);
@@ -267,5 +282,6 @@ fn compiled_producer_carrier_derivation_equals_derive_uncertainty() {
     let compiled = program.execute(&ctx).unwrap();
     assert_eq!(compiled, direct);
     same(&compiled, &direct);
+    check_three_candidate_selection(&compiled);
     assert_eq!(compiled.decided_id, "A");
 }

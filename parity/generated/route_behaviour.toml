@@ -7114,8 +7114,6 @@ refusals = [
 routes = [
   { route = "antecedent_design.decision_reliability.derive_uncertainty.confidence_set", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.decision_reliability.DecisionReliability.derive_uncertainty", stage = "evaluate", status = "supported", claim = "none" },
-  { route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
-  { route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
@@ -7131,8 +7129,6 @@ routes = [
   { route = "antecedent_design.decision_reliability.derive_uncertainty.selection_corrected", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent_design.decision_reliability.derive_uncertainty.publish", stage = "uncertainty", status = "supported", claim = "none" },
   { route = "antecedent.decision_reliability.publish_derived_route", stage = "uncertainty", status = "supported", claim = "none" },
-  { route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
-  { route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute", stage = "evaluate", status = "supported", claim = "none" },
 ]
 
 [[record]]
