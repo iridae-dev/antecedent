@@ -14,6 +14,7 @@ from typing import Any, Literal, cast
 
 import numpy as np
 
+from . import _reason_details as reason_details
 from ._columns import resolved, resolved_opt, resolved_scalar, scalar_or_values
 from ._native import PreparedAnalysis as _NativePreparedAnalysis
 from ._temporal_design import TEMPORAL_DESIGN_QUERIES, temporal_design_keywords
@@ -2126,7 +2127,7 @@ class _PrepareRoute:
             if missing:
                 raise StructuredRefusal({
                     "code": "route_not_supported",
-                    "detail": "survival.conditional_observation.identification_inputs",
+                    "detail": reason_details.survival.CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS,
                     "stage": "prepare",
                     "message": f"conditional survival identification columns are missing: {missing}",
                 })

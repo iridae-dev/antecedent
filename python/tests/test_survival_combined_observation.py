@@ -9,6 +9,7 @@ import sys
 import antecedent as ant
 import pandas as pd
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalValueError, StructuredRefusal
 from antecedent.observation import IndependentGiven
 from antecedent.outcomes import require_success
@@ -314,7 +315,7 @@ print(json.dumps(consumed.value("fit", "horizon_lower_95")))
                         delayed_entry="entry", observation_assumption=assumption)
     with pytest.raises(StructuredRefusal) as missing:
         require_success(ant.analyze(data.drop(columns="censor_history"), query=query, inference=inference))
-    assert missing.value.detail == "survival.conditional_observation.identification_inputs"
+    assert missing.value.detail == reason_details.survival.CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS
     revised = data.copy()
     revised.loc[(revised["treatment"] == 1.0) & (revised["entry_history"] == 1.0), "censor_history"] = 0.0
     with pytest.raises(Exception, match="inadequate entry or follow-up overlap"):

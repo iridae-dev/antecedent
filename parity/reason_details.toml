@@ -18755,25 +18755,49 @@ codes = ["invalid_argument"]
 meaning = "Refreshed laws compile a physical plan other than the retained checked program."
 
 [[detail]]
-id = "survival.conditional_observation.identification_inputs"
+id = "pag_identification.invalid_declaration"
+family = "pag_identification"
+codes = ["invalid_argument"]
+meaning = "The oracle PAG, disjoint query, positive law, or independently retained replay identity is invalid."
+
+[[detail]]
+id = "pag_identification.cancelled"
+family = "pag_identification"
+codes = ["cancelled_no_claim"]
+meaning = "The caller cancelled before a complete direct PAG identification result."
+
+[[detail]]
+id = "pag_identification.resource_exhausted"
+family = "pag_identification"
+codes = ["route_not_supported"]
+meaning = "The PAG search exceeded a work, depth or admission bound before a scientific conclusion."
+
+[[detail]]
+id = "pag_identification.not_supported"
+family = "pag_identification"
+codes = ["not_supported"]
+meaning = "The direct PAG compiler's capability is unavailable under the current support gate."
+
+[[detail]]
+id = "pag_identification.exact_evaluation_refused"
+family = "pag_identification"
+codes = ["invalid_argument"]
+meaning = "The exact observational-law evaluator refused the concrete PAG functional request."
+
+[[detail]]
+id = "survival.conditional_observation_identification_inputs"
 family = "survival"
 codes = ["route_not_supported"]
 meaning = "The declared baseline entry or censoring history column is absent from the retained subject table."
 
 [[detail]]
-id = "survival.conditional_observation.inference"
+id = "survival.conditional_observation_inference"
 family = "survival"
 codes = ["route_not_supported"]
 meaning = "The stratified reverse product-limit route uses frequentist inference and needs a whole-subject resampling request for a band."
 
 [[detail]]
-id = "survival.conditional_observation.resource"
-family = "survival"
-codes = ["route_not_supported"]
-meaning = "The caller's resource budget cannot hold the standardized survival and refit workspace."
-
-[[detail]]
-id = "survival.conditional_observation.support"
+id = "survival.conditional_observation_support"
 family = "survival"
 codes = ["route_not_supported"]
 meaning = "The declared binary baseline histories, censoring floor, observed overlap or viable subject refit count cannot support this calculation."
@@ -18863,78 +18887,6 @@ codes = ["route_not_supported"]
 meaning = "The patient surrogate route is unavailable under the release support policy."
 
 [[detail]]
-id = "pag_identification.invalid_declaration"
-family = "pag_identification"
-codes = ["invalid_argument"]
-meaning = "The oracle PAG, disjoint query, positive law, or independently retained replay identity is invalid."
-
-[[detail]]
-id = "pag_identification.cancelled"
-family = "pag_identification"
-codes = ["cancelled_no_claim"]
-meaning = "The caller cancelled before a complete direct PAG identification result."
-
-[[detail]]
-id = "pag_identification.resource_exhausted"
-family = "pag_identification"
-codes = ["route_not_supported"]
-meaning = "The PAG search exceeded a work, depth or admission bound before a scientific conclusion."
-
-[[detail]]
-id = "pag_identification.not_supported"
-family = "pag_identification"
-codes = ["not_supported"]
-meaning = "The direct PAG compiler's capability is unavailable under the current support gate."
-
-[[detail]]
-id = "pag_identification.exact_evaluation_refused"
-family = "pag_identification"
-codes = ["invalid_argument"]
-meaning = "The exact observational-law evaluator refused the concrete PAG functional request."
-
-[[detail]]
-id = "rpcmci_learned.portable_refusal"
-family = "rpcmci_learned"
-codes = ["invalid_argument", "execution_resource_limit", "cancelled_no_claim"]
-meaning = "The learned-regime payload, replay resources or selected-regime review could not be admitted."
-
-[[detail]]
-id = "longitudinal_joint_sensitivity.invalid_declaration"
-family = "longitudinal_joint_sensitivity"
-codes = ["invalid_argument"]
-meaning = "Subject trajectories or the box, sampling design, outcome or decision declarations are invalid."
-
-[[detail]]
-id = "longitudinal_joint_sensitivity.positivity"
-family = "longitudinal_joint_sensitivity"
-codes = ["positivity_violated"]
-meaning = "The original data or a whole-subject resample lacks a required treatment-history or observed-outcome cell."
-
-[[detail]]
-id = "longitudinal_joint_sensitivity.incoherent_box"
-family = "longitudinal_joint_sensitivity"
-codes = ["invalid_argument"]
-meaning = "A box corner implies a conditional potential-outcome mean outside the declared support."
-
-[[detail]]
-id = "longitudinal_joint_sensitivity.cancelled"
-family = "longitudinal_joint_sensitivity"
-codes = ["cancelled_no_claim"]
-meaning = "The joint procedure or replay was cancelled."
-
-[[detail]]
-id = "longitudinal_joint_sensitivity.resources"
-family = "longitudinal_joint_sensitivity"
-codes = ["route_not_supported"]
-meaning = "The caller resource budget or portable byte bound refused the joint procedure."
-
-[[detail]]
-id = "longitudinal_joint_sensitivity.identity"
-family = "longitudinal_joint_sensitivity"
-codes = ["invalid_argument"]
-meaning = "The portable program, source or replayed result differs from the expected identities."
-
-[[detail]]
 id = "integrated_schedule.missing_joint_evidence"
 family = "integrated_schedule"
 codes = ["route_not_supported"]
@@ -18981,3 +18933,9 @@ id = "integrated_schedule.artifact_refused"
 family = "integrated_schedule"
 codes = ["invalid_argument"]
 meaning = "The retained bundle did not satisfy the expected identity or did not verify its children and terminal."
+
+[[detail]]
+id = "rpcmci_learned.portable_refusal"
+family = "rpcmci_learned"
+codes = ["invalid_argument", "execution_resource_limit", "cancelled_no_claim"]
+meaning = "The learned-regime payload, replay resources or selected-regime review could not be admitted."

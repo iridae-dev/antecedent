@@ -1335,6 +1335,12 @@ pub const REASON_DETAILS: &[&str] = &[
     "learned_transport.membership_overlap",
     "learned_transport.non_iid_design",
     "learned_transport.treatment_overlap",
+    "longitudinal_joint_sensitivity.cancelled",
+    "longitudinal_joint_sensitivity.identity",
+    "longitudinal_joint_sensitivity.incoherent_box",
+    "longitudinal_joint_sensitivity.invalid_declaration",
+    "longitudinal_joint_sensitivity.positivity",
+    "longitudinal_joint_sensitivity.resources",
     "mapped_posterior_transfer.coefficient_map",
     "mapped_posterior_transfer.parameter_posterior",
     "mapped_posterior_transfer.residual_variance",
@@ -1778,6 +1784,11 @@ pub const REASON_DETAILS: &[&str] = &[
     "observation_query.unknown_variable",
     "observation_query.value_not_finite",
     "observation_query.zero_probability_evidence",
+    "pag_identification.cancelled",
+    "pag_identification.exact_evaluation_refused",
+    "pag_identification.invalid_declaration",
+    "pag_identification.not_supported",
+    "pag_identification.resource_exhausted",
     "paradigm_parity.paradigm_not_supported",
     "parent_set_effect.conflict_resolution_budget",
     "parent_set_effect.discovery_failed",
@@ -1792,6 +1803,14 @@ pub const REASON_DETAILS: &[&str] = &[
     "parent_set_effect.transformation_undeclared",
     "parent_set_effect.treatment_orientation_depends_on_conflict",
     "parent_set_effect.treatment_parents_ambiguous",
+    "patient_surrogate.cancelled",
+    "patient_surrogate.declaration",
+    "patient_surrogate.empty_stratum",
+    "patient_surrogate.monotonicity",
+    "patient_surrogate.not_supported",
+    "patient_surrogate.replay",
+    "patient_surrogate.resource",
+    "patient_surrogate.unsupported_reading",
     "penalized_posterior.band_not_constructed",
     "penalized_posterior.empty_scores",
     "penalized_posterior.external_power_prior",
@@ -2467,6 +2486,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "rollout.state_interpretation_mismatch",
     "rollout.terminal_decision_mismatch",
     "rollout.unweighted_joint_state_required",
+    "rpcmci_learned.portable_refusal",
     "sampled_recovery.bounds_exceeded",
     "sampled_recovery.cancelled",
     "sampled_recovery.component_variance_only",
@@ -2844,6 +2864,9 @@ pub const REASON_DETAILS: &[&str] = &[
     "study_plan.none_certified",
     "study_plan.theorem_limited",
     "supplied_estimate_evalue.reentry",
+    "survival.conditional_observation_identification_inputs",
+    "survival.conditional_observation_inference",
+    "survival.conditional_observation_support",
     "survival_effect.arm_not_populated",
     "survival_effect.cancelled",
     "survival_effect.censoring_assumption_missing",
@@ -4472,6 +4495,12 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("learned_transport.membership_overlap", &["transport_support_failure"]),
     ("learned_transport.non_iid_design", &["sampling_dependence_unknown"]),
     ("learned_transport.treatment_overlap", &["transport_support_failure"]),
+    ("longitudinal_joint_sensitivity.cancelled", &["cancelled_no_claim"]),
+    ("longitudinal_joint_sensitivity.identity", &["invalid_argument"]),
+    ("longitudinal_joint_sensitivity.incoherent_box", &["invalid_argument"]),
+    ("longitudinal_joint_sensitivity.invalid_declaration", &["invalid_argument"]),
+    ("longitudinal_joint_sensitivity.positivity", &["positivity_violated"]),
+    ("longitudinal_joint_sensitivity.resources", &["route_not_supported"]),
     ("mapped_posterior_transfer.coefficient_map", &["quantity_semantics_mismatch"]),
     ("mapped_posterior_transfer.parameter_posterior", &["distribution_meaning_mismatch"]),
     ("mapped_posterior_transfer.residual_variance", &["prior_transfer_not_hydrated"]),
@@ -4915,6 +4944,11 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("observation_query.unknown_variable", &["unknown_variable"]),
     ("observation_query.value_not_finite", &["invalid_argument"]),
     ("observation_query.zero_probability_evidence", &["invalid_argument"]),
+    ("pag_identification.cancelled", &["cancelled_no_claim"]),
+    ("pag_identification.exact_evaluation_refused", &["invalid_argument"]),
+    ("pag_identification.invalid_declaration", &["invalid_argument"]),
+    ("pag_identification.not_supported", &["not_supported"]),
+    ("pag_identification.resource_exhausted", &["route_not_supported"]),
     ("paradigm_parity.paradigm_not_supported", &["route_not_supported"]),
     ("parent_set_effect.conflict_resolution_budget", &["discovered_structure_unresolved"]),
     ("parent_set_effect.discovery_failed", &["invalid_argument"]),
@@ -4929,6 +4963,14 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("parent_set_effect.transformation_undeclared", &["invalid_argument"]),
     ("parent_set_effect.treatment_orientation_depends_on_conflict", &["discovered_structure_unresolved"]),
     ("parent_set_effect.treatment_parents_ambiguous", &["discovered_structure_unresolved"]),
+    ("patient_surrogate.cancelled", &["cancelled_no_claim"]),
+    ("patient_surrogate.declaration", &["invalid_argument"]),
+    ("patient_surrogate.empty_stratum", &["invalid_argument"]),
+    ("patient_surrogate.monotonicity", &["invalid_argument"]),
+    ("patient_surrogate.not_supported", &["route_not_supported"]),
+    ("patient_surrogate.replay", &["invalid_argument"]),
+    ("patient_surrogate.resource", &["route_not_supported"]),
+    ("patient_surrogate.unsupported_reading", &["route_not_supported"]),
     ("penalized_posterior.band_not_constructed", &["route_not_supported"]),
     ("penalized_posterior.empty_scores", &["invalid_argument"]),
     ("penalized_posterior.external_power_prior", &["route_not_supported"]),
@@ -5604,6 +5646,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("rollout.state_interpretation_mismatch", &["route_not_supported"]),
     ("rollout.terminal_decision_mismatch", &["invalid_argument"]),
     ("rollout.unweighted_joint_state_required", &["route_not_supported"]),
+    ("rpcmci_learned.portable_refusal", &["invalid_argument", "execution_resource_limit", "cancelled_no_claim"]),
     ("sampled_recovery.bounds_exceeded", &["route_not_supported"]),
     ("sampled_recovery.cancelled", &["transport_budget_cancel"]),
     ("sampled_recovery.component_variance_only", &["estimator_inference_mismatch"]),
@@ -5981,6 +6024,9 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("study_plan.none_certified", &["transport_not_certified"]),
     ("study_plan.theorem_limited", &["transport_proven_non_transportable"]),
     ("supplied_estimate_evalue.reentry", &["public_builder_reentry"]),
+    ("survival.conditional_observation_identification_inputs", &["route_not_supported"]),
+    ("survival.conditional_observation_inference", &["route_not_supported"]),
+    ("survival.conditional_observation_support", &["route_not_supported"]),
     ("survival_effect.arm_not_populated", &["arm_not_populated"]),
     ("survival_effect.cancelled", &["cancelled_no_claim"]),
     ("survival_effect.censoring_assumption_missing", &["required_option_missing"]),
@@ -9357,6 +9403,22 @@ pub mod learned_transport {
     pub const TREATMENT_OVERLAP: &str = "learned_transport.treatment_overlap";
 }
 
+/// Details in the `longitudinal_joint_sensitivity` family.
+pub mod longitudinal_joint_sensitivity {
+    /// Detail `longitudinal_joint_sensitivity.cancelled`.
+    pub const CANCELLED: &str = "longitudinal_joint_sensitivity.cancelled";
+    /// Detail `longitudinal_joint_sensitivity.identity`.
+    pub const IDENTITY: &str = "longitudinal_joint_sensitivity.identity";
+    /// Detail `longitudinal_joint_sensitivity.incoherent_box`.
+    pub const INCOHERENT_BOX: &str = "longitudinal_joint_sensitivity.incoherent_box";
+    /// Detail `longitudinal_joint_sensitivity.invalid_declaration`.
+    pub const INVALID_DECLARATION: &str = "longitudinal_joint_sensitivity.invalid_declaration";
+    /// Detail `longitudinal_joint_sensitivity.positivity`.
+    pub const POSITIVITY: &str = "longitudinal_joint_sensitivity.positivity";
+    /// Detail `longitudinal_joint_sensitivity.resources`.
+    pub const RESOURCES: &str = "longitudinal_joint_sensitivity.resources";
+}
+
 /// Details in the `mapped_posterior_transfer` family.
 pub mod mapped_posterior_transfer {
     /// Detail `mapped_posterior_transfer.coefficient_map`.
@@ -10359,6 +10421,20 @@ pub mod observation_query {
     pub const ZERO_PROBABILITY_EVIDENCE: &str = "observation_query.zero_probability_evidence";
 }
 
+/// Details in the `pag_identification` family.
+pub mod pag_identification {
+    /// Detail `pag_identification.cancelled`.
+    pub const CANCELLED: &str = "pag_identification.cancelled";
+    /// Detail `pag_identification.exact_evaluation_refused`.
+    pub const EXACT_EVALUATION_REFUSED: &str = "pag_identification.exact_evaluation_refused";
+    /// Detail `pag_identification.invalid_declaration`.
+    pub const INVALID_DECLARATION: &str = "pag_identification.invalid_declaration";
+    /// Detail `pag_identification.not_supported`.
+    pub const NOT_SUPPORTED: &str = "pag_identification.not_supported";
+    /// Detail `pag_identification.resource_exhausted`.
+    pub const RESOURCE_EXHAUSTED: &str = "pag_identification.resource_exhausted";
+}
+
 /// Details in the `paradigm_parity` family.
 pub mod paradigm_parity {
     /// Detail `paradigm_parity.paradigm_not_supported`.
@@ -10393,6 +10469,26 @@ pub mod parent_set_effect {
     pub const TREATMENT_ORIENTATION_DEPENDS_ON_CONFLICT: &str = "parent_set_effect.treatment_orientation_depends_on_conflict";
     /// Detail `parent_set_effect.treatment_parents_ambiguous`.
     pub const TREATMENT_PARENTS_AMBIGUOUS: &str = "parent_set_effect.treatment_parents_ambiguous";
+}
+
+/// Details in the `patient_surrogate` family.
+pub mod patient_surrogate {
+    /// Detail `patient_surrogate.cancelled`.
+    pub const CANCELLED: &str = "patient_surrogate.cancelled";
+    /// Detail `patient_surrogate.declaration`.
+    pub const DECLARATION: &str = "patient_surrogate.declaration";
+    /// Detail `patient_surrogate.empty_stratum`.
+    pub const EMPTY_STRATUM: &str = "patient_surrogate.empty_stratum";
+    /// Detail `patient_surrogate.monotonicity`.
+    pub const MONOTONICITY: &str = "patient_surrogate.monotonicity";
+    /// Detail `patient_surrogate.not_supported`.
+    pub const NOT_SUPPORTED: &str = "patient_surrogate.not_supported";
+    /// Detail `patient_surrogate.replay`.
+    pub const REPLAY: &str = "patient_surrogate.replay";
+    /// Detail `patient_surrogate.resource`.
+    pub const RESOURCE: &str = "patient_surrogate.resource";
+    /// Detail `patient_surrogate.unsupported_reading`.
+    pub const UNSUPPORTED_READING: &str = "patient_surrogate.unsupported_reading";
 }
 
 /// Details in the `penalized_posterior` family.
@@ -11877,6 +11973,12 @@ pub mod rollout {
     pub const UNWEIGHTED_JOINT_STATE_REQUIRED: &str = "rollout.unweighted_joint_state_required";
 }
 
+/// Details in the `rpcmci_learned` family.
+pub mod rpcmci_learned {
+    /// Detail `rpcmci_learned.portable_refusal`.
+    pub const PORTABLE_REFUSAL: &str = "rpcmci_learned.portable_refusal";
+}
+
 /// Details in the `sampled_recovery` family.
 pub mod sampled_recovery {
     /// Detail `sampled_recovery.bounds_exceeded`.
@@ -12725,6 +12827,16 @@ pub mod study_plan {
 pub mod supplied_estimate_evalue {
     /// Detail `supplied_estimate_evalue.reentry`.
     pub const REENTRY: &str = "supplied_estimate_evalue.reentry";
+}
+
+/// Details in the `survival` family.
+pub mod survival {
+    /// Detail `survival.conditional_observation_identification_inputs`.
+    pub const CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS: &str = "survival.conditional_observation_identification_inputs";
+    /// Detail `survival.conditional_observation_inference`.
+    pub const CONDITIONAL_OBSERVATION_INFERENCE: &str = "survival.conditional_observation_inference";
+    /// Detail `survival.conditional_observation_support`.
+    pub const CONDITIONAL_OBSERVATION_SUPPORT: &str = "survival.conditional_observation_support";
 }
 
 /// Details in the `survival_effect` family.

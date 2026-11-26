@@ -1702,6 +1702,15 @@ class learned_transport:  # noqa: N801
     TREATMENT_OVERLAP: Final = "learned_transport.treatment_overlap"
 
 
+class longitudinal_joint_sensitivity:  # noqa: N801
+    CANCELLED: Final = "longitudinal_joint_sensitivity.cancelled"
+    IDENTITY: Final = "longitudinal_joint_sensitivity.identity"
+    INCOHERENT_BOX: Final = "longitudinal_joint_sensitivity.incoherent_box"
+    INVALID_DECLARATION: Final = "longitudinal_joint_sensitivity.invalid_declaration"
+    POSITIVITY: Final = "longitudinal_joint_sensitivity.positivity"
+    RESOURCES: Final = "longitudinal_joint_sensitivity.resources"
+
+
 class mapped_posterior_transfer:  # noqa: N801
     COEFFICIENT_MAP: Final = "mapped_posterior_transfer.coefficient_map"
     PARAMETER_POSTERIOR: Final = "mapped_posterior_transfer.parameter_posterior"
@@ -2290,6 +2299,14 @@ class observation_query:  # noqa: N801
     ZERO_PROBABILITY_EVIDENCE: Final = "observation_query.zero_probability_evidence"
 
 
+class pag_identification:  # noqa: N801
+    CANCELLED: Final = "pag_identification.cancelled"
+    EXACT_EVALUATION_REFUSED: Final = "pag_identification.exact_evaluation_refused"
+    INVALID_DECLARATION: Final = "pag_identification.invalid_declaration"
+    NOT_SUPPORTED: Final = "pag_identification.not_supported"
+    RESOURCE_EXHAUSTED: Final = "pag_identification.resource_exhausted"
+
+
 class paradigm_parity:  # noqa: N801
     PARADIGM_NOT_SUPPORTED: Final = "paradigm_parity.paradigm_not_supported"
 
@@ -2310,6 +2327,17 @@ class parent_set_effect:  # noqa: N801
         "parent_set_effect.treatment_orientation_depends_on_conflict"
     )
     TREATMENT_PARENTS_AMBIGUOUS: Final = "parent_set_effect.treatment_parents_ambiguous"
+
+
+class patient_surrogate:  # noqa: N801
+    CANCELLED: Final = "patient_surrogate.cancelled"
+    DECLARATION: Final = "patient_surrogate.declaration"
+    EMPTY_STRATUM: Final = "patient_surrogate.empty_stratum"
+    MONOTONICITY: Final = "patient_surrogate.monotonicity"
+    NOT_SUPPORTED: Final = "patient_surrogate.not_supported"
+    REPLAY: Final = "patient_surrogate.replay"
+    RESOURCE: Final = "patient_surrogate.resource"
+    UNSUPPORTED_READING: Final = "patient_surrogate.unsupported_reading"
 
 
 class penalized_posterior:  # noqa: N801
@@ -3108,6 +3136,10 @@ class rollout:  # noqa: N801
     UNWEIGHTED_JOINT_STATE_REQUIRED: Final = "rollout.unweighted_joint_state_required"
 
 
+class rpcmci_learned:  # noqa: N801
+    PORTABLE_REFUSAL: Final = "rpcmci_learned.portable_refusal"
+
+
 class sampled_recovery:  # noqa: N801
     BOUNDS_EXCEEDED: Final = "sampled_recovery.bounds_exceeded"
     CANCELLED: Final = "sampled_recovery.cancelled"
@@ -3579,6 +3611,14 @@ class study_plan:  # noqa: N801
 
 class supplied_estimate_evalue:  # noqa: N801
     REENTRY: Final = "supplied_estimate_evalue.reentry"
+
+
+class survival:  # noqa: N801
+    CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS: Final = (
+        "survival.conditional_observation_identification_inputs"
+    )
+    CONDITIONAL_OBSERVATION_INFERENCE: Final = "survival.conditional_observation_inference"
+    CONDITIONAL_OBSERVATION_SUPPORT: Final = "survival.conditional_observation_support"
 
 
 class survival_effect:  # noqa: N801
@@ -5314,6 +5354,12 @@ ALL: Final[tuple[str, ...]] = (
     "learned_transport.membership_overlap",
     "learned_transport.non_iid_design",
     "learned_transport.treatment_overlap",
+    "longitudinal_joint_sensitivity.cancelled",
+    "longitudinal_joint_sensitivity.identity",
+    "longitudinal_joint_sensitivity.incoherent_box",
+    "longitudinal_joint_sensitivity.invalid_declaration",
+    "longitudinal_joint_sensitivity.positivity",
+    "longitudinal_joint_sensitivity.resources",
     "mapped_posterior_transfer.coefficient_map",
     "mapped_posterior_transfer.parameter_posterior",
     "mapped_posterior_transfer.residual_variance",
@@ -5757,6 +5803,11 @@ ALL: Final[tuple[str, ...]] = (
     "observation_query.unknown_variable",
     "observation_query.value_not_finite",
     "observation_query.zero_probability_evidence",
+    "pag_identification.cancelled",
+    "pag_identification.exact_evaluation_refused",
+    "pag_identification.invalid_declaration",
+    "pag_identification.not_supported",
+    "pag_identification.resource_exhausted",
     "paradigm_parity.paradigm_not_supported",
     "parent_set_effect.conflict_resolution_budget",
     "parent_set_effect.discovery_failed",
@@ -5771,6 +5822,14 @@ ALL: Final[tuple[str, ...]] = (
     "parent_set_effect.transformation_undeclared",
     "parent_set_effect.treatment_orientation_depends_on_conflict",
     "parent_set_effect.treatment_parents_ambiguous",
+    "patient_surrogate.cancelled",
+    "patient_surrogate.declaration",
+    "patient_surrogate.empty_stratum",
+    "patient_surrogate.monotonicity",
+    "patient_surrogate.not_supported",
+    "patient_surrogate.replay",
+    "patient_surrogate.resource",
+    "patient_surrogate.unsupported_reading",
     "penalized_posterior.band_not_constructed",
     "penalized_posterior.empty_scores",
     "penalized_posterior.external_power_prior",
@@ -6446,6 +6505,7 @@ ALL: Final[tuple[str, ...]] = (
     "rollout.state_interpretation_mismatch",
     "rollout.terminal_decision_mismatch",
     "rollout.unweighted_joint_state_required",
+    "rpcmci_learned.portable_refusal",
     "sampled_recovery.bounds_exceeded",
     "sampled_recovery.cancelled",
     "sampled_recovery.component_variance_only",
@@ -6823,6 +6883,9 @@ ALL: Final[tuple[str, ...]] = (
     "study_plan.none_certified",
     "study_plan.theorem_limited",
     "supplied_estimate_evalue.reentry",
+    "survival.conditional_observation_identification_inputs",
+    "survival.conditional_observation_inference",
+    "survival.conditional_observation_support",
     "survival_effect.arm_not_populated",
     "survival_effect.cancelled",
     "survival_effect.censoring_assumption_missing",
@@ -8466,6 +8529,12 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "learned_transport.membership_overlap": ("transport_support_failure",),
     "learned_transport.non_iid_design": ("sampling_dependence_unknown",),
     "learned_transport.treatment_overlap": ("transport_support_failure",),
+    "longitudinal_joint_sensitivity.cancelled": ("cancelled_no_claim",),
+    "longitudinal_joint_sensitivity.identity": ("invalid_argument",),
+    "longitudinal_joint_sensitivity.incoherent_box": ("invalid_argument",),
+    "longitudinal_joint_sensitivity.invalid_declaration": ("invalid_argument",),
+    "longitudinal_joint_sensitivity.positivity": ("positivity_violated",),
+    "longitudinal_joint_sensitivity.resources": ("route_not_supported",),
     "mapped_posterior_transfer.coefficient_map": ("quantity_semantics_mismatch",),
     "mapped_posterior_transfer.parameter_posterior": ("distribution_meaning_mismatch",),
     "mapped_posterior_transfer.residual_variance": ("prior_transfer_not_hydrated",),
@@ -8941,6 +9010,11 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "observation_query.unknown_variable": ("unknown_variable",),
     "observation_query.value_not_finite": ("invalid_argument",),
     "observation_query.zero_probability_evidence": ("invalid_argument",),
+    "pag_identification.cancelled": ("cancelled_no_claim",),
+    "pag_identification.exact_evaluation_refused": ("invalid_argument",),
+    "pag_identification.invalid_declaration": ("invalid_argument",),
+    "pag_identification.not_supported": ("not_supported",),
+    "pag_identification.resource_exhausted": ("route_not_supported",),
     "paradigm_parity.paradigm_not_supported": ("route_not_supported",),
     "parent_set_effect.conflict_resolution_budget": ("discovered_structure_unresolved",),
     "parent_set_effect.discovery_failed": ("invalid_argument",),
@@ -8957,6 +9031,14 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
         "discovered_structure_unresolved",
     ),
     "parent_set_effect.treatment_parents_ambiguous": ("discovered_structure_unresolved",),
+    "patient_surrogate.cancelled": ("cancelled_no_claim",),
+    "patient_surrogate.declaration": ("invalid_argument",),
+    "patient_surrogate.empty_stratum": ("invalid_argument",),
+    "patient_surrogate.monotonicity": ("invalid_argument",),
+    "patient_surrogate.not_supported": ("route_not_supported",),
+    "patient_surrogate.replay": ("invalid_argument",),
+    "patient_surrogate.resource": ("route_not_supported",),
+    "patient_surrogate.unsupported_reading": ("route_not_supported",),
     "penalized_posterior.band_not_constructed": ("route_not_supported",),
     "penalized_posterior.empty_scores": ("invalid_argument",),
     "penalized_posterior.external_power_prior": ("route_not_supported",),
@@ -9681,6 +9763,11 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "rollout.state_interpretation_mismatch": ("route_not_supported",),
     "rollout.terminal_decision_mismatch": ("invalid_argument",),
     "rollout.unweighted_joint_state_required": ("route_not_supported",),
+    "rpcmci_learned.portable_refusal": (
+        "invalid_argument",
+        "execution_resource_limit",
+        "cancelled_no_claim",
+    ),
     "sampled_recovery.bounds_exceeded": ("route_not_supported",),
     "sampled_recovery.cancelled": ("transport_budget_cancel",),
     "sampled_recovery.component_variance_only": ("estimator_inference_mismatch",),
@@ -10062,6 +10149,9 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "study_plan.none_certified": ("transport_not_certified",),
     "study_plan.theorem_limited": ("transport_proven_non_transportable",),
     "supplied_estimate_evalue.reentry": ("public_builder_reentry",),
+    "survival.conditional_observation_identification_inputs": ("route_not_supported",),
+    "survival.conditional_observation_inference": ("route_not_supported",),
+    "survival.conditional_observation_support": ("route_not_supported",),
     "survival_effect.arm_not_populated": ("arm_not_populated",),
     "survival_effect.cancelled": ("cancelled_no_claim",),
     "survival_effect.censoring_assumption_missing": ("required_option_missing",),

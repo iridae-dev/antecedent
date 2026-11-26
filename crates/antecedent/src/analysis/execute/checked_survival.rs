@@ -65,7 +65,7 @@ impl CheckedSurvivalOperation {
             InferenceMode::Bayesian(config) => {
                 if query.stratified_censoring.is_some() {
                     return Err(conditional_refusal(
-                        "survival.conditional_observation.inference",
+                        antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_INFERENCE,
                         "the fitted conditional survival route requires frequentist inference",
                     ));
                 }
@@ -93,7 +93,7 @@ impl CheckedSurvivalOperation {
         if let Some(learner) = &query.stratified_censoring {
             for id in [learner.entry_stratum, learner.censoring_stratum] {
                 data.schema().get(id).map_err(|_| conditional_refusal(
-                    "survival.conditional_observation.identification_inputs",
+                    antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS,
                     "conditional survival requires both declared baseline columns in the subject table",
                 ))?;
             }
@@ -158,13 +158,7 @@ impl CheckedSurvivalOperation {
             let bytes = (self.rows as u64)
                 .saturating_mul(240)
                 .saturating_add(u64::from(self.extra.0).saturating_mul(8));
-            let _scratch = ctx.admit_scratch(1, bytes).map_err(|_| {
-                conditional_error(
-                    ctx,
-                    "survival.conditional_observation.resource",
-                    "insufficient scratch for conditional survival refits",
-                )
-            })?;
+            let _scratch = survival_scratch(ctx, bytes)?;
             let fitted = standardized_conditional_survival(
                 &ConditionalObservationRows {
                     survival: rows,
@@ -180,7 +174,11 @@ impl CheckedSurvivalOperation {
                 || ctx.cancellation.is_cancelled(),
             )
             .map_err(|message| {
-                conditional_error(ctx, "survival.conditional_observation.support", message)
+                conditional_error(
+                    ctx,
+                    antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_SUPPORT,
+                    message,
+                )
             })?;
             let key = antecedent_io::graphless_support::conditional_survival_band_key(
                 rows.delayed_entry.is_some(),
@@ -207,15 +205,7 @@ impl CheckedSurvivalOperation {
                 let bytes = (self.rows as u64)
                     .saturating_mul(240_u64.saturating_add((grid_width as u64).saturating_mul(24)))
                     .saturating_add(u64::from(self.extra.0).saturating_mul(16));
-                Some(ctx.admit_scratch(1, bytes).map_err(|error| {
-                    if ctx.cancellation.is_cancelled() {
-                        CausalError::Cancelled {
-                            stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
-                        }
-                    } else {
-                        CausalError::Resource { message: error.to_string() }
-                    }
-                })?)
+                Some(survival_scratch(ctx, bytes)?)
             } else {
                 None
             };
@@ -621,6 +611,18 @@ fn result_band(
         minimum_horizon_risk_set: band.minimum_horizon_risk_set,
         support_status,
     }
+}
+
+fn survival_scratch(
+    ctx: &ExecutionContext,
+    bytes: u64,
+) -> Result<antecedent_core::execution::AdmissionLease, CausalError> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        antecedent_core::execution::AdmissionError::Cancelled => {
+            CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT }
+        }
+        other => CausalError::Resource { message: other.to_string() },
+    })
 }
 
 fn conditional_refusal(detail: &str, message: &str) -> CausalError {
