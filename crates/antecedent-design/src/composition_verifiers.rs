@@ -267,7 +267,10 @@ fn content_identity(tag: &str, bytes: &[u8], limit: usize) -> Result<String, IoE
     Ok(hasher.finish_hex())
 }
 
-fn coordinate_id(quantity: &ScientificQuantityWire) -> String {
+/// Canonical bundle fact identifying one scientific quantity.
+#[doc(hidden)]
+#[must_use]
+pub fn coordinate_id(quantity: &ScientificQuantityWire) -> String {
     let mut writer = CanonicalWriter::new("antecedent.composition_verifiers.coordinate.v1");
     writer.word(u64::from(quantity.version));
     for field in [
@@ -366,6 +369,8 @@ struct Inspected {
     contract: Option<String>,
     /// The contract must be an upstream node (a result), not merely agree with one.
     contract_required: bool,
+    /// Full decision fingerprint checked by native mean-source replay.
+    transport_decision_fingerprint: Option<String>,
     /// Digests of the draws or means the artifact rests on.
     sources: Vec<String>,
     /// Every digest in `sources` must be an upstream node's (a single-source
@@ -653,6 +658,7 @@ fn cross_check(
                 u.kind,
                 NodeKind::Distribution
                     | NodeKind::CohortDecisionSource
+                    | NodeKind::CounterfactualTransportResult
                     | NodeKind::ExternalClaim
                     | NodeKind::ObservationQuery
                     | NodeKind::ScientificBridge
@@ -720,6 +726,11 @@ fn cross_check(
                     mean_only.id
                 ),
             ));
+        }
+        if let Some(transport) = matched.iter().find(|node| node.kind == NodeKind::CounterfactualTransportResult) {
+            artifact_inspection::replay_counterfactual_decision(
+                inspected, contract, transport,
+            )?;
         }
     }
     Ok(())

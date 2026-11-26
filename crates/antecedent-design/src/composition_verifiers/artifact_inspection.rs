@@ -228,6 +228,11 @@ pub(super) fn inspect_contract(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     let mut facts = BTreeMap::new();
     publish_coordinates(&mut facts, &contract_coordinates(&contract), false);
     publish_requirement(&contract, &mut facts)?;
+    if label == KIND_CONTRACT {
+        let replay_contract =
+            crate::decision_artifact::contract_to_json(&contract).map_err(|e| io(&e))?;
+        publish(&mut facts, "decision_replay_contract", replay_contract);
+    }
     Ok(Inspected { identity, facts, ..Inspected::default() })
 }
 
@@ -267,6 +272,10 @@ pub(super) fn inspect_result(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             let artifact = DecisionResultArtifact::from_bytes(bytes, &contract, &source)
                 .map_err(|e| io(&e))?;
             let result = artifact.result();
+            inspected.transport_decision_fingerprint = Some(
+                crate::decision_artifact::decision_result_fingerprint(result, &source)
+                    .map_err(|e| io(&e))?,
+            );
             publish(
                 &mut inspected.facts,
                 FACT_SNAPSHOT,
@@ -357,6 +366,55 @@ pub(super) fn inspect_result(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     inspected.identity =
         content_identity(&label, bytes, MAX_DECISION_ARTIFACT_BYTES).map_err(|e| io(&e))?;
     Ok(inspected)
+}
+
+pub(super) fn replay_counterfactual_decision(
+    inspected: &Inspected,
+    contract: &crate::composition_bundle::UpstreamNode<'_>,
+    transport: &crate::composition_bundle::UpstreamNode<'_>,
+) -> Result<(), NodeFailure> {
+    let invalid = || {
+        failure(
+            BundleStage::TamperedQuantity,
+            "counterfactual decision replay inputs are missing or invalid",
+        )
+    };
+    let contract = crate::decision_artifact::contract_from_json(
+        contract.facts.get("decision_replay_contract").ok_or_else(invalid)?,
+    )
+    .map_err(|_| invalid())?;
+    let facts = transport.facts;
+    let quantity =
+        serde_json::from_str::<ScientificQuantityWire>(facts.get("quantity").ok_or_else(invalid)?)
+            .map_err(|_| invalid())?;
+    let quantity = ScientificQuantity::try_from(quantity).map_err(|_| invalid())?;
+    let probability = f64::from_bits(
+        u64::from_str_radix(facts.get("counterfactual_probability_bits").ok_or_else(invalid)?, 16)
+            .map_err(|_| invalid())?,
+    );
+    let result = evaluate_contract_on_means(
+        &contract,
+        &MeanSource {
+            coordinates: vec![quantity],
+            means: vec![probability],
+            estimate: crate::decision_eval::MeanEstimate::Frequentist,
+            provider_id: transport.identity.into(),
+            snapshot_id: facts.get("counterfactual_data_digest").ok_or_else(invalid)?.clone(),
+            causal_contract_id: facts.get(FACT_EVIDENCE_DIGEST).ok_or_else(invalid)?.clone(),
+            rng_id: "none:deterministic_transport".into(),
+        },
+    )
+    .map_err(|error| failure(BundleStage::UnsupportedLaw, error.to_string()))?;
+    let fingerprint =
+        crate::decision_artifact::decision_result_fingerprint(&result, transport.identity)
+            .map_err(|_| invalid())?;
+    if inspected.transport_decision_fingerprint.as_deref() != Some(fingerprint.as_str()) {
+        return Err(failure(
+            BundleStage::TamperedQuantity,
+            "counterfactual decision differs from replay",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn inspect_sensitivity(bytes: &[u8]) -> Result<Inspected, NodeFailure> {

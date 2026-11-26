@@ -1048,8 +1048,8 @@ detail = "`CausalTypeError` from `obligations` and `repair`"
 [[cell]]
 producer = "counterfactual_transport_result"
 consumer = "bundle_node"
-status = "REFUSED"
-detail = "no node kind: the artifact container is not a bundle kind (`detect_kind` is `None`) and the bytes are refused `CompositionBundleRefusal`; the bundle accepts the export protocol but refuses this unsupported scientific node kind"
+status = "ADAPTER"
+detail = "The exact and sampled validating readers replay a `counterfactual_transport_result` node. `composition_bundle.mean_decision` uses the verified target-event coordinate in an affine decision. A replacement target refuses the earlier terminal, and a quantile request refuses `composition_bundle.unsupported_law`."
 
 [[cell]]
 producer = "counterfactual_transport_result"

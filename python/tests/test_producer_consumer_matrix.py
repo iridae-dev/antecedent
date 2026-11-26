@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import hashlib
 import sys
+import json
 import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass, replace
@@ -873,29 +874,29 @@ class Transported:
     sampled_control: transport.SampledCounterfactualTransportEstimate
 
 
-def _transported() -> Transported:
+def _transported(population: str = "pop") -> Transported:
     """Unconfounded ``X -> Y`` with joint law ``(1/4, 1/4, 1/8, 3/8)`` over ``(x, y)``."""
     graph = Admg.from_edges(["X", "Y"], [("X", "Y")], [])
     catalog = transport.EvidenceCatalog(
         regimes=(
             transport.EvidenceRegime(
-                "pop|obs", "pop", kind="observational", interventions=[], measured=["X", "Y"]
+                regime, population, kind="observational", interventions=[], measured=["X", "Y"]
             ),
         )
     )
     axes = (("X", (0.0, 1.0)), ("Y", (0.0, 1.0)))
     law = transport.ExactDiscreteLaw(
-        "pop", "pop|obs", axes, (0.25, 0.25, 0.125, 0.375), "snap|pop|obs", interventions=()
+        population, regime, axes, (0.25, 0.25, 0.125, 0.375), snapshot, interventions=()
     )
     table = transport.SampledCountTable(
-        "pop", "pop|obs", axes, [5000, 5000, 2500, 7500], "snap|pop|obs"
+        population, regime, axes, [5000, 5000, 2500, 7500], snapshot
     )
     results = []
     for level in (1.0, 0.0):
         decided = transport.identify_counterfactual(
             graph=graph,
             query=transport.CounterfactualTransportQuery(
-                target="pop",
+                target=population,
                 levels={"X": (0.0, 1.0), "Y": (0.0, 1.0)},
                 worlds=(transport.CounterfactualWorld("do", {"X": level}),),
                 event=(transport.CounterfactualEvent("Y", 1.0, "do"),),
@@ -2334,6 +2335,54 @@ def _check_transport_inverse(o: Objs) -> None:
     _check_raw_rejected(*_transport_objects(o), feeders=_INVERSE_FEEDERS)
 
 
+def _check_transport_bundle(o: Objs) -> None:
+    revised = _transported("revised-target")
+    for result, replacement, construction in (
+        (o.transported.treated, revised.treated, "exact_finite_law"),
+        (o.transported.sampled_treated, revised.sampled_treated, "sampled_plugin"),
+    ):
+        description = cb.describe_artifact("auto", result)
+        assert description.kind == "counterfactual_transport_result"
+        assert description.facts["construction"] == construction
+        assert ("sampling" in description.facts) == (construction == "sampled_plugin")
+        quantity = ScientificQuantity.from_wire(json.loads(description.facts["quantity"]))
+        contract = decision.Contract(
+            actions=(
+                decision.Action("act", inputs=(quantity,), utility=decision.x(0) * 4.0 - 1.0),
+                decision.Action("hold", inputs=(quantity,), utility=decision.x(0) * 0.0),
+            ),
+            utility_units="utility",
+            criterion=decision.Criterion.expected_utility(),
+            target_population=quantity.population_id,
+        )
+        terminal = cb.mean_decision(contract, result)
+
+        def consume(source: object) -> cb.ConsumedBundle:
+            bundle = (
+                cb.Bundle.builder()
+                .add_artifact(source, node_id="transport")
+                .add_artifact(contract, node_id="contract")
+                .add_artifact(terminal, node_id="decision")
+                .connect("transport", "decision")
+                .connect("contract", "decision")
+                .build()
+            )
+            return require_success(
+                cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+            )
+
+        consumed = consume(result)
+        consumed.require_verified()
+        assert consumed.value("transport", "probability") == pytest.approx(0.75)
+        assert consumed.value("decision", "act.expected_utility") == pytest.approx(2.0)
+        changed = consume(replacement)
+        assert changed.node("transport").facts["target_population"] == "revised-target"
+        assert isinstance(changed.node("decision").status, cb.Failed)
+        with pytest.raises(cb.CompositionBundleRefusal) as refusal:
+            cb.mean_decision(replace(contract, criterion=decision.Criterion.quantile(0.5)), result)
+        assert refusal.value.detail == "composition_bundle.unsupported_law"
+
+
 # ------------------------------------------------------------ fitted effect cohort decision source
 
 
@@ -3494,6 +3543,7 @@ CHECKS: dict[tuple[str, str], Check] = {
     ("scientific_bridge_claim", "bundle_node"): _check_bridge_bundle,
     ("counterfactual_transport_result", "decision"): _check_transport_decision,
     ("counterfactual_transport_result", "inverse_query"): _check_transport_inverse,
+    ("counterfactual_transport_result", "bundle_node"): _check_transport_bundle,
     ("cohort_decision_source", "decision"): _check_cohort_decision,
     ("cohort_decision_source", "inverse_query"): _check_cohort_inverse,
     ("cohort_decision_source", "bundle_node"): _check_cohort_bundle,
@@ -3523,7 +3573,6 @@ REFUSED_EXTRAS: dict[tuple[str, str], Check] = {
         "measurement_result",
         "composed_model",
         "evidence_ledger",
-        "counterfactual_transport_result",
         "decision_reliability_report",
         "adaptive_monitoring_contract",
         "adaptive_inference_result",
@@ -3567,8 +3616,8 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     cells = [status for row in STATUS.values() for status in row]
     assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 280
     assert cells.count("DIRECT") == 21
-    assert cells.count("ADAPTER") == 63
-    assert cells.count("REFUSED") == 196
+    assert cells.count("ADAPTER") == 64
+    assert cells.count("REFUSED") == 195
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:

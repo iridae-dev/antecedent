@@ -218,6 +218,135 @@ fn joint_case() -> Exported {
     export_case("joint_counterfactual_two_source_regimes", "Y_{x1}=1,X=0")
 }
 
+#[test]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the fixture has finite dyadic masses; multiplying maps them to whole counts"
+)]
+fn counterfactual_bundle_replays_exact_and_sampled_affine_decisions() {
+    use antecedent::analysis::composition::{
+        BundleBuilder, BundleStage, NodeKind, SuppliedSources, consume, describe_artifact,
+        export_bundle, mean_decision_bytes,
+    };
+    use antecedent_contract::ScientificQuantity;
+    use antecedent_design::decision_artifact::DecisionContractArtifact;
+    use antecedent_design::decision_contract::{
+        ActionKind, DecisionAction, DecisionContract, DecisionCriterion, StructuralPolicy,
+        UtilityExpr,
+    };
+    use antecedent_estimate::counterfactual_transport_sampled::{
+        OverlapDeclaration, SampledAxis, SampledRegimeCounts, SampledRegimeCountsParts,
+        SampledTransportLimits, SampledTransportRequest, SamplingDesign, UnseenCellRule,
+    };
+    use antecedent_io::sampled_counterfactual_transport_artifact::sampled_counterfactual_transport_artifact;
+
+    let case = case_named("joint_counterfactual_two_source_regimes");
+    let target = &case.targets[0];
+    let truth = target.expected_value.unwrap();
+    let context = ctx();
+    let fit = identified(&case, target).estimate(&context).unwrap();
+    let derivation = fit.derivation();
+    let tables = fit
+        .data()
+        .laws()
+        .iter()
+        .filter(|law| {
+            derivation.cited.iter().any(|cited| {
+                cited.regime == law.regime() && cited.population.as_ref() == law.population()
+            })
+        })
+        .map(|law| {
+            SampledRegimeCounts::try_new(SampledRegimeCountsParts {
+                population: Arc::from(law.population()),
+                regime: law.regime(),
+                interventions: law
+                    .interventions()
+                    .iter()
+                    .map(|atom| (atom.variable, atom.value.as_f64().unwrap()))
+                    .collect(),
+                axes: law
+                    .axes()
+                    .iter()
+                    .map(|axis| SampledAxis {
+                        variable: axis.variable,
+                        levels: axis.values.iter().map(|value| value.as_f64().unwrap()).collect(),
+                    })
+                    .collect(),
+                counts: law
+                    .probabilities()
+                    .iter()
+                    .map(|&p| (p * 1_048_576.0).round() as u64)
+                    .collect(),
+                snapshot_identity: Arc::from(law.snapshot_identity()),
+                design: SamplingDesign::IndependentUnits,
+                structural_zeros: law
+                    .probabilities()
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(index, &p)| (p == 0.0).then_some(index))
+                    .collect(),
+            })
+            .unwrap()
+        })
+        .collect();
+    let request = SampledTransportRequest {
+        tables,
+        overlap: OverlapDeclaration::all_independent(),
+        unseen_rule: UnseenCellRule::Refuse,
+        limits: SampledTransportLimits::default(),
+    };
+    let (sample, _) =
+        sampled_counterfactual_transport_artifact(derivation, &request, &names_of(&case), &context)
+            .unwrap();
+    for bytes in [fit.export_artifact().unwrap(), sample.export().unwrap()] {
+        let kind = NodeKind::CounterfactualTransportResult;
+        let described = describe_artifact(kind, &bytes).unwrap();
+        let wire: antecedent_io::quantity_wire::ScientificQuantityWire =
+            serde_json::from_str(&described.facts["quantity"]).unwrap();
+        let quantity = ScientificQuantity::try_from(wire).unwrap();
+        let action = |id: &str, utility: UtilityExpr| DecisionAction {
+            id: id.into(),
+            kind: ActionKind::Intervention,
+            inputs: vec![quantity.clone()],
+            utility,
+        };
+        let mut contract = DecisionContract {
+            actions: vec![
+                action("include", UtilityExpr::Input(0)),
+                action("hold", UtilityExpr::Const(0.0)),
+            ],
+            utility_units: "utility".into(),
+            criterion: DecisionCriterion::PosteriorExpectedUtility,
+            constraints: Vec::new(),
+            target_population: quantity.population_id.clone(),
+            horizon: 0,
+            structural_policy: StructuralPolicy::ReportOnly,
+        };
+        let terminal = mean_decision_bytes(&contract, &bytes, "decision").unwrap();
+        let declared =
+            DecisionContractArtifact::new(contract.clone()).unwrap().to_bytes("contract").unwrap();
+        let mut builder = BundleBuilder::new();
+        builder.add_detected_artifact(Some("transport"), &bytes).unwrap();
+        builder.add_detected_artifact(Some("contract"), &declared).unwrap();
+        builder.add_detected_artifact(Some("decision"), &terminal).unwrap();
+        builder.connect("transport", "decision").unwrap();
+        builder.connect("contract", "decision").unwrap();
+        let bundle = builder.build().unwrap();
+        let encoded = export_bundle(&bundle, "counterfactual-transport").unwrap();
+        let consumed = consume(&encoded, bundle.identity(), &SuppliedSources::default()).unwrap();
+        consumed.require_verified().unwrap();
+        assert!(
+            (consumed.value("decision", "include.expected_utility").unwrap() - truth).abs() < 1e-4
+        );
+        contract.criterion = DecisionCriterion::Quantile { p: 0.5 };
+        assert_eq!(
+            mean_decision_bytes(&contract, &bytes, "requires-draws").unwrap_err().stage,
+            BundleStage::UnsupportedLaw,
+        );
+    }
+}
+
 fn reseal(mut wire: Wire) -> Vec<u8> {
     wire.data_digest = wire.expected_data_digest().unwrap();
     wire.premises_digest = wire.expected_premises_digest().unwrap();

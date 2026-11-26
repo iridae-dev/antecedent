@@ -950,6 +950,7 @@ KIND_STAGE = {
     "sequential_decision_draws": "distribution_artifact",
     "distribution": "distribution_artifact",
     "delayed_entry_incidence_result": "distribution_artifact",
+    "counterfactual_transport_result": "distribution_artifact",
     "cohort_decision_source": "distribution_artifact",
     "frozen_scores": "distribution_artifact",
     "external_claim": "external_provider",

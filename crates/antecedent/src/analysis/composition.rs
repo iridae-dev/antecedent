@@ -31,11 +31,11 @@ pub use antecedent_design::composition_bundle::{
 pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
     FACT_REQUIRES_DISTRIBUTION, FACT_SOURCE_DIGEST, LAW_MARGINAL, TRUST_ATTESTED, TRUST_NATIVE,
-    TRUST_UNVERIFIED, TRUST_VERIFIED, VERIFIABLE_KINDS, describe_artifact, detect_node_kind,
-    evidence_relationship_bytes, mean_decision_bytes, mean_source_of, standard_consumer,
+    TRUST_UNVERIFIED, TRUST_VERIFIED, VERIFIABLE_KINDS, evidence_relationship_bytes, mean_source_of,
 };
 pub use antecedent_design::decision_artifact::mean_result_to_bytes;
 
+use super::composition_counterfactual_transport as counterfactual_bundle;
 use super::propagation_chain::{PropagationChainPlan, compile_propagation_chain};
 use super::scientific_bridge::{
     PreparedScientificBridgeDistribution, ScientificBridgeRefusal,
@@ -98,6 +98,58 @@ impl Default for BundleBuilder {
         Self::new()
     }
 }
+
+/// Detect a standard artifact or a transport result requiring the host's validating reader.
+#[must_use]
+pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
+    if counterfactual_bundle::detects(bytes) {
+        Some(NodeKind::CounterfactualTransportResult)
+    } else {
+        antecedent_design::composition_verifiers::detect_node_kind(bytes)
+    }
+}
+
+/// Verify and describe a supported bundle artifact.
+///
+/// # Errors
+/// The artifact's own reader refuses its shape or the recorded computation does not replay.
+pub fn describe_artifact(kind: NodeKind, bytes: &[u8]) -> Result<ArtifactDescription, NodeFailure> {
+    if kind == NodeKind::CounterfactualTransportResult {
+        counterfactual_bundle::describe(bytes, &ExecutionContext::production_default(0))
+    } else {
+        antecedent_design::composition_verifiers::describe_artifact(kind, bytes)
+    }
+}
+
+/// Export an affine decision from a verified mean-only claim or counterfactual transport point.
+///
+/// # Errors
+/// Invalid source evidence, a contract that requires a joint law, or an encoding failure.
+pub fn mean_decision_bytes(
+    contract: &antecedent_design::decision_contract::DecisionContract,
+    source: &[u8],
+    artifact_id: &str,
+) -> Result<Vec<u8>, NodeFailure> {
+    if counterfactual_bundle::detects(source) {
+        counterfactual_bundle::decision_bytes(
+            contract, source, artifact_id, &ExecutionContext::production_default(0),
+        )
+    } else {
+        antecedent_design::composition_verifiers::mean_decision_bytes(contract, source, artifact_id)
+    }
+}
+
+/// Portable bundle consumer with the host's counterfactual transport readers.
+#[must_use]
+pub fn standard_consumer() -> BundleConsumer {
+    standard_consumer_with_context(&ExecutionContext::production_default(0))
+}
+
+fn standard_consumer_with_context(ctx: &ExecutionContext) -> BundleConsumer {
+    antecedent_design::composition_verifiers::standard_consumer()
+        .register(Box::new(counterfactual_bundle::CounterfactualTransportVerifier(ctx.clone())))
+}
+
 
 impl BundleBuilder {
     /// An empty builder under the default bounds.
@@ -1527,7 +1579,7 @@ fn native_fit_verifiers(ctx: &ExecutionContext) -> Vec<Box<dyn NodeVerifier>> {
 /// its embedded producer or decision as an independent consumer, and a compile inside a lowered
 /// dispatch is refused as `public_builder_reentry`, so no native node would replay.
 fn native_fit_consumer(ctx: &ExecutionContext) -> BundleConsumer {
-    native_fit_verifiers(ctx).into_iter().fold(standard_consumer(), BundleConsumer::register)
+    native_fit_verifiers(ctx).into_iter().fold(standard_consumer_with_context(ctx), BundleConsumer::register)
 }
 
 /// The native-fit consumer handed out by the public entry point `route`. While the bundle unit

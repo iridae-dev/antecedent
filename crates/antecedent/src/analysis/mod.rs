@@ -155,6 +155,7 @@ pub mod compiled_transported_cohort;
 pub mod compiled_trial_aipw_learners;
 pub mod composition;
 pub mod composition_cohort_decision;
+mod composition_counterfactual_transport;
 pub mod composition_decision_terminal;
 pub mod composition_verification;
 mod conditional_admg;
