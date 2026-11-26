@@ -14,9 +14,8 @@ mod wire;
 
 use std::collections::BTreeMap;
 use wire::{
-    IdentityJson, OutputBitsJson, SupportJson, bad, declaration_json, declaration_of,
-    evidence_json, output_json, output_of, policy_of, quantity_of, query_json, request_of,
-    support_of,
+    bad, declaration_json, declaration_of, evidence_json, output_json, output_of, policy_of,
+    quantity_of, query_json, request_of, support_of, IdentityJson, OutputBitsJson, SupportJson,
 };
 
 use antecedent::analysis::evidence_ledger::{SourceId, TransportIdentity};
@@ -25,29 +24,29 @@ use antecedent::analysis::interface_contract::{
 };
 use antecedent::analysis::predictive_assessment::{ForecastLaw, LawSource};
 use antecedent::analysis::provider_callbacks::{
+    check_claim_to_callback, export_callback_result, forecast_law_from_sample,
+    output_values_digest, predictive_law_source, refuse_identification_evidence, refuse_interval,
+    refuse_joint_law, refuse_native_trust, refuse_posterior_guarantee, verification_holds,
     CallbackConnectionError, CallbackContext, CallbackDeclaration, CallbackDependency,
     CallbackExecution, CallbackExecutionError, CallbackExecutionPolicy, CallbackFailure,
     CallbackInput, CallbackKind, CallbackOperation, CallbackOutcome, CallbackOutput, CallbackPhase,
     CallbackPlan, CallbackQuery, CallbackRegistrationError, CallbackRequest,
     CallbackResultArtifact, CallbackResultRecord, CallbackResume, CallbackSession, CallbackTrust,
     DependencyDeclaration, DependencyKind, FnCallback, InputSupplier, ProviderCallback,
-    ReplayContract, RetryContract, UpdateDeclaration, ValidatedOutput, check_claim_to_callback,
-    export_callback_result, forecast_law_from_sample, output_values_digest, predictive_law_source,
-    refuse_identification_evidence, refuse_interval, refuse_joint_law, refuse_native_trust,
-    refuse_posterior_guarantee, verification_holds,
+    ReplayContract, RetryContract, UpdateDeclaration, ValidatedOutput,
 };
 use antecedent::analysis::transport_handoff::{
-    TransportHandoffRefusal, TransportedClaimOffer, TransportedInputPolicy, consume_for_callback,
-    hand_to_callback,
+    consume_for_callback, hand_to_callback, TransportHandoffRefusal, TransportedClaimOffer,
+    TransportedInputPolicy,
 };
 use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::contract::provider_transport::{
-    AdmittedProviderSource, ProviderTransportSource, SourceTrustRequirement,
-    connect_bound_provider_source,
+    connect_bound_provider_source, AdmittedProviderSource, ProviderTransportSource,
+    SourceTrustRequirement,
 };
 use antecedent::contract::{
-    ExternalRefusal, ExternalTrustState, ProviderObjectIdentity, VerificationProbe,
-    probe_from_name, verify_external_object,
+    probe_from_name, verify_external_object, ExternalRefusal, ExternalTrustState,
+    ProviderObjectIdentity, VerificationProbe,
 };
 use antecedent::execution::CancellationToken;
 use antecedent::io::external_claim_artifact::VerificationProbeWire;
@@ -58,7 +57,7 @@ use antecedent::scientific::ScientificQuantity;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value as Json, json};
+use serde_json::{json, Value as Json};
 
 use crate::bridge::RefusalJson;
 use crate::evidence_ledger_api::EvidenceLedgerHandle;
@@ -252,6 +251,17 @@ fn provider_of(
     })
 }
 
+/// A session token, or the cancellation token an ``Execution`` already carries.
+fn shared_token(value: &Bound<'_, PyAny>) -> PyResult<CallbackToken> {
+    if let Ok(token) = value.extract::<PyRef<'_, CallbackToken>>() {
+        return Ok(token.clone());
+    }
+    if let Ok(token) = value.extract::<PyRef<'_, crate::PyCancellationToken>>() {
+        return Ok(CallbackToken { inner: token.inner.clone() });
+    }
+    Err(bad("token", "a CallbackToken or a CancellationToken"))
+}
+
 fn context_of(token: &CallbackToken) -> ExecutionContext {
     let mut ctx = crate::execution_api::context(0);
     ctx.cancellation = token.inner.clone();
@@ -420,7 +430,7 @@ impl CallbackSessionHandle {
     }
 
     /// Execute a request. `invoke` and `state` are the caller's Python
-    /// callables; they run only here, with the GIL held.
+    /// callables; they run only here, reattaching to call into Python.
     #[pyo3(signature = (identity_json, invoke, state, declaration_json, request_json, inputs_json, policy_json, token))]
     #[allow(
         clippy::too_many_arguments,
@@ -428,6 +438,7 @@ impl CallbackSessionHandle {
     )]
     fn execute(
         &mut self,
+        py: Python<'_>,
         identity_json: &str,
         invoke: Py<PyAny>,
         state: Option<Py<PyAny>>,
@@ -435,16 +446,17 @@ impl CallbackSessionHandle {
         request_json: &str,
         inputs_json: &str,
         policy_json: &str,
-        token: &CallbackToken,
+        token: &Bound<'_, PyAny>,
     ) -> PyResult<Checked> {
-        crate::catch_ffi(|| {
+        let token = shared_token(token)?;
+        crate::detach_catch(py, move || {
             let declaration = declaration_of(declaration_json)?;
             let request = request_of(request_json)?;
             let policy = policy_of(policy_json)?;
             let inputs = inputs_of(&self.inner, inputs_json)?;
             let interrupt = Interrupt::default();
-            let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
-            let ctx = context_of(token);
+            let mut provider = provider_of(identity_json, invoke, state, &token, &interrupt)?;
+            let ctx = context_of(&token);
             let outcome =
                 self.inner.execute(&mut provider, &declaration, &request, &inputs, &policy, &ctx);
             raise_interrupt(&interrupt)?;
@@ -466,6 +478,7 @@ impl CallbackSessionHandle {
     )]
     fn execute_for_consumer(
         &mut self,
+        py: Python<'_>,
         identity_json: &str,
         invoke: Py<PyAny>,
         state: Option<Py<PyAny>>,
@@ -475,17 +488,18 @@ impl CallbackSessionHandle {
         request_json: &str,
         inputs_json: &str,
         policy_json: &str,
-        token: &CallbackToken,
+        token: &Bound<'_, PyAny>,
     ) -> PyResult<Checked> {
-        crate::catch_ffi(|| {
+        let token = shared_token(token)?;
+        crate::detach_catch(py, move || {
             let declaration = declaration_of(declaration_json)?;
             let consumer = contract_of(consumer_json, "consumer contract")?;
             let request = request_of(request_json)?;
             let policy = policy_of(policy_json)?;
             let inputs = inputs_of(&self.inner, inputs_json)?;
             let interrupt = Interrupt::default();
-            let mut provider = provider_of(identity_json, invoke, state, token, &interrupt)?;
-            let ctx = context_of(token);
+            let mut provider = provider_of(identity_json, invoke, state, &token, &interrupt)?;
+            let ctx = context_of(&token);
             let outcome = self.inner.execute_for_consumer(
                 &mut provider,
                 &declaration,
@@ -530,6 +544,7 @@ impl CallbackSessionHandle {
     #[allow(clippy::too_many_arguments, reason = "one coordinate per declared input of a resume")]
     fn resume(
         &mut self,
+        py: Python<'_>,
         artifact: &[u8],
         expected_identity: Option<&str>,
         identity_json: Option<&str>,
@@ -537,16 +552,17 @@ impl CallbackSessionHandle {
         state: Option<Py<PyAny>>,
         inputs_json: &str,
         policy_json: &str,
-        token: &CallbackToken,
+        token: &Bound<'_, PyAny>,
     ) -> PyResult<Checked> {
-        crate::catch_ffi(|| {
+        let token = shared_token(token)?;
+        crate::detach_catch(py, move || {
             let policy = policy_of(policy_json)?;
             let inputs = inputs_of(&self.inner, inputs_json)?;
-            let ctx = context_of(token);
+            let ctx = context_of(&token);
             let interrupt = Interrupt::default();
             let mut provider = match (identity_json, invoke) {
                 (Some(identity), Some(invoke)) => {
-                    Some(provider_of(identity, invoke, state, token, &interrupt)?)
+                    Some(provider_of(identity, invoke, state, &token, &interrupt)?)
                 }
                 (None, None) => None,
                 _ => return Err(bad("provider", "supply both the identity and the callable")),

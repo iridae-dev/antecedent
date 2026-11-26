@@ -29,6 +29,7 @@ from ._data import as_columns
 from ._native import difference_in_differences as _difference_in_differences
 from ._native import group_time_att as _group_time_att
 from .errors import CausalUnsupportedError, CausalValueError
+from .execution import Execution
 
 
 def _binary(values: Iterable[Any], name: str) -> list[bool]:
@@ -1538,6 +1539,7 @@ def estimate_categorical_did(
     *,
     reference: Any = None,
     nuisance: Mapping[Any, tuple[str, str]] | None = None,
+    execution: Execution | None = None,
 ) -> CategoricalDidEstimate:
     """Contrast every level of a multi-level treated column with a reference level.
 
@@ -1546,6 +1548,7 @@ def estimate_categorical_did(
     panel needs ``nuisance``: a mapping from each non-reference level to the names of its
     propensity column (probability of that level against the reference) and its untreated-change
     prediction column, because one propensity cannot serve two different contrasts.
+    ``execution`` is the seed, threads, cancellation and memory limit of each compiled contrast.
     """
 
     if not isinstance(
@@ -1598,7 +1601,7 @@ def estimate_categorical_did(
             level_units = int(np.sum(group_keys == level))
             reference_units = int(np.sum(group_keys == reference))
         elif isinstance(query, PanelDifferenceInDifferences):
-            fit = require_success(analyze(subset, query=query)).panel_did
+            fit = require_success(analyze(subset, query=query, execution=execution)).panel_did
             estimate, standard_error = fit.estimate, fit.standard_error
             level_units, reference_units = fit.treated_subjects, fit.control_subjects
         else:
@@ -1620,7 +1623,9 @@ def estimate_categorical_did(
                 query.resampling,
                 query.replicates,
             )
-            fit = require_success(analyze(subset, query=level_query)).panel_did
+            fit = require_success(
+                analyze(subset, query=level_query, execution=execution)
+            ).panel_did
             estimate, standard_error = fit.estimate, getattr(fit, "standard_error", None)
             level_units, reference_units = fit.treated_subjects, fit.control_subjects
         contrasts.append(

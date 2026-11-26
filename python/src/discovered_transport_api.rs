@@ -18,18 +18,18 @@ use std::sync::Arc;
     reason = "the Python binding of the deprecated direct path; the Python function warns"
 )]
 use antecedent::analysis::discovered_transport::{
-    DEFAULT_ENVELOPE_MEMBER_BOUND, DiscoveredTransportError, DiscoveredTransportReport,
-    DiscoveredTransportRun, EnvelopeStatus, MemberVerdict, discover_and_transport, formula_kind,
-    transport_discovered_structure,
+    discover_and_transport, formula_kind, transport_discovered_structure_with_context,
+    DiscoveredTransportError, DiscoveredTransportReport, DiscoveredTransportRun, EnvelopeStatus,
+    MemberVerdict, DEFAULT_ENVELOPE_MEMBER_BOUND,
 };
 use antecedent::analysis::discovered_transport_estimate::{
-    DiscoveredTransportEstimate, MemberOutcome, TransportAnswer, TransportEvidence,
     estimate_discovered_transport, verify_discovered_transport_estimate,
+    DiscoveredTransportEstimate, MemberOutcome, TransportAnswer, TransportEvidence,
 };
 use antecedent::analysis::discovered_transport_temporal::{
-    DiscoveredTemporalTransportReport, TemporalClass, TemporalHorizon,
-    estimate_discovered_temporal_transport, transport_discovered_temporal_structure,
-    transport_discovered_temporal_structure_with_context, transport_temporal_class_with_context,
+    estimate_discovered_temporal_transport, transport_discovered_temporal_structure_with_context,
+    transport_temporal_class_with_context, DiscoveredTemporalTransportReport, TemporalClass,
+    TemporalHorizon,
 };
 use antecedent::analysis::selective_discovery::{DiscoveryOutcome, SelectiveDiscoveryError};
 use antecedent::prelude::VariableId;
@@ -38,7 +38,7 @@ use antecedent::query::{
 };
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use serde_json::{Map, Value as Json, json};
+use serde_json::{json, Map, Value as Json};
 
 use crate::bridge::RefusalJson;
 use crate::selective_discovery_api as sd;
@@ -210,16 +210,26 @@ pub(crate) fn query_of(text: &str) -> PyResult<TransportQuery> {
 }
 
 /// The transport verdict across the class a retained outcome returned.
+///
+/// Member enumeration runs off the calling thread under the caller's thread count and
+/// cancellation. The seed stays fixed: the verdict is structural.
 pub(crate) fn across_outcome(
+    py: Python<'_>,
     outcome: &DiscoveryOutcome,
     query_json: &str,
     targets: &[u32],
     member_bound: Option<usize>,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = targets.iter().copied().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    match transport_discovered_structure(outcome, &ids, &query, bound) {
+    let ctx = crate::py_execution_context_cancel(0, crate::resolve_user_threads(threads), cancel);
+    let report = crate::detach_catch(py, || {
+        Ok(transport_discovered_structure_with_context(outcome, &ids, &query, bound, &ctx))
+    })?;
+    match report {
         Ok(report) => Ok((Some(envelope_json(&report).to_string()), None)),
         Err(error) => Ok((None, Some(refusal_of(&error)?))),
     }
@@ -534,24 +544,31 @@ fn temporal_envelope_json(report: &DiscoveredTemporalTransportReport) -> Json {
 }
 
 /// The temporal transport verdict across the class a retained temporal outcome returned.
+///
+/// Member enumeration runs off the calling thread under the caller's thread count and
+/// cancellation. The seed stays fixed: the verdict is structural.
 pub(crate) fn across_temporal_outcome(
+    py: Python<'_>,
     outcome: &DiscoveryOutcome,
     horizon_steps: u32,
     history: Option<u32>,
     query_json: &str,
     targets: &[u32],
     member_bound: Option<usize>,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
     let query = query_of(query_json)?;
     let ids: Vec<VariableId> = targets.iter().copied().map(VariableId::from_raw).collect();
     let bound = member_bound.unwrap_or(DEFAULT_ENVELOPE_MEMBER_BOUND);
-    match transport_discovered_temporal_structure(
-        outcome,
-        TemporalHorizon { horizon_steps, history },
-        &ids,
-        &query,
-        bound,
-    ) {
+    let horizon = TemporalHorizon { horizon_steps, history };
+    let ctx = crate::py_execution_context_cancel(0, crate::resolve_user_threads(threads), cancel);
+    let report = crate::detach_catch(py, || {
+        Ok(transport_discovered_temporal_structure_with_context(
+            outcome, horizon, &ids, &query, bound, &ctx,
+        ))
+    })?;
+    match report {
         Ok(report) => Ok((Some(temporal_envelope_json(&report).to_string()), None)),
         Err(error) => Ok((None, Some(refusal_of(&error)?))),
     }
@@ -752,7 +769,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod transport_operational_error_tests {
-    use super::{DiscoveredTransportError, refusal_of};
+    use super::{refusal_of, DiscoveredTransportError};
     use antecedent::analysis::discovered_transport_estimate::discovered_transport_io_failure as map_io;
     use antecedent::execution::artifact_io_admission_error;
     use antecedent::identify::{IdentificationBudget, IdentificationError};
@@ -768,28 +785,24 @@ mod transport_operational_error_tests {
             let budget = DiscoveredTransportError::Identification(IdentificationError::Budget {
                 budget: IdentificationBudget::Steps,
             });
-            assert!(
-                refusal_of(&cancelled)
-                    .unwrap_err()
-                    .is_instance_of::<crate::CausalCancelledError>(py)
-            );
-            assert!(
-                refusal_of(&budget).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
-            );
+            assert!(refusal_of(&cancelled)
+                .unwrap_err()
+                .is_instance_of::<crate::CausalCancelledError>(py));
+            assert!(refusal_of(&budget)
+                .unwrap_err()
+                .is_instance_of::<crate::CausalResourceError>(py));
             let cancelled = map_io(artifact_io_admission_error(true));
             let resource = map_io(artifact_io_admission_error(false));
             let ambiguous = map_io(IoError::Refused {
                 code: "transport_budget_cancel",
                 message: "unknown stop".into(),
             });
-            assert!(
-                refusal_of(&cancelled)
-                    .unwrap_err()
-                    .is_instance_of::<crate::CausalCancelledError>(py)
-            );
-            assert!(
-                refusal_of(&resource).unwrap_err().is_instance_of::<crate::CausalResourceError>(py)
-            );
+            assert!(refusal_of(&cancelled)
+                .unwrap_err()
+                .is_instance_of::<crate::CausalCancelledError>(py));
+            assert!(refusal_of(&resource)
+                .unwrap_err()
+                .is_instance_of::<crate::CausalResourceError>(py));
             let ambiguous = refusal_of(&ambiguous).unwrap_err();
             assert!(!ambiguous.is_instance_of::<crate::CausalCancelledError>(py));
             assert!(!ambiguous.is_instance_of::<crate::CausalResourceError>(py));

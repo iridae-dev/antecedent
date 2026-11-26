@@ -16,27 +16,27 @@ use crate::NumericColumn;
 use antecedent::analysis::composition_verification::{CompositionGraph, GraphError};
 use antecedent::analysis::evidence_ledger::{SourceDeclaration, SourceId};
 use antecedent::analysis::per_population_discovery::{
-    PerPopulationDiscovery, PerPopulationReport, PopulationRows, add_per_population_claims,
-    request_selection_targets_from_differences,
+    add_per_population_claims, request_selection_targets_from_differences, PerPopulationDiscovery,
+    PerPopulationReport, PopulationRows,
 };
 use antecedent::analysis::sample_split_analysis::{
-    AnalysisBinding, SplitDiscovery, SplitRule, WHOLE_METHOD_CALIBRATION, discover_on_split,
-    split_evidence_sources,
+    discover_on_split, split_evidence_sources, AnalysisBinding, SplitDiscovery, SplitRule,
+    WHOLE_METHOD_CALIBRATION,
 };
-use antecedent::analysis::sample_split_effect::{SplitEffect, estimate_effect_on_split};
+use antecedent::analysis::sample_split_effect::{estimate_effect_on_split, SplitEffect};
 use antecedent::analysis::sample_split_parent_set_effect::{
-    Knowledge, ParentSetEffect, ParentSetOptions, Transformation, estimate_parent_set_effect,
-    estimate_parent_set_effect_with_knowledge,
+    estimate_parent_set_effect, estimate_parent_set_effect_with_knowledge, Knowledge,
+    ParentSetEffect, ParentSetOptions, Transformation,
 };
 use antecedent::analysis::selective_discovery::{
-    CiTestSpec, DataIdentity, DeclaredCompletion, DiscoveredStructure, DiscoveredStructureRefusal,
-    DiscoveryClaimKeys, DiscoveryOutcome, DiscoveryPlan, DiscoverySnapshot, GraphAcceptance,
-    NativeResult, PortableDiscoveryState, SelectiveDiscoveryError, SelectiveRunReport,
-    StageDecision, StageInputs, StaticAlgorithm, StaticDiscoveryContract, StaticSelectiveDiscovery,
-    TemporalAlgorithm, TemporalDiscoveryContract, TemporalSelectiveDiscovery, WorkUnits,
     accepted_graph_stage_identity, add_discovery_claims, discovered_graph_source,
     discovered_structure_refusal, discovery_data_source, discovery_rows_source,
-    request_selection_diagram,
+    request_selection_diagram, CiTestSpec, DataIdentity, DeclaredCompletion, DiscoveredStructure,
+    DiscoveredStructureRefusal, DiscoveryClaimKeys, DiscoveryOutcome, DiscoveryPlan,
+    DiscoverySnapshot, GraphAcceptance, NativeResult, PortableDiscoveryState,
+    SelectiveDiscoveryError, SelectiveRunReport, StageDecision, StageInputs, StaticAlgorithm,
+    StaticDiscoveryContract, StaticSelectiveDiscovery, TemporalAlgorithm,
+    TemporalDiscoveryContract, TemporalSelectiveDiscovery, WorkUnits,
 };
 use antecedent::contract::evidence_ledger::parse_digest_hex;
 use antecedent::data::{OwnedColumnarStorage, TableView, ValidityBitmap};
@@ -54,7 +54,7 @@ use antecedent::prelude::{TabularData, TimeSeriesData, VariableId};
 use numpy::PyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use serde_json::{Map, Value as Json, json};
+use serde_json::{json, Map, Value as Json};
 
 use crate::evidence_ledger_api::declaration_json;
 
@@ -797,12 +797,15 @@ impl SelectiveDiscoveryHandle {
     ///
     /// Returns `(envelope_json, refusal_json)`; a PAG, a temporal structure, an exhausted
     /// search bound, an orientation conflict and a target outside the structure are refusals.
-    #[pyo3(signature = (query_json, selection_targets, member_bound=None))]
+    #[pyo3(signature = (query_json, selection_targets, member_bound=None, *, threads=None, cancel=None))]
     fn transport_across_class(
         &self,
+        py: Python<'_>,
         query_json: &str,
         selection_targets: Vec<u32>,
         member_bound: Option<usize>,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<String>, Option<String>)> {
         let Some(outcome) = self.inner.as_ref().and_then(Adapter::outcome) else {
             return Ok((
@@ -817,10 +820,13 @@ impl SelectiveDiscoveryHandle {
             ));
         };
         crate::discovered_transport_api::across_outcome(
+            py,
             outcome,
             query_json,
             &selection_targets,
             member_bound,
+            threads,
+            cancel,
         )
     }
 
@@ -828,14 +834,17 @@ impl SelectiveDiscoveryHandle {
     /// retained temporal class.
     ///
     /// Returns `(envelope_json, refusal_json)`.
-    #[pyo3(signature = (query_json, selection_targets, horizon_steps, history=None, member_bound=None))]
+    #[pyo3(signature = (query_json, selection_targets, horizon_steps, history=None, member_bound=None, *, threads=None, cancel=None))]
     fn transport_across_temporal_class(
         &self,
+        py: Python<'_>,
         query_json: &str,
         selection_targets: Vec<u32>,
         horizon_steps: u32,
         history: Option<u32>,
         member_bound: Option<usize>,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
     ) -> PyResult<(Option<String>, Option<String>)> {
         crate::bridge::check_count(
             "horizon_steps",
@@ -855,12 +864,15 @@ impl SelectiveDiscoveryHandle {
             ));
         };
         crate::discovered_transport_api::across_temporal_outcome(
+            py,
             outcome,
             horizon_steps,
             history,
             query_json,
             &selection_targets,
             member_bound,
+            threads,
+            cancel,
         )
     }
 
@@ -1218,7 +1230,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[cfg(test)]
 mod selective_link_json_tests {
-    use super::{Lag, LaggedLink, VariableId, link_json};
+    use super::{link_json, Lag, LaggedLink, VariableId};
 
     #[test]
     fn untested_nan_statistics_are_explicitly_marked() {

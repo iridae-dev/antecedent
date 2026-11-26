@@ -21,6 +21,7 @@ import numpy as np
 
 from ._data import as_columns
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +93,7 @@ def estimate(
     factor_b: Sequence[bool],
     design: FactorialDesign,
     outcome: str,
+    execution: Execution | None = None,
 ) -> FactorialEstimate:
     """Estimate marginal main effects and the 2×2 interaction.
 
@@ -101,6 +103,7 @@ def estimate(
     of assignment to all four cells. This remains a point utility outside the
     support matrix: the retained route publishes cell means and variance
     contributions, and the factorial contrasts below are formed from them.
+    ``execution`` is the seed, threads, cancellation and memory limit of that route.
     """
 
     if not isinstance(design, FactorialDesign):
@@ -126,8 +129,9 @@ def estimate(
         ]
         for i in range(n)
     ]
-    from ._analyze import analyze
+    from . import analyze
     from .experiment import MultiArmExperimentDesign, RandomizedEffect
+    from .outcomes import require_success
     from .results import AnalysisResult
 
     cell_design = MultiArmExperimentDesign(
@@ -137,7 +141,14 @@ def estimate(
         [f"unit-{i}" for i in range(n)],
         [f"row-{i}" for i in range(n)],
     )
-    result = analyze({outcome: y}, query=RandomizedEffect(outcome, cell_design), refute="none")
+    result = require_success(
+        analyze(
+            {outcome: y},
+            query=RandomizedEffect(outcome, cell_design),
+            refute="none",
+            execution=execution,
+        )
+    )
     if not isinstance(result, AnalysisResult):
         raise CausalValueError("the compiled randomized route returned an unexpected result type")
     fit = result.randomized_effect

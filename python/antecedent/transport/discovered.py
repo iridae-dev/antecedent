@@ -357,6 +357,7 @@ def transport_across_class(
     target_population: str = "target",
     source_experiments: Sequence[str] = (),
     member_bound: int | None = None,
+    execution: Execution | None = None,
 ) -> StructuralTransportEnvelope:
     """The structural transport verdict of a mean-curve query across ``adapter``'s class.
 
@@ -365,7 +366,8 @@ def transport_across_class(
     ``grid``, from ``source_population`` (experiments on ``source_experiments``) to
     ``target_population``. ``selection_targets`` are the variables whose mechanisms may differ
     between the populations, declared by you. ``member_bound`` bounds the enumeration (default
-    256).
+    256). ``execution`` (default ``None``, default controls) supplies threads and cancellation
+    for that enumeration.
 
     Returns:
         The :class:`StructuralTransportEnvelope`; read ``status`` first.
@@ -393,8 +395,15 @@ def transport_across_class(
         source_experiments=source_experiments,
     )
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
-    text, refusal = adapter._handle.transport_across_class(
-        query, _target_ids(names, selection_targets), bound
+    text, refusal = call_native(
+        execution,
+        adapter._handle.transport_across_class,
+        query,
+        _target_ids(names, selection_targets),
+        bound,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     _raise_transport(refusal, names, outcome=adapter.outcome)
     assert text is not None
@@ -983,6 +992,7 @@ def transport_across_temporal_class(
     target_population: str = "target",
     source_experiments: Sequence[str] = (),
     member_bound: int | None = None,
+    execution: Execution | None = None,
 ) -> TemporalStructuralEnvelope:
     """The structural verdict of a mean-curve query at ``horizon_steps`` across a temporal class.
 
@@ -990,8 +1000,9 @@ def transport_across_temporal_class(
     run (PCMCI or PCMCI+). The intervention is on ``treatment`` at the origin and the outcome is
     ``outcome`` ``horizon_steps`` later (``0`` asks for the contemporaneous effect);
     ``selection_targets`` apply at every slice. ``history`` is the number of slices of history
-    in the window; ``None`` (the default) uses twice the template's largest lag. Other
-    parameters and defaults as :func:`transport_across_class`.
+    in the window; ``None`` (the default) uses twice the template's largest lag. ``execution``
+    supplies threads and cancellation for the enumeration, as :func:`transport_across_class`.
+    Other parameters and defaults as that function.
 
     Returns:
         The :class:`TemporalStructuralEnvelope`; read ``status`` first.
@@ -1020,8 +1031,17 @@ def transport_across_temporal_class(
     )
     steps, window = _horizon(horizon_steps, history)
     bound = None if member_bound is None else count(member_bound, "member_bound", minimum=0)
-    text, refusal = adapter._handle.transport_across_temporal_class(
-        query, _target_ids(names, selection_targets), steps, window, bound
+    text, refusal = call_native(
+        execution,
+        adapter._handle.transport_across_temporal_class,
+        query,
+        _target_ids(names, selection_targets),
+        steps,
+        window,
+        bound,
+        cancel="cancel",
+        memory=None,
+        threads="threads",
     )
     _raise_transport(refusal, names, outcome=adapter.outcome)
     assert text is not None

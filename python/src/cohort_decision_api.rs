@@ -11,20 +11,20 @@
 //! uncalibrated diagnostic and never an interval.
 
 use antecedent::analysis::cohort_decision::{
-    CohortBinding, CohortDecisionSource, CohortExpectation, CohortOptions, CohortRefusal,
-    CovariateShiftDeclaration, FittedEffectModel, LawRequest, cohort_forward_claim,
-    cohort_mean_source, evaluate_cohort_decision,
+    cohort_forward_claim, cohort_mean_source, evaluate_cohort_decision, CohortBinding,
+    CohortDecisionSource, CohortExpectation, CohortOptions, CohortRefusal,
+    CovariateShiftDeclaration, FittedEffectModel, LawRequest,
 };
 use antecedent::analysis::transported_cohort::{
-    SelectionShiftDeclaration, TRANSPORTED_POINT_SCOPE, TransportRefusal, TransportedCohort,
-    TransportedRequest, transport_cohort_effect_from_result, verify_cohort_transport,
+    transport_cohort_effect_from_result, verify_cohort_transport, SelectionShiftDeclaration,
+    TransportRefusal, TransportedCohort, TransportedRequest, TRANSPORTED_POINT_SCOPE,
 };
 use antecedent::design::composition_boundary::SupportPolicy;
 use antecedent::design::decision_artifact::contract_from_json_refusal;
 use antecedent::io::quantity_wire::ScientificQuantityWire;
 use pyo3::prelude::*;
 
-use crate::bridge::{RefusalJson, check_declared_size, external_refusal_json};
+use crate::bridge::{check_declared_size, external_refusal_json, RefusalJson};
 use crate::composition_api::{boundary_refusal, parse_support, parse_unsupported, supported_json};
 use crate::{detach_catch, value_err_code};
 
@@ -471,7 +471,7 @@ type TransportBuildPayload = (Option<String>, Option<String>, Option<Vec<u8>>, O
 /// the same cohort. Every number, the overlap check, the identity and every refusal are
 /// Rust's.
 #[pyfunction]
-#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, outcome_units, shift_json, artifact_id))]
+#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, outcome_units, shift_json, artifact_id, *, threads=None, cancel=None, memory_bytes=None))]
 #[allow(
     clippy::too_many_arguments,
     reason = "one flat native entry mirroring the Rust facade call"
@@ -485,6 +485,9 @@ fn transport_cohort_effect(
     outcome_units: &str,
     shift_json: Option<&str>,
     artifact_id: &str,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
 ) -> PyResult<TransportBuildPayload> {
     let cohort = match parse_cohort(cohort_json)? {
         Ok(cohort) => cohort,
@@ -494,7 +497,9 @@ fn transport_cohort_effect(
     let source_population = source_population.to_owned();
     let units = outcome_units.to_owned();
     let artifact_id = artifact_id.to_owned();
-    let ctx = crate::execution_api::context(0);
+    // Seed 0 is the seed this transport has always used. Threads, cancellation and memory
+    // are the caller's; they do not enter the transported value.
+    let ctx = crate::chain_decision_api::context(0, threads, cancel, memory_bytes);
     detach_catch(py, move || {
         let transported = match transport_cohort_effect_from_result(
             model_bytes,
@@ -678,7 +683,7 @@ fn quantity_wire(
 fn fit_quantities(
     parsed: &NativeFitJson,
 ) -> Result<(ScientificQuantityWire, Vec<ScientificQuantityWire>), String> {
-    use antecedent::analysis::cohort_decision::{CATE_FUNCTIONAL_ID, ContrastDeclaration};
+    use antecedent::analysis::cohort_decision::{ContrastDeclaration, CATE_FUNCTIONAL_ID};
     if parsed.feature_names.len() != parsed.features.len()
         || parsed.feature_units.len() != parsed.features.len()
     {
@@ -725,6 +730,27 @@ fn native_fit_refusal(message: &str) -> String {
     .json()
 }
 
+fn fit_error_refusal(error: &antecedent::estimate::EstimationError) -> String {
+    use antecedent::estimate::EstimationError;
+    use antecedent::execution::AdmissionRefusal;
+    if let EstimationError::Admission(admission) = error {
+        let refusal = AdmissionRefusal::from(*admission);
+        let code = if refusal.is_cancelled() {
+            antecedent::reason::reason_code!("cancelled_no_claim")
+        } else {
+            antecedent::reason::reason_code!("execution_resource_limit")
+        };
+        return RefusalJson::new(
+            code,
+            "bind",
+            antecedent::reason::reason_details::cohort_decision::NATIVE_FIT_REFUSED,
+            &error.to_string(),
+        )
+        .json();
+    }
+    native_fit_refusal(&error.to_string())
+}
+
 fn native_fit_payload(
     native: &antecedent::analysis::cohort_decision::NativeCohortFit,
 ) -> PyResult<(String, Vec<u8>)> {
@@ -749,17 +775,45 @@ mod native_fit;
 
 /// Fit a linear conditional effect natively (OLS on the declared basis and its treatment
 /// interaction, HC3 covariance): `(summary json, export bytes, refusal json)`.
+///
+/// The seed stays `0`, the seed the direct fit used. Threads, cancellation and the memory
+/// limit are the caller's.
 #[pyfunction]
-fn fit_native_cohort_effect(py: Python<'_>, fit_json: &str) -> PyResult<BuildPayload> {
+#[pyo3(signature = (fit_json, *, threads=None, cancel=None, memory_bytes=None))]
+fn fit_native_cohort_effect(
+    py: Python<'_>,
+    fit_json: &str,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> PyResult<BuildPayload> {
     check_size(fit_json, "native fit")?;
     let parsed: NativeFitJson = serde_json::from_str(fit_json)
         .map_err(|e| invalid_argument(format!("cohort_decision.invalid_request: {e}")))?;
-    detach_catch(py, move || match native_fit_of(&parsed) {
-        Ok(native) => {
-            let (summary, bytes) = native_fit_payload(&native)?;
-            Ok((Some(summary), Some(bytes), None))
+    let ctx = crate::chain_decision_api::context(0, threads, cancel, memory_bytes);
+    detach_catch(py, move || {
+        let (response, quantities) = match fit_quantities(&parsed) {
+            Ok(quantities) => quantities,
+            Err(message) => return Ok((None, None, Some(native_fit_refusal(&message)))),
+        };
+        let columns: Vec<&[f64]> = parsed.features.iter().map(Vec::as_slice).collect();
+        let plan = match antecedent::Study::compile_native_cohort_fit(
+            &parsed.outcome,
+            &parsed.treatment,
+            &columns,
+            &response,
+            &quantities,
+        ) {
+            Ok(plan) => plan,
+            Err(error) => return Ok((None, None, Some(fit_error_refusal(&error)))),
+        };
+        match plan.execute(&ctx) {
+            Ok(run) => {
+                let (summary, bytes) = native_fit_payload(&run.fit)?;
+                Ok((Some(summary), Some(bytes), None))
+            }
+            Err(error) => Ok((None, None, Some(fit_error_refusal(&error)))),
         }
-        Err(message) => Ok((None, None, Some(native_fit_refusal(&message)))),
     })
 }
 

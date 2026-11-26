@@ -77,6 +77,7 @@ from ._validate import count as _count
 from ._validate import name as _name
 from ._validate import named_choice as _choice
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, resolve_execution
 from .outcomes import outcome_operation, require_success
 from .scientific_bridge import _quantity_wire
 
@@ -130,6 +131,16 @@ __all__ = [
 
 #: Re-exported cooperative cancellation token passed to a provider's ``invoke``.
 CallbackToken = _native.CallbackToken
+
+
+def _run_token(token: Any, execution: Execution | None) -> Any:
+    """The explicit token, else the execution's cancellation token, else a fresh one."""
+    if token is not None:
+        return token
+    policy = resolve_execution(execution)
+    if policy.cancel is not None:
+        return policy.cancel
+    return CallbackToken()
 
 KINDS = ("law", "posterior", "nested")
 OPERATIONS = ("mean", "sample", "cdf", "quantile", "posterior_update")
@@ -1048,12 +1059,14 @@ class CallbackSession:
         inputs: Mapping[str, CallbackExecution] | None = None,
         policy: ExecutionPolicy | None = None,
         token: Any = None,
+        execution: Execution | None = None,
     ) -> CallbackExecution:
         """Answer ``request`` from the stored result or by invoking ``provider``.
 
         The provider's ``invoke`` runs here and only here, after the declaration, the policy phase,
         the negotiated operation, the provider's identity, the inputs and the reuse plan have been
         checked. ``inputs`` are the accepted executions of the callbacks this one consumes.
+        With no ``token``, ``execution.cancel`` is the cancellation token.
 
         Raises:
             CallbackExecutionRefusal: refused or failed; carries the invocation counts.
@@ -1067,7 +1080,7 @@ class CallbackSession:
             _dumps(request._wire()),
             _dumps(self._input_indices(inputs)),
             _dumps((policy or ExecutionPolicy())._wire()),
-            token if token is not None else CallbackToken(),
+            _run_token(token, execution),
         )
         _raise(refusal)
         assert wire is not None
@@ -1085,13 +1098,15 @@ class CallbackSession:
         inputs: Mapping[str, CallbackExecution] | None = None,
         policy: ExecutionPolicy | None = None,
         token: Any = None,
+        execution: Execution | None = None,
     ) -> ConsumerExecution:
         """Check the callback's connection to ``consumer``, then execute it.
 
         The declared callback is checked through the interface contract against the consumer's
         port before ``provider`` is ever invoked: a callback whose declared quantity is not what
         the consumer needs (another population, regime, support or operation) is refused with
-        every defect listed. Once the connection holds this is :meth:`execute`.
+        every defect listed. Once the connection holds this is :meth:`execute`. With no
+        ``token``, ``execution.cancel`` is the cancellation token.
 
         Raises:
             CallbackRefusal: the connection is refused; ``refusals`` lists every defect and the
@@ -1113,7 +1128,7 @@ class CallbackSession:
             _dumps(request._wire()),
             _dumps(self._input_indices(inputs)),
             _dumps((policy or ExecutionPolicy())._wire()),
-            token if token is not None else CallbackToken(),
+            _run_token(token, execution),
         )
         if refusal is not None:
             found = json.loads(refusal)
@@ -1140,13 +1155,15 @@ class CallbackSession:
         inputs: Mapping[str, CallbackExecution] | None = None,
         policy: ExecutionPolicy | None = None,
         token: Any = None,
+        execution: Execution | None = None,
     ) -> CallbackResume:
         """Resume a stored result in this process.
 
         The artifact is consumed first (every identity recomputed). With a ``provider`` that is the
         declared object the request is answered by reuse or recomputation under the replay
         contract; with none the stage is recorded ``unavailable`` and nothing runs. A provider
-        that is not the declared object is refused.
+        that is not the declared object is refused. With no ``token``, ``execution.cancel`` is
+        the cancellation token.
 
         Raises:
             CallbackExecutionRefusal: the artifact or the provider is refused.
@@ -1163,7 +1180,7 @@ class CallbackSession:
             state_fn,
             _dumps(self._input_indices(inputs)),
             _dumps((policy or ExecutionPolicy())._wire()),
-            token if token is not None else CallbackToken(),
+            _run_token(token, execution),
         )
         _raise(refusal)
         assert wire is not None

@@ -8818,6 +8818,10 @@ def compile_native_cohort_fit(
 ) -> tuple[NativeCohortFitPlanHandle | None, str | None]: ...
 def fit_native_cohort_effect(
     fit_json: str,
+    *,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[str | None, bytes | None, str | None]: ...
 def cohort_decision_interval(
     artifact: bytes,
@@ -8849,6 +8853,10 @@ def transport_cohort_effect(
     outcome_units: str,
     shift_json: str | None,
     artifact_id: str,
+    *,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[str | None, str | None, bytes | None, str | None]: ...
 def transport_cohort_effect_compiled(
     model_bytes: bytes,
@@ -8858,6 +8866,10 @@ def transport_cohort_effect_compiled(
     outcome_units: str,
     shift_json: str | None,
     artifact_id: str,
+    *,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[str | None, str | None, bytes | None, str | None]: ...
 def transport_cohort_effect_verify(
     model_bytes: bytes,
@@ -11370,6 +11382,9 @@ class SelectiveDiscoveryHandle:
         query_json: str,
         selection_targets: list[int],
         member_bound: int | None = None,
+        *,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, str | None]: ...
     def transport_across_temporal_class(
         self,
@@ -11378,6 +11393,9 @@ class SelectiveDiscoveryHandle:
         horizon_steps: int,
         history: int | None = None,
         member_bound: int | None = None,
+        *,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
     ) -> tuple[str | None, str | None]: ...
 
 class PerPopulationDiscoveryHandle:

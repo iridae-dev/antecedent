@@ -897,11 +897,14 @@ def fit_native_cohort_effect(
     outcome_units: str,
     population: str,
     feature_units: Mapping[str, str] | None = None,
+    execution: Execution | None = None,
 ) -> NativeEffectFit:
     """Fit a linear conditional treatment effect natively and retain its rows.
 
     ``features`` maps each declared modifier name to its column. Treatment must be randomized
     or ignorable given exactly these modifiers; the outcome mean is assumed linear in them.
+    ``execution`` supplies threads, cancellation and the memory limit. The fit's seed stays
+    the one the native route has always used.
     """
     text = _native_fit_json(
         outcome=outcome,
@@ -915,7 +918,12 @@ def fit_native_cohort_effect(
         population=population,
         feature_units=feature_units,
     )
-    summary, export, refusal = _fit_native(text)
+    policy = resolve_execution(execution)
+    summary, export, refusal = policy._call(
+        _fit_native,
+        text,
+        **native_controls(policy, threads="threads", cancel="cancel", memory="memory_bytes"),
+    )
     if refusal is not None:
         raise CohortDecisionRefusal(json.loads(refusal))
     if summary is None or export is None:  # pragma: no cover - the native contract
@@ -1224,6 +1232,7 @@ def transport_cohort_effect(
     shift: SelectionShift | None,
     outcome_units: str,
     artifact_id: str = _DEFAULT_ARTIFACT_ID,
+    execution: Execution | None = None,
 ) -> TransportedCohortEffect:
     """Carry a retained fitted effect model to a cohort of another population.
 
@@ -1237,6 +1246,8 @@ def transport_cohort_effect(
     are exactly the model's features, and every cohort row lies inside the model's fitted support.
     The transport runs as the compiled ``TransportedCohortEffect`` program;
     :attr:`TransportedCohortEffect.program_identity` is the identity of its lowered program.
+    ``execution`` supplies threads, cancellation and the memory limit. The transport seed stays
+    the one this route has always used, so the carried value does not change with it.
 
     Raises:
         CohortDecisionRefusal: the unmet premise, with a registered ``reason_code``, a
@@ -1253,7 +1264,9 @@ def transport_cohort_effect(
         raise CausalValueError("outcome_units= is required: units are never inferred")
     model_bytes = bytes(model.export())
     claim = model.parent_claim
-    summary, decision, artifact, refusal = _transport(
+    policy = resolve_execution(execution)
+    summary, decision, artifact, refusal = policy._call(
+        _transport,
         model_bytes,
         claim,
         source_population,
@@ -1261,6 +1274,7 @@ def transport_cohort_effect(
         outcome_units,
         None if shift is None else json.dumps(shift._wire()),
         _text(artifact_id, "artifact_id"),
+        **native_controls(policy, threads="threads", cancel="cancel", memory="memory_bytes"),
     )
     if refusal is not None:
         raise CohortDecisionRefusal(json.loads(refusal))

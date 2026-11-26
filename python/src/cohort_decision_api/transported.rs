@@ -9,13 +9,13 @@
 //! the summary adds a `program` section with the plan route and the lowered program identity.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent::Study;
 use antecedent::analysis::compiled_transported_cohort::TransportedCohortRequest;
+use antecedent::Study;
 use pyo3::prelude::*;
 
 use super::{
-    TransportBuildPayload, parse_cohort, refusal_json, selection_shift_of, summary,
-    transport_refusal_json, transport_summary,
+    parse_cohort, refusal_json, selection_shift_of, summary, transport_refusal_json,
+    transport_summary, TransportBuildPayload,
 };
 use crate::detach_catch;
 
@@ -24,7 +24,7 @@ use crate::detach_catch;
 /// `(transport summary json, decision source summary json, decision source artifact bytes,
 /// refusal json)`.
 #[pyfunction]
-#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, outcome_units, shift_json, artifact_id))]
+#[pyo3(signature = (model_bytes, expected_claim, source_population, cohort_json, outcome_units, shift_json, artifact_id, *, threads=None, cancel=None, memory_bytes=None))]
 #[allow(
     clippy::too_many_arguments,
     reason = "the arguments of the direct entry, which this entry replaces"
@@ -38,6 +38,9 @@ pub(super) fn transport_cohort_effect_compiled(
     outcome_units: &str,
     shift_json: Option<&str>,
     artifact_id: &str,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
 ) -> PyResult<TransportBuildPayload> {
     let cohort = match parse_cohort(cohort_json)? {
         Ok(cohort) => cohort,
@@ -51,7 +54,9 @@ pub(super) fn transport_cohort_effect_compiled(
     }
     let units = outcome_units.to_owned();
     let artifact_id = artifact_id.to_owned();
-    let ctx = crate::execution_api::context(0);
+    // Seed 0 is the seed this transport has always used. Threads, cancellation and memory
+    // are the caller's; they do not enter the transported value.
+    let ctx = crate::chain_decision_api::context(0, threads, cancel, memory_bytes);
     detach_catch(py, move || {
         let compiled = match Study::compile_transported_cohort(request) {
             Ok(compiled) => compiled,

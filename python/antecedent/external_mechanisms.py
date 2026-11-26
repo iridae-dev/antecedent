@@ -34,6 +34,7 @@ from typing import Any, Literal, TypedDict, Unpack
 from . import _deprecation, _native, _retained
 from ._callback_signature import check_signature
 from .errors import CausalValueError
+from .execution import Execution, native_controls
 
 __all__ = [
     "Dependency",
@@ -535,19 +536,27 @@ class ExternalFeedbackModel:
         rows: Sequence[Mapping[str, Any]],
         *,
         resolver: Any,
+        execution: Execution | None = None,
         **policy: Unpack[_FeedbackFitPolicy],
     ) -> dict[str, Any]:
         """Fit declared scalars from known-regime rows through the compiled program.
 
         The request (see :meth:`fit_spec`) is bound into the ``ExternalFeedbackFit`` program
         family and fitted with the caller's trusted resolver, which never enters the program
-        identity. Returns ``{"fit": ..., "lowered_program_identity": ..., "route":
-        "ExternalFeedbackFit", "claim": "model_conditional_point"}``; ``"fit"`` is the fitted
-        system with its log-likelihood, iterations, score norm, convergence and trust record.
+        identity. ``execution`` supplies cancellation and the memory limit. Returns
+        ``{"fit": ..., "lowered_program_identity": ..., "route": "ExternalFeedbackFit",
+        "claim": "model_conditional_point"}``; ``"fit"`` is the fitted system with its
+        log-likelihood, iterations, score norm, convergence and trust record.
         """
         spec = self.fit_spec(parameters, rows, **policy)
         request = {"system": self._system(), **spec}
-        return json.loads(_native.external_compiled_fit(_dumps(request), _resolver(resolver)))
+        return json.loads(
+            _native.external_compiled_fit(
+                _dumps(request),
+                _resolver(resolver),
+                **native_controls(execution, cancel="cancel", memory="max_bytes"),
+            )
+        )
 
     def execute(
         self,
@@ -561,8 +570,12 @@ class ExternalFeedbackModel:
         tolerance: float = 1e-10,
         max_iterations: int = 1000,
         require_contraction: bool = False,
+        execution: Execution | None = None,
     ) -> dict[str, Any]:
-        """Verify, optionally fit, then solve every world for every disturbance row."""
+        """Verify, optionally fit, then solve every world for every disturbance row.
+
+        ``execution`` supplies cancellation and the memory limit.
+        """
         request = self._request(
             worlds,
             noise,
@@ -573,7 +586,13 @@ class ExternalFeedbackModel:
             max_iterations=max_iterations,
             require_contraction=require_contraction,
         )
-        return json.loads(_native.external_execute(request, _resolver(resolver)))
+        return json.loads(
+            _native.external_execute(
+                request,
+                _resolver(resolver),
+                **native_controls(execution, cancel="cancel", memory="max_bytes"),
+            )
+        )
 
     def export(
         self,
