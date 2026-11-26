@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import KW_ONLY, dataclass, field
 from math import isfinite
-from typing import TYPE_CHECKING, Any, Literal, TypeAlias
+from typing import TYPE_CHECKING, Any, Literal, TypeAlias, TypedDict
 
 from . import _native
 from ._columns import coerce_fields
@@ -36,6 +36,11 @@ from .results.model_operation import ModelOperationResult
 
 if TYPE_CHECKING:
     from .execution import Execution
+
+
+class _ExecutionOptions(TypedDict):
+    seed: int
+    threads: int | None
 
 
 def _name(field_name: str, value: object) -> str:
@@ -302,7 +307,7 @@ def analyze_model_operation(
         )
     edges = _edges(graph)
     names, columns = as_columns(data)
-    run = {"seed": int(execution.seed), "threads": execution.threads}
+    run: _ExecutionOptions = {"seed": int(execution.seed), "threads": execution.threads}
     if isinstance(query, ArrowStrengths):
         native = _native.model_operation_arrow_strengths(names, columns, edges, **run)
     elif isinstance(query, PopulationContrast):

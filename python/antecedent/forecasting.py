@@ -345,7 +345,9 @@ def forecast(
         request_id=request_digest,
         trust=execution.trust.value,
     )
-    return ForecastResult(execution, source, target, origin.origin, law, fit, spec.fold_policy)
+    return ForecastResult(
+        execution, source, target, origin.origin, law, fit, FoldPolicy.decode(spec.fold_policy)
+    )
 
 
 @dataclass(frozen=True, slots=True)
