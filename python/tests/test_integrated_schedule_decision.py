@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from antecedent import load
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.intervention_schedule_decision import (
     ScheduleDecisionDeclaration,
@@ -66,6 +67,13 @@ def test_schedule_decision_joint_scope_and_portable_replay(tmp_path: Path) -> No
     exported = built.export()
     assert exported.expectation is not None
     assert exported.expectation.identity == built.identity
+    report = require_success(load(bytes(exported), expected=exported.expectation))
+    assert report.identity == built.identity
+    assert report.all_replayed
+    terminal = next(node for node in report.nodes if node.kind == "integrated_schedule_decision")
+    assert terminal.facts["optimum_set"] == "0,2,3"
+    assert terminal.facts["coverage_scope"] == built.decision.coverage_scope
+    assert terminal.facts["calibration_status"] == built.decision.calibration.status
     assert consume_schedule_decision_bundle(exported, expected_identity=exported.expectation) == built.decision
     artifact = tmp_path / "integrated-schedule.aio"
     artifact.write_bytes(built.data)
@@ -99,6 +107,7 @@ print(json.dumps([result.optimum_set, result.minimum_coverage]))
     with pytest.raises(ScheduleDecisionRefusal, match="retained identity") as mismatch:
         consume_schedule_decision_bundle(changed.data, expected_identity=built.identity)
     assert mismatch.value.detail == "integrated_schedule.artifact_refused"
+    assert load(changed.data, expected=exported.expectation).refusal is not None
     with pytest.raises(ScheduleDecisionRefusal) as limited:
         consume_schedule_decision_bundle(
             built.data,

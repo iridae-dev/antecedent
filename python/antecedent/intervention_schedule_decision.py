@@ -8,9 +8,10 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal, TypeVar
 
 from . import _native
-from ._artifact_protocol import ArtifactExpectation, ExportedArtifact, container_bytes
+from ._artifact_protocol import ArtifactExpectation, ExportedArtifact, artifact_export, container_bytes
 from ._refusal import raise_refusal
 from ._unit_support import read_unit_support
+from .composition_bundle import ConsumedBundle
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .execution import Execution, native_controls, resolve_execution
 from .outcomes import outcome_operation, require_success
@@ -98,8 +99,9 @@ class IntegratedScheduleBundle:
     plan: dict[str, Any]
     child_program_identities: tuple[str, str, str]
 
-    def export(self) -> ExportedArtifact[IntegratedScheduleDecision]:
-        """Export the portable bundle with its independently retainable identity."""
+    @artifact_export
+    def export(self) -> ExportedArtifact[ConsumedBundle]:
+        """Export the bundle for generic node replay using its retained identity."""
         kind = "composition_bundle_v1"
         return ExportedArtifact(self.data, kind, ArtifactExpectation(kind, self.identity))
 
@@ -235,12 +237,12 @@ def compile_schedule_decision_bundle(
 
 
 def consume_schedule_decision_bundle(
-    data: bytes | ExportedArtifact[IntegratedScheduleDecision],
+    data: bytes | ExportedArtifact[ConsumedBundle],
     *,
     expected_identity: str | ArtifactExpectation,
     execution: Execution | None = None,
 ) -> IntegratedScheduleDecision:
-    """Replay all children and the terminal under an independently retained identity."""
+    """Recompile the schedule program, replay the bundle, and read the typed decision."""
     expected = expected_identity
     if isinstance(expected, ArtifactExpectation):
         if expected.kind != "composition_bundle_v1" or not isinstance(expected.identity, str):

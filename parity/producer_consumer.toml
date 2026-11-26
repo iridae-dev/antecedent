@@ -2496,10 +2496,10 @@ evidence_assertion = "the_sealed_artifact_is_the_existing_one_and_replays_to_the
 [[rust_cell]]
 producer = "transported_mechanism_composition"
 consumer = "published_route"
-status = "REFUSED"
-detail = "the variance is parameter-only and scoped, and an interval of the carried contrast refuses with `not_supported`"
+status = "DIRECT"
+detail = "Under independently fitted mechanisms the parameter-only variance and first-order Wald endpoints match the reference. Unknown dependence still refuses the variance."
 evidence_test = "crates/antecedent/tests/transported_mechanism_facade.rs"
-evidence_assertion = "the_variance_is_parameter_only_scoped_and_the_interval_is_closed"
+evidence_assertion = "the_variance_is_parameter_only_scoped_and_the_interval_is_its_first_order_wald_band"
 
 [[rust_cell]]
 producer = "per_population_discovery"
@@ -2718,24 +2718,6 @@ evidence_test = "crates/antecedent/tests/survival_route.rs"
 evidence_assertion = "fitted_conditional_survival_band_replays_training_and_refuses_overlap"
 
 [[rust_producer]]
-key = "two_decision_treatment_mnar_surface"
-object = "Two-decision sensitivity box with a simultaneous subject-bootstrap band."
-built_from = "The compiled longitudinal joint sensitivity program on unique and independent subject trajectories."
-
-[[rust_consumer]]
-key = "two_decision_treatment_mnar_replay"
-entry = "consume_longitudinal_joint_sensitivity"
-note = "Rebuilds both mechanisms and the threshold decision by the same subject refits."
-
-[[rust_cell]]
-producer = "two_decision_treatment_mnar_surface"
-consumer = "two_decision_treatment_mnar_replay"
-status = "DIRECT"
-detail = "Both assumption extrema and the jointly covered threshold comparison are recovered from source observations and the retained seed."
-evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
-evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"
-
-[[rust_producer]]
 key = "patient_surrogate_bounds"
 object = "sharp bounds on terminal benefit in the binary monotone surrogate-improver stratum"
 built_from = "`Study::compile_patient_surrogate` from the exact population law or full paired randomized patient records"
@@ -2888,8 +2870,8 @@ built_from = "`LearnedRpcmciRequest::run`, `LearnedRpcmciArtifact::to_bytes`, an
 
 [[rust_consumer]]
 key = "learned_rpcmci_review"
-entry = "`consume_learned_rpcmci` followed by explicit `LearnedRpcmciArtifact::accept_regime`; Python uses the same compiler and reader"
-note = "The artifact retains the full raw series, initialization seed, regime assignments, graph identity and stability of each regime. Acceptance of one regime keeps the collection available in the verified result."
+entry = "`consume_learned_rpcmci` or Python `antecedent.load`, followed by explicit `accept_regime` and `regime_scope`"
+note = "The verified scope gives the original row and contiguous lag windows for the selected graph, along with the graph and assignment stability."
 
 [[rust_cell]]
 producer = "learned_rpcmci"
@@ -2971,3 +2953,147 @@ status = "REFUSED"
 detail = "Replacing target evidence invalidates the retained program and stale terminal. Missing an edge to the target sample gives a remedy."
 evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs"
 evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal"
+
+[[rust_producer]]
+key = "direct_oracle_pag_identification"
+object = "A compiled marginal or conditional result from a valid oracle PAG without selection."
+built_from = "`compile_pag_identification`, execution, and portable proof export."
+
+[[rust_consumer]]
+key = "direct_pag_functional_replay"
+entry = "`consume_pag_identification`, Python `antecedent.load`, or a verified composition bundle; evaluate the identified functional on a compatible positive law."
+note = "A recorded obstruction or bounded stop is reviewable without being an identified law."
+
+[[rust_cell]]
+producer = "direct_oracle_pag_identification"
+consumer = "direct_pag_functional_replay"
+status = "DIRECT"
+detail = "Replays proof identity and evaluates all 32 outcome atoms of the published beyond-adjustment example."
+evidence_test = "crates/antecedent/tests/pag_direct_identification.rs"
+evidence_assertion = "published_beyond_adjustment_formula_replays_and_executes"
+
+[[rust_cell]]
+producer = "direct_oracle_pag_identification"
+consumer = "direct_pag_functional_replay"
+status = "REFUSED"
+detail = "A deterministic budget stop remains inspectable evidence. It cannot supply an interventional law, and a verifier with an inadequate work allowance refuses replay."
+evidence_test = "crates/antecedent/tests/pag_direct_identification.rs"
+evidence_assertion = "retained_search_stop_replays_under_its_original_budget"
+
+[[rust_producer]]
+key = "scientific_bridge_sampling_law"
+object = "A fixed-map or jointly refitted bootstrap or estimator-sampling law."
+built_from = "A compiled sampling bridge with declared same-row alignment or independent source and map studies."
+
+[[rust_consumer]]
+key = "scientific_bridge_sampling_replay"
+entry = "`compile_bridge_bundle_recomputation` with independent bundle and program expectations, or Python `antecedent.load` for the sealed draws."
+note = "Replays mapped replicates and leaves unmeasured sampling intervals unpublished."
+
+[[rust_cell]]
+producer = "scientific_bridge_sampling_law"
+consumer = "scientific_bridge_sampling_replay"
+status = "DIRECT"
+detail = "Fixed affine maps replay every replicate, preserving the sampling or bootstrap meaning and the remaining original draw columns."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_fixed_sampling_bridge_replays_mapped_replicates_and_preserves_law"
+
+[[rust_cell]]
+producer = "scientific_bridge_sampling_law"
+consumer = "scientific_bridge_sampling_replay"
+status = "DIRECT"
+detail = "A trial bootstrap refits the mapping and source jointly. Its aligned squares reproduce the propagated variance, and a fresh consumer reproduces the terminal identity."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_trial_bootstrap_replays_source_and_map_on_the_same_trials"
+
+[[rust_cell]]
+producer = "scientific_bridge_sampling_law"
+consumer = "scientific_bridge_sampling_replay"
+status = "REFUSED"
+detail = "The fixed mapped replicates report spread. Requesting an interval outside the measured sampling scope refuses."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_fixed_sampling_bridge_replays_mapped_replicates_and_preserves_law"
+
+[[rust_producer]]
+key = "scientific_bridge_exact_image"
+object = "A fixed monotone scalar set image or a mapped joint outcome table."
+built_from = "`CompiledBridgeImage` with a named coordinate domain, units, weights and alignment where applicable."
+
+[[rust_consumer]]
+key = "bridge_image_decision"
+entry = "`consume_bridge_image` or Python `antecedent.load` with independent program and result identities, followed by a decision over the replayed bounds or joint rows."
+note = "The identified set supplies bounds, while paired weighted rows supply the joint outcome law."
+
+[[rust_cell]]
+producer = "scientific_bridge_exact_image"
+consumer = "bridge_image_decision"
+status = "DIRECT"
+detail = "An exact decreasing affine rule maps the set to [-5, 5]; the robust decision uses both mapped bounds."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_identified_image_bounds_flow_into_the_decision_and_replay"
+
+[[rust_cell]]
+producer = "scientific_bridge_exact_image"
+consumer = "bridge_image_decision"
+status = "DIRECT"
+detail = "Both mapped coordinates retain row pairing and weights. The downstream decision gets the exact expected utility 5/6."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_joint_outcome_image_consumes_paired_weighted_rows_and_feeds_affine_utility"
+
+[[rust_cell]]
+producer = "scientific_bridge_exact_image"
+consumer = "bridge_image_decision"
+status = "REFUSED"
+detail = "Unpaired marginals cannot stand in for a joint outcome table. Replacing the paired source rows invalidates the bundle edge."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_joint_outcome_image_consumes_paired_weighted_rows_and_feeds_affine_utility"
+
+[[rust_producer]]
+key = "scientific_bridge_uncertain_interval"
+object = "A declared joint posterior credible interval or a separately assessed trial-bootstrap confidence interval."
+built_from = "`CompiledBridgeImage` with paired posterior source and map draws or declared shared or independent trial designs."
+
+[[rust_consumer]]
+key = "bridge_interval_threshold_decision"
+entry = "`CompiledBridgeImage::compile_threshold`, independent image replay, or composition-bundle replay."
+note = "A posterior result carries attained probability mass. A sampling result carries its own interval calibration, separate from the decision's status."
+
+[[rust_cell]]
+producer = "scientific_bridge_uncertain_interval"
+consumer = "bridge_interval_threshold_decision"
+status = "DIRECT"
+detail = "A threshold decision retains the joint posterior credible interval and attained mass through replay."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_joint_posterior_bridge_reports_attained_mass_and_replays_the_threshold"
+
+[[rust_cell]]
+producer = "scientific_bridge_uncertain_interval"
+consumer = "bridge_interval_threshold_decision"
+status = "DIRECT"
+detail = "The trial-bootstrap interval and the decision retain separate calibration statuses for both admitted sampling designs."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_measured_trial_bridge_keeps_interval_and_decision_calibration_separate"
+
+[[rust_cell]]
+producer = "scientific_bridge_uncertain_interval"
+consumer = "bridge_interval_threshold_decision"
+status = "REFUSED"
+detail = "A threshold declared in a different outcome coordinate is refused."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_joint_posterior_bridge_reports_attained_mass_and_replays_the_threshold"
+
+[[rust_cell]]
+producer = "two_decision_treatment_mnar_surface"
+consumer = "two_decision_treatment_mnar_replay"
+status = "REFUSED"
+detail = "An unrelated retained identity or a region outside coherent outcome means refuses."
+evidence_test = "python/tests/test_longitudinal_joint_sensitivity.py"
+evidence_assertion = "test_typed_joint_sensitivity_executes_and_replays_with_bound_decision"
+
+[[rust_cell]]
+producer = "integrated_schedule_optimum"
+consumer = "integrated_schedule_optimum_bundle"
+status = "DIRECT"
+detail = "Python generic loading replays all embedded nodes and returns their receipts. The namespaced consumer recompiles the full semantic program and returns the typed optimum set."
+evidence_test = "python/tests/test_integrated_schedule_decision.py"
+evidence_assertion = "test_schedule_decision_joint_scope_and_portable_replay"

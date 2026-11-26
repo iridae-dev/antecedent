@@ -26,21 +26,11 @@ struct Fixture {
 }
 
 fn fixture(case: &str) -> PagIdentificationProblem {
-    let fixtures: std::collections::BTreeMap<String, Fixture> = serde_json::from_str(include_str!(
-        "../../../conformance/pag_direct_reference.json"
-    ))
-    .unwrap();
-    let Fixture {
-        names,
-        edges,
-        actions,
-        outcomes,
-        given,
-    } = fixtures
-        .into_iter()
-        .find(|(name, _)| name == case)
-        .unwrap()
-        .1;
+    let fixtures: std::collections::BTreeMap<String, Fixture> =
+        serde_json::from_str(include_str!("../../../conformance/pag_direct_reference.json"))
+            .unwrap();
+    let Fixture { names, edges, actions, outcomes, given } =
+        fixtures.into_iter().find(|(name, _)| name == case).unwrap().1;
     let endpoint = |mark: &str| match mark {
         "arrow" => Endpoint::Arrow,
         "tail" => Endpoint::Tail,
@@ -85,10 +75,8 @@ fn law(width: u32, mass: impl Fn(&[usize]) -> f64) -> ExactDiscreteLaw {
         })
         .collect::<Vec<_>>()
         .into();
-    let probabilities: Arc<[_]> = (0..(1usize << width))
-        .map(|i| mass(&atom(i, width as usize)))
-        .collect::<Vec<_>>()
-        .into();
+    let probabilities: Arc<[_]> =
+        (0..(1usize << width)).map(|i| mass(&atom(i, width as usize))).collect::<Vec<_>>().into();
     ExactDiscreteLaw::try_new(
         "observed",
         RegimeId::from_raw(0),
@@ -124,10 +112,7 @@ fn published_beyond_adjustment_formula_replays_and_executes() {
     let plan = compile_pag_identification(problem).unwrap();
     assert_eq!(plan.plan_view().route().as_str(), "DirectPagIdentification");
     let artifact = plan.execute(&ctx).unwrap();
-    assert!(matches!(
-        artifact.proof(),
-        PagIdentificationProof::Identified { .. }
-    ));
+    assert!(matches!(artifact.proof(), PagIdentificationProof::Identified { .. }));
     assert!(artifact.work() > 0);
     let laws = law(7, |a| {
         binary_mass(a[0], 0.4)
@@ -135,19 +120,11 @@ fn published_beyond_adjustment_formula_replays_and_executes() {
             * reference_eq_14(a[0], a[1], &a[2..])
     });
     let result = artifact
-        .evaluate(
-            laws,
-            &assign(&[(0, 1), (1, 0)]),
-            ExactEvaluationLimits::default(),
-            &ctx,
-        )
+        .evaluate(laws, &assign(&[(0, 1), (1, 0)]), ExactEvaluationLimits::default(), &ctx)
         .unwrap();
     for (i, value) in result.probabilities.iter().enumerate() {
         let expected = reference_eq_14(1, 0, &atom(i, 5));
-        assert!(
-            (value - expected).abs() < 1e-12,
-            "atom {i}: {value} != {expected}"
-        );
+        assert!((value - expected).abs() < 1e-12, "atom {i}: {value} != {expected}");
     }
     let bytes = artifact.to_bytes().unwrap();
     let replay = consume_pag_identification(
@@ -186,23 +163,14 @@ fn published_conditional_exchange_and_obstruction_are_distinct_from_resource_sto
             * binary_mass(a[2], 0.1 + [0.0, 0.2][a[1]] + [0.0, 0.4][a[3]])
     });
     let answer = artifact
-        .evaluate(
-            obs,
-            &assign(&[(0, 0), (1, 1), (3, 1)]),
-            ExactEvaluationLimits::default(),
-            &ctx,
-        )
+        .evaluate(obs, &assign(&[(0, 0), (1, 1), (3, 1)]), ExactEvaluationLimits::default(), &ctx)
         .unwrap();
     assert!((answer.probabilities[1] - 0.7).abs() < 1e-12);
     let mut marginal = problem;
     marginal.outcomes = vec![1, 2, 3];
     marginal.given.clear();
     assert!(matches!(
-        compile_pag_identification(marginal)
-            .unwrap()
-            .execute(&ctx)
-            .unwrap()
-            .proof(),
+        compile_pag_identification(marginal).unwrap().execute(&ctx).unwrap().proof(),
         PagIdentificationProof::MarginalObstruction { .. }
     ));
     let reverse = compile_pag_identification(fixture("conditional_reverse_exchange")).unwrap();
@@ -220,13 +188,9 @@ fn published_conditional_exchange_and_obstruction_are_distinct_from_resource_sto
         Err(PagReplayError::Identification(PagIdError::Budget(2)))
     ));
     let bytes = evidence.to_bytes().unwrap();
-    let replay = consume_pag_identification(
-        &bytes,
-        evidence.identity(),
-        failed.lowered().identity(),
-        &ctx,
-    )
-    .unwrap();
+    let replay =
+        consume_pag_identification(&bytes, evidence.identity(), failed.lowered().identity(), &ctx)
+            .unwrap();
     assert_eq!(replay.proof(), evidence.proof());
 }
 
@@ -255,10 +219,7 @@ fn all_two_vertex_pag_classes_match_the_semantic_definition() {
                 given: vec![],
                 population: "observed".into(),
             };
-            let artifact = compile_pag_identification(problem)
-                .unwrap()
-                .execute(&ctx)
-                .unwrap();
+            let artifact = compile_pag_identification(problem).unwrap().execute(&ctx).unwrap();
             if adjacency {
                 // X -> Y with uniform X and independent 0.1 flip and its reverse
                 // both give table [0.45, 0.05, 0.05, 0.45]. Their P(Y=1 | do(X=1))
@@ -297,27 +258,14 @@ fn all_three_vertex_pag_classes_match_the_path_and_collider_reference() {
             .collect();
         let middle = (present.len() == 2).then(|| {
             (0..3)
-                .find(|node| {
-                    present
-                        .iter()
-                        .filter(|(a, b)| a == node || b == node)
-                        .count()
-                        == 2
-                })
+                .find(|node| present.iter().filter(|(a, b)| a == node || b == node).count() == 2)
                 .unwrap()
         });
-        for collider in [None, middle]
-            .into_iter()
-            .take(if middle.is_some() { 2 } else { 1 })
-        {
+        for collider in [None, middle].into_iter().take(if middle.is_some() { 2 } else { 1 }) {
             let mut graph = Pag::with_variables(3);
             for &(a, b) in &present {
                 let mark = |node| {
-                    if collider == Some(node) {
-                        Endpoint::Arrow
-                    } else {
-                        Endpoint::Circle
-                    }
+                    if collider == Some(node) { Endpoint::Arrow } else { Endpoint::Circle }
                 };
                 graph
                     .insert_marked(MarkedEdge {
@@ -348,10 +296,8 @@ fn all_three_vertex_pag_classes_match_the_path_and_collider_reference() {
                             given: if condition { vec![z] } else { vec![] },
                             population: "observed".into(),
                         };
-                        let direct = compile_pag_identification(problem)
-                            .unwrap()
-                            .execute(&ctx)
-                            .unwrap();
+                        let direct =
+                            compile_pag_identification(problem).unwrap().execute(&ctx).unwrap();
                         assert_eq!(
                             matches!(direct.proof(), PagIdentificationProof::Identified { .. }),
                             expected,
@@ -368,10 +314,8 @@ fn all_three_vertex_pag_classes_match_the_path_and_collider_reference() {
                                 },
                             );
                             let other =
-                                antecedent_identify::identify_pag_response_general(
-                                    &graph, &query,
-                                )
-                                .unwrap();
+                                antecedent_identify::identify_pag_response_general(&graph, &query)
+                                    .unwrap();
                             if mask == 0 {
                                 assert_eq!(other.status, antecedent_core::IdentificationStatus::NonparametricallyIdentified);
                             }
@@ -404,12 +348,7 @@ fn direct_and_completion_values_agree_on_their_shared_identified_scope() {
     let answer = direct
         .execute(&ctx)
         .unwrap()
-        .evaluate(
-            law(2, joint),
-            &assign(&[(0, 1)]),
-            ExactEvaluationLimits::default(),
-            &ctx,
-        )
+        .evaluate(law(2, joint), &assign(&[(0, 1)]), ExactEvaluationLimits::default(), &ctx)
         .unwrap();
     let mut x = Vec::new();
     let mut y = Vec::new();
@@ -447,10 +386,7 @@ fn visible_nonnull_effect_matches_the_completion_route_and_shared_oracle() {
     let problem = fixture("visible_collider_parent");
     let graph = antecedent_io::pag_from_wire(&problem.graph).unwrap();
     let ctx = ExecutionContext::for_tests(93);
-    let direct = compile_pag_identification(problem)
-        .unwrap()
-        .execute(&ctx)
-        .unwrap();
+    let direct = compile_pag_identification(problem).unwrap().execute(&ctx).unwrap();
     let joint = |a: &[usize]| {
         0.25 * binary_mass(a[1], 0.25 + 0.25 * (a[0] + a[2]) as f64)
             * binary_mass(a[3], [0.125, 0.875][a[1]])
@@ -464,19 +400,12 @@ fn visible_nonnull_effect_matches_the_completion_route_and_shared_oracle() {
         }
     }
     let data = TabularData::from_f64_columns(
-        ["A", "B", "C", "D"]
-            .into_iter()
-            .zip(columns.iter().map(Vec::as_slice)),
+        ["A", "B", "C", "D"].into_iter().zip(columns.iter().map(Vec::as_slice)),
     )
     .unwrap();
     for (b, expected) in [(0, 0.125), (1, 0.875)] {
         let answer = direct
-            .evaluate(
-                law(4, joint),
-                &assign(&[(1, b)]),
-                ExactEvaluationLimits::default(),
-                &ctx,
-            )
+            .evaluate(law(4, joint), &assign(&[(1, b)]), ExactEvaluationLimits::default(), &ctx)
             .unwrap();
         assert!((answer.probabilities[1] - expected).abs() < 1e-12);
         let query = ResponseQuery::new(ResponseFunctional::InterventionResponse {
@@ -515,6 +444,15 @@ fn retained_search_stop_replays_under_its_original_budget() {
             depth_limit: None,
         }
     ));
+    let problem = stopped.problem();
+    let mass = 0.5_f64.powi(i32::try_from(problem.graph.node_count).unwrap());
+    let observational = law(problem.graph.node_count, |_| mass);
+    let bindings =
+        problem.actions.iter().chain(&problem.given).map(|&id| (id, 0)).collect::<Vec<_>>();
+    assert!(matches!(
+        stopped.evaluate(observational, &assign(&bindings), ExactEvaluationLimits::default(), &ctx),
+        Err(PagReplayError::Invalid("PAG result is not identified"))
+    ));
     let bytes = stopped.to_bytes().unwrap();
     let replayed =
         consume_pag_identification(&bytes, stopped.identity(), plan.lowered().identity(), &ctx)
@@ -530,21 +468,14 @@ fn retained_search_stop_replays_under_its_original_budget() {
         .is_err()
     );
     let completed = plan.execute_retaining_stop(&ctx).unwrap();
-    assert!(matches!(
-        completed.proof(),
-        PagIdentificationProof::ConditionalObstruction { .. }
-    ));
+    assert!(matches!(completed.proof(), PagIdentificationProof::ConditionalObstruction { .. }));
     assert_ne!(completed.identity(), stopped.identity());
     let mut builder = BundleBuilder::new();
-    builder
-        .add_detected_artifact(Some("stopped"), &bytes)
-        .unwrap();
+    builder.add_detected_artifact(Some("stopped"), &bytes).unwrap();
     let bundle = builder.build().unwrap();
     let encoded = export_bundle(&bundle, "retained-PAG-stop").unwrap();
     assert!(
-        consume(&encoded, bundle.identity(), &SuppliedSources::default())
-            .unwrap()
-            .all_replayed()
+        consume(&encoded, bundle.identity(), &SuppliedSources::default()).unwrap().all_replayed()
     );
 }
 
@@ -571,11 +502,7 @@ fn observationally_equal_two_vertex_models_have_different_do_laws() {
         std::array::from_fn(|i| reversing_binary_world(i / 2, i % 2, None, false));
     assert_eq!(left, right);
     assert!((left.iter().sum::<f64>() - 1.0).abs() < 1e-12);
-    let effect = |world| {
-        (0..2)
-            .map(|x| reversing_binary_world(x, 1, Some(1), world))
-            .sum::<f64>()
-    };
+    let effect = |world| (0..2).map(|x| reversing_binary_world(x, 1, Some(1), world)).sum::<f64>();
     assert_eq!(effect(true), 0.9);
     assert_eq!(effect(false), 0.5);
 
@@ -602,10 +529,7 @@ fn observationally_equal_two_vertex_models_have_different_do_laws() {
     .unwrap()
     .execute(&ExecutionContext::for_tests(1))
     .unwrap();
-    assert!(matches!(
-        identified.proof(),
-        PagIdentificationProof::MarginalObstruction { .. }
-    ));
+    assert!(matches!(identified.proof(), PagIdentificationProof::MarginalObstruction { .. }));
 }
 
 #[test]
@@ -628,11 +552,9 @@ fn retained_depth_stop_is_distinct_from_the_work_budget_and_replays() {
     })
     .unwrap();
     let stopped = plan.execute_retaining_stop(&ctx).unwrap();
-    assert!(
-        matches!(stopped.proof(), PagIdentificationProof::ResourceStop {
+    assert!(matches!(stopped.proof(), PagIdentificationProof::ResourceStop {
         limit: PagResourceStop::Depth, depth_limit: Some(limit), work, work_limit,
-    } if *limit == depth_limit && *work < *work_limit)
-    );
+    } if *limit == depth_limit && *work < *work_limit));
     let replay = consume_pag_identification(
         &stopped.to_bytes().unwrap(),
         stopped.identity(),

@@ -52,6 +52,11 @@ MATRIX_BLOCKS = (
         "<!-- generated:producer-consumer:matrix:end -->",
     ),
     (
+        "rust_cells",
+        "<!-- generated:producer-consumer:rust-cells:begin -->",
+        "<!-- generated:producer-consumer:rust-cells:end -->",
+    ),
+    (
         "refusals",
         "<!-- generated:producer-consumer:refusals:begin -->",
         "<!-- generated:producer-consumer:refusals:end -->",
@@ -132,7 +137,40 @@ def load_matrix() -> dict:
         _cell(row.get("where"), "refusal where")
     if not refusals:
         raise ValueError("producer/consumer matrix has no refusals")
+    _validate_route_cells(data, producer_keys, consumer_keys)
     return data
+
+
+def _validate_route_cells(data: dict, producer_keys: list[str], consumer_keys: list[str]) -> None:
+    keys: dict[str, set[str]] = {"producer": set(producer_keys), "consumer": set(consumer_keys)}
+    for kind, fields in (
+        ("producer", ("object", "built_from")),
+        ("consumer", ("entry", "note")),
+    ):
+        rows = data.get(f"rust_{kind}", [])
+        route_keys = [_cell(row.get("key"), f"native {kind} key") for row in rows]
+        if len(route_keys) != len(set(route_keys)):
+            raise ValueError(f"duplicate native {kind} key")
+        keys[kind].update(route_keys)
+        for row in rows:
+            for field in fields:
+                _cell(row.get(field), f"native {kind} {row['key']} {field}")
+    for row in data.get("rust_cell", []):
+        for kind in keys:
+            if row.get(kind) not in keys[kind]:
+                raise ValueError(f"native cell has undeclared {kind}: {row.get(kind)}")
+        if row.get("status") not in STATUSES:
+            raise ValueError(f"native cell status must be one of {STATUSES}")
+        for field in ("detail", "evidence_test", "evidence_assertion"):
+            _cell(row.get(field), f"native cell {field}")
+        path = ROOT / row["evidence_test"]
+        assertion = row["evidence_assertion"]
+        if path.is_file() and (
+            f"fn {assertion}(" in path.read_text(encoding="utf-8")
+            or f"def {assertion}(" in path.read_text(encoding="utf-8")
+        ):
+            continue
+        raise ValueError(f"native cell has no executing test: {row['evidence_test']}::{assertion}")
 
 
 def render_identity(rows: list[dict]) -> str:
@@ -191,6 +229,21 @@ def render_matrix(data: dict) -> str:
     return _table(header, rows) + "\n\n" + summary
 
 
+def render_route_cells(data: dict) -> str:
+    return _table(
+        ["Producer", "Consumer", "Cell", "Executing test"],
+        [
+            [
+                f"`{row['producer']}`",
+                f"`{row['consumer']}`",
+                f"{row['status']}: {row['detail']}",
+                f"`{row['evidence_test']}::{row['evidence_assertion']}`",
+            ]
+            for row in data.get("rust_cell", [])
+        ],
+    )
+
+
 def render_refusals(data: dict) -> str:
     return _table(
         ["Code", "Detail", "Where"],
@@ -217,6 +270,7 @@ def rendered_pages() -> list[tuple[Path, str]]:
         "producers": render_producers(matrix),
         "consumers": render_consumers(matrix),
         "matrix": render_matrix(matrix),
+        "rust_cells": render_route_cells(matrix),
         "refusals": render_refusals(matrix),
     }
     for name, begin, end in MATRIX_BLOCKS:

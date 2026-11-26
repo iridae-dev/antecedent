@@ -576,9 +576,13 @@ def test_fixed_sampling_bridge_replays_mapped_replicates_and_preserves_law(meani
     prepared = sb.prepare_distribution_bridge(contract(uncertain=False, value_kind=meaning))
     result = require_success(prepared.derive(source, seed=7))
     exported = result.export("fixed-sampling-bridge")
-    replay = require_success(
+    from antecedent import load
+
+    replay = require_success(load(exported.data, expected=exported.expectation)).claim
+    direct = require_success(
         sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
     ).claim
+    assert replay.claim_id == direct.claim_id
     assert replay.value_kind == meaning
     mapped = np.asarray(replay.distribution())
     np.testing.assert_array_equal(mapped[:, 0], 0.5 + 2.0 * np.asarray(source)[:, 0])
