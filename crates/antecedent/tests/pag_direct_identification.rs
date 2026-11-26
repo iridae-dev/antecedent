@@ -106,6 +106,49 @@ fn reference_eq_14(x1: usize, x2: usize, y: &[usize]) -> f64 {
 }
 
 #[test]
+fn shared_budget_preserves_persisted_work_and_result_identities() {
+    // Captured through the public Python compiler before migrating the v1 search meter.
+    let cases = [
+        (
+            "marginal_beyond_adjustment",
+            1_000_000,
+            769,
+            "2effb400c0b6e0419564ba2179bf93ec4c6dc8d0729fac6500641c93398278da",
+        ),
+        (
+            "conditional_exchange",
+            1_000_000,
+            131,
+            "88f2d4d191ec8ad11bdd8e7cfbba7319f08bc5c7823cfbd27527b3fd692538bb",
+        ),
+        (
+            "conditional_obstruction",
+            1_000_000,
+            92,
+            "35e07943512b69bc67caa6db695a3c156d08d4ca2c2659d82a1e8b590b05648e",
+        ),
+        (
+            "conditional_obstruction",
+            2,
+            2,
+            "bf4019ba8457f762e79e382ea6f9406489532be4a3573c7ed24fd0ac4bbd9fea",
+        ),
+    ];
+    for (case, limit, expected_work, retained_identity) in cases {
+        let ctx = ExecutionContext::for_tests(1).with_id_work_limit(limit);
+        let plan = compile_pag_identification(fixture(case)).unwrap();
+        let result = plan.execute_retaining_stop(&ctx).unwrap();
+        assert_eq!(result.work(), expected_work, "{case} with limit {limit}");
+        assert_eq!(result.identity(), retained_identity, "{case} with limit {limit}");
+        let bytes = result.to_bytes().unwrap();
+        let replay =
+            consume_pag_identification(&bytes, retained_identity, plan.lowered().identity(), &ctx)
+                .unwrap();
+        assert_eq!(replay.proof(), result.proof());
+    }
+}
+
+#[test]
 fn published_beyond_adjustment_formula_replays_and_executes() {
     let ctx = ExecutionContext::for_tests(7);
     let problem = fixture("marginal_beyond_adjustment");

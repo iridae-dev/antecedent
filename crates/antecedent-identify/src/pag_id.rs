@@ -9,7 +9,10 @@
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
-use antecedent_core::{ExecutionContext, RegimeId, VariableId};
+use antecedent_core::execution::AdmissionError;
+use antecedent_core::{
+    ExecutionContext, RegimeId, SearchBudget, SearchLimits, SearchReceipt, SearchStop, VariableId,
+};
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
 use antecedent_graph::{DenseNodeId, Endpoint, MiddleMark, NodeRef, Pag};
 
@@ -82,28 +85,52 @@ pub struct PagIdentification {
 }
 
 struct Meter<'a> {
-    ctx: &'a ExecutionContext,
-    spent: u64,
+    budget: SearchBudget<'a>,
+    admitted_bytes: u64,
 }
 
-impl Meter<'_> {
+impl<'a> Meter<'a> {
+    fn new(ctx: &'a ExecutionContext, admitted_bytes: u64) -> Result<Self, PagIdError> {
+        let limits = SearchLimits {
+            operations: usize::try_from(ctx.id_work_limit()).unwrap_or(usize::MAX),
+            // ProgramLimits rejects a visit at max_depth; SearchBudget includes its last level.
+            depth: antecedent_expr::ProgramLimits::default().max_depth - 1,
+        };
+        let budget = SearchBudget::with_memory(limits, admitted_bytes, ctx)
+            .map_err(|receipt| Self::error(&receipt, admitted_bytes))?;
+        Ok(Self { budget, admitted_bytes })
+    }
+
+    fn error(receipt: &SearchReceipt, bytes: u64) -> PagIdError {
+        let work = receipt.operations_consumed.unwrap_or_default() as u64;
+        match receipt.stop {
+            SearchStop::Operations => PagIdError::Budget(work),
+            SearchStop::Depth => PagIdError::Depth { work, limit: receipt.depth_limit + 1 },
+            SearchStop::Cancelled => PagIdError::Cancelled,
+            SearchStop::Memory => PagIdError::Admission(AdmissionError::ExceedsRemainder {
+                requested_threads: 0,
+                requested_bytes: bytes,
+                remaining_threads: 0,
+                remaining_bytes: receipt.memory_limit_bytes.unwrap_or(bytes),
+            }),
+        }
+    }
+
+    fn spent(&self) -> u64 {
+        self.budget.operations() as u64
+    }
+
+    fn stopped(&self, stop: SearchStop) -> PagIdError {
+        Self::error(&self.budget.receipt(stop, Vec::new(), Vec::new()), self.admitted_bytes)
+    }
+
     fn step(&mut self) -> Result<(), PagIdError> {
-        if self.ctx.cancellation.is_cancelled() {
-            return Err(PagIdError::Cancelled);
-        }
-        if self.spent >= self.ctx.id_work_limit() {
-            return Err(PagIdError::Budget(self.spent));
-        }
-        self.spent += 1;
-        Ok(())
+        self.budget.charge(0, self.admitted_bytes).map_err(|stop| self.stopped(stop))
     }
 
     fn depth(&self, depth: usize) -> Result<(), PagIdError> {
-        let limit = antecedent_expr::ProgramLimits::default().max_depth;
-        if depth >= limit {
-            return Err(PagIdError::Depth { work: self.spent, limit });
-        }
-        Ok(())
+        // The visit has already been charged. A depth stop retains that visit in the wire count.
+        self.budget.admits(depth, self.admitted_bytes, 0).map_err(|stop| self.stopped(stop))
     }
 }
 
@@ -609,7 +636,7 @@ pub fn identify_pag_direct(
         .saturating_add(nodes.saturating_mul(nodes).saturating_mul(48))
         .saturating_add(ctx.id_work_limit().min(100_000).saturating_mul(256));
     let _lease = ctx.acquire_serial_numerical_admission(estimate)?;
-    let mut meter = Meter { ctx, spent: 0 };
+    let mut meter = Meter::new(ctx, estimate)?;
     let graph = Graph::new(pag, &mut meter)?;
     let all = all_nodes(pag.node_count())?;
     let mut x = graph.locate(actions)?;
@@ -621,7 +648,7 @@ pub fn identify_pag_direct(
     if !z.is_empty()
         && let Some(stop) = exchange_buckets(&graph, &all, &mut x, &y, &mut z, &mut meter)?
     {
-        return Ok(PagIdentification { result: Err(stop), work: meter.spent });
+        return Ok(PagIdentification { result: Err(stop), work: meter.spent() });
     }
     let target = union(&y, &z);
     let required = graph.ancestors(&target, &difference(&all, &x), &mut meter)?;
@@ -653,7 +680,7 @@ pub fn identify_pag_direct(
         };
         PagFunctional { arena: identify.arena, root, outcomes: graph.labels(&y) }
     });
-    Ok(PagIdentification { result, work: meter.spent })
+    Ok(PagIdentification { result, work: meter.spent() })
 }
 
 #[cfg(test)]
@@ -684,7 +711,7 @@ mod depth_tests {
             open_colliders: Nodes::new(),
         };
         let ctx = ExecutionContext::for_tests(1);
-        let mut meter = Meter { ctx: &ctx, spent: 0 };
+        let mut meter = Meter::new(&ctx, 0).unwrap();
         assert!(matches!(
             search.search(DenseNodeId::from_raw(0), &mut meter),
             Err(PagIdError::Depth { work, limit: actual }) if actual == limit && work < ctx.id_work_limit()
