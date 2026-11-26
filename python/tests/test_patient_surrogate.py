@@ -72,7 +72,10 @@ print(json.dumps([decision.identity, bundle.value("surrogate", "lower"), decisio
 """
     completed = subprocess.run(
         [sys.executable, "-c", small_program, plan.program_identity, result.identity],
-        input=bytes(artifact), capture_output=True, check=True, timeout=30,
+        input=bytes(artifact),
+        capture_output=True,
+        check=True,
+        timeout=30,
     )
     decision = require_success(result.decide(2, 3))
     assert json.loads(completed.stdout) == [decision.identity, 2 / 3, "all_at_or_above"]
@@ -95,6 +98,9 @@ def test_sample_bounds_cannot_be_used_as_a_population_decision_claim() -> None:
     with pytest.raises(CausalTypeError, match="joint patient-level"):
         require_success(compile_patient_surrogate(DESIGN, (0.5, 0.25)))  # type: ignore[arg-type]
     with pytest.raises(PatientSurrogateRefusal, match="complete patient-level joint follow-up"):
-        require_success(compile_patient_surrogate(
-            replace(DESIGN, complete_joint_follow_up=False), sample,
-        ))
+        require_success(
+            compile_patient_surrogate(
+                replace(DESIGN, complete_joint_follow_up=False),
+                sample,
+            )
+        )

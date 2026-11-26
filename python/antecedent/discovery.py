@@ -137,9 +137,9 @@ from .execution import Execution, native_controls
 from .graph import cpdag_oriented_edges, discovery_to_dag
 
 if TYPE_CHECKING:
-    from .rpcmci_portable import LearnedRpcmciArtifact
     from .accepted_graph import AcceptedGraph
     from .graph import Dag
+    from .rpcmci_portable import LearnedRpcmciArtifact
 
 CiSpec = str | Callable[..., Sequence[tuple[float, float]]]
 

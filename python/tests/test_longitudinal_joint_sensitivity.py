@@ -97,7 +97,6 @@ def test_typed_joint_sensitivity_executes_and_replays_with_bound_decision() -> N
     assert impossible.value.detail == "longitudinal_joint_sensitivity.incoherent_box"
 
 
-
 def test_declared_bernoulli_box_has_separate_surface_and_decision_keys() -> None:
     rng = Random(5)
     rows = []
@@ -118,7 +117,9 @@ def test_declared_bernoulli_box_has_separate_surface_and_decision_keys() -> None
         decision_threshold=0.075,
         coverage_design="balanced_binary_bernoulli_v1",
     )
-    fit = require_success(require_success(compile_longitudinal_joint_sensitivity(spec, rows)).execute())
+    fit = require_success(
+        require_success(compile_longitudinal_joint_sensitivity(spec, rows)).execute()
+    )
     surface = fit.calibration
     [extrema] = surface["secondary"]
     for slot, functional in (

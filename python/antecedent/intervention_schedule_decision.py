@@ -8,7 +8,12 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal, TypeVar
 
 from . import _native
-from ._artifact_protocol import ArtifactExpectation, ExportedArtifact, artifact_export, container_bytes
+from ._artifact_protocol import (
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_export,
+    container_bytes,
+)
 from ._refusal import raise_refusal
 from ._unit_support import read_unit_support
 from .composition_bundle import ConsumedBundle
@@ -116,7 +121,9 @@ def _read_decision(encoded: str) -> IntegratedScheduleDecision:
             compatible_optima=tuple(row["compatible_optima"]),
             differences=tuple(
                 ScheduleUtilityDifference(
-                    item["candidate"], item["other"], tuple(item["bounds"]),
+                    item["candidate"],
+                    item["other"],
+                    tuple(item["bounds"]),
                 )
                 for item in row["differences"]
             ),
@@ -212,13 +219,15 @@ def compile_integrated_schedule_decision(
     if any(not isinstance(row, ScheduleSourceSubject) for row in source):
         raise CausalTypeError("source must contain ScheduleSourceSubject rows")
     policy = resolve_execution(execution)
-    handle = _checked(policy._call(
-        _native.integrated_schedule_decision_compile,
-        json.dumps([asdict(subject) for subject in source]),
-        list(target_baseline),
-        json.dumps(asdict(declaration)),
-        **_controls(policy),
-    ))
+    handle = _checked(
+        policy._call(
+            _native.integrated_schedule_decision_compile,
+            json.dumps([asdict(subject) for subject in source]),
+            list(target_baseline),
+            json.dumps(asdict(declaration)),
+            **_controls(policy),
+        )
+    )
     return CompiledIntegratedScheduleDecision(handle, policy)
 
 
@@ -230,9 +239,11 @@ def compile_schedule_decision_bundle(
     execution: Execution | None = None,
 ) -> IntegratedScheduleBundle:
     """Compile and execute the decision in one call."""
-    compiled = require_success(compile_integrated_schedule_decision(
-        source, target_baseline, declaration, execution=execution
-    ))
+    compiled = require_success(
+        compile_integrated_schedule_decision(
+            source, target_baseline, declaration, execution=execution
+        )
+    )
     return require_success(compiled.execute())
 
 
@@ -249,10 +260,12 @@ def consume_schedule_decision_bundle(
             raise CausalTypeError("expected_identity must identify a composition bundle")
         expected = expected.identity
     policy = resolve_execution(execution)
-    encoded = _checked(policy._call(
-        _native.integrated_schedule_decision_consume,
-        container_bytes(data),
-        expected,
-        **_controls(policy),
-    ))
+    encoded = _checked(
+        policy._call(
+            _native.integrated_schedule_decision_consume,
+            container_bytes(data),
+            expected,
+            **_controls(policy),
+        )
+    )
     return _read_decision(encoded)

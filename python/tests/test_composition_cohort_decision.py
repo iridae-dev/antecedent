@@ -175,16 +175,25 @@ def test_compact_model_refits_original_inputs_from_standalone_and_bundle(tmp_pat
     )
     learner = "ols_hc3_treatment_by_basis"
     refitted = cb.refit_compact_model(
-        fit, expected_identity=fit.identity, learner=learner,
-        outcome=outcome, treatment=treatment, features=features,
+        fit,
+        expected_identity=fit.identity,
+        learner=learner,
+        outcome=outcome,
+        treatment=treatment,
+        features=features,
     )
     assert refitted.identity == fit.identity
     assert refitted.evaluate({"z": 0.5}).point == pytest.approx(2.75)
 
     bundle = cb.BundleBuilder().add_artifact(fit, node_id="native-model").build()
     checked = cb.refit_compact_model(
-        bundle, expected_identity=bundle.identity, learner=learner,
-        outcome=outcome, treatment=treatment, features=features, model_node="native-model",
+        bundle,
+        expected_identity=bundle.identity,
+        learner=learner,
+        outcome=outcome,
+        treatment=treatment,
+        features=features,
+        model_node="native-model",
     )
     assert checked.identity == fit.identity
 
@@ -192,7 +201,8 @@ def test_compact_model_refits_original_inputs_from_standalone_and_bundle(tmp_pat
     path.write_bytes(bytes(bundle.export()))
     child = subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             """import json, sys
 from pathlib import Path
 from antecedent.composition_bundle import refit_compact_model
@@ -202,12 +212,20 @@ checked = refit_compact_model(
     model_node="native-model", **inputs,
 )
 print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
-            str(path), bundle.identity,
+            str(path),
+            bundle.identity,
         ],
-        input=json.dumps({
-            "learner": learner, "outcome": outcome, "treatment": treatment, "features": features,
-        }),
-        text=True, capture_output=True, check=True,
+        input=json.dumps(
+            {
+                "learner": learner,
+                "outcome": outcome,
+                "treatment": treatment,
+                "features": features,
+            }
+        ),
+        text=True,
+        capture_output=True,
+        check=True,
     )
     identity, point = json.loads(child.stdout)
     assert identity == fit.identity
@@ -217,14 +235,22 @@ print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
     revised[0], revised[3] = revised[3], revised[0]
     with pytest.raises(cb.CompositionBundleRefusal) as error:
         cb.refit_compact_model(
-            fit, expected_identity=fit.identity, learner=learner,
-            outcome=revised, treatment=treatment, features=features,
+            fit,
+            expected_identity=fit.identity,
+            learner=learner,
+            outcome=revised,
+            treatment=treatment,
+            features=features,
         )
     assert error.value.detail == "composition_bundle.graph_or_snapshot_mismatch"
     with pytest.raises(cb.CompositionBundleRefusal) as error:
         cb.refit_compact_model(
-            fit, expected_identity=fit.identity, learner="another_learner",
-            outcome=outcome, treatment=treatment, features=features,
+            fit,
+            expected_identity=fit.identity,
+            learner="another_learner",
+            outcome=outcome,
+            treatment=treatment,
+            features=features,
         )
     assert error.value.detail == "composition_bundle.provider_request_changed"
 
@@ -234,8 +260,12 @@ print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
     )
     with pytest.raises(cb.CompositionBundleRefusal) as error:
         cb.refit_compact_model(
-            legacy, expected_identity=legacy.identity, learner=learner,
-            outcome=outcome, treatment=treatment, features=features,
+            legacy,
+            expected_identity=legacy.identity,
+            learner=learner,
+            outcome=outcome,
+            treatment=treatment,
+            features=features,
         )
     assert error.value.detail == "composition_bundle.callback_unavailable"
 

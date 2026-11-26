@@ -24,6 +24,7 @@ from statistics import NormalDist
 
 import numpy as np
 import pytest
+from _refusal import assert_registered_refusal
 from antecedent import _reason_details as reason_details
 from antecedent import measurement_models as mm
 from antecedent import propagation_chain as pc
@@ -36,8 +37,6 @@ from antecedent.joint_distribution import (
 )
 from antecedent.outcomes import require_success
 from antecedent.scientific_bridge import ScientificBridgeRefusal
-
-from _refusal import assert_registered_refusal
 
 R = pc.PropagationChainRefusal
 ROWS = 20_000

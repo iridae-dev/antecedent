@@ -2122,15 +2122,20 @@ class _PrepareRoute:
             )
         known = query.known_censoring
         if learner is not None:
-            missing = [name for name in (learner.entry_stratum, learner.censoring_stratum)
-                       if name not in self.names]
+            missing = [
+                name
+                for name in (learner.entry_stratum, learner.censoring_stratum)
+                if name not in self.names
+            ]
             if missing:
-                raise StructuredRefusal({
-                    "code": "route_not_supported",
-                    "detail": reason_details.survival.CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS,
-                    "stage": "prepare",
-                    "message": f"conditional survival identification columns are missing: {missing}",
-                })
+                raise StructuredRefusal(
+                    {
+                        "code": "route_not_supported",
+                        "detail": reason_details.survival.CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS,
+                        "stage": "prepare",
+                        "message": f"conditional survival identification columns are missing: {missing}",
+                    }
+                )
         if known is not None:
             missing = [
                 name for name in (*known.columns, *assumption.variables) if name not in self.names
@@ -2157,9 +2162,14 @@ class _PrepareRoute:
             censoring_times=list(known.times) if known is not None else [],
             censoring_columns=list(known.columns) if known is not None else [],
             censoring_probability_floor=known.minimum_probability if known is not None else None,
-            stratified_censoring=(learner.entry_stratum, learner.censoring_stratum,
-                                  learner.population_weights, learner.minimum_probability)
-            if learner is not None else None,
+            stratified_censoring=(
+                learner.entry_stratum,
+                learner.censoring_stratum,
+                learner.population_weights,
+                learner.minimum_probability,
+            )
+            if learner is not None
+            else None,
             accepted=False,
             **self._common(),
         )
@@ -2308,9 +2318,16 @@ class _PrepareRoute:
             else [],
             known_fixed_outcome_predictions=query.known_fixed_outcome_predictions,
             calibration_design=query.calibration_design,
-            fitted_q=(query.fitted_q.baseline, query.fitted_q.external_training_fold, query.fitted_q.bootstrap_replicates)
-            if query.fitted_q is not None else None,
-            schedule_family=query.schedule_family._wire() if query.schedule_family is not None else None,
+            fitted_q=(
+                query.fitted_q.baseline,
+                query.fitted_q.external_training_fold,
+                query.fitted_q.bootstrap_replicates,
+            )
+            if query.fitted_q is not None
+            else None,
+            schedule_family=query.schedule_family._wire()
+            if query.schedule_family is not None
+            else None,
             stabilizing_numerator_probabilities=list(query.stabilizing_numerator_probabilities)
             if query.stabilizing_numerator_probabilities is not None
             else [],

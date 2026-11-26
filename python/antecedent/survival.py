@@ -153,7 +153,9 @@ class StratifiedCensoringSurvival:
         coerce_fields(self, population_weights=weights)
 
 
-def _validate_stratified_censoring(query: SurvivalOutcome | CompetingRisksOutcome, event: str) -> None:
+def _validate_stratified_censoring(
+    query: SurvivalOutcome | CompetingRisksOutcome, event: str
+) -> None:
     learner = query.stratified_censoring
     if not isinstance(learner, StratifiedCensoringSurvival):
         raise CausalValueError("stratified_censoring must be StratifiedCensoringSurvival")
@@ -163,10 +165,13 @@ def _validate_stratified_censoring(query: SurvivalOutcome | CompetingRisksOutcom
         query.known_censoring is not None
         or not isinstance(assumption, IndependentGiven)
         or tuple(assumption.variables) != strata
-        or any(name in (query.duration, event, query.treatment, query.delayed_entry) for name in strata)
-        or (query.delayed_entry is not None and (
-            not isinstance(query.delayed_entry, str) or not query.delayed_entry.strip()
-        ))
+        or any(
+            name in (query.duration, event, query.treatment, query.delayed_entry) for name in strata
+        )
+        or (
+            query.delayed_entry is not None
+            and (not isinstance(query.delayed_entry, str) or not query.delayed_entry.strip())
+        )
     ):
         raise CausalValueError(
             "conditional survival requires distinct entry and censoring strata and their "

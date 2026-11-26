@@ -474,8 +474,7 @@ def test_four_period_sequential_dr_matches_forward_interval_and_replays(tmp_path
     treatment = [[bool(i & (1 << t)) for t in range(4)] for i in range(n)]
     observation = [[i // 16 % 25 >= 4 or t < i // 16 % 25 for t in range(4)] for i in range(n)]
     q_predictions = [
-        [6.0 + (i % 5 - 2.0) / 16.0 + offset / 64.0 for offset in (-3, -1, 1, 3)]
-        for i in range(n)
+        [6.0 + (i % 5 - 2.0) / 16.0 + offset / 64.0 for offset in (-3, -1, 1, 3)] for i in range(n)
     ]
     outcomes = [2.0 + sum(row) + (i % 11) / 8 - 0.625 for i, row in enumerate(treatment)]
     folds = [i % 5 for i in range(n)]
@@ -495,7 +494,9 @@ def test_four_period_sequential_dr_matches_forward_interval_and_replays(tmp_path
         excluded_fold_predictions=True,
     )
     scores = []
-    for actions, observed, q, y in zip(treatment, observation, q_predictions, outcomes, strict=True):
+    for actions, observed, q, y in zip(
+        treatment, observation, q_predictions, outcomes, strict=True
+    ):
         score = q[0]
         for t in range(4):
             if not (actions[t] and observed[t]):
@@ -517,11 +518,15 @@ def test_four_period_sequential_dr_matches_forward_interval_and_replays(tmp_path
     assert fit.value_interval_95 == pytest.approx([mean - half_width, mean + half_width])
     assert fit.uncertainty == "pointwise_subject_score_conditional_excluded_fold_q_95"
     assert "sequential_q_validity" in " ".join(result.assumptions or [])
-    source = {"outcome": [y if row[-1] else 0.0 for y, row in zip(outcomes, observation, strict=True)]}
+    source = {
+        "outcome": [y if row[-1] else 0.0 for y, row in zip(outcomes, observation, strict=True)]
+    }
     artifact_bytes = bytes(result.export(artifact_id="four-period-dr", source_data=source))
     artifact = require_success(antecedent.load(artifact_bytes))
     payload = artifact.decoded_artifact.to_dict()["payload"]
-    assert payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(fit.value_interval_95)
+    assert payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(
+        fit.value_interval_95
+    )
     assert payload["query"]["longitudinal_regime"]["prediction_fold_ids"] == folds
     assert artifact.program_id == result.program_id
     assert artifact.claim_id == result.claim_id
@@ -563,11 +568,17 @@ print(json.dumps([replayed.decoded_artifact.to_dict()["payload"]["longitudinal_r
         text=True,
     )
     assert json.loads(reopened.stdout) == [
-        payload["longitudinal_regime"], fit.value, fit.value_interval_95[0],
+        payload["longitudinal_regime"],
+        fit.value,
+        fit.value_interval_95[0],
     ]
     revised_data = {"outcome": [y + 1.0 for y in outcomes]}
     revised = require_success(antecedent.analyze(revised_data, query=query))
-    revised_source = {"outcome": [y + 1.0 if row[-1] else 0.0 for y, row in zip(outcomes, observation, strict=True)]}
+    revised_source = {
+        "outcome": [
+            y + 1.0 if row[-1] else 0.0 for y, row in zip(outcomes, observation, strict=True)
+        ]
+    }
     revised_bytes = bytes(revised.export(source_data=revised_source))
     revised_bundle = cb.BundleBuilder().add_artifact(revised_bytes, node_id="regime").build()
     replayed_bundle = require_success(

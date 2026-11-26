@@ -14,7 +14,6 @@ from antecedent import composition_bundle as cb
 from antecedent import pag_identification as pid
 from antecedent.outcomes import require_success
 
-
 CASES = json.loads(
     (Path(__file__).resolve().parents[2] / "conformance" / "pag_direct_reference.json").read_text()
 )
@@ -142,8 +141,12 @@ def test_visible_nonnull_effect_and_retained_search_stop() -> None:
     stopped = require_success(plan.execute(steps=2, retain_resource_stop=True))
     assert stopped.status == "resource_stop"
     assert stopped.proof == {"status": "resource_stop", "limit": "work", "work": 2, "work_limit": 2}
-    consumed = require_success(pid.consume_pag_identification(
-        stopped.export(), expected_result=stopped.identity, expected_program=stopped.program_identity,
-    ))
+    consumed = require_success(
+        pid.consume_pag_identification(
+            stopped.export(),
+            expected_result=stopped.identity,
+            expected_program=stopped.program_identity,
+        )
+    )
     assert consumed.proof == stopped.proof
     assert require_success(plan.execute()).status == "conditional_obstruction"

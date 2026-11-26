@@ -126,11 +126,17 @@ def _run(config: RPCMCI, data: Any, execution: Execution | None) -> LearnedRpcmc
         },
         allow_nan=False,
     )
-    return LearnedRpcmciArtifact(_checked(policy._call(
-        _native.learned_rpcmci_run,
-        request,
-        **native_controls(policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"),
-    )))
+    return LearnedRpcmciArtifact(
+        _checked(
+            policy._call(
+                _native.learned_rpcmci_run,
+                request,
+                **native_controls(
+                    policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"
+                ),
+            )
+        )
+    )
 
 
 @outcome_operation
@@ -147,9 +153,15 @@ def consume_learned_rpcmci(
 ) -> LearnedRpcmciArtifact:
     """Rebuild from the embedded series and seed under the caller's resource controls."""
     policy = resolve_execution(execution)
-    return LearnedRpcmciArtifact(_checked(policy._call(
-        _native.learned_rpcmci_consume,
-        container_bytes(data),
-        expected_identity,
-        **native_controls(policy, threads="threads", cancel="cancel", memory="memory_bytes"),
-    )))
+    return LearnedRpcmciArtifact(
+        _checked(
+            policy._call(
+                _native.learned_rpcmci_consume,
+                container_bytes(data),
+                expected_identity,
+                **native_controls(
+                    policy, threads="threads", cancel="cancel", memory="memory_bytes"
+                ),
+            )
+        )
+    )

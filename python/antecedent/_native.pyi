@@ -14610,13 +14610,20 @@ class LearnedRpcmciHandle:
     def accept_regime(self, regime: int) -> tuple[TemporalCpdag | None, str | None]: ...
 
 def learned_rpcmci_run(
-    request: str, *, seed: int = 1, threads: int | None = None,
-    cancel: CancellationToken | None = None, memory_bytes: int | None = None,
+    request: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[LearnedRpcmciHandle | None, str | None]: ...
-
 def learned_rpcmci_consume(
-    data: bytes, expected_identity: str, *, threads: int | None = None,
-    cancel: CancellationToken | None = None, memory_bytes: int | None = None,
+    data: bytes,
+    expected_identity: str,
+    *,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
 ) -> tuple[LearnedRpcmciHandle | None, str | None]: ...
 
 class LongitudinalJointSensitivityPlanHandle:
@@ -14663,8 +14670,12 @@ class IntegratedSchedulePlanHandle:
     def plan_view_json(self) -> str: ...
     def unit_support(self) -> str | None: ...
     def execute(
-        self, *, seed: int = 1, threads: int | None = None,
-        cancel: CancellationToken | None = None, memory_bytes: int | None = None,
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
     ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
 
 def integrated_schedule_decision_compile(

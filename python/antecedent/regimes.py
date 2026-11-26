@@ -44,10 +44,14 @@ class FittedRegimeQ:
     def __post_init__(self) -> None:
         if not isinstance(self.baseline, str) or not self.baseline.strip():
             raise CausalValueError("fitted Q needs a named binary baseline column")
-        if type(self.bootstrap_replicates) is not int or not 99 <= self.bootstrap_replicates <= 100_000:
+        if (
+            type(self.bootstrap_replicates) is not int
+            or not 99 <= self.bootstrap_replicates <= 100_000
+        ):
             raise CausalValueError("fitted Q needs 99 to 100000 whole-subject bootstrap replicates")
         if self.external_training_fold is not None and (
-            type(self.external_training_fold) is not int or not 0 <= self.external_training_fold < 2**32
+            type(self.external_training_fold) is not int
+            or not 0 <= self.external_training_fold < 2**32
         ):
             raise CausalValueError("external_training_fold must be a nonnegative 32-bit fold ID")
 
@@ -81,8 +85,16 @@ class FixedScheduleContrasts:
         family = _schedule_mask(self.schedules)
         reference = _schedule_code(self.reference)
         contrasts = _schedule_mask(self.contrasts)
-        if family.bit_count() < 2 or not family & (1 << reference) or not contrasts or contrasts & ~family or contrasts & (1 << reference):
-            raise CausalValueError("declare a candidate reference and distinct nonreference contrasts from the class")
+        if (
+            family.bit_count() < 2
+            or not family & (1 << reference)
+            or not contrasts
+            or contrasts & ~family
+            or contrasts & (1 << reference)
+        ):
+            raise CausalValueError(
+                "declare a candidate reference and distinct nonreference contrasts from the class"
+            )
         return family, self.draws, (reference, contrasts), None
 
 
@@ -101,7 +113,11 @@ class LearnedScheduleClass:
 
     def _wire(self) -> tuple[int, int, None, int]:
         family = _schedule_mask(self.schedules)
-        if family.bit_count() < 2 or type(self.training_fold) is not int or not 0 <= self.training_fold < 2**32:
+        if (
+            family.bit_count() < 2
+            or type(self.training_fold) is not int
+            or not 0 <= self.training_fold < 2**32
+        ):
             raise CausalValueError("declare at least two schedules and one training fold")
         return family, self.draws, None, self.training_fold
 
@@ -130,7 +146,15 @@ class LongitudinalRegime:
     actions: Sequence[bool] | Sequence[Sequence[bool]]
     treatment_probabilities: Sequence[Sequence[float]]
     subject_ids: Sequence[str] | str
-    method: Literal["ipw", "g_formula", "fitted_g_formula", "compare_schedules", "learn_schedule", "sequential_dr", "marginal_structural_model"] = "ipw"
+    method: Literal[
+        "ipw",
+        "g_formula",
+        "fitted_g_formula",
+        "compare_schedules",
+        "learn_schedule",
+        "sequential_dr",
+        "marginal_structural_model",
+    ] = "ipw"
     period_outcome_predictions: Sequence[Sequence[float]] | None = None
     known_fixed_outcome_predictions: bool = False
     fitted_q: FittedRegimeQ | None = None
@@ -177,9 +201,13 @@ class LongitudinalRegime:
         if not isinstance(self.outcome, str) or not self.outcome.strip():
             raise CausalValueError("outcome must name a non-empty column")
         if self.calibration_design not in (
-            None, "four_period_sequential_dr", "fitted_q_internal_crossfit",
-            "fitted_q_external_split", "fixed_schedule_family",
-            "learned_schedule_unique_optimum", "learned_schedule_tied_optima",
+            None,
+            "four_period_sequential_dr",
+            "fitted_q_internal_crossfit",
+            "fitted_q_external_split",
+            "fixed_schedule_family",
+            "learned_schedule_unique_optimum",
+            "learned_schedule_tied_optima",
         ):
             raise CausalValueError("unknown longitudinal calibration design")
         covariates = (
@@ -210,18 +238,40 @@ class LongitudinalRegime:
                 raise CausalValueError(
                     "dynamic rule identity is not applicable to marginal_structural_model"
                 )
-        if self.method not in ("ipw", "g_formula", "fitted_g_formula", "compare_schedules", "learn_schedule", "sequential_dr", "marginal_structural_model"):
+        if self.method not in (
+            "ipw",
+            "g_formula",
+            "fitted_g_formula",
+            "compare_schedules",
+            "learn_schedule",
+            "sequential_dr",
+            "marginal_structural_model",
+        ):
             raise CausalValueError("unknown longitudinal method")
         if self.method == "fitted_g_formula":
-            if not isinstance(self.fitted_q, FittedRegimeQ) or self.fitted_q.baseline == self.outcome:
-                raise CausalValueError("fitted_g_formula needs a fitted Q declaration with a distinct baseline")
+            if (
+                not isinstance(self.fitted_q, FittedRegimeQ)
+                or self.fitted_q.baseline == self.outcome
+            ):
+                raise CausalValueError(
+                    "fitted_g_formula needs a fitted Q declaration with a distinct baseline"
+                )
         elif self.fitted_q is not None:
             raise CausalValueError("fitted_q requires fitted_g_formula")
         if self.method in ("compare_schedules", "learn_schedule"):
-            expected = FixedScheduleContrasts if self.method == "compare_schedules" else LearnedScheduleClass
+            expected = (
+                FixedScheduleContrasts
+                if self.method == "compare_schedules"
+                else LearnedScheduleClass
+            )
             if not isinstance(self.schedule_family, expected):
-                raise CausalValueError("schedule_family must match the comparison or learning method")
-            if type(self.schedule_family.draws) is not int or not 199 <= self.schedule_family.draws <= 100_000:
+                raise CausalValueError(
+                    "schedule_family must match the comparison or learning method"
+                )
+            if (
+                type(self.schedule_family.draws) is not int
+                or not 199 <= self.schedule_family.draws <= 100_000
+            ):
                 raise CausalValueError("schedule inference needs 199 to 100000 whole-subject draws")
             self.schedule_family._wire()
         elif self.schedule_family is not None:

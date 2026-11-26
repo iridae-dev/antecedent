@@ -34,7 +34,9 @@ def test_schedule_decision_joint_scope_and_portable_replay(tmp_path: Path) -> No
             assigned = int(8192 * first * second)
             observed = int(assigned * retention[x][code])
             source.extend(
-                ScheduleSourceSubject(bool(x), (code >= 2, bool(code % 2)), value if j < observed else None)
+                ScheduleSourceSubject(
+                    bool(x), (code >= 2, bool(code % 2)), value if j < observed else None
+                )
                 for j in range(assigned)
             )
     target = [False, True, True, True] * 256
@@ -74,7 +76,10 @@ def test_schedule_decision_joint_scope_and_portable_replay(tmp_path: Path) -> No
     assert terminal.facts["optimum_set"] == "0,2,3"
     assert terminal.facts["coverage_scope"] == built.decision.coverage_scope
     assert terminal.facts["calibration_status"] == built.decision.calibration.status
-    assert consume_schedule_decision_bundle(exported, expected_identity=exported.expectation) == built.decision
+    assert (
+        consume_schedule_decision_bundle(exported, expected_identity=exported.expectation)
+        == built.decision
+    )
     artifact = tmp_path / "integrated-schedule.aio"
     artifact.write_bytes(built.data)
     checked = subprocess.run(
@@ -103,7 +108,9 @@ print(json.dumps([result.optimum_set, result.minimum_coverage]))
     assert changed.child_program_identities[1] != target_program
     assert changed.child_program_identities[2] == declaration_program
     assert changed.identity != built.identity
-    assert changed.decision.scenarios[0].point_utilities != built.decision.scenarios[0].point_utilities
+    assert (
+        changed.decision.scenarios[0].point_utilities != built.decision.scenarios[0].point_utilities
+    )
     with pytest.raises(ScheduleDecisionRefusal, match="retained identity") as mismatch:
         consume_schedule_decision_bundle(changed.data, expected_identity=built.identity)
     assert mismatch.value.detail == "integrated_schedule.artifact_refused"
@@ -119,8 +126,13 @@ print(json.dumps([result.optimum_set, result.minimum_coverage]))
 
 def test_missing_joint_evidence_explains_what_to_supply() -> None:
     incomplete = ScheduleDecisionDeclaration(
-        (0, 1), ("both_actions_causal",), (),
+        (0, 1),
+        ("both_actions_causal",),
+        (),
     )
-    with pytest.raises(ScheduleDecisionRefusal, match="both structural alternatives and finite joint preference costs") as missing:
+    with pytest.raises(
+        ScheduleDecisionRefusal,
+        match="both structural alternatives and finite joint preference costs",
+    ) as missing:
         compile_schedule_decision_bundle([], [], incomplete)
     assert missing.value.detail == "integrated_schedule.missing_joint_evidence"

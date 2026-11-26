@@ -866,13 +866,17 @@ class ResultAPI:
         if regime is not None:
             if regime.method == "compare_schedules":
                 count = len(regime.schedule_family.contrasts)
-                return (f"Simultaneous 95% intervals for {count} prespecified schedule contrasts "
-                        "using paired subject scores and common multipliers.")
+                return (
+                    f"Simultaneous 95% intervals for {count} prespecified schedule contrasts "
+                    "using paired subject scores and common multipliers."
+                )
             if regime.method == "learn_schedule":
                 choice = regime.schedule_family.learning
-                return (f"Schedule {choice.selected_schedule} was selected on the training fold. "
-                        f"Held-out regime value {regime.value:g}. "
-                        f"Compatible optimum schedules: {', '.join(map(str, choice.optimum_set))}.")
+                return (
+                    f"Schedule {choice.selected_schedule} was selected on the training fold. "
+                    f"Held-out regime value {regime.value:g}. "
+                    f"Compatible optimum schedules: {', '.join(map(str, choice.optimum_set))}."
+                )
             if regime.method == "marginal_structural_model":
                 effects = ", ".join(f"{effect:g}" for effect in (regime.period_effects or ()))
                 interval = regime.value_interval_95

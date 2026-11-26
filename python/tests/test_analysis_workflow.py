@@ -7,9 +7,8 @@ import json
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent.outcomes import require_success
-
 from _loaded_results import assert_answer_kept, assert_refutation_replay_withheld
+from antecedent.outcomes import require_success
 
 
 def sample(seed=7):

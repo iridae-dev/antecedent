@@ -68,8 +68,9 @@ def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bo
     query = LongitudinalRegime(
         outcome="outcome",
         method="fitted_g_formula",
-        fitted_q=FittedRegimeQ("baseline", bootstrap_replicates=199,
-                              external_training_fold=0 if external else None),
+        fitted_q=FittedRegimeQ(
+            "baseline", bootstrap_replicates=199, external_training_fold=0 if external else None
+        ),
         treatment_history=treatment,
         actions=[True, True],
         treatment_probabilities=[[0.5] * 2] * n,
@@ -80,8 +81,11 @@ def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bo
     for i in range(n):
         if external and folds[i] == 0:
             continue
-        training = [outcomes[j] for j in range(n) if folds[j] != folds[i]
-                    and all(treatment[j]) and baseline[j] == baseline[i]]
+        training = [
+            outcomes[j]
+            for j in range(n)
+            if folds[j] != folds[i] and all(treatment[j]) and baseline[j] == baseline[i]
+        ]
         predictions.append(sum(training) / len(training))
     result = require_success(ant.analyze(data, query=query))
     value = result.longitudinal_regime
@@ -94,15 +98,19 @@ def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bo
     sourced = bytes(result.export(source_data=data))
     artifact = require_success(ant.load(sourced)).replay()
     assert artifact.acceptance.replayed
-    assert artifact.decoded_artifact.payload["longitudinal_regime"]["value_interval_95"] == pytest.approx(
-        value.value_interval_95
-    )
+    assert artifact.decoded_artifact.payload["longitudinal_regime"][
+        "value_interval_95"
+    ] == pytest.approx(value.value_interval_95)
     bundle = cb.BundleBuilder().add_artifact(sourced, node_id="regime").build()
-    consumed = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     assert consumed.value("regime", "upper_95") == value.value_interval_95[1]
 
-    revised_data = {"outcome": [y + 1000.0 * fold for y, fold in zip(outcomes, folds, strict=True)],
-                    "baseline": baseline}
+    revised_data = {
+        "outcome": [y + 1000.0 * fold for y, fold in zip(outcomes, folds, strict=True)],
+        "baseline": baseline,
+    }
     revised = require_success(ant.analyze(revised_data, query=query)).longitudinal_regime
     if external:
         assert revised.value == value.value
@@ -115,13 +123,20 @@ def test_fitted_two_period_q_bootstraps_declared_subject_partitions(external: bo
         "baseline": baseline,
     }
     changed = require_success(ant.analyze(changed_data, query=query))
-    changed_bundle = cb.BundleBuilder().add_artifact(
-        bytes(changed.export(source_data=changed_data)), node_id="regime",
-    ).build()
+    changed_bundle = (
+        cb.BundleBuilder()
+        .add_artifact(
+            bytes(changed.export(source_data=changed_data)),
+            node_id="regime",
+        )
+        .build()
+    )
     assert changed_bundle.identity != bundle.identity
     changed_bytes = bytes(changed_bundle.export())
     with pytest.raises(cb.ExpectedIdentityMismatchRefusal):
         require_success(cb.consume_bundle(changed_bytes, expected_identity=bundle.identity))
-    verified = require_success(cb.consume_bundle(changed_bytes, expected_identity=changed_bundle.identity))
+    verified = require_success(
+        cb.consume_bundle(changed_bytes, expected_identity=changed_bundle.identity)
+    )
     assert verified.value("regime", "regime_value") > value.value
     assert verified.value("regime", "upper_95") == changed.longitudinal_regime.value_interval_95[1]

@@ -50,8 +50,13 @@ from .quasi import (
     SyntheticControlEstimate,
     SyntheticDifferenceInDifferencesEstimate,
 )
-from .regimes import (LongitudinalRegimeEstimate, LongitudinalScheduleResult, ScheduleContrast,
-                      ScheduleLearningResult, SequentialContrastEstimate)
+from .regimes import (
+    LongitudinalRegimeEstimate,
+    LongitudinalScheduleResult,
+    ScheduleContrast,
+    ScheduleLearningResult,
+    SequentialContrastEstimate,
+)
 from .results import (
     AnalysisResult,
     ConflictSummaryView,
@@ -843,7 +848,10 @@ def _survival_from_raw(
     control = tuple(section.control)
     treated = tuple(section.treated)
     fixed_g = getattr(query, "known_censoring", None) is not None
-    fitted_g = section.censoring_survival_provenance == "same_subject_stratified_reverse_product_limit_refit"
+    fitted_g = (
+        section.censoring_survival_provenance
+        == "same_subject_stratified_reverse_product_limit_refit"
+    )
     has_interval = section.difference_at_tau_interval is not None
     native_band = section.difference_band
     # The band support is the sixth tuple element on builds that carry it; older
@@ -1070,14 +1078,23 @@ def _longitudinal_regime_from_raw(raw: Any) -> LongitudinalRegimeEstimate | None
         learning = family.get("learning")
         schedule_family = LongitudinalScheduleResult(
             values=tuple(map(tuple, family["values"])),
-            contrasts=tuple(ScheduleContrast(
-                schedule=row["schedule"], reference=row["reference"], difference=row["difference"],
-                standard_error=row["standard_error"], interval=tuple(row["interval"]),
-            ) for row in family["contrasts"]),
+            contrasts=tuple(
+                ScheduleContrast(
+                    schedule=row["schedule"],
+                    reference=row["reference"],
+                    difference=row["difference"],
+                    standard_error=row["standard_error"],
+                    interval=tuple(row["interval"]),
+                )
+                for row in family["contrasts"]
+            ),
             critical_value=family["critical_value"],
             evaluation_subjects=family["evaluation_subjects"],
-            learning=None if learning is None else ScheduleLearningResult(
-                selected_schedule=learning["selected_schedule"], optimum_set=tuple(learning["optimum_set"]),
+            learning=None
+            if learning is None
+            else ScheduleLearningResult(
+                selected_schedule=learning["selected_schedule"],
+                optimum_set=tuple(learning["optimum_set"]),
                 refit_selections=tuple(map(tuple, learning["refit_selections"])),
                 refit_value_sd=learning["refit_value_sd"],
             ),

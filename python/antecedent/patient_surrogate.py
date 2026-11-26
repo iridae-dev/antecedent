@@ -191,9 +191,7 @@ class PatientSurrogateResult(ScientificResult):
 class CompiledPatientSurrogate:
     """An inspectable causal program over named patient-level endpoint evidence."""
 
-    def __init__(
-        self, handle: _native.PatientSurrogatePlanHandle, execution: Execution
-    ) -> None:
+    def __init__(self, handle: _native.PatientSurrogatePlanHandle, execution: Execution) -> None:
         self._handle = handle
         self._execution = execution
 
@@ -223,7 +221,9 @@ class CompiledPatientSurrogate:
     ) -> ExportedArtifact[PatientSurrogateResult]:
         """Retain the joint evidence and both identities needed to verify its result."""
         policy = resolve_execution(execution) if execution is not None else self._execution
-        data, identity = _checked(policy._call(self._handle.export, artifact_id, **_controls(policy)))
+        data, identity = _checked(
+            policy._call(self._handle.export, artifact_id, **_controls(policy))
+        )
         kind = "patient_surrogate_identification_v1"
         return ExportedArtifact(
             bytes(data),
@@ -276,8 +276,13 @@ def consume_patient_surrogate(
 ) -> PatientSurrogateResult:
     """Replay a portable patient-surrogate result under independently retained identities."""
     policy = resolve_execution(execution)
-    result = _checked(policy._call(
-        _native.patient_surrogate_consume, container_bytes(artifact), expected_program,
-        expected_result, **_controls(policy),
-    ))
+    result = _checked(
+        policy._call(
+            _native.patient_surrogate_consume,
+            container_bytes(artifact),
+            expected_program,
+            expected_result,
+            **_controls(policy),
+        )
+    )
     return PatientSurrogateResult(result, expected_program)

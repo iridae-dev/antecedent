@@ -48,6 +48,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
 from antecedent import _reason_details
 
 from . import _deprecation, _native, _retained

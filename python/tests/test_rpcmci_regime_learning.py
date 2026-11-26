@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
 from antecedent import Execution
 from antecedent.discovery import RPCMCI
 from antecedent.errors import CausalValueError
@@ -74,9 +73,9 @@ def test_rpcmci_bic_prefers_a_single_regime_with_weak_departure_and_skips_short_
 
 def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(tmp_path):
     import json
-    from pathlib import Path
     import subprocess
     import sys
+    from pathlib import Path
 
     from antecedent import ResourceLimits
     from antecedent import composition_bundle as cb
@@ -84,9 +83,14 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     from antecedent.rpcmci_portable import LearnedRpcmciRefusal, consume_learned_rpcmci
 
     fixture = json.loads(
-        (Path(__file__).resolve().parents[2] / "conformance/discovery/rpcmci_shared_portable.json").read_text()
+        (
+            Path(__file__).resolve().parents[2]
+            / "conformance/discovery/rpcmci_shared_portable.json"
+        ).read_text()
     )
-    config = RPCMCI(n_regimes=2, min_regime_len=48, starts=4, alpha=0.01, fdr=False, switch_penalty=18.0)
+    config = RPCMCI(
+        n_regimes=2, min_regime_len=48, starts=4, alpha=0.01, fdr=False, switch_penalty=18.0
+    )
     series = dict(zip(fixture["names"], fixture["columns"], strict=True))
     policy = Execution(seed=fixture["seed"], threads=1)
     fit = config.run_portable(series, execution=policy)
@@ -105,7 +109,12 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     assert _lagged_link(raw.marked_edges[first])
     assert not _lagged_link(raw.marked_edges[second])
     assert ("y", 1, "tail", "x", 0, "arrow") in raw.marked_edges[second] or (
-        "x", 0, "arrow", "y", 1, "tail"
+        "x",
+        0,
+        "arrow",
+        "y",
+        1,
+        "tail",
     ) in raw.marked_edges[second]
     assert require_success(fit.accept_regime(int(first))).algorithm_id == "rpcmci"
     assert require_success(fit.accept_regime(int(second))).algorithm_id == "rpcmci"
@@ -124,13 +133,16 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
         assert scope.lookback == 2
         assert scope.assigned_rows == tuple(i for i, value in enumerate(labels) if value == regime)
         assert scope.window_end_rows == tuple(
-            i for i in range(2, len(labels))
+            i
+            for i in range(2, len(labels))
             if labels[i] == labels[i - 1] == labels[i - 2] == regime
         )
         assert len(scope.window_end_rows) < len(scope.assigned_rows)
 
     bundle = cb.Bundle.builder().add_artifact(fit).build()
-    verified = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+    verified = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     assert verified.all_replayed
     path = tmp_path / "learned-rpcmci.bin"
     from antecedent import load
@@ -146,7 +158,8 @@ def test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph(
     path.write_bytes(bytes(artifact))
     fresh = subprocess.run(
         [
-            sys.executable, "-c",
+            sys.executable,
+            "-c",
             """
 import json
 from pathlib import Path
@@ -156,13 +169,19 @@ from antecedent.rpcmci_portable import consume_learned_rpcmci
 result = require_success(consume_learned_rpcmci(Path(sys.argv[1]).read_bytes(), expected_identity=sys.argv[2]))
 print(json.dumps(result.report))
 """,
-            str(path), fit.identity,
+            str(path),
+            fit.identity,
         ],
-        check=True, capture_output=True, text=True,
+        check=True,
+        capture_output=True,
+        text=True,
     )
     assert json.loads(fresh.stdout) == report
     with pytest.raises(LearnedRpcmciRefusal, match="resource"):
-        require_success(consume_learned_rpcmci(
-            fit.export(), expected_identity=fit.identity,
-            execution=Execution(limits=ResourceLimits(memory_bytes=1024)),
-        ))
+        require_success(
+            consume_learned_rpcmci(
+                fit.export(),
+                expected_identity=fit.identity,
+                execution=Execution(limits=ResourceLimits(memory_bytes=1024)),
+            )
+        )

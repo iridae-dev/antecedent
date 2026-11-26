@@ -9,7 +9,6 @@ from antecedent import composition_bundle as cb
 from antecedent.outcomes import require_success
 from antecedent.regimes import FixedScheduleContrasts, LearnedScheduleClass, LongitudinalRegime
 
-
 SCHEDULES = ((False, False), (False, True), (True, False), (True, True))
 
 
@@ -17,8 +16,7 @@ def _study(means, specification, *, remove_matches=False):
     subjects = 800
     training = isinstance(specification, LearnedScheduleClass)
     original_rows = [
-        i // 8 * 8 + (i % 2) * 4 + i // 2 % 4 if training else i
-        for i in range(subjects)
+        i // 8 * 8 + (i % 2) * 4 + i // 2 % 4 if training else i for i in range(subjects)
     ]
     query = LongitudinalRegime(
         outcome="outcome",
@@ -38,56 +36,85 @@ def _study(means, specification, *, remove_matches=False):
 
 
 def test_paired_longitudinal_comparisons_replay_and_bind_the_class():
-    data, query = _study((1.0, 2.0, 3.0, 10.0), FixedScheduleContrasts(
-        SCHEDULES, SCHEDULES[0], (SCHEDULES[1], SCHEDULES[3]), draws=199,
-    ))
+    data, query = _study(
+        (1.0, 2.0, 3.0, 10.0),
+        FixedScheduleContrasts(
+            SCHEDULES,
+            SCHEDULES[0],
+            (SCHEDULES[1], SCHEDULES[3]),
+            draws=199,
+        ),
+    )
     prepared = ant.prepare(data, query=query)
     result = require_success(prepared.estimate())
     family = result.longitudinal_regime.schedule_family
     assert [contrast.difference for contrast in family.contrasts] == pytest.approx([1.0, 9.0])
     for contrast in family.contrasts:
         span = family.critical_value * contrast.standard_error
-        assert contrast.interval == pytest.approx((contrast.difference - span, contrast.difference + span))
+        assert contrast.interval == pytest.approx(
+            (contrast.difference - span, contrast.difference + span)
+        )
     sourced = bytes(result.export(source_data=data))
     artifact = require_success(ant.load(sourced)).replay()
     assert artifact.acceptance.replayed
     bundle = cb.BundleBuilder().add_artifact(sourced, node_id="regimes").build()
-    consumed = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+    consumed = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     assert consumed.value("regimes", "schedule.3.versus.0.difference") == pytest.approx(9.0)
     assert result.calibration.functional is None
     assert result.calibration.status == "not_measured"
 
-    full_data, full_query = _study((1.0, 2.0, 3.0, 10.0), FixedScheduleContrasts(
-        SCHEDULES, SCHEDULES[0], SCHEDULES[1:], draws=199,
-    ))
+    full_data, full_query = _study(
+        (1.0, 2.0, 3.0, 10.0),
+        FixedScheduleContrasts(
+            SCHEDULES,
+            SCHEDULES[0],
+            SCHEDULES[1:],
+            draws=199,
+        ),
+    )
     measured = require_success(ant.analyze(full_data, query=full_query))
     assert measured.calibration.functional is None
     assert measured.calibration.status == "not_measured"
     assert not measured.calibration.secondary
 
-    revised_data = {
-        "outcome": [y + 4.0 * (i % 4 == 3) for i, y in enumerate(data["outcome"])]
-    }
+    revised_data = {"outcome": [y + 4.0 * (i % 4 == 3) for i, y in enumerate(data["outcome"])]}
     revised = require_success(ant.analyze(revised_data, query=query))
-    revised_bundle = cb.BundleBuilder().add_artifact(
-        bytes(revised.export(source_data=revised_data)), node_id="regimes",
-    ).build()
+    revised_bundle = (
+        cb.BundleBuilder()
+        .add_artifact(
+            bytes(revised.export(source_data=revised_data)),
+            node_id="regimes",
+        )
+        .build()
+    )
     revised_bytes = bytes(revised_bundle.export())
     with pytest.raises(cb.ExpectedIdentityMismatchRefusal):
         require_success(cb.consume_bundle(revised_bytes, expected_identity=bundle.identity))
-    verified = require_success(cb.consume_bundle(revised_bytes, expected_identity=revised_bundle.identity))
+    verified = require_success(
+        cb.consume_bundle(revised_bytes, expected_identity=revised_bundle.identity)
+    )
     assert verified.value("regimes", "schedule.3.versus.0.difference") == pytest.approx(13.0)
-    _, smaller = _study((1.0, 2.0, 3.0, 10.0), FixedScheduleContrasts(
-        (SCHEDULES[0], SCHEDULES[1], SCHEDULES[3]), SCHEDULES[0],
-        (SCHEDULES[1], SCHEDULES[3]), draws=199,
-    ))
+    _, smaller = _study(
+        (1.0, 2.0, 3.0, 10.0),
+        FixedScheduleContrasts(
+            (SCHEDULES[0], SCHEDULES[1], SCHEDULES[3]),
+            SCHEDULES[0],
+            (SCHEDULES[1], SCHEDULES[3]),
+            draws=199,
+        ),
+    )
     assert ant.prepare(data, query=smaller).plan_view().identity != prepared.plan_view().identity
 
 
-@pytest.mark.parametrize("means,selected,optima", [
-    ((1.0, 2.0, 3.0, 10.0), 3, (3,)),
-    ((1.0, 2.0, 10.0, 10.0), 2, (2, 3)),
-])
+@pytest.mark.parametrize(
+    "means,selected,optima",
+    [
+        ((1.0, 2.0, 3.0, 10.0), 3, (3,)),
+        ((1.0, 2.0, 10.0, 10.0), 2, (2, 3)),
+    ],
+)
 def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selected, optima):
     declaration = LearnedScheduleClass(SCHEDULES, training_fold=0, draws=199)
     data, query = _study(means, declaration)
@@ -105,30 +132,42 @@ def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selec
     source = bytes(result.export(source_data=data))
     artifact = require_success(ant.load(source)).replay()
     assert artifact.acceptance.replayed
-    replayed_learning = artifact.decoded_artifact.payload["longitudinal_regime"]["schedule_family"]["learning"]
+    replayed_learning = artifact.decoded_artifact.payload["longitudinal_regime"]["schedule_family"][
+        "learning"
+    ]
     assert replayed_learning["optimum_set"] == optima
     bundle = cb.BundleBuilder().add_artifact(source, node_id="learned").build()
-    verified = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+    verified = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
     assert verified.node("learned").facts["optimum_set.calibration"] == "not_measured"
     assert "optimum_set.calibration_functional" not in verified.node("learned").facts
     assert verified.node("learned").facts["optimum_set"] == ",".join(map(str, optima))
 
     changed_data = {
-        "outcome": [y + 20.0 * (i % 2 == 0 and i // 2 % 4 == 0) for i, y in enumerate(data["outcome"])]
+        "outcome": [
+            y + 20.0 * (i % 2 == 0 and i // 2 % 4 == 0) for i, y in enumerate(data["outcome"])
+        ]
     }
     changed = require_success(ant.analyze(changed_data, query=query))
     changed_result = changed.longitudinal_regime.schedule_family.learning
     assert changed_result.selected_schedule == 0
     assert changed_result.optimum_set == optima
-    replacement = cb.BundleBuilder().add_artifact(
-        bytes(changed.export(source_data=changed_data)), node_id="learned",
-    ).build()
+    replacement = (
+        cb.BundleBuilder()
+        .add_artifact(
+            bytes(changed.export(source_data=changed_data)),
+            node_id="learned",
+        )
+        .build()
+    )
     new_bytes = bytes(replacement.export())
     with pytest.raises(cb.ExpectedIdentityMismatchRefusal):
         require_success(cb.consume_bundle(new_bytes, expected_identity=bundle.identity))
     replayed = require_success(cb.consume_bundle(new_bytes, expected_identity=replacement.identity))
     assert replayed.value("learned", "selected_schedule") == 0.0
     assert replayed.node("learned").facts["optimum_set"] == ",".join(map(str, optima))
+
 
 @pytest.mark.parametrize(
     "design,means,suffix",

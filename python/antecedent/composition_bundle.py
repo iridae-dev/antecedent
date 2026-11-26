@@ -1639,6 +1639,7 @@ def refit_compact_model(
     identity, data = result
     return _read_refitted_model(identity, data)
 
+
 def cohort_decision(
     contract: Contract,
     source: CohortDecisionSource,

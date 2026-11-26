@@ -13,13 +13,12 @@ import subprocess
 import sys
 
 import pytest
+from _refusal import assert_registered_refusal
 from antecedent import _reason_details as reason_details
 from antecedent import interface_contract as ic
 from antecedent.errors import CausalTypeError, CausalValueError
 from antecedent.interface_contract import InterfaceContractRefusal
 from antecedent.joint_distribution import ScientificQuantity
-
-from _refusal import assert_registered_refusal
 
 VALIDATOR = pathlib.Path(__file__).resolve().parents[2] / "spec" / "consumer" / "validate.py"
 MODEL = "ab" * 32

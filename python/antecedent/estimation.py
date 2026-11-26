@@ -930,7 +930,11 @@ def _longitudinal_regime_payload(
     covariate_names = tuple(query.covariates)
     if query.fitted_q is not None and query.fitted_q.baseline not in covariate_names:
         covariate_names += (query.fitted_q.baseline,)
-    covariates = read_columns(data, covariate_names, what="longitudinal covariate") if covariate_names else {}
+    covariates = (
+        read_columns(data, covariate_names, what="longitudinal covariate")
+        if covariate_names
+        else {}
+    )
     if len(outcome) != len(query.subject_ids):
         raise CausalValueError("longitudinal outcome rows must align with subject histories")
     if query.method in ("sequential_dr", "marginal_structural_model"):

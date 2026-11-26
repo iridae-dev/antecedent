@@ -90,11 +90,13 @@ class DirectPagResult(ScientificResult):
         return dict(json.loads(self._handle.proof_json()))
 
     @property
-    def status(self) -> Literal["identified", "marginal_obstruction", "conditional_obstruction", "resource_stop"]:
+    def status(
+        self,
+    ) -> Literal["identified", "marginal_obstruction", "conditional_obstruction", "resource_stop"]:
         """The scientific conclusion or an explicitly retained deterministic resource stop."""
-        status: Literal["identified", "marginal_obstruction", "conditional_obstruction", "resource_stop"] = (
-            self.proof["status"]
-        )
+        status: Literal[
+            "identified", "marginal_obstruction", "conditional_obstruction", "resource_stop"
+        ] = self.proof["status"]
         return status
 
     @artifact_export
@@ -102,7 +104,11 @@ class DirectPagResult(ScientificResult):
         """Export the graph, query and result for independent symbolic replay."""
         kind = "pag_identification_v1"
         return ExportedArtifact(
-            self._handle.export(), kind, ArtifactExpectation(kind, {"expected_program": self.program_identity, "expected_result": self.identity})
+            self._handle.export(),
+            kind,
+            ArtifactExpectation(
+                kind, {"expected_program": self.program_identity, "expected_result": self.identity}
+            ),
         )
 
     @outcome_operation
@@ -161,15 +167,20 @@ class CompiledPagIdentification:
 
     @outcome_operation
     def execute(
-        self, *, steps: int = _DEFAULT_STEPS, retain_resource_stop: bool = False,
-        execution: Execution | None = None
+        self,
+        *,
+        steps: int = _DEFAULT_STEPS,
+        retain_resource_stop: bool = False,
+        execution: Execution | None = None,
     ) -> DirectPagResult:
         """Run bounded identification, optionally retaining a reproducible limit stop."""
         policy = resolve_execution(execution)
         result = _checked(
             policy._call(
-                self._handle.execute, steps=count(steps, "steps", minimum=0),
-                retain_resource_stop=retain_resource_stop, **_controls(policy)
+                self._handle.execute,
+                steps=count(steps, "steps", minimum=0),
+                retain_resource_stop=retain_resource_stop,
+                **_controls(policy),
             )
         )
         return DirectPagResult(result, self.program_identity)

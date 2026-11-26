@@ -178,7 +178,9 @@ print(json.dumps(dict(loaded.decoded_artifact.payload["survival"])))
     assert curve["minimum_horizon_risk_set"] == expected_risk
     assert curve["tau"] == query.tau
     assert curve["graphless_support_status"] == "supported"
-    assert curve["difference_at_tau_interval"] == pytest.approx(section.incidence_difference_interval)
+    assert curve["difference_at_tau_interval"] == pytest.approx(
+        section.incidence_difference_interval
+    )
 
 
 @pytest.mark.parametrize("fixed_known", [False, True])
@@ -200,7 +202,8 @@ def test_delayed_entry_band_replays_in_a_bundle(fixed_known: bool, incidence: bo
     )
     known = (
         KnownCensoringSurvival((0.0, 1.0, 2.0, 3.0), ("g0", "g1", "g2", "g3"), 0.05)
-        if fixed_known else None
+        if fixed_known
+        else None
     )
     observation = {
         "randomized": True,
@@ -210,11 +213,16 @@ def test_delayed_entry_band_replays_in_a_bundle(fixed_known: bool, incidence: bo
     }
     query = (
         CompetingRisksOutcome("duration", "event", "treatment", 1, 3.0, **observation)
-        if incidence else SurvivalOutcome("duration", "event", "treatment", 3.0, **observation)
+        if incidence
+        else SurvivalOutcome("duration", "event", "treatment", 3.0, **observation)
     )
     result = require_success(
-        ant.analyze(data, query=query, inference=ant.Frequentist(bootstrap=399),
-                    execution=ant.Execution(seed=5_167))
+        ant.analyze(
+            data,
+            query=query,
+            inference=ant.Frequentist(bootstrap=399),
+            execution=ant.Execution(seed=5_167),
+        )
     )
     section = result.survival
     band = section.difference_band
@@ -239,8 +247,11 @@ print(json.dumps([consumed.value("band", key) for key in (
 )]))
 """
     printed = subprocess.run(
-        [sys.executable, "-c", reader], input=bytes(result.export(source_data=data)),
-        capture_output=True, check=True, timeout=30,
+        [sys.executable, "-c", reader],
+        input=bytes(result.export(source_data=data)),
+        capture_output=True,
+        check=True,
+        timeout=30,
     )
     assert json.loads(printed.stdout) == pytest.approx([3.0, band.lower[-1], max(band.upper)])
 
@@ -262,35 +273,55 @@ def test_fitted_censoring_arrays_cannot_enter_delayed_entry_incidence_support() 
 
 def test_conditional_censoring_refits_the_pre_entry_population_in_a_bundle() -> None:
     # Exact finite product law shared with the Rust fixture.
-    events = ((((2, 1), (3, 2)), ((1, 1), (2, 1))),
-              (((1, 1), (2, 1)), ((2, 2), (4, 2))))
+    events = ((((2, 1), (3, 2)), ((1, 1), (2, 1))), (((1, 1), (2, 1)), ((2, 2), (4, 2))))
     rows = []
     for arm in range(2):
         for left in range(2):
             for censor in range(2):
                 early, later = events[arm][left][censor]
                 for event_draw in range(8):
-                    event_time = 1.0 if event_draw < early else 2.0 if event_draw < early + later else 3.0
+                    event_time = (
+                        1.0 if event_draw < early else 2.0 if event_draw < early + later else 3.0
+                    )
                     for entry_draw in range(8):
                         entry_time = float(entry_draw < (1, 6)[left])
                         for censor_draw in range(8):
                             censor_time = 1.5 if censor_draw < (1, 3)[censor] else 3.0
                             exit_time = min(event_time, censor_time)
                             if entry_time < exit_time:
-                                rows.append((exit_time, float(event_time < 3.0 and event_time <= censor_time),
-                                             float(arm), entry_time, float(left), float(censor)))
-    data = pd.DataFrame(rows, columns=("duration", "event", "treatment", "entry", "entry_history", "censor_history"))
+                                rows.append(
+                                    (
+                                        exit_time,
+                                        float(event_time < 3.0 and event_time <= censor_time),
+                                        float(arm),
+                                        entry_time,
+                                        float(left),
+                                        float(censor),
+                                    )
+                                )
+    data = pd.DataFrame(
+        rows, columns=("duration", "event", "treatment", "entry", "entry_history", "censor_history")
+    )
     learner = StratifiedCensoringSurvival("entry_history", "censor_history", (0.5, 0.5))
     assumption = IndependentGiven(("entry_history", "censor_history"))
-    query = SurvivalOutcome("duration", "event", "treatment", 3.0, randomized=True,
-                            delayed_entry="entry", observation_assumption=assumption,
-                            stratified_censoring=learner)
+    query = SurvivalOutcome(
+        "duration",
+        "event",
+        "treatment",
+        3.0,
+        randomized=True,
+        delayed_entry="entry",
+        observation_assumption=assumption,
+        stratified_censoring=learner,
+    )
     inference = ant.Frequentist(bootstrap=399)
     context = ant.Execution(seed=9_732)
     result = require_success(ant.analyze(data, query=query, inference=inference, execution=context))
     curve = result.survival
     band = curve.difference_band
-    assert curve.censoring_survival_provenance == "same_subject_stratified_reverse_product_limit_refit"
+    assert (
+        curve.censoring_survival_provenance == "same_subject_stratified_reverse_product_limit_refit"
+    )
     assert curve.support_status == "supported_simultaneous_band"
     assert "fixed_pre_entry_source_population" in curve.assumptions
     assert band.times == (0.0, 1.0, 2.0, 3.0)
@@ -309,19 +340,36 @@ consumed.require_verified()
 print(json.dumps(consumed.value("fit", "horizon_lower_95")))
 """
     printed = subprocess.run(
-        [sys.executable, "-c", replay], input=bytes(result.export(source_data=data)),
-        capture_output=True, check=True, timeout=30,
+        [sys.executable, "-c", replay],
+        input=bytes(result.export(source_data=data)),
+        capture_output=True,
+        check=True,
+        timeout=30,
     )
     assert json.loads(printed.stdout) == pytest.approx(band.lower[-1])
 
     with pytest.raises(CausalValueError, match="conditional delayed entry"):
-        SurvivalOutcome("duration", "event", "treatment", 3.0, randomized=True,
-                        delayed_entry="entry", observation_assumption=assumption)
+        SurvivalOutcome(
+            "duration",
+            "event",
+            "treatment",
+            3.0,
+            randomized=True,
+            delayed_entry="entry",
+            observation_assumption=assumption,
+        )
     with pytest.raises(StructuredRefusal) as missing:
-        require_success(ant.analyze(data.drop(columns="censor_history"), query=query, inference=inference))
-    assert missing.value.detail == reason_details.survival.CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS
+        require_success(
+            ant.analyze(data.drop(columns="censor_history"), query=query, inference=inference)
+        )
+    assert (
+        missing.value.detail
+        == reason_details.survival.CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS
+    )
     revised = data.copy()
-    revised.loc[(revised["treatment"] == 1.0) & (revised["entry_history"] == 1.0), "censor_history"] = 0.0
+    revised.loc[
+        (revised["treatment"] == 1.0) & (revised["entry_history"] == 1.0), "censor_history"
+    ] = 0.0
     with pytest.raises(Exception, match="inadequate entry or follow-up overlap"):
         require_success(ant.analyze(revised, query=query, inference=inference, execution=context))
 
