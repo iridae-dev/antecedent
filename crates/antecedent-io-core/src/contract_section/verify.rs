@@ -1409,17 +1409,26 @@ pub(in crate::contract_section) fn note_published_claim(
         if claim.execution.is_some() && contract.execution.is_none() {
             unresolved.push(ContractReason::IdentitiesExecution);
         }
-        verify_claim_calibration(contract, claim, unresolved);
-        if let (CausalQueryWire::Survival(query), Some(curve)) = (&body.query, &body.survival)
-            && ((query.delayed_entry.is_some() || query.stratified_censoring.is_some())
-                && (curve.difference_band.is_some()
-                    || (query.target_cause.is_some() && curve.difference_at_tau_interval.is_some())))
-            && (claim.calibration.basis.as_ref().is_none_or(|basis| {
-                basis.key.query != "Survival" || !survival_calibration_basis_matches(query, curve, basis)
-            }) || !claim.calibration.secondary.is_empty())
-        {
+        let survival_calibration = match (&body.query, &body.survival) {
+            (CausalQueryWire::Survival(query), Some(curve))
+                if (query.delayed_entry.is_some() || query.stratified_censoring.is_some())
+                    && (curve.difference_band.is_some()
+                        || (query.target_cause.is_some()
+                            && curve.difference_at_tau_interval.is_some())) =>
+            {
+                survival_calibration_basis_binding(query, curve, &claim.calibration)
+            }
+            _ => SurvivalCalibrationBinding::Current,
+        };
+        if survival_calibration == SurvivalCalibrationBinding::Mismatch {
             unresolved.push(ContractReason::ClaimCalibrationBasis);
         }
+        verify_claim_calibration(
+            contract,
+            claim,
+            survival_calibration == SurvivalCalibrationBinding::HistoricalUnmeasured,
+            unresolved,
+        );
         if let CausalQueryWire::LongitudinalRegime(query) = &body.query
             && matches!(query.method.as_str(), "compare_schedules" | "learn_schedule")
         {
@@ -1484,15 +1493,32 @@ pub(in crate::contract_section) fn note_published_claim(
     }
 }
 
-fn survival_calibration_basis_matches(
+#[derive(PartialEq, Eq)]
+enum SurvivalCalibrationBinding {
+    Current,
+    HistoricalUnmeasured,
+    Mismatch,
+}
+
+fn survival_calibration_basis_binding(
     query: &crate::query_wire::SurvivalQueryWire,
     curve: &crate::analysis_result_artifact::SurvivalWire,
-    basis: &crate::calibration::CalibrationBasisWire,
-) -> bool {
-    use crate::graphless_support::{incidence_calibration_functional, survival_band_calibration_functional};
+    slot: &super::CalibrationSlotWire,
+) -> SurvivalCalibrationBinding {
+    use crate::graphless_support::{
+        incidence_calibration_functional, survival_band_calibration_functional,
+    };
+    let Some(basis) = &slot.basis else {
+        return SurvivalCalibrationBinding::Mismatch;
+    };
+    if basis.key.query != "Survival" || !slot.secondary.is_empty() {
+        return SurvivalCalibrationBinding::Mismatch;
+    }
     let (functional, replicates_ok) = match basis.key.interval_method.as_str() {
         "simultaneous_band" => {
-            let Some(band) = &curve.difference_band else { return false };
+            let Some(band) = &curve.difference_band else {
+                return SurvivalCalibrationBinding::Mismatch;
+            };
             (
                 survival_band_calibration_functional(query, curve.assignment_counts),
                 Some(band.replicates_ok),
@@ -1513,13 +1539,40 @@ fn survival_calibration_basis_matches(
                 curve.bootstrap_replicates_ok,
             )
         }
-        _ => return false,
+        _ => return SurvivalCalibrationBinding::Mismatch,
     };
-    functional.as_deref() == Some(basis.key.functional.as_str())
-        && replicates_ok == basis.scope.replicates_ok
-        && curve.assignment_counts.is_some_and(|[control, treated]| {
+    let Some(functional) = functional else {
+        return SurvivalCalibrationBinding::Mismatch;
+    };
+    if replicates_ok != basis.scope.replicates_ok
+        || !curve.assignment_counts.is_some_and(|[control, treated]| {
             u64::try_from(control.saturating_add(treated)) == Ok(basis.scope.row_count)
         })
+    {
+        return SurvivalCalibrationBinding::Mismatch;
+    }
+    if functional == basis.key.functional {
+        return SurvivalCalibrationBinding::Current;
+    }
+    // The pre-release 3.1 producer used the bare functional for every supported
+    // scalar design. Preserve the sealed unmeasured slot without consulting the
+    // coverage table under that broader key. Source replay and all other claim
+    // and calibration-basis checks still apply.
+    if basis.key.interval_method == "percentile_bootstrap"
+        && functional.strip_suffix("+scope=unmeasured_design")
+            == Some(basis.key.functional.as_str())
+        && basis.key.posterior.is_empty()
+        && basis.key.identification == "point"
+        && basis.scope.posterior_draws.is_none()
+        && *slot
+            == super::CalibrationSlotWire::not_measured(
+                crate::calibration::CONSTRUCTION_NOT_MEASURED,
+            )
+            .with_basis(basis)
+    {
+        return SurvivalCalibrationBinding::HistoricalUnmeasured;
+    }
+    SurvivalCalibrationBinding::Mismatch
 }
 
 /// Producer validation permits readable exports with explicitly unavailable
@@ -1625,6 +1678,7 @@ pub(in crate::contract_section) fn producer_encoding_unresolved(
 pub(in crate::contract_section) fn verify_claim_calibration(
     contract: &AnalysisResultContractWire,
     claim: &ClaimSectionWire,
+    historical_unmeasured: bool,
     unresolved: &mut Vec<ContractReason>,
 ) {
     let slot = &claim.calibration;
@@ -1634,7 +1688,9 @@ pub(in crate::contract_section) fn verify_claim_calibration(
             "calibrated" | "outside_measured_scope" | "measured_below_nominal" | "not_measured"
         )
     });
-    if !statuses_ok || crate::calibration::rederive_calibration(slot) != *slot {
+    if !statuses_ok
+        || (!historical_unmeasured && crate::calibration::rederive_calibration(slot) != *slot)
+    {
         unresolved.push(ContractReason::ClaimCalibration);
     }
     let consistent = std::iter::once(slot)

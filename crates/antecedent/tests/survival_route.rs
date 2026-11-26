@@ -442,6 +442,105 @@ fn supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery
     retained_delayed_entry_incidence(200, true, true);
 }
 
+#[test]
+fn historical_delayed_entry_incidence_replays_without_inheriting_calibration() {
+    use antecedent_io::{
+        CONTRACT_SECTION, CalibrationStatus, ClaimIdentityWire, CompressPolicy, ReplayOptions,
+        RetainedArtifactIdentity, claim_digest, decode_analysis_result_artifact,
+        decode_analysis_result_contract, load_analysis_result_expecting, pack_section_shared,
+        result_digest, to_cbor,
+    };
+
+    let duration: Vec<_> = (0..320).map(|row| if row % 4 == 0 { 2.0 } else { 3.0 }).collect();
+    let event: Vec<_> = (0..320).map(|row| f64::from(row % 4 == 0)).collect();
+    let treatment: Vec<_> = (0..320).map(|row| f64::from(row >= 160)).collect();
+    let entry: Vec<_> = (0..320).map(|row| f64::from(row % 3 == 0)).collect();
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()),
+        ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+        ("entry", entry.as_slice()),
+    ])
+    .unwrap();
+    let mut q = query(SurvivalFunctional::CumulativeIncidence { target_cause: 1 });
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    let ctx = ExecutionContext::for_tests(297);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::Survival(q))
+        .bootstrap_replicates(398)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.support_status(), Some(antecedent::support::CellStatus::Supported));
+    let interval = result.survival().unwrap().difference_at_tau_interval.unwrap();
+    assert!(interval[0] < 0.0 && interval[1] > 0.0);
+    let bytes = prepared
+        .encode_contracted_result_with_source(&result, &data, "historical-delayed-incidence", &ctx)
+        .unwrap();
+    let (artifact, _, body) = decode_analysis_result_artifact(&bytes).unwrap();
+    let mut contract = decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    let slot = &mut contract.claim.as_mut().unwrap().calibration;
+    let basis = slot.basis.as_mut().unwrap();
+    let historical =
+        "incidence_difference+entry=delayed+censoring=unweighted+cause=1+tau=4008000000000000";
+    assert_eq!(basis.key.functional, format!("{historical}+scope=unmeasured_design"));
+    assert_eq!(basis.scope.replicates_ok, Some(398));
+    assert_eq!(slot.status, CalibrationStatus::NotMeasured);
+    basis.key.functional = historical.into();
+
+    // Restore the exact calibration basis the prior producer used and reseal
+    // the claim. Every other output, source witness and identity comes from the
+    // retained compiled route. The contract seal excludes the claim itself.
+    let replace_claim = |mut contract: antecedent_io::AnalysisResultContractWire| {
+        let mut artifact = artifact.clone();
+        let claim = contract.claim.as_mut().unwrap();
+        claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
+            contract.seal,
+            claim,
+            result_digest(&body).unwrap(),
+        ))
+        .unwrap()
+        .as_bytes();
+        let index =
+            artifact.sections.iter().position(|section| section.id == CONTRACT_SECTION).unwrap();
+        let (descriptor, section) = pack_section_shared(
+            CONTRACT_SECTION,
+            "application/cbor",
+            to_cbor(&contract).unwrap().into(),
+            CompressPolicy::Auto,
+        );
+        artifact.manifest.sections[index] = descriptor;
+        artifact.sections[index] = section;
+        let mut bytes = Vec::new();
+        artifact.write_to(&mut bytes).unwrap();
+        bytes
+    };
+    let historical_bytes = replace_claim(contract.clone());
+    let identity = RetainedArtifactIdentity::of_bytes(&historical_bytes);
+    let loaded = load_analysis_result_expecting(&historical_bytes, &identity).unwrap();
+    let report = loaded.replay(&ReplayOptions::default());
+    assert!(report.replayed(), "{report:?}");
+    assert_eq!(loaded.body.survival.unwrap().difference_at_tau_interval, Some(interval));
+    let slot = loaded.contract.unwrap().claim.unwrap().calibration;
+    assert_eq!(slot.status, CalibrationStatus::NotMeasured);
+    assert!(slot.record_id.is_none());
+
+    let slot = &mut contract.claim.as_mut().unwrap().calibration;
+    slot.basis.as_mut().unwrap().scope.replicates_ok = Some(299);
+    let tampered = replace_claim(contract);
+    assert!(load_analysis_result_expecting(&tampered, &identity).is_err());
+    // Even a separately retained, self-consistently resealed forgery fails
+    // against the draw count of the original executed result.
+    let tampered_identity = RetainedArtifactIdentity::of_bytes(&tampered);
+    let tampered = load_analysis_result_expecting(&tampered, &tampered_identity).unwrap();
+    let report = tampered.replay(&ReplayOptions::default());
+    assert!(!report.replayed());
+    assert!(report.mismatches.iter().any(|reason| reason.as_ref() == "claim.calibration.basis"));
+}
+
 #[allow(
     clippy::too_many_lines,
     reason = "the fixture checks the same public route through execution and replay"
