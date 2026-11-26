@@ -11,6 +11,13 @@ pub use antecedent_io::bridge_joint_outcomes::{
 };
 use antecedent_io::quantity_wire::DistributionMeaningWire;
 
+pub use antecedent_io::bridge_posterior_interval::{
+    PosteriorAffineBridge, PosteriorBridgeInterval,
+};
+pub use antecedent_io::bridge_trial_interval::{
+    TrialBridgeConfidenceInterval, TrialBridgeExperiment, TrialBridgeReleaseDesign, TrialMeanStudy,
+};
+
 use super::{KernelProgram, KernelProgramShape, KernelRealization};
 use crate::analysis::Study;
 use crate::planner::{
@@ -46,6 +53,54 @@ impl Study {
         ctx: &ExecutionContext,
     ) -> Result<CompiledBridgeImage, ExactImageError> {
         let shape = match &request {
+            BridgeImageRequest::IntervalThreshold { interval, .. } => {
+                interval.require_interval()?;
+                KernelProgramShape {
+                    cell: ProgramCell::BridgeIntervalThreshold,
+                    plan_id: "scientific_bridge.interval_threshold",
+                    functional: FunctionalKind::PropagatedChain,
+                    evaluator: "strict_interval_threshold",
+                    realization: KernelRealization::FixedImage,
+                    uncertainty: UncertaintyReading::None,
+                    role: EvidenceRole::ChainSource,
+                    graph_class: "none",
+                    data: DataClassification::Tabular,
+                    design: "compare both declared interval endpoints to the cutoff in the target coordinate",
+                }
+            }
+            BridgeImageRequest::TrialConfidence(experiment) => KernelProgramShape {
+                cell: ProgramCell::TrialBridgePercentileInterval,
+                plan_id: "scientific_bridge.trial_bootstrap_interval",
+                functional: FunctionalKind::PropagatedChain,
+                evaluator: "whole_trial_ols_source_mean_percentile",
+                realization: KernelRealization::ReplicateMapping {
+                    validation_refits: Some(experiment.replicates),
+                },
+                uncertainty: UncertaintyReading::Sampling,
+                role: EvidenceRole::ChainSource,
+                graph_class: "none",
+                data: DataClassification::Tabular,
+                design: match &experiment.study {
+                    TrialMeanStudy::Shared => {
+                        "same trial-pairs resample feeds both the source mean and the estimated line"
+                    }
+                    TrialMeanStudy::Independent { .. } => {
+                        "independent source trials and validation trial pairs refitted separately on each replicate"
+                    }
+                },
+            },
+            BridgeImageRequest::JointPosterior { .. } => KernelProgramShape {
+                cell: ProgramCell::PosteriorAffineBridge,
+                plan_id: "scientific_bridge.joint_posterior_interval",
+                functional: FunctionalKind::PropagatedChain,
+                evaluator: "weighted_joint_posterior_equal_tails",
+                realization: KernelRealization::Posterior,
+                uncertainty: UncertaintyReading::Posterior,
+                role: EvidenceRole::ChainSource,
+                graph_class: "none",
+                data: DataClassification::Tabular,
+                design: "posterior over source and both affine coefficients evaluated together on each supplied row",
+            },
             BridgeImageRequest::IdentifiedSet { .. } => KernelProgramShape {
                 cell: ProgramCell::IdentifiedSetBridge,
                 plan_id: "scientific_bridge.identified_set_image",
@@ -93,6 +148,24 @@ impl Study {
 }
 
 impl CompiledBridgeImage {
+    /// Compile a decision which preserves this interval's meaning and source.
+    pub fn compile_threshold(
+        &self,
+        quantity: antecedent_contract::ScientificQuantity,
+        threshold: f64,
+        ctx: &ExecutionContext,
+    ) -> Result<Self, ExactImageError> {
+        self.0.input().require_interval()?;
+        Study::compile_bridge_image(
+            BridgeImageRequest::IntervalThreshold {
+                interval: Box::new(self.0.input().clone()),
+                quantity,
+                threshold,
+            },
+            ctx,
+        )
+    }
+
     /// Inspect the scientific target, operation, carrier and support scope.
     #[must_use]
     pub fn plan_view(&self) -> PlanView {

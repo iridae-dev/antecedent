@@ -800,3 +800,11 @@ routes = [
 groups = [
   "longitudinal_regime_calibration: four_period_sequential_dr_coverage",
 ]
+
+[[route]]
+record = "scientific_bridge.distribution_bridges"
+routes = ["antecedent.scientific_bridge.trial_bridge_confidence_interval"]
+groups = [
+  "scientific_bridge_interval_calibration: shared_evidence_trial_bridge_percentile_interval_l95",
+  "scientific_bridge_interval_calibration: independent_studies_trial_bridge_percentile_interval_l95",
+]

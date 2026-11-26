@@ -1215,3 +1215,21 @@ lowering = "JointOutcomeBridge"
 unit_kind = "capability"
 unit = "scientific_bridge.distribution_bridges"
 entry = { rust = "crates/antecedent/src/analysis/kernel_programs/bridge_images.rs", python = "python/antecedent/scientific_bridge.py" }
+
+[[route]]
+lowering = "PosteriorAffineBridge"
+unit_kind = "capability"
+unit = "scientific_bridge.distribution_bridges"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/bridge_images.rs", python = "python/antecedent/scientific_bridge.py" }
+
+[[route]]
+lowering = "TrialBridgePercentileInterval"
+unit_kind = "capability"
+unit = "scientific_bridge.distribution_bridges"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/bridge_images.rs", python = "python/antecedent/scientific_bridge.py" }
+
+[[route]]
+lowering = "BridgeIntervalThreshold"
+unit_kind = "capability"
+unit = "scientific_bridge.distribution_bridges"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/bridge_images.rs", python = "python/antecedent/scientific_bridge.py" }

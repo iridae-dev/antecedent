@@ -15603,9 +15603,9 @@ id = "scientific_bridge.distribution_bridges"
 capability = "scientific_bridge.distribution_bridges"
 status = "supported"
 consumer_question = "Can the aligned draws of a posterior or a predictive law be carried across a bridge, with the mapping's own uncertainty and its dependence on the source declared, so that the bridged quantity is again aligned draws?"
-theorem = "Adjacent variant of scientific_bridge.typed_bridges. A bridge of draws maps each row of an aligned joint draw table, so row i of the bridged table is the image of row i of the source table and every other column keeps its pairing; the alignment identity of the table is the source's. An exact map (identity or declared affine) maps each draw. A declared affine map with uncertain coefficients draws its intercept and slope jointly from their declared normal law, conditionally on the source draw through the declared covariance of the slope and the source estimate; the source's spread comes only from its draws and the mapping's only from the mapping, and the moments of the result are those of a + b M for the trivariate covariance [[Va, d, 0], [d, Vb, c], [0, c, V]], which is the first-order delta-method variance of BridgeContract::propagate_affine_uncertainty (exact for a normal mapping law). A trial-level line draws its coefficients from the Student-t law of its least-squares fit on k - 2 degrees of freedom (a scale mixture, with the trial residual added for a predictive law) and is supported only for draws inside the validated range. A measurement correction draws sensitivity and specificity from Beta laws of their declared means and variances, conditioned on the recorded prevalence being attainable. A mapped table is read as an uncalibrated spread; an interval is published only through the measured-coverage gate of a bridged mean and otherwise refused."
+theorem = "Adjacent variant of scientific_bridge.typed_bridges. A bridge of draws maps each row of an aligned joint draw table, so row i of the bridged table is the image of row i of the source table and every other column keeps its pairing; the alignment identity of the table is the source's. An exact map (identity or declared affine) maps each draw. A declared affine map with uncertain coefficients draws its intercept and slope jointly from their declared normal law, conditionally on the source draw through the declared covariance of the slope and the source estimate; the source's spread comes only from its draws and the mapping's only from the mapping, and the moments of the result are those of a + b M for the trivariate covariance [[Va, d, 0], [d, Vb, c], [0, c, V]], which is the first-order delta-method variance of BridgeContract::propagate_affine_uncertainty (exact for a normal mapping law). A trial-level line draws its coefficients from the Student-t law of its least-squares fit on k - 2 degrees of freedom (a scale mixture, with the trial residual added for a predictive law) and is supported only for draws inside the validated range. A measurement correction draws sensitivity and specificity from Beta laws of their declared means and variances, conditioned on the recorded prevalence being attainable. A mapped table is read as an uncalibrated spread; an interval is published only through the measured-coverage gate of a bridged mean and otherwise refused. A fixed affine map transforms each estimator replicate with its row weight. An estimated trial line is refitted on validation-trial pairs sampled independently or jointly with the declared source mean. A fixed vector map evaluates every coordinate of a weighted observed or predictive outcome row together."
 reference = "docs/scientific-bridges.md"
-guarantee = "bridged_aligned_draws_from_declared_mapping_uncertainty_and_dependence_uncalibrated_spread_no_interval_without_a_measured_record"
+guarantee = "paired_law_preserved_under_fixed_maps_and_declared_joint_or_independent_refits"
 graph_class = "As scientific_bridge.typed_bridges."
 population_semantics = "As scientific_bridge.typed_bridges. The draws are about the contract's source quantity in its population and regime; a bridge established elsewhere carries its transportability premise."
 evidence_family = "Aligned draws of a posterior or a predictive law with their alignment identity, a declared mapping with its declared coefficient uncertainty and its declared dependence on the source estimate, validation trials whose fit gives the line's coefficient law, or a binary measurement model with the variances of its rates."
@@ -15632,7 +15632,6 @@ search = false
 prerequisite_records = ["scientific_bridge.typed_bridges", "scientific_bridge.law_substitution"]
 prerequisite_reason = "Carries a posterior or predictive law across the same supported contracts; no calibration is inherited from the point bridge or its interval."
 bounds = { cancellation = true, max_assumptions = 64, max_validation_trials = 4096, max_draws = 100000 }
-inference_inventory_disposition = "no_new_inference_outputs"
 refusals = [
   { detail = "scientific_bridge.source_dependence_invalid", remedy = "Declare a valid source and mapping dependence." },
   { detail = "scientific_bridge.source_moment_not_finite", remedy = "Supply a finite source moment." },
@@ -15666,9 +15665,13 @@ refusals = [
   { detail = "scientific_bridge.value_kind_substitution", remedy = "Supply the requested object from its own route." },
 ]
 routes = [
-  { name = "antecedent.scientific_bridge.consume_bridge_image", stage = "consume", status = "supported", claim = "none" },
-  { name = "antecedent.scientific_bridge.compile_joint_outcome_image", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.scientific_bridge.compile_posterior_bridge_interval", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.scientific_bridge.compile_trial_bridge_confidence_interval", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.scientific_bridge.compile_threshold", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.scientific_bridge.trial_bridge_confidence_interval", stage = "uncertainty", status = "supported", claim = "interval", covers = ["TrialBridgeExperiment.interval"] },
   { name = "antecedent.scientific_bridge.compile_sampling", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.scientific_bridge.compile_joint_outcome_image", stage = "prepare", status = "supported", claim = "none" },
+  { name = "antecedent.scientific_bridge.consume_bridge_image", stage = "consume", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.prepare_distribution", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.derive_distribution", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.consume_distribution_artifact", stage = "consume", status = "supported", claim = "none" },
@@ -15676,10 +15679,14 @@ routes = [
   { name = "antecedent.scientific_bridge.extrapolated_draws", stage = "evaluate", status = "closed", reason_code = "bridge_mapping_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", refusal_assertion = "a_trial_line_neither_truncates_nor_extrapolates_a_law" },
 ]
 fixtures = [
-  { id = "scientific_bridge.distribution_bridges.joint_outcome.truth", role = "truth", intent = "A weighted finite table reproduces both transformed coordinates and their dependence under two affine combinations.", evidence_test = "crates/antecedent-io-core/src/bridge_image_tests.rs", evidence_assertion = "affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs" },
-independent_consumers = ["antecedent.scientific_bridge.consume_bridge_image"]
-  { id = "scientific_bridge.distribution_bridges.sampling_program.positive", role = "positive", intent = "The compiled pushforward reproduces every resampled row and obeys cancellation and memory limits.", evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs", evidence_assertion = "compiled_sampling_bridge_maps_every_replicate_and_obeys_resource_controls" },
+  { id = "scientific_bridge.distribution_bridges.trial_refit_coverage_shared.calibration", role = "calibration", intent = "Independent repeated experiments score the shared validation-pairs and source-mean refit interval under the named release law.", evidence_test = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs", evidence_assertion = "shared_evidence_trial_bridge_percentile_interval_l95" },
+  { id = "scientific_bridge.distribution_bridges.trial_refit_coverage_independent.calibration", role = "calibration", intent = "Independent repeated experiments score the independently sampled shifted source mean and validation-pairs refit interval under the named release law.", evidence_test = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs", evidence_assertion = "independent_studies_trial_bridge_percentile_interval_l95" },
+  { id = "scientific_bridge.distribution_bridges.trial_release_scope.negative", role = "negative", intent = "Only the stated whole-trial design matches a release calibration key; an unspecified or mismatched release design refuses publication.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "trial_bootstrap_publication_is_keyed_to_the_declared_release_design" },
+  { id = "scientific_bridge.distribution_bridges.credible_mass.truth", role = "truth", intent = "A joint affine posterior yields finite atoms with known mass. Re-pairing two equally weighted rows changes the endpoints.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "joint_coefficient_posterior_interval_contains_the_exact_weighted_mass" },
+  { id = "scientific_bridge.distribution_bridges.trial_refit_interval.truth", role = "truth", intent = "Whole-trial bootstrap and independent source resampling agree replicate by replicate with the centroid or normal-equation reference before taking the two percentiles.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "whole_trial_bootstrap_interval_refits_both_sources_before_taking_quantiles" },
   { id = "scientific_bridge.distribution_bridges.joint_refit.truth", role = "truth", intent = "Shared-source validation refits map trial centroids to their terminal centroids. Independent refits match a separate regression calculation.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit" },
+  { id = "scientific_bridge.distribution_bridges.joint_outcome.truth", role = "truth", intent = "A weighted finite table reproduces both transformed coordinates and their dependence under two affine combinations.", evidence_test = "crates/antecedent-io-core/src/bridge_image_tests.rs", evidence_assertion = "affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs" },
+  { id = "scientific_bridge.distribution_bridges.sampling_program.positive", role = "positive", intent = "The compiled pushforward reproduces every resampled row and obeys cancellation and memory limits.", evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs", evidence_assertion = "compiled_sampling_bridge_maps_every_replicate_and_obeys_resource_controls" },
   { id = "scientific_bridge.distribution_bridges.delta_method.truth", role = "truth", intent = "An affine map with an uncertain slope and intercept over 40000 posterior draws has the delta-method mean and variance (0.04 + 4.04 V at a unit mean) and agrees with an independent Monte Carlo of the coefficients drawn in the test.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "an_uncertain_slope_agrees_with_the_delta_method_and_a_monte_carlo_reference" },
   { id = "scientific_bridge.distribution_bridges.dependence.truth", role = "truth", intent = "A declared slope-source covariance moves the mean by the covariance and the variance by 2 mu b c + c^2, differs from independence, and an infeasible covariance is refused.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "the_declared_dependence_changes_the_bridged_spread_and_mean" },
   { id = "scientific_bridge.distribution_bridges.alignment.invariance", role = "invariance", intent = "Draws in, draws out: the bridged table has the source's shape and alignment identity, every other column is unchanged row for row, an exact map is bit for bit the map of each draw and a seed replays bit for bit.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "draws_in_draws_out_keep_the_alignment_and_every_other_column" },
@@ -15695,7 +15702,31 @@ independent_consumers = ["antecedent.scientific_bridge.consume_bridge_image"]
   { id = "scientific_bridge.distribution_bridges.facade.positive", role = "positive", intent = "Rust facade: prepare, derive, inspect, export and consume a bridge of draws, express it as a chain stage, and read its interval through the measured-coverage gate or its refusal.", evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs", evidence_assertion = "a_bridge_of_draws_is_prepared_derived_exported_and_consumed_independently" },
   { id = "scientific_bridge.distribution_bridges.python.positive", role = "positive", intent = "Python surface: the bridged draws, their alignment, the declared dependence, the chain stage, the not_measured interval refusal and the artifact round trip.", evidence_test = "python/tests/test_scientific_bridge_draws.py", evidence_assertion = "test_a_bridge_of_draws_keeps_the_alignment_and_the_declared_uncertainty" },
 ]
-inference_outputs = []
+
+
+[[record.inference_outputs]]
+id = "scientific_bridge.distribution_bridges.trial_refit_interval"
+fields = ["TrialBridgeConfidenceInterval.interval.endpoints", "TrialBridgeConfidenceInterval.calibration"]
+method = "Type-7 whole-trial pairs bootstrap percentiles with refitted surrogate mean and validation line in each replicate."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-io-core"
+operation_or_object = "TrialBridgeExperiment::interval"
+public_producers = ["antecedent.scientific_bridge.trial_bridge_confidence_interval"]
+closed_producers = []
+independent_consumers = ["antecedent.scientific_bridge.consume_bridge_image"]
+method_source = "crates/antecedent-io-core/src/bridge_trial_interval.rs"
+truth_design = "The independent nominal .95 experiments use IID Uniform(-1,1) validation surrogate effects and N(0,0.35^2) terminal noise about 0.1 + 0.9 x. The shared design reuses the same trials; the independent design estimates the source mean from an equally sized Uniform(-0.25,0.75) source. The respective truths are 0.1 and 0.325."
+truth_fixtures = ["scientific_bridge.distribution_bridges.trial_refit_coverage_shared.calibration", "scientific_bridge.distribution_bridges.trial_refit_coverage_independent.calibration"]
+nominal_level = "0.95"
+acceptance_threshold = "The registered two-sided coverage tally for each fixed design and sample-size grid. Failure to publish a complete interval is recorded."
+measurement_suite = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs"
+allocated_coverage_records = ["cov.trial_bridge_percentile_interval.not_applicable.frequentist.trial_pairs_percentile_type7.l95.shared_evidence_trial_bridge_percentile_interval_l95.v2_validation_not_applicable", "cov.trial_bridge_percentile_interval.not_applicable.frequentist.trial_pairs_percentile_type7.l95.independent_studies_trial_bridge_percentile_interval_l95.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "Only the explicitly declared source-fixed law, exact tuning, current receipt and measured sample-size scope publish a confidence interval. A downstream threshold has no separately measured decision calibration."
+activation_disposition = "publish_only_under_current_coverage_record"
+allocation_status = "source_fixed_new_coverage_records"
+measurement_design_status = "complete_measurement_pending"
+truth_grid_allocation = "40, 80 and 160 validation trials, and the same source count in the independent design. 399 refits at every size."
 
 [[record]]
 id = "scientific_bridge.interval"

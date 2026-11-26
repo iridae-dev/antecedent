@@ -350,9 +350,11 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "MeasuredSampledObservationRecovery" | "SampledObservationRecovery" => {
             Some(RECOVERY_SAMPLED_OBSERVATION)
         }
-        "JointOutcomeBridge" | "SamplingDistributionBridge" => {
-            Some(SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES)
-        }
+        "BridgeIntervalThreshold"
+        | "JointOutcomeBridge"
+        | "PosteriorAffineBridge"
+        | "SamplingDistributionBridge"
+        | "TrialBridgePercentileInterval" => Some(SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES),
         "IdentifiedSetBridge" => Some(SCIENTIFIC_BRIDGE_TYPED_BRIDGES),
         "ZTransportMechanismSensitivity" => Some(SENSITIVITY_JOINT_MECHANISM),
         "MatchedDesignSensitivity" => Some(SENSITIVITY_MATCHED_HIDDEN_BIAS),

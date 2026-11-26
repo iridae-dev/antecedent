@@ -67,6 +67,12 @@ macro_rules! program_families {
             SequentialPolicyReliability => DesignBased, unit "decision_reliability.sampled_decision";
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation => PropagationChain, unit "composition.bundle";
+            /// Decision at a cutoff in a posterior or sampling interval coordinate.
+            BridgeIntervalThreshold => PropagationChain, unit "scientific_bridge.distribution_bridges";
+            /// Percentile confidence interval with whole-trial refits of an estimated mapping.
+            TrialBridgePercentileInterval => PropagationChain, unit "scientific_bridge.distribution_bridges";
+            /// The equal-tailed credible interval of a joint posterior affine pushforward.
+            PosteriorAffineBridge => PropagationChain, unit "scientific_bridge.distribution_bridges";
             /// Joint outcome rows mapped into a declared vector of target coordinates.
             JointOutcomeBridge => PropagationChain, unit "scientific_bridge.distribution_bridges";
             /// Sharp image of a scalar identified set.

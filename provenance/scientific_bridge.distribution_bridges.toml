@@ -1,46 +1,107 @@
 # Algorithm provenance for scientific_bridge.distribution_bridges.
 
 feature_id = "scientific_bridge.distribution_bridges"
-implementation_crate = "antecedent-contract"
+implementation_crate = "antecedent-io-core"
 source_translation = false
 copied_code = false
 copied_comments = false
 copied_tests = false
 
 papers = [
+  { title = "Bootstrap Methods: Another Look at the Jackknife", authors = ["Bradley Efron"], year = 1979, doi = "10.1214/aos/1176344552", sections = ["Nonparametric resampling"] },
+  { title = "Sample quantiles in statistical packages", authors = ["Rob J. Hyndman", "Yanan Fan"], year = 1996, doi = "10.1080/00031305.1996.10473566", sections = ["Definition 7"] },
 ]
 implementation_deviations = [
- "Spread is uncalibrated: the bridged draws carry the declared mapping uncertainty and dependence but no interval without a measured coverage record.",
- "Delta-method agreement is exact only to first order for a nonlinear map.",
+  "An exact fixed affine law transforms each source row, with no distributional reinterpretation or inference. An estimated trial-level map uses whole validation-pair bootstrap refits. In the shared design the source surrogate centroid and the least-squares fit use the same trial-pair indexes; replay validates the ordered centroid sequence and provenance. Independent-study refits use different deterministic streams.",
+  "Monotone affine identified-set images use both extrema and preserve order even when the slope is negative or zero. Joint outcome images sum declared affine contributions to each output over each weighted, jointly aligned input row. Maps without a supported exact extrema rule refuse an identified-set reading.",
+  "Posterior credible intervals use weighted generalized-inverse quantiles of the mapped joint posterior. The returned attained mass is the closed-interval mass including tied endpoints. The trial sampling interval uses type-7 percentile endpoints of the whole refit statistic and requires a current exact-scope coverage receipt.",
+  "Publication matches an explicit caller-declared shared or independent data-generating law, exact tuning, sample-size scope and current calibration record. A threshold decision preserves the interval reading and source calibration reference; it has no separately measured decision calibration.",
+  "The numerical artifact binds declarations, source data, method, seed and result. Current coverage metadata is resolved during replay and its revision is excluded from numerical equality. A missing or stale current coverage record still refuses confidence-interval publication.",
 ]
 upstream_implementations_observed = []
 test_sources = [
- "crates/antecedent-io-core/src/bridge_distribution_tests.rs",
- "crates/antecedent-contract/src/bridge/draws_tests.rs",
+  "crates/antecedent-io-core/src/bridge_distribution_tests.rs",
+  "crates/antecedent-io-core/src/bridge_image_tests.rs",
+  "crates/antecedent-io-core/src/bridge_image_artifact.rs",
+  "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",
+  "python/tests/test_scientific_bridge_draws.py",
 ]
 
-[non_algorithm_review]
-status = "justified_non_algorithm"
-kind = "wrapper"
-rationale = "Row-wise image of an aligned joint draw table under a declared mapping with draws of the mapping's own uncertainty."
-no_independent_algorithm = "The mapping arithmetic is the covered typed-bridge propagation; this record owns row pairing, alignment identity and draw generation from the declared law."
-covered_by = ["scientific_bridge.typed_bridges"]
-record_sha256 = "e310bcf2af1cd6e25c891df683e65f68e10831798461f3bb1849b683a68db2cf"
+[method_review]
+status = "reviewed_with_limits"
+scope = "Source review of the fixed and trial-pairs sampling branches in bridge_distribution.rs, exact scalar set and weighted joint outcome images, weighted joint affine posterior intervals, whole-refit trial percentile intervals and the numerical replay and threshold decision of these carriers. Earlier typed bridge arithmetic and predictive surrogate validation are documented in their existing method records."
+assumptions = [
+  "Each retained validation row is one independently sampled trial with exact stated surrogate and terminal treatment effects. In the independent design the source trials are separately sampled by declaration; the code cannot prove independence. The shared design independently rederives and checks each source centroid against the corresponding validation-pairs resample.",
+  "The trial-level conditional mean is modeled as a line and the interval targets the terminal mean evaluated at the source population surrogate mean. Trial-pairs resampling refits this line and the source mean in each successful full procedure. Any out-of-range input or inadmissible required fit refuses the procedure.",
+  "Identified-set input is a closed scalar interval of compatible effects in the retained coordinate. Joint outcome and posterior columns are aligned and represent the named measures under their source premises. The operations preserve pairing but do not independently certify the source study or posterior.",
+]
+historical_exposure = "This review read the listed Rust implementations and their executing fixture sources and derived the numerical comparisons from linear least squares, finite weighted laws and direct endpoint transformation. It did not copy upstream code. Historical author exposure is not established. The Hyndman–Fan publication page was consulted for the quantile reference."
+redistribution = "The method fixtures and implementations are repository-authored. Linked literature is not redistributed."
+limitations = "This was a source review. The central release runner owns numerical execution and any repeated-experiment receipt. The whole-trial oracle computes centered least squares independently but uses the same defined bootstrap index stream, as needed to compare row-for-row. The shared line at its own centroid equals the terminal centroid algebraically; the nonlinear reference squares the resulting per-refit mapped centroid as a separate compiled stage. The source-fixed calibration designs have bounded support, nominal level 0.95, exactly 399 refits and equal numbers of source and validation trials when independent. No general guarantee is claimed for different numerical designs, estimated trial-level effect noise, subject-level surrogate effects, or the threshold decision's sampling error."
+sources = ["https://doi.org/10.1214/aos/1176344552", "https://robjhyndman.com/publications/quantiles/"]
+findings_resolved = [
+  "Checked decreasing and constant scalar maps, weighted multivariate row mapping with same-row covariance, exact posterior atom mass, and independent and shared source bootstrap formulas against the existing numerical references.",
+  "Added cancellation checkpoints during the original generation or regeneration of the shared trial source. Scoped confidence publication to the explicit measured design, including the source declaration and observed support, instead of matching only a generic array shape.",
+  "Removed live calibration metadata from the numerical readout. Re-evaluation still derives the current interval calibration from the independently reconstructed release design and trial data. Numerical changes and changes to the requested coordinate or threshold still fail the retained binding.",
+]
+record_sha256 = "6e0df8a9bbf9e8f6ab6d3dadeada68b1d4b67947b5db4f17421d18199d78d301"
 
-[[non_algorithm_review.artifacts]]
+[[method_review.artifacts]]
 role = "implementation"
-path = "crates/antecedent-contract/src/bridge/refusal.rs"
-items = ["fn require_value_kind", "fn wrong_value_kind"]
-sha256 = "2402e0e7cdd581c74e6f24bc9c914f5fdee2aabae6cb0cd41d26fb2cc710eccc"
+path = "crates/antecedent-io-core/src/bridge_distribution.rs"
+items = ["fn map_affine", "struct TrialResamples", "impl TrialResamples", "fn shared_trial_metadata", "fn shared_trial_bootstrap_source", "fn shared_trial_bootstrap_source_cancellable", "fn map_trial_bootstrap", "fn bridge_draws_cancellable"]
+sha256 = "0ec8e0621d759d257d236ba3cb16c6787feb7adc58002c66f9c0650e643976c1"
 
-[[non_algorithm_review.artifacts]]
+[[method_review.artifacts]]
 role = "implementation"
-path = "crates/antecedent-contract/src/bridge/draws.rs"
-items = ["enum DrawMapping", "fn contract", "fn kind", "fn mapping", "struct AffineDrawLaw", "struct CorrectionDrawLaw"]
-sha256 = "d46e62e588ee6dfee75661ac59af77ecfedfd0684a351bd734c01d24e71d62e9"
+path = "crates/antecedent-contract/src/bridge/identified_set.rs"
+items = ["impl FixedBridgeDomain", "impl BridgeContract"]
+sha256 = "f8914e3790cf3ed302c2e8df89fb342804153ddb20362a2855e5d622672d8cda"
 
-[[non_algorithm_review.artifacts]]
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/bridge_joint_outcomes.rs"
+items = ["impl JointOutcomeMap"]
+sha256 = "21aab4f1e32d639fd5d7b4a0b25be05e938e5f0dc1543226b082f2a63c77de43"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/bridge_posterior_interval.rs"
+items = ["impl PosteriorAffineBridge"]
+sha256 = "49dcc0444195a056b5e220ed856d7fb7f1de3fe68d0b4c026a802e550f90e639"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/bridge_trial_interval.rs"
+items = ["enum TrialBridgeReleaseDesign", "impl TrialBridgeReleaseDesign", "impl TrialBridgeExperiment"]
+sha256 = "f159dc5258961ad1f72d4a79f19500b9abe60ea68dfaa8fd543658578c27369a"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/bridge_image_artifact.rs"
+items = ["impl BridgeImageResult", "impl BridgeImageRequest", "impl InputWire", "impl StoredBridgeImage", "fn decision_numerical_receipt_does_not_depend_on_current_coverage_registry"]
+sha256 = "86dfad3a26691d6cadbe7e7b51d9de000a28ef63e9df51f403c531fc4de2932f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/bridge_interval_decision.rs"
+items = ["impl BridgeIntervalDecision"]
+sha256 = "5e486cf814e33595cabbc80fba1a7a03f00d41f2d0b42e3a81346f2c4ea3e1d4"
+
+[[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io-core/src/bridge_distribution_tests.rs"
-items = ["const ROWS", "const STRIDE", "fn a_bridge_is_a_measurement_mapping_stage_and_a_chain_propagates_it_jointly", "fn a_correction_chain_feeds_a_utility_the_joint_law_of_the_corrected_rate", "fn a_correction_chain_reproduces_the_direct_draws_bridge_bit_for_bit_and_replays", "fn a_denominator_that_can_be_zero_or_a_rate_outside_its_range_is_refused_by_the_chain", "fn a_latent_to_measured_correction_is_the_forward_map_of_the_rates", "fn a_measurement_correction_draws_its_rates_and_agrees_with_the_delta_method", "fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line", "fn a_trial_line_draws_from_the_student_t_law_of_its_fit_and_a_predictive_law_adds_the_residual", "fn a_trial_line_neither_truncates_nor_extrapolates_a_law", "fn an_uncertain_slope_agrees_with_the_delta_method_and_a_monte_carlo_reference", "fn clinic_model", "fn contract", "fn correction_contract", "fn correction_table", "fn delta", "fn draws_in_draws_out_keep_the_alignment_and_every_other_column", "fn moments", "fn near", "fn normal_grid", "fn only_aligned_posterior_or_predictive_draws_about_the_source_are_bridged", "fn partner", "fn posterior_table", "fn quantile", "fn quantity", "fn quantity_in", "fn reference", "fn refusal_detail", "fn relative", "fn sample_moments", "fn seal_predictive_stage", "fn seal_stage", "fn table", "fn table_of", "fn the_declared_dependence_changes_the_bridged_spread_and_mean", "fn trial_contract", "fn uncertain_affine", "fn validation"]
-sha256 = "8757711abb9e214e78518c9aa4511a52c2298615aa3d96f373b04bff2bd834a6"
+items = ["fn fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit", "fn joint_coefficient_posterior_interval_contains_the_exact_weighted_mass", "fn whole_trial_bootstrap_interval_refits_both_sources_before_taking_quantiles", "fn trial_bootstrap_publication_is_keyed_to_the_declared_release_design"]
+sha256 = "1b6524a9860e0ab64270a82b18c4d3a1c9b240b3a56d5fce03eb7d5cd99215b5"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/src/bridge_image_tests.rs"
+items = ["fn fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images", "fn affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs"]
+sha256 = "d2f58c425d008011ff120949edc0c4379501a0be73ba29f7ffa72ed98aec211f"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/scientific_bridge_interval_calibration.rs"
+items = ["fn score_trial_bootstrap", "fn shared_evidence_trial_bridge_percentile_interval_l95", "fn independent_studies_trial_bridge_percentile_interval_l95"]
+sha256 = "9ad0b577925e6d17946a0db6221678adbec120e72e790e163a2ad9048f5b1022"

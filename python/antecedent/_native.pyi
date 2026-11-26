@@ -9880,6 +9880,16 @@ def scientific_bridge_consume(
 ) -> tuple[ConsumedBridgeHandle | None, str | None]: ...
 
 class CompiledBridgeImageHandle:
+    def compile_threshold(
+        self,
+        quantity: str,
+        threshold: float,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[CompiledBridgeImageHandle | None, str | None]: ...
     def plan_json(self) -> str: ...
     def program_identity(self) -> str: ...
     def unit_support(self) -> str | None: ...
@@ -9907,6 +9917,32 @@ def compile_identified_set_image(
     bounds: tuple[float, float],
     source_identity: str,
     mapping_domain: tuple[float, float],
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[CompiledBridgeImageHandle | None, str | None]: ...
+def compile_trial_bridge_confidence_interval(
+    contract_json: str,
+    study: tuple[str, list[float]] | None,
+    replicates: int,
+    level: float,
+    bootstrap_seed: int,
+    release_design: str | None = None,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[CompiledBridgeImageHandle | None, str | None]: ...
+def compile_posterior_bridge_interval(
+    distribution: JointDistributionArtifact,
+    contract_json: str,
+    intercept_shift: str,
+    slope_shift: str,
+    mapping_domain: tuple[float, float],
+    level: float,
     *,
     seed: int = 1,
     threads: int | None = None,

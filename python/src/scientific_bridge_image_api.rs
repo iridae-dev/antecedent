@@ -65,13 +65,59 @@ impl ImageResult {
             BridgeImageResult::IdentifiedSet(v) => Some(json!({
                 "quantity": quantity_json(&v.quantity), "lower": v.set.lower, "upper": v.set.upper
             }).to_string()),
-            BridgeImageResult::JointOutcomes(_) => None
+            _ => None
         }
     }
 
+    fn confidence_interval_json(&self) -> PyResult<Option<String>> {
+        match &self.inner {
+            BridgeImageResult::TrialConfidence(v) => Ok(Some(json!({
+                "lower":v.interval.endpoints[0], "upper":v.interval.endpoints[1],"estimate":v.interval.point,
+                "level":v.interval.basis.key.level,"coverage_record":v.calibration.record_id,
+                "calibration_sha":v.calibration.calibration_sha, "design":v.interval.basis.key.dependence,
+            }).to_string())),
+            _ => Ok(None)
+        }
+    }
+    fn interval_quantity_json(&self) -> Option<String> {
+        match &self.inner {
+            BridgeImageResult::JointPosterior(v) => Some(quantity_json(&v.quantity).to_string()),
+            BridgeImageResult::TrialConfidence(v) => {
+                Some(quantity_json(&v.interval.quantity).to_string())
+            }
+            _ => None,
+        }
+    }
+    fn threshold_decision_json(&self) -> Option<String> {
+        if let BridgeImageResult::IntervalThreshold(v) = &self.inner {
+            let mut fields = json!(v);
+            fields["interval_identity"] =
+                json!(SemanticDigest::from_bytes(v.interval_identity).to_hex());
+            fields["identity"] = json!(self.identity());
+            fields["decision_calibration"] = json!(v.decision_calibration());
+            return Some(fields.to_string());
+        }
+        None
+    }
+    fn credible_mass(&self) -> Option<(f64, f64, f64, f64)> {
+        match &self.inner {
+            BridgeImageResult::JointPosterior(v) => {
+                Some((v.endpoints[0], v.endpoints[1], v.level, v.attained_mass))
+            }
+            _ => None,
+        }
+    }
     fn distribution(&self) -> Option<PyJointDistributionArtifact> {
         match &self.inner {
-            BridgeImageResult::IdentifiedSet(_) => None,
+            BridgeImageResult::JointPosterior(v) => Some(PyJointDistributionArtifact {
+                artifact: v.posterior.clone(),
+                source_claim: None,
+            }),
+            BridgeImageResult::TrialConfidence(v) => Some(PyJointDistributionArtifact {
+                artifact: v.interval.bootstrap.clone(),
+                source_claim: None,
+            }),
+            BridgeImageResult::IdentifiedSet(_) | BridgeImageResult::IntervalThreshold(_) => None,
             BridgeImageResult::JointOutcomes(v) => Some(PyJointDistributionArtifact {
                 artifact: v.distribution.clone(),
                 source_claim: None,
@@ -82,6 +128,27 @@ impl ImageResult {
 
 #[pymethods]
 impl ImageProgram {
+    #[pyo3(signature = (quantity,threshold,*,seed=1,threads=None,cancel=None,memory_bytes=None))]
+    fn compile_threshold(
+        &self,
+        py: Python<'_>,
+        quantity: &str,
+        threshold: f64,
+        seed: u64,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
+        memory_bytes: Option<u64>,
+    ) -> Outcome<ImageProgram> {
+        let quantity = parse_quantity(&parse(quantity, "threshold coordinate")?)?;
+        let ctx = crate::chain_decision_api::context(seed, threads, cancel, memory_bytes);
+        crate::detach_catch(py, || {
+            outcome(
+                self.inner
+                    .compile_threshold(quantity, threshold, &ctx)
+                    .map(|inner| ImageProgram { inner }),
+            )
+        })
+    }
     fn plan_json(&self) -> String {
         self.inner.plan_view().to_json().to_string()
     }
@@ -207,6 +274,91 @@ fn compile_joint_outcome_image(
 }
 
 #[pyfunction]
+#[pyo3(signature = (contract_json, study, replicates, level, bootstrap_seed, release_design=None, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+fn compile_trial_bridge_confidence_interval(
+    py: Python<'_>,
+    contract_json: &str,
+    study: Option<(String, Vec<f64>)>,
+    replicates: u32,
+    level: f64,
+    bootstrap_seed: u64,
+    release_design: Option<&str>,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> Outcome<ImageProgram> {
+    use antecedent::analysis::kernel_programs::bridge_images::{
+        TrialBridgeExperiment, TrialBridgeReleaseDesign, TrialMeanStudy,
+    };
+    let study = match study {
+        Some((study_id, surrogate_effects)) => {
+            TrialMeanStudy::Independent { study_id, surrogate_effects }
+        }
+        None => TrialMeanStudy::Shared,
+    };
+    let release_design = release_design
+        .map(|design| match design {
+            "shared_uniform_gaussian_v1" => Ok(TrialBridgeReleaseDesign::SharedUniformGaussianV1),
+            "independent_shifted_uniform_v1" => {
+                Ok(TrialBridgeReleaseDesign::IndependentShiftedUniformV1)
+            }
+            _ => Err(crate::value_err("unknown trial bridge release design")),
+        })
+        .transpose()?;
+    let request = BridgeImageRequest::TrialConfidence(Box::new(TrialBridgeExperiment {
+        study,
+        replicates,
+        level,
+        seed: bootstrap_seed,
+        release_design,
+        contract: parse_contract(&parse(contract_json, "trial bridge contract")?)?,
+    }));
+    let ctx = crate::chain_decision_api::context(seed, threads, cancel, memory_bytes);
+    crate::detach_catch(py, || {
+        outcome(
+            antecedent::Study::compile_bridge_image(request, &ctx)
+                .map(|inner| ImageProgram { inner }),
+        )
+    })
+}
+
+#[pyfunction]
+#[pyo3(signature = (distribution, contract_json, intercept_shift, slope_shift, mapping_domain, level, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+fn compile_posterior_bridge_interval(
+    py: Python<'_>,
+    distribution: PyRef<'_, PyJointDistributionArtifact>,
+    contract_json: &str,
+    intercept_shift: &str,
+    slope_shift: &str,
+    mapping_domain: (f64, f64),
+    level: f64,
+    seed: u64,
+    threads: Option<u32>,
+    cancel: Option<crate::PyCancellationToken>,
+    memory_bytes: Option<u64>,
+) -> Outcome<ImageProgram> {
+    let map = antecedent::analysis::kernel_programs::bridge_images::PosteriorAffineBridge {
+        contract: parse_contract(&parse(contract_json, "bridge contract")?)?,
+        intercept_shift: parse_quantity(&parse(intercept_shift, "intercept shift")?)?,
+        slope_shift: parse_quantity(&parse(slope_shift, "slope shift")?)?,
+        domain: domain(mapping_domain),
+    };
+    let request = BridgeImageRequest::JointPosterior {
+        map: Box::new(map),
+        source: distribution.inner().clone(),
+        level,
+    };
+    let ctx = crate::chain_decision_api::context(seed, threads, cancel, memory_bytes);
+    crate::detach_catch(py, || {
+        outcome(
+            antecedent::Study::compile_bridge_image(request, &ctx)
+                .map(|inner| ImageProgram { inner }),
+        )
+    })
+}
+
+#[pyfunction]
 #[pyo3(signature = (artifact, program, result, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
 fn consume_scientific_bridge_image(
     py: Python<'_>,
@@ -232,6 +384,8 @@ fn consume_scientific_bridge_image(
 
 pub(super) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ImageProgram>()?;
+    module.add_function(wrap_pyfunction!(compile_trial_bridge_confidence_interval, module)?)?;
+    module.add_function(wrap_pyfunction!(compile_posterior_bridge_interval, module)?)?;
     module.add_class::<ImageResult>()?;
     module.add_function(wrap_pyfunction!(compile_identified_set_image, module)?)?;
     module.add_function(wrap_pyfunction!(compile_joint_outcome_image, module)?)?;

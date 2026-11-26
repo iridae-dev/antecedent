@@ -1074,3 +1074,184 @@ fn fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit() {
 
 #[path = "bridge_image_tests.rs"]
 mod images;
+
+#[test]
+fn joint_coefficient_posterior_interval_contains_the_exact_weighted_mass() {
+    use crate::bridge_posterior_interval::PosteriorAffineBridge;
+    use antecedent_contract::bridge::{FixedBridgeDomain, ValueInterval};
+    let mut bridge = contract(
+        BridgeMapping::Affine { intercept: 0., slope: 1. },
+        ValueKind::Posterior,
+        None,
+        None,
+    );
+    let a = quantity("intercept-shift", &bridge.target.quantity.units);
+    let b = quantity(
+        "slope-shift",
+        &format!("{}/{}", bridge.target.quantity.units, bridge.source.quantity.units),
+    );
+    let base = table(
+        &[0., 1., 2., 3.],
+        &[0.; 4],
+        DistributionMeaningWire::CausalFunctionalPosterior,
+        DrawAlignment::Joint,
+    );
+    let mut meta = base.metadata().clone();
+    meta.identity.quantities = vec![(&bridge.source.quantity).into(), (&a).into(), (&b).into()];
+    meta.shape = [4, 3];
+    meta.weights = Some(vec![1., 2., 3., 2.]);
+    let values = vec![0., 0., 0., 1., 1., 2., 2., 0., -1., 3., 0., 3.];
+    let source = DistributionArtifact::new(meta.clone(), values.clone()).unwrap();
+    let ctx = ExecutionContext::for_tests(87);
+    let declaration = PosteriorAffineBridge {
+        contract: bridge.clone(),
+        intercept_shift: a.clone(),
+        slope_shift: b.clone(),
+        domain: FixedBridgeDomain(ValueInterval { low: 0., high: 3. }),
+    };
+    let result = declaration.interval(&source, 0.5, &ctx).unwrap();
+    // Posterior atoms after transformation are 0 (mass 4/8), 4 (2/8), and 12 (2/8).
+    assert_eq!(result.endpoints, [0., 4.]);
+    assert_eq!(result.attained_mass, 0.75);
+    assert_eq!(result.posterior.draws(), &[0., 0., 0., 4., 1., 2., 0., 0., -1., 12., 0., 3.]);
+    let mut changed = values.clone();
+    changed.swap(5, 11);
+    let repaired_source = DistributionArtifact::new(meta.clone(), changed).unwrap();
+    let other = declaration.interval(&repaired_source, 0.5, &ctx).unwrap();
+    // Same slope and source marginal values, different row coupling.
+    assert_eq!(other.endpoints, [0., 5.]);
+    assert_ne!(other.identity, result.identity);
+    meta.identity.alignment = DrawAlignment::IndependentMarginals;
+    assert!(
+        declaration.interval(&DistributionArtifact::new(meta, values).unwrap(), 0.5, &ctx).is_err()
+    );
+    bridge.source_value = ValueKind::Bootstrap;
+    assert!(
+        PosteriorAffineBridge { contract: bridge, ..declaration }
+            .interval(&source, 0.5, &ctx)
+            .is_err()
+    );
+}
+
+#[test]
+fn whole_trial_bootstrap_interval_refits_both_sources_before_taking_quantiles() {
+    use crate::bridge_trial_interval::{TrialBridgeExperiment, TrialMeanStudy};
+    let trials: Vec<_> = (0..24)
+        .map(|i| {
+            let x = f64::from(i);
+            TrialEffectPair { surrogate_effect: x, terminal_effect: 1. + 0.5 * x + x * x / 50. }
+        })
+        .collect();
+    let external: Vec<_> = (0..24).map(|i| 6. + f64::from(i) / 3.).collect();
+    let ctx = ExecutionContext::for_tests(31);
+    for shared in [true, false] {
+        let mut declaration = trial_contract(ValueKind::Bootstrap);
+        declaration.mapping = BridgeMapping::TrialLevelLinear(TrialLevelValidation {
+            trials: trials.clone(),
+            min_trials: 3,
+            min_r_squared: 0.,
+        });
+        let study = if shared {
+            declaration.source_dependence = Some(SourceMappingDependence::SharedTrialMean {
+                evidence: "meta-analysis:ckd-2024".into(),
+            });
+            TrialMeanStudy::Shared
+        } else {
+            declaration.source_dependence =
+                Some(SourceMappingDependence::Independent { evidence: "distinct studies".into() });
+            TrialMeanStudy::Independent {
+                study_id: "external-source".into(),
+                surrogate_effects: external.clone(),
+            }
+        };
+        let experiment = TrialBridgeExperiment {
+            contract: declaration,
+            study,
+            level: 0.8,
+            seed: 323,
+            replicates: 101,
+            release_design: None,
+        };
+        let result = experiment.construct(&ctx).unwrap();
+        let mut rng = CausalRng::from_seed(derive_stream(323, BRIDGE_DRAWS_STREAM));
+        let mut external_rng = CausalRng::from_seed(derive_stream(323, 0xa1ff_1e02_0001));
+        let mut reference = Vec::new();
+        for _ in 0..101 {
+            let sample: Vec<_> =
+                (0..24).map(|_| trials[antecedent_kernels::unbiased_index(&mut rng, 24)]).collect();
+            let xbar = sample.iter().map(|v| v.surrogate_effect).sum::<f64>() / 24.;
+            let ybar = sample.iter().map(|v| v.terminal_effect).sum::<f64>() / 24.;
+            let value = if shared {
+                ybar
+            } else {
+                let covariance = sample
+                    .iter()
+                    .map(|v| (v.surrogate_effect - xbar) * (v.terminal_effect - ybar))
+                    .sum::<f64>();
+                let variance =
+                    sample.iter().map(|v| (v.surrogate_effect - xbar).powi(2)).sum::<f64>();
+                let mean = (0..24)
+                    .map(|_| external[antecedent_kernels::unbiased_index(&mut external_rng, 24)])
+                    .sum::<f64>()
+                    / 24.;
+                ybar + (mean - xbar) * covariance / variance
+            };
+            reference.push(value);
+        }
+        for (replicate, expected) in result.bootstrap.draws().iter().zip(&reference) {
+            near(*replicate, *expected, 1e-12);
+        }
+        reference.sort_by(f64::total_cmp);
+        // With 101 draws the .10 and .90 quantiles are exactly the 11th and 91st order statistics.
+        near(result.endpoints[0], reference[10], 1e-12);
+        near(result.endpoints[1], reference[90], 1e-12);
+        assert!(
+            experiment.interval(&ctx).is_err(),
+            "the off-design 80% construction has no coverage receipt"
+        );
+    }
+}
+
+#[test]
+fn trial_bootstrap_publication_is_keyed_to_the_declared_release_design() {
+    use crate::bridge_trial_interval::{
+        TrialBridgeExperiment, TrialBridgeReleaseDesign, TrialMeanStudy,
+    };
+    let mut contract = trial_contract(ValueKind::Bootstrap);
+    contract.source_dependence = Some(SourceMappingDependence::SharedTrialMean {
+        evidence: "meta-analysis:ckd-2024".into(),
+    });
+    contract.mapping = BridgeMapping::TrialLevelLinear(TrialLevelValidation {
+        trials: (0..24)
+            .map(|i| {
+                let x = (f64::from(i) - 11.5) / 12.0;
+                TrialEffectPair {
+                    surrogate_effect: x,
+                    terminal_effect: 0.1 + 0.9 * x + 0.1 * x * x,
+                }
+            })
+            .collect(),
+        min_trials: 3,
+        min_r_squared: 0.,
+    });
+    let ctx = ExecutionContext::for_tests(31);
+    let mut experiment = TrialBridgeExperiment {
+        contract,
+        study: TrialMeanStudy::Shared,
+        seed: 323,
+        level: 0.95,
+        replicates: 399,
+        release_design: None,
+    };
+    let generic = experiment.construct(&ctx).unwrap();
+    assert!(experiment.interval(&ctx).is_err());
+
+    experiment.release_design = Some(TrialBridgeReleaseDesign::SharedUniformGaussianV1);
+    let scoped = experiment.construct(&ctx).unwrap();
+    assert_ne!(scoped.identity, generic.identity);
+    assert_eq!(scoped.endpoints, generic.endpoints);
+    assert!(scoped.basis.key.functional.starts_with("release_design=shared_uniform_gaussian_v1;"));
+
+    experiment.release_design = Some(TrialBridgeReleaseDesign::IndependentShiftedUniformV1);
+    assert!(experiment.construct(&ctx).is_err());
+}

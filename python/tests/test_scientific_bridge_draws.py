@@ -811,3 +811,143 @@ def test_joint_outcome_image_consumes_paired_weighted_rows_and_feeds_affine_util
     )
     with pytest.raises(ScientificBridgeRefusal):
         require_success(sb.compile_joint_outcome_image(unpaired, outputs).execute())
+
+
+def test_joint_posterior_bridge_reports_attained_mass_and_replays_the_threshold(tmp_path):
+    from antecedent import composition_bundle as cb
+
+    offset = outcome("map:intercept_shift", units=TARGET.units)
+    slope = outcome("map:slope_shift", units=f"{TARGET.units}/{SOURCE.units}")
+    joint = JointDistributionArtifact(
+        replace(table(4).identity, quantities=(SOURCE, offset, slope)),
+        np.array([[0.0, 0.0, 0.0], [1.0, 1.0, 2.0], [2.0, 0.0, -1.0], [3.0, 0.0, 3.0]]),
+        weights=(1.0, 2.0, 3.0, 2.0),
+    )
+    declaration = contract(
+        uncertain=False, value_kind="posterior", mapping=sb.AffineMapping(0.0, 1.0)
+    )
+    plan = sb.compile_posterior_bridge_interval(
+        declaration, joint, intercept_shift=offset, slope_shift=slope, domain=(0.0, 3.0), level=0.5
+    )
+    interval = require_success(plan.execute())
+    assert isinstance(interval, sb.PosteriorBridgeInterval)
+    assert (interval.lower, interval.upper, interval.level, interval.attained_mass) == (
+        0.0,
+        4.0,
+        0.5,
+        0.75,
+    )
+    assert interval.quantity == TARGET
+    # Equality at either endpoint leaves the direction unresolved. The posterior atoms assign
+    # weight to both 0 and 4, so treating an endpoint as a strict preference would change it.
+    for cutoff, verdict in [
+        (-1.0, "above"),
+        (0.0, "unresolved"),
+        (4.0, "unresolved"),
+        (4.5, "below"),
+    ]:
+        decision = require_success(plan.compile_threshold(TARGET, cutoff).execute())
+        assert (decision.verdict, decision.reading, decision.attained_mass) == (
+            verdict,
+            "posterior_credible",
+            0.75,
+        )
+        assert decision.interval_identity == interval.identity
+        assert decision.decision_calibration == "not_measured"
+        assert decision.interval_coverage_record is None
+    decision_plan = plan.compile_threshold(TARGET, 0.0)
+    result = require_success(decision_plan.execute())
+    raw = bytes(decision_plan.export())
+    file = tmp_path / "interval-decision.bin"
+    file.write_bytes(raw)
+    script = """
+import pathlib, sys
+from antecedent import scientific_bridge as sb
+from antecedent.outcomes import require_success
+result=require_success(sb.consume_bridge_image(pathlib.Path(sys.argv[1]).read_bytes(),expected_program=sys.argv[2],expected_result=sys.argv[3]))
+print(result.reading,result.verdict,result.decision_calibration)
+"""
+    done = subprocess.run(
+        [sys.executable, "-c", script, str(file), decision_plan.program_identity, result.identity],
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    assert done.stdout.strip() == "posterior_credible unresolved not_measured"
+    bundle = (
+        cb.Bundle.builder()
+        .add_artifact(plan, node_id="interval")
+        .add_artifact(raw, node_id="decision")
+        .connect("interval", "decision")
+        .build()
+    )
+    report = require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    )
+    assert report.all_replayed
+    with pytest.raises(ScientificBridgeRefusal):
+        require_success(plan.compile_threshold(COST, 0.0).execute())
+
+
+@pytest.mark.parametrize("shared", [True, False], ids=["shared-trials", "independent-studies"])
+def test_measured_trial_bridge_keeps_interval_and_decision_calibration_separate(shared):
+    from antecedent import composition_bundle as cb
+
+    # Balanced trial study on the interior of the validation range, matching the calibrated
+    # refit construction. The external source and shared validation means are different.
+    rng = np.random.default_rng(276)
+    x = rng.uniform(-1, 1, size=80)
+    y = 0.1 + 0.9 * x + 0.35 * rng.normal(size=80)
+    trials = tuple(zip(x.tolist(), y.tolist(), strict=True))
+    if shared:
+        dependence = sb.SourceDependence.shared_trial_mean("meta-analysis:ckd-2024")
+        study = sb.SharedValidationTrials()
+    else:
+        dependence = sb.SourceDependence.independent("independent-validation-and-source")
+        study = sb.IndependentTrialStudy(
+            "external-source", tuple(np.random.default_rng(277).uniform(-0.25, 0.75, size=80))
+        )
+    declaration = contract(
+        uncertain=False,
+        value_kind="bootstrap",
+        mapping=sb.TrialLevelMapping(trials, min_trials=3, min_r_squared=0.0),
+        source_dependence=dependence,
+    )
+    plan = sb.compile_trial_bridge_confidence_interval(
+        declaration,
+        study,
+        replicates=399,
+        level=0.95,
+        seed=167,
+        release_design="shared_uniform_gaussian_v1" if shared else "independent_shifted_uniform_v1",
+    )
+    interval = require_success(plan.execute())
+    assert isinstance(interval, sb.TrialBridgeConfidenceInterval)
+    expected = np.quantile(np.asarray(interval.bootstrap)[:, 0], [0.025, 0.975], method="linear")
+    np.testing.assert_allclose([interval.lower, interval.upper], expected, rtol=1e-12)
+    assert interval.quantity == TARGET and interval.coverage_record and interval.calibration_sha
+    terminal = plan.compile_threshold(TARGET, interval.upper)
+    decision = require_success(terminal.execute())
+    assert (decision.verdict, decision.reading, decision.interval_identity) == (
+        "unresolved",
+        "sampling_confidence",
+        interval.identity,
+    )
+    assert decision.interval_coverage_record == interval.coverage_record
+    assert decision.interval_calibration_sha == interval.calibration_sha
+    assert decision.decision_calibration == "not_measured"
+    bundle = (
+        cb.Bundle.builder()
+        .add_artifact(plan, node_id="interval")
+        .add_artifact(terminal, node_id="decision")
+        .connect("interval", "decision")
+        .build()
+    )
+    assert require_success(
+        cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+    ).all_replayed
+    off_design = sb.compile_trial_bridge_confidence_interval(
+        declaration, study, replicates=399, level=0.8, seed=167
+    )
+    with pytest.raises(ScientificBridgeRefusal):
+        require_success(off_design.execute())

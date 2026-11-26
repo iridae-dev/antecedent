@@ -15445,3 +15445,19 @@ target = "longitudinal_schedule_calibration"
 tests = ["learned_longitudinal_schedule_tied_optima_coverage"]
 ignored = true
 grid = true
+
+[[group]]
+label = "scientific_bridge_interval_calibration: shared_evidence_trial_bridge_percentile_interval_l95"
+package = "antecedent"
+target = "scientific_bridge_interval_calibration"
+tests = ["shared_evidence_trial_bridge_percentile_interval_l95"]
+ignored = true
+grid = true
+
+[[group]]
+label = "scientific_bridge_interval_calibration: independent_studies_trial_bridge_percentile_interval_l95"
+package = "antecedent"
+target = "scientific_bridge_interval_calibration"
+tests = ["independent_studies_trial_bridge_percentile_interval_l95"]
+ignored = true
+grid = true

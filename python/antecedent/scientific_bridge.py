@@ -149,6 +149,13 @@ __all__ = [
     "PreparedDistributionBridge",
     "CompiledSamplingBridge",
     "CompiledBridgeImage",
+    "PosteriorBridgeInterval",
+    "BridgeIntervalDecision",
+    "IndependentTrialStudy",
+    "SharedValidationTrials",
+    "TrialBridgeConfidenceInterval",
+    "compile_trial_bridge_confidence_interval",
+    "compile_posterior_bridge_interval",
     "IdentifiedSetSource",
     "IdentifiedSetImage",
     "JointOutcomeImage",
@@ -2027,7 +2034,7 @@ class OutcomeMapTerm:
 
 
 @dataclass(frozen=True, slots=True)
-class IdentifiedSetImage:
+class IdentifiedSetImage(ScientificResult):
     """Sharp bounds in the target coordinate."""
 
     quantity: ScientificQuantity
@@ -2037,16 +2044,113 @@ class IdentifiedSetImage:
 
 
 @dataclass(frozen=True, slots=True)
-class JointOutcomeImage:
+class JointOutcomeImage(ScientificResult):
     """Mapped outcomes retaining the source distribution's paired rows and weights."""
 
     distribution: JointDistributionArtifact
     identity: str
 
 
-def _bridge_image(handle: Any) -> IdentifiedSetImage | JointOutcomeImage:
+@dataclass(frozen=True, slots=True)
+class PosteriorBridgeInterval(ScientificResult):
+    """Equal-tailed posterior credible interval and its probability under the supplied joint law."""
+
+    lower: float
+    upper: float
+    level: float
+    attained_mass: float
+    quantity: ScientificQuantity
+    posterior: JointDistributionArtifact
+    identity: str
+
+
+@dataclass(frozen=True, slots=True)
+class SharedValidationTrials:
+    """The same validation trials estimate the source mean and the mapping."""
+
+
+@dataclass(frozen=True, slots=True)
+class IndependentTrialStudy:
+    """Surrogate effects of independent trials supplying the source mean."""
+
+    study_id: str
+    surrogate_effects: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TrialBridgeConfidenceInterval(ScientificResult):
+    """Percentile confidence interval for an estimated map of the source mean."""
+
+    estimate: float
+    lower: float
+    upper: float
+    level: float
+    design: str
+    coverage_record: str
+    calibration_sha: str
+    quantity: ScientificQuantity
+    bootstrap: JointDistributionArtifact
+    identity: str
+
+
+@dataclass(frozen=True, slots=True)
+class BridgeIntervalDecision(ScientificResult):
+    """Direction relative to a threshold, conditional on the source interval's interpretation."""
+
+    quantity: ScientificQuantity
+    threshold: float
+    verdict: Literal["above", "below", "unresolved"]
+    endpoints: tuple[float, float]
+    reading: Literal["posterior_credible", "sampling_confidence"]
+    level: float
+    attained_mass: float | None
+    interval_coverage_record: str | None
+    interval_calibration_sha: str | None
+    interval_identity: str
+    identity: str
+    decision_calibration: str
+
+
+BridgeImage = (
+    IdentifiedSetImage
+    | JointOutcomeImage
+    | PosteriorBridgeInterval
+    | TrialBridgeConfidenceInterval
+    | BridgeIntervalDecision
+)
+
+
+def _bridge_image(
+    handle: Any,
+) -> BridgeImage:
     from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
+    decision = handle.threshold_decision_json()
+    if decision is not None:
+        fields = json.loads(decision)
+        fields["quantity"] = ScientificQuantity.from_wire(fields["quantity"])
+        fields["endpoints"] = tuple(fields["endpoints"])
+        return BridgeIntervalDecision(**fields)
+    confidence = handle.confidence_interval_json()
+    if confidence is not None:
+        return TrialBridgeConfidenceInterval(
+            **json.loads(confidence),
+            quantity=ScientificQuantity.from_wire(json.loads(handle.interval_quantity_json())),
+            bootstrap=JointDistributionArtifact._from_native(handle.distribution()),
+            identity=handle.identity(),
+        )
+    mass = handle.credible_mass()
+    if mass is not None:
+        lower, upper, level, attained = mass
+        return PosteriorBridgeInterval(
+            lower,
+            upper,
+            level,
+            attained,
+            ScientificQuantity.from_wire(json.loads(handle.interval_quantity_json())),
+            JointDistributionArtifact._from_native(handle.distribution()),
+            handle.identity(),
+        )
     bounds = handle.identified_set_json()
     if bounds is None:
         return JointOutcomeImage(
@@ -2086,10 +2190,23 @@ class CompiledBridgeImage:
 
         return read_unit_support(self._handle)
 
+    def compile_threshold(
+        self, quantity: ScientificQuantity, threshold: float, *, execution: Execution | None = None
+    ) -> CompiledBridgeImage:
+        """Compile a three-way decision at a cutoff in this interval's coordinate."""
+        controls = self._execution if execution is None else resolve_execution(execution)
+        handle = _unwrap(
+            controls._call(
+                self._handle.compile_threshold,
+                _dumps(quantity._wire()),
+                threshold,
+                **_image_controls(controls),
+            )
+        )
+        return CompiledBridgeImage(handle, controls)
+
     @outcome_operation
-    def execute(
-        self, *, execution: Execution | None = None
-    ) -> IdentifiedSetImage | JointOutcomeImage:
+    def execute(self, *, execution: Execution | None = None) -> BridgeImage:
         """Evaluate the declared mapping on every compatible endpoint or paired row."""
         controls = self._execution if execution is None else resolve_execution(execution)
         return _bridge_image(
@@ -2099,7 +2216,7 @@ class CompiledBridgeImage:
     @artifact_export
     def export(
         self, *, artifact_id: str = "bridge-image", execution: Execution | None = None
-    ) -> ExportedArtifact[IdentifiedSetImage | JointOutcomeImage]:
+    ) -> ExportedArtifact[BridgeImage]:
         """Retain the source, declarations and independent replay identities."""
         controls = self._execution if execution is None else resolve_execution(execution)
         data, result = _unwrap(
@@ -2174,7 +2291,7 @@ def consume_bridge_image(
     expected_program: str,
     expected_result: str,
     execution: Execution | None = None,
-) -> IdentifiedSetImage | JointOutcomeImage:
+) -> BridgeImage:
     """Replay the source under independently retained program and result identities."""
     controls = resolve_execution(execution)
     handle = _unwrap(
@@ -2187,3 +2304,75 @@ def consume_bridge_image(
         )
     )
     return _bridge_image(handle)
+
+
+def compile_posterior_bridge_interval(
+    contract: BridgeContract,
+    posterior: JointDistributionArtifact,
+    *,
+    intercept_shift: ScientificQuantity,
+    slope_shift: ScientificQuantity,
+    domain: tuple[float, float],
+    level: float,
+    execution: Execution | None = None,
+) -> CompiledBridgeImage:
+    """Map each joint posterior row with its own affine coefficients and take equal-tailed quantiles.
+
+    The named shifts are deviations from the reference intercept and slope in the contract.
+    The intercept shift has target units. Supply the slope shift in ``target/source`` units.
+    """
+    from .outcomes import require_success
+
+    controls = resolve_execution(execution)
+    handle = _unwrap(
+        controls._call(
+            _native.compile_posterior_bridge_interval,
+            require_success(posterior)._native,
+            _dumps(contract.to_wire()),
+            _dumps(intercept_shift._wire()),
+            _dumps(slope_shift._wire()),
+            domain,
+            level,
+            **_image_controls(controls),
+        )
+    )
+    return CompiledBridgeImage(handle, controls)
+
+
+def compile_trial_bridge_confidence_interval(
+    contract: BridgeContract,
+    study: SharedValidationTrials | IndependentTrialStudy,
+    *,
+    replicates: int,
+    level: float,
+    seed: int,
+    release_design: Literal["shared_uniform_gaussian_v1", "independent_shifted_uniform_v1"]
+    | None = None,
+    execution: Execution | None = None,
+) -> CompiledBridgeImage:
+    """Bind every trial in the refit experiment and name its calibration design.
+
+    Specifying a release design also declares its distributional and independence
+    premises. Publication requires the matching current coverage record.
+    """
+    source: tuple[str, list[float]] | None
+    if isinstance(study, SharedValidationTrials):
+        source = None
+    elif isinstance(study, IndependentTrialStudy):
+        source = (study.study_id, list(study.surrogate_effects))
+    else:
+        raise CausalTypeError("study must be SharedValidationTrials or IndependentTrialStudy")
+    controls = resolve_execution(execution)
+    handle = _unwrap(
+        controls._call(
+            _native.compile_trial_bridge_confidence_interval,
+            _dumps(contract.to_wire()),
+            source,
+            replicates,
+            level,
+            _seed(seed),
+            release_design,
+            **_image_controls(controls),
+        )
+    )
+    return CompiledBridgeImage(handle, controls)

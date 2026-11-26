@@ -130,6 +130,24 @@ const PINNED: &[(C, R, &str, F)] = &[
         F::DesignBased,
     ),
     (C::BundleRecomputation, R::BundleRecomputation, "BundleRecomputation", F::PropagationChain),
+    (
+        C::BridgeIntervalThreshold,
+        R::BridgeIntervalThreshold,
+        "BridgeIntervalThreshold",
+        F::PropagationChain,
+    ),
+    (
+        C::TrialBridgePercentileInterval,
+        R::TrialBridgePercentileInterval,
+        "TrialBridgePercentileInterval",
+        F::PropagationChain,
+    ),
+    (
+        C::PosteriorAffineBridge,
+        R::PosteriorAffineBridge,
+        "PosteriorAffineBridge",
+        F::PropagationChain,
+    ),
     (C::JointOutcomeBridge, R::JointOutcomeBridge, "JointOutcomeBridge", F::PropagationChain),
     (C::IdentifiedSetBridge, R::IdentifiedSetBridge, "IdentifiedSetBridge", F::PropagationChain),
     (

@@ -423,3 +423,119 @@ fn latent_measured_correction_low_prevalence_boundary_l95() {
         true,
     );
 }
+
+// Each simulation redraws both the trial-level association and the source observations.
+// Shared evidence uses the actual validation trials for both fits. In the independent
+// study the source distribution has a different center and an independent random stream.
+fn score_trial_bootstrap(shared: bool, n: usize, seed: u64) -> Option<Scored> {
+    use antecedent_contract::bridge::SourceMappingDependence;
+    use antecedent_io::bridge_trial_interval::{
+        TrialBridgeExperiment, TrialBridgeReleaseDesign, TrialMeanStudy,
+    };
+    let mut noise = gaussian(seed);
+    let mut validation = uniform(seed, 1);
+    let mut external = uniform(seed, 2);
+    let (intercept, slope) = (0.1, 0.9);
+    let pairs = (0..n)
+        .map(|_| {
+            let x = 2. * validation() - 1.;
+            TrialEffectPair {
+                surrogate_effect: x,
+                terminal_effect: intercept + slope * x + 0.35 * noise(),
+            }
+        })
+        .collect();
+    let mut contract = surrogate_contract(pairs);
+    contract.source_value = ValueKind::Bootstrap;
+    contract.target_value = ValueKind::Bootstrap;
+    if let BridgeMapping::TrialLevelLinear(v) = &mut contract.mapping {
+        v.min_r_squared = 0.;
+    }
+    let (study, dependence, mu) = if shared {
+        (
+            TrialMeanStudy::Shared,
+            SourceMappingDependence::SharedTrialMean { evidence: "meta-analysis:fixture".into() },
+            0.,
+        )
+    } else {
+        let observations = (0..n).map(|_| external() - 0.25).collect();
+        (
+            TrialMeanStudy::Independent {
+                study_id: "external".into(),
+                surrogate_effects: observations,
+            },
+            SourceMappingDependence::Independent {
+                evidence: "independently generated external source trials".into(),
+            },
+            0.25,
+        )
+    };
+    contract.source_dependence = Some(dependence);
+    let experiment = TrialBridgeExperiment {
+        contract,
+        study,
+        level: LEVEL,
+        replicates: 399,
+        seed: stream_seed(seed, 10),
+        release_design: Some(if shared {
+            TrialBridgeReleaseDesign::SharedUniformGaussianV1
+        } else {
+            TrialBridgeReleaseDesign::IndependentShiftedUniformV1
+        }),
+    };
+    let built = experiment.construct(&antecedent_core::ExecutionContext::for_tests(seed)).ok()?;
+    let key = built.basis.key;
+    Some(Scored {
+        construction: Construction {
+            query: key.query,
+            graph_class: key.graph_class,
+            structure: key.structure,
+            modality: key.modality,
+            inference: key.inference,
+            estimator: key.estimator,
+            interval_method: key.interval_method,
+            se_kind: key.se_kind,
+            dependence: key.dependence,
+            posterior: key.posterior,
+            functional: key.functional,
+            identification: key.identification,
+            reported_level: key.level,
+        },
+        scope: ScopeFacts {
+            row_count: built.basis.scope.row_count,
+            replicates_ok: built.basis.scope.replicates_ok,
+            posterior_draws: None,
+            unidentified_mass: 0.,
+        },
+        interval: (built.endpoints[0], built.endpoints[1]),
+        truth: intercept + slope * mu,
+    })
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn shared_evidence_trial_bridge_percentile_interval_l95() {
+    let n = grid_n(80);
+    run(
+        "shared_evidence_trial_bridge_percentile_interval_l95",
+        "paired_validation_trials_uniform_surrogate_gaussian_terminal_residual_same_sample_mean",
+        "trial_pairs_percentile_type7",
+        0x6b10_0000,
+        |seed| score_trial_bootstrap(true, n, seed),
+        false,
+    );
+}
+
+#[test]
+#[ignore = "calibration: run only at the final measurement step"]
+fn independent_studies_trial_bridge_percentile_interval_l95() {
+    let n = grid_n(80);
+    run(
+        "independent_studies_trial_bridge_percentile_interval_l95",
+        "validation_trials_uniform_surrogate_gaussian_terminal_residual_independent_shifted_source_mean",
+        "trial_pairs_percentile_type7",
+        0x6b20_0000,
+        |seed| score_trial_bootstrap(false, n, seed),
+        false,
+    );
+}

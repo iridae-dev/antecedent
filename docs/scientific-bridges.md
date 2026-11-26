@@ -425,3 +425,31 @@ assert require_success(result.decide(4, 5)).reading == "ambiguous"
 For the declared exact arm laws the whole interval comprises compatible population values. The exact-rational comparison includes equality at a threshold. Complete finite patient rows yield empirical plug-in bounds, which require additional sampling inference before they can support a population decision. A portable export preserves the named trial, its premises and joint evidence together with the bounds and program identity.
 
 [Frangakis and Rubin, Principal Stratification in Causal Inference](https://pmc.ncbi.nlm.nih.gov/articles/PMC4137767/)
+
+### Intervals when the mapping is estimated
+
+For a posterior interval, supply one joint posterior table with the source functional and deviations from the reference intercept and slope. The intercept deviation has the target units. The slope deviation has the quotient of target and source units. For every row Antecedent computes `(a + delta_a) + (b + delta_b) * x` and retains its weight. The two weighted inverse-CDF quantiles define the equal-tailed interval. A discrete posterior can assign more than the requested mass to that closed interval. Both probabilities are available in the result.
+
+```python
+plan = sb.compile_posterior_bridge_interval(
+    contract, posterior, intercept_shift=offset, slope_shift=slope,
+    domain=(0.0, 3.0), level=0.50,
+)
+interval = require_success(plan.execute())
+decision_plan = plan.compile_threshold(contract.target, 0.0)
+decision = require_success(decision_plan.execute())
+```
+
+For example, mapped values of 0, 4 and 12 with probabilities 0.50, 0.25 and 0.25 give endpoints of 0 and 4 at level 0.50. The attained mass is 0.75. A cutoff of 0 returns `unresolved`, since the posterior assigns mass to the cutoff. The decision retains the source interval identity and the `posterior_credible` reading.
+
+For a sampling interval, the target is the estimated trial-level terminal effect at the mean surrogate effect. Use `SharedValidationTrials()` when the mean and regression use the same trials. Use `IndependentTrialStudy(study_id, surrogate_effects)` when a separately sampled series supplies the mean. In the first design, each validation-pair resample supplies both the source mean and the fitted regression. In the second, independent streams resample the source trials and the validation pairs. The percentile endpoints are computed from the resulting refitted values.
+
+```python
+plan = sb.compile_trial_bridge_confidence_interval(
+    contract, sb.SharedValidationTrials(), replicates=399, level=0.95, seed=167,
+    release_design="shared_uniform_gaussian_v1",
+)
+interval = require_success(plan.execute())
+```
+
+The release-design argument declares the independently sampled validation-pair law, with a uniform surrogate effect on [−1, 1] and a terminal effect equal to 0.1 plus 0.9 times the surrogate plus Gaussian noise with standard deviation 0.35. For separate source evidence, `independent_shifted_uniform_v1` also declares an equally sized independent uniform source sample on [−0.25, 0.75]. Publication requires a current measured record for that declaration, the refit settings, and the sample size. The interval carries the record and its digest. A three-way threshold decision reports `above` or `below` when the entire interval is strictly on that side, and `unresolved` otherwise. Its calibration field describes the decision procedure separately. Both programs export retained artifacts for fresh-process replay with the expected program and result identities.
