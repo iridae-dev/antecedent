@@ -18287,6 +18287,34 @@ path = "python/tests/test_compiled_smoothed_dose_learners.py"
 gates = ["inventory"]
 
 [[test]]
+id = "compiled-trial-aipw-learners-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_trial_aipw_learners.py"
+gates = ["inventory"]
+
+[[test]]
+id = "compiled-joint-cells-learners-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_joint_cells_learners.py"
+gates = ["inventory"]
+
+[[test]]
+id = "factory-learners-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_factory_learners.py"
+gates = ["inventory"]
+
+[[test]]
+id = "point-mean-sources-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_point_mean_sources.py"
+gates = ["inventory"]
+
+[[test]]
 id = "compiled-transport-scenarios-python"
 crate = "python"
 cargo_target = "script"
