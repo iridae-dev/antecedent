@@ -17,7 +17,7 @@
 //!
 //! Regenerate the fixtures deliberately with
 //! `ANTECEDENT_REGENERATE_CONFORMANCE=1 cargo test -p antecedent --test
-//! specification_conformance -- --test-threads=1`.
+//! suite_07 specification_conformance::committed_fixtures_regenerate_bit_for_bit -- --exact`.
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
@@ -25,14 +25,18 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use antecedent_contract::bridge::{
+    AssumptionKind, BridgeAssumption, BridgeContract, BridgeEndpoint, BridgeInterfaceBasis,
+    BridgeKind, BridgeMapping, BridgeScope, QuantityClass, ValueKind,
+};
 use antecedent_contract::evidence_ledger::{
     CombinationRequest, EvidenceLedger, ObservationId, PoolingDependence, SourceDeclaration,
     SourceId, SourceKind, SynthesisKind, SynthesisOperation,
 };
 use antecedent_contract::interface_contract::{
     CalibrationRequirement, CalibrationStatus, ConsumedPort, ContractOperation,
-    DependenceRequirement, InterfaceContract, ProducedPort, SupportDomain, UncertaintyMeaning,
-    UncertaintyParadigm,
+    DependenceRequirement, EvidenceBasis, InterfaceContract, PortFacts, ProducedPort,
+    SupportDomain, UncertaintyMeaning, UncertaintyParadigm,
 };
 use antecedent_contract::{
     CompositionStage, DistributionMeaning, QuantityRole, ScientificQuantity,
@@ -52,7 +56,7 @@ use antecedent_io::evidence_ledger_artifact::{
 };
 use antecedent_io::interface_contract_artifact::{
     INTERFACE_CONTRACT_ARTIFACT_FEATURE, INTERFACE_CONTRACT_ARTIFACT_VERSION,
-    InterfaceContractArtifact,
+    InterfaceContractArtifact, UncertaintyWire,
 };
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 use antecedent_io::wire::{ArtifactKind, SemanticVersion};
@@ -350,6 +354,51 @@ fn consumer_contract() -> InterfaceContract {
     }
 }
 
+fn identified_set_bridge_contract() -> InterfaceContract {
+    let mut source = quantity("event", QuantityRole::Outcome, "probability");
+    source.functional_id = "event_probability".into();
+    let target = ScientificQuantity {
+        variable_id: "schema:event_utility".into(),
+        variable_name: "event_utility".into(),
+        role: QuantityRole::Utility,
+        units: "score".into(),
+        functional_id: "event_utility".into(),
+        ..source.clone()
+    };
+    let bridge = BridgeContract {
+        kind: BridgeKind::ScientificDecisionUtility,
+        evidence_scope: BridgeScope {
+            population_id: source.population_id.clone(),
+            regime_id: source.regime_id.clone(),
+        },
+        source: BridgeEndpoint { quantity: source, class: QuantityClass::ScientificEndpoint },
+        target: BridgeEndpoint { quantity: target, class: QuantityClass::DecisionUtility },
+        source_value: ValueKind::IdentifiedSet,
+        target_value: ValueKind::IdentifiedSet,
+        mapping: BridgeMapping::Affine { intercept: 1.0, slope: 3.0 },
+        assumptions: vec![BridgeAssumption {
+            id: "event-utility".into(),
+            kind: AssumptionKind::UtilityMapping,
+            statement: "one unit of event probability contributes three units of utility".into(),
+            evidence: None,
+        }],
+        transport: None,
+        mapping_uncertainty: None,
+        source_dependence: None,
+        estimand_bridge: None,
+    };
+    bridge.validate().expect("the identified-set utility bridge declaration is well formed");
+    bridge.interface_contract(
+        "event_utility_bridge",
+        &BridgeInterfaceBasis {
+            source: PortFacts::new(SupportDomain::interval(0.0, 1.0)),
+            target: PortFacts::new(SupportDomain::interval(1.0, 4.0)),
+            calibration: None,
+            evidence: EvidenceBasis::Undeclared,
+        },
+    )
+}
+
 fn ledger_fixture() -> Vec<u8> {
     let rows = |range: std::ops::Range<u32>| -> Vec<ObservationId> {
         range.map(|i| ObservationId::from_key("cohort", &i.to_le_bytes())).collect()
@@ -573,6 +622,47 @@ fn interface_contract_fixtures() -> Vec<Fixture> {
         minimal,
         minimal_identity,
         "a consumer with one port and nothing produced",
+    ));
+    let mut bridge_contract = identified_set_bridge_contract();
+    let (bridge, bridge_identity) = artifact(&bridge_contract);
+    let mut meta = InterfaceContractArtifact::inspect(&bridge).expect("inspects");
+    for operations in [&meta.contract.produces[0].operations, &meta.contract.consumes[0].operations]
+    {
+        assert_eq!(operations.as_slice(), &["identified_set"]);
+    }
+    out.push(accepted(
+        "interface_contract__identified_set_bridge",
+        IC_KIND,
+        IC_SECTION,
+        bridge,
+        bridge_identity,
+        "a utility bridge consumes and produces an identified set without a distribution meaning",
+    ));
+    meta.contract.produces[0].uncertainty = Some(UncertaintyWire {
+        meaning: "causal_functional_posterior".into(),
+        paradigm: "posterior".into(),
+    });
+    bridge_contract.produces[0].uncertainty =
+        Some(UncertaintyMeaning::new(DistributionMeaning::CausalFunctionalPosterior));
+    meta.contract_identity = bridge_contract.canonical_identity().to_hex();
+    InterfaceContractArtifact::reseal_identity(&mut meta);
+    let invalid_bridge =
+        InterfaceContractArtifact::meta_to_bytes(&meta, "interface-contract-fixture")
+            .expect("encodes");
+    let refusal = InterfaceContractArtifact::from_bytes(&invalid_bridge, None)
+        .expect_err("a posterior meaning on the identified set is refused")
+        .refusal()
+        .expect("a typed contract refusal");
+    assert_eq!(
+        refusal.1,
+        antecedent_core::reason_details::interface_contract::UNCERTAINTY_MEANING_UNUSED
+    );
+    out.push(rejected(
+        "interface_contract__identified_set_with_posterior_meaning",
+        IC_KIND,
+        "semantic",
+        normalize(&invalid_bridge),
+        "a resealed identified-set port has an extraneous posterior meaning",
     ));
     let rich = normalize(&rich);
     let kind = IC_KIND;

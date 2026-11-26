@@ -139,6 +139,21 @@
       "meta_json": "interface_contract__estimator.meta.json"
     },
     {
+      "description": "a utility bridge consumes and produces an identified set without a distribution meaning",
+      "expect": "accept",
+      "file": "interface_contract__identified_set_bridge.artifact",
+      "identity": "a294d40dacd639b5190a8f0af049eaf72e4cc01dbbc388f0c2ddb7321e05d68a",
+      "kind": "interface_contract_v1",
+      "meta_json": "interface_contract__identified_set_bridge.meta.json"
+    },
+    {
+      "description": "a resealed identified-set port has an extraneous posterior meaning",
+      "expect": "reject",
+      "file": "interface_contract__identified_set_with_posterior_meaning.artifact",
+      "kind": "interface_contract_v1",
+      "reject_class": "semantic"
+    },
+    {
       "description": "the artifact identity differs in its last hex digit",
       "expect": "reject",
       "file": "interface_contract__identity_flipped.artifact",

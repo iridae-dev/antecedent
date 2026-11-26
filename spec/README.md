@@ -19,4 +19,4 @@ python3 -I spec/consumer/validate.py
 python3 -I spec/consumer/validate.py --kind interface_contract_v1 path/to/contract.artifact
 ```
 
-The Rust gate is `cargo test -p antecedent --test specification_conformance`.
+The Rust gate is `cargo test -p antecedent --test suite_07 specification_conformance`.

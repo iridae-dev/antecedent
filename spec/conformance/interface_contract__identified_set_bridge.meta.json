@@ -1,0 +1,85 @@
+{
+  "contract": {
+    "component": "event_utility_bridge",
+    "consumes": [
+      {
+        "calibration": "not_required",
+        "dependence": "unconstrained",
+        "measurement_models": [],
+        "name": "source",
+        "operations": [
+          "identified_set"
+        ],
+        "provenance": [],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "event_probability",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "outcome",
+          "transform_id": "identity",
+          "units": "probability",
+          "variable_id": "schema:event",
+          "variable_name": "event",
+          "version": 1
+        },
+        "semantic_identity": "schema:event",
+        "support": {
+          "kind": "interval",
+          "levels": null,
+          "lower_bits": 0,
+          "upper_bits": 4607182418800017408
+        },
+        "uncertainty": null
+      }
+    ],
+    "produces": [
+      {
+        "calibration": {
+          "input": null,
+          "record_id": null,
+          "status": "point_only"
+        },
+        "evidence": {
+          "declared": false,
+          "sources": []
+        },
+        "measurement_models": [],
+        "name": "target",
+        "operations": [
+          "identified_set"
+        ],
+        "provenance": [
+          "transformation"
+        ],
+        "quantity": {
+          "conditioning": [],
+          "functional_id": "event_utility",
+          "horizon": 0,
+          "population_id": "adults_18_plus",
+          "regime_id": "do(statin=1)",
+          "role": "utility",
+          "transform_id": "identity",
+          "units": "score",
+          "variable_id": "schema:event_utility",
+          "variable_name": "event_utility",
+          "version": 1
+        },
+        "semantic_identity": "schema:event_utility",
+        "support": {
+          "kind": "interval",
+          "levels": null,
+          "lower_bits": 4607182418800017408,
+          "upper_bits": 4616189618054758400
+        },
+        "uncertainty": null
+      }
+    ]
+  },
+  "contract_identity": "a2cd250d97674bf5667f27031e0dc60412cc70500a10276e860da9aa9e610a00",
+  "feature": "interface_contract_v1",
+  "identity": "a294d40dacd639b5190a8f0af049eaf72e4cc01dbbc388f0c2ddb7321e05d68a",
+  "required_features": [],
+  "version": 1
+}
