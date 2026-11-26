@@ -4055,6 +4055,26 @@ recorded_at = "2026-11-21T08:41:41Z"
 dependency_manifest = "98ef8bd037eb9ca20a58783a06ce008399b506f22fa704d4118538107c0db349"
 
 [[record]]
+test = "antecedent-io-core::lib::bridge_distribution_tests::fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "392e03ec3bf6fc8376196ef9c42c314a986613bfec926769f6b6be8d534eb284"
+recorded_at = "2026-11-26T05:32:57Z"
+dependency_manifest = "5f767d6a85ef04fecb7f8518d467e042e7496f3d3986df3ba8f7eca809cf4495"
+
+[[record]]
+test = "antecedent-io-core::lib::bridge_distribution_tests::joint_coefficient_posterior_interval_contains_the_exact_weighted_mass"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "392e03ec3bf6fc8376196ef9c42c314a986613bfec926769f6b6be8d534eb284"
+recorded_at = "2026-11-26T05:32:57Z"
+dependency_manifest = "5ddca719a05445387889b106190bed63c5f75eabdcdac178602d92ee7f9d3869"
+
+[[record]]
 test = "antecedent-io-core::lib::bridge_distribution_tests::the_declared_dependence_changes_the_bridged_spread_and_mean"
 roles = ["scientific"]
 passed = true
@@ -4063,6 +4083,36 @@ dirty = false
 fingerprint = "90d78b9f4b4a07249eeee5e970213f269b7a898614ed204743c2a7dc929cca26"
 recorded_at = "2026-11-21T08:41:41Z"
 dependency_manifest = "3cd7867b3e577a6c67dd4204c61305f07d631aac2067fa3e90161fcc6c4b1da9"
+
+[[record]]
+test = "antecedent-io-core::lib::bridge_distribution_tests::whole_trial_bootstrap_interval_refits_both_sources_before_taking_quantiles"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "392e03ec3bf6fc8376196ef9c42c314a986613bfec926769f6b6be8d534eb284"
+recorded_at = "2026-11-26T05:32:57Z"
+dependency_manifest = "392121b4e28d84a4391a2113560bc0354bb6b092c4b3e67b1fb0d218420e3f3f"
+
+[[record]]
+test = "antecedent-io-core::lib::bridge_image_tests::affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "ee74328b1c8f3cc994975893b447830ff7fe0e669fb03672f75f392284cc6c4f"
+recorded_at = "2026-11-26T05:32:57Z"
+dependency_manifest = "970da51d39a9062c4221082ecff2ab2b3ccbd42f7ac2b7f9107db5070cb9996a"
+
+[[record]]
+test = "antecedent-io-core::lib::bridge_image_tests::fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "ee74328b1c8f3cc994975893b447830ff7fe0e669fb03672f75f392284cc6c4f"
+recorded_at = "2026-11-26T05:32:57Z"
+dependency_manifest = "9a7ddba1c812147ae4663fe8cdf47d16330f7e376583284fcc9ff356fe8c91f9"
 
 [[record]]
 test = "antecedent-io-core::lib::cohort_decision::tests::a_cohort_from_another_population_needs_a_declared_shift_and_support_overlap"
