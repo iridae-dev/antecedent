@@ -1111,23 +1111,65 @@ pub fn compile_bridge_bundle_recomputation(
             "bridge terminal must be an embedded scientific bridge",
         ));
     }
-    if contract.source_value != ValueKind::PredictiveLaw
-        || contract.target_value != ValueKind::PredictiveLaw
-        || !matches!(
-            source.semantic(),
+    let (realization, uncertainty) = match (contract.source_value, source.semantic()) {
+        (
+            ValueKind::PredictiveLaw,
             DistributionMeaningWire::PosteriorPredictive
-                | DistributionMeaningWire::InterventionalPredictive
-                | DistributionMeaningWire::EmpiricalOutcome
-        )
-        || !source.quantities().contains(&ScientificQuantityWire::from(&contract.source.quantity))
+            | DistributionMeaningWire::InterventionalPredictive,
+        ) => (
+            Realization::DeclaredPredictive {
+                evaluator: Arc::from("bridge_bundle.live_predictive_terminal"),
+            },
+            UncertaintyReading::Predictive,
+        ),
+        (ValueKind::Bootstrap, DistributionMeaningWire::Bootstrap)
+        | (ValueKind::EstimatorSampling, DistributionMeaningWire::EstimatorSampling) => {
+            let score = antecedent_core::ScoreModel::new("bridge_bundle.sampling_pushforward")
+                .map_err(|_| {
+                    BridgeBundleRecomputeError::Invalid("invalid sampling bridge model")
+                })?;
+            (
+                Realization::Frequentist(antecedent_core::ScoreFrequentist::new(score)),
+                UncertaintyReading::Sampling,
+            )
+        }
+        _ => {
+            return Err(BridgeBundleRecomputeError::Invalid(
+                "bridge terminal needs a matching predictive or sampling source law",
+            ));
+        }
+    };
+    if !source.quantities().contains(&ScientificQuantityWire::from(&contract.source.quantity))
         || source.n_draws() < 2
     {
         return Err(BridgeBundleRecomputeError::Invalid(
-            "bridge terminal needs a checked predictive source coordinate and aligned draws",
+            "bridge terminal needs the source coordinate and at least two draws",
         ));
     }
-    let bridge = PreparedScientificBridgeDistribution::prepare(contract)?;
     let source_bytes = source.to_bytes("bridge-bundle-source")?;
+    if contract.source_value.is_sampling() {
+        let mut parents = bundle
+            .edges()
+            .iter()
+            .filter(|edge| edge.to == terminal_node)
+            .filter_map(|edge| bundle.nodes().iter().find(|node| node.id == edge.from))
+            .filter(|node| node.kind == NodeKind::Distribution);
+        let Some(NodeSource::Embedded { bytes }) = parents.next().map(|node| &node.source) else {
+            return Err(BridgeBundleRecomputeError::Invalid(
+                "sampling bridge requires its embedded source distribution as a direct parent",
+            ));
+        };
+        if parents.next().is_some()
+            || DistributionArtifact::from_bytes(bytes, &source.metadata().identity)?
+                .to_bytes("bridge-bundle-source")?
+                != source_bytes
+        {
+            return Err(BridgeBundleRecomputeError::Invalid(
+                "sampling bridge source differs from its bundle parent",
+            ));
+        }
+    }
+    let bridge = PreparedScientificBridgeDistribution::prepare(contract)?;
     let source_digest = CanonicalWriter::digest_bytes(
         "antecedent.bridge_bundle_recomputation.source.v1",
         &source_bytes,
@@ -1168,9 +1210,7 @@ pub fn compile_bridge_bundle_recomputation(
     let statistical = StatisticalProgram {
         identifier: None,
         estimator: None,
-        realization: Realization::DeclaredPredictive {
-            evaluator: Arc::from("bridge_bundle.live_predictive_terminal"),
-        },
+        realization,
         models: Arc::from([]),
         folds: None,
         resampling: None,
@@ -1218,7 +1258,7 @@ pub fn compile_bridge_bundle_recomputation(
             statistical,
             evidence,
             physical,
-            claim: ClaimDemand { uncertainty: UncertaintyReading::Predictive, kind: None },
+            claim: ClaimDemand { uncertainty, kind: None },
         }
         .finish(),
     );
@@ -1261,6 +1301,30 @@ impl CompiledBridgeBundleRecomputation {
                 "bridge bundle execution was cancelled",
             ));
         }
+        // Replay holds the retained table, the mapped table and refit columns together.
+        // Account for repeated decoding of the embedded dependencies before allocating them.
+        let _workspace = if self.bridge.contract().source_value.is_sampling() {
+            let table_bytes = (self.source.draws().len() as u64).saturating_mul(8);
+            let trial_count = match &self.bridge.contract().mapping {
+                antecedent_contract::bridge::BridgeMapping::TrialLevelLinear(fit) => {
+                    fit.trials.len()
+                }
+                _ => 0,
+            };
+            let embedded =
+                self.bundle.nodes().iter().fold(0u64, |total, node| match &node.source {
+                    NodeSource::Embedded { bytes } => total.saturating_add(bytes.len() as u64),
+                    NodeSource::Reference { .. } => total,
+                });
+            let bytes = embedded
+                .saturating_mul(4)
+                .saturating_add(table_bytes.saturating_mul(4))
+                .saturating_add((self.source.n_draws() as u64).saturating_mul(48))
+                .saturating_add((trial_count as u64).saturating_mul(64));
+            Some(scoped.acquire_serial_numerical_admission(bytes).map_err(IoError::from)?)
+        } else {
+            None
+        };
         let bytes = export_bundle(&self.bundle, "bridge-bundle-recomputation")?;
         let consumed = consume(&bytes, self.bundle.identity(), &SuppliedSources::default())?;
         if !consumed.all_replayed() {
@@ -1279,7 +1343,7 @@ impl CompiledBridgeBundleRecomputation {
         };
         let stored =
             consume_scientific_bridge_distribution_artifact(terminal_bytes, Some(&node.identity))?;
-        let live = self.bridge.derive(&self.source, None, self.seed)?;
+        let live = self.bridge.derive_cancellable(&self.source, None, self.seed, &scoped.cancellation)?;
         let exported = live.export("bridge-bundle-live")?;
         if exported.identity != node.identity
             || stored.identity != exported.identity

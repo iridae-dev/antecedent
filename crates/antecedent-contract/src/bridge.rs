@@ -84,6 +84,6 @@ pub use mapping::{
     fit_trial_level_linear,
 };
 pub use refusal::{
-    BridgeRefusal, chain_stage_not_affine, draws_outside_domain, draws_unusable,
-    interval_not_supported, wrong_value_kind,
+    BridgeRefusal, chain_stage_not_affine, draws_not_aligned, draws_outside_domain, draws_unusable,
+    interval_not_supported, propagation_cancelled, wrong_value_kind,
 };

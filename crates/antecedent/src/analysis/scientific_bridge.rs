@@ -102,7 +102,7 @@ use antecedent_io::bridge_artifact::{
     ScientificBridgeAny, ScientificBridgeArtifact, ScientificBridgeArtifactError,
     ScientificBridgeDrawsArtifact,
 };
-use antecedent_io::bridge_distribution::bridge_draws;
+use antecedent_io::bridge_distribution::bridge_draws_cancellable;
 pub use antecedent_io::bridge_distribution::{
     AffineColumns, BridgeChainStage, BridgedDistribution,
 };
@@ -197,7 +197,7 @@ impl From<ScientificBridgeRefusal> for crate::CausalError {
 }
 
 impl ScientificBridgeRefusal {
-    fn from_contract(refusal: &BridgeRefusal) -> Self {
+    pub(crate) fn from_contract(refusal: &BridgeRefusal) -> Self {
         let mut message = format!("refused at stage `{}`", refusal.stage);
         if let Some(offending) = &refusal.offending {
             let _ = write!(message, "; offending `{offending}`");
@@ -711,6 +711,23 @@ impl PreparedScientificBridgeDistribution {
         self.support.transported
     }
 
+    /// Resample the mean surrogate effect from the same validation trials used by the fitted line.
+    ///
+    /// # Errors
+    /// Returns a typed refusal for incompatible trial evidence or excessive bootstrap work.
+    pub fn shared_trial_bootstrap_source(
+        &self,
+        draws: usize,
+        seed: u64,
+    ) -> Result<DistributionArtifact, ScientificBridgeRefusal> {
+        antecedent_io::bridge_distribution::shared_trial_bootstrap_source(
+            &self.contract,
+            draws,
+            seed,
+        )
+        .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))
+    }
+
     /// Bridge the draws in `source`.
     ///
     /// `source` is the aligned table with a column about the contract's source
@@ -731,7 +748,22 @@ impl PreparedScientificBridgeDistribution {
         claim_kind: Option<ClaimKind>,
         seed: u64,
     ) -> Result<ScientificBridgeDistributionResult, ScientificBridgeRefusal> {
-        let bridged = bridge_draws(&self.contract, source, claim_kind, seed)
+        self.derive_cancellable(
+            source,
+            claim_kind,
+            seed,
+            &antecedent_core::CancellationToken::new(),
+        )
+    }
+
+    pub(crate) fn derive_cancellable(
+        &self,
+        source: &DistributionArtifact,
+        claim_kind: Option<ClaimKind>,
+        seed: u64,
+        cancel: &antecedent_core::CancellationToken,
+    ) -> Result<ScientificBridgeDistributionResult, ScientificBridgeRefusal> {
+        let bridged = bridge_draws_cancellable(&self.contract, source, claim_kind, seed, cancel)
             .map_err(|refusal| ScientificBridgeRefusal::from_contract(&refusal))?;
         Ok(ScientificBridgeDistributionResult { bridged })
     }

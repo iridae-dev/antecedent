@@ -122,6 +122,19 @@ The value kinds are `posterior` (posterior draws of a parameter or a causal func
 the contract's. A bootstrap, a sampling law or an empirical law is neither. An associational claim
 is never a bridge source. The column is found by its quantity coordinate, not its position.
 
+The distribution meaning must agree with the source and target declarations. A fixed identity
+or affine mapping accepts `posterior`, `predictive_law`, `bootstrap` or `estimator_sampling`
+and preserves that meaning. The bridge finds the source column by its quantity coordinate.
+
+For a fitted trial-level line and a bootstrap source, each draw uses a new pairs bootstrap
+of the validation trials. Declare `SourceDependence.independent(evidence)` when the source
+estimate comes from a separate study. To estimate the mean surrogate effect on the same
+trials that fit the line, declare `SourceDependence.shared_trial_mean(evidence)` and use
+`prepared.shared_trial_bootstrap_source(draws, seed=seed)`. The bridge regenerates the trial
+indices from that seed and checks each source mean against its corresponding refit. Every
+refit must satisfy the declared validation thresholds and contain its source value within
+the resampled surrogate range. The resulting distribution reports an uncalibrated spread.
+
 What each mapping adds to the spread of its source:
 
 | Mapping | Draws |

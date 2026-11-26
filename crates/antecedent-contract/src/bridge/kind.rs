@@ -114,6 +114,10 @@ pub enum ValueKind {
     IdentifiedSet,
     /// The joint law of several outcomes, with their dependence.
     JointOutcomeLaw,
+    /// Repeated-sampling distribution of an estimator.
+    EstimatorSampling,
+    /// Conditional bootstrap distribution of an estimator.
+    Bootstrap,
 }
 
 named_variants! {
@@ -123,10 +127,18 @@ named_variants! {
         Posterior => "posterior",
         IdentifiedSet => "identified_set",
         JointOutcomeLaw => "joint_outcome_law",
+        EstimatorSampling => "estimator_sampling",
+        Bootstrap => "bootstrap",
     }
 }
 
 impl ValueKind {
+    /// Whether the draws represent repeated estimation of the source functional.
+    #[must_use]
+    pub const fn is_sampling(self) -> bool {
+        matches!(self, Self::EstimatorSampling | Self::Bootstrap)
+    }
+
     pub(crate) const fn tag(self) -> u64 {
         match self {
             Self::Mean => 1,
@@ -134,6 +146,8 @@ impl ValueKind {
             Self::Posterior => 3,
             Self::IdentifiedSet => 4,
             Self::JointOutcomeLaw => 5,
+            Self::EstimatorSampling => 6,
+            Self::Bootstrap => 7,
         }
     }
 }

@@ -17,6 +17,8 @@ these tests assert that it refuses outside one.
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from dataclasses import replace
 from statistics import NormalDist
 
@@ -566,3 +568,99 @@ def test_a_guarded_division_refuses_a_denominator_that_reaches_zero_and_replays(
                 output="ratio",
             )
         )
+
+
+@pytest.mark.parametrize("meaning", ["estimator_sampling", "bootstrap"])
+def test_fixed_sampling_bridge_replays_mapped_replicates_and_preserves_law(meaning):
+    source = table(128, semantic=meaning)
+    prepared = sb.prepare_distribution_bridge(contract(uncertain=False, value_kind=meaning))
+    result = require_success(prepared.derive(source, seed=7))
+    exported = result.export("fixed-sampling-bridge")
+    replay = require_success(
+        sb.consume_scientific_bridge_artifact(exported.data, exported.expectation.identity)
+    ).claim
+    assert replay.value_kind == meaning
+    mapped = np.asarray(replay.distribution())
+    np.testing.assert_array_equal(mapped[:, 0], 0.5 + 2.0 * np.asarray(source)[:, 0])
+    np.testing.assert_array_equal(mapped[:, 1], np.asarray(source)[:, 1])
+    assert replay.chain_stage("terminal").reading == "spread"
+    refused(
+        lambda: require_success(replay.interval(0.95)),
+        "route_not_supported",
+        reason_details.scientific_bridge.INTERVAL_SCOPE_OUTSIDE_MEASURED,
+    )
+
+
+def test_trial_bootstrap_replays_source_and_map_on_the_same_trials(tmp_path):
+    from antecedent import bridge_transport_decision as btd
+    from antecedent import composition_bundle as cb
+    from antecedent.execution import Execution
+
+    trials = [(float(i), i + i**2 / 48.0) for i in range(24)]
+    declaration = contract(
+        uncertain=False,
+        value_kind="bootstrap",
+        mapping=sb.TrialLevelMapping(trials, min_trials=5, min_r_squared=0.0),
+        source_dependence=sb.SourceDependence.shared_trial_mean("meta-analysis:ckd-2024"),
+    )
+    prepared = sb.prepare_distribution_bridge(declaration)
+    source = require_success(prepared.shared_trial_bootstrap_source(199, seed=515))
+    compiled = prepared.compile_sampling(source, seed=515)
+    assert compiled.plan_view()["route"] == "SamplingDistributionBridge"
+    assert compiled.unit_support()["unit"] == "scientific_bridge.distribution_bridges"
+    bridged = require_success(compiled.execute())
+    assert require_success(prepared.derive(source, seed=515)).claim_id == bridged.claim_id
+    parts = bridged.chain_stage("fit")
+    squared = require_success(
+        pc.propagate(
+            list(parts.sources),
+            [parts.stage, pc.unary("squared_effect", "derived_quantity", ["fit"], "square")],
+            output="squared_effect",
+        )
+    )
+    reference = np.square(np.asarray(bridged.distribution())[:, 0])
+    assert squared.stage("squared_effect").value("variance") == pytest.approx(reference.var(ddof=1))
+    terminal = bridged.export("refitted-trial-terminal")
+    bundle = (
+        cb.Bundle.builder()
+        .add_artifact("distribution", bytes(source.export("trial-source")), node_id="source")
+        .add_artifact("scientific_bridge", bytes(terminal), node_id="terminal")
+        .connect("source", "terminal")
+        .build()
+    )
+    plan = btd.compile_bridge_bundle_recomputation(
+        bundle, "terminal", declaration, source, stream=515
+    )
+    execution = Execution(seed=515)
+    receipt = plan.execute(execution=execution)
+    assert receipt.terminal_identity == terminal.expectation.identity
+    replay = btd.consume_bridge_bundle_recomputation(
+        receipt.export(),
+        expected_bundle=bundle.identity,
+        expected_identity=plan.program_identity,
+        execution=execution,
+    )
+    assert replay == receipt
+    path = tmp_path / "trial-bootstrap-bundle"
+    path.write_bytes(bytes(receipt.export()))
+    loaded = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import sys; from pathlib import Path; "
+            "from antecedent.bridge_transport_decision import consume_bridge_bundle_recomputation; "
+            "from antecedent.execution import Execution; "
+            "r = consume_bridge_bundle_recomputation(Path(sys.argv[1]).read_bytes(), "
+            "expected_bundle=sys.argv[2], expected_identity=sys.argv[3], execution=Execution(seed=515)); "
+            "print(r.terminal_identity)",
+            str(path),
+            bundle.identity,
+            plan.program_identity,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert loaded.stdout.strip() == terminal.expectation.identity
+    with pytest.raises(ScientificBridgeRefusal):
+        require_success(prepared.derive(source, seed=514))

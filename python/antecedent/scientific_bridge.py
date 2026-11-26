@@ -99,7 +99,10 @@ import math
 import numbers
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from .joint_distribution import JointDistributionArtifact, ScientificQuantity
 
 from . import _native, _retained
 from ._artifact_protocol import (
@@ -116,6 +119,7 @@ from ._scientific import ScientificResult
 from ._validate import count as _count
 from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError
+from .execution import Execution, native_controls, resolve_execution
 from .measurement_models import MeasurementModel
 from .outcomes import Answer, Outcome, outcome_operation
 
@@ -142,6 +146,7 @@ __all__ = [
     "MeasurementCorrection",
     "PreparedBridge",
     "PreparedDistributionBridge",
+    "CompiledSamplingBridge",
     "PropagatedUncertainty",
     "Scope",
     "ScientificBridgeRefusal",
@@ -203,6 +208,8 @@ VALUE_KINDS: tuple[str, ...] = (
     "posterior",
     "identified_set",
     "joint_outcome_law",
+    "estimator_sampling",
+    "bootstrap",
 )
 
 _CLAIM_KINDS = (
@@ -262,7 +269,13 @@ AssumptionKindsName = Literal[
     "additional",
 ]
 ValueKindsName = Literal[
-    "mean", "predictive_law", "posterior", "identified_set", "joint_outcome_law"
+    "mean",
+    "predictive_law",
+    "posterior",
+    "identified_set",
+    "joint_outcome_law",
+    "estimator_sampling",
+    "bootstrap",
 ]
 ClaimKindsName = Literal[
     "point",
@@ -587,24 +600,29 @@ class SourceDependence:
     estimator. An absent dependence is not a declaration of independence.
     """
 
-    kind: Literal["independent", "slope_covariance"]
+    kind: Literal["independent", "slope_covariance", "shared_trial_mean"]
     evidence: str
     covariance: float | None = None
 
     def __post_init__(self) -> None:
-        _choice(self.kind, "kind", ("independent", "slope_covariance"))
+        _choice(self.kind, "kind", ("independent", "slope_covariance", "shared_trial_mean"))
         _name(self.evidence, "evidence")
         if self.kind == "slope_covariance":
             if self.covariance is None:
                 raise CausalValueError("a slope covariance declares its value")
             _number(self.covariance, "covariance")
         elif self.covariance is not None:
-            raise CausalValueError("an independence declaration states no covariance")
+            raise CausalValueError("only a slope_covariance declaration takes a covariance")
 
     @classmethod
     def independent(cls, evidence: str) -> SourceDependence:
         """The source estimate and the mapping's evidence are disjoint."""
         return cls("independent", evidence)
+
+    @classmethod
+    def shared_trial_mean(cls, evidence: str) -> SourceDependence:
+        """Estimate the source mean and fit the mapping on identical resampled trials."""
+        return cls("shared_trial_mean", evidence)
 
     @classmethod
     def slope_covariance(cls, covariance: float, evidence: str) -> SourceDependence:
@@ -613,8 +631,8 @@ class SourceDependence:
 
     def to_wire(self) -> dict[str, Any]:
         """The declaration the native layer reads."""
-        if self.kind == "independent":
-            return {"kind": "independent", "evidence": self.evidence}
+        if self.kind in ("independent", "shared_trial_mean"):
+            return {"kind": self.kind, "evidence": self.evidence}
         return {
             "kind": "slope_covariance",
             "covariance": float(self.covariance or 0.0),
@@ -626,6 +644,8 @@ class SourceDependence:
         """The declaration a native summary reports."""
         if wire["kind"] == "independent":
             return cls.independent(wire["evidence"])
+        if wire["kind"] == "shared_trial_mean":
+            return cls.shared_trial_mean(wire["evidence"])
         return cls.slope_covariance(float(wire["covariance"]), wire["evidence"])
 
 
@@ -1781,6 +1801,43 @@ def _distribution(summary: Mapping[str, Any], handle: Any) -> BridgedDistributio
 
 
 @dataclass(frozen=True, slots=True, eq=False)
+class CompiledSamplingBridge:
+    """A fixed or fitted map bound to its source replicates and resampling design."""
+
+    _handle: Any = field(repr=False, compare=False)
+    _execution: Execution = field(repr=False, compare=False)
+
+    @property
+    def program_identity(self) -> str:
+        """Digest of the six-layer program."""
+        return self._handle.program_identity()
+
+    def plan_view(self) -> dict[str, Any]:
+        """Inspect the compiled scientific and statistical declaration."""
+        return json.loads(self._handle.plan_json())
+
+    def unit_support(self) -> dict[str, Any] | None:
+        """Release support of the bound scientific operation."""
+        from ._unit_support import read_unit_support
+
+        return read_unit_support(self._handle)
+
+    @outcome_operation
+    def execute(self, *, execution: Execution | None = None) -> BridgedDistribution:
+        """Map the bound replicates under the caller's runtime controls."""
+        controls = self._execution if execution is None else resolve_execution(execution)
+        handle = _unwrap(
+            controls._call(
+                self._handle.execute,
+                **native_controls(
+                    controls, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes"
+                ),
+            )
+        )
+        return _distribution(json.loads(handle.summary_json()), handle)
+
+
+@dataclass(frozen=True, slots=True, eq=False)
 class PreparedDistributionBridge:
     """A bridge of draws whose contract was checked once, with its support verdict kept.
 
@@ -1792,6 +1849,50 @@ class PreparedDistributionBridge:
     transported: bool
     _handle: Any = field(repr=False, compare=False)
 
+    def compile_sampling(
+        self,
+        draws: JointDistributionArtifact,
+        *,
+        seed: int,
+        source_kind: str | None = None,
+        execution: Execution | None = None,
+    ) -> CompiledSamplingBridge:
+        """Bind a sampling or bootstrap source and the seed selecting its mapping refits."""
+        from .joint_distribution import JointDistributionArtifact
+        from .outcomes import require_success
+
+        draws = require_success(draws)
+        if not isinstance(draws, JointDistributionArtifact):
+            raise CausalTypeError("draws must be a JointDistributionArtifact")
+        if source_kind is not None:
+            _choice(source_kind, "source_kind", _CLAIM_KINDS)
+        execution = resolve_execution(execution)
+        handle = _unwrap(
+            execution._call(
+                self._handle.compile_sampling,
+                draws._native,
+                _seed(seed),
+                source_kind,
+                **native_controls(
+                    execution,
+                    seed="seed",
+                    threads="threads",
+                    cancel="cancel",
+                    memory="memory_bytes",
+                ),
+            )
+        )
+        return CompiledSamplingBridge(handle, execution)
+
+    @outcome_operation
+    def shared_trial_bootstrap_source(self, draws: int, *, seed: int) -> JointDistributionArtifact:
+        """Resample the mean surrogate effect from the validation trials fitted by this bridge."""
+        from .joint_distribution import JointDistributionArtifact
+
+        return JointDistributionArtifact._from_native(
+            _unwrap(self._handle.shared_trial_bootstrap_source(draws, _seed(seed)))
+        )
+
     @outcome_operation
     def derive(
         self, draws: Any, *, seed: int, source_kind: str | None = None
@@ -1799,8 +1900,7 @@ class PreparedDistributionBridge:
         """Bridge the draws of ``draws``, a :class:`~antecedent.joint_distribution.JointDistributionArtifact`.
 
         ``draws`` is an aligned table with a column about the contract's source quantity, of a
-        meaning that is a posterior or a predictive law (a bootstrap, a sampling law or an empirical
-        law is neither). ``source_kind`` is the kind of the claim the draws come from, when they
+        matching posterior, predictive, estimator-sampling or bootstrap meaning. ``source_kind`` is the kind of the claim the draws come from, when they
         come from one: an ``associational`` claim is never a bridge source. ``seed`` selects the
         random stream of the mapping's coefficients, so the result is a function of the contract,
         the table and the seed.
@@ -1818,6 +1918,9 @@ class PreparedDistributionBridge:
             raise CausalTypeError("draws must be a JointDistributionArtifact")
         if source_kind is not None:
             _choice(source_kind, "source_kind", _CLAIM_KINDS)
+        if self.contract.source_value in ("estimator_sampling", "bootstrap"):
+            plan = self.compile_sampling(draws, seed=seed, source_kind=source_kind)
+            return require_success(plan.execute())
         handle = _unwrap(self._handle.derive(draws._native, _seed(seed), source_kind))
         return _distribution(json.loads(handle.summary_json()), handle)
 
@@ -1843,9 +1946,11 @@ def _prepared_distribution(contract: BridgeContract, handle: Any) -> PreparedDis
 
 
 def prepare_distribution_bridge(contract: BridgeContract) -> PreparedDistributionBridge:
-    """Check a contract whose source is the draws of a posterior or a predictive law.
+    """Check a contract for a posterior, predictive, sampling or bootstrap distribution.
 
-    ``source_value`` and ``target_value`` are both ``posterior`` or both ``predictive_law``. An
+    Source and target must declare the same law. Fixed affine maps preserve sampling and
+    bootstrap replicates. A bootstrap trial-level mapping refits the validation trials for each
+    row under independent or shared-trial-mean resampling. An
     affine map with uncertain coefficients declares its ``mapping_uncertainty`` and its
     ``source_dependence``; a trial-level line and a measurement correction take their uncertainty
     from their own evidence and declare only the dependence.

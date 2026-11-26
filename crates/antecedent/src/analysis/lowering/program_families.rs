@@ -67,6 +67,8 @@ macro_rules! program_families {
             SequentialPolicyReliability => DesignBased, unit "decision_reliability.sampled_decision";
             /// Replay a bundle with a compiler-executed terminal.
             BundleRecomputation => PropagationChain, unit "composition.bundle";
+            /// A sampling distribution carried through a fixed map or a validation-trial refit.
+            SamplingDistributionBridge => PropagationChain, unit "scientific_bridge.distribution_bridges";
             /// Bundle replay with a live scientific bridge terminal.
             BridgeBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Bundle replay with a refitted cyclic posterior producer.

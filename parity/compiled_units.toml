@@ -1197,3 +1197,9 @@ lowering = "DirectPagIdentification"
 unit_kind = "capability"
 unit = "identify.pag_direct"
 entry = { rust = "crates/antecedent/src/analysis/pag_identification.rs", python = "python/antecedent/pag_identification.py" }
+
+[[route]]
+lowering = "SamplingDistributionBridge"
+unit_kind = "capability"
+unit = "scientific_bridge.distribution_bridges"
+entry = { rust = "crates/antecedent/src/analysis/kernel_programs/sampling_bridge.rs", python = "python/antecedent/scientific_bridge.py" }

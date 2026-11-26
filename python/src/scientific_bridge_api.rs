@@ -293,6 +293,9 @@ fn parse_source_dependence(value: &Json) -> PyResult<SourceMappingDependence> {
     let map = object(value, "source dependence")?;
     reject_unknown_keys(map, &["kind", "evidence", "covariance"], "a source dependence")?;
     Ok(match text(map, "kind")?.as_str() {
+        "shared_trial_mean" => {
+            SourceMappingDependence::SharedTrialMean { evidence: text(map, "evidence")? }
+        }
         "independent" => SourceMappingDependence::Independent { evidence: text(map, "evidence")? },
         "slope_covariance" => SourceMappingDependence::SlopeCovariance {
             covariance: real(map, "covariance")?,
@@ -407,6 +410,10 @@ fn contract_json(contract: &BridgeContract) -> Json {
         });
     }
     match &contract.source_dependence {
+        Some(SourceMappingDependence::SharedTrialMean { evidence }) => {
+            declared["source_dependence"] =
+                json!({"kind": "shared_trial_mean", "evidence": evidence});
+        }
         Some(SourceMappingDependence::Independent { evidence }) => {
             declared["source_dependence"] = json!({"kind": "independent", "evidence": evidence});
         }
@@ -917,6 +924,75 @@ pub(crate) struct PreparedDistributionBridgeHandle {
     inner: PreparedScientificBridgeDistribution,
 }
 
+/// A sampling-law mapping lowered to the causal compiler.
+#[pyclass(name = "CompiledSamplingBridgeHandle", skip_from_py_object)]
+struct CompiledSamplingBridgeHandle {
+    inner: antecedent::analysis::kernel_programs::sampling_bridge::CompiledSamplingBridge,
+}
+
+fn sampling_outcome<T>(
+    result: Result<T, antecedent::analysis::kernel_programs::sampling_bridge::SamplingBridgeError>,
+) -> PyResult<(Option<T>, Option<String>)> {
+    use antecedent::analysis::kernel_programs::sampling_bridge::SamplingBridgeError as Error;
+    match result {
+        Ok(value) => Ok((Some(value), None)),
+        Err(Error::Scientific(failure)) => Ok((None, Some(refusal_json(&failure)))),
+        Err(Error::NotSupported(failure)) => Ok((
+            None,
+            Some(
+                crate::bridge::RefusalJson::new(
+                    failure.code(),
+                    "scientific_bridge",
+                    failure.detail,
+                    &failure.to_string(),
+                )
+                .json(),
+            ),
+        )),
+        Err(Error::Artifact(antecedent::io::IoError::Admission(failure))) => {
+            Err(crate::CausalResourceError::new_err(failure.to_string()))
+        }
+        Err(Error::Artifact(failure)) => Err(crate::serialization_err(failure.to_string())),
+        Err(Error::Compile(failure)) => Err(crate::value_err(failure.to_string())),
+    }
+}
+
+#[pymethods]
+impl CompiledSamplingBridgeHandle {
+    fn plan_json(&self) -> String {
+        self.inner.plan_view().to_json().to_string()
+    }
+    fn program_identity(&self) -> String {
+        self.inner.lowered().identity().to_hex()
+    }
+    fn unit_support(&self) -> Option<String> {
+        crate::errors::unit_support_json(&self.inner.plan_view())
+    }
+
+    #[pyo3(signature = (*, seed=1, threads=None, cancel=None, memory_bytes=None))]
+    fn execute(
+        &self,
+        py: Python<'_>,
+        seed: u64,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
+        memory_bytes: Option<u64>,
+    ) -> PyResult<DerivedDistribution> {
+        let ctx = crate::chain_decision_api::context(seed, threads, cancel, memory_bytes);
+        crate::detach_catch(py, || {
+            let result = self.inner.execute(&ctx);
+            if ctx.cancellation.is_cancelled() {
+                return Err(crate::CausalCancelledError::new_err(
+                    "sampling bridge execution cancelled",
+                ));
+            }
+            sampling_outcome(
+                result.map(|inner| BridgedDistributionHandle { inner, identity: None }),
+            )
+        })
+    }
+}
+
 /// A bridged distribution: the derived claim and the aligned draw table.
 #[pyclass(name = "BridgedDistributionHandle", skip_from_py_object)]
 pub(crate) struct BridgedDistributionHandle {
@@ -1009,6 +1085,50 @@ impl PreparedDistributionBridgeHandle {
     /// Whether the bridge carries evidence from another scope under a premise.
     fn transported(&self) -> bool {
         self.inner.transported()
+    }
+
+    /// Bind the input distribution and stream to an inspectable causal program.
+    #[pyo3(signature = (distribution, stream, claim_kind=None, *, seed=1, threads=None, cancel=None, memory_bytes=None))]
+    #[allow(clippy::too_many_arguments, reason = "shared Python execution controls")]
+    fn compile_sampling(
+        &self,
+        py: Python<'_>,
+        distribution: PyRef<'_, PyJointDistributionArtifact>,
+        stream: u64,
+        claim_kind: Option<&str>,
+        seed: u64,
+        threads: Option<u32>,
+        cancel: Option<crate::PyCancellationToken>,
+        memory_bytes: Option<u64>,
+    ) -> PyResult<(Option<CompiledSamplingBridgeHandle>, Option<String>)> {
+        let ctx = crate::chain_decision_api::context(seed, threads, cancel, memory_bytes);
+        let source = distribution.inner().clone();
+        let kind = claim_kind_of(claim_kind)?;
+        crate::detach_catch(py, || {
+            let result = self.inner.compile_sampling(source, kind, stream, &ctx);
+            if ctx.cancellation.is_cancelled() {
+                return Err(crate::CausalCancelledError::new_err(
+                    "sampling bridge compilation cancelled",
+                ));
+            }
+            sampling_outcome(result.map(|inner| CompiledSamplingBridgeHandle { inner }))
+        })
+    }
+
+    /// Produce the bootstrap source using the same trial rows as the fitted mapping.
+    fn shared_trial_bootstrap_source(
+        &self,
+        draws: usize,
+        seed: u64,
+    ) -> PyResult<(Option<PyJointDistributionArtifact>, Option<String>)> {
+        crate::catch_ffi(|| {
+            Ok(match self.inner.shared_trial_bootstrap_source(draws, seed) {
+                Ok(artifact) => {
+                    (Some(PyJointDistributionArtifact { artifact, source_claim: None }), None)
+                }
+                Err(refusal) => (None, Some(refusal_json(&refusal))),
+            })
+        })
     }
 
     /// Bridge the draws of an aligned draw table, or the refusal.
@@ -1198,6 +1318,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<BridgedClaimHandle>()?;
     module.add_class::<ConsumedBridgeHandle>()?;
     module.add_class::<PreparedDistributionBridgeHandle>()?;
+    module.add_class::<CompiledSamplingBridgeHandle>()?;
     module.add_class::<BridgedDistributionHandle>()?;
     module.add_function(wrap_pyfunction!(scientific_bridge_prepare, module)?)?;
     module.add_function(wrap_pyfunction!(scientific_bridge_contract_identity, module)?)?;

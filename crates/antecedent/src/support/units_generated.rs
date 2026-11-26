@@ -21,7 +21,6 @@ pub(crate) const CHOICE_INFERENCE_INTERVAL_CANDIDATES: UnitId =
 pub(crate) const COHORT_DECISION_INTERVAL: UnitId = UnitId::new("cohort_decision.interval");
 pub(crate) const COMPOSITION_BOUNDARY: UnitId = UnitId::new("composition.boundary");
 pub(crate) const COMPOSITION_BUNDLE: UnitId = UnitId::new("composition.bundle");
-pub(crate) const IDENTIFY_PAG_DIRECT: UnitId = UnitId::new("identify.pag_direct");
 pub(crate) const COMPOSITION_PROPAGATION_CHAIN: UnitId =
     UnitId::new("composition.propagation_chain");
 pub(crate) const COMPOSITION_SAMPLING_ASSUMPTION_UNION: UnitId =
@@ -109,6 +108,7 @@ pub(crate) const IDENTIFY_BINARY_NESTED_MARKOV_FISHER: UnitId =
     UnitId::new("identify.binary_nested_markov_fisher");
 pub(crate) const IDENTIFY_MIXED_SOURCE_PROOF_SEARCH: UnitId =
     UnitId::new("identify.mixed_source_proof_search");
+pub(crate) const IDENTIFY_PAG_DIRECT: UnitId = UnitId::new("identify.pag_direct");
 pub(crate) const IDENTIFY_PATIENT_SURROGATE: UnitId = UnitId::new("identify.patient_surrogate");
 pub(crate) const JOINT_RESPONSE_INTERVAL_READINGS: UnitId =
     UnitId::new("joint_response.interval_readings");
@@ -143,6 +143,8 @@ pub(crate) const PRIOR_EXTERNAL_COMPOSITION: UnitId = UnitId::new("prior.externa
 pub(crate) const RECOVERY_BINARY_OBSERVATION: UnitId = UnitId::new("recovery.binary_observation");
 pub(crate) const RECOVERY_CHAIN_OBSERVATION: UnitId = UnitId::new("recovery.chain_observation");
 pub(crate) const RECOVERY_SAMPLED_OBSERVATION: UnitId = UnitId::new("recovery.sampled_observation");
+pub(crate) const SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES: UnitId =
+    UnitId::new("scientific_bridge.distribution_bridges");
 pub(crate) const SENSITIVITY_JOINT_MECHANISM: UnitId = UnitId::new("sensitivity.joint_mechanism");
 pub(crate) const SENSITIVITY_MATCHED_HIDDEN_BIAS: UnitId =
     UnitId::new("sensitivity.matched_hidden_bias");
@@ -302,9 +304,9 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "GraphImputationTransportClusterBootstrapDecision"
         | "GraphImputationTransportDecision" => Some(GRAPH_IMPUTATION_COMPILED_DECISION),
         "NestedMarkovPosterior" => Some(IDENTIFY_BINARY_NESTED_MARKOV),
-        "DirectPagIdentification" => Some(IDENTIFY_PAG_DIRECT),
         "NestedMarkovFisherInterval" => Some(IDENTIFY_BINARY_NESTED_MARKOV_FISHER),
         "MixedSourceIdentification" => Some(IDENTIFY_MIXED_SOURCE_PROOF_SEARCH),
+        "DirectPagIdentification" => Some(IDENTIFY_PAG_DIRECT),
         "PatientSurrogateIdentification" => Some(IDENTIFY_PATIENT_SURROGATE),
         "JointDesign"
         | "JointPanelExperiment"
@@ -346,6 +348,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "MeasuredSampledObservationRecovery" | "SampledObservationRecovery" => {
             Some(RECOVERY_SAMPLED_OBSERVATION)
         }
+        "SamplingDistributionBridge" => Some(SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES),
         "ZTransportMechanismSensitivity" => Some(SENSITIVITY_JOINT_MECHANISM),
         "MatchedDesignSensitivity" => Some(SENSITIVITY_MATCHED_HIDDEN_BIAS),
         "SuppliedEstimateEValue" => Some(SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE),

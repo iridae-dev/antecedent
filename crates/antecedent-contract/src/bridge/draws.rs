@@ -246,6 +246,8 @@ pub enum DrawMapping {
     Affine(AffineDrawLaw),
     /// A binary-misclassification correction with its rates.
     Correction(CorrectionDrawLaw),
+    /// Fit a surrogate line in each bootstrap replicate of the validation trials.
+    TrialBootstrap(TrialLevelValidation),
 }
 
 fn check_rate_variance(name: &str, rate: f64, variance: f64) -> Result<(), BridgeRefusal> {
@@ -322,7 +324,11 @@ fn trial_law(
     })
 }
 
-fn declared_affine_law(contract: &BridgeContract, intercept: f64, slope: f64) -> AffineDrawLaw {
+fn declared_affine_law(
+    contract: &BridgeContract,
+    intercept: f64,
+    slope: f64,
+) -> Result<AffineDrawLaw, BridgeRefusal> {
     let (intercept_variance, slope_variance, intercept_slope_covariance) =
         contract.mapping_uncertainty.as_ref().map_or((0.0, 0.0, 0.0), |uncertainty| {
             (
@@ -331,7 +337,7 @@ fn declared_affine_law(contract: &BridgeContract, intercept: f64, slope: f64) ->
                 uncertainty.intercept_slope_covariance,
             )
         });
-    AffineDrawLaw {
+    Ok(AffineDrawLaw {
         intercept_mean: intercept,
         slope_mean: slope,
         intercept_variance,
@@ -340,11 +346,13 @@ fn declared_affine_law(contract: &BridgeContract, intercept: f64, slope: f64) ->
         source_slope_covariance: contract
             .source_dependence
             .as_ref()
-            .map_or(0.0, SourceMappingDependence::covariance),
+            .map(SourceMappingDependence::covariance)
+            .transpose()?
+            .unwrap_or(0.0),
         degrees_of_freedom: None,
         residual_variance: 0.0,
         domain: None,
-    }
+    })
 }
 
 /// Check the declaration of what the mapping adds to the draws it carries.
@@ -356,6 +364,25 @@ fn declared_affine_law(contract: &BridgeContract, intercept: f64, slope: f64) ->
 /// mapping's uncertainty again, and both declare how they depend on the source
 /// estimate (a correction has no slope estimator, so only independence).
 pub(super) fn check_draws_declaration(contract: &BridgeContract) -> Result<(), BridgeRefusal> {
+    if contract.source_value.is_sampling() {
+        match (&contract.mapping, &contract.mapping_uncertainty, &contract.source_dependence) {
+            (BridgeMapping::Identity | BridgeMapping::Affine { .. }, None, None) => return Ok(()),
+            (
+                BridgeMapping::TrialLevelLinear(_),
+                None,
+                Some(
+                    SourceMappingDependence::Independent { .. }
+                    | SourceMappingDependence::SharedTrialMean { .. },
+                ),
+            ) if contract.source_value == ValueKind::Bootstrap => return Ok(()),
+            _ => {
+                return Err(mapping_uncertainty_invalid(
+                    "mapping",
+                    "declare a fixed map or a trial bootstrap design that binds the validation refit to each source replicate",
+                ));
+            }
+        }
+    }
     match &contract.mapping {
         BridgeMapping::Identity | BridgeMapping::Affine { .. } => {
             match (&contract.mapping_uncertainty, &contract.source_dependence) {
@@ -386,12 +413,13 @@ pub(super) fn check_draws_declaration(contract: &BridgeContract) -> Result<(), B
             match &contract.source_dependence {
                 None => Err(source_dependence_missing()),
                 Some(SourceMappingDependence::Independent { .. }) => Ok(()),
-                Some(SourceMappingDependence::SlopeCovariance { .. }) => {
-                    Err(source_dependence_invalid(
-                        "source_dependence",
-                        "a measurement correction has no slope estimator; declare the source and the validation sample independent",
-                    ))
-                }
+                Some(
+                    SourceMappingDependence::SlopeCovariance { .. }
+                    | SourceMappingDependence::SharedTrialMean { .. },
+                ) => Err(source_dependence_invalid(
+                    "source_dependence",
+                    "a measurement correction has no slope estimator; declare the source and the validation sample independent",
+                )),
             }
         }
     }
@@ -402,15 +430,22 @@ fn draw_mapping(
     direction: MeasurementDirection,
 ) -> Result<DrawMapping, BridgeRefusal> {
     Ok(match &contract.mapping {
-        BridgeMapping::Identity => DrawMapping::Affine(declared_affine_law(contract, 0.0, 1.0)),
+        BridgeMapping::Identity => DrawMapping::Affine(declared_affine_law(contract, 0.0, 1.0)?),
         BridgeMapping::Affine { intercept, slope } => {
-            DrawMapping::Affine(declared_affine_law(contract, *intercept, *slope))
+            DrawMapping::Affine(declared_affine_law(contract, *intercept, *slope)?)
+        }
+        BridgeMapping::TrialLevelLinear(validation)
+            if contract.source_value == ValueKind::Bootstrap =>
+        {
+            DrawMapping::TrialBootstrap(validation.clone())
         }
         BridgeMapping::TrialLevelLinear(validation) => {
             let covariance = contract
                 .source_dependence
                 .as_ref()
-                .map_or(0.0, SourceMappingDependence::covariance);
+                .map(SourceMappingDependence::covariance)
+                .transpose()?
+                .unwrap_or(0.0);
             DrawMapping::Affine(trial_law(validation, covariance)?)
         }
         BridgeMapping::MeasurementCorrection(model) => {
@@ -511,6 +546,9 @@ impl BridgeContract {
         let Some(held) = source.value_kind else {
             return Err(draws_meaning_mismatch(self.source_value, source.meaning));
         };
+        if held.is_sampling() && held != self.source_value {
+            return Err(draws_meaning_mismatch(self.source_value, source.meaning));
+        }
         if held != self.source_value {
             return Err(wrong_value_kind(self.source_value, held));
         }
@@ -628,6 +666,9 @@ impl DrawsPlan {
         }
         if let Some(dependence) = &self.contract.source_dependence {
             push(match dependence {
+                SourceMappingDependence::SharedTrialMean { evidence: name } => {
+                    format!("source_dependence:shared_trial_mean:{name}")
+                }
                 SourceMappingDependence::Independent { evidence: name } => {
                     format!("source_dependence:independent:{name}")
                 }

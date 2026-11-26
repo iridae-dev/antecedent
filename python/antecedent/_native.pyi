@@ -9879,7 +9879,34 @@ def scientific_bridge_consume(
     artifact: bytes, expected_identity: str | None = None
 ) -> tuple[ConsumedBridgeHandle | None, str | None]: ...
 
+class CompiledSamplingBridgeHandle:
+    def plan_json(self) -> str: ...
+    def program_identity(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[BridgedDistributionHandle | None, str | None]: ...
+
 class PreparedDistributionBridgeHandle:
+    def compile_sampling(
+        self,
+        distribution: JointDistributionArtifact,
+        stream: int,
+        claim_kind: str | None = None,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[CompiledSamplingBridgeHandle | None, str | None]: ...
+    def shared_trial_bootstrap_source(
+        self, draws: int, seed: int
+    ) -> tuple[JointDistributionArtifact | None, str | None]: ...
     def contract_json(self) -> str: ...
     def contract_identity(self) -> str: ...
     def transported(self) -> bool: ...

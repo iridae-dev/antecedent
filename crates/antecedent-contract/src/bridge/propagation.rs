@@ -133,6 +133,11 @@ pub enum SourceMappingDependence {
         /// The study or ledger entry the disjointness rests on.
         evidence: String,
     },
+    /// The source mean and the surrogate line are both refitted to the same resampled trials.
+    SharedTrialMean {
+        /// Identity of the validation evidence shared with the source mean.
+        evidence: String,
+    },
     /// Covariance of the slope estimator and the source estimator.
     SlopeCovariance {
         /// Covariance. Its square must be at most the product of the variances.
@@ -145,6 +150,12 @@ pub enum SourceMappingDependence {
 impl SourceMappingDependence {
     pub(super) fn validate(&self) -> Result<(), BridgeRefusal> {
         match self {
+            Self::SharedTrialMean { evidence } => require_text(
+                "source_dependence.evidence",
+                evidence,
+                "name the common validation trials",
+                source_dependence_invalid,
+            ),
             Self::Independent { evidence } => require_text(
                 "source_dependence.evidence",
                 evidence,
@@ -168,15 +179,22 @@ impl SourceMappingDependence {
         }
     }
 
-    pub(super) fn covariance(&self) -> f64 {
+    pub(super) fn covariance(&self) -> Result<f64, BridgeRefusal> {
         match self {
-            Self::Independent { .. } => 0.0,
-            Self::SlopeCovariance { covariance, .. } => *covariance,
+            Self::Independent { .. } => Ok(0.0),
+            Self::SlopeCovariance { covariance, .. } => Ok(*covariance),
+            Self::SharedTrialMean { .. } => Err(source_dependence_invalid(
+                "source_dependence",
+                "use the joint trial bootstrap to evaluate shared trial resamples",
+            )),
         }
     }
 
     fn write(&self, out: &mut CanonicalWriter) {
         match self {
+            Self::SharedTrialMean { evidence } => {
+                out.word(3).text(evidence);
+            }
             Self::Independent { evidence } => {
                 out.word(1).text(evidence);
             }
@@ -725,7 +743,7 @@ pub(super) fn propagate_affine(
     if !(source_variance.is_finite() && source_variance >= 0.0) {
         return Err(source_variance_invalid(source_variance.to_string()));
     }
-    let covariance = dependence.covariance();
+    let covariance = dependence.covariance()?;
     validate_affine_joint_covariance(
         uncertainty.intercept_variance,
         uncertainty.slope_variance,

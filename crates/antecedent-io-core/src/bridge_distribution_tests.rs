@@ -960,3 +960,114 @@ fn a_predictive_line_stage_adds_an_independent_residual_to_the_mean_line() {
     near(variance, line_variance + residual_variance + 2.0 * covariance, 1e-9);
     assert!(residual_variance > 0.01, "{residual_variance}");
 }
+
+#[test]
+fn fixed_affine_bridge_preserves_sampling_replicates_and_their_meaning() {
+    for (kind, meaning) in [
+        (ValueKind::Bootstrap, DistributionMeaningWire::Bootstrap),
+        (ValueKind::EstimatorSampling, DistributionMeaningWire::EstimatorSampling),
+    ] {
+        let source = table(&[1.0, 2.0, 4.0], &[2.0, 5.0, 8.0], meaning, DrawAlignment::Joint);
+        let declaration =
+            contract(BridgeMapping::Affine { intercept: 1.0, slope: 2.0 }, kind, None, None);
+        let bridge = bridge_draws(&declaration, &source, None, 7).unwrap();
+        assert_eq!(bridge.distribution().draws(), &[3.0, 2.0, 5.0, 5.0, 9.0, 8.0]);
+        assert_eq!(bridge.distribution().semantic(), meaning);
+        assert_eq!(bridge.alignment_identity(), source.alignment_identity().unwrap());
+        let stage = bridge.chain_stage("endpoint").unwrap();
+        assert_eq!(stage.reading, ChainReading::Spread);
+        assert_eq!(stage.sources.len(), 1);
+        assert!(bridge.claim().require_value_kind(ValueKind::Posterior).is_err());
+        let mut metadata = source.metadata().clone();
+        metadata.weights = Some(vec![1.0, 2.0, 3.0]);
+        let weighted = DistributionArtifact::new(metadata, source.draws().to_vec()).unwrap();
+        let reweighted = bridge_draws(&declaration, &weighted, None, 7).unwrap();
+        assert_ne!(bridge.claim().source_claim_id, reweighted.claim().source_claim_id);
+        assert_ne!(bridge.claim().draws_digest, reweighted.claim().draws_digest);
+        assert_eq!(reweighted.distribution().metadata().weights, weighted.metadata().weights);
+        near(reweighted.claim().mean, 40.0 / 6.0, 1e-12);
+    }
+}
+
+#[test]
+fn fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit() {
+    let mut declaration = trial_contract(ValueKind::Bootstrap);
+    let trials: Vec<_> = (0..24)
+        .map(|i| {
+            let x = f64::from(i);
+            TrialEffectPair { surrogate_effect: x, terminal_effect: x + x * x / 48.0 }
+        })
+        .collect();
+    declaration.mapping = BridgeMapping::TrialLevelLinear(TrialLevelValidation {
+        trials: trials.clone(),
+        min_trials: 5,
+        min_r_squared: 0.0,
+    });
+    declaration.source_dependence = Some(SourceMappingDependence::SharedTrialMean {
+        evidence: "meta-analysis:ckd-2024".into(),
+    });
+    let seed = 515;
+    let source = shared_trial_bootstrap_source(&declaration, 199, seed).unwrap();
+    let mapped = bridge_draws(&declaration, &source, None, seed).unwrap();
+    let mut rng = CausalRng::from_seed(derive_stream(seed, BRIDGE_DRAWS_STREAM));
+    let mut squared_reference = Vec::new();
+    // Fitting OLS with an intercept sends the surrogate centroid to the terminal centroid.
+    for value in mapped.mapped_column() {
+        let sum: f64 = (0..trials.len())
+            .map(|_| {
+                trials[antecedent_kernels::unbiased_index(&mut rng, trials.len())].terminal_effect
+            })
+            .sum();
+        let terminal_centroid = sum / trials.len() as f64;
+        near(value, terminal_centroid, 1e-12);
+        squared_reference.push(terminal_centroid.powi(2));
+    }
+    // Compose the fitted map with a nonlinear operation before summarizing its sampling law.
+    let fitted = mapped.chain_stage("fit").unwrap();
+    let squared = ChainStageWire::new(
+        "squared_effect",
+        StageKind::DerivedQuantity,
+        &["fit"],
+        ChainOpWire::unary(ChainUnaryWire::Square),
+    );
+    let draft = PropagationChainRecordWire::draft(
+        TableConstruction::JointDraws,
+        ChainReading::Spread,
+        "squared_effect",
+        fitted.sources,
+        vec![fitted.stage, squared],
+    );
+    let record =
+        PropagationChainRecordWire::seal(draft, &ExecutionContext::for_tests(seed)).unwrap();
+    let projected = record.results.iter().find(|r| r.stage == "squared_effect").unwrap();
+    let count = squared_reference.len() as f64;
+    let mean = squared_reference.iter().sum::<f64>() / count;
+    let variance =
+        squared_reference.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / (count - 1.0);
+    near(projected.value("mean").unwrap(), mean, 1e-9);
+    near(projected.value("variance").unwrap(), variance, 1e-8);
+    assert!((mean - mapped.claim().mean.powi(2)).abs() > 1.0);
+    let mut swapped = source.draws().to_vec();
+    swapped.rotate_left(1);
+    let swapped = DistributionArtifact::new(source.metadata().clone(), swapped).unwrap();
+    assert!(bridge_draws(&declaration, &swapped, None, seed).is_err());
+    assert!(bridge_draws(&declaration, &source, None, seed + 1).is_err());
+    declaration.source_dependence =
+        Some(SourceMappingDependence::Independent { evidence: "external-validation".into() });
+    let external =
+        table(&[12.0; 199], &[0.0; 199], DistributionMeaningWire::Bootstrap, DrawAlignment::Joint);
+    let independent = bridge_draws(&declaration, &external, None, seed).unwrap();
+    let mut rng = CausalRng::from_seed(derive_stream(seed, BRIDGE_DRAWS_STREAM));
+    for value in independent.mapped_column() {
+        let sample: Vec<_> = (0..trials.len())
+            .map(|_| trials[antecedent_kernels::unbiased_index(&mut rng, trials.len())])
+            .collect();
+        let n = sample.len() as f64;
+        let sx: f64 = sample.iter().map(|t| t.surrogate_effect).sum();
+        let sy: f64 = sample.iter().map(|t| t.terminal_effect).sum();
+        let xx: f64 = sample.iter().map(|t| t.surrogate_effect.powi(2)).sum();
+        let xy: f64 = sample.iter().map(|t| t.surrogate_effect * t.terminal_effect).sum();
+        let slope = (n * xy - sx * sy) / (n * xx - sx * sx);
+        near(value, sy / n + slope * (12.0 - sx / n), 1e-12);
+    }
+}

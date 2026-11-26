@@ -211,7 +211,7 @@ pub(super) fn propagation_admission_refused(
 }
 
 /// The caller cancelled a propagation; no moments are reported.
-pub(super) fn propagation_cancelled() -> BridgeRefusal {
+pub fn propagation_cancelled() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("cancelled_no_claim"),
         STAGE_BIND,
@@ -780,7 +780,8 @@ pub(super) fn draws_meaning_mismatch(expected: ValueKind, supplied: &str) -> Bri
 }
 
 /// Draws that are independent marginals have no row pairing to carry.
-pub(super) fn draws_not_aligned() -> BridgeRefusal {
+#[must_use]
+pub fn draws_not_aligned() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("joint_law_required"),
         STAGE_BIND,

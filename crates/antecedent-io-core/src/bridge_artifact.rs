@@ -740,6 +740,9 @@ fn dependence_to_wire(
     value: &SourceMappingDependence,
 ) -> Result<DependenceWire, ScientificBridgeArtifactError> {
     match value {
+        SourceMappingDependence::SharedTrialMean { evidence } => {
+            Ok(DependenceWire::SharedTrialMean { evidence: evidence.clone() })
+        }
         SourceMappingDependence::Independent { evidence } => {
             Ok(DependenceWire::Independent { evidence: evidence.clone() })
         }
@@ -755,6 +758,9 @@ fn dependence_to_wire(
 
 fn dependence_from_wire(value: &DependenceWire) -> SourceMappingDependence {
     match value {
+        DependenceWire::SharedTrialMean { evidence } => {
+            SourceMappingDependence::SharedTrialMean { evidence: evidence.clone() }
+        }
         DependenceWire::Independent { evidence } => {
             SourceMappingDependence::Independent { evidence: evidence.clone() }
         }
@@ -1660,6 +1666,11 @@ pub struct MappingUncertaintyWire {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DependenceWire {
+    /// A joint pairs bootstrap of the source surrogate mean and the trial-level mapping.
+    SharedTrialMean {
+        /// Shared trial evidence.
+        evidence: String,
+    },
     /// The source and the mapping evidence are declared disjoint.
     Independent {
         /// The study or ledger entry the disjointness rests on.

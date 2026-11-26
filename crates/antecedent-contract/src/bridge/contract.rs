@@ -123,6 +123,7 @@ const fn value_operation(kind: ValueKind) -> Option<ContractOperation> {
         ValueKind::Mean => Some(ContractOperation::Mean),
         ValueKind::PredictiveLaw => Some(ContractOperation::Law),
         ValueKind::Posterior => Some(ContractOperation::Posterior),
+        ValueKind::EstimatorSampling | ValueKind::Bootstrap => Some(ContractOperation::JointDraws),
         ValueKind::IdentifiedSet | ValueKind::JointOutcomeLaw => None,
     }
 }
@@ -297,6 +298,20 @@ impl BridgeContract {
         }
         if let Some(dependence) = &self.source_dependence {
             dependence.validate()?;
+            if let SourceMappingDependence::SharedTrialMean { evidence } = dependence {
+                if self.source_value != ValueKind::Bootstrap
+                    || !matches!(self.mapping, BridgeMapping::TrialLevelLinear(_))
+                    || !self.assumptions.iter().any(|a| {
+                        a.kind == self.kind.principal_assumption()
+                            && a.evidence.as_ref() == Some(evidence)
+                    })
+                {
+                    return Err(super::refusal::source_dependence_invalid(
+                        "source_dependence",
+                        "bind the shared source mean and trial line to the same named bootstrap validation evidence",
+                    ));
+                }
+            }
         }
         if let Some(bridge) = &self.estimand_bridge {
             bridge.validate()?;
@@ -353,7 +368,11 @@ impl BridgeContract {
         }
         let carried = self.source_value == ValueKind::Mean
             || (draws
-                && matches!(self.source_value, ValueKind::Posterior | ValueKind::PredictiveLaw));
+                && (self.source_value.is_sampling()
+                    || matches!(
+                        self.source_value,
+                        ValueKind::Posterior | ValueKind::PredictiveLaw
+                    )));
         if !carried {
             return Err(value_kind_not_carried(self.source_value));
         }

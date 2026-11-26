@@ -63,6 +63,11 @@ pub fn bridged_distribution_interval(
 ) -> Result<BridgedClaimInterval, ExternalRefusal> {
     let claim = bridged.claim();
     let contract = &claim.contract;
+    if contract.source_value.is_sampling() {
+        return Err(outside_measured(
+            "sampling replicates carry a transformed sampling law; a confidence interval needs its own construction",
+        ));
+    }
     if contract.mapping_uncertainty.is_some() {
         return Err(outside_measured(
             "a declared affine map with uncertain coefficients is propagated by draws; no coverage record measured it",

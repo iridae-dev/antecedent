@@ -277,7 +277,7 @@ fn trial_propagation(
     let (fit, statistics) = fit_with_statistics(validation)?;
     let moments = trial_moments(&statistics, fit.slope)?;
     let (covariance, variance) =
-        moments.propagate(source_value, source_variance, dependence.covariance())?;
+        moments.propagate(source_value, source_variance, dependence.covariance()?)?;
     let mean = plug_in + covariance;
     if !mean.is_finite() {
         return Err(propagation_overflow(

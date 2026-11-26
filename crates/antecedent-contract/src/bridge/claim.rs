@@ -273,6 +273,9 @@ pub fn derive_bridged_claim_propagating(
     }
     if let Some(dependence) = &contract.source_dependence {
         let label = match dependence {
+            super::contract::SourceMappingDependence::SharedTrialMean { evidence: name } => {
+                format!("source_dependence:shared_trial_mean:{name}")
+            }
             super::contract::SourceMappingDependence::Independent { evidence: name } => {
                 format!("source_dependence:independent:{name}")
             }

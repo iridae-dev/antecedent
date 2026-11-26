@@ -146,7 +146,7 @@ impl JointLaw {
         if !(source_variance.is_finite() && source_variance >= 0.0) {
             return Err(source_variance_invalid(source_variance.to_string()));
         }
-        let covariance = dependence.covariance();
+        let covariance = dependence.covariance()?;
         let product = uncertainty.slope_variance * source_variance;
         if !product.is_finite() || covariance * covariance > product {
             return Err(dependence_not_a_covariance(covariance.to_string()));

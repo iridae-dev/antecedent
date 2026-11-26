@@ -319,11 +319,27 @@ fn matched_trial_validation_and_bridge_decision_replay_together() {
 
 #[test]
 fn predictive_bridge_bundle_recomputes_a_live_terminal() {
+    assert_bridge_bundle_replay(
+        ValueKind::PredictiveLaw,
+        DistributionMeaningWire::PosteriorPredictive,
+    );
+}
+
+#[test]
+fn sampling_bridge_bundle_recomputes_a_live_terminal() {
+    assert_bridge_bundle_replay(ValueKind::Bootstrap, DistributionMeaningWire::Bootstrap);
+    assert_bridge_bundle_replay(
+        ValueKind::EstimatorSampling,
+        DistributionMeaningWire::EstimatorSampling,
+    );
+}
+
+fn assert_bridge_bundle_replay(kind: ValueKind, semantic: DistributionMeaningWire) {
     let mut declaration =
         contract(BridgeMapping::Affine { intercept: 0.5, slope: 2.0 }, None, None);
-    declaration.source_value = ValueKind::PredictiveLaw;
-    declaration.target_value = ValueKind::PredictiveLaw;
-    let source = draws_table(64, 1.0, 0.3, DistributionMeaningWire::PosteriorPredictive);
+    declaration.source_value = kind;
+    declaration.target_value = kind;
+    let source = draws_table(64, 1.0, 0.3, semantic);
     let prepared = PreparedScientificBridgeDistribution::prepare(declaration.clone()).unwrap();
     let result = prepared.derive(&source, None, 41).unwrap();
     let bridge_artifact = result.export("bridge-bundle-terminal").unwrap();
@@ -340,6 +356,15 @@ fn predictive_bridge_bundle_recomputes_a_live_terminal() {
     let plan =
         compile_bridge_bundle_recomputation(bundle, "terminal", declaration, source, 41).unwrap();
     assert_eq!(plan.plan_view().route().as_str(), "BridgeBundleRecomputation");
+    if kind.is_sampling() {
+        let limited = ExecutionContext::for_tests(41).with_memory_limit(Some(1));
+        assert!(matches!(
+            plan.execute(&limited),
+            Err(crate::analysis::composition::BridgeBundleRecomputeError::Io(
+                antecedent_io::IoError::Admission(_)
+            ))
+        ));
+    }
     let receipt = plan.execute(&ctx).unwrap();
     assert_eq!(receipt.terminal_identity, bridge_artifact.identity);
     let bytes = plan.export_portable(&receipt, &ctx).unwrap();
@@ -828,5 +853,70 @@ fn independent_target_posterior_and_source_innovation_replay_together() {
                 &ctx
             )
             .is_err()
+    );
+}
+
+#[test]
+fn compiled_sampling_bridge_maps_every_replicate_and_obeys_resource_controls() {
+    let ctx = ExecutionContext::for_tests(5);
+    let mut declaration = contract(BridgeMapping::Affine { intercept: 3., slope: -2. }, None, None);
+    declaration.source_value = ValueKind::Bootstrap;
+    declaration.target_value = ValueKind::Bootstrap;
+    let source = draws_table(64, 2., 0.5, DistributionMeaningWire::Bootstrap);
+    let bridge = PreparedScientificBridgeDistribution::prepare(declaration).unwrap();
+    let plan = bridge.compile_sampling(source.clone(), None, 13, &ctx).unwrap();
+    let live = plan.execute(&ctx).unwrap();
+    for (before, after) in
+        source.draws().chunks_exact(2).zip(live.distribution().draws().chunks_exact(2))
+    {
+        assert_eq!(after, &[3. - 2. * before[0], before[1]]);
+    }
+    assert!(plan.execute(&ctx.clone().with_memory_limit(Some(1))).is_err());
+    let mut stop = ctx.clone();
+    stop.cancellation = antecedent_core::CancellationToken::cancel_after_checks(9);
+    assert!(plan.execute(&stop).is_err());
+    assert!(stop.cancellation.is_requested());
+    assert_eq!(plan.execute(&ctx).unwrap().distribution().draws(), live.distribution().draws());
+}
+
+#[test]
+fn compiled_identified_set_bridge_reopens_the_sharp_target_interval() {
+    use crate::analysis::kernel_programs::bridge_images::{
+        BridgeImageRequest, BridgeImageResult, consume_bridge_image,
+    };
+    use antecedent_contract::bridge::{FixedBridgeDomain, IdentifiedSetSource, ValueInterval};
+    let ctx = ExecutionContext::for_tests(9);
+    let mut bridge = contract(BridgeMapping::Affine { intercept: 1., slope: -2. }, None, None);
+    bridge.source_value = ValueKind::IdentifiedSet;
+    bridge.target_value = ValueKind::IdentifiedSet;
+    let source = IdentifiedSetSource {
+        quantity: bridge.source.quantity.clone(),
+        set: antecedent_core::IdentifiedSet::try_new(-2., 3.).unwrap(),
+        claim_identity: SemanticDigest::from_bytes([91; 32]),
+    };
+    let plan = crate::Study::compile_bridge_image(
+        BridgeImageRequest::IdentifiedSet {
+            bridge: Box::new(bridge),
+            source,
+            domain: FixedBridgeDomain(ValueInterval { low: -3., high: 4. }),
+        },
+        &ctx,
+    )
+    .unwrap();
+    let direct = plan.execute(&ctx).unwrap();
+    let program = plan.lowered().identity();
+    let bytes = plan.export("decreasing-set", &ctx).unwrap();
+    let replay = consume_bridge_image(&bytes, program, direct.identity(), &ctx).unwrap();
+    let BridgeImageResult::IdentifiedSet(bounds) = replay else {
+        panic!("expected sharp interval")
+    };
+    assert_eq!(bounds.set, antecedent_core::IdentifiedSet::try_new(-5., 5.).unwrap());
+    let independent_bound = antecedent_core::IdentifiedSet::try_new(2., 9.).unwrap();
+    assert_eq!(
+        bounds.set.intersect(&independent_bound).unwrap(),
+        antecedent_core::IdentifiedSet::try_new(2., 5.).unwrap()
+    );
+    assert!(
+        consume_bridge_image(&bytes, program, SemanticDigest::from_bytes([0; 32]), &ctx).is_err()
     );
 }

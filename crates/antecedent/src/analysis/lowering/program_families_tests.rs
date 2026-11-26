@@ -131,6 +131,12 @@ const PINNED: &[(C, R, &str, F)] = &[
     ),
     (C::BundleRecomputation, R::BundleRecomputation, "BundleRecomputation", F::PropagationChain),
     (
+        C::SamplingDistributionBridge,
+        R::SamplingDistributionBridge,
+        "SamplingDistributionBridge",
+        F::PropagationChain,
+    ),
+    (
         C::BridgeBundleRecomputation,
         R::BridgeBundleRecomputation,
         "BridgeBundleRecomputation",

@@ -6048,3 +6048,9 @@ rust = "antecedent::analysis::rpcmci_portable::consume_learned_rpcmci"
 kind = "fn"
 status = "bound"
 python = "antecedent.rpcmci_portable.consume_learned_rpcmci"
+
+[[entry]]
+rust = "antecedent::analysis::kernel_programs::sampling_bridge::CompiledSamplingBridge"
+kind = "type"
+status = "bound"
+python = "antecedent.scientific_bridge.CompiledSamplingBridge"

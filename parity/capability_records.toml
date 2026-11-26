@@ -15664,6 +15664,7 @@ refusals = [
   { detail = "scientific_bridge.value_kind_substitution", remedy = "Supply the requested object from its own route." },
 ]
 routes = [
+  { name = "antecedent.scientific_bridge.compile_sampling", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.prepare_distribution", stage = "prepare", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.derive_distribution", stage = "evaluate", status = "supported", claim = "none" },
   { name = "antecedent.scientific_bridge.consume_distribution_artifact", stage = "consume", status = "supported", claim = "none" },
@@ -15671,6 +15672,8 @@ routes = [
   { name = "antecedent.scientific_bridge.extrapolated_draws", stage = "evaluate", status = "closed", reason_code = "bridge_mapping_not_supported", permanent_in_release = true, refusal_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", refusal_assertion = "a_trial_line_neither_truncates_nor_extrapolates_a_law" },
 ]
 fixtures = [
+  { id = "scientific_bridge.distribution_bridges.sampling_program.positive", role = "positive", intent = "The compiled pushforward reproduces every resampled row and obeys cancellation and memory limits.", evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs", evidence_assertion = "compiled_sampling_bridge_maps_every_replicate_and_obeys_resource_controls" },
+  { id = "scientific_bridge.distribution_bridges.joint_refit.truth", role = "truth", intent = "Shared-source validation refits map trial centroids to their terminal centroids. Independent refits match a separate regression calculation.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit" },
   { id = "scientific_bridge.distribution_bridges.delta_method.truth", role = "truth", intent = "An affine map with an uncertain slope and intercept over 40000 posterior draws has the delta-method mean and variance (0.04 + 4.04 V at a unit mean) and agrees with an independent Monte Carlo of the coefficients drawn in the test.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "an_uncertain_slope_agrees_with_the_delta_method_and_a_monte_carlo_reference" },
   { id = "scientific_bridge.distribution_bridges.dependence.truth", role = "truth", intent = "A declared slope-source covariance moves the mean by the covariance and the variance by 2 mu b c + c^2, differs from independence, and an infeasible covariance is refused.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "the_declared_dependence_changes_the_bridged_spread_and_mean" },
   { id = "scientific_bridge.distribution_bridges.alignment.invariance", role = "invariance", intent = "Draws in, draws out: the bridged table has the source's shape and alignment identity, every other column is unchanged row for row, an exact map is bit for bit the map of each draw and a seed replays bit for bit.", evidence_test = "crates/antecedent-io-core/src/bridge_distribution_tests.rs", evidence_assertion = "draws_in_draws_out_keep_the_alignment_and_every_other_column" },

@@ -3640,3 +3640,10 @@ evidence_assertion = "duration_updates_match_independent_exhaustive_path_cost"
 kind = "reference"
 fixtures = []
 why = "Independently enumerate all short label sequences and compare the objective minimum with the production minimum-duration and switching dynamic program."
+
+[[test]]
+evidence_test = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
+evidence_assertion = "sampling_bridge_bundle_recomputes_a_live_terminal"
+kind = "reference"
+fixtures = []
+why = "The compiled bundle recomputes the affine terminal from retained sampling or bootstrap draws and reproduces the live receipt under independent bundle and program expectations."

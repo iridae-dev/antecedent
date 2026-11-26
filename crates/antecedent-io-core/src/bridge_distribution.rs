@@ -78,12 +78,22 @@ use antecedent_kernels::{sample_gamma, standard_normal};
 use std::sync::Arc;
 
 use crate::distribution_artifact::{
-    DistributionArtifact, DistributionCalibration, DistributionTrust, DrawAlignment,
+    DistributionArtifact, DistributionCalibration, DistributionIdentity, DistributionMetadata,
+    DistributionProvenance, DistributionTrust, DrawAlignment, MAX_DISTRIBUTION_DRAWS,
 };
 use crate::propagation_chain_record::{
     ChainCoefficientWire, ChainExprTermWire, ChainOpWire, ChainSourceWire, ChainStageWire,
 };
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
+
+use antecedent_core::CancellationToken;
+
+fn check_cancelled(token: &CancellationToken) -> Result<(), Box<BridgeRefusal>> {
+    if token.is_cancelled() {
+        return Err(antecedent_contract::bridge::propagation_cancelled().into());
+    }
+    Ok(())
+}
 
 /// Domain word of the random stream the mapping's coefficients are drawn from.
 /// The stream of a bridge is `derive_stream(seed, BRIDGE_DRAWS_STREAM)`.
@@ -266,6 +276,19 @@ impl BridgedDistribution {
         reason = "the public bridge API returns the shared structured BridgeRefusal by value; boxing would break typed callers"
     )]
     pub fn chain_stage(&self, stage_id: &str) -> Result<BridgeChainStage, BridgeRefusal> {
+        if self.claim.value_kind.is_sampling()
+            && self
+                .source
+                .metadata()
+                .weights
+                .as_ref()
+                .is_some_and(|w| w.windows(2).any(|pair| pair[0] != pair[1]))
+        {
+            return Err(draws_unusable(
+                "weights",
+                "the propagation chain requires equally weighted sampling replicates",
+            ));
+        }
         if let Some(affine) = &self.affine {
             return Ok(self.affine_stage(stage_id, affine));
         }
@@ -285,16 +308,39 @@ impl BridgedDistribution {
         let mapping_factor = format!("bridge_mapping:{contract}");
         let mut source =
             ChainSourceWire::draws(&source_id, meaning, &self.alignment, &self.source_column());
-        let mut slope = ChainSourceWire::draws(
-            &slope_id,
-            LawMeaning::Posterior,
-            &self.alignment,
-            &affine.slopes,
-        )
-        .with_factor(SharedFactorKind::Parameter, &mapping_factor);
-        let intercept = ChainSourceWire::draws(
+        let source_is_sampling = self.claim.value_kind.is_sampling();
+        if source_is_sampling
+            && matches!(
+                self.claim.contract.mapping,
+                antecedent_contract::bridge::BridgeMapping::Identity
+                    | antecedent_contract::bridge::BridgeMapping::Affine { .. }
+            )
+        {
+            let stage = ChainStageWire::new(
+                stage_id,
+                StageKind::MeasurementMapping,
+                &[&source_id],
+                ChainOpWire::affine(
+                    ChainCoefficientWire::fixed(affine.slopes[0]),
+                    ChainCoefficientWire::fixed(affine.intercepts[0]),
+                ),
+            )
+            .with_own_factor(SharedFactorKind::Model, &format!("bridge_contract:{contract}"));
+            return BridgeChainStage {
+                sources: vec![source],
+                stage,
+                reading: ChainReading::Spread,
+                output_quantity: ScientificQuantityWire::from(&self.claim.contract.target.quantity),
+            };
+        }
+        let coefficient_meaning =
+            if source_is_sampling { LawMeaning::Sampling } else { LawMeaning::Posterior };
+        let mut slope =
+            ChainSourceWire::draws(&slope_id, coefficient_meaning, &self.alignment, &affine.slopes)
+                .with_factor(SharedFactorKind::Parameter, &mapping_factor);
+        let mut intercept = ChainSourceWire::draws(
             &intercept_id,
-            LawMeaning::Posterior,
+            coefficient_meaning,
             &self.alignment,
             &affine.intercepts,
         )
@@ -306,6 +352,14 @@ impl BridgedDistribution {
             let shared = format!("bridge_dependence:{evidence}");
             source = source.with_factor(SharedFactorKind::Model, &shared);
             slope = slope.with_factor(SharedFactorKind::Model, &shared);
+        }
+        if let Some(SourceMappingDependence::SharedTrialMean { evidence }) =
+            &self.claim.contract.source_dependence
+        {
+            let rows = format!("validation_trials:{evidence}");
+            source = source.with_factor(SharedFactorKind::Row, &rows);
+            slope = slope.with_factor(SharedFactorKind::Row, &rows);
+            intercept = intercept.with_factor(SharedFactorKind::Row, &rows);
         }
         let mut sources = vec![source, slope, intercept];
         let mut inputs = vec![source_id.as_str(), slope_id.as_str(), intercept_id.as_str()];
@@ -489,6 +543,25 @@ fn table_digest(alignment: &str, width: usize, draws: &[f64]) -> SemanticDigest 
     SemanticDigest::from_bytes(writer.finish())
 }
 
+/// Sampling claims bind the entire population of weighted replicates. Preserve the original
+/// digest domain for historical posterior and predictive artifacts.
+fn bridge_table_digest(
+    table: &DistributionArtifact,
+    kind: Option<ValueKind>,
+    alignment: &str,
+) -> Result<SemanticDigest, BridgeRefusal> {
+    if kind.is_some_and(ValueKind::is_sampling) {
+        let serialized = table
+            .to_bytes("scientific-bridge-replicates")
+            .map_err(|_| draws_unusable("replicates", "supply a valid bounded replicate table"))?;
+        return Ok(SemanticDigest::from_bytes(CanonicalWriter::digest_bytes(
+            "antecedent.scientific_bridge.sampling_replicates.v1",
+            &serialized,
+        )));
+    }
+    Ok(table_digest(alignment, table.shape()[1], table.draws()))
+}
+
 fn text_digest<S: AsRef<str>>(role: &str, parts: &[S]) -> SemanticDigest {
     let mut writer = CanonicalWriter::new(TAG_SOURCE);
     writer.text(role);
@@ -513,8 +586,10 @@ fn value_kind_of(meaning: DistributionMeaningWire) -> (Option<ValueKind>, &'stat
         DistributionMeaningWire::InterventionalPredictive => {
             (Some(ValueKind::PredictiveLaw), "interventional_predictive")
         }
-        DistributionMeaningWire::EstimatorSampling => (None, "estimator_sampling"),
-        DistributionMeaningWire::Bootstrap => (None, "bootstrap"),
+        DistributionMeaningWire::EstimatorSampling => {
+            (Some(ValueKind::EstimatorSampling), "estimator_sampling")
+        }
+        DistributionMeaningWire::Bootstrap => (Some(ValueKind::Bootstrap), "bootstrap"),
         DistributionMeaningWire::EmpiricalOutcome => (None, "empirical_outcome"),
     }
 }
@@ -580,6 +655,7 @@ fn map_affine(
     variance: f64,
     residual: bool,
     rng: &mut CausalRng,
+    cancel: &CancellationToken,
 ) -> Result<Mapped, Box<BridgeRefusal>> {
     if let Some((low, high)) = law.domain {
         let outside: Vec<f64> =
@@ -595,6 +671,7 @@ fn map_affine(
     let mut intercepts = Vec::with_capacity(source.len());
     let mut residuals = Vec::with_capacity(if residual { source.len() } else { 0 });
     for &draw in source {
+        check_cancelled(cancel)?;
         let scale = match law.degrees_of_freedom {
             Some(df) => (df / sample_gamma(df / 2.0, 0.5, rng)).sqrt(),
             None => 1.0,
@@ -628,6 +705,175 @@ fn map_affine(
     })
 }
 
+/// The validation studies are unordered. Give each bootstrap index the same trial across
+/// declaration permutations and reuse one sample buffer throughout the experiment.
+struct TrialResamples {
+    ordered: Vec<antecedent_contract::bridge::TrialEffectPair>,
+    sample: antecedent_contract::bridge::TrialLevelValidation,
+}
+
+impl TrialResamples {
+    #[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+    fn new(
+        validation: &antecedent_contract::bridge::TrialLevelValidation,
+        draws: usize,
+    ) -> Result<Self, BridgeRefusal> {
+        use antecedent_contract::bridge::MAX_PROPAGATION_WORK;
+        if draws == 0
+            || draws > MAX_DISTRIBUTION_DRAWS
+            || (draws as u64).saturating_mul(validation.trials.len() as u64) > MAX_PROPAGATION_WORK
+        {
+            return Err(draws_unusable(
+                "validation trials",
+                "the trial refits exceed the bridge draw or work budget",
+            ));
+        }
+        let mut ordered = validation.trials.clone();
+        ordered.sort_by_key(|t| (t.surrogate_effect.to_bits(), t.terminal_effect.to_bits()));
+        Ok(Self { ordered, sample: validation.clone() })
+    }
+
+    fn next(&mut self, rng: &mut CausalRng) -> f64 {
+        let mut sum = 0.0;
+        for pair in &mut self.sample.trials {
+            *pair = self.ordered[antecedent_kernels::unbiased_index(rng, self.ordered.len())];
+            sum += pair.surrogate_effect;
+        }
+        sum / self.ordered.len() as f64
+    }
+}
+
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+fn shared_trial_metadata(
+    contract: &BridgeContract,
+    evidence: &str,
+    draws: usize,
+    seed: u64,
+) -> Result<DistributionMetadata, BridgeRefusal> {
+    let digest = contract.identity().to_hex();
+    let identity = DistributionIdentity::new(
+        DistributionMeaningWire::Bootstrap,
+        std::slice::from_ref(&contract.source.quantity),
+        DrawAlignment::Joint,
+        DistributionProvenance {
+            source_id: evidence.to_owned(),
+            provider_id: "scientific_bridge.shared_trial_mean".into(),
+            snapshot_id: digest.clone(),
+            causal_contract_id: digest,
+            rng_id: format!("bridge.trial_pairs.v1:{seed}:{BRIDGE_DRAWS_STREAM}"),
+        },
+    )
+    .map_err(|_| {
+        draws_unusable(
+            "shared trial source",
+            "the generated trial bootstrap table failed distribution validation",
+        )
+    })?;
+    Ok(DistributionMetadata {
+        version: 1,
+        identity,
+        axes: ["draw".into(), "quantity".into()],
+        shape: [draws, 1],
+        weights: None,
+        supported: None,
+        calibration: DistributionCalibration::NotMeasured,
+        trust: DistributionTrust::Unverified,
+        legacy_posterior: None,
+        legacy_bindings: None,
+    })
+}
+
+/// Bootstrap the mean surrogate effect on the validation trials used by the mapping.
+/// Each output row identifies a trial-pairs resample that the mapping can reproduce.
+///
+/// # Errors
+/// Returns the contract refusal for an unsupported declaration or excessive bootstrap work.
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+pub fn shared_trial_bootstrap_source(
+    contract: &BridgeContract,
+    draws: usize,
+    seed: u64,
+) -> Result<DistributionArtifact, BridgeRefusal> {
+    shared_trial_bootstrap_source_cancellable(contract, draws, seed, &CancellationToken::new())
+}
+
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+pub(crate) fn shared_trial_bootstrap_source_cancellable(
+    contract: &BridgeContract,
+    draws: usize,
+    seed: u64,
+    cancel: &CancellationToken,
+) -> Result<DistributionArtifact, BridgeRefusal> {
+    check_cancelled(cancel).map_err(|error| *error)?;
+    contract.check_draws_support()?;
+    let (
+        antecedent_contract::bridge::BridgeMapping::TrialLevelLinear(validation),
+        Some(SourceMappingDependence::SharedTrialMean { evidence }),
+    ) = (&contract.mapping, &contract.source_dependence)
+    else {
+        return Err(draws_unusable(
+            "shared trial source",
+            "declare the source mean and mapping on the same validation trials",
+        ));
+    };
+    let mut samples = TrialResamples::new(validation, draws)?;
+    let mut rng = CausalRng::from_seed(derive_stream(seed, BRIDGE_DRAWS_STREAM));
+    let mut values = Vec::with_capacity(draws);
+    for _ in 0..draws {
+        check_cancelled(cancel).map_err(|error| *error)?;
+        values.push(samples.next(&mut rng));
+    }
+    DistributionArtifact::new(shared_trial_metadata(contract, evidence, draws, seed)?, values)
+        .map_err(|_| {
+            draws_unusable(
+                "shared trial source",
+                "the generated trial bootstrap table failed distribution validation",
+            )
+        })
+}
+
+/// Refit both coefficients in each validation-study bootstrap replicate.
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+fn map_trial_bootstrap(
+    validation: &antecedent_contract::bridge::TrialLevelValidation,
+    source: &[f64],
+    shared_mean: bool,
+    rng: &mut CausalRng,
+    cancel: &CancellationToken,
+) -> Result<Mapped, BridgeRefusal> {
+    use antecedent_contract::bridge::fit_trial_level_linear;
+    let mut samples = TrialResamples::new(validation, source.len())?;
+    let mut values = Vec::with_capacity(source.len());
+    let mut slopes = Vec::with_capacity(source.len());
+    let mut intercepts = Vec::with_capacity(source.len());
+    let original = fit_trial_level_linear(validation)?;
+    for &value in source {
+        check_cancelled(cancel).map_err(|error| *error)?;
+        if value < original.surrogate_min || value > original.surrogate_max {
+            return Err(draws_outside_domain(1, source.len(), value));
+        }
+        let mean = samples.next(rng);
+        if shared_mean && mean.to_bits() != value.to_bits() {
+            return Err(draws_unusable(
+                "shared trial source",
+                "a source replicate differs from the mean of its declared validation-trial resample",
+            ));
+        }
+        let fit = fit_trial_level_linear(&samples.sample)?;
+        if value < fit.surrogate_min || value > fit.surrogate_max {
+            return Err(draws_outside_domain(1, source.len(), value));
+        }
+        values.push(fit.intercept + fit.slope * value);
+        slopes.push(fit.slope);
+        intercepts.push(fit.intercept);
+    }
+    Ok(Mapped {
+        values,
+        affine: Some(AffineColumns { slopes, intercepts, residuals: None }),
+        correction: None,
+    })
+}
+
 /// Most times a row redraws its rates looking for a pair the recorded value is
 /// compatible with.
 const MAX_RATE_ATTEMPTS: usize = 64;
@@ -636,6 +882,7 @@ fn map_correction(
     law: &CorrectionDrawLaw,
     source: &[f64],
     rng: &mut CausalRng,
+    cancel: &CancellationToken,
 ) -> Result<Mapped, Box<BridgeRefusal>> {
     let exact = law.sensitivity_variance == 0.0 && law.specificity_variance == 0.0;
     let mut values = Vec::with_capacity(source.len());
@@ -644,6 +891,7 @@ fn map_correction(
     let mut outside = 0_usize;
     let mut first = None;
     for &draw in source {
+        check_cancelled(cancel)?;
         let mut mapped = None;
         let mut rates = (law.sensitivity, law.specificity);
         for _ in 0..MAX_RATE_ATTEMPTS {
@@ -725,6 +973,22 @@ pub fn bridge_draws(
     claim_kind: Option<ClaimKind>,
     seed: u64,
 ) -> Result<BridgedDistribution, BridgeRefusal> {
+    bridge_draws_cancellable(contract, source, claim_kind, seed, &CancellationToken::new())
+}
+
+/// Map every row under the supplied cancellation token.
+///
+/// # Errors
+/// Returns the same scientific refusals as [`bridge_draws`] or a cancellation with no claim.
+#[allow(clippy::result_large_err, reason = "retain the full scientific refusal")]
+pub fn bridge_draws_cancellable(
+    contract: &BridgeContract,
+    source: &DistributionArtifact,
+    claim_kind: Option<ClaimKind>,
+    seed: u64,
+    cancel: &CancellationToken,
+) -> Result<BridgedDistribution, BridgeRefusal> {
+    check_cancelled(cancel).map_err(|error| *error)?;
     let identity = &source.metadata().identity;
     // The column about the contract's source quantity.
     let mut column = None;
@@ -762,7 +1026,7 @@ pub fn bridge_draws(
         String::new()
     };
     let (value_kind, meaning) = value_kind_of(identity.semantic);
-    let table_claim_id = table_digest(&alignment, source.shape()[1], source.draws());
+    let table_claim_id = bridge_table_digest(source, value_kind, &alignment)?;
     let table_ids = table_identities(source, &quantity);
     let planned: DrawsPlan = {
         let bridge_source = BridgeDrawsSource {
@@ -791,10 +1055,29 @@ pub fn bridge_draws(
     let residual = planned.includes_residual();
     let mapped = match planned.mapping() {
         DrawMapping::Affine(law) => {
-            map_affine(law, &values, mean, variance, residual, &mut rng).map_err(|error| *error)?
+            map_affine(law, &values, mean, variance, residual, &mut rng, cancel)
+                .map_err(|error| *error)?
+        }
+        DrawMapping::TrialBootstrap(validation) => {
+            let shared = if let Some(SourceMappingDependence::SharedTrialMean { evidence }) =
+                &contract.source_dependence
+            {
+                if source.metadata()
+                    != &shared_trial_metadata(contract, evidence, values.len(), seed)?
+                {
+                    return Err(draws_unusable(
+                        "shared trial source",
+                        "the source does not identify the declared validation trials and bootstrap stream",
+                    ));
+                }
+                true
+            } else {
+                false
+            };
+            map_trial_bootstrap(validation, &values, shared, &mut rng, cancel)?
         }
         DrawMapping::Correction(law) => {
-            map_correction(law, &values, &mut rng).map_err(|error| *error)?
+            map_correction(law, &values, &mut rng, cancel).map_err(|error| *error)?
         }
         _ => {
             return Err(draws_unusable("mapping", "the mapping has no draws propagation"));
@@ -817,7 +1100,7 @@ pub fn bridge_draws(
     metadata.identity.quantities[column] = ScientificQuantityWire::from(&contract.target.quantity);
     metadata.calibration = DistributionCalibration::NotMeasured;
     metadata.trust = DistributionTrust::Unverified;
-    let distribution = DistributionArtifact::new(metadata, table.clone()).map_err(|error| {
+    let distribution = DistributionArtifact::new(metadata, table).map_err(|error| {
         draws_unusable(
             "target",
             if matches!(error, crate::IoError::Convert(_)) {
@@ -832,8 +1115,9 @@ pub fn bridge_draws(
         n_draws: source.n_draws(),
         mean: mapped_mean,
         variance: mapped_variance,
-        draws_digest: table_digest(&alignment, width, &table),
+        draws_digest: bridge_table_digest(&distribution, value_kind, &alignment)?,
     };
+    check_cancelled(cancel).map_err(|error| *error)?;
     let claim = planned.finish(&summary)?;
     Ok(BridgedDistribution {
         claim,

@@ -47,6 +47,7 @@ pub mod power_prior_selection;
 pub mod prior_composition;
 pub mod sampled_counterfactual_transport;
 pub mod sampled_recovery;
+pub mod sampling_bridge;
 pub mod scenario_covariance;
 pub mod sequential_evaluation;
 pub mod split_effect;
@@ -59,6 +60,8 @@ pub mod z_transport;
 pub(crate) enum KernelRealization {
     /// A score or estimating-equation estimate with a sampling law.
     Score,
+    /// Sampling-law map, optionally with whole validation-trial refits.
+    ReplicateMapping { validation_refits: Option<u32> },
     /// A posterior evaluated by the kernel under its declared likelihood and prior.
     Posterior,
     /// An exact evaluation of an identified functional of the declared input.
@@ -130,7 +133,7 @@ pub(crate) fn lower(
         NonGraphicalIdentification::SpecifiedModelConditional { model: input },
     ));
     let realization = match shape.realization {
-        KernelRealization::Score => {
+        KernelRealization::Score | KernelRealization::ReplicateMapping { .. } => {
             let score = ScoreModel::new(shape.evaluator)
                 .map_err(|_| invalid(shape, "blank evaluator name"))?;
             Realization::Frequentist(ScoreFrequentist::new(score))
@@ -149,7 +152,16 @@ pub(crate) fn lower(
         realization,
         models: Arc::from([]),
         folds: None,
-        resampling: None,
+        resampling: match shape.realization {
+            KernelRealization::ReplicateMapping { validation_refits: Some(replicates) } => {
+                Some(crate::planner::statistical::ResamplingPlan {
+                    method: crate::planner::statistical::ResamplingMethod::Bootstrap,
+                    replicates,
+                    unit: crate::planner::statistical::ResampleUnit::Row,
+                })
+            }
+            _ => None,
+        },
         posterior: None,
         design,
         operators: Arc::from([]),
@@ -165,10 +177,12 @@ pub(crate) fn lower(
         .estimates(ByteEstimates::absent().with_output(canonical.len() as u64))
         .build()
         .map_err(|_| invalid(shape, "invalid read operator"))?;
-    let effect = if shape.realization == KernelRealization::PartialIdentification {
-        PhysicalEffect::Condition
-    } else {
-        PhysicalEffect::Fit
+    let effect = match shape.realization {
+        KernelRealization::PartialIdentification => PhysicalEffect::Condition,
+        KernelRealization::ReplicateMapping { validation_refits: None } => {
+            PhysicalEffect::Transport
+        }
+        _ => PhysicalEffect::Fit,
     };
     let fit = PhysicalOperator::declare(effect)
         .build()
@@ -183,9 +197,17 @@ pub(crate) fn lower(
         physical,
         claim: ClaimDemand {
             uncertainty: shape.uncertainty,
-            kind: (shape.realization == KernelRealization::PartialIdentification
-                && shape.uncertainty == UncertaintyReading::Envelope)
-                .then_some(antecedent_contract::ClaimKind::Bounds),
+            kind: match shape.realization {
+                KernelRealization::PartialIdentification
+                    if shape.uncertainty == UncertaintyReading::Envelope =>
+                {
+                    Some(antecedent_contract::ClaimKind::Bounds)
+                }
+                KernelRealization::ReplicateMapping { .. } => {
+                    Some(antecedent_contract::ClaimKind::Mixture)
+                }
+                _ => None,
+            },
         },
     }
     .finish())
