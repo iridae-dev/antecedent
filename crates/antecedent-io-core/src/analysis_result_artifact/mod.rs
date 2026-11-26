@@ -834,6 +834,9 @@ pub struct SurvivalDifferenceBandWire {
     pub upper: Vec<f64>,
     /// Subject-bootstrap draws satisfying support.
     pub replicates_ok: u32,
+    /// Smallest observed arm risk set at the horizon of a delayed-entry band.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_horizon_risk_set: Option<usize>,
     /// Exact graphless simultaneous-band support (`supported`), when the
     /// published band and arm support match a supported band row. Absent for
     /// off-axis bands.

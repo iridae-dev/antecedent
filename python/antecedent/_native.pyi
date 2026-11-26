@@ -731,6 +731,7 @@ class SurvivalSection:
     difference_band: (
         tuple[list[float], list[float], list[float], list[float], int, str | None] | None
     )
+    band_minimum_horizon_risk_set: int | None
     band_unavailable_reason: str | None
 
 class PosteriorRowSection:

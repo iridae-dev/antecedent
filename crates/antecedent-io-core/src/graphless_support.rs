@@ -243,6 +243,30 @@ pub fn incidence_calibration_functional(
     ))
 }
 
+/// Calibration functional of a full-grid delayed-entry band at one cause and horizon.
+#[doc(hidden)]
+#[must_use]
+pub fn survival_band_calibration_functional(
+    query: &crate::query_wire::SurvivalQueryWire,
+    assignment_counts: Option<[usize; 2]>,
+) -> Option<String> {
+    query.delayed_entry?;
+    let fixed_known = !query.censoring_columns.is_empty();
+    let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
+    let endpoint = query.target_cause.map_or_else(
+        || "survival".into(),
+        |cause| format!("incidence:{}", cause),
+    );
+    let supported_arms = assignment_counts.is_some_and(|[control, treated]| {
+        control.min(treated) >= incidence_min_arm(fixed_known)
+    });
+    let scope = if supported_arms { "" } else { "+scope=insufficient" };
+    Some(format!(
+        "difference_band+entry=delayed+censoring={censoring}+endpoint={endpoint}+tau={:016x}{scope}",
+        query.tau.to_bits(),
+    ))
+}
+
 /// Exact scalar-interval claim of a randomized survival query.
 #[doc(hidden)]
 #[must_use]
@@ -270,6 +294,37 @@ pub const fn survival_pointwise_key(
             "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
         } else {
             "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+        },
+    })
+}
+
+/// Exact full-grid band claim of a randomized survival query.
+#[doc(hidden)]
+#[must_use]
+pub const fn survival_band_key(
+    delayed_entry: bool,
+    fixed_known_censoring: bool,
+    competing_incidence: bool,
+) -> Option<GraphlessSupportKey<'static>> {
+    if fixed_known_censoring && !delayed_entry {
+        return None;
+    }
+    Some(GraphlessSupportKey {
+        family: "survival",
+        design: if delayed_entry {
+            "delayed_entry_two_arm_individual_randomized"
+        } else {
+            "two_arm_individual_randomized"
+        },
+        method: if fixed_known_censoring {
+            "arm_stratified_subject_bootstrap_ipcw_supremum_band"
+        } else {
+            "arm_stratified_subject_bootstrap_supremum_band"
+        },
+        inference_claim: if competing_incidence {
+            "simultaneous_95_cumulative_incidence_difference_band"
+        } else {
+            "simultaneous_95_survival_difference_band"
         },
     })
 }

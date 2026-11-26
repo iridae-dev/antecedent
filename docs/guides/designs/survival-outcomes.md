@@ -53,7 +53,7 @@ band = result.value.survival.difference_band
 band.times, band.difference, band.lower, band.upper
 ```
 
-The band uses one critical radius from the bootstrap distribution of the maximum curve deviation, and its grid, endpoints and accepted replicate count are frozen in the artifact. With fewer than 80 subjects per arm, delayed entry or caller-supplied censoring weights, `band_unavailable_reason` names why, and the scalar intervals remain available where eligible. The band is distinct from the pointwise intervals.
+The band uses one critical radius from the bootstrap distribution of the maximum curve deviation. The artifact freezes the grid, endpoints and accepted replicate count. When the requested design has inadequate support, `band_unavailable_reason` reports the first failed check. The scalar intervals remain available where eligible and have pointwise coverage.
 
 ## Censoring that depends on covariates
 
@@ -109,7 +109,9 @@ query = antecedent.survival.SurvivalOutcome(
 summary = antecedent.analyze(data, query=query).value.survival
 ```
 
-Risk sets follow counting-process intervals `(entry, duration]`: a subject entering exactly at an event time does not join that time's risk set, and a censored subject stays through the censoring time. Negative or non-finite entry times, and entry times not strictly earlier than the event or censoring time, are refused. Because RMST starts at time zero, each arm must include at least one time-zero entrant and observed follow-up through `tau`; otherwise the estimate would extrapolate from a left-truncated sample as if it were the RMST from the origin. Conditional delayed entry and interval censoring are refused. Delayed entry combines with known censoring survival under `IndependentGiven(())`; the bootstrap keeps each subject's entry, exit, cause and censoring row together, and the delayed-entry curves have no simultaneous band.
+Risk sets follow counting-process intervals `(entry, duration]`: a subject entering exactly at an event time does not join that time's risk set, and a censored subject stays through the censoring time. Negative or non-finite entry times, and entry times not strictly earlier than the event or censoring time, are refused. Because RMST starts at time zero, each arm must include at least one time-zero entrant and observed follow-up through `tau`. Delayed entry combines with known censoring survival under `IndependentGiven(())`. The bootstrap keeps each subject's entry, exit, cause and censoring row together.
+
+With delayed entry, the survival and target-cause cumulative-incidence bands require 160 subjects per arm for unweighted risk sets or 200 for fixed known censoring survival. Both designs require 25 subjects in each original arm's event and horizon risk sets, at least 399 valid bootstrap draws and at most 10% draw loss. The result records the smallest original horizon risk set. Export with `result.value.export(source_data=data)` to replay the observed grid and the band's endpoints from the original subject rows. A composition bundle can verify that artifact and read the simultaneous endpoints at the horizon and the most extreme endpoints across the whole grid.
 
 ## Competing events
 

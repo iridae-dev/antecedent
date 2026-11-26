@@ -141,6 +141,72 @@ limitations = "Individually randomized independent subjects with marginally inde
 
 [[support]]
 family = "survival"
+design = "delayed_entry_two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_supremum_band"
+inference_claim = "simultaneous_95_survival_difference_band"
+assignment_unit = "unit"
+min_rows = 320
+min_assignment_units_per_arm = 160
+min_reported_intervals = 1
+min_interval_resamples = 399
+all_reported_intervals = true
+known_truth_test = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_unweighted_survival_band_matches_reference"
+independent_check = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_unweighted_survival_band_matches_reference"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g"
+limitations = "Independent randomized subjects, marginally independent entry and censoring given the declared model, unweighted risk sets, at least 160 observed subjects per arm, at least 25 in each observed event risk set and at the horizon in each arm, and at least 399 valid resamples with at most 10% draw loss. The supremum band covers the whole observed analysis grid for the survival difference jointly. Coverage is measured at horizon 3 in the two-jump design; cumulative incidence uses target cause 1."
+
+[[support]]
+family = "survival"
+design = "delayed_entry_two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_supremum_band"
+inference_claim = "simultaneous_95_cumulative_incidence_difference_band"
+assignment_unit = "unit"
+min_rows = 320
+min_assignment_units_per_arm = 160
+min_reported_intervals = 1
+min_interval_resamples = 399
+all_reported_intervals = true
+known_truth_test = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_unweighted_incidence_band_matches_reference"
+independent_check = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_unweighted_incidence_band_matches_reference"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g"
+limitations = "Independent randomized subjects, marginally independent entry and censoring given the declared model, unweighted risk sets, at least 160 observed subjects per arm, at least 25 in each observed event risk set and at the horizon in each arm, and at least 399 valid resamples with at most 10% draw loss. The supremum band covers the whole observed analysis grid for the cumulative incidence difference jointly. Coverage is measured at horizon 3 in the two-jump design; cumulative incidence uses target cause 1."
+
+[[support]]
+family = "survival"
+design = "delayed_entry_two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_ipcw_supremum_band"
+inference_claim = "simultaneous_95_survival_difference_band"
+assignment_unit = "unit"
+min_rows = 400
+min_assignment_units_per_arm = 200
+min_reported_intervals = 1
+min_interval_resamples = 399
+all_reported_intervals = true
+requires_known_density = true
+known_truth_test = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_fixed_known_survival_band_matches_reference"
+independent_check = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_fixed_known_survival_band_matches_reference"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g"
+limitations = "Independent randomized subjects, marginally independent entry and censoring given the declared model, fixed-known censoring weights kept with the subject in each draw, at least 200 observed subjects per arm, at least 25 in each observed event risk set and at the horizon in each arm, and at least 399 valid resamples with at most 10% draw loss. The supremum band covers the whole observed analysis grid for the survival difference jointly. Coverage is measured at horizon 3 in the two-jump design; cumulative incidence uses target cause 1."
+
+[[support]]
+family = "survival"
+design = "delayed_entry_two_arm_individual_randomized"
+method = "arm_stratified_subject_bootstrap_ipcw_supremum_band"
+inference_claim = "simultaneous_95_cumulative_incidence_difference_band"
+assignment_unit = "unit"
+min_rows = 400
+min_assignment_units_per_arm = 200
+min_reported_intervals = 1
+min_interval_resamples = 399
+all_reported_intervals = true
+requires_known_density = true
+known_truth_test = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_fixed_known_incidence_band_matches_reference"
+independent_check = "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs::delayed_entry_fixed_known_incidence_band_matches_reference"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g"
+limitations = "Independent randomized subjects, marginally independent entry and censoring given the declared model, fixed-known censoring weights kept with the subject in each draw, at least 200 observed subjects per arm, at least 25 in each observed event risk set and at the horizon in each arm, and at least 399 valid resamples with at most 10% draw loss. The supremum band covers the whole observed analysis grid for the cumulative incidence difference jointly. Coverage is measured at horizon 3 in the two-jump design; cumulative incidence uses target cause 1."
+
+[[support]]
+family = "survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_supremum_band"
 inference_claim = "simultaneous_95_survival_difference_band"

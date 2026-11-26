@@ -16,7 +16,7 @@ use antecedent_core::{
 };
 use antecedent_estimate::survival::{
     KnownCensoring, RandomizedSurvivalSummary, SurvivalBootstrapIntervals, SurvivalEndpoint,
-    SurvivalRows, randomized_survival_bootstrap_difference_band, randomized_survival_ipcw_summary,
+    SurvivalRows, randomized_survival_bootstrap_difference_band_with_observation, randomized_survival_ipcw_summary,
     randomized_survival_summary,
 };
 use antecedent_stats::survival::randomized_survival_bootstrap_intervals_controlled;
@@ -130,16 +130,33 @@ impl CheckedSurvivalOperation {
             treated: &columns.treated,
             delayed_entry: columns.entry.as_deref(),
         };
+        let _scratch = if rows.delayed_entry.is_some() && self.extra.0 > 0 {
+            let grid_width =
+                self.query.known_censoring.as_ref().map_or(0, |known| known.times.len());
+            let bytes = (self.rows as u64)
+                .saturating_mul(240_u64.saturating_add((grid_width as u64).saturating_mul(24)))
+                .saturating_add(u64::from(self.extra.0).saturating_mul(16));
+            Some(ctx.admit_scratch(1, bytes).map_err(|error| {
+                if ctx.cancellation.is_cancelled() {
+                    CausalError::Cancelled {
+                        stage: crate::analysis::stage::STAGE_ESTIMATE_POINT,
+                    }
+                } else {
+                    CausalError::Resource { message: error.to_string() }
+                }
+            })?)
+        } else {
+            None
+        };
         let (summary, minimum_censoring_survival, censoring_grid) =
             self.point_summary(data, &rows, endpoint)?;
         let intervals = self.bootstrap_intervals(&rows, censoring_grid.as_ref(), endpoint, ctx)?;
         let (difference_band, band_unavailable_reason) = self.difference_band(
-            &columns,
-            censoring_grid.is_some(),
-            endpoint,
-            assignment_counts,
-            ctx,
+            &rows, censoring_grid.as_ref(), endpoint, assignment_counts, ctx,
         );
+        if ctx.cancellation.is_cancelled() {
+            return Err(CausalError::Cancelled { stage: crate::analysis::stage::STAGE_ESTIMATE_POINT });
+        }
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -317,8 +334,8 @@ impl CheckedSurvivalOperation {
     /// Simultaneous bootstrap difference band, or the reason this design cannot publish one.
     fn difference_band(
         &self,
-        columns: &SurvivalColumns,
-        known_censoring: bool,
+        rows: &SurvivalRows<'_>,
+        censoring_grid: Option<&CensoringGrid<'_>>,
         endpoint: SurvivalEndpoint,
         assignment_counts: [usize; 2],
         ctx: &ExecutionContext,
@@ -326,9 +343,9 @@ impl CheckedSurvivalOperation {
         let bootstrap_replicates = self.extra.0;
         if bootstrap_replicates == 0 {
             (None, None)
-        } else if columns.entry.is_some() {
-            (None, Some(Arc::from("simultaneous survival band does not cover delayed entry")))
-        } else if known_censoring {
+        } else if rows.delayed_entry.is_some() && bootstrap_replicates < 399 {
+            (None, Some(Arc::from("simultaneous survival band with delayed entry requires 399 valid draws")))
+        } else if censoring_grid.is_some() && rows.delayed_entry.is_none() {
             (
                 None,
                 Some(Arc::from(
@@ -336,32 +353,32 @@ impl CheckedSurvivalOperation {
                 )),
             )
         } else {
-            match randomized_survival_bootstrap_difference_band(
-                &columns.duration,
-                &columns.event,
-                &columns.treated,
+            let known = censoring_grid.map(|(times, probabilities, floor)| KnownCensoring {
+                times,
+                survival: probabilities,
+                minimum_probability: *floor,
+            });
+            match randomized_survival_bootstrap_difference_band_with_observation(
+                rows,
+                known.as_ref(),
                 self.query.tau,
                 endpoint,
                 bootstrap_replicates,
                 ctx.rng.master_seed() ^ 0x5A7A_BA4D,
+                || ctx.cancellation.is_cancelled(),
             ) {
                 Ok(band) => {
-                    let band_claim = match self.query.functional {
-                        SurvivalFunctional::SurvivalAndRmst => {
-                            "simultaneous_95_survival_difference_band"
-                        }
-                        SurvivalFunctional::CumulativeIncidence { .. } => {
-                            "simultaneous_95_cumulative_incidence_difference_band"
-                        }
+                    use antecedent_io::graphless_support::{
+                        GraphlessResampleSupport, graphless_admits_resampled, survival_band_key,
                     };
-                    let band_support = (band.replicates_ok >= 399
-                        && crate::support::support_if_graphless(
-                            crate::support::GraphlessSupportKey {
-                                family: "survival",
-                                design: "two_arm_individual_randomized",
-                                method: "arm_stratified_subject_bootstrap_supremum_band",
-                                inference_claim: band_claim,
-                            },
+                    let key = survival_band_key(
+                        rows.delayed_entry.is_some(),
+                        known.is_some(),
+                        matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }),
+                    );
+                    let band_support = key.is_some_and(|key| {
+                        graphless_admits_resampled(
+                            key,
                             crate::support::GraphlessAssignmentSupport {
                                 assignment_unit: "unit",
                                 treated: assignment_counts[1],
@@ -369,20 +386,19 @@ impl CheckedSurvivalOperation {
                                 rows: self.rows,
                                 interval_95_published: true,
                                 reported_intervals: 1,
+                                all_reported_intervals: true,
+                                known_density: known.is_some(),
+                                ..Default::default()
+                            },
+                            GraphlessResampleSupport {
+                                interval_resamples: band.replicates_ok as usize,
                                 ..Default::default()
                             },
                         )
-                        .is_some())
+                    })
                     .then_some(crate::support::CellStatus::Supported);
                     (
-                        Some(crate::result::SurvivalDifferenceBand {
-                            times: band.times.into(),
-                            difference: band.difference.into(),
-                            lower: band.lower.into(),
-                            upper: band.upper.into(),
-                            replicates_ok: band.replicates_ok,
-                            support_status: band_support,
-                        }),
+                        Some(result_band(band, band_support)),
                         None,
                     )
                 }
@@ -452,7 +468,8 @@ impl CheckedSurvivalOperation {
         };
         if intervals.replicates_ok < 299
             || (incidence
-                && curve.minimum_event_risk_set.unwrap_or(0) < INCIDENCE_MIN_EVENT_RISK_SET)
+                && (curve.difference_band.is_some()
+                    || curve.minimum_event_risk_set.unwrap_or(0) < INCIDENCE_MIN_EVENT_RISK_SET))
         {
             return;
         }
@@ -476,6 +493,21 @@ impl CheckedSurvivalOperation {
         ) {
             result.support_status = Some(crate::support::CellStatus::Supported);
         }
+    }
+}
+
+fn result_band(
+    band: antecedent_stats::survival::SurvivalDifferenceBand,
+    support_status: Option<crate::support::CellStatus>,
+) -> crate::result::SurvivalDifferenceBand {
+    crate::result::SurvivalDifferenceBand {
+        times: band.times.into(),
+        difference: band.difference.into(),
+        lower: band.lower.into(),
+        upper: band.upper.into(),
+        replicates_ok: band.replicates_ok,
+        minimum_horizon_risk_set: band.minimum_horizon_risk_set,
+        support_status,
     }
 }
 

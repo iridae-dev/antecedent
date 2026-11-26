@@ -99,8 +99,9 @@ impl StudyResult {
                     && contract.graph_class == GraphClass::RandomizedTrial
                     && contract.structure_source == StructureSource::RandomizedTrial
                     && matches!(&contract.body.query, antecedent_io::CausalQueryWire::Survival(query)
-                        if query.delayed_entry.is_some() && query.target_cause.is_some())
-                    && self.survival().is_some_and(|curve| curve.difference_at_tau_interval.is_some())
+                        if query.delayed_entry.is_some())
+                    && self.survival().is_some_and(|curve| curve.difference_band.is_some()
+                        || (curve.target_cause.is_some() && curve.difference_at_tau_interval.is_some()))
                     => "not_applicable",
             (Some(executed), None)
                 if executed_from(&executed)
@@ -248,16 +249,9 @@ impl StudyResult {
             identification: label.clone(),
         };
         let row_count = analysis_row_count(self, contract);
-        let incidence = match &contract.body.query {
-            antecedent_io::CausalQueryWire::Survival(query) if shared.query == "Survival" => {
-                self.survival().and_then(|curve| {
-                    antecedent_io::graphless_support::incidence_calibration_functional(
-                        query,
-                        curve.minimum_event_risk_set,
-                        curve.bootstrap_replicates_ok,
-                        Some(curve.assignment_counts),
-                    )
-                })
+        let delayed_survival = match (&contract.body.query, self.survival()) {
+            (antecedent_io::CausalQueryWire::Survival(query), Some(curve)) if shared.query == "Survival" => {
+                Some((query, curve))
             }
             _ => None,
         };
@@ -266,9 +260,20 @@ impl StudyResult {
             .map(|binding| {
                 let (interval_method, functional, dependence) =
                     cluster_reference_key(self, &binding, contract);
-                let (functional, row_count) = if let Some(incidence) = &incidence {
-                    // Include the exact declared horizon, cause and censoring design in the key.
-                    (incidence.clone(), row_count)
+                let delayed_functional = delayed_survival.and_then(|(query, curve)| {
+                    let counts = Some(curve.assignment_counts);
+                    match binding.method {
+                        IntervalMethod::SimultaneousBand =>
+                            antecedent_io::graphless_support::survival_band_calibration_functional(query, counts),
+                        IntervalMethod::PercentileBootstrap =>
+                            antecedent_io::graphless_support::incidence_calibration_functional(
+                                query, curve.minimum_event_risk_set, curve.bootstrap_replicates_ok, counts,
+                            ),
+                        _ => None,
+                    }
+                });
+                let (functional, row_count) = if let Some(delayed) = delayed_functional {
+                    (delayed, row_count)
                 } else if shared.query == "SyntheticControl"
                     && binding.method == IntervalMethod::PosteriorQuantile
                 {

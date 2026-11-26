@@ -2671,6 +2671,32 @@ evidence_test = "crates/antecedent/tests/compiled_robust_decisions.rs"
 evidence_assertion = "joint_policy_identity_admission_and_cancellation_refusals_preserve_the_owner"
 
 [[rust_producer]]
+key = "delayed_entry_survival_band"
+object = "a source-bearing simultaneous delayed-entry survival or cumulative-incidence difference band"
+built_from = "`Study::tabular(...).query(CausalQuery::Survival(...)).prepare(...)`, `PreparedStudy::estimate`, and `PreparedStudy::encode_contracted_result_with_source`"
+
+[[rust_consumer]]
+key = "delayed_entry_band_bundle"
+entry = "`BundleBuilder::add_detected_artifact` and `antecedent::analysis::composition::consume`; Python `BundleBuilder.add_artifact` and `consume_bundle`"
+note = "Recomputes the shared grid, subject-bootstrap supremum and simultaneous endpoints from the original subject table; publishes horizon and whole-grid endpoints."
+
+[[rust_cell]]
+producer = "delayed_entry_survival_band"
+consumer = "delayed_entry_band_bundle"
+status = "DIRECT"
+detail = "Replays the unweighted and fixed-known censoring designs for both endpoints; distinct cause and horizon are retained."
+evidence_test = "crates/antecedent/tests/survival_route.rs"
+evidence_assertion = "delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g"
+
+[[rust_cell]]
+producer = "delayed_entry_survival_band"
+consumer = "delayed_entry_band_bundle"
+status = "REFUSED"
+detail = "A compact artifact names the unresolved checked band operation. Inadequate original horizon overlap withholds the band."
+evidence_test = "crates/antecedent/tests/survival_route.rs"
+evidence_assertion = "delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g"
+
+[[rust_producer]]
 key = "delayed_entry_competing_incidence_interval"
 object = "a source-bearing pointwise delayed-entry target-cause cumulative incidence difference"
 built_from = "`SurvivalQuery` with a declared target cause, checked subject bootstrap, and contracted export with the original subject rows"

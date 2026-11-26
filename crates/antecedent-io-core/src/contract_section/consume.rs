@@ -655,7 +655,7 @@ fn declares_source_replay(
     body: &AnalysisResultWire,
 ) -> bool {
     contract.program.as_ref().is_some_and(|program| program.checked_dr_lowering.is_some())
-        || super::survival_replay::declares_incidence_replay(contract, body)
+        || super::survival_replay::declares_survival_replay(contract, body)
 }
 
 /// Reasons that name a retained lowering or fit the artifact does not carry, besides every

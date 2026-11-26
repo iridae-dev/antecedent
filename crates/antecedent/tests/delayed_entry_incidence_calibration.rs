@@ -27,7 +27,7 @@ const TIMES: [f64; 6] = [0.0, 1.0, 1.5, 2.0, 2.5, 3.0];
 const TRUTH: f64 = -0.10;
 const BOOTSTRAP: u32 = 299;
 
-fn trial(fixed_known: bool, seed: u64) -> (TabularData, SurvivalQuery) {
+fn trial(fixed_known: bool, incidence: bool, seed: u64) -> (TabularData, SurvivalQuery) {
     let minimum_arm = antecedent_io::graphless_support::incidence_min_arm(fixed_known);
     let arm_size = grid_n(2 * minimum_arm);
     let mut rng = uniform(seed, 0xD3E1_C1F0);
@@ -67,8 +67,10 @@ fn trial(fixed_known: bool, seed: u64) -> (TabularData, SurvivalQuery) {
             duration.push(exit);
             causes.push(if event_time > censor_time {
                 0.0
-            } else {
+            } else if incidence {
                 cause
+            } else {
+                f64::from(cause > 0.0)
             });
             treatment.push(f64::from(arm));
             entries.push(entry);
@@ -104,13 +106,17 @@ fn trial(fixed_known: bool, seed: u64) -> (TabularData, SurvivalQuery) {
             minimum_probability: 0.01,
         }),
         observation_assumption: ObservationAssumption::IndependentGiven(Arc::from([])),
-        functional: SurvivalFunctional::CumulativeIncidence { target_cause: 1 },
+        functional: if incidence {
+            SurvivalFunctional::CumulativeIncidence { target_cause: 1 }
+        } else {
+            SurvivalFunctional::SurvivalAndRmst
+        },
     };
     (data, query)
 }
 
 fn replicate(fixed_known: bool, seed: u64) -> Option<((f64, f64), Construction, ScopeFacts)> {
-    let (data, query) = trial(fixed_known, seed);
+    let (data, query) = trial(fixed_known, true, seed);
     let ctx = ExecutionContext::for_tests(seed);
     let prepared = Study::tabular(data.clone())
         .query(CausalQuery::Survival(query))
@@ -177,4 +183,95 @@ fn delayed_entry_fixed_known_incidence_percentile_coverage() {
         true,
         0xD3E2_0000,
     );
+}
+
+fn band_replicate(
+    fixed_known: bool,
+    incidence: bool,
+    seed: u64,
+) -> Option<((f64, f64), f64, Construction, ScopeFacts)> {
+    const BAND_BOOTSTRAP: u32 = 399;
+    let (data, query) = trial(fixed_known, incidence, seed);
+    let ctx = ExecutionContext::for_tests(seed);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::Survival(query))
+        .bootstrap_replicates(BAND_BOOTSTRAP)
+        .build()
+        .ok()?
+        .prepare(&ctx)
+        .ok()?;
+    let result = prepared.estimate(&data, &ctx).ok()?;
+    let band = result.survival()?.difference_band.as_ref()?;
+    let exact = |time| {
+        let sign = if incidence { -1.0 } else { 1.0 };
+        sign * (0.05 * f64::from(time >= 1.0) + 0.05 * f64::from(time >= 2.0))
+    };
+    let slack = |(lower, upper, truth): (f64, f64, f64)| (truth - lower).min(upper - truth);
+    let (lower, upper, truth) = band
+        .times
+        .iter()
+        .zip(&*band.lower)
+        .zip(&*band.upper)
+        .map(|((&time, &lower), &upper)| (lower, upper, exact(time)))
+        .min_by(|&left, &right| slack(left).total_cmp(&slack(right)))?;
+    let contract = prepared.contract_for_result(&result).ok()?;
+    let (construction, scope, validation) = constructions(&contract, &result)
+        .into_iter()
+        .find(|(construction, _, _)| construction.interval_method == "simultaneous_band")?;
+    assert_eq!(validation, "not_applicable");
+    assert_eq!(scope.replicates_ok, Some(BAND_BOOTSTRAP));
+    let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
+    let endpoint = if incidence { "incidence:1" } else { "survival" };
+    assert_eq!(
+        construction.functional,
+        format!(
+            "difference_band+entry=delayed+censoring={censoring}+endpoint={endpoint}+tau=4008000000000000"
+        )
+    );
+    Some(((lower, upper), truth, construction, scope))
+}
+
+fn measure_band(test: &'static str, fixed_known: bool, incidence: bool, seed: u64) {
+    let mut tally = CoverageTally::for_record(
+        RecordKey {
+            test,
+            dgp: "independent_delayed_entry_two_cause_complete_analysis_grid",
+            interval: "simultaneous_band",
+        },
+        REPORTED_LEVEL,
+    );
+    for run in map_replicates(n_sim(), |rep| band_replicate(fixed_known, incidence, seed + rep)) {
+        if let Some((interval, truth, construction, scope)) = run {
+            tally.bind_validation(&construction, scope, "not_applicable");
+            // Coverage holds jointly exactly when the least-covered grid point is inside.
+            tally.record(Some(interval), truth);
+        } else {
+            tally.skip();
+        }
+    }
+    tally.assert();
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn delayed_entry_unweighted_survival_band_coverage() {
+    measure_band("delayed_entry_unweighted_survival_band_coverage", false, false, 0xD3E3_0000);
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn delayed_entry_unweighted_incidence_band_coverage() {
+    measure_band("delayed_entry_unweighted_incidence_band_coverage", false, true, 0xD3E4_0000);
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn delayed_entry_fixed_known_survival_band_coverage() {
+    measure_band("delayed_entry_fixed_known_survival_band_coverage", true, false, 0xD3E5_0000);
+}
+
+#[test]
+#[ignore = "coverage: measure with scripts/measure_calibration.sh"]
+fn delayed_entry_fixed_known_incidence_band_coverage() {
+    measure_band("delayed_entry_fixed_known_incidence_band_coverage", true, true, 0xD3E6_0000);
 }

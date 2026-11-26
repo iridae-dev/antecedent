@@ -57,6 +57,8 @@ pub enum NodeKind {
     Distribution,
     /// A delayed-entry target-cause incidence interval replayed on its subject table.
     DelayedEntryIncidenceResult,
+    /// A simultaneous delayed-entry difference band replayed on its subject table.
+    DelayedEntrySurvivalBandResult,
     /// An exact finite-law or sampled plug-in counterfactual transport point.
     CounterfactualTransportResult,
     /// A verified compact model that evaluates its retained prediction basis.
@@ -118,6 +120,7 @@ named_variants! {
         SupportTrustCalibration => "support_trust_calibration",
         Distribution => "distribution",
         DelayedEntryIncidenceResult => "delayed_entry_incidence_result",
+        DelayedEntrySurvivalBandResult => "delayed_entry_survival_band_result",
         CounterfactualTransportResult => "counterfactual_transport_result",
         CompactFittedEffectModel => "compact_fitted_effect_model",
         CohortDecisionSource => "cohort_decision_source",
@@ -157,6 +160,7 @@ impl NodeKind {
             | Self::SequentialDecisionDraws
             | Self::Distribution
             | Self::DelayedEntryIncidenceResult
+            | Self::DelayedEntrySurvivalBandResult
             | Self::CounterfactualTransportResult
             | Self::CompactFittedEffectModel
             | Self::CohortDecisionSource
@@ -187,6 +191,7 @@ impl NodeKind {
         match self {
             Self::QuantityCoordinates
             | Self::DelayedEntryIncidenceResult
+            | Self::DelayedEntrySurvivalBandResult
             | Self::CounterfactualTransportResult
             | Self::DecisionResult
             | Self::Sensitivity

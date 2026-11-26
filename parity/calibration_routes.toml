@@ -31,6 +31,26 @@ groups = [
 ]
 
 [[route]]
+record = "estimate.survival.delayed_entry_unweighted_survival_band"
+routes = ["graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_supremum_band.simultaneous_95_survival_difference_band"]
+groups = ["delayed_entry_incidence_calibration: delayed_entry_unweighted_survival_band_coverage"]
+
+[[route]]
+record = "estimate.survival.delayed_entry_unweighted_incidence_band"
+routes = ["graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_supremum_band.simultaneous_95_cumulative_incidence_difference_band"]
+groups = ["delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_band_coverage"]
+
+[[route]]
+record = "estimate.survival.delayed_entry_fixed_known_survival_band"
+routes = ["graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_ipcw_supremum_band.simultaneous_95_survival_difference_band"]
+groups = ["delayed_entry_incidence_calibration: delayed_entry_fixed_known_survival_band_coverage"]
+
+[[route]]
+record = "estimate.survival.delayed_entry_fixed_known_incidence_band"
+routes = ["graphless.survival.delayed_entry_two_arm_individual_randomized.arm_stratified_subject_bootstrap_ipcw_supremum_band.simultaneous_95_cumulative_incidence_difference_band"]
+groups = ["delayed_entry_incidence_calibration: delayed_entry_fixed_known_incidence_band_coverage"]
+
+[[route]]
 record = "sequential_evaluation.policy_evaluation"
 routes = [
   "antecedent.sequential_evaluation.evaluate_off_policy",

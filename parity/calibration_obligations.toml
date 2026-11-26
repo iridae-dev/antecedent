@@ -145,6 +145,18 @@ prospective = [
 ]
 
 [claims]
+"survival / delayed_entry_two_arm_individual_randomized / arm_stratified_subject_bootstrap_supremum_band / simultaneous_95_survival_difference_band" = [
+  "delayed_entry_incidence_calibration: delayed_entry_unweighted_survival_band_coverage",
+]
+"survival / delayed_entry_two_arm_individual_randomized / arm_stratified_subject_bootstrap_supremum_band / simultaneous_95_cumulative_incidence_difference_band" = [
+  "delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_band_coverage",
+]
+"survival / delayed_entry_two_arm_individual_randomized / arm_stratified_subject_bootstrap_ipcw_supremum_band / simultaneous_95_survival_difference_band" = [
+  "delayed_entry_incidence_calibration: delayed_entry_fixed_known_survival_band_coverage",
+]
+"survival / delayed_entry_two_arm_individual_randomized / arm_stratified_subject_bootstrap_ipcw_supremum_band / simultaneous_95_cumulative_incidence_difference_band" = [
+  "delayed_entry_incidence_calibration: delayed_entry_fixed_known_incidence_band_coverage",
+]
 "survival / delayed_entry_two_arm_individual_randomized / arm_stratified_subject_bootstrap_product_limit / cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval" = [
   "delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_percentile_coverage",
 ]

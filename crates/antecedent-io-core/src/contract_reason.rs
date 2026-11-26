@@ -22,6 +22,8 @@ pub enum ContractReason {
     BodyInterventionalDistribution,
     /// `body.survival_incidence`: source replay disagreed with the retained interval or curve.
     BodySurvivalIncidence,
+    /// Survival band replay disagreed with the retained band.
+    BodySurvivalBand,
     /// `body.nested_counterfactual_estimate`.
     BodyNestedCounterfactualEstimate,
     /// `body.query`.
@@ -72,6 +74,8 @@ pub enum ContractReason {
     DependenciesCheckedEstimatorOperation,
     /// `dependencies.checked_survival_incidence_operation`: provide the subject table witness.
     DependenciesCheckedSurvivalIncidenceOperation,
+    /// Provide the band subject table witness.
+    DependenciesCheckedSurvivalBandOperation,
     /// `dependencies.checked_bayesian_basis_ate_operation`.
     DependenciesCheckedBayesianBasisAteOperation,
     /// `dependencies.checked_bayesian_basis_cate_operation`.
@@ -478,6 +482,7 @@ impl ContractReason {
             Self::BodyIdentificationProduct => "body.identification_product",
             Self::BodyInterventionalDistribution => "body.interventional_distribution",
             Self::BodySurvivalIncidence => "body.survival_incidence",
+            Self::BodySurvivalBand => "body.survival_band",
             Self::BodyNestedCounterfactualEstimate => "body.nested_counterfactual_estimate",
             Self::BodyQuery => "body.query",
             Self::BodyResponse => "body.response",
@@ -514,6 +519,7 @@ impl ContractReason {
             Self::DependenciesCheckedSurvivalIncidenceOperation => {
                 "dependencies.checked_survival_incidence_operation"
             }
+            Self::DependenciesCheckedSurvivalBandOperation => "dependencies.checked_survival_band_operation",
             Self::DependenciesCheckedBayesianBasisAteOperation => {
                 "dependencies.checked_bayesian_basis_ate_operation"
             }
@@ -893,6 +899,7 @@ impl ContractReason {
                 | Self::DependenciesCheckedBatchFamilyOperation
                 | Self::DependenciesCheckedEstimatorOperation
                 | Self::DependenciesCheckedSurvivalIncidenceOperation
+                | Self::DependenciesCheckedSurvivalBandOperation
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -970,6 +977,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::BodyIdentificationProduct,
     ContractReason::BodyInterventionalDistribution,
     ContractReason::BodySurvivalIncidence,
+    ContractReason::BodySurvivalBand,
     ContractReason::BodyNestedCounterfactualEstimate,
     ContractReason::BodyQuery,
     ContractReason::BodyResponse,
@@ -995,6 +1003,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedBatchFamilyOperation,
     ContractReason::DependenciesCheckedEstimatorOperation,
     ContractReason::DependenciesCheckedSurvivalIncidenceOperation,
+    ContractReason::DependenciesCheckedSurvivalBandOperation,
     ContractReason::DependenciesCheckedBayesianBasisAteOperation,
     ContractReason::DependenciesCheckedBayesianBasisCateOperation,
     ContractReason::DependenciesCheckedBayesianClassConditionalOperation,
@@ -1200,6 +1209,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "body.query",
     "body.response",
     "body.standard_error",
+    "body.survival_band",
     "body.survival_incidence",
     "body.temporal_nested_point",
     "checked_aipw.row_binding",
@@ -1256,6 +1266,7 @@ const ALL_CONTRACT_REASON_SPELLINGS: &[&str] = &[
     "dependencies.checked_response_grid_operation",
     "dependencies.checked_static_class_effect_operation",
     "dependencies.checked_static_class_response_operation",
+    "dependencies.checked_survival_band_operation",
     "dependencies.checked_survival_incidence_operation",
     "dependencies.checked_temporal_class_effect_operation",
     "dependencies.checked_temporal_class_response_operation",

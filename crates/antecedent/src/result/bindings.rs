@@ -156,6 +156,7 @@ impl StudyResult {
         use antecedent_core::{IntervalMethod as M, ResponseUncertainty as U};
         if let Some(curve) = self.survival()
             && curve.has_delayed_entry
+            && curve.difference_band.is_none()
             && curve.target_cause.is_some()
             && curve.difference_at_tau_interval.is_some()
         {
@@ -165,6 +166,9 @@ impl StudyResult {
                 .bootstrap_replicates_requested
                 .zip(curve.bootstrap_replicates_ok)
                 .map(|(requested, ok)| requested.saturating_sub(ok));
+            return binding;
+        }
+        if let Some(binding) = self.delayed_survival_band_binding() {
             return binding;
         }
         let panel_interval = self.panel_did().is_some_and(|did| did.interval_95.is_some());
@@ -360,6 +364,9 @@ impl StudyResult {
     /// accompanies a pointwise band.
     #[must_use]
     pub fn simultaneous_band_binding(&self, bayesian: bool) -> Option<IntervalBinding> {
+        if let Some(binding) = self.delayed_survival_band_binding() {
+            return Some(binding);
+        }
         let response = self.response()?;
         if matches!(
             response.uncertainty,
@@ -378,6 +385,21 @@ impl StudyResult {
         if bayesian || self.posterior.is_some() {
             binding.posterior_draws = binding.replicates_ok.take();
         }
+        Some(binding)
+    }
+
+    fn delayed_survival_band_binding(&self) -> Option<IntervalBinding> {
+        let curve = self.survival()?;
+        if !curve.has_delayed_entry {
+            return None;
+        }
+        let band = curve.difference_band.as_ref()?;
+        let mut binding = IntervalBinding::new(
+            antecedent_core::IntervalMethod::SimultaneousBand, 0.95, "iid",
+        );
+        binding.replicates_ok = Some(band.replicates_ok);
+        binding.replicates_failed = curve.bootstrap_replicates_requested
+            .map(|requested| requested.saturating_sub(band.replicates_ok));
         Some(binding)
     }
 

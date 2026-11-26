@@ -10,8 +10,9 @@ use super::{
 };
 use crate::graphless_support::{
     GraphlessResampleSupport, INCIDENCE_MIN_EVENT_RISK_SET, graphless_admits_resampled,
-    survival_pointwise_key,
+    survival_band_key, survival_pointwise_key,
 };
+use antecedent_stats::survival::{DELAYED_ENTRY_BAND_MIN_RISK_SET, delayed_entry_band_min_arm};
 
 /// Uncertainty label of the augmented panel's unsupported whole-cluster resample interval.
 const AUGMENTED_RESAMPLE_UNCERTAINTY: &str =
@@ -453,25 +454,13 @@ fn survival_support(
                 )
             })
         });
-    // The simultaneous band is its own supported claim, carried on the band's
-    // own `graphless_support_status`. It publishes only for the unweighted,
-    // no-entry route, and covers the survival or cumulative-incidence grid.
+    let band_key = survival_band_key(query.delayed_entry.is_some(), ipcw, incidence);
     let band_supported = curve.difference_band.as_ref().is_some_and(|band| {
         band_valid
             && band.replicates_ok >= 399
             && curve.assignment_counts.is_some_and(|[control, treated]| {
-                let claim = if query.target_cause.is_some() {
-                    "simultaneous_95_cumulative_incidence_difference_band"
-                } else {
-                    "simultaneous_95_survival_difference_band"
-                };
-                graphless_admits(
-                    GraphlessSupportKey {
-                        family: "survival",
-                        design: "two_arm_individual_randomized",
-                        method: "arm_stratified_subject_bootstrap_supremum_band",
-                        inference_claim: claim,
-                    },
+                band_key.is_some_and(|key| graphless_admits_resampled(
+                    key,
                     GraphlessAssignmentSupport {
                         assignment_unit: "unit",
                         treated,
@@ -480,9 +469,14 @@ fn survival_support(
                         rows: control.saturating_add(treated),
                         reported_intervals: 1,
                         all_reported_intervals: true,
+                        known_density: ipcw,
                         ..GraphlessAssignmentSupport::default()
                     },
-                )
+                    GraphlessResampleSupport {
+                        interval_resamples: band.replicates_ok as usize,
+                        ..GraphlessResampleSupport::default()
+                    },
+                ))
             })
     });
     (scalar_supported, band_supported)
@@ -496,9 +490,19 @@ fn survival_band_valid(
     match (&curve.difference_band, &curve.band_unavailable_reason) {
         (Some(band), None) => {
             let requested = curve.bootstrap_replicates_requested.unwrap_or(0);
-            query.delayed_entry.is_none()
-                && query.censoring_columns.is_empty()
-                && pointwise_bootstrap
+            let design_valid = if query.delayed_entry.is_some() {
+                curve.minimum_event_risk_set.unwrap_or(0) >= DELAYED_ENTRY_BAND_MIN_RISK_SET
+                    && band.minimum_horizon_risk_set.is_some_and(|risk| {
+                        risk >= DELAYED_ENTRY_BAND_MIN_RISK_SET
+                            && curve.assignment_counts.is_some_and(|[a, b]| {
+                                a.min(b) >= delayed_entry_band_min_arm(!query.censoring_columns.is_empty())
+                                    && risk <= a.min(b)
+                            })
+                    })
+            } else {
+                band.minimum_horizon_risk_set.is_none() && query.censoring_columns.is_empty()
+            };
+            design_valid && pointwise_bootstrap
                 && requested >= 399
                 && band.replicates_ok >= 399
                 && band.replicates_ok >= requested.saturating_sub(requested / 10)

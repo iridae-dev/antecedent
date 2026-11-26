@@ -37,6 +37,7 @@ pub struct SurvivalSection {
     pub assignment_counts: (usize, usize),
     pub censoring_survival_provenance: Option<String>,
     pub difference_band: Option<DifferenceBand>,
+    pub band_minimum_horizon_risk_set: Option<usize>,
     pub band_unavailable_reason: Option<String>,
 }
 
@@ -75,6 +76,8 @@ impl From<&antecedent::SurvivalEstimate> for SurvivalSection {
                     band.support_status.map(|status| status.as_str().to_string()),
                 )
             }),
+            band_minimum_horizon_risk_set: value.difference_band.as_ref()
+                .and_then(|band| band.minimum_horizon_risk_set),
             band_unavailable_reason: value
                 .band_unavailable_reason
                 .as_ref()

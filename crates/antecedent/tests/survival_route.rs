@@ -765,6 +765,235 @@ fn simultaneous_band_withholds_small_arms_without_erasing_scalar_interval() {
 }
 
 #[test]
+fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
+    use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+    for fixed_known in [false, true] {
+        for incidence in [false, true] {
+            let (prepared, data, ctx) =
+                delayed_entry_band_fixture(fixed_known, incidence, false, false);
+            let result = prepared.estimate(&data, &ctx).unwrap();
+            let curve = result.survival().unwrap();
+            let band = curve.difference_band.as_ref().unwrap();
+            assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Supported));
+            assert!(band.minimum_horizon_risk_set.unwrap() >= 25);
+            assert_eq!(band.times, curve.times);
+            if incidence {
+                assert!(result.support_status().is_none());
+            }
+            let bytes = prepared
+                .encode_contracted_result_with_source(&result, &data, "delayed-entry-band", &ctx)
+                .unwrap();
+            let loaded = antecedent_io::load_analysis_result(&bytes).unwrap();
+            assert!(loaded.replay(&antecedent_io::ReplayOptions::default()).replayed());
+            let compact = prepared.encode_contracted_result(&result, "compact-band", &ctx).unwrap();
+            let mut builder = BundleBuilder::new();
+            assert!(builder.add_detected_artifact(Some("compact"), &compact).is_err());
+            builder.add_detected_artifact(Some("band"), &bytes).unwrap();
+            let bundle = builder.build().unwrap();
+            let bundle_bytes = composition::export_bundle(&bundle, "delayed-entry-band").unwrap();
+            let consumed =
+                composition::consume(&bundle_bytes, bundle.identity(), &SuppliedSources::default())
+                    .unwrap();
+            assert_eq!(consumed.value("band", "horizon"), Some(3.0));
+            assert_eq!(consumed.value("band", "horizon_lower_95"), band.lower.last().copied());
+            assert_eq!(
+                consumed.value("band", "whole_grid_upper_95"),
+                band.upper.iter().copied().reduce(f64::max)
+            );
+            if !fixed_known && incidence {
+                let (_, replacement, _) = delayed_entry_band_fixture(false, true, false, true);
+                assert!(
+                    prepared
+                        .encode_contracted_result_with_source(
+                            &result,
+                            &replacement,
+                            "swapped-band-subjects",
+                            &ctx,
+                        )
+                        .is_err()
+                );
+                let mut rebound = prepared.clone();
+                let revised = rebind_estimate(&mut rebound, replacement.clone(), &ctx).unwrap();
+                let revised_curve = revised.survival().unwrap().difference_band.as_ref().unwrap();
+                assert_ne!(revised_curve.difference, band.difference);
+                let revised_bytes = rebound
+                    .encode_contracted_result_with_source(
+                        &revised,
+                        &replacement,
+                        "revised-band-subjects",
+                        &ctx,
+                    )
+                    .unwrap();
+                let mut builder = BundleBuilder::new();
+                builder.add_detected_artifact(Some("band"), &revised_bytes).unwrap();
+                let replacement_bundle = builder.build().unwrap();
+                let bytes =
+                    composition::export_bundle(&replacement_bundle, "revised-band").unwrap();
+                assert!(
+                    composition::consume(&bytes, bundle.identity(), &SuppliedSources::default())
+                        .is_err()
+                );
+                let replacement = composition::consume(
+                    &bytes,
+                    replacement_bundle.identity(),
+                    &SuppliedSources::default(),
+                )
+                .unwrap();
+                assert_eq!(
+                    replacement.value("band", "horizon_lower_95"),
+                    revised_curve.lower.last().copied()
+                );
+            }
+            let replayed = antecedent_io::replay_analysis_result(&bytes).unwrap();
+            let wire = replayed.body.survival.as_ref().unwrap();
+            assert_eq!(wire.target_cause, incidence.then_some(1));
+            assert_eq!(wire.tau, 3.0);
+            assert_eq!(wire.difference_band.as_ref().unwrap().lower, band.lower.as_ref());
+            let mut forged = replayed.body;
+            forged
+                .survival
+                .as_mut()
+                .unwrap()
+                .difference_band
+                .as_mut()
+                .unwrap()
+                .minimum_horizon_risk_set = Some(24);
+            assert!(
+                antecedent_io::encode_analysis_result_artifact(
+                    &forged,
+                    replayed.header.variable_names,
+                    "forged-thin-tail",
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
+#[test]
+fn delayed_entry_band_withholds_a_thin_horizon_risk_set() {
+    for fixed_known in [false, true] {
+        let (prepared, data, ctx) = delayed_entry_band_fixture(fixed_known, true, true, false);
+        let result = prepared.estimate(&data, &ctx).unwrap();
+        let curve = result.survival().unwrap();
+        assert!(curve.difference_at_tau_interval.is_some());
+        assert!(curve.difference_band.is_none());
+        assert!(curve.band_unavailable_reason.as_deref().unwrap().contains("25 at-risk subjects"));
+    }
+}
+
+#[test]
+fn delayed_entry_band_withholds_when_the_other_arm_lacks_risk_at_an_event_knot() {
+    let mut duration = Vec::new();
+    let mut event = Vec::new();
+    let mut treatment = Vec::new();
+    let mut entry = Vec::new();
+    for treated in [false, true] {
+        for index in 0..200 {
+            let exit = if !treated && index < 60 {
+                1.0
+            } else if index % 4 == 0 {
+                2.0
+            } else {
+                3.0
+            };
+            duration.push(exit);
+            event.push(f64::from(exit < 3.0));
+            treatment.push(f64::from(treated));
+            entry.push(f64::from(treated && index >= 20));
+        }
+    }
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()),
+        ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+        ("entry", entry.as_slice()),
+    ])
+    .unwrap();
+    let mut q = query(SurvivalFunctional::SurvivalAndRmst);
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    let ctx = ExecutionContext::for_tests(5_167);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::Survival(q))
+        .bootstrap_replicates(399)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let curve = result.survival().unwrap();
+    assert!(curve.minimum_event_risk_set.unwrap() > 25);
+    assert!(curve.difference_at_tau_interval.is_some());
+    assert!(curve.difference_band.is_none());
+    assert!(curve.band_unavailable_reason.as_deref().unwrap().contains("25 at-risk subjects"));
+}
+
+fn delayed_entry_band_fixture(
+    fixed_known: bool,
+    incidence: bool,
+    thin_tail: bool,
+    revised: bool,
+) -> (antecedent::PreparedStudy, TabularData, ExecutionContext) {
+    let (mut duration, mut event, mut treatment, mut entry, mut known) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for arm in [false, true] {
+        for index in 0..200 {
+            let first = if arm { 40 } else { 60 };
+            let (exit, cause, left, g) = if index < first {
+                (1.0, 1.0, 0.0, 0.5)
+            } else if index < first + 40 {
+                (2.0, if incidence { 2.0 } else { 1.0 }, 1.0, 0.5)
+            } else if thin_tail && index < 180 {
+                (2.0, 0.0, 0.0, 0.8)
+            } else if revised && !arm && index == 199 {
+                (2.0, 1.0, 0.0, 0.8)
+            } else {
+                (3.0, 0.0, 0.0, 0.8)
+            };
+            duration.push(exit);
+            event.push(cause);
+            treatment.push(f64::from(arm));
+            entry.push(left);
+            known.push(g);
+        }
+    }
+    let g0 = vec![1.0; duration.len()];
+    let data = TabularData::from_f64_columns([
+        ("duration", duration.as_slice()),
+        ("event", event.as_slice()),
+        ("treatment", treatment.as_slice()),
+        ("entry", entry.as_slice()),
+        ("g0", g0.as_slice()),
+        ("g1", known.as_slice()),
+        ("g2", known.as_slice()),
+        ("g3", known.as_slice()),
+    ])
+    .unwrap();
+    let mut query = query(if incidence {
+        SurvivalFunctional::CumulativeIncidence { target_cause: 1 }
+    } else {
+        SurvivalFunctional::SurvivalAndRmst
+    });
+    query.tau = 3.0;
+    query.delayed_entry = Some(VariableId::from_raw(3));
+    query.known_censoring = fixed_known.then(|| KnownCensoringSurvival {
+        times: Arc::from([0.0, 1.0, 2.0, 3.0]),
+        columns: (4..8).map(VariableId::from_raw).collect(),
+        minimum_probability: 0.05,
+    });
+    let ctx = ExecutionContext::for_tests(5_167);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::Survival(query))
+        .bootstrap_replicates(399)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    (prepared, data, ctx)
+}
+
+#[test]
 fn supported_delayed_entry_survival_intervals_round_trip_and_refuse_forgery() {
     let mut duration = Vec::new();
     let mut event = Vec::new();

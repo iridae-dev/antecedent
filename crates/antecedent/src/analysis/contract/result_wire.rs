@@ -287,6 +287,7 @@ impl SupportedWire for SurvivalEstimate {
                 lower: band.lower.to_vec(),
                 upper: band.upper.to_vec(),
                 replicates_ok: band.replicates_ok,
+                minimum_horizon_risk_set: band.minimum_horizon_risk_set,
                 graphless_support_status: support_label(band.support_status),
             }),
             band_unavailable_reason: self.band_unavailable_reason.as_ref().map(ToString::to_string),

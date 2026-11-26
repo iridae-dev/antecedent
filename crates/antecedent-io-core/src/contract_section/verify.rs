@@ -228,7 +228,7 @@ fn unresolved_after(
             false
         }
     };
-    let incidence_replayed = match super::survival_replay::replay_delayed_entry_incidence(
+    let survival_replayed = match super::survival_replay::replay_delayed_entry_survival(
         header, body, contract, source, limits,
     ) {
         Ok(replayed) => replayed,
@@ -238,7 +238,7 @@ fn unresolved_after(
         }
     };
     note_checked_estimator_operation(
-        contract, body, &mut unresolved, replayed, incidence_replayed,
+        contract, body, &mut unresolved, replayed, survival_replayed,
     );
     unresolved
 }
@@ -251,7 +251,7 @@ fn note_checked_estimator_operation(
     body: &AnalysisResultWire,
     unresolved: &mut Vec<ContractReason>,
     dr_replayed: bool,
-    incidence_replayed: bool,
+    survival_replayed: bool,
 ) {
     let supported = contract.program.as_ref().is_some_and(|program| {
         let resolved = program.commitments.resolved_estimator.as_deref();
@@ -302,7 +302,7 @@ fn note_checked_estimator_operation(
                 program.checked_dr_lowering.is_some() && dr_replayed
             }
             (Some("randomized.survival_product_limit"), CausalQueryWire::Survival(_)) => {
-                incidence_replayed
+                survival_replayed
             }
             (Some("functional.effect"), CausalQueryWire::Response(_)) => {
                 program.checked_functional_response_grid.is_some()
@@ -1382,26 +1382,46 @@ pub(in crate::contract_section) fn note_published_claim(
         }
         verify_claim_calibration(contract, claim, unresolved);
         if let (CausalQueryWire::Survival(query), Some(curve)) = (&body.query, &body.survival)
-            && query.delayed_entry.is_some()
-            && query.target_cause.is_some()
-            && curve.difference_at_tau_interval.is_some()
+            && (query.delayed_entry.is_some()
+                && (curve.difference_band.is_some()
+                    || (query.target_cause.is_some() && curve.difference_at_tau_interval.is_some())))
             && (claim.calibration.basis.as_ref().is_none_or(|basis| {
-                basis.key.query != "Survival"
-                || crate::graphless_support::incidence_calibration_functional(
-                    query,
-                    curve.minimum_event_risk_set,
-                    curve.bootstrap_replicates_ok,
-                    curve.assignment_counts,
-                ).as_deref() != Some(basis.key.functional.as_str())
-                || basis.scope.replicates_ok != curve.bootstrap_replicates_ok
-                || curve.assignment_counts.is_none_or(|[control, treated]| {
-                    u64::try_from(control.saturating_add(treated)).ok() != Some(basis.scope.row_count)
-                })
+                basis.key.query != "Survival" || !survival_calibration_basis_matches(query, curve, basis)
             }) || !claim.calibration.secondary.is_empty())
         {
             unresolved.push(ContractReason::ClaimCalibrationBasis);
         }
     }
+}
+
+fn survival_calibration_basis_matches(
+    query: &crate::query_wire::SurvivalQueryWire,
+    curve: &crate::analysis_result_artifact::SurvivalWire,
+    basis: &crate::calibration::CalibrationBasisWire,
+) -> bool {
+    use crate::graphless_support::{incidence_calibration_functional, survival_band_calibration_functional};
+    let (functional, replicates_ok) = match basis.key.interval_method.as_str() {
+        "simultaneous_band" => {
+            let Some(band) = &curve.difference_band else { return false };
+            (
+                survival_band_calibration_functional(query, curve.assignment_counts),
+                Some(band.replicates_ok),
+            )
+        }
+        "percentile_bootstrap" if curve.difference_band.is_none() && curve.difference_at_tau_interval.is_some() => (
+            incidence_calibration_functional(
+                query, curve.minimum_event_risk_set, curve.bootstrap_replicates_ok,
+                curve.assignment_counts,
+            ),
+            curve.bootstrap_replicates_ok,
+        ),
+        _ => return false,
+    };
+    functional.as_deref() == Some(basis.key.functional.as_str())
+        && replicates_ok == basis.scope.replicates_ok
+        && curve.assignment_counts.is_some_and(|[control, treated]| {
+            u64::try_from(control.saturating_add(treated)) == Ok(basis.scope.row_count)
+        })
 }
 
 /// Producer validation permits readable exports with explicitly unavailable
@@ -1619,12 +1639,13 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
             && contract.structure_source == "randomized_trial"
             && key.inference == "Frequentist"
             && key.estimator == "randomized.survival_product_limit"
-            && key.interval_method == "percentile_bootstrap"
             && key.level.to_bits() == 0.95_f64.to_bits()
             && key.se_kind.is_empty()
             && key.dependence == "iid"
             && matches!(&contract.target.query, CausalQueryWire::Survival(query)
-                if query.delayed_entry.is_some() && query.target_cause.is_some()))
+                if query.delayed_entry.is_some()
+                    && (key.interval_method == "simultaneous_band"
+                        || (key.interval_method == "percentile_bootstrap" && query.target_cause.is_some()))))
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {
             matches!(&contract.target.query, crate::CausalQueryWire::SequentialContrast(q) if q.matches_wide_overlap_study())
                 && graphless_validation_ok && key.validation == "not_applicable"

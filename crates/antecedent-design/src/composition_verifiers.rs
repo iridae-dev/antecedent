@@ -143,13 +143,14 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 22] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 23] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
     NodeKind::Transformation,
     NodeKind::Distribution,
     NodeKind::DelayedEntryIncidenceResult,
+    NodeKind::DelayedEntrySurvivalBandResult,
     NodeKind::CompactFittedEffectModel,
     NodeKind::CohortDecisionSource,
     NodeKind::ExternalClaim,
@@ -195,6 +196,7 @@ const fn default_stage(kind: NodeKind) -> BundleStage {
     match kind {
         NodeKind::QuantityCoordinates
         | NodeKind::DelayedEntryIncidenceResult
+        | NodeKind::DelayedEntrySurvivalBandResult
         | NodeKind::DecisionResult
         | NodeKind::Sensitivity
         | NodeKind::StudyRanking
@@ -420,6 +422,7 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         }
         NodeKind::Distribution => inspect_distribution(bytes),
         NodeKind::DelayedEntryIncidenceResult => incidence_source_inspection::inspect(bytes),
+        NodeKind::DelayedEntrySurvivalBandResult => incidence_source_inspection::inspect_band(bytes),
         NodeKind::CompactFittedEffectModel => compact_model_inspection::inspect(bytes),
         NodeKind::CohortDecisionSource => {
             cohort_source_inspection::inspect(bytes, &ExecutionContext::production_default(0))
@@ -836,8 +839,12 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
     match label.as_str() {
         "analysis_result" => {
             let (_, _, body) = antecedent_io_core::decode_analysis_result_artifact(bytes).ok()?;
-            incidence_source_inspection::is_delayed_entry_incidence(&body)
-                .then_some(NodeKind::DelayedEntryIncidenceResult)
+            if incidence_source_inspection::is_delayed_entry_band(&body) {
+                Some(NodeKind::DelayedEntrySurvivalBandResult)
+            } else {
+                incidence_source_inspection::is_delayed_entry_incidence(&body)
+                    .then_some(NodeKind::DelayedEntryIncidenceResult)
+            }
         }
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
         KIND_DISTRIBUTION => Some(NodeKind::Distribution),
@@ -998,6 +1005,12 @@ kind_verifier!(
     NodeKind::CompactFittedEffectModel
 );
 
+kind_verifier!(
+    /// Verifies the source-bearing delayed-entry curve difference band.
+    DelayedEntrySurvivalBandResultVerifier,
+    NodeKind::DelayedEntrySurvivalBandResult
+);
+
 /// The verifier of one node kind, when it has one.
 #[must_use]
 pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
@@ -1009,6 +1022,7 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::Distribution => Box::new(DistributionVerifier),
         NodeKind::CompactFittedEffectModel => Box::new(CompactFittedEffectModelVerifier),
         NodeKind::DelayedEntryIncidenceResult => Box::new(DelayedEntryIncidenceResultVerifier),
+        NodeKind::DelayedEntrySurvivalBandResult => Box::new(DelayedEntrySurvivalBandResultVerifier),
         NodeKind::CohortDecisionSource => {
             Box::new(CohortDecisionSourceVerifier::new(&ExecutionContext::production_default(0)))
         }

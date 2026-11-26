@@ -1,0 +1,24 @@
+feature_id = "estimate.survival.delayed_entry_bands"
+implementation_crate = "antecedent-stats"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Nonparametric Estimation from Incomplete Observations", doi = "10.1080/01621459.1958.10501452", sections = ["product-limit estimator of the survival function from a risk set"] },
+]
+
+implementation_deviations = [
+  "The estimator forms counting-process risk sets from each subject's entry and exit. In competing risks, the Aalen–Johansen recursion uses one declared target cause. The fixed censoring grid supplies subject-specific left-limit weights.",
+  "A whole-subject resample within each randomized arm keeps entry, exit, event cause and supplied censoring probabilities together. The 95th percentile of the supremum of centered curve differences determines the simultaneous band on the observed grid.",
+  "The four calibration measurements use distinct endpoint and censoring coordinates and score whole-grid coverage jointly under a fixed simulation. This method record documents the construction and its independent references. The measured records establish the calibrated scope.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-stats/src/survival.rs",
+  "crates/antecedent-estimate/tests/graphless_survival_bootstrap_known_truth.rs",
+  "crates/antecedent/tests/delayed_entry_incidence_calibration.rs",
+  "crates/antecedent/tests/survival_route.rs",
+  "python/tests/test_survival_combined_observation.py",
+]

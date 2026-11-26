@@ -629,6 +629,8 @@ pub struct SurvivalDifferenceBand {
     pub upper: Arc<[f64]>,
     /// Bootstrap replicates satisfying the original estimator support contract.
     pub replicates_ok: u32,
+    /// Smallest arm risk set at the horizon, for delayed-entry bands.
+    pub minimum_horizon_risk_set: Option<usize>,
     /// Exact graphless simultaneous-band support, when the published band and
     /// arm support match a supported band row. Absent for off-axis bands.
     pub support_status: Option<crate::support::CellStatus>,

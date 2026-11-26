@@ -4,6 +4,7 @@
 pub use antecedent_stats::survival::{
     KnownCensoring, RandomizedSurvivalSummary, SurvivalBootstrapIntervals, SurvivalDifferenceBand,
     SurvivalEndpoint, SurvivalRows, randomized_survival_bootstrap_difference_band,
+    randomized_survival_bootstrap_difference_band_with_observation,
     randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary,
     randomized_survival_summary,
 };

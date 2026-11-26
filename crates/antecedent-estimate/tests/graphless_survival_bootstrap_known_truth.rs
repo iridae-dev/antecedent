@@ -28,6 +28,7 @@
 
 use antecedent_estimate::survival::{
     KnownCensoring, SurvivalEndpoint, SurvivalRows, randomized_survival_bootstrap_difference_band,
+    randomized_survival_bootstrap_difference_band_with_observation,
     randomized_survival_bootstrap_intervals, randomized_survival_ipcw_summary,
     randomized_survival_summary,
 };
@@ -444,6 +445,125 @@ fn delayed_entry_incidence_interval_matches_the_exact_bootstrap_law() {
 #[test]
 fn delayed_entry_fixed_known_censoring_incidence_interval_matches_the_exact_bootstrap_law() {
     delayed_entry_incidence_scenario(true);
+}
+
+fn delayed_entry_band_reference(fixed_known: bool, incidence: bool) {
+    const N: usize = 200;
+    const BOOTSTRAP: u32 = 4_000;
+    const SEED: u64 = 911;
+    let counts = [[60, 100, 40], [40, 110, 50]];
+    let grid = [0.0, 1.0, 2.0, TAU];
+    let (mut duration, mut event, mut entry, mut treated, mut probabilities) =
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+    for (arm, group) in counts.into_iter().enumerate() {
+        for (kind, count) in group.into_iter().enumerate() {
+            let (exit, cause, left, g) = [
+                (1.0, 1, 0.0, 0.5),
+                (TAU, 0, 0.0, 0.8),
+                (2.0, if incidence { 2 } else { 1 }, 1.0, 0.5),
+            ][kind];
+            for _ in 0..count {
+                duration.push(exit);
+                event.push(cause);
+                entry.push(left);
+                treated.push(arm == 1);
+                probabilities.extend([1.0, g, g, g]);
+            }
+        }
+    }
+    let rows = SurvivalRows {
+        duration: &duration,
+        event_code: &event,
+        treated: &treated,
+        delayed_entry: Some(&entry),
+    };
+    let known =
+        KnownCensoring { times: &grid, survival: &probabilities, minimum_probability: 0.05 };
+    let endpoint = if incidence {
+        SurvivalEndpoint::CumulativeIncidence { target_cause: 1 }
+    } else {
+        SurvivalEndpoint::Survival
+    };
+    // The late entrants miss event 1. At time 2 the early survivors and late entrants are at
+    // risk, with only the late entrants failing. This is the closed-form curve on the fixture.
+    let arm_curve = |[early, surviving, late]: [usize; 3]| {
+        let [wa, ws, wl] = if fixed_known { [2.0, 1.25, 2.0] } else { [1.0; 3] };
+        let (early, surviving, late) = (wa * early as f64, ws * surviving as f64, wl * late as f64);
+        if incidence {
+            let target = early / (early + surviving);
+            [0.0, target, target, target]
+        } else {
+            let first = surviving / (early + surviving);
+            let second = first * surviving / (surviving + late);
+            [1.0, first, second, second]
+        }
+    };
+    let difference = |counts: [[usize; 3]; 2]| {
+        let [control, active] = counts.map(arm_curve);
+        std::array::from_fn::<_, 4, _>(|index| active[index] - control[index])
+    };
+    let point = difference(counts);
+    let mut stream = SEED ^ 0x7D0C_0B41_5752_5A3D;
+    let mut radii: Vec<_> = (0..BOOTSTRAP)
+        .map(|_| {
+            let drawn = counts.map(|arm| {
+                let mut multiplicities = [0; 3];
+                for _ in 0..N {
+                    let item = antecedent_core::splitmix64(&mut stream) as usize % N;
+                    let kind = usize::from(item >= arm[0]) + usize::from(item >= arm[0] + arm[1]);
+                    multiplicities[kind] += 1;
+                }
+                assert!(multiplicities.iter().all(|&count| count > 0));
+                multiplicities
+            });
+            difference(drawn)
+                .iter()
+                .zip(point)
+                .map(|(&sample, original)| (sample - original).abs())
+                .fold(0.0_f64, f64::max)
+        })
+        .collect();
+    radii.sort_by(f64::total_cmp);
+    let rank = (((BOOTSTRAP + 1) * 95).div_ceil(100) - 1) as usize;
+    let radius = radii[rank];
+    let band = randomized_survival_bootstrap_difference_band_with_observation(
+        &rows,
+        fixed_known.then_some(&known),
+        TAU,
+        endpoint,
+        BOOTSTRAP,
+        SEED,
+        || false,
+    )
+    .unwrap();
+    assert_eq!(band.replicates_ok, BOOTSTRAP);
+    assert_eq!(band.minimum_horizon_risk_set, Some(100));
+    assert_eq!(band.times, grid);
+    for (index, &center) in point.iter().enumerate() {
+        assert!((band.difference[index] - center).abs() < 1e-12);
+        assert!((band.lower[index] - (center - radius).max(-1.0)).abs() < 1e-12);
+        assert!((band.upper[index] - (center + radius).min(1.0)).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn delayed_entry_unweighted_survival_band_matches_reference() {
+    delayed_entry_band_reference(false, false);
+}
+
+#[test]
+fn delayed_entry_unweighted_incidence_band_matches_reference() {
+    delayed_entry_band_reference(false, true);
+}
+
+#[test]
+fn delayed_entry_fixed_known_survival_band_matches_reference() {
+    delayed_entry_band_reference(true, false);
+}
+
+#[test]
+fn delayed_entry_fixed_known_incidence_band_matches_reference() {
+    delayed_entry_band_reference(true, true);
 }
 
 fn band_radius_check(

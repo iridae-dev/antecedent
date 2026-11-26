@@ -855,6 +855,7 @@ def _survival_from_raw(
             upper=tuple(native_band[3]),
             replicates_ok=native_band[4],
             support_status=band_status or "unsupported_simultaneous_band",
+            minimum_horizon_risk_set=getattr(section, "band_minimum_horizon_risk_set", None),
         )
         if native_band is not None
         else None
@@ -877,11 +878,8 @@ def _survival_from_raw(
     provenance = section.censoring_survival_provenance
     scalar_supported = getattr(raw, "evidence_status", None) == "supported"
     band_supported = band_status == "supported"
-    # The paired RMST + horizon survival scalar support and the simultaneous
-    # band support are distinct graphless claims. The scalar support takes the
-    # top-level slot when present; a supported band that stands alone (for example
-    # an off-axis competing-incidence scalar) is reported as such; the band's own
-    # support is always carried on ``difference_band.support_status``.
+    # The pointwise and simultaneous claims have distinct support rows. The
+    # pointwise claim uses the top-level slot and the band has its own slot.
     support_status = (
         "supported"
         if scalar_supported

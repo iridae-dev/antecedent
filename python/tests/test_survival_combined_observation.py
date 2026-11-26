@@ -171,6 +171,70 @@ print(json.dumps(dict(loaded.decoded_artifact.payload["survival"])))
     assert curve["difference_at_tau_interval"] == pytest.approx(section.incidence_difference_interval)
 
 
+@pytest.mark.parametrize("fixed_known", [False, True])
+@pytest.mark.parametrize("incidence", [False, True])
+def test_delayed_entry_band_replays_in_a_bundle(fixed_known: bool, incidence: bool) -> None:
+    rows = []
+    for arm in (0, 1):
+        first = 40 if arm else 60
+        for index in range(200):
+            if index < first:
+                exit_time, event, entry, g = 1.0, 1.0, 0.0, 0.5
+            elif index < first + 40:
+                exit_time, event, entry, g = 2.0, (2.0 if incidence else 1.0), 1.0, 0.5
+            else:
+                exit_time, event, entry, g = 3.0, 0.0, 0.0, 0.8
+            rows.append((exit_time, event, float(arm), entry, 1.0, g, g, g))
+    data = pd.DataFrame(
+        rows, columns=("duration", "event", "treatment", "entry", "g0", "g1", "g2", "g3")
+    )
+    known = (
+        KnownCensoringSurvival((0.0, 1.0, 2.0, 3.0), ("g0", "g1", "g2", "g3"), 0.05)
+        if fixed_known else None
+    )
+    observation = {
+        "randomized": True,
+        "delayed_entry": "entry",
+        "known_censoring": known,
+        "observation_assumption": IndependentGiven(()),
+    }
+    query = (
+        CompetingRisksOutcome("duration", "event", "treatment", 1, 3.0, **observation)
+        if incidence else SurvivalOutcome("duration", "event", "treatment", 3.0, **observation)
+    )
+    result = require_success(
+        ant.analyze(data, query=query, inference=ant.Frequentist(bootstrap=399),
+                    execution=ant.Execution(seed=5_167))
+    )
+    section = result.survival
+    band = section.difference_band
+    assert band.minimum_horizon_risk_set == 100
+    assert tuple(band.times) == (0.0, 1.0, 2.0, 3.0)
+    assert band.replicates_ok == 399
+    compact = require_success(ant.load(bytes(result.export()))).replay()
+    assert "dependencies.checked_survival_band_operation" in compact.acceptance.not_replayable
+    reader = """
+import json
+import sys
+import antecedent as ant
+from antecedent.composition_bundle import Bundle, consume_bundle
+from antecedent.outcomes import require_success
+source = sys.stdin.buffer.read()
+assert require_success(ant.load(source)).replay().acceptance.replayed
+bundle = Bundle.builder().add_artifact(source, node_id="band").build()
+consumed = require_success(consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
+consumed.require_verified()
+print(json.dumps([consumed.value("band", key) for key in (
+    "horizon", "horizon_lower_95", "whole_grid_upper_95"
+)]))
+"""
+    printed = subprocess.run(
+        [sys.executable, "-c", reader], input=bytes(result.export(source_data=data)),
+        capture_output=True, check=True, timeout=30,
+    )
+    assert json.loads(printed.stdout) == pytest.approx([3.0, band.lower[-1], max(band.upper)])
+
+
 def test_fitted_censoring_arrays_cannot_enter_delayed_entry_incidence_support() -> None:
     with pytest.raises(CausalValueError, match="known_censoring must be KnownCensoringSurvival"):
         CompetingRisksOutcome(

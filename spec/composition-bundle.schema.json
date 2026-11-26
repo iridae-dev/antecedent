@@ -80,6 +80,7 @@
             "support_trust_calibration",
             "distribution",
             "delayed_entry_incidence_result",
+            "delayed_entry_survival_band_result",
             "counterfactual_transport_result",
             "compact_fitted_effect_model",
             "cohort_decision_source",

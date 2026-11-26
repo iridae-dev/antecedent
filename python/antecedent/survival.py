@@ -235,6 +235,7 @@ class SurvivalDifferenceBand:
     level: float = 0.95
     method: str = "subject_stratified_bootstrap_supremum"
     support_status: str = _direct_status.UNSUPPORTED_SIMULTANEOUS_BAND
+    minimum_horizon_risk_set: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -480,8 +481,9 @@ class CumulativeIncidenceEstimate:
     * ``tau``, ``uncertainty``, ``bootstrap_replicates_requested``,
       ``bootstrap_replicates_ok``, ``censoring_survival_provenance``, ``difference_band``,
       ``band_unavailable_reason``, ``support_status`` and ``assumptions`` -- as
-      :class:`SurvivalEstimate`. The pointwise incidence interval has no support row; a
-      simultaneous band can (``"supported_simultaneous_band"``).
+      :class:`SurvivalEstimate`. Delayed-entry pointwise intervals have separate support
+      rows for unweighted analysis and fixed known censoring survival. A supported
+      simultaneous band has its own status (``"supported_simultaneous_band"``).
     """
 
     target_cause: int
