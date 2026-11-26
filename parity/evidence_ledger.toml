@@ -13514,3 +13514,648 @@ calibration = "Deterministic identified-set transformation under a fixed map. No
 artifact_consumer_fixture = "scientific_bridge.typed_bridges.sharp_set.artifact"
 provider_trust = "The caller declares the source identified set, affine map, units, and domain."
 exact_request_verification = "The replay reader checks the compiled declaration and independently retained program and result identities."
+
+[[cell]]
+id = "decision_reliability.derived_numerical_interval"
+route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.derived_numerical_interval.wilson_hand_arithmetic.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "p = 0.5 at effective sample size 100; five intervals at level 0.99; shared and independent streams at correlation 0.9. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_decision_reliability_derivation_equals_derive_uncertainty)."
+expected_values = "Wilson interval [0.40383, 0.59617]; simultaneous half-width z(0.005) se; shared-stream difference width below half the independent width; refusal at n_eff below 30."
+tolerance = "absolute 1e-5 for hand-arithmetic intervals; exact for refusals"
+calibration = "derived_not_measured; publication refused not_supported until a coverage record exists"
+artifact_consumer_fixture = "decision_reliability.derived_numerical_interval.fresh_consumer_rederives.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.derived_numerical_interval"
+route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.derived_numerical_interval.wilson_hand_arithmetic.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "p = 0.5 at effective sample size 100; five intervals at level 0.99; shared and independent streams at correlation 0.9. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_derivation_equals_derive_uncertainty)."
+expected_values = "Wilson interval [0.40383, 0.59617]; simultaneous half-width z(0.005) se; shared-stream difference width below half the independent width; refusal at n_eff below 30."
+tolerance = "absolute 1e-5 for hand-arithmetic intervals; exact for refusals"
+calibration = "derived_not_measured; publication refused not_supported until a coverage record exists"
+artifact_consumer_fixture = "decision_reliability.derived_numerical_interval.fresh_consumer_rederives.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.derived_numerical_interval"
+route = "antecedent.analysis.decision_reliability_programs.compile_decision_reliability_derivation"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.derived_numerical_interval.wilson_hand_arithmetic.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "p = 0.5 at effective sample size 100; five intervals at level 0.99; shared and independent streams at correlation 0.9. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_decision_reliability_derivation_equals_derive_uncertainty)."
+expected_values = "Wilson interval [0.40383, 0.59617]; simultaneous half-width z(0.005) se; shared-stream difference width below half the independent width; refusal at n_eff below 30."
+tolerance = "absolute 1e-5 for hand-arithmetic intervals; exact for refusals"
+calibration = "derived_not_measured; publication refused not_supported until a coverage record exists"
+artifact_consumer_fixture = "decision_reliability.derived_numerical_interval.fresh_consumer_rederives.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.derived_numerical_interval"
+route = "antecedent.analysis.decision_reliability_programs.compile_producer_carrier_derivation"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.derived_numerical_interval.wilson_hand_arithmetic.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "p = 0.5 at effective sample size 100; five intervals at level 0.99; shared and independent streams at correlation 0.9. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_derivation_equals_derive_uncertainty)."
+expected_values = "Wilson interval [0.40383, 0.59617]; simultaneous half-width z(0.005) se; shared-stream difference width below half the independent width; refusal at n_eff below 30."
+tolerance = "absolute 1e-5 for hand-arithmetic intervals; exact for refusals"
+calibration = "derived_not_measured; publication refused not_supported until a coverage record exists"
+artifact_consumer_fixture = "decision_reliability.derived_numerical_interval.fresh_consumer_rederives.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.optimality_confidence_set"
+route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.optimality_confidence_set.paired_critical_value.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Three candidates with paired difference errors; seventy candidates with independent streams. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_decision_reliability_derivation_equals_derive_uncertainty)."
+expected_values = "Members {A, B}, excluded {C}, critical value 1.95996 at level 0.95; marginal tail 0.05/140 with only c69 excluded at K = 70."
+tolerance = "absolute 1e-5 for critical values; exact for membership"
+calibration = "derived_not_measured; coverage of the best retained candidate not measured"
+artifact_consumer_fixture = "decision_reliability.optimality_confidence_set.rederived.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.optimality_confidence_set"
+route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.optimality_confidence_set.paired_critical_value.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Three candidates with paired difference errors; seventy candidates with independent streams. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_derivation_equals_derive_uncertainty)."
+expected_values = "Members {A, B}, excluded {C}, critical value 1.95996 at level 0.95; marginal tail 0.05/140 with only c69 excluded at K = 70."
+tolerance = "absolute 1e-5 for critical values; exact for membership"
+calibration = "derived_not_measured; coverage of the best retained candidate not measured"
+artifact_consumer_fixture = "decision_reliability.optimality_confidence_set.rederived.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.ranking_statement"
+route = "antecedent.analysis.input_decision_programs.CompiledProducerCarrierRanking.execute"
+algorithm_provenance = ["provenance/decision_reliability.ranking_statement.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.ranking_statement.python_enumerated.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Four equally likely states over three candidates with a three-way tie in the last state, through the Python surface. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_ranking_equals_rank)."
+expected_values = "P(best) = 7/12, 1/3, 1/12; P(top 2) = 11/12, 2/3, 5/12; P(better than B) = 5/8 and 3/8; Gaussian P(A > B) = Phi(1/sqrt(2(1-rho))) from math.erf."
+tolerance = "1e-12 absolute (exact rational arithmetic); four reported standard errors for the Gaussian probability"
+calibration = "point_only_uncalibrated_standard_error_interval_closed"
+artifact_consumer_fixture = "decision_reliability.ranking_statement.artifact_roundtrip.artifact"
+provider_trust = "native_computation_over_supplied_draws; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.ranking_statement"
+route = "antecedent.analysis.input_decision_programs.compile_producer_carrier_ranking"
+algorithm_provenance = ["provenance/decision_reliability.ranking_statement.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.ranking_statement.python_enumerated.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Four equally likely states over three candidates with a three-way tie in the last state, through the Python surface. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_ranking_equals_rank)."
+expected_values = "P(best) = 7/12, 1/3, 1/12; P(top 2) = 11/12, 2/3, 5/12; P(better than B) = 5/8 and 3/8; Gaussian P(A > B) = Phi(1/sqrt(2(1-rho))) from math.erf."
+tolerance = "1e-12 absolute (exact rational arithmetic); four reported standard errors for the Gaussian probability"
+calibration = "point_only_uncalibrated_standard_error_interval_closed"
+artifact_consumer_fixture = "decision_reliability.ranking_statement.artifact_roundtrip.artifact"
+provider_trust = "native_computation_over_supplied_draws; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.sampled_decision"
+route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityAssessment.execute"
+algorithm_provenance = ["provenance/decision_reliability.sampled_decision.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.sampled_decision.enumerated_risk_measures.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Ten enumerated utilities 1..10; two-state-free Gaussian candidates with closed-form CVaR, quantile and difference variance; an AR(1) stream with known autocorrelation time. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_decision_reliability_assessment_equals_assess_and_seal_recomputes)."
+expected_values = "CVaR_0.2 = 1.5, CVaR_0.25 = 1.8, upper CVaR_0.2 = 9.5, nearest-rank median 5; N(0,1) CVaR_0.1 = -phi(q)/0.1 with influence-function SE sqrt(Var min(U,q))/(0.1 sqrt n); AR(1) phi 0.9 effective sample size n/19; common random numbers variance ratio 1 - rho."
+tolerance = "exact for enumerated values; four theoretical standard errors for values, 3 to 25 percent bands for standard errors by the stated rates"
+calibration = "point_only_uncalibrated_standard_error_interval_closed"
+artifact_consumer_fixture = "decision_reliability.sampled_decision.artifact_roundtrip.artifact"
+provider_trust = "native_computation_over_supplied_draws; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.sampled_decision"
+route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityAssessment.seal"
+algorithm_provenance = ["provenance/decision_reliability.sampled_decision.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.sampled_decision.enumerated_risk_measures.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "A sealed decision_reliability_v1 artifact over two candidates with a validation stream. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_decision_reliability_assessment_equals_assess_and_seal_recomputes)."
+expected_values = "The consumer recomputes the report bit for bit; every semantic mutation is refused."
+tolerance = "bit-for-bit report equality"
+calibration = "point_only_uncalibrated_standard_error_interval_closed"
+artifact_consumer_fixture = "decision_reliability.sampled_decision.artifact_roundtrip.artifact"
+provider_trust = "native_computation_over_supplied_draws; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.sampled_decision"
+route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierAssessment.execute"
+algorithm_provenance = ["provenance/decision_reliability.sampled_decision.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.sampled_decision.enumerated_risk_measures.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Ten enumerated utilities 1..10; two-state-free Gaussian candidates with closed-form CVaR, quantile and difference variance; an AR(1) stream with known autocorrelation time. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_assessment_equals_assess)."
+expected_values = "CVaR_0.2 = 1.5, CVaR_0.25 = 1.8, upper CVaR_0.2 = 9.5, nearest-rank median 5; N(0,1) CVaR_0.1 = -phi(q)/0.1 with influence-function SE sqrt(Var min(U,q))/(0.1 sqrt n); AR(1) phi 0.9 effective sample size n/19; common random numbers variance ratio 1 - rho."
+tolerance = "exact for enumerated values; four theoretical standard errors for values, 3 to 25 percent bands for standard errors by the stated rates"
+calibration = "point_only_uncalibrated_standard_error_interval_closed"
+artifact_consumer_fixture = "decision_reliability.sampled_decision.artifact_roundtrip.artifact"
+provider_trust = "native_computation_over_supplied_draws; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.sampled_decision"
+route = "antecedent.analysis.decision_reliability_programs.compile_decision_reliability_assessment"
+algorithm_provenance = ["provenance/decision_reliability.sampled_decision.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.sampled_decision.enumerated_risk_measures.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Ten enumerated utilities 1..10; two-state-free Gaussian candidates with closed-form CVaR, quantile and difference variance; an AR(1) stream with known autocorrelation time. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_decision_reliability_assessment_equals_assess_and_seal_recomputes)."
+expected_values = "CVaR_0.2 = 1.5, CVaR_0.25 = 1.8, upper CVaR_0.2 = 9.5, nearest-rank median 5; N(0,1) CVaR_0.1 = -phi(q)/0.1 with influence-function SE sqrt(Var min(U,q))/(0.1 sqrt n); AR(1) phi 0.9 effective sample size n/19; common random numbers variance ratio 1 - rho."
+tolerance = "exact for enumerated values; four theoretical standard errors for values, 3 to 25 percent bands for standard errors by the stated rates"
+calibration = "point_only_uncalibrated_standard_error_interval_closed"
+artifact_consumer_fixture = "decision_reliability.sampled_decision.artifact_roundtrip.artifact"
+provider_trust = "native_computation_over_supplied_draws; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.sampled_decision"
+route = "antecedent.analysis.decision_reliability_programs.compile_producer_carrier_assessment"
+algorithm_provenance = ["provenance/decision_reliability.sampled_decision.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.sampled_decision.enumerated_risk_measures.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Ten enumerated utilities 1..10; two-state-free Gaussian candidates with closed-form CVaR, quantile and difference variance; an AR(1) stream with known autocorrelation time. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_assessment_equals_assess)."
+expected_values = "CVaR_0.2 = 1.5, CVaR_0.25 = 1.8, upper CVaR_0.2 = 9.5, nearest-rank median 5; N(0,1) CVaR_0.1 = -phi(q)/0.1 with influence-function SE sqrt(Var min(U,q))/(0.1 sqrt n); AR(1) phi 0.9 effective sample size n/19; common random numbers variance ratio 1 - rho."
+tolerance = "exact for enumerated values; four theoretical standard errors for values, 3 to 25 percent bands for standard errors by the stated rates"
+calibration = "point_only_uncalibrated_standard_error_interval_closed"
+artifact_consumer_fixture = "decision_reliability.sampled_decision.artifact_roundtrip.artifact"
+provider_trust = "native_computation_over_supplied_draws; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.selection_corrected_interval"
+route = "antecedent.analysis.decision_reliability_programs.CompiledDecisionReliabilityDerivation.execute"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.selection_corrected_interval.extra_width.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A selected candidate of six considered with se known; an independent validation stream; a pre-specified decision. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_decision_reliability_derivation_equals_derive_uncertainty)."
+expected_values = "Critical value z(0.05/6) with numerical and selection half-widths reported separately; expected-maximum bias 0.8462843753 se; no corrected interval for a pre-specified decision."
+tolerance = "absolute 1e-9 for the expected-maximum constant; exact for refusals"
+calibration = "derived_not_measured; coverage of the selected value not measured"
+artifact_consumer_fixture = "decision_reliability.selection_corrected_interval.rederived.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "decision_reliability.selection_corrected_interval"
+route = "antecedent.analysis.decision_reliability_programs.CompiledProducerCarrierDerivation.execute"
+algorithm_provenance = ["provenance/decision_reliability.derived_uncertainty.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "decision_reliability.selection_corrected_interval.extra_width.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A selected candidate of six considered with se known; an independent validation stream; a pre-specified decision. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs (compiled_producer_carrier_derivation_equals_derive_uncertainty)."
+expected_values = "Critical value z(0.05/6) with numerical and selection half-widths reported separately; expected-maximum bias 0.8462843753 se; no corrected interval for a pre-specified decision."
+tolerance = "absolute 1e-9 for the expected-maximum constant; exact for refusals"
+calibration = "derived_not_measured; coverage of the selected value not measured"
+artifact_consumer_fixture = "decision_reliability.selection_corrected_interval.rederived.artifact"
+provider_trust = "native_numerics_over_supplied_draws_whose_law_is_the_supplied_one"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "model.discretized_linear_gaussian_scm"
+route = "antecedent.analysis.kernel_programs.discretized_bridge.CompiledDiscretizedBridge.execute"
+algorithm_provenance = ["provenance/model.discretized_linear_gaussian_scm.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "model.discretized_linear_gaussian_scm.one_edge_hand_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "One linear-Gaussian edge at two levels; the facade chain with closed form 6.5 (x1 - x0) at 4, 16 and 64 levels; a refit M = 1 + 3X. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_discretized_bridge.rs (the_compiled_bridge_matches_new_and_the_contrast_matches_mean_contrast)."
+expected_values = "Cell values +-0.79788 (roots) and +-1.12838, discretized contrast 0.64889 against 0.79788 with the bound equal to the error; absolute error within the computed bound at every level count; outcome intervention exact."
+tolerance = "absolute 1e-5 for the tabulated constants; the bound inequality exact; exact code and detail match for refusals"
+calibration = "deterministic_computed_bound_no_interval_no_coverage"
+artifact_consumer_fixture = "model.discretized_linear_gaussian_scm.identity_at_unchanged_shape.artifact"
+provider_trust = "native_numerics_over_a_composed_model_origin_inherited_never_supported_to_a_fit"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "model.discretized_linear_gaussian_scm"
+route = "antecedent.analysis.kernel_programs.discretized_bridge.CompiledDiscretizedMeanContrast.execute"
+algorithm_provenance = ["provenance/model.discretized_linear_gaussian_scm.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "model.discretized_linear_gaussian_scm.one_edge_hand_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "One linear-Gaussian edge at two levels; the facade chain with closed form 6.5 (x1 - x0) at 4, 16 and 64 levels; a refit M = 1 + 3X. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_discretized_bridge.rs (the_compiled_bridge_matches_new_and_the_contrast_matches_mean_contrast)."
+expected_values = "Cell values +-0.79788 (roots) and +-1.12838, discretized contrast 0.64889 against 0.79788 with the bound equal to the error; absolute error within the computed bound at every level count; outcome intervention exact."
+tolerance = "absolute 1e-5 for the tabulated constants; the bound inequality exact; exact code and detail match for refusals"
+calibration = "deterministic_computed_bound_no_interval_no_coverage"
+artifact_consumer_fixture = "model.discretized_linear_gaussian_scm.identity_at_unchanged_shape.artifact"
+provider_trust = "native_numerics_over_a_composed_model_origin_inherited_never_supported_to_a_fit"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "model.discretized_linear_gaussian_scm"
+route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_composition"
+algorithm_provenance = ["provenance/model.discretized_linear_gaussian_scm.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "model.discretized_linear_gaussian_scm.one_edge_hand_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "One linear-Gaussian edge at two levels; the facade chain with closed form 6.5 (x1 - x0) at 4, 16 and 64 levels; a refit M = 1 + 3X. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_discretized_bridge.rs (the_compiled_bridge_matches_new_and_the_contrast_matches_mean_contrast)."
+expected_values = "Cell values +-0.79788 (roots) and +-1.12838, discretized contrast 0.64889 against 0.79788 with the bound equal to the error; absolute error within the computed bound at every level count; outcome intervention exact."
+tolerance = "absolute 1e-5 for the tabulated constants; the bound inequality exact; exact code and detail match for refusals"
+calibration = "deterministic_computed_bound_no_interval_no_coverage"
+artifact_consumer_fixture = "model.discretized_linear_gaussian_scm.identity_at_unchanged_shape.artifact"
+provider_trust = "native_numerics_over_a_composed_model_origin_inherited_never_supported_to_a_fit"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "model.discretized_linear_gaussian_scm"
+route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_linear_gaussian"
+algorithm_provenance = ["provenance/model.discretized_linear_gaussian_scm.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "model.discretized_linear_gaussian_scm.one_edge_hand_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "One linear-Gaussian edge at two levels; the facade chain with closed form 6.5 (x1 - x0) at 4, 16 and 64 levels; a refit M = 1 + 3X. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_discretized_bridge.rs (the_compiled_spec_bridge_matches_from_spec)."
+expected_values = "Cell values +-0.79788 (roots) and +-1.12838, discretized contrast 0.64889 against 0.79788 with the bound equal to the error; absolute error within the computed bound at every level count; outcome intervention exact."
+tolerance = "absolute 1e-5 for the tabulated constants; the bound inequality exact; exact code and detail match for refusals"
+calibration = "deterministic_computed_bound_no_interval_no_coverage"
+artifact_consumer_fixture = "model.discretized_linear_gaussian_scm.identity_at_unchanged_shape.artifact"
+provider_trust = "native_numerics_over_a_composed_model_origin_inherited_never_supported_to_a_fit"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "model.discretized_linear_gaussian_scm"
+route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_linear_gaussian_from_spec"
+algorithm_provenance = ["provenance/model.discretized_linear_gaussian_scm.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "model.discretized_linear_gaussian_scm.one_edge_hand_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "One linear-Gaussian edge at two levels; the facade chain with closed form 6.5 (x1 - x0) at 4, 16 and 64 levels; a refit M = 1 + 3X. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_discretized_bridge.rs (the_compiled_spec_bridge_matches_from_spec)."
+expected_values = "Cell values +-0.79788 (roots) and +-1.12838, discretized contrast 0.64889 against 0.79788 with the bound equal to the error; absolute error within the computed bound at every level count; outcome intervention exact."
+tolerance = "absolute 1e-5 for the tabulated constants; the bound inequality exact; exact code and detail match for refusals"
+calibration = "deterministic_computed_bound_no_interval_no_coverage"
+artifact_consumer_fixture = "model.discretized_linear_gaussian_scm.identity_at_unchanged_shape.artifact"
+provider_trust = "native_numerics_over_a_composed_model_origin_inherited_never_supported_to_a_fit"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "model.discretized_linear_gaussian_scm"
+route = "antecedent.analysis.kernel_programs.discretized_bridge.Study.compile_discretized_mean_contrast"
+algorithm_provenance = ["provenance/model.discretized_linear_gaussian_scm.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "model.discretized_linear_gaussian_scm.one_edge_hand_table.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "One linear-Gaussian edge at two levels; the facade chain with closed form 6.5 (x1 - x0) at 4, 16 and 64 levels; a refit M = 1 + 3X. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_discretized_bridge.rs (the_compiled_bridge_matches_new_and_the_contrast_matches_mean_contrast)."
+expected_values = "Cell values +-0.79788 (roots) and +-1.12838, discretized contrast 0.64889 against 0.79788 with the bound equal to the error; absolute error within the computed bound at every level count; outcome intervention exact."
+tolerance = "absolute 1e-5 for the tabulated constants; the bound inequality exact; exact code and detail match for refusals"
+calibration = "deterministic_computed_bound_no_interval_no_coverage"
+artifact_consumer_fixture = "model.discretized_linear_gaussian_scm.identity_at_unchanged_shape.artifact"
+provider_trust = "native_numerics_over_a_composed_model_origin_inherited_never_supported_to_a_fit"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledOffPolicyEvaluation.evaluate"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.off_policy_recovers_value.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_off_policy_matches_evaluate_off_policy)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyComparison.evaluate"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.enumerated_policy_values.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_comparison_matches_compare_policies)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyEvaluation.evaluate"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.enumerated_policy_values.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_g_formula_matches_evaluate_policy)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledPolicyRollout.evaluate"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.rollout_agrees.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_rollout_matches_rollout_policy)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledSequentialEvaluationSeal.seal"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.enumerated_policy_values.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree solved by hand and by an independent backward induction written in the Python test: ship now 0, repair now 1, inspect then act 3/2, two inspections with forced stops 1.4375, pilot and inspect then act 9/4; EVSI of one inspection 3/4; whole-population importance-weighted value 3/2. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_seal_matches_the_artifact_constructor)."
+expected_values = "Hand values: 0, 1, 3/2, 1.4375, 9/4 and EVSI 3/4 (net 1/2); weighted value 3/2; replay bit for bit."
+tolerance = "absolute 1e-12 for enumerated values, 1e-9 for the importance-weighted mean, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.python_artifact_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.CompiledValueOfCollectingEvidence.evaluate"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.collect_evidence_through_ranker.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_value_of_evidence_matches_the_kernel)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_compare_policies"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.enumerated_policy_values.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_comparison_matches_compare_policies)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_evaluate_off_policy"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.off_policy_recovers_value.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_off_policy_matches_evaluate_off_policy)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_evaluate_policy"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.enumerated_policy_values.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_g_formula_matches_evaluate_policy)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_rollout_policy"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.rollout_agrees.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_rollout_matches_rollout_policy)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_sequential_evaluation_seal"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.enumerated_policy_values.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree solved by hand and by an independent backward induction written in the Python test: ship now 0, repair now 1, inspect then act 3/2, two inspections with forced stops 1.4375, pilot and inspect then act 9/4; EVSI of one inspection 3/4; whole-population importance-weighted value 3/2. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_seal_matches_the_artifact_constructor)."
+expected_values = "Hand values: 0, 1, 3/2, 1.4375, 9/4 and EVSI 3/4 (net 1/2); weighted value 3/2; replay bit for bit."
+tolerance = "absolute 1e-12 for enumerated values, 1e-9 for the importance-weighted mean, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.python_artifact_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sequential_evaluation.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.sequential_evaluation.compile_value_of_collecting_evidence"
+algorithm_provenance = ["provenance/sequential_evaluation.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sequential_evaluation.policy_evaluation.collect_evidence_through_ranker.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Inspection tree: a unit is sound or faulty (prior 1/2 each); inspect (cost 1/4, alarm 3/4 if faulty, 1/4 if sound), ship (+10 sound, -10 faulty), repair (cost 4, delayed outcome one decision time later: faulty is sound w.p. 1/2), wait, pilot (delayed outcome [3, -1] two decision times later); horizon 3, budget 2 inspections, boundaries at P(faulty) >= 0.85 (repair) and <= 0.15 (ship). Independent oracle: a forward joint-probability enumeration written in the test, and an enumerated logged population. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_sequential_evaluation.rs (compiled_value_of_evidence_matches_the_kernel)."
+expected_values = "Act now ship 0, repair 1; inspect then choose 3/2; two inspections with forced stops 1.4375 (-0.5 + 0.3125*(-3) + 0.3125*8 + 0.375*1); pilot then inspect then act 9/4; pilot then ship 3/4; pilot then repair 11/4; wait to the horizon -1.15625; EVSI of one inspection 3/4 (net 1/2); importance-weighted value 3/2 over the whole logged population."
+tolerance = "absolute 1e-12 for enumerated and hand-computed values, 1e-9 for the importance-weighted mean over 65536 trajectories, five Monte Carlo standard errors for rollouts, bit equality for replay"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "sequential_evaluation.policy_evaluation.fresh_replay.artifact"
+provider_trust = "native_declared_finite_model_with_bound_measurement_models; no external provider"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.adaptive_trial_source"
+route = "antecedent.analysis.kernel_programs.policy_transport.CompiledAdaptiveTrialTransport.execute"
+algorithm_provenance = ["provenance/transport.adaptive_trial_source.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.adaptive_trial_source.standardized_arm_means.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "An epsilon-greedy two-arm trial with two strata and recorded assignment probabilities; target stratum laws (0.25, 0.75) and (1, 0). The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_policy_transport.rs (the_compiled_adaptive_trial_matches_transport_adaptive_trial)."
+expected_values = "Arm means 29/56 and 1/2 with contrast 1/56 for the first law, 4/7 and 1 for the second; uncontracted, shifted, fixed-design, starved or sub-floor inputs refuse."
+tolerance = "exact rational values to 1e-12; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.adaptive_trial_source.identity_replay_ok.artifact"
+provider_trust = "native_numerics_over_a_retained_adaptive_design_contract_and_declared_diagram"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.adaptive_trial_source"
+route = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_adaptive_trial"
+algorithm_provenance = ["provenance/transport.adaptive_trial_source.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.adaptive_trial_source.standardized_arm_means.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "An epsilon-greedy two-arm trial with two strata and recorded assignment probabilities; target stratum laws (0.25, 0.75) and (1, 0). The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_policy_transport.rs (the_compiled_adaptive_trial_matches_transport_adaptive_trial)."
+expected_values = "Arm means 29/56 and 1/2 with contrast 1/56 for the first law, 4/7 and 1 for the second; uncontracted, shifted, fixed-design, starved or sub-floor inputs refuse."
+tolerance = "exact rational values to 1e-12; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.adaptive_trial_source.identity_replay_ok.artifact"
+provider_trust = "native_numerics_over_a_retained_adaptive_design_contract_and_declared_diagram"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.assumption_range"
+route = "antecedent.analysis.transport_assumption_program.CompiledTransportAssumptionRange.execute"
+algorithm_provenance = ["provenance/transport.assumption_range.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.assumption_range.additive_closed_form_band.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Transported point value 2 with additive bound 0.5 on a grid of three shifts; proportional shift on a negative value; reference values reached and not reached. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_transport_assumption_range.rs (compiled_transport_assumption_range_equals_the_kernel)."
+expected_values = "Additive bands [2,2], [1.75,2.25], [1.5,2.5]; proportional band scaled by |v|; reference reached at the closed-form shift or never; a structural route, a law response and malformed requests refuse with their details."
+tolerance = "absolute 1e-12 for closed forms; exact code and detail match for refusals"
+calibration = "assumption_range_no_probability_no_interval"
+artifact_consumer_fixture = "transport.assumption_range.sealed_recomputed.artifact"
+provider_trust = "native_closed_form_over_a_caller_declared_bound"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.assumption_range"
+route = "antecedent.analysis.transport_assumption_program.compile_transport_assumption_range"
+algorithm_provenance = ["provenance/transport.assumption_range.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.assumption_range.additive_closed_form_band.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Transported point value 2 with additive bound 0.5 on a grid of three shifts; proportional shift on a negative value; reference values reached and not reached. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_transport_assumption_range.rs (compiled_transport_assumption_range_equals_the_kernel)."
+expected_values = "Additive bands [2,2], [1.75,2.25], [1.5,2.5]; proportional band scaled by |v|; reference reached at the closed-form shift or never; a structural route, a law response and malformed requests refuse with their details."
+tolerance = "absolute 1e-12 for closed forms; exact code and detail match for refusals"
+calibration = "assumption_range_no_probability_no_interval"
+artifact_consumer_fixture = "transport.assumption_range.sealed_recomputed.artifact"
+provider_trust = "native_closed_form_over_a_caller_declared_bound"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.fitted_linear_gaussian_mechanism"
+route = "antecedent.analysis.kernel_programs.fitted_mechanism_transport.CompiledFittedMechanismTransport.execute"
+algorithm_provenance = ["provenance/transport.fitted_linear_gaussian_mechanism.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.fitted_linear_gaussian_mechanism.carried_contrast.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The shared transport fixture (transport_fixture/mod.rs): x refitted in the target and y carried from the source with slope 2, selection node into x only; native target refit of y with slope 1.5. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_fitted_mechanism_transport.rs (the_compiled_transport_matches_transport_linear_gaussian)."
+expected_values = "E[x] = 3, E[y] = 6.5, Var x = 2, Var y = 14, Cov(x, y) = 5 and the contrast E[y | do(x=1)] - E[y | do(x=0)] = 2; a native target refit of y gives contrast 1.5; a selection arrow into y refuses with the composition literal."
+tolerance = "absolute 1e-12 for hand-calculated moments; exact detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.fitted_linear_gaussian_mechanism.identity_at_unchanged_shape.artifact"
+provider_trust = "native_fitted_mechanisms_only_declared_or_external_mechanisms_refused"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.fitted_linear_gaussian_mechanism"
+route = "antecedent.analysis.kernel_programs.fitted_mechanism_transport.Study.compile_fitted_mechanism_transport"
+algorithm_provenance = ["provenance/transport.fitted_linear_gaussian_mechanism.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.fitted_linear_gaussian_mechanism.carried_contrast.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The shared transport fixture (transport_fixture/mod.rs): x refitted in the target and y carried from the source with slope 2, selection node into x only; native target refit of y with slope 1.5. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_fitted_mechanism_transport.rs (the_compiled_transport_matches_transport_linear_gaussian)."
+expected_values = "E[x] = 3, E[y] = 6.5, Var x = 2, Var y = 14, Cov(x, y) = 5 and the contrast E[y | do(x=1)] - E[y | do(x=0)] = 2; a native target refit of y gives contrast 1.5; a selection arrow into y refuses with the composition literal."
+tolerance = "absolute 1e-12 for hand-calculated moments; exact detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.fitted_linear_gaussian_mechanism.identity_at_unchanged_shape.artifact"
+provider_trust = "native_fitted_mechanisms_only_declared_or_external_mechanisms_refused"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.period_shift_policy"
+route = "antecedent.analysis.kernel_programs.policy_transport.CompiledTemporalPolicy.execute"
+algorithm_provenance = ["provenance/transport.period_shift_policy.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.period_shift_policy.period_shift_hand_value.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The two-state inspection model of the population route with a period-specific initial-state law; target mass 0.6. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_policy_transport.rs (the_compiled_period_shift_matches_evaluate_temporal_policy)."
+expected_values = "Period-shifted value 1.5 against source value 2.5; time-varying mechanisms, horizon and alphabet differences refuse with their details."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.period_shift_policy.replay.artifact"
+provider_trust = "native_exact_finite_enumeration_over_a_supplied_model_and_declared_invariance"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.period_shift_policy"
+route = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_temporal_policy"
+algorithm_provenance = ["provenance/transport.period_shift_policy.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.period_shift_policy.period_shift_hand_value.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "The two-state inspection model of the population route with a period-specific initial-state law; target mass 0.6. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_policy_transport.rs (the_compiled_period_shift_matches_evaluate_temporal_policy)."
+expected_values = "Period-shifted value 1.5 against source value 2.5; time-varying mechanisms, horizon and alphabet differences refuse with their details."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.period_shift_policy.replay.artifact"
+provider_trust = "native_exact_finite_enumeration_over_a_supplied_model_and_declared_invariance"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.policy_transport.CompiledTransportedPolicy.execute"
+algorithm_provenance = ["provenance/transport.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.policy_evaluation.hand_value_across_target_laws.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "A two-state inspection model with a supplied inspect-if-faulty policy; target faulty mass p in {0, 0.2, 0.5, 0.8, 1}. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_policy_transport.rs (the_compiled_policy_matches_evaluate_transported_policy)."
+expected_values = "Transported value 7.5 - 10 p, source value 2.5; each missing, shifted, inconsistent or unsupported premise refuses with its detail."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.policy_evaluation.identity_replays.artifact"
+provider_trust = "native_exact_finite_enumeration_over_a_supplied_model_and_declared_diagram"
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "transport.policy_evaluation"
+route = "antecedent.analysis.kernel_programs.policy_transport.Study.compile_transported_policy"
+algorithm_provenance = ["provenance/transport.policy_evaluation.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "transport.policy_evaluation.hand_value_across_target_laws.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "A two-state inspection model with a supplied inspect-if-faulty policy; target faulty mass p in {0, 0.2, 0.5, 0.8, 1}. The compiled route is compared with the direct implementation in crates/antecedent/tests/compiled_twins_policy_transport.rs (the_compiled_policy_matches_evaluate_transported_policy)."
+expected_values = "Transported value 7.5 - 10 p, source value 2.5; each missing, shifted, inconsistent or unsupported premise refuses with its detail."
+tolerance = "absolute 1e-12 for hand-calculated values; exact code and detail match for refusals"
+calibration = "exact_or_point_only_no_interval"
+artifact_consumer_fixture = "transport.policy_evaluation.identity_replays.artifact"
+provider_trust = "native_exact_finite_enumeration_over_a_supplied_model_and_declared_diagram"
+exact_request_verification = "not_applicable_no_external_provider"
