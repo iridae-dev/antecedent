@@ -97,7 +97,7 @@ enum Failure {
 fn binding_refusal(stage: &str, detail: &str, message: &str) -> String {
     // The support gate carries its registered `not_supported` reason in the message of an
     // invalid-state refusal; it keeps that code instead of a binding mismatch.
-    let code = if message.contains("reason=not_supported") {
+    let code = if crate::reason_code_in_message(message) == Some(antecedent::reason::reason_code!("not_supported")) {
         antecedent::reason::reason_code!("not_supported")
     } else {
         antecedent::reason::reason_code!("bridge_binding_mismatch")
@@ -185,7 +185,7 @@ fn assessment_refusal(
 ) -> PyResult<String> {
     match error {
         BridgeTransportPremiseAssessmentError::Invalid(message) => {
-            let code = if message.contains("reason=not_supported") {
+            let code = if crate::reason_code_in_message(message) == Some(antecedent::reason::reason_code!("not_supported")) {
                 antecedent::reason::reason_code!("not_supported")
             } else {
                 invalid_code
