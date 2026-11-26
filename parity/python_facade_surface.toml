@@ -6186,3 +6186,45 @@ rust = "antecedent::analysis::composition::refit_compact_bundle_model"
 kind = "fn"
 status = "bound"
 python = "antecedent.composition_bundle.refit_compact_model"
+
+[[entry]]
+rust = "antecedent::Study::compile_native_cohort_fit"
+kind = "method"
+status = "bound"
+python = "antecedent.cohort_decision.compile_native_cohort_fit"
+
+[[entry]]
+rust = "antecedent::Study::compile_owned_native_cohort_fit"
+kind = "method"
+status = "bound"
+python = "antecedent.cohort_decision.compile_native_cohort_fit"
+
+[[entry]]
+rust = "antecedent::Study::compile_compact_model_refit"
+kind = "method"
+status = "bound"
+python = "antecedent.composition_bundle.compile_compact_model_refit"
+
+[[entry]]
+rust = "antecedent::Study::compile_compact_bundle_refit"
+kind = "method"
+status = "bound"
+python = "antecedent.composition_bundle.compile_compact_model_refit"
+
+[[entry]]
+rust = "antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit"
+kind = "type"
+status = "bound"
+python = "antecedent.cohort_decision.CompiledNativeCohortFit"
+
+[[entry]]
+rust = "antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun"
+kind = "type"
+status = "bound"
+python = "antecedent.cohort_decision.NativeCohortFitRun"
+
+[[entry]]
+rust = "antecedent::analysis::composition::CompiledCompactModelRefit"
+kind = "type"
+status = "bound"
+python = "antecedent.composition_bundle.CompiledCompactModelRefit"

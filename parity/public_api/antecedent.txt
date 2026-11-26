@@ -395,6 +395,7 @@
 #[non_exhaustive] pub struct antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest
 #[non_exhaustive] pub struct antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun
 #[non_exhaustive] pub struct antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest
+#[non_exhaustive] pub struct antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun
 #[non_exhaustive] pub struct antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRun
 #[non_exhaustive] pub struct antecedent::analysis::compiled_transport_scenarios::TransportScenariosRun
 #[non_exhaustive] pub struct antecedent::analysis::compiled_transported_cohort::TransportedCohortRequest
@@ -1157,6 +1158,7 @@ impl core::clone::Clone for antecedent::analysis::compiled_measurement_transport
 impl core::clone::Clone for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest
 impl core::clone::Clone for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun
 impl core::clone::Clone for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest
+impl core::clone::Clone for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun
 impl core::clone::Clone for antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery
 impl core::clone::Clone for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest
 impl core::clone::Clone for antecedent::analysis::compiled_smoothed_dose_learners::CompiledSmoothedDoseLearners
@@ -1177,6 +1179,7 @@ impl core::clone::Clone for antecedent::analysis::composition::BundleBuilder
 impl core::clone::Clone for antecedent::analysis::composition::ChainBundleRecomputationReceipt
 impl core::clone::Clone for antecedent::analysis::composition::CompiledBridgeBundleRecomputation
 impl core::clone::Clone for antecedent::analysis::composition::CompiledChainBundleRecomputation
+impl core::clone::Clone for antecedent::analysis::composition::CompiledCompactModelRefit
 impl core::clone::Clone for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation
 impl core::clone::Clone for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle
 impl core::clone::Clone for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle
@@ -3952,6 +3955,7 @@ impl core::fmt::Debug for antecedent::analysis::compiled_measurement_transport::
 impl core::fmt::Debug for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest
 impl core::fmt::Debug for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun
 impl core::fmt::Debug for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest
+impl core::fmt::Debug for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun
 impl core::fmt::Debug for antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery
 impl core::fmt::Debug for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError
 impl core::fmt::Debug for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest
@@ -3977,6 +3981,7 @@ impl core::fmt::Debug for antecedent::analysis::composition::ChainBundleRecomput
 impl core::fmt::Debug for antecedent::analysis::composition::ChainBundleRecomputeError
 impl core::fmt::Debug for antecedent::analysis::composition::CompiledBridgeBundleRecomputation
 impl core::fmt::Debug for antecedent::analysis::composition::CompiledChainBundleRecomputation
+impl core::fmt::Debug for antecedent::analysis::composition::CompiledCompactModelRefit
 impl core::fmt::Debug for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation
 impl core::fmt::Debug for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle
 impl core::fmt::Debug for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle
@@ -5782,6 +5787,7 @@ impl core::marker::Freeze for antecedent::analysis::compiled_measurement_transpo
 impl core::marker::Freeze for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest [auto]
 impl core::marker::Freeze for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun [auto]
 impl core::marker::Freeze for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest [auto]
+impl core::marker::Freeze for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun [auto]
 impl core::marker::Freeze for antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery [auto]
 impl core::marker::Freeze for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError [auto]
 impl core::marker::Freeze for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest [auto]
@@ -5807,6 +5813,7 @@ impl core::marker::Freeze for antecedent::analysis::composition::ChainBundleReco
 impl core::marker::Freeze for antecedent::analysis::composition::ChainBundleRecomputeError [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::CompiledBridgeBundleRecomputation [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::CompiledChainBundleRecomputation [auto]
+impl core::marker::Freeze for antecedent::analysis::composition::CompiledCompactModelRefit [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle [auto]
 impl core::marker::Freeze for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle [auto]
@@ -7270,6 +7277,7 @@ impl core::marker::Send for antecedent::analysis::compiled_measurement_transport
 impl core::marker::Send for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest [auto]
 impl core::marker::Send for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun [auto]
 impl core::marker::Send for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest [auto]
+impl core::marker::Send for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun [auto]
 impl core::marker::Send for antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery [auto]
 impl core::marker::Send for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError [auto]
 impl core::marker::Send for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest [auto]
@@ -7295,6 +7303,7 @@ impl core::marker::Send for antecedent::analysis::composition::ChainBundleRecomp
 impl core::marker::Send for antecedent::analysis::composition::ChainBundleRecomputeError [auto]
 impl core::marker::Send for antecedent::analysis::composition::CompiledBridgeBundleRecomputation [auto]
 impl core::marker::Send for antecedent::analysis::composition::CompiledChainBundleRecomputation [auto]
+impl core::marker::Send for antecedent::analysis::composition::CompiledCompactModelRefit [auto]
 impl core::marker::Send for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation [auto]
 impl core::marker::Send for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle [auto]
 impl core::marker::Send for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle [auto]
@@ -9519,6 +9528,7 @@ impl core::marker::Sync for antecedent::analysis::compiled_measurement_transport
 impl core::marker::Sync for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest [auto]
 impl core::marker::Sync for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun [auto]
 impl core::marker::Sync for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest [auto]
+impl core::marker::Sync for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun [auto]
 impl core::marker::Sync for antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery [auto]
 impl core::marker::Sync for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError [auto]
 impl core::marker::Sync for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest [auto]
@@ -9544,6 +9554,7 @@ impl core::marker::Sync for antecedent::analysis::composition::ChainBundleRecomp
 impl core::marker::Sync for antecedent::analysis::composition::ChainBundleRecomputeError [auto]
 impl core::marker::Sync for antecedent::analysis::composition::CompiledBridgeBundleRecomputation [auto]
 impl core::marker::Sync for antecedent::analysis::composition::CompiledChainBundleRecomputation [auto]
+impl core::marker::Sync for antecedent::analysis::composition::CompiledCompactModelRefit [auto]
 impl core::marker::Sync for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation [auto]
 impl core::marker::Sync for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle [auto]
 impl core::marker::Sync for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle [auto]
@@ -11054,6 +11065,7 @@ impl core::marker::Unpin for antecedent::analysis::compiled_measurement_transpor
 impl core::marker::Unpin for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest [auto]
 impl core::marker::Unpin for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun [auto]
 impl core::marker::Unpin for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest [auto]
+impl core::marker::Unpin for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun [auto]
 impl core::marker::Unpin for antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery [auto]
 impl core::marker::Unpin for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError [auto]
 impl core::marker::Unpin for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest [auto]
@@ -11079,6 +11091,7 @@ impl core::marker::Unpin for antecedent::analysis::composition::ChainBundleRecom
 impl core::marker::Unpin for antecedent::analysis::composition::ChainBundleRecomputeError [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::CompiledBridgeBundleRecomputation [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::CompiledChainBundleRecomputation [auto]
+impl core::marker::Unpin for antecedent::analysis::composition::CompiledCompactModelRefit [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle [auto]
 impl core::marker::Unpin for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle [auto]
@@ -12575,6 +12588,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRun [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRun [auto]
@@ -12594,6 +12608,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compositi
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::ChainBundleRecomputeError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::CompiledBridgeBundleRecomputation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::CompiledChainBundleRecomputation [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::CompiledCompactModelRefit [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle [auto]
@@ -14024,6 +14039,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_mea
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_measurement_transport::PooledDifferentialRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRun [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRun [auto]
@@ -14043,6 +14059,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition:
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::ChainBundleRecomputeError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::CompiledBridgeBundleRecomputation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::CompiledChainBundleRecomputation [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::CompiledCompactModelRefit [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent::analysis::composition::CompiledGraphImputationTransportNodeBundle [auto]
@@ -15230,6 +15247,7 @@ impl<'a> core::clone::Clone for antecedent::PreflightInput<'a>
 impl<'a> core::clone::Clone for antecedent::PreparedClaimParent<'a>
 impl<'a> core::clone::Clone for antecedent::ScreenUnits<'a>
 impl<'a> core::clone::Clone for antecedent::SequenceEndpoints<'a>
+impl<'a> core::clone::Clone for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a>
 impl<'a> core::clone::Clone for antecedent::analysis::scope_refusals::JointBayesianRequest<'a>
@@ -15247,6 +15265,7 @@ impl<'a> core::fmt::Debug for antecedent::GraphRef<'a>
 impl<'a> core::fmt::Debug for antecedent::PreflightInput<'a>
 impl<'a> core::fmt::Debug for antecedent::PreparedClaimParent<'a>
 impl<'a> core::fmt::Debug for antecedent::ScreenUnits<'a>
+impl<'a> core::fmt::Debug for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a>
 impl<'a> core::fmt::Debug for antecedent::analysis::scope_refusals::JointBayesianRequest<'a>
@@ -15278,6 +15297,7 @@ impl<'a> core::marker::Freeze for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::RetainedOperation<'a> [auto]
+impl<'a> core::marker::Freeze for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::events::Continuation<'a> [auto]
 impl<'a> core::marker::Freeze for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
@@ -15298,6 +15318,7 @@ impl<'a> core::marker::Send for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Send for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::RetainedOperation<'a> [auto]
+impl<'a> core::marker::Send for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::events::Continuation<'a> [auto]
 impl<'a> core::marker::Send for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
@@ -15319,6 +15340,7 @@ impl<'a> core::marker::Sync for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::RetainedOperation<'a> [auto]
+impl<'a> core::marker::Sync for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::events::Continuation<'a> [auto]
 impl<'a> core::marker::Sync for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
@@ -15339,6 +15361,7 @@ impl<'a> core::marker::Unpin for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::PreparedIdentificationView<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::RetainedOperation<'a> [auto]
+impl<'a> core::marker::Unpin for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::discovered_transport_estimate::TransportEvidence<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::events::Continuation<'a> [auto]
 impl<'a> core::marker::Unpin for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
@@ -15356,6 +15379,7 @@ impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::GraphRef<'a> [a
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::RetainedOperation<'a> [auto]
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::events::Continuation<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::RefUnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
@@ -15370,6 +15394,7 @@ impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::GraphRef<'a> [auto
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::ScreenUnits<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::SequenceEndpoints<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::RetainedOperation<'a> [auto]
+impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::events::Continuation<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::learned_joint_scope::LearnedJointRequest<'a> [auto]
 impl<'a> core::panic::unwind_safe::UnwindSafe for antecedent::analysis::provider_callbacks::CallbackContext<'a> [auto]
@@ -17612,6 +17637,8 @@ pub field antecedent::analysis::compiled_measurement_transport::PooledDifferenti
 pub field antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest::sources: alloc::vec::Vec<antecedent_estimate::measurement_transport_pooled::PopulationValidation>
 pub field antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest::target_population: alloc::string::String
 pub field antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest::target_validation: core::option::Option<antecedent_estimate::measurement_transport_pooled::PopulationValidation>
+pub field antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun::fit: antecedent_estimate::cohort_linear_effect::NativeCohortFit
+pub field antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun::lowered_program_identity: antecedent_core::identity::SemanticDigest
 pub field antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRun::calibration: &'static str
 pub field antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRun::claim: &'static str
 pub field antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRun::estimate: antecedent_estimate::smoothed_dose::SmoothedDoseEstimate
@@ -21218,6 +21245,8 @@ pub fn <antecedent::Study>::fn compile_bridge_image(request: antecedent_io_core:
 pub fn <antecedent::Study>::fn compile_chain_observation_recovery(plan: antecedent_identify::recovery_chain::ChainRecoveryPlan, observed: antecedent_estimate::recovery_chain::ChainPatternLaw, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::chain_recovery::CompiledChainObservationRecovery, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_choice_interval<'s>(session: &'s antecedent::ChoiceInferenceSession, request: antecedent_io::choice_inference_result_artifact::ChoiceResultSpec, artifact_id: &str) -> core::result::Result<antecedent::analysis::compiled_choice_interval::CompiledChoiceInterval<'s>, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_cohort_interval(native: antecedent_estimate::cohort_linear_effect::NativeCohortFit, source: antecedent_io_core::cohort_decision::CohortDecisionSource, level: f64) -> core::result::Result<antecedent::analysis::compiled_cohort_interval::CompiledCohortInterval, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_compact_bundle_refit(bundle_bytes: &[u8], expected_identity: &str, model_node: &str, training: antecedent_estimate::cohort_linear_effect::NativeFitRows, learner: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::composition::CompiledCompactModelRefit, antecedent_design::composition_bundle::BundleError>
+pub fn <antecedent::Study>::fn compile_compact_model_refit(model: &[u8], expected_identity: &str, training: antecedent_estimate::cohort_linear_effect::NativeFitRows, learner: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::composition::CompiledCompactModelRefit, antecedent_design::composition_bundle::BundleError>
 pub fn <antecedent::Study>::fn compile_compare_policies(model: antecedent_design::sequential_evaluation::model::FiniteSequentialModel, specs: alloc::vec::Vec<antecedent_design::sequential_evaluation::comparison::ComparisonSpec>, voi: core::option::Option<antecedent_design::sequential_evaluation::comparison::VoiRequest>, request: antecedent_design::sequential_evaluation::SequentialRequest, limits: antecedent_design::sequential_evaluation::gformula::EvaluationLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sequential_evaluation::CompiledPolicyComparison, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_count_fitted_interval(observation: antecedent::analysis::count_fitted_observation::CountFittedObservation, level: f64) -> core::result::Result<antecedent::analysis::compiled_count_fitted_interval::CompiledCountFittedInterval, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_cross_world_execution(request: antecedent_io_core::cross_world_execution_artifact::CrossWorldRequestWire, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::counterfactual_seal::CompiledCrossWorldExecution, antecedent::CausalError>
@@ -21255,8 +21284,10 @@ pub fn <antecedent::Study>::fn compile_logical_within(&self, ctx: &antecedent_co
 pub fn <antecedent::Study>::fn compile_measured_effect_pool(points: alloc::vec::Vec<f64>, variances: alloc::vec::Vec<f64>, naive: core::option::Option<f64>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::measured_exposure_effect::CompiledMeasuredEffectPool, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_measured_sampled_observation_recovery(source_artifact: &[u8], expected: antecedent_io::sampled_recovery_artifact::SampledRecoveryExpectation, limits: antecedent_io::sampled_recovery_artifact::SampledRecoveryConsumeLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::sampled_recovery::CompiledMeasuredSampledObservationRecovery, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_measurement_transport(request: antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_measurement_transport::CompiledMeasurementTransport, antecedent::MeasurementModelRefusal>
+pub fn <antecedent::Study>::fn compile_native_cohort_fit<'a>(outcome: &'a [f64], treatment: &'a [f64], features: &'a [&'a [f64]], response: &'a antecedent_io_core::quantity_wire::ScientificQuantityWire, feature_quantities: &'a [antecedent_io_core::quantity_wire::ScientificQuantityWire]) -> core::result::Result<antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a>, antecedent_estimate::error::EstimationError>
 pub fn <antecedent::Study>::fn compile_nested_markov_fisher(input: antecedent_estimate::nested_markov_binary::NestedMarkovInput, options: antecedent_estimate::nested_markov_binary::FitOptions, nominal_level: f64, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovFisher, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_nested_markov_posterior(input: antecedent_estimate::nested_markov_binary::NestedMarkovInput, options: antecedent_estimate::nested_markov_binary::FitOptions, prior: antecedent_learn::nested_markov_bayesian::Prior, sampler: antecedent_learn::nested_markov_bayesian::Options, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::nested_markov::CompiledNestedMarkovPosterior, antecedent::CausalError>
+pub fn <antecedent::Study>::fn compile_owned_native_cohort_fit(outcome: alloc::vec::Vec<f64>, treatment: alloc::vec::Vec<f64>, features: alloc::vec::Vec<alloc::vec::Vec<f64>>, response: antecedent_io_core::quantity_wire::ScientificQuantityWire, feature_quantities: alloc::vec::Vec<antecedent_io_core::quantity_wire::ScientificQuantityWire>) -> core::result::Result<antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'static>, antecedent_estimate::error::EstimationError>
 pub fn <antecedent::Study>::fn compile_patient_surrogate(request: antecedent_io_core::patient_surrogate::PatientSurrogateRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::kernel_programs::patient_surrogate::CompiledPatientSurrogate, antecedent::analysis::kernel_programs::patient_surrogate::PatientSurrogateProgramError>
 pub fn <antecedent::Study>::fn compile_per_population_discovery(request: antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery, antecedent::CausalError>
 pub fn <antecedent::Study>::fn compile_pooled_differential_transport(request: antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest) -> core::result::Result<antecedent::analysis::compiled_measurement_transport::CompiledPooledDifferentialTransport, antecedent::CausalError>
@@ -22039,6 +22070,9 @@ pub fn <antecedent::analysis::compiled_measurement_transport::MeasurementTranspo
 pub fn <antecedent::analysis::compiled_measurement_transport::MeasurementTransportRequest>::fn with_provider(self, object: antecedent_contract::external::ExternalScientificObject, trust: antecedent_contract::external::ExternalTrustState) -> Self
 pub fn <antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest>::fn new(sources: alloc::vec::Vec<antecedent_estimate::measurement_transport_pooled::PopulationValidation>, target_population: impl core::convert::Into<alloc::string::String>, observed_positive: u64, observed_total: u64, draws: usize) -> Self
 pub fn <antecedent::analysis::compiled_measurement_transport::PooledDifferentialTransportRequest>::fn with_target_validation(self, validation: antecedent_estimate::measurement_transport_pooled::PopulationValidation) -> Self
+pub fn <antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'_>>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun, antecedent_estimate::error::EstimationError>
+pub fn <antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'_>>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'_>>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery>::const fn request(&self) -> &antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest
 pub fn <antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRun, antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchError>
 pub fn <antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
@@ -22123,6 +22157,9 @@ pub fn <antecedent::analysis::composition::CompiledChainBundleRecomputation>::fn
 pub fn <antecedent::analysis::composition::CompiledChainBundleRecomputation>::fn export_portable(&self, receipt: &antecedent::analysis::composition::ChainBundleRecomputationReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::composition::ChainBundleRecomputeError>
 pub fn <antecedent::analysis::composition::CompiledChainBundleRecomputation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
 pub fn <antecedent::analysis::composition::CompiledChainBundleRecomputation>::fn plan_view(&self) -> antecedent::planner::PlanView
+pub fn <antecedent::analysis::composition::CompiledCompactModelRefit>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::compiled_native_cohort_fit::CohortModelFitRun, antecedent_design::composition_bundle::BundleError>
+pub fn <antecedent::analysis::composition::CompiledCompactModelRefit>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
+pub fn <antecedent::analysis::composition::CompiledCompactModelRefit>::fn plan_view(&self) -> antecedent::planner::PlanView
 pub fn <antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent::analysis::composition::CyclicPosteriorBundleReceipt, antecedent::analysis::composition::CyclicPosteriorBundleError>
 pub fn <antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation>::fn export_portable(&self, receipt: &antecedent::analysis::composition::CyclicPosteriorBundleReceipt, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent::analysis::composition::CyclicPosteriorBundleError>
 pub fn <antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation>::fn lowered(&self) -> &antecedent::planner::lowered::LoweredProgram
@@ -25064,6 +25101,7 @@ pub mod antecedent::analysis::compiled_linear
 pub mod antecedent::analysis::compiled_local_cyclic
 pub mod antecedent::analysis::compiled_measured_interval
 pub mod antecedent::analysis::compiled_measurement_transport
+pub mod antecedent::analysis::compiled_native_cohort_fit
 pub mod antecedent::analysis::compiled_per_population_discovery
 pub mod antecedent::analysis::compiled_smoothed_dose_learners
 pub mod antecedent::analysis::compiled_temporal_interval
@@ -26050,6 +26088,8 @@ pub struct antecedent::analysis::compiled_measurement_transport::CompiledMeasure
 pub struct antecedent::analysis::compiled_measurement_transport::CompiledMeasurementTransport has private fields
 pub struct antecedent::analysis::compiled_measurement_transport::CompiledPooledDifferentialTransport
 pub struct antecedent::analysis::compiled_measurement_transport::CompiledPooledDifferentialTransport has private fields
+pub struct antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit has private fields
+pub struct antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit<'a>
 pub struct antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery
 pub struct antecedent::analysis::compiled_per_population_discovery::CompiledPerPopulationDiscovery has private fields
 pub struct antecedent::analysis::compiled_per_population_discovery::PerPopulationSearchRequest
@@ -26082,6 +26122,8 @@ pub struct antecedent::analysis::composition::CompiledBridgeBundleRecomputation
 pub struct antecedent::analysis::composition::CompiledBridgeBundleRecomputation has private fields
 pub struct antecedent::analysis::composition::CompiledChainBundleRecomputation
 pub struct antecedent::analysis::composition::CompiledChainBundleRecomputation has private fields
+pub struct antecedent::analysis::composition::CompiledCompactModelRefit
+pub struct antecedent::analysis::composition::CompiledCompactModelRefit has private fields
 pub struct antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation
 pub struct antecedent::analysis::composition::CompiledCyclicPosteriorBundleRecomputation has private fields
 pub struct antecedent::analysis::composition::CompiledCyclicPosteriorNodeBundle
@@ -33660,6 +33702,7 @@ pub variant antecedent::planner::PlanRoute::ClusterSamplingAssumptionUnion
 pub variant antecedent::planner::PlanRoute::CodeterminedJoint
 pub variant antecedent::planner::PlanRoute::CohortDecisionBundleRecomputation
 pub variant antecedent::planner::PlanRoute::CohortMeanInterval
+pub variant antecedent::planner::PlanRoute::CompactModelRefit
 pub variant antecedent::planner::PlanRoute::ConditionalCpdag
 pub variant antecedent::planner::PlanRoute::ConditionalDag
 pub variant antecedent::planner::PlanRoute::ConditionalMixed
@@ -33781,6 +33824,7 @@ pub variant antecedent::planner::PlanRoute::MnarFixedShift
 pub variant antecedent::planner::PlanRoute::MovingBlockSamplingAssumptionUnion
 pub variant antecedent::planner::PlanRoute::MultiEnvTemporalEffect
 pub variant antecedent::planner::PlanRoute::MzTransportIdentification
+pub variant antecedent::planner::PlanRoute::NativeCohortFit
 pub variant antecedent::planner::PlanRoute::NestedMarkovFisherInterval
 pub variant antecedent::planner::PlanRoute::NestedMarkovPosterior
 pub variant antecedent::planner::PlanRoute::ObservationRecoveryIdentification

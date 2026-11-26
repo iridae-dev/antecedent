@@ -5794,3 +5794,13 @@ route = "NativeCohortFit"
 path = "antecedent::analysis::compiled_cohort_interval::CompiledCohortInterval::native"
 disposition = "not_scientific"
 reason = "Borrows the native fit already retained by the compiled interval."
+
+[[row]]
+path = "antecedent::analysis::compiled_native_cohort_fit::CompiledNativeCohortFit::execute"
+disposition = "compiled"
+route = "NativeCohortFit"
+
+[[row]]
+path = "antecedent::analysis::composition::CompiledCompactModelRefit::execute"
+disposition = "compiled"
+route = "CompactModelRefit"
