@@ -7,6 +7,7 @@
 //! class without selection variables, and a strictly positive observational law.
 
 use std::collections::BTreeSet;
+use std::rc::Rc;
 
 use antecedent_core::{ExecutionContext, RegimeId, VariableId};
 use antecedent_expr::{CausalExprArena, DomainRef, ExprId, ExprNode};
@@ -329,24 +330,33 @@ struct Separation<'a> {
 impl Separation<'_> {
     fn search(
         &self,
-        path: &mut Vec<DenseNodeId>,
+        source: DenseNodeId,
         meter: &mut Meter<'_>,
     ) -> Result<Option<Vec<DenseNodeId>>, PagIdError> {
         meter.step()?;
-        meter.depth(path.len())?;
-        let node = *path.last().expect("the initialized path is nonempty");
-        if self.targets.contains(&node) {
-            return Ok(Some(path.clone()));
+        meter.depth(1)?;
+        let mut path = vec![source];
+        if self.targets.contains(&source) {
+            return Ok(Some(path));
         }
-        for (next, outgoing, _) in self.pag.neighbors(node) {
+
+        // Keep each active visit's adjacency cursor so DFS charges the same visits
+        // and neighbors, in the same order, as the recursive definition.
+        let mut stack = vec![self.pag.neighbors(source)];
+        while let Some(neighbors) = stack.last_mut() {
+            let Some((next, outgoing, _)) = neighbors.next() else {
+                stack.pop();
+                path.pop();
+                continue;
+            };
             meter.step()?;
             if path.contains(&next) {
                 continue;
             }
-            if let [.., previous, _] = path.as_slice() {
+            if let [.., previous, node] = path.as_slice() {
                 let incoming = self
                     .pag
-                    .neighbors(node)
+                    .neighbors(*node)
                     .find_map(|(id, at_node, _)| (id == *previous).then_some(at_node))
                     .expect("the path retains its incoming edge");
                 let definite_collider = incoming == Endpoint::Arrow && outgoing == Endpoint::Arrow;
@@ -355,18 +365,19 @@ impl Separation<'_> {
                     || (incoming == Endpoint::Circle
                         && outgoing == Endpoint::Circle
                         && self.pag.edge_between(*previous, next).is_none());
-                if !(definite_collider && self.open_colliders.contains(&node)
-                    || definite_noncollider && !self.given.contains(&node))
+                if !(definite_collider && self.open_colliders.contains(node)
+                    || definite_noncollider && !self.given.contains(node))
                 {
                     continue;
                 }
             }
             path.push(next);
-            let witness = self.search(path, meter)?;
-            path.pop();
-            if witness.is_some() {
-                return Ok(witness);
+            meter.step()?;
+            meter.depth(path.len())?;
+            if self.targets.contains(&next) {
+                return Ok(Some(path));
             }
+            stack.push(self.pag.neighbors(next));
         }
         Ok(None)
     }
@@ -392,7 +403,7 @@ fn exchange_witness(
     )?;
     let search = Separation { pag: &manipulated, targets: outcomes, given: &given, open_colliders };
     for &source in changing {
-        if let Some(path) = search.search(&mut vec![source], meter)? {
+        if let Some(path) = search.search(source, meter)? {
             return Ok(Some(path.iter().map(|v| graph.variables[v.as_usize()]).collect()));
         }
     }
@@ -455,6 +466,11 @@ struct Identify<'a> {
     arena: CausalExprArena,
 }
 
+enum IdentificationTask {
+    Visit { required: Nodes, available: Rc<Nodes>, kernel: ExprId, depth: usize },
+    CombineRegions,
+}
+
 impl Identify<'_> {
     fn sum(&mut self, vars: &Nodes, expr: ExprId) -> ExprId {
         if vars.is_empty() {
@@ -468,74 +484,99 @@ impl Identify<'_> {
         self.arena.intern(ExprNode::Ratio { numerator, denominator })
     }
 
-    fn recurse(
+    fn derive(
         &mut self,
         required: &Nodes,
-        available: &Nodes,
+        available: Nodes,
         kernel: ExprId,
-        depth: usize,
         meter: &mut Meter<'_>,
     ) -> Result<Result<ExprId, PagObstruction>, PagIdError> {
-        meter.step()?;
-        meter.depth(depth)?;
-        if required.is_empty() {
-            let empty = self.arena.intern_list([]);
-            return Ok(Ok(self.arena.intern(ExprNode::Product(empty))));
-        }
-        if required == available {
-            return Ok(Ok(kernel));
-        }
-        for bucket in self.graph.buckets(available, meter)? {
-            if !bucket.is_disjoint(required) {
+        let mut tasks = vec![IdentificationTask::Visit {
+            required: required.clone(),
+            available: Rc::new(available),
+            kernel,
+            depth: 0,
+        }];
+        let mut results = Vec::new();
+
+        'search: while let Some(task) = tasks.pop() {
+            let IdentificationTask::Visit { required, available, kernel, depth } = task else {
+                let common = results.pop().expect("the overlap subproblem returned");
+                let second = results.pop().expect("the remainder subproblem returned");
+                let first = results.pop().expect("the first region subproblem returned");
+                let factors = self.arena.intern_list([first, second]);
+                let product = self.arena.intern(ExprNode::Product(factors));
+                results.push(self.ratio(product, common));
+                continue;
+            };
+
+            meter.step()?;
+            meter.depth(depth)?;
+            if required.is_empty() {
+                let empty = self.arena.intern_list([]);
+                results.push(self.arena.intern(ExprNode::Product(empty)));
                 continue;
             }
-            let descendants = self.graph.descendants(&bucket, available, meter)?;
-            let pc = self.graph.pc_component(&bucket, available, meter)?;
-            if pc.intersection(&descendants).any(|node| !bucket.contains(node)) {
+            if &required == available.as_ref() {
+                results.push(kernel);
                 continue;
             }
-            // Proposition 2 (2022): divide by Q(B | T \ PossDe(B)).
-            let numerator = self.sum(&difference(&descendants, &bucket), kernel);
-            let denominator = self.sum(&descendants, kernel);
-            let conditional = self.ratio(numerator, denominator);
-            let reduced = self.ratio(kernel, conditional);
-            return self.recurse(
-                required,
-                &difference(available, &bucket),
-                reduced,
-                depth + 1,
-                meter,
-            );
-        }
-        let buckets = self.graph.buckets(required, meter)?;
-        for bucket in &buckets {
-            let region = self.graph.region(bucket, required, &buckets, meter)?;
-            if &region == required {
-                continue;
+            for bucket in self.graph.buckets(&available, meter)? {
+                if !bucket.is_disjoint(&required) {
+                    continue;
+                }
+                let descendants = self.graph.descendants(&bucket, &available, meter)?;
+                let pc = self.graph.pc_component(&bucket, &available, meter)?;
+                if pc.intersection(&descendants).any(|node| !bucket.contains(node)) {
+                    continue;
+                }
+                // Proposition 2 (2022): divide by Q(B | T \ PossDe(B)).
+                let numerator = self.sum(&difference(&descendants, &bucket), kernel);
+                let denominator = self.sum(&descendants, kernel);
+                let conditional = self.ratio(numerator, denominator);
+                let reduced = self.ratio(kernel, conditional);
+                tasks.push(IdentificationTask::Visit {
+                    required,
+                    available: Rc::new(difference(&available, &bucket)),
+                    kernel: reduced,
+                    depth: depth + 1,
+                });
+                continue 'search;
             }
-            let remainder =
-                self.graph.region(&difference(required, &region), required, &buckets, meter)?;
-            let shared = region.intersection(&remainder).copied().collect();
-            let first = match self.recurse(&region, available, kernel, depth + 1, meter)? {
-                Ok(value) => value,
-                Err(stop) => return Ok(Err(stop)),
-            };
-            let second = match self.recurse(&remainder, available, kernel, depth + 1, meter)? {
-                Ok(value) => value,
-                Err(stop) => return Ok(Err(stop)),
-            };
-            let common = match self.recurse(&shared, available, kernel, depth + 1, meter)? {
-                Ok(value) => value,
-                Err(stop) => return Ok(Err(stop)),
-            };
-            let factors = self.arena.intern_list([first, second]);
-            let product = self.arena.intern(ExprNode::Product(factors));
-            return Ok(Ok(self.ratio(product, common)));
+
+            let buckets = self.graph.buckets(&required, meter)?;
+            for bucket in &buckets {
+                let region = self.graph.region(bucket, &required, &buckets, meter)?;
+                if region == required {
+                    continue;
+                }
+                let remainder = self.graph.region(
+                    &difference(&required, &region),
+                    &required,
+                    &buckets,
+                    meter,
+                )?;
+                let shared = region.intersection(&remainder).copied().collect();
+                // LIFO scheduling preserves the original depth-first order. A
+                // refusal from any child returns before the later children run.
+                tasks.push(IdentificationTask::CombineRegions);
+                tasks.extend([shared, remainder, region].map(|required| {
+                    IdentificationTask::Visit {
+                        required,
+                        available: Rc::clone(&available),
+                        kernel,
+                        depth: depth + 1,
+                    }
+                }));
+                continue 'search;
+            }
+            return Ok(Err(PagObstruction::Marginal {
+                available: self.graph.labels(&available),
+                required: self.graph.labels(&required),
+            }));
         }
-        Ok(Err(PagObstruction::Marginal {
-            available: self.graph.labels(available),
-            required: self.graph.labels(required),
-        }))
+
+        Ok(Ok(results.pop().expect("the root identification task returned")))
     }
 }
 
@@ -602,7 +643,7 @@ pub fn identify_pag_direct(
             Some(DomainRef::Observational),
         )
         .map_err(|_| PagIdError::Invalid("observational factor"))?;
-    let result = identify.recurse(&required, &all, joint, 0, &mut meter)?.map(|identified| {
+    let result = identify.derive(&required, all, joint, &mut meter)?.map(|identified| {
         let marginal = identify.sum(&difference(&required, &target), identified);
         let root = if z.is_empty() {
             marginal
@@ -613,4 +654,40 @@ pub fn identify_pag_direct(
         PagFunctional { arena: identify.arena, root, outcomes: graph.labels(&y) }
     });
     Ok(PagIdentification { result, work: meter.spent })
+}
+
+#[cfg(test)]
+mod depth_tests {
+    use super::*;
+
+    #[test]
+    fn definite_path_depth_is_metered_without_native_recursion() {
+        let limit = antecedent_expr::ProgramLimits::default().max_depth;
+        let width = u32::try_from(limit + 1).unwrap();
+        let mut pag = Pag::with_variables(width);
+        for index in 1..width {
+            pag.insert_marked(MarkedEdge {
+                a: DenseNodeId::from_raw(index - 1),
+                b: DenseNodeId::from_raw(index),
+                at_a: Endpoint::Tail,
+                at_b: Endpoint::Arrow,
+                middle: MiddleMark::Empty,
+            })
+            .unwrap();
+        }
+        let targets = Nodes::from([DenseNodeId::from_raw(width - 1)]);
+        let given = Nodes::new();
+        let search = Separation {
+            pag: &pag,
+            targets: &targets,
+            given: &given,
+            open_colliders: Nodes::new(),
+        };
+        let ctx = ExecutionContext::for_tests(1);
+        let mut meter = Meter { ctx: &ctx, spent: 0 };
+        assert!(matches!(
+            search.search(DenseNodeId::from_raw(0), &mut meter),
+            Err(PagIdError::Depth { work, limit: actual }) if actual == limit && work < ctx.id_work_limit()
+        ));
+    }
 }

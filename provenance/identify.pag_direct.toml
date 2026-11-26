@@ -13,7 +13,7 @@ implementation_deviations = [
   "The marginal path uses the simpler complete 2022 bucket elimination criterion, with the 2019 region decomposition.",
   "The symbolic result binds the caller-declared valid oracle PAG, the disjoint query sets and population. Static graphs with selection edges, conflicts and unfinished middle marks fall outside the theorem domain.",
   "Resource exhaustion and cancellation are operational stops. Only a completed IDP/CIDP obstruction gives nonidentification evidence under the declared graph.",
-  "When requested, deterministic work and depth stops retain their active work budget and independently replay through the same algorithm.",
+  "When requested, deterministic work and depth stops retain their active work budget and independently replay through the same algorithm. Explicit traversal stacks preserve visit order and metering without consuming native call-stack depth.",
   "Numerical evaluation reuses the existing exact evaluator and a strictly positive finite joint law compatible with the PAG. Caller-supplied integer levels are exposed in Python. The symbolic derivation is separate from finite-sample estimation.",
 ]
 upstream_implementations_observed = []
