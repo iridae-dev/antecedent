@@ -94,14 +94,18 @@ def test_off_grid_event_path_composes_with_existing_distribution():
 def test_horizon_offspring_is_not_the_lifetime_mass_or_the_discounted_resolvent():
     horizon = 2.0
     alpha = 0.4
-    report = events.prepare(
-        {
-            "operation": "offspring",
-            "parameters": {"baseline": [0.5], "branching": [alpha], "decay": [1.0]},
-            "source": 0,
-            "horizon": horizon,
-        }
-    ).execute().report()
+    report = (
+        events.prepare(
+            {
+                "operation": "offspring",
+                "parameters": {"baseline": [0.5], "branching": [alpha], "decay": [1.0]},
+                "source": 0,
+                "horizon": horizon,
+            }
+        )
+        .execute()
+        .report()
+    )
     direct = alpha * (1.0 - math.exp(-horizon))
     lifetime = alpha / (1.0 - alpha)
     exact = lifetime * (1.0 - math.exp(-(1.0 - alpha) * horizon))
@@ -182,17 +186,21 @@ def _provenance() -> dict[str, str]:
 
 
 def test_excluded_shock_returns_a_lag_query_without_an_excitation_coefficient():
-    report = events.prepare(
-        {
-            "operation": "shock",
-            "history": _pair_history(),
-            "feature": {"knots": [0.0, 0.4], "values": [0.0, 1.0]},
-            "source": 0,
-            "target": 1,
-            "horizon": 1.0,
-            "instrument": "launch_window",
-        }
-    ).execute().report()
+    report = (
+        events.prepare(
+            {
+                "operation": "shock",
+                "history": _pair_history(),
+                "feature": {"knots": [0.0, 0.4], "values": [0.0, 1.0]},
+                "source": 0,
+                "target": 1,
+                "horizon": 1.0,
+                "instrument": "launch_window",
+            }
+        )
+        .execute()
+        .report()
+    )
     assert report == {
         "exposure": "release",
         "outcome": "activity",

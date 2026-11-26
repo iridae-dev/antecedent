@@ -730,9 +730,12 @@ def test_every_reachable_detail_pairs_with_its_recorded_reason_code():
         catalog=catalog(),
         max_operations=4097,
     )
-    assert admitted.outcome == transport.identify_multi_source_z_transport(
-        graph=graph(), query=query(source_a(), source_b()), catalog=catalog()
-    ).outcome
+    assert (
+        admitted.outcome
+        == transport.identify_multi_source_z_transport(
+            graph=graph(), query=query(source_a(), source_b()), catalog=catalog()
+        ).outcome
+    )
     # An invalid catalog (the target supplies an experiment): invalid_argument.
     bad = catalog()
     experimental = transport.EvidenceRegime(

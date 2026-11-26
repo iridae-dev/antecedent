@@ -195,9 +195,7 @@ class FittedExternalLearner:
         """Predict on the supplied rows and return the registry's validated result."""
         return self._predict(x, None)
 
-    def _predict_columns(
-        self, columns: NDArray[np.float64], callback_bytes: int
-    ) -> ProviderResult:
+    def _predict_columns(self, columns: NDArray[np.float64], callback_bytes: int) -> ProviderResult:
         return self._predict(columns.T, callback_bytes)
 
     def _predict(self, x: Any, callback_bytes: int | None) -> ProviderResult:
@@ -635,7 +633,9 @@ def dr_learner_ate(
     """
     _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.dr_learner_ate",
-        _study_replacement("dr_learner", folds=kwargs.get("folds", 5), weights=kwargs.get("weights")),
+        _study_replacement(
+            "dr_learner", folds=kwargs.get("folds", 5), weights=kwargs.get("weights")
+        ),
     )
     return _direct_ate(data, edges, treatment_name, outcome_name, estimator="dr_learner", **kwargs)
 
@@ -650,7 +650,9 @@ def causal_forest_ate(
     """
     _deprecation.compiled_wrapper_deprecated(
         "antecedent.external_learners.causal_forest_ate",
-        _study_replacement("causal_forest", folds=kwargs.get("folds", 5), weights=kwargs.get("weights")),
+        _study_replacement(
+            "causal_forest", folds=kwargs.get("folds", 5), weights=kwargs.get("weights")
+        ),
     )
     return _direct_ate(
         data, edges, treatment_name, outcome_name, estimator="causal_forest", **kwargs
@@ -798,7 +800,9 @@ class OriginNuisance:
 
 def _selected_estimator(
     estimator: Any,
-) -> tuple[Literal["dml", "aipw", "dr_learner", "causal_forest"], Literal["aipw", "partially_linear"]]:
+) -> tuple[
+    Literal["dml", "aipw", "dr_learner", "causal_forest"], Literal["aipw", "partially_linear"]
+]:
     from .estimators import learner_estimator
 
     if estimator is None:
@@ -1014,7 +1018,9 @@ def _static_result(spec: Mapping[str, Any]) -> Any:
     )
 
 
-def _series_frame(data: Mapping[str, Any], query: Any) -> tuple[Any, list[int], NDArray[np.float64], tuple[str, ...]]:
+def _series_frame(
+    data: Mapping[str, Any], query: Any
+) -> tuple[Any, list[int], NDArray[np.float64], tuple[str, ...]]:
     names, columns, n = _columns(data)
     if query.treatment not in names or query.outcome not in names:
         raise CausalValueError("treatment and outcome must be columns of the learner study")
@@ -1077,10 +1083,22 @@ def _temporal_result(spec: Mapping[str, Any]) -> Any:
             if not hist0 or not hist1:
                 continue
             m0 = fit_origin(
-                learners.outcome, matrix, outcome, origin=origin, times=times, history=hist0, predict=predict
+                learners.outcome,
+                matrix,
+                outcome,
+                origin=origin,
+                times=times,
+                history=hist0,
+                predict=predict,
             )
             m1 = fit_origin(
-                learners.outcome, matrix, outcome, origin=origin, times=times, history=hist1, predict=predict
+                learners.outcome,
+                matrix,
+                outcome,
+                origin=origin,
+                times=times,
+                history=hist1,
+                predict=predict,
             )
             propensity = fit_origin(
                 learners.treatment,
@@ -1108,7 +1126,13 @@ def _temporal_result(spec: Mapping[str, Any]) -> Any:
         residuals: list[tuple[float, float]] = []
         for origin, history, predict in windows:
             y_hat = fit_origin(
-                learners.outcome, matrix, outcome, origin=origin, times=times, history=history, predict=predict
+                learners.outcome,
+                matrix,
+                outcome,
+                origin=origin,
+                times=times,
+                history=history,
+                predict=predict,
             )
             t_hat = fit_origin(
                 learners.treatment,
@@ -1121,7 +1145,10 @@ def _temporal_result(spec: Mapping[str, Any]) -> Any:
             )
             for offset, row in enumerate(predict):
                 residuals.append(
-                    (float(treatment[row]) - t_hat.predictions[offset], float(outcome[row]) - y_hat.predictions[offset])
+                    (
+                        float(treatment[row]) - t_hat.predictions[offset],
+                        float(outcome[row]) - y_hat.predictions[offset],
+                    )
                 )
             groups.append(OriginNuisance(origin, (y_hat, t_hat)))
         if not residuals:

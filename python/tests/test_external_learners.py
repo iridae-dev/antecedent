@@ -246,7 +246,9 @@ def test_native_crossfit_isolates_folds_and_treatment_arms(monkeypatch):
     assert result.fold_policy is FoldPolicy.CALLER_OWNED
     assert len(result.receipts) == 6
     assert sorted(fit.callback_bytes for _, fit, _ in result.receipts) == sorted(fit_bytes)
-    assert sorted(predict.callback_bytes for _, _, predict in result.receipts) == sorted(predict_bytes)
+    assert sorted(predict.callback_bytes for _, _, predict in result.receipts) == sorted(
+        predict_bytes
+    )
     assert len(result.provenance) == 6
     assert {int(p[1].split(":")[1]) for p in result.provenance} == {r[0] for r in result.receipts}
     with pytest.raises(ValueError, match="temporal cross-fitting"):
@@ -623,7 +625,11 @@ def test_analyze_fits_declared_learners_as_a_study_setting():
     query = AverageEffect("t", "y")
     with pytest.raises(CausalUnsupportedError, match="inference") as unsupported:
         ant.analyze(
-            data, graph=graph, query=query, learners=learners, inference=ant.Frequentist(bootstrap=10)
+            data,
+            graph=graph,
+            query=query,
+            learners=learners,
+            inference=ant.Frequentist(bootstrap=10),
         )
     assert unsupported.value.reason_code == "option_not_applicable"
     outcome = ant.analyze(data, graph=graph, query=query, learners=learners, estimator="dml")
@@ -642,13 +648,17 @@ def test_analyze_fits_declared_learners_as_a_study_setting():
     with pytest.raises(TypeError, match="unexpected keyword argument 'score'"):
         ant.analyze(data, graph=graph, query=query, learners=learners, score="aipw")
     with pytest.raises(ValueError, match="aipw, dml"):
-        ant.analyze(data, graph=graph, query=query, learners=learners, estimator="linear.adjustment.ate")
+        ant.analyze(
+            data, graph=graph, query=query, learners=learners, estimator="linear.adjustment.ate"
+        )
     kept = analyze_ate(
         data, graph, "t", "y", learners=learners, estimator="dml", score="partially_linear", folds=2
     )
     assert kept.estimate == pytest.approx(2.0)
     with pytest.raises(ValueError, match="score"):
-        analyze_ate(data, graph, "t", "y", learners=learners, estimator="aipw", score="partially_linear")
+        analyze_ate(
+            data, graph, "t", "y", learners=learners, estimator="aipw", score="partially_linear"
+        )
 
 
 def test_direct_entries_name_analyze_and_keep_the_legacy_score():
@@ -700,7 +710,9 @@ def test_portable_learners_are_admitted_only_on_artifact_routes():
     data, graph, learners = _binary_study()
     assert learners.outcome.portable is False
     for route in ("smoothed_dose", "trial_aipw", "joint_cells"):
-        with pytest.raises(CausalUnsupportedError, match="dose_response.learner_not_portable") as caught:
+        with pytest.raises(
+            CausalUnsupportedError, match="dose_response.learner_not_portable"
+        ) as caught:
             declare_portable_route(route, learners)
         assert caught.value.reason_code == "route_not_supported"
     outcome = ant.analyze(

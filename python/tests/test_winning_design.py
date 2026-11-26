@@ -72,9 +72,7 @@ def test_native_refusals_name_the_stored_ranking() -> None:
         )
     with pytest.raises(CausalValueError, match="winning design rows are not the stored ranking"):
         project_rows(
-            json.dumps(
-                {"rows": [{"candidate_id": KEPT, "rank": 0, "n": KEPT_N, "evsi": 1}]}
-            )
+            json.dumps({"rows": [{"candidate_id": KEPT, "rank": 0, "n": KEPT_N, "evsi": 1}]})
         )
 
 
@@ -202,9 +200,7 @@ def test_environment_plan_reads_additional_rows() -> None:
 def test_measurement_plan_reads_sample_budget() -> None:
     ranking = DesignRankingResult(
         basis="identification",
-        candidates=(
-            _identified(KEPT, 0, Measurement((1,), sample_budget=KEPT_N, id=KEPT), 0.1),
-        ),
+        candidates=(_identified(KEPT, 0, Measurement((1,), sample_budget=KEPT_N, id=KEPT), 0.1),),
         search=DesignSearchReceipt(1, 1, False, ()),
         calibration="not_measured",
     )

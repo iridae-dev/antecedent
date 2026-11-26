@@ -504,7 +504,9 @@ class CompiledDecision(ScientificResult):
         source = self if law is None else JointDistributionArtifact._from_native(law)
         return TradeoffDecision(self._contract, source, json.loads(body), measure_wire, options)
 
-    def execute_supplied(self, results: Sequence[object], execution: Execution | None = None) -> Any:
+    def execute_supplied(
+        self, results: Sequence[object], execution: Execution | None = None
+    ) -> Any:
         """Decide from supplied response results of the compiled children.
 
         A result is consumed when its program, snapshot and execution identities match the

@@ -146,7 +146,6 @@ def test_declared_learners_reach_the_fold_receipts():
         np.testing.assert_array_equal(prediction.estimate, staged_prediction.estimate)
 
 
-
 def test_every_row_names_a_test_here_that_reads_its_binding():
     module = sys.modules[__name__]
     for name, row in ROWS.items():

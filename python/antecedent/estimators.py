@@ -570,8 +570,7 @@ def _wire_treatment_classification(
         return {}
     if classification not in ("levels", "dose"):
         raise CausalValueError(
-            "treatment_classification must be 'levels' or 'dose' or None, "
-            f"got {classification!r}"
+            f"treatment_classification must be 'levels' or 'dose' or None, got {classification!r}"
         )
     return {"treatment_classification": classification}
 
@@ -1581,8 +1580,7 @@ def learner_estimator(estimator: str) -> tuple[str, str]:
     }.get(estimator)
     if selected is None:
         raise ValueError(
-            "learner estimator must be aipw, dml, dr_learner or causal_forest, "
-            f"got {estimator!r}"
+            f"learner estimator must be aipw, dml, dr_learner or causal_forest, got {estimator!r}"
         )
     return selected
 

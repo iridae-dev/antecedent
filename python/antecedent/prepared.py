@@ -1990,6 +1990,7 @@ def analyze(
         else:
             print(outcome.refusal.code, outcome.refusal.remedy)
     """
+
     def run() -> Outcome[Any]:
         study = prepare(
             data,

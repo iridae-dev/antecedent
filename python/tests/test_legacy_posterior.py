@@ -156,9 +156,7 @@ def test_an_unnamed_coefficient_and_a_summary_only_posterior_refuse() -> None:
         LegacyPosteriorBinding({"coefficient": {"index": 0, "name": None}}, identity.quantities[0]),
     )
     with pytest.raises(CausalError) as unnamed:
-        convert_legacy_posterior(
-            _native.encode_posterior_artifact(coefficient), identity, binding
-        )
+        convert_legacy_posterior(_native.encode_posterior_artifact(coefficient), identity, binding)
     assert unnamed.value.reason_code == "distribution_meaning_mismatch"
     summary = _native.PosteriorArtifact.from_moments(
         n_draws=4,

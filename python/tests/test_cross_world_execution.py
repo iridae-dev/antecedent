@@ -129,7 +129,9 @@ def test_probability_of_necessity_and_coupled_joint_event_match_enumerated_truth
         / "crates/antecedent-io-core/tests/fixtures/cross_world_execution_v1.bin"
     )
     recorded = require_success(
-        cw.consume_cross_world_execution_artifact(fixture.read_bytes(), expected_identity=sealed.identity)
+        cw.consume_cross_world_execution_artifact(
+            fixture.read_bytes(), expected_identity=sealed.identity
+        )
     )
     assert sealed.result.label == recorded.inference_claim == "point_only"
     assert sealed.result.value == recorded.result.value

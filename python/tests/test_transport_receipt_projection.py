@@ -95,6 +95,4 @@ def test_graph_posterior_transport_without_trial_receipt_refuses() -> None:
     with pytest.raises(tr.TransportedResponseRefusal) as caught:
         tr.project_transported_response(result)
     assert caught.value.reason_code == "transport_missing_evidence"
-    assert (
-        caught.value.detail == reason_details.transported_decision.TRANSPORT_IDENTITY_INCOMPLETE
-    )
+    assert caught.value.detail == reason_details.transported_decision.TRANSPORT_IDENTITY_INCOMPLETE

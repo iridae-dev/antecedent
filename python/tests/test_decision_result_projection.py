@@ -89,9 +89,7 @@ def test_changed_effect_quantile_and_declaration_refuse() -> None:
     assert mismatched.value.detail == reason_details.native_claims.PROJECTION_MISMATCH
 
     with pytest.raises(decision.DecisionRefusal) as quantile:
-        require_success(
-            _contrast(result, decision.Criterion.quantile(0.5)).evaluate(result)
-        )
+        require_success(_contrast(result, decision.Criterion.quantile(0.5)).evaluate(result))
     assert quantile.value.reason_code == "decision_contract_unsatisfied"
     assert quantile.value.detail == reason_details.decision_evaluation.MEAN_SOURCE_INSUFFICIENT
 

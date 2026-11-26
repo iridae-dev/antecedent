@@ -71,6 +71,4 @@ def test_joint_baseline_matches_the_compiled_route() -> None:
             execution=ant.Execution(seed=5),
         )
     )
-    np.testing.assert_allclose(
-        compiled.unit_effects, direct.contrast("y").unit_effects, rtol=1e-9
-    )
+    np.testing.assert_allclose(compiled.unit_effects, direct.contrast("y").unit_effects, rtol=1e-9)
