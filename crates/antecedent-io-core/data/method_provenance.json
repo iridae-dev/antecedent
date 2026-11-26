@@ -706,6 +706,9 @@
   "identify.binary_nested_markov_fisher": [
    "identify.binary_nested_markov_fisher"
   ],
+  "identify.pag_direct": [
+   "identify.pag_direct"
+  ],
   "identify.patient_surrogate": [
    "identify.patient_surrogate"
   ],
@@ -1118,6 +1121,9 @@
   ],
   "sensitivity.joint_uncertainty": [
    "sensitivity.joint_uncertainty"
+  ],
+  "sensitivity.longitudinal_joint": [
+   "sensitivity.longitudinal_joint"
   ],
   "sensitivity.marginal_structural_model": [
    "sensitivity.marginal_structural_model"
@@ -2462,9 +2468,11 @@
     "The cohort source node delegates to the cohort artifact reader. Its affine decision compiler requires the cohort and contract as embedded parents and binds the terminal to the full cohort source identity. Replay rebuilds the cohort mean and scores the complete decision under the retained bundle and program identities.",
     "An exact or sampled plug-in counterfactual transport result is read by its own validating consumer. Its target event probability supplies an affine decision and retains the transport premises, target population, evidence snapshot and sampled construction where present.",
     "A compact fitted-effect node validates the stored prediction basis, coefficients, covariance, feature support and mask. A retained cohort can consume the model under its recomputed identity. Refitting requires the original training data and learner declaration.",
+    "Delayed-entry incidence and survival-band nodes require the matching raw subject table to numerically replay the interval or band. The patient surrogate node delegates to its finite coupling-bounds reader.",
+    "The integrated schedule terminal accepts replayed source, target and declaration products under their compiled child identities. Reference declarations without numerical replay do not supply those products.",
     "The ledger node delegates to the evidence ledger reader. A separate pool selection verifies its result, operation, retained synthesis input and value digest, and active standing against the replayed ledger. The affine terminal reads that branch's dependency closure; a stale sibling does not block the valid branch. Its scientific quantity remains caller-declared."
    ],
-   "digest": "eb48b2781afa07d92eb592949c1ccd6fe17767191449dd837762dee611a71414",
+   "digest": "b947aea77b52fcaf3348527aea82ace13647f8fcfa4762395dc7d162ff9c81a5",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
@@ -2748,17 +2756,20 @@
   {
    "covered_by": [
     "composition.bundle",
-    "decision.functional_inverse"
+    "decision.functional_inverse",
+    "decision.contract",
+    "counterfactual.transport_general",
+    "counterfactual.transport_sampled"
    ],
    "deviations": [
-    "Claim policy: point-only. A verifier establishes that an artifact decodes, recomputes its own identity and agrees with its neighbours on the declared binding facts; it grants no causal, interval or coverage support and re-derives no estimate beyond what the artifact's own consumer replays.",
+    "Each verifier establishes that its artifact decodes, recomputes its own identity and agrees with its neighbours on declared binding facts. Any causal or uncertainty support comes from the relevant compiled route and its underlying consumer.",
     "External mean decisions are point-only attested: an external claim publishes law 'mean_only' and trust 'externally_attested', upgraded to 'verified_extension' only when the artifact retains its exact-request verification receipt. A mean decision is evaluated only from the claim's finite response grid and refuses what a mean cannot answer.",
     "Joint-draw decisions retain the aligned-law requirement: only a joint distribution with aligned draws publishes the joint law, a decision whose functional needs it publishes requires_law, and the dependent node fails at unsupported_law over a mean-only or marginal-draw upstream.",
     "A verifier decodes through the artifact's own consumer but cannot retain an identity independently of the bundle: inside a bundle the retained identity is the node's declared identity, which the Merkle chain covers and the consumer's retained bundle identity anchors. A verifier refuses a node whose recomputed identity differs, and a decision result is checked against the contract and the sources upstream of it, so replacing either with a resealed, self-consistent artifact fails the dependent node.",
     "Embedded kinds with no verifier (a causal contract, an attestation, quantity coordinates, a transformation) fail as unknown_node_kind and must travel as reference nodes; they are never verified by default. Recalculation receipts are not covered by this registry.",
-    "A reference node is verified by the bundle only as 'matched a supplied source' and is never replayed by a verifier."
+    "Ordinary reference nodes pass by matching a supplied source. A registered ledger verifier can replay a catalog ledger from matched bytes before a dependent pool consumes its checked values."
    ],
-   "digest": "5674bda2ca55d7645f2422a42756b1e666824218182ae719edbe470b0220b044",
+   "digest": "d75e2a23da7f53137dd206a786933d129c33dfa9a12691f9006d80bf9b7c9a20",
    "id": "composition.verifiers",
    "review": "none",
    "scope_limits": [],
@@ -7370,11 +7381,12 @@
    "deviations": [
     "Conditional period rewards are caller-supplied. When the query says they are fixed and known, the interval excludes all fitted, selected, or cross-fitted Q uncertainty. The caller attests that claim.",
     "The supported pointwise interval is for a short horizon of independent subjects under known sequential randomization. Longer horizons do not inherit it.",
+    "The fitted two-decision construction integrates a binary pre-treatment baseline with no evolving covariates or censoring. It learns conditional cell means under the fixed schedule and resamples whole subjects within the declared fold partitions. Internal evaluation excludes the fitted subject fold; external training uses a declared independent partition and standardizes to the other partition.",
     "This is not the marginal structural model and not the sequential doubly robust score."
    ],
-   "digest": "5a6860851f3ca2871ac3e5f1d5e6b2b2a0e19d397f54bac6f7904fecf9dbf576",
+   "digest": "aec561444dec693f416e1f617d8655815547a734f5ab5bc087dc98fdb9e271d9",
    "id": "estimate.longitudinal.g_formula_regime",
-   "review": "method_review",
+   "review": "none",
    "scope_limits": [
     "not covered by the method review: the fitting or cross-fitting of the predictions, which the caller attests, and not the IPW or doubly robust values"
    ],
@@ -7423,12 +7435,12 @@
   {
    "deviations": [
     "Both the sequential probabilities and the Q predictions are caller-supplied. Subject-excluded fold ownership is a caller declaration; training of Q is not verified.",
-    "The pointwise normal interval is conditional on that declared Q law. It is supported only for the two- and three-period support rows, not for longer histories.",
+    "The pointwise normal interval is conditional on that declared Q law. Two-, three-, and four-period intervals have separate support rows. The four-period row requires a common action schedule and larger observed and matching cohorts.",
     "The g-formula route and the marginal structural model do not share this variance."
    ],
-   "digest": "af539b5aeed06f6816a716de51cd2eecfd0b3a68d3b89e29d6cd03382085fd70",
+   "digest": "71f7720dc74de43fd6ad9db7f124493ab6ae90d9f350225ccac992446ff44936",
    "id": "estimate.longitudinal.sequential_dr_regime",
-   "review": "method_review",
+   "review": "none",
    "scope_limits": [
     "not covered by the method review: the fitting or subject exclusion of the Q predictions, the interval support floors, or the marginal structural model"
    ],
@@ -8978,7 +8990,7 @@
     "Independent censoring and delayed entry are query assumptions. The module cannot verify them from the observed follow-up. When an inverse-probability-of-censoring weight is used, the censoring survival is caller-supplied and treated as correct.",
     "Pointwise intervals use an arm-stratified subject bootstrap for the restricted mean and horizon survival, or for the target-cause incidence contrast at the horizon. The product-limit point itself carries no analytic variance from the 1958 paper."
    ],
-   "digest": "58baedeacf7beb1c044edfb58c36f853e4501542564b742a1faf1eb372d41233",
+   "digest": "cf147c161b36efab079b4dc9a3af04fcec1dfe937582901e043671e5b1e9602e",
    "id": "estimate.survival.product_limit",
    "review": "method_review",
    "scope_limits": [],
@@ -8991,10 +9003,19 @@
      "doi": "10.1080/01621459.1958.10501452",
      "doi_verified": true,
      "sections": [
-      "product-limit estimator of the survival function from a risk set"
+      "Section 2.1, equation (2b) and the following delayed-entry paragraph"
      ],
      "title": "Nonparametric Estimation from Incomplete Observations",
+     "url": "https://jhanley.biostat.mcgill.ca/bios601/SurvivalAnalysis/KaplanMeier1958.pdf",
      "year": 1958
+    },
+    {
+     "sections": [
+      "Section 1, equation (1.9)",
+      "Section 5, equation (5.1)"
+     ],
+     "title": "An Empirical Transition Matrix for Non-Homogeneous Markov Chains Based on Censored Observations",
+     "url": "https://gwern.net/doc/statistics/survival-analysis/1978-aalen.pdf"
     }
    ]
   },
@@ -10678,6 +10699,43 @@
   },
   {
    "deviations": [
+    "The marginal path uses the simpler complete 2022 bucket elimination criterion, with the 2019 region decomposition.",
+    "The symbolic result binds the caller-declared valid oracle PAG, the disjoint query sets and population. Static graphs with selection edges, conflicts and unfinished middle marks fall outside the theorem domain.",
+    "Resource exhaustion and cancellation are operational stops. Only a completed IDP/CIDP obstruction gives nonidentification evidence under the declared graph.",
+    "When requested, deterministic work and depth stops retain their active work budget and independently replay through the same algorithm.",
+    "Numerical evaluation reuses the existing exact evaluator and a strictly positive finite joint law compatible with the PAG. Caller-supplied integer levels are exposed in Python. The symbolic derivation is separate from finite-sample estimation."
+   ],
+   "digest": "936e3954f832e004d5cc0baeaaa66f5f0475d26683d4af5e8ce5e40323aec023",
+   "id": "identify.pag_direct",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "Definition 4",
+      "Corollary 1",
+      "Figure 2",
+      "Equation 14"
+     ],
+     "title": "Causal Identification under Markov Equivalence: Completeness Results",
+     "url": "https://proceedings.mlr.press/v97/jaber19a.html"
+    },
+    {
+     "doi": "10.52202/068431-0266",
+     "doi_verified": false,
+     "sections": [
+      "Theorem 1 rule 2",
+      "Proposition 2",
+      "Algorithms 1–2",
+      "Theorems 3–4"
+     ],
+     "title": "Causal Identification under Markov equivalence: Calculus, Algorithm, and Completeness",
+     "url": "https://papers.neurips.cc/paper_files/paper/2022/hash/17a9ab4190289f0e1504bbb98d1d111a-Abstract-Conference.html"
+    }
+   ]
+  },
+  {
+   "deviations": [
     "When every directed treatment-outcome path is selected, the effect is the total effect and is identified by deleting unselected treatment out-edges and running ordinary total-effect ID. When a complementary path exists and the outcome's ancestors carry no bidirected edge, it emits the edge g-formula (Shpitser 2013): P(v | pa(v)) factors with the treatment at the active level on edges that start a selected path and the control level elsewhere, minus the all-control g-formula. With a bidirected edge among the outcome's ancestors it emits the district formula instead: each district of the ancestors contributes its kernel Q[D] identified by general ID, read at the treatment level of the edges entering it.",
     "The recanting-witness criterion is decided exactly on the directed graph: a witness (a node reached from the treatment along a prefix with one continuation to the outcome selected and another not) exists iff some child of the treatment starts both a selected and an unselected directed path, which is what the check tests. With latent confounding the analogue is a recanting district, a district entered by a selected and an unselected treatment edge, which is refused; a district whose kernel has a hedge is refused as the total effect would be.",
     "Directed-path enumeration is bounded by query max_paths and max_len; truncation fails closed rather than deciding the paper's criterion."
@@ -10706,9 +10764,10 @@
   {
    "deviations": [
     "The target is the probability of terminal benefit among patients whose binary surrogate would improve under treatment. The implementation derives bounds directly from the capacity constraints of the monotone 4-by-4 potential endpoint table.",
+    "The cited paper motivates comparing outcomes within the improving principal stratum. Its ordered-set comparison differs from this repository’s cross-world benefit probability and sharp coupling bounds.",
     "The scientific identified set is conditional on declared exact population arm joint laws and identification premises. Empirical sample frequencies have a distinct reported reading and cannot license a population threshold decision. There is no coverage claim."
    ],
-   "digest": "4c1d515632e44d9afb6b41c0593e4389b50a74a1af3ad26e8e21a1a884017015",
+   "digest": "a00ef0e8c774d520049907e93e7b7b1f926a04b5d4e8d87ff89c6d122088ac15",
    "id": "identify.patient_surrogate",
    "review": "none",
    "scope_limits": [],
@@ -10717,8 +10776,8 @@
      "doi": "10.1111/j.0006-341x.2002.00021.x",
      "doi_verified": false,
      "sections": [
-      "principal stratification",
-      "surrogate outcomes"
+      "Section 3, definitions of basic principal strata and principal causal effects",
+      "Section 5.2, associative effects and equation (5.4)"
      ],
      "title": "Principal Stratification in Causal Inference",
      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4137767/"
@@ -13473,18 +13532,39 @@
    ]
   },
   {
-   "covered_by": [
-    "scientific_bridge.typed_bridges"
-   ],
    "deviations": [
-    "Spread is uncalibrated: the bridged draws carry the declared mapping uncertainty and dependence but no interval without a measured coverage record.",
-    "Delta-method agreement is exact only to first order for a nonlinear map."
+    "An exact fixed affine law transforms each source row, with no distributional reinterpretation or inference. An estimated trial-level map uses whole validation-pair bootstrap refits. In the shared design the source surrogate centroid and the least-squares fit use the same trial-pair indexes; replay validates the ordered centroid sequence and provenance. Independent-study refits use different deterministic streams.",
+    "Monotone affine identified-set images use both extrema and preserve order even when the slope is negative or zero. Joint outcome images sum declared affine contributions to each output over each weighted, jointly aligned input row. Maps without a supported exact extrema rule refuse an identified-set reading.",
+    "Posterior credible intervals use weighted generalized-inverse quantiles of the mapped joint posterior. The returned attained mass is the closed-interval mass including tied endpoints. The trial sampling interval uses type-7 percentile endpoints of the whole refit statistic and requires a current exact-scope coverage receipt.",
+    "Publication matches an explicit caller-declared shared or independent data-generating law, exact tuning, sample-size scope and current calibration record. A threshold decision preserves the interval reading and source calibration reference; it has no separately measured decision calibration.",
+    "The numerical artifact binds declarations, source data, method, seed and result. Current coverage metadata is resolved during replay and its revision is excluded from numerical equality. A missing or stale current coverage record still refuses confidence-interval publication."
    ],
-   "digest": "c14933e69a2272f271abaa778b98bce778dcdac3565c126cd813c77503612353",
+   "digest": "6e0df8a9bbf9e8f6ab6d3dadeada68b1d4b67947b5db4f17421d18199d78d301",
    "id": "scientific_bridge.distribution_bridges",
-   "review": "none",
+   "review": "method_review",
    "scope_limits": [],
-   "sources": []
+   "sources": [
+    {
+     "authors": [
+      "B. Efron"
+     ],
+     "doi": "10.1214/aos/1176344552",
+     "doi_verified": true,
+     "sections": [
+      "Nonparametric resampling"
+     ],
+     "title": "Bootstrap Methods: Another Look at the Jackknife",
+     "year": 1979
+    },
+    {
+     "doi": "10.1080/00031305.1996.10473566",
+     "doi_verified": false,
+     "sections": [
+      "Definition 7"
+     ],
+     "title": "Sample quantiles in statistical packages"
+    }
+   ]
   },
   {
    "deviations": [
@@ -13625,6 +13705,35 @@
     "not covered by the method review: the range evaluator's frontier and tipping outputs, the artifact wire or the facade lifecycle"
    ],
    "sources": []
+  },
+  {
+   "deviations": [
+    "For schedule aa and treatment stage k the declared difference in the mean of that schedule's potential outcome between off-schedule and on-schedule subjects, given stage history and earlier adherence, is -(2a-1) times the stage departure. Final missing-minus-recorded conditional means use the analogous signed shift. These are additive mean restrictions, independent of marginal propensity-odds sensitivity models.",
+    "With outcome support, the fitted box is admitted only if each corner implies feasible conditional means. Affinity then guarantees feasibility throughout the box. The original fit is checked, and the sampling law uses untruncated refits.",
+    "A bootstrap replicate estimates treatment probabilities, the intermediate history distribution, response fractions and recorded-outcome means from the same resampled subjects. The supremum of the absolute affine error surface is attained at a corner. Project the common radius onto both extrema and compare the resulting interval to the prespecified threshold.",
+    "The advertised simultaneous level is nominal. The independently simulated experiment scores both the joint extrema and the entire region in one design. Broader calibration is unmeasured."
+   ],
+   "digest": "68ead956188cd59e532647812059b021d16f4b48d4447976f0530396a4920041",
+   "id": "sensitivity.longitudinal_joint",
+   "review": "method_review",
+   "scope_limits": [],
+   "sources": [
+    {
+     "sections": [
+      "Selection bias and sensitivity",
+      "Extension to dynamic treatment regimes"
+     ],
+     "title": "A Selection Bias Approach to Sensitivity Analysis for Causal Effects",
+     "url": "https://www.mattblackwell.org/files/papers/sens.pdf"
+    },
+    {
+     "doi": "10.1097/EDE.0000000000001627",
+     "doi_verified": false,
+     "sections": [],
+     "title": "Sensitivity Analyses for Means or Proportions with Missing Outcome Data",
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/"
+    }
+   ]
   },
   {
    "deviations": [

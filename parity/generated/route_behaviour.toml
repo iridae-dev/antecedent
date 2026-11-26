@@ -5449,6 +5449,7 @@ refusals = [
   { code = "bridge_substitution_refused", detail = "scientific_bridge.value_kind_substitution" },
 ]
 routes = [
+  { route = "antecedent.scientific_bridge.compile_identified_set_image", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.scientific_bridge.prepare", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.scientific_bridge.derive.surrogate_terminal_outcome", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.scientific_bridge.derive.latent_measured_outcome", stage = "evaluate", status = "supported", claim = "point_only" },
@@ -5507,6 +5508,13 @@ refusals = [
   { code = "bridge_substitution_refused", detail = "scientific_bridge.value_kind_substitution" },
 ]
 routes = [
+  { route = "antecedent.scientific_bridge.compile_posterior_bridge_interval", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.scientific_bridge.compile_trial_bridge_confidence_interval", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.scientific_bridge.compile_threshold", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.scientific_bridge.trial_bridge_confidence_interval", stage = "uncertainty", status = "supported", claim = "interval" },
+  { route = "antecedent.scientific_bridge.compile_sampling", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.scientific_bridge.compile_joint_outcome_image", stage = "prepare", status = "supported", claim = "none" },
+  { route = "antecedent.scientific_bridge.consume_bridge_image", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.scientific_bridge.prepare_distribution", stage = "prepare", status = "supported", claim = "none" },
   { route = "antecedent.scientific_bridge.derive_distribution", stage = "evaluate", status = "supported", claim = "none" },
   { route = "antecedent.scientific_bridge.consume_distribution_artifact", stage = "consume", status = "supported", claim = "none" },
@@ -8115,6 +8123,9 @@ status = "supported"
 refusals = [
   { code = "invalid_argument", detail = "structure_posterior.edge_prior_probability" },
   { code = "option_not_applicable", detail = "structure_posterior.class_prior_not_read" },
+  { code = "invalid_argument", detail = "rpcmci_learned.portable_refusal" },
+  { code = "execution_resource_limit", detail = "rpcmci_learned.portable_refusal" },
+  { code = "cancelled_no_claim", detail = "rpcmci_learned.portable_refusal" },
 ]
 routes = [
   { route = "antecedent.discovery.search.decision_rule", stage = "evaluate", status = "supported", claim = "none" },
@@ -9439,4 +9450,30 @@ routes = [
   { route = "antecedent.identify.compile_pag_identification", stage = "identify", status = "supported", claim = "none" },
   { route = "antecedent.identify.consume_pag_identification", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.identify.pag_exact_evaluation", stage = "evaluate", status = "supported", claim = "point_only" },
+]
+
+[[record]]
+id = "sensitivity.longitudinal_joint"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "longitudinal_joint_sensitivity.invalid_declaration" },
+  { code = "positivity_violated", detail = "longitudinal_joint_sensitivity.positivity" },
+  { code = "invalid_argument", detail = "longitudinal_joint_sensitivity.incoherent_box" },
+  { code = "cancelled_no_claim", detail = "longitudinal_joint_sensitivity.cancelled" },
+  { code = "route_not_supported", detail = "longitudinal_joint_sensitivity.resources" },
+  { code = "invalid_argument", detail = "longitudinal_joint_sensitivity.identity" },
+]
+routes = [
+  { route = "antecedent.sensitivity.compile_longitudinal_joint_sensitivity", stage = "evaluate", status = "supported", claim = "interval" },
+  { route = "antecedent.sensitivity.consume_longitudinal_joint_sensitivity", stage = "consume", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "design.integrated_schedule_decision"
+status = "supported"
+refusals = [
+]
+routes = [
+  { route = "antecedent.design.compile_integrated_schedule_decision", stage = "prepare", status = "supported", claim = "interval" },
+  { route = "antecedent.design.consume_schedule_decision_bundle", stage = "consume", status = "supported", claim = "interval" },
 ]
