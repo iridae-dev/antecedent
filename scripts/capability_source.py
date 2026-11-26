@@ -439,6 +439,25 @@ def _decision_builder_proven(path: Path) -> bool:
     return all(_source_item_hash(source, kind, name) == digest for source, kind, name, digest in dependencies)
 
 
+def _rpcmci_replay_codes(path: Path, code: str, skel: str, items) -> dict[int, list[str]]:
+    """Resolve the reason-code match forwarded into the portable Python refusal."""
+    if path.resolve() != REPO_ROOT / "python/src/rpcmci_portable_api.rs":
+        return {}
+    if ("use crate::bridge::RefusalJson;" not in skel
+            or "use antecedent::reason::reason_code;" not in skel
+            or re.search(r"(?:macro_rules!\s*reason_code|(?:type|struct|enum)\s+RefusalJson)\b", skel)):
+        return {}
+    bridge = REPO_ROOT / "python/src/bridge.rs"
+    if (_source_item_hash(path, "fn", "refused") != "4f210863830e8701644410d0edcdcaae4d10b7526e671027ee6ad3bb241e5f39"
+            or _source_item_hash(bridge, "impl", "RefusalJson") != "cb37996f75876d30ef8f1ae67abe7f31b5e42d158cce990044576c75f6be08e9"):
+        return {}
+    item = next(it for it in items if it.kind == "fn" and it.name == "refused")
+    start, end = item.body
+    body = code[start:end]
+    at = start + body.index('"rpcmci_learned.portable_refusal"')
+    return {at: re.findall(r'\breason_code\s*!\s*\(\s*"([a-z][a-z0-9_]*)"\s*\)', body)}
+
+
 def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     """Every string literal in non-test Rust source, with the const it initialises."""
     code, skel = nontest_pair(path, in_crate=in_crate)
@@ -496,6 +515,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     for match in re.finditer(r"\blet\s+remedy\s*=\s*match\s+detail\.as_str\(\)\s*\{", skel):
         opening = match.end() - 1
         remedy_ranges.append((opening, _match_bracket(skel, opening)))
+    replay_codes = _rpcmci_replay_codes(path, code, skel, items) if path.name == "rpcmci_portable_api.rs" else {}
     scanned = _scan_literals(code)
     # The generated artifact enum's identity label and display text are not
     # independent reason-code emitters. Exclude only metadata for a detail whose
@@ -541,6 +561,10 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
                 and re.search(r"\blimits\s*\.\s*push\s*\(\s*format!\s*\(\s*$", skel[:at])):
             continue
         const = next((c.name for c in consts if c.body[0] <= at < c.body[1]), None)
+        if at in replay_codes:
+            line = code.count("\n", 0, at) + 1
+            out.extend(Lit(line, value, const, reason) for reason in replay_codes[at])
+            continue
         reason = None
         premise_details = {"adaptive_inference.selection_not_ignorable", "adaptive_inference.arm_not_observed",
                            "adaptive_inference.structure_incomplete", "adaptive_inference.paradigm_rule_mismatch"}

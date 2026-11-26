@@ -185,3 +185,28 @@ print(json.dumps(result.report))
                 execution=Execution(limits=ResourceLimits(memory_bytes=1024)),
             )
         )
+
+
+def test_portable_replay_distinguishes_identity_memory_and_cancellation() -> None:
+    from pathlib import Path
+
+    from antecedent import CancellationToken, ResourceLimits
+    from antecedent import _reason_details as reason_details
+    from antecedent.outcomes import require_success
+    from antecedent.rpcmci_portable import LearnedRpcmciRefusal, consume_learned_rpcmci
+
+    data = (
+        Path(__file__).resolve().parents[2]
+        / "conformance/discovery/rpcmci_learned_v1.artifact"
+    ).read_bytes()
+    token = CancellationToken()
+    token.cancel()
+    for policy, expected in [
+        (Execution(), "invalid_argument"),
+        (Execution(limits=ResourceLimits(memory_bytes=1)), "execution_resource_limit"),
+        (Execution(cancel=token), "cancelled_no_claim"),
+    ]:
+        with pytest.raises(LearnedRpcmciRefusal) as failure:
+            require_success(consume_learned_rpcmci(data, expected_identity="0" * 64, execution=policy))
+        assert failure.value.reason_code == expected
+        assert failure.value.detail == reason_details.rpcmci_learned.PORTABLE_REFUSAL

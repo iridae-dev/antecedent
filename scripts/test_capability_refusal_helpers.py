@@ -423,6 +423,27 @@ class CrossFileHelperTests(unittest.TestCase):
         with patch("capability_source.nontest_pair", side_effect=changed):
             self.assertEqual(_planning_refusal_helpers(request, nontest_pair(request)[1]), {})
 
+    def test_portable_rpcmci_refusal_tracks_the_selected_reason_and_serializer(self):
+        path = REPO_ROOT / "python/src/rpcmci_portable_api.rs"
+        def codes():
+            return {lit.reason_code for lit in rust_literals(path)
+                    if lit.value == "rpcmci_learned.portable_refusal"}
+        self.assertEqual(codes(), {"invalid_argument", "execution_resource_limit", "cancelled_no_claim"})
+        original = nontest_pair
+        for name, old, new in [
+            ("rpcmci_portable_api.rs", 'reason_code!("cancelled_no_claim")', 'reason_code!("invalid_argument")'),
+            ("rpcmci_portable_api.rs", '        reason,', '        "invalid_argument",'),
+            ("bridge.rs", 'map.insert("code".into(), Text(code.to_owned()))', 'map.insert("code".into(), Text(stage.to_owned()))'),
+        ]:
+            def changed(source, **kwargs):
+                code, skel = original(source, **kwargs)
+                if source.name == name:
+                    self.assertIn(old, code)
+                    code = code.replace(old, new)
+                return code, skel
+            with self.subTest(name=name, old=old), patch("capability_source.nontest_pair", side_effect=changed):
+                self.assertEqual(codes(), {None})
+
     def test_adaptive_premise_requires_the_verified_facade_and_default_mapping(self):
         path = REPO_ROOT / "crates/antecedent-stats/src/adaptive_inference/repeated_measures_posterior.rs"
         details = {"adaptive_inference.arm_not_observed", "adaptive_inference.selection_not_ignorable",

@@ -8127,9 +8127,6 @@ status = "supported"
 refusals = [
   { code = "invalid_argument", detail = "structure_posterior.edge_prior_probability" },
   { code = "option_not_applicable", detail = "structure_posterior.class_prior_not_read" },
-  { code = "invalid_argument", detail = "rpcmci_learned.portable_refusal" },
-  { code = "execution_resource_limit", detail = "rpcmci_learned.portable_refusal" },
-  { code = "cancelled_no_claim", detail = "rpcmci_learned.portable_refusal" },
 ]
 routes = [
   { route = "antecedent.discovery.search.decision_rule", stage = "evaluate", status = "supported", claim = "none" },
@@ -9488,4 +9485,19 @@ refusals = [
 routes = [
   { route = "antecedent.design.compile_integrated_schedule_decision", stage = "prepare", status = "supported", claim = "interval" },
   { route = "antecedent.design.consume_schedule_decision_bundle", stage = "consume", status = "supported", claim = "interval" },
+]
+
+[[record]]
+id = "discovery.learned_rpcmci_replay"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "rpcmci_learned.portable_refusal" },
+  { code = "execution_resource_limit", detail = "rpcmci_learned.portable_refusal" },
+  { code = "cancelled_no_claim", detail = "rpcmci_learned.portable_refusal" },
+]
+routes = [
+  { route = "antecedent.discovery.RPCMCI.run_portable", stage = "evaluate", status = "supported", claim = "none" },
+  { route = "antecedent.rpcmci_portable.consume_learned_rpcmci", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.rpcmci_portable.LearnedRpcmciArtifact.regime_scope", stage = "representation", status = "supported", claim = "none" },
+  { route = "antecedent.rpcmci_portable.LearnedRpcmciArtifact.accept_regime", stage = "evaluate", status = "supported", claim = "none" },
 ]

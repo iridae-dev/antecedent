@@ -14189,3 +14189,63 @@ calibration = "exact_or_point_only_no_interval"
 artifact_consumer_fixture = "transport.policy_evaluation.identity_replays.artifact"
 provider_trust = "native_exact_finite_enumeration_over_a_supplied_model_and_declared_diagram"
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "discovery.learned_rpcmci_replay"
+route = "antecedent.discovery.RPCMCI.run_portable"
+algorithm_provenance = ["provenance/discovery.rpcmci.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "discovery.learned_rpcmci_replay.planted_regimes.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The source-fixed rpcmci_shared_portable.json series changes its lag-one direction at the declared split."
+expected_values = "The producer recovers the two planted lag directions and at least 94 percent agreement up to label permutation."
+tolerance = "Exact replay and graph agreement with the native compiled result. The planted label check permits label permutation."
+calibration = "diagnostic_no_nominal_level"
+artifact_consumer_fixture = "discovery.learned_rpcmci_replay.fresh_process.artifact"
+provider_trust = "The seeded native discovery is independently re-executed on the embedded source."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "discovery.learned_rpcmci_replay"
+route = "antecedent.rpcmci_portable.consume_learned_rpcmci"
+algorithm_provenance = ["provenance/discovery.rpcmci.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "discovery.learned_rpcmci_replay.planted_regimes.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The source-fixed rpcmci_shared_portable.json series changes its lag-one direction at the declared split."
+expected_values = "Independent replay reproduces the source snapshot, assignments, graphs, seed and complete diagnostic report."
+tolerance = "Exact replay and graph agreement with the native compiled result. The planted label check permits label permutation."
+calibration = "diagnostic_no_nominal_level"
+artifact_consumer_fixture = "discovery.learned_rpcmci_replay.fresh_process.artifact"
+provider_trust = "The seeded native discovery is independently re-executed on the embedded source."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "discovery.learned_rpcmci_replay"
+route = "antecedent.rpcmci_portable.LearnedRpcmciArtifact.regime_scope"
+algorithm_provenance = ["provenance/discovery.rpcmci.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "discovery.learned_rpcmci_replay.planted_regimes.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The source-fixed rpcmci_shared_portable.json series changes its lag-one direction at the declared split."
+expected_values = "Assigned rows and window endpoints agree with direct enumeration on the original time axis for both regimes."
+tolerance = "Exact replay and graph agreement with the native compiled result. The planted label check permits label permutation."
+calibration = "diagnostic_no_nominal_level"
+artifact_consumer_fixture = "discovery.learned_rpcmci_replay.fresh_process.artifact"
+provider_trust = "The seeded native discovery is independently re-executed on the embedded source."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "discovery.learned_rpcmci_replay"
+route = "antecedent.rpcmci_portable.LearnedRpcmciArtifact.accept_regime"
+algorithm_provenance = ["provenance/discovery.rpcmci.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "discovery.learned_rpcmci_replay.planted_regimes.positive"
+oracle_kind = "semantic_contract"
+oracle_inputs = "The source-fixed rpcmci_shared_portable.json series changes its lag-one direction at the declared split."
+expected_values = "Explicit choice returns the corresponding learned temporal CPDAG. An absent regime refuses."
+tolerance = "Exact replay and graph agreement with the native compiled result. The planted label check permits label permutation."
+calibration = "diagnostic_no_nominal_level"
+artifact_consumer_fixture = "discovery.learned_rpcmci_replay.fresh_process.artifact"
+provider_trust = "The seeded native discovery is independently re-executed on the embedded source."
+exact_request_verification = "not_applicable_no_external_provider"
