@@ -287,15 +287,14 @@ pub fn incidence_calibration_functional(
         replicates_ok,
     ) && assignment_counts
         .is_some_and(|[control, treated]| control.min(treated) >= minimum_arm);
-    let measured_design = replicates_requested == Some(299)
+    let measured_design = cause == 1
+        && query.tau.to_bits() == 3.0_f64.to_bits()
+        && query.independent_observation
+        && query.independent_given.is_empty()
+        && replicates_requested == Some(299)
         && replicates_ok == Some(299)
-        && assignment_counts.is_some_and(|[control, treated]| {
-            control == treated && [minimum_arm, 2 * minimum_arm, 4 * minimum_arm].contains(&control)
-        })
-        && (!fixed_known
-            || (query.censoring_times == [0.0, 1.0, 1.5, 2.0, 2.5, 3.0]
-                && query.censoring_probability_floor.map(f64::to_bits)
-                    == Some(0.01_f64.to_bits())));
+        && benchmark_balanced_arms(assignment_counts, minimum_arm)
+        && (!fixed_known || benchmark_fixed_censoring_grid(query));
     let scope = if !supported {
         "+scope=insufficient"
     } else if measured_design {
@@ -309,18 +308,56 @@ pub fn incidence_calibration_functional(
     ))
 }
 
-/// Calibration functional of a full-grid delayed-entry band at one cause and horizon.
+const SURVIVAL_BENCHMARK_EVENT_GRID: [f64; 4] = [0.0, 1.0, 2.0, 3.0];
+const SURVIVAL_BENCHMARK_CENSORING_GRID: [f64; 6] = [0.0, 1.0, 1.5, 2.0, 2.5, 3.0];
+
+fn benchmark_balanced_arms(assignment_counts: Option<[usize; 2]>, minimum_arm: usize) -> bool {
+    assignment_counts.is_some_and(|[control, treated]| {
+        control == treated && [minimum_arm, 2 * minimum_arm, 4 * minimum_arm].contains(&control)
+    })
+}
+
+fn benchmark_fixed_censoring_grid(query: &crate::query_wire::SurvivalQueryWire) -> bool {
+    query.censoring_times == SURVIVAL_BENCHMARK_CENSORING_GRID
+        && query.censoring_probability_floor.map(f64::to_bits) == Some(0.01_f64.to_bits())
+}
+
+/// Calibration functional of a full-grid survival or incidence band. The bare
+/// key locates repeated-study evidence on the registered benchmark geometry.
+/// That evidence is about the simulated law, which an observed table cannot establish.
 #[doc(hidden)]
 #[must_use]
 pub fn survival_band_calibration_functional(
     query: &crate::query_wire::SurvivalQueryWire,
     assignment_counts: Option<[usize; 2]>,
+    requested: Option<u32>,
+    completed: u32,
+    times: &[f64],
 ) -> Option<String> {
+    let measured_draws = requested == Some(399) && completed == 399;
     if let Some(fit) = &query.stratified_censoring {
-        let scope = if assignment_counts.is_some_and(|[a, b]| a.min(b) >= 1_000) {
+        let strata = [fit.entry_stratum, fit.censoring_stratum];
+        let measured_design = measured_draws
+            && benchmark_balanced_arms(assignment_counts, 1_000)
+            && times == SURVIVAL_BENCHMARK_EVENT_GRID
+            && query.independent_observation
+            && strata[0] != strata[1]
+            && query.independent_given.len() == strata.len()
+            && strata.iter().all(|id| query.independent_given.contains(id))
+            && conditional_survival_band_key(
+                query.delayed_entry.is_some(),
+                query.target_cause.is_some(),
+                query.tau,
+                fit.population_weights,
+                fit.minimum_probability,
+            )
+            .is_some();
+        let scope = if !assignment_counts.is_some_and(|[a, b]| a.min(b) >= 1_000) {
+            "+scope=insufficient"
+        } else if measured_design {
             ""
         } else {
-            "+scope=insufficient"
+            "+scope=unmeasured_design"
         };
         let entry = if query.delayed_entry.is_some() { "standardized" } else { "none" };
         let endpoint = query.target_cause.map_or_else(|| "survival".to_owned(), |cause| format!("incidence:{cause}"));
@@ -332,14 +369,28 @@ pub fn survival_band_calibration_functional(
     query.delayed_entry?;
     let fixed_known = !query.censoring_columns.is_empty();
     let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
-    let endpoint = query.target_cause.map_or_else(
-        || "survival".into(),
-        |cause| format!("incidence:{}", cause),
-    );
-    let supported_arms = assignment_counts.is_some_and(|[control, treated]| {
-        control.min(treated) >= incidence_min_arm(fixed_known)
-    });
-    let scope = if supported_arms { "" } else { "+scope=insufficient" };
+    let endpoint = query
+        .target_cause
+        .map_or_else(|| "survival".into(), |cause| format!("incidence:{}", cause));
+    let minimum_arm = incidence_min_arm(fixed_known);
+    let measured_design = measured_draws
+        && benchmark_balanced_arms(assignment_counts, minimum_arm)
+        && query.tau.to_bits() == 3.0_f64.to_bits()
+        && matches!(query.target_cause, None | Some(1))
+        && query.independent_observation
+        && query.independent_given.is_empty()
+        && if fixed_known {
+            times == SURVIVAL_BENCHMARK_CENSORING_GRID && benchmark_fixed_censoring_grid(query)
+        } else {
+            times == SURVIVAL_BENCHMARK_EVENT_GRID
+        };
+    let scope = if !assignment_counts.is_some_and(|[a, b]| a.min(b) >= minimum_arm) {
+        "+scope=insufficient"
+    } else if measured_design {
+        ""
+    } else {
+        "+scope=unmeasured_design"
+    };
     Some(format!(
         "difference_band+entry=delayed+censoring={censoring}+endpoint={endpoint}+tau={:016x}{scope}",
         query.tau.to_bits(),
@@ -658,6 +709,119 @@ pub fn graphless_admits_resampled(
     resampled: GraphlessResampleSupport,
 ) -> bool {
     find_support(key, observed).is_some_and(|row| row_meets_resampling(row, resampled))
+}
+
+#[cfg(test)]
+mod survival_calibration_tests {
+    use super::{
+        SURVIVAL_BENCHMARK_CENSORING_GRID, SURVIVAL_BENCHMARK_EVENT_GRID,
+        incidence_calibration_functional, survival_band_calibration_functional,
+    };
+    use crate::query_wire::{StratifiedCensoringWire, SurvivalQueryWire};
+
+    fn query() -> SurvivalQueryWire {
+        SurvivalQueryWire {
+            duration: 0,
+            event: 1,
+            treatment: 2,
+            tau: 3.0,
+            delayed_entry: Some(3),
+            target_cause: Some(1),
+            independent_observation: true,
+            independent_given: Vec::new(),
+            censoring_times: Vec::new(),
+            censoring_columns: Vec::new(),
+            censoring_probability_floor: None,
+            stratified_censoring: None,
+        }
+    }
+
+    #[test]
+    fn survival_bands_calibrate_only_at_the_exact_benchmark_geometry() {
+        let mut query = query();
+        let event_grid = &SURVIVAL_BENCHMARK_EVENT_GRID;
+        let censoring_grid = &SURVIVAL_BENCHMARK_CENSORING_GRID;
+        let band = |query: &SurvivalQueryWire, counts, requested, completed, times: &[f64]| {
+            survival_band_calibration_functional(
+                query,
+                Some(counts),
+                Some(requested),
+                completed,
+                times,
+            )
+            .unwrap()
+        };
+        for n in [160, 320, 640] {
+            assert!(!band(&query, [n, n], 399, 399, event_grid).contains("+scope="));
+        }
+        for function in [
+            band(&query, [159, 161], 399, 399, event_grid),
+            band(&query, [200, 200], 399, 399, event_grid),
+            band(&query, [319, 321], 399, 399, event_grid),
+            band(&query, [320, 320], 400, 399, event_grid),
+            band(&query, [320, 320], 399, 398, event_grid),
+            band(&query, [320, 320], 399, 399, &[0.0, 1.0, 1.75, 3.0]),
+        ] {
+            assert!(function.contains("+scope="), "{function}");
+        }
+
+        query.target_cause = Some(2);
+        let wrong_cause = incidence_calibration_functional(
+            &query,
+            Some(25),
+            Some(25),
+            Some(299),
+            Some(299),
+            Some([320; 2]),
+        );
+        assert!(wrong_cause.unwrap().ends_with("+scope=unmeasured_design"));
+        query.target_cause = Some(1);
+        query.tau = 2.0;
+        let wrong_horizon = incidence_calibration_functional(
+            &query,
+            Some(25),
+            Some(25),
+            Some(299),
+            Some(299),
+            Some([320; 2]),
+        );
+        assert!(wrong_horizon.unwrap().ends_with("+scope=unmeasured_design"));
+        query.tau = 3.0;
+
+        query.censoring_times = censoring_grid.to_vec();
+        query.censoring_columns = (4..10).collect();
+        query.censoring_probability_floor = Some(0.01);
+        assert!(!band(&query, [200; 2], 399, 399, censoring_grid).contains("+scope="));
+        query.censoring_probability_floor = Some(0.05);
+        assert!(
+            band(&query, [200; 2], 399, 399, censoring_grid).ends_with("+scope=unmeasured_design")
+        );
+
+        query.censoring_times.clear();
+        query.censoring_columns.clear();
+        query.censoring_probability_floor = None;
+        query.target_cause = None;
+        query.independent_given = vec![4, 5];
+        query.stratified_censoring = Some(StratifiedCensoringWire {
+            entry_stratum: 4,
+            censoring_stratum: 5,
+            population_weights: [0.5; 2],
+            minimum_probability: 0.05,
+        });
+        for n in [1_000, 2_000, 4_000] {
+            assert!(!band(&query, [n; 2], 399, 399, event_grid).contains("+scope="));
+        }
+        for function in [
+            band(&query, [1_999, 2_001], 399, 399, event_grid),
+            band(&query, [2_000; 2], 400, 400, event_grid),
+        ] {
+            assert!(function.ends_with("+scope=unmeasured_design"), "{function}");
+        }
+        query.independent_given = vec![4];
+        assert!(
+            band(&query, [2_000; 2], 399, 399, event_grid).ends_with("+scope=unmeasured_design")
+        );
+    }
 }
 
 #[cfg(test)]

@@ -246,6 +246,10 @@ fn band_replicate(
     if band.support_status != Some(CellStatus::Supported) {
         return None;
     }
+    let measured_grid: &[f64] = if fixed_known { &TIMES } else { &[0.0, 1.0, 2.0, 3.0] };
+    if band.times.as_ref() != measured_grid {
+        return None;
+    }
     let exact = |time| {
         let sign = if incidence { -1.0 } else { 1.0 };
         sign * (0.05 * f64::from(time >= 1.0) + 0.05 * f64::from(time >= 2.0))
@@ -286,6 +290,7 @@ fn measure_band(test: &'static str, fixed_known: bool, incidence: bool, seed: u6
             // Coverage holds jointly exactly when the least-covered grid point is inside.
             tally.record(Some(interval), truth);
         } else {
+            // Count refused or out-of-geometry publications as coverage misses.
             tally.skip();
         }
     }
@@ -349,7 +354,9 @@ fn jointly_conditional_entry_and_censoring_survival_band_coverage() {
             .ok()?;
         let result = prepared.estimate(&data, &ctx).ok()?;
         let band = result.survival()?.difference_band.as_ref()?;
-        if band.support_status != Some(CellStatus::Supported) {
+        if band.support_status != Some(CellStatus::Supported)
+            || band.times.as_ref() != [0.0, 1.0, 2.0, 3.0]
+        {
             return None;
         }
         let slack = |(lower, upper, truth): (f64, f64, f64)| (truth - lower).min(upper - truth);

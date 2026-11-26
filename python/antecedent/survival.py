@@ -275,6 +275,12 @@ class SurvivalDifferenceBand:
     construction. Read it from ``SurvivalEstimate.difference_band`` or
     ``CumulativeIncidenceEstimate.difference_band``.
 
+    A supported delayed-entry band can have unmeasured coverage. Repeated-study coverage
+    evidence refers to the registered synthetic benchmark law, including the exact
+    analysis grid, balanced sample sizes and 399 requested and completed draws. It
+    counts withheld bands as misses. Matching that geometry does not establish that
+    the caller's population, entry mechanism or censoring law matches the benchmark.
+
     Fields:
 
     * ``times`` -- the observed event-time grid, including zero and the horizon.

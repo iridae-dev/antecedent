@@ -381,8 +381,15 @@ impl StudyResult {
                 let delayed_functional = delayed_survival.and_then(|(query, curve)| {
                     let counts = Some(curve.assignment_counts);
                     match binding.method {
-                        IntervalMethod::SimultaneousBand =>
-                            antecedent_io::graphless_support::survival_band_calibration_functional(query, counts),
+                        IntervalMethod::SimultaneousBand => curve.difference_band.as_ref().and_then(|band|
+                            antecedent_io::graphless_support::survival_band_calibration_functional(
+                                query,
+                                counts,
+                                curve.bootstrap_replicates_requested,
+                                band.replicates_ok,
+                                &band.times,
+                            ),
+                        ),
                         IntervalMethod::PercentileBootstrap =>
                             antecedent_io::graphless_support::incidence_calibration_functional(
                                 query,

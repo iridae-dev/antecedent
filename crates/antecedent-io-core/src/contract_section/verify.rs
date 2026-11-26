@@ -1526,7 +1526,13 @@ fn survival_calibration_basis_binding(
                 return SurvivalCalibrationBinding::Mismatch;
             };
             (
-                survival_band_calibration_functional(query, curve.assignment_counts),
+                survival_band_calibration_functional(
+                    query,
+                    curve.assignment_counts,
+                    curve.bootstrap_replicates_requested,
+                    band.replicates_ok,
+                    &band.times,
+                ),
                 Some(band.replicates_ok),
             )
         }
@@ -1557,16 +1563,13 @@ fn survival_calibration_basis_binding(
     {
         return SurvivalCalibrationBinding::Mismatch;
     }
-    if functional == basis.key.functional {
-        return SurvivalCalibrationBinding::Current;
-    }
-    // The pre-release 3.1 producer used the bare functional for every supported
-    // scalar design. Preserve the sealed unmeasured slot without consulting the
-    // coverage table under that broader key. Source replay and all other claim
-    // and calibration-basis checks still apply.
-    if basis.key.interval_method == "percentile_bootstrap"
-        && functional.strip_suffix("+scope=unmeasured_design")
-            == Some(basis.key.functional.as_str())
+    let current = functional == basis.key.functional;
+    let historical =
+        functional.strip_suffix("+scope=unmeasured_design") == Some(basis.key.functional.as_str());
+    // Pre-release 3.1 used the bare key for supported designs outside the
+    // benchmark. An authentic unmeasured slot makes no coverage assertion,
+    // even if a record has since been added. Preserve it without lookup.
+    if (current || historical)
         && basis.key.posterior.is_empty()
         && basis.key.identification == "point"
         && basis.scope.posterior_draws.is_none()
@@ -1578,7 +1581,7 @@ fn survival_calibration_basis_binding(
     {
         return SurvivalCalibrationBinding::HistoricalUnmeasured;
     }
-    SurvivalCalibrationBinding::Mismatch
+    if current { SurvivalCalibrationBinding::Current } else { SurvivalCalibrationBinding::Mismatch }
 }
 
 /// Producer validation permits readable exports with explicitly unavailable

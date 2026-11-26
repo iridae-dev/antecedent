@@ -445,14 +445,19 @@ fn supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery
 #[test]
 fn historical_delayed_entry_incidence_replays_without_inheriting_calibration() {
     use antecedent_io::{
-        CONTRACT_SECTION, CalibrationStatus, ClaimIdentityWire, CompressPolicy, ReplayOptions,
-        RetainedArtifactIdentity, claim_digest, decode_analysis_result_artifact,
-        decode_analysis_result_contract, load_analysis_result_expecting, pack_section_shared,
-        result_digest, to_cbor,
+        CalibrationStatus, ReplayOptions, RetainedArtifactIdentity,
+        decode_analysis_result_artifact, decode_analysis_result_contract,
+        load_analysis_result_expecting,
     };
 
-    let duration: Vec<_> = (0..320).map(|row| if row % 4 == 0 { 2.0 } else { 3.0 }).collect();
-    let event: Vec<_> = (0..320).map(|row| f64::from(row % 4 == 0)).collect();
+    let duration: Vec<_> = (0..320).map(|row| if row % 4 < 2 { 2.0 } else { 3.0 }).collect();
+    let event: Vec<_> = (0..320)
+        .map(|row| match row % 4 {
+            0 => 1.0,
+            1 => 2.0,
+            _ => 0.0,
+        })
+        .collect();
     let treatment: Vec<_> = (0..320).map(|row| f64::from(row >= 160)).collect();
     let entry: Vec<_> = (0..320).map(|row| f64::from(row % 3 == 0)).collect();
     let data = TabularData::from_f64_columns([
@@ -491,34 +496,7 @@ fn historical_delayed_entry_incidence_replays_without_inheriting_calibration() {
     assert_eq!(slot.status, CalibrationStatus::NotMeasured);
     basis.key.functional = historical.into();
 
-    // Restore the exact calibration basis the prior producer used and reseal
-    // the claim. Every other output, source witness and identity comes from the
-    // retained compiled route. The contract seal excludes the claim itself.
-    let replace_claim = |mut contract: antecedent_io::AnalysisResultContractWire| {
-        let mut artifact = artifact.clone();
-        let claim = contract.claim.as_mut().unwrap();
-        claim.claim_id = *claim_digest(&ClaimIdentityWire::new(
-            contract.seal,
-            claim,
-            result_digest(&body).unwrap(),
-        ))
-        .unwrap()
-        .as_bytes();
-        let index =
-            artifact.sections.iter().position(|section| section.id == CONTRACT_SECTION).unwrap();
-        let (descriptor, section) = pack_section_shared(
-            CONTRACT_SECTION,
-            "application/cbor",
-            to_cbor(&contract).unwrap().into(),
-            CompressPolicy::Auto,
-        );
-        artifact.manifest.sections[index] = descriptor;
-        artifact.sections[index] = section;
-        let mut bytes = Vec::new();
-        artifact.write_to(&mut bytes).unwrap();
-        bytes
-    };
-    let historical_bytes = replace_claim(contract.clone());
+    let historical_bytes = replace_survival_claim(artifact.clone(), &body, contract.clone());
     let identity = RetainedArtifactIdentity::of_bytes(&historical_bytes);
     let loaded = load_analysis_result_expecting(&historical_bytes, &identity).unwrap();
     let report = loaded.replay(&ReplayOptions::default());
@@ -530,7 +508,7 @@ fn historical_delayed_entry_incidence_replays_without_inheriting_calibration() {
 
     let slot = &mut contract.claim.as_mut().unwrap().calibration;
     slot.basis.as_mut().unwrap().scope.replicates_ok = Some(299);
-    let tampered = replace_claim(contract);
+    let tampered = replace_survival_claim(artifact, &body, contract);
     assert!(load_analysis_result_expecting(&tampered, &identity).is_err());
     // Even a separately retained, self-consistently resealed forgery fails
     // against the draw count of the original executed result.
@@ -539,6 +517,85 @@ fn historical_delayed_entry_incidence_replays_without_inheriting_calibration() {
     let report = tampered.replay(&ReplayOptions::default());
     assert!(!report.replayed());
     assert!(report.mismatches.iter().any(|reason| reason.as_ref() == "claim.calibration.basis"));
+}
+
+// The contract seal excludes the claim. Reseal the modified claim with its
+// unchanged result and source witness to exercise the reader's basis checks.
+fn replace_survival_claim(
+    mut artifact: antecedent_io::EncodedArtifact,
+    body: &antecedent_io::AnalysisResultWire,
+    mut contract: antecedent_io::AnalysisResultContractWire,
+) -> Vec<u8> {
+    use antecedent_io::{
+        CONTRACT_SECTION, ClaimIdentityWire, CompressPolicy, claim_digest, pack_section_shared,
+        result_digest, to_cbor,
+    };
+    let claim = contract.claim.as_mut().unwrap();
+    claim.claim_id =
+        *claim_digest(&ClaimIdentityWire::new(contract.seal, claim, result_digest(body).unwrap()))
+            .unwrap()
+            .as_bytes();
+    let index =
+        artifact.sections.iter().position(|section| section.id == CONTRACT_SECTION).unwrap();
+    let (descriptor, section) = pack_section_shared(
+        CONTRACT_SECTION,
+        "application/cbor",
+        to_cbor(&contract).unwrap().into(),
+        CompressPolicy::Auto,
+    );
+    artifact.manifest.sections[index] = descriptor;
+    artifact.sections[index] = section;
+    let mut bytes = Vec::new();
+    artifact.write_to(&mut bytes).unwrap();
+    bytes
+}
+
+#[test]
+fn historical_delayed_entry_band_replays_without_inheriting_calibration() {
+    use antecedent_io::{
+        CalibrationStatus, ReplayOptions, RetainedArtifactIdentity,
+        decode_analysis_result_artifact, decode_analysis_result_contract,
+        load_analysis_result_expecting,
+    };
+    // Fixed-G knots and floor differ from the repeated-study benchmark, and
+    // the extra draw is valid for ordinary scientific use.
+    let (prepared, data, ctx) = delayed_entry_curve_fixture(true, true, None, false, 400);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let band = result.survival().unwrap().difference_band.as_ref().unwrap();
+    assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Supported));
+    assert_eq!(band.replicates_ok, 400);
+    let bytes = prepared
+        .encode_contracted_result_with_source(&result, &data, "historical-delayed-band", &ctx)
+        .unwrap();
+    let (artifact, _, body) = decode_analysis_result_artifact(&bytes).unwrap();
+    let mut contract = decode_analysis_result_contract(&artifact).unwrap().unwrap();
+    let slot = &mut contract.claim.as_mut().unwrap().calibration;
+    let basis = slot.basis.as_mut().unwrap();
+    let historical = "difference_band+entry=delayed+censoring=fixed_known+endpoint=incidence:1+tau=4008000000000000";
+    assert_eq!(basis.key.functional, format!("{historical}+scope=unmeasured_design"));
+    assert_eq!(slot.status, CalibrationStatus::NotMeasured);
+    basis.key.functional = historical.into();
+
+    let historical_bytes = replace_survival_claim(artifact.clone(), &body, contract.clone());
+    let identity = RetainedArtifactIdentity::of_bytes(&historical_bytes);
+    let loaded = load_analysis_result_expecting(&historical_bytes, &identity).unwrap();
+    let replay = loaded.replay(&ReplayOptions::default());
+    assert!(replay.replayed(), "{replay:?}");
+    let retained = loaded.body.survival.unwrap().difference_band.unwrap();
+    assert_eq!(retained.lower.as_slice(), band.lower.as_ref());
+    assert_eq!(retained.upper.as_slice(), band.upper.as_ref());
+    let slot = loaded.contract.unwrap().claim.unwrap().calibration;
+    assert_eq!(slot.status, CalibrationStatus::NotMeasured);
+    assert!(slot.record_id.is_none());
+
+    let slot = &mut contract.claim.as_mut().unwrap().calibration;
+    slot.basis.as_mut().unwrap().scope.replicates_ok = Some(399);
+    let forged = replace_survival_claim(artifact, &body, contract);
+    let forged_identity = RetainedArtifactIdentity::of_bytes(&forged);
+    let loaded = load_analysis_result_expecting(&forged, &forged_identity).unwrap();
+    let replay = loaded.replay(&ReplayOptions::default());
+    assert!(!replay.replayed());
+    assert!(replay.mismatches.iter().any(|reason| reason.as_ref() == "claim.calibration.basis"));
 }
 
 #[allow(
@@ -1921,6 +1978,10 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
     let bytes = prepared
         .encode_contracted_result_with_source(&result, &data, "retained-fit", &ctx)
         .unwrap();
+    let retained = antecedent_io::load_analysis_result(&bytes).unwrap();
+    let slot = &retained.contract.as_ref().unwrap().claim.as_ref().unwrap().calibration;
+    assert!(slot.basis.as_ref().unwrap().key.functional.ends_with("+scope=unmeasured_design"));
+    assert_eq!(slot.status, antecedent_io::CalibrationStatus::NotMeasured);
     let mut builder = BundleBuilder::new();
     builder.add_detected_artifact(Some("standardized"), &bytes).unwrap();
     let bundle = builder.build().unwrap();
