@@ -21,8 +21,12 @@
     reason = "the direct facade kernels are the paths under comparison and become deprecated wrappers; the execution seeds spell the test family's number"
 )]
 #![allow(clippy::float_cmp, reason = "bit-identical equality is the property under test")]
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::estimate::policy_value::{
     BinaryIpwDesign, BinaryPolicyLimits, MultiActionIpwDesign, MultiActionLimits,
     evaluate_binary_ipw_policy, evaluate_multi_action_ipw_policy,
@@ -307,7 +311,16 @@ fn declared_factorial_artifact_round_trips_and_refuses_forgery() {
         .unwrap()
         .prepare(&ctx)
         .unwrap();
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::Randomized));
+    let program = prepared.plan_view().unwrap().identity();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.lowered_program_identity(), Some(program));
+    retained_graphless::assert_retained_graphless_program(
+        "factorial-bernoulli",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let fit = result.randomized_effect().unwrap().clone();
     assert_factorial_twin(&design, &fit);
     let bytes = prepared.encode_contracted_result(&result, "factorial-bernoulli", &ctx).unwrap();
@@ -315,6 +328,7 @@ fn declared_factorial_artifact_round_trips_and_refuses_forgery() {
     let names = header.variable_names.clone();
     let stored = artifact.randomized_effect.as_ref().unwrap();
     assert_eq!(stored.assignment_design, "factorial_2x2_bernoulli");
+    assert_eq!(stored.effect.to_bits(), fit.effect.to_bits());
     assert_eq!(stored.interval_95, fit.interval_95);
     assert_eq!(stored.factorial_interaction_interval_95, fit.factorial_interaction_interval_95);
     assert!(!refused(&artifact, &names, "factorial-bernoulli-reencode"));

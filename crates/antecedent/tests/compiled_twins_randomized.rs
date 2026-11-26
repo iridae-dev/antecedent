@@ -14,8 +14,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 #![allow(deprecated, reason = "the direct facade doors are the paths under comparison")]
 
+#[path = "common/retained_graphless.rs"]
+mod retained_graphless;
+
 use std::sync::Arc;
 
+use antecedent::analysis::RetainedOperation;
 use antecedent::analysis::randomized_adjustment::RandomizedAdjustment;
 use antecedent::prelude::ExecutionContext;
 use antecedent::{EstimatorId, RandomizedEffectEstimate, RandomizedEffectQuery, Study};
@@ -110,7 +114,16 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
         prepared.plan().logical.record.estimator.as_deref(),
         Some("randomized.estimated_cuped_ht_itt")
     );
+    assert!(matches!(prepared.retained_operation(), RetainedOperation::Randomized));
+    let program = prepared.plan_view().unwrap().identity();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.lowered_program_identity(), Some(program));
+    retained_graphless::assert_retained_graphless_program(
+        "estimated-slope-cuped",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let contract = prepared.contract_for_result(&result).unwrap();
     assert_eq!(contract.resolved_estimator.as_deref(), Some("randomized.estimated_cuped_ht_itt"));
     match &contract.reasoning.support {
@@ -125,7 +138,6 @@ fn estimated_slope_cuped_matches_the_direct_kernel() {
     }
     // The result states its pre-assignment covariate as structured data, and the portable
     // result carrying it passes the artifact verifier.
-    prepared.encode_contracted_result(&result, "estimated-slope-cuped", &ctx).unwrap();
     let wire = result.analysis_result_wire(prepared.query()).unwrap();
     assert_eq!(stated_covariates(&wire), vec![vec![("covariate".to_owned(), "1".to_owned())]]);
     let names = vec!["outcome".to_owned(), "baseline".to_owned()];
