@@ -559,7 +559,7 @@
     },
     {
       "path": "crates/antecedent-io-core/src/calibration.rs",
-      "sha256": "79b5f13167e8fd7f6899b6583e0b3b980d22c239f5af254ed2686b9d8bfc4404",
+      "sha256": "c32509d3b971bf63a64bcef8bf5a7a82d024d264edcc032da480c35545a16c56",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Runtime calibration lookup and its test fixtures; no Monte Carlo family producer."
@@ -2070,7 +2070,7 @@
     },
     {
       "path": "crates/antecedent/tests/longitudinal_regime_calibration.rs",
-      "sha256": "addc9822b455d4b73e2a4fb23ff72c0da7c27c0f60d999252bf44bc224c973d7",
+      "sha256": "0e31eae987d193f5c7f0d5eb620aa677b577cdad5cd18c77957b398d3d5a8c95",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2079,7 +2079,7 @@
           "argument": "RecordKey {\n            test: \"four_period_sequential_dr_coverage\",\n            dgp: \"four_randomized_fair_coin_decisions_monotone_censoring_additive_gaussian_value\",\n            interval: \"analytic_se\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 255,
+          "line": 260,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test,\n            dgp: \"two_fair_coin_decisions_binary_baseline_additive_normal_terminal_reward\",\n            interval: \"percentile_bootstrap\",\n        },\n        REPORTED_LEVEL,"
         }
