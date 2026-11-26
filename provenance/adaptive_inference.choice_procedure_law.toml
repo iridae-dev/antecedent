@@ -13,7 +13,8 @@ copied_tests = false
 # of adaptive_inference.procedure_law; no primary paper introduces this state recursion.
 papers = []
 implementation_deviations = [
- "Categorical choices only, at most 4 options, 24 looks and 65535 units; the state is the vector of choice counts, bounded by the same live-state and work limits as the Bernoulli procedure law, and a larger procedure is refused rather than approximated.",
+ "Execution admission changes which declared runs can finish within the supplied limits. The existing independent reference exercises the finite-law arithmetic on its frozen procedures.",
+ "The declaration requires at least two options and at most 65535 units. The context entry point checks cancellation and quotes the declaration before traversal. Live-state and work limits still govern enumeration over reachable choice counts. Independent checks cover two to four options.",
  "The stopping rule is a posterior probability-best and expected-loss criterion on the Dirichlet posterior with a minimum enrolment; every element is declared and none is defaulted. The comparison band is the Bernoulli rules' threshold tolerance.",
  "The law is of the declared procedure under a hypothesized truth or the declared Dirichlet prior predictive only. It is not a bound over other truths, a coverage statement or a calibration claim; those stay closed until a coverage record attests the cell.",
 ]
@@ -32,13 +33,13 @@ redistribution = "The reference script and its frozen output are repository-auth
 limitations = "No primary paper is claimed. The reference is not an independent human review and is not wired into a gate; its output is frozen and compared by the test. The comparison covers the frozen procedures only (two to four options, fixed and prior-predictive kernels, one- and multi-look schedules). Larger state spaces than the bound are refused, not compared."
 sources = ["https://docs.python.org/3/library/fractions.html", "https://mpmath.org/doc/1.3.0/"]
 findings_resolved = ["No defect was found against the reference. Scope finding: the Bernoulli law enumerator cannot represent a choice state, so the categorical law is a separate enumerator over the same capacity bounds rather than a generalization of it."]
-record_sha256 = "4cd6af35d32d175fba2586d93db2daad6634191da4b187ff53e2fcccd088b92a"
+record_sha256 = "8f999b1ea6711f831483e5a426fa03ff364a9cd6a643dc0dd29c0200bd20b3af"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/choice_procedure.rs"
-items = ["const MAX_CHOICE_PROCEDURE_LOOKS", "const MAX_CHOICE_PROCEDURE_OPTIONS", "const MAX_CHOICE_PROCEDURE_UNITS", "enum ChoiceKernel", "fn assess", "fn enumerate_choice_law", "fn expected_enrolled", "fn is_valid", "fn rule_stop_probabilities", "fn selection_probabilities", "fn validate", "struct ChoiceLaw", "struct ChoiceProcedureSpec", "struct ChoiceStoppingRule", "struct ChoiceTerminalAtom", "struct Rules", "type StateMap"]
-sha256 = "df00a4e353074e9bf6f308e20b511bd788ce9d93978dcec38213ff7bff91464d"
+items = ["const MAX_CHOICE_PROCEDURE_LOOKS", "const MAX_CHOICE_PROCEDURE_OPTIONS", "const MAX_CHOICE_PROCEDURE_UNITS", "enum ChoiceKernel", "fn assess", "fn enumerate_choice_law", "fn enumerate_choice_law_in", "fn expected_enrolled", "fn is_valid", "fn rule_stop_probabilities", "fn selection_probabilities", "fn validate", "struct ChoiceLaw", "struct ChoiceProcedureSpec", "struct ChoiceStoppingRule", "struct ChoiceTerminalAtom", "struct Rules", "type StateMap"]
+sha256 = "edf85fc18916a968e88bf2ae781b98fc48a11b285144d51d680ec386725d84f6"
 
 [[method_review.artifacts]]
 role = "assertion"

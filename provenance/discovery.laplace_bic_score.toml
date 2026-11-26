@@ -6,12 +6,13 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term applied to a maximised likelihood"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["Page 461, displayed model-selection criterion using the maximized log likelihood and the half-log sample size penalty per parameter"] },
  { title = "A linear non-Gaussian acyclic model for causal discovery", sections = ["non-Gaussian noise makes the causal direction of a linear model identifiable from the likelihood"] },
 ]
 
 implementation_deviations = [
- "The local score is the Laplace-noise log likelihood at the least-absolute-deviations fit (iteratively reweighted least squares, 60 sweeps from unit weights) with the scale set to the mean absolute residual, penalised by (|Pa| + 2) / 2 times ln n; it is a pseudo-likelihood under a declared heavy-tailed noise family, not the non-Gaussian likelihood the cited paper analyses, and it is misspecified when the noise has another non-Gaussian shape.",
+ "The local cache retains compensated mean-centered columns across parent sets. The Laplace solve and polishing read the same stored intercept-adjusted design. Existing independent fixtures check small LAD objectives, while a unit assertion checks warmed and direct score agreement.",
+ "The local score is the Laplace-noise log likelihood at the least-absolute-deviations fit (up to 60 iteratively reweighted least-squares sweeps from unit weights, followed by bounded LAD vertex polishing) with the scale set to the mean absolute residual, penalised by (|Pa| + 2) / 2 times ln n; it is a pseudo-likelihood under a declared heavy-tailed noise family, not the non-Gaussian likelihood the cited paper analyses, and it is misspecified when the noise has another non-Gaussian shape.",
  "Order MCMC over this score is a pseudo-posterior over DAGs: it orients an edge only to the degree the noise is non-Gaussian and carries no calibration claim. Exact enumeration, structure MCMC and the exact marginals refuse the score.",
 ]
 
@@ -30,19 +31,19 @@ scope = "laplace_bic_local in crates/antecedent-state/src/graph_score.rs: the le
 assumptions = ["Laplace noise with scale b: at the maximum-likelihood fit the log likelihood is -n ln(2 b) - n with b the mean absolute residual of the LAD fit, and the BIC penalty counts |Pa| + 1 coefficients plus the scale.", "A least-absolute-deviations optimum is attained at a fit interpolating one row per coefficient (the L1 objective is convex piecewise linear), so the optimum value is the minimum over k-subsets of rows of the L1 norm of the interpolating fit's residuals.", "The score is a pseudo-likelihood; it is misspecified for non-Laplace non-Gaussian noise."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope and wrote its own reference from definitions; no upstream implementation or test source was consulted or copied."
 redistribution = "The exhaustive k-subset LAD enumeration is repository-authored (MIT OR Apache-2.0) and runs inside the crate's own unit tests. The cited papers are linked, not redistributed."
-limitations = "60 random problems with n = 9 to 14 rows, zero to two parents, Laplace noise and (every fourth) a gross outlier: the score equals the exhaustive-enumeration score to 1e-8 relative, and the score shifts by -n ln c under an outcome scaling c, with the outcome offset ignored. Large-n behavior is not compared with an exact solver (enumeration is combinatorial); the descent is only assumed to terminate at the global optimum there, which convexity guarantees but this review did not exercise beyond n = 2000 timing. The cited papers were not retrieved or re-read by this review (no downloads), so source correspondence is judged against the standard definitions and the executing references, not against the papers' text."
+limitations = "60 random problems with n = 9 to 14 rows, zero to two parents, Laplace noise and (every fourth) a gross outlier: the score equals the exhaustive-enumeration score to 1e-8 relative, and the score shifts by -n ln c under an outcome scaling c, with the outcome offset ignored. Large-n behavior is not compared with an exact solver (enumeration is combinatorial); the bounded optimizer has no global-optimality certificate. The timing test at n = 2000 supplies no comparison of optimum values. Schwarz supplies the model penalty. The executing reference independently evaluates the local objective on the stated small problems."
 sources = ["https://doi.org/10.1214/aos/1176344136"]
 findings_resolved = ["Defect repaired: the iteratively reweighted fit converges linearly and, at n = 14 with two parents, stopped at 500 sweeps with an objective 6e-5 above the least-absolute-deviations optimum (score error 9e-4); runs of up to 800 sweeps were needed on other small problems. After the reweighting stops the fit is now finished by descent over vertices: release each interpolated row, slide along the line that keeps the other k - 1 rows interpolated to the weighted median of the crossings, and accept only strict improvements, so the objective is that of an actual fit and never worse than before. All 60 problems then agree with exhaustive enumeration to 1e-8.", "Verified the closed form of the score and its penalty ((|Pa| + 2)/2 ln n) against the code, and that the objective value is unchanged by centering the columns.", "Added a self-check of the reference (median of an odd sample; a line with one gross outlier) so the enumeration cannot pass as a degenerate reference."]
-record_sha256 = "b89645359a7aa59f450cbf337eabe75afbb5c0c02fffea02b5e629314d130d6f"
+record_sha256 = "eed9bf5668a51bcffbf48fabbc868b93620926dd65ef9de7755f6c531f838b8f"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-items = ["const LAD_MAX_SWEEPS", "const LAD_OBJECTIVE_TOLERANCE", "const LAD_POLISH_MOVES_PER_COEFFICIENT", "const LAD_RESIDUAL_FLOOR", "fn centered_column", "fn col", "fn compensated_sum", "fn content_fingerprint", "fn fingerprint", "fn laplace_bic_local", "fn new", "fn polish_lad_vertex", "fn solve_spd", "fn solve_square", "struct GraphScoreData"]
-sha256 = "55541a8d018cc50f8df7d326ad417bfbb199efc5cb5a0d0edf7fe97743c7cb11"
+items = ["const LAD_MAX_SWEEPS", "const LAD_OBJECTIVE_TOLERANCE", "const LAD_POLISH_MOVES_PER_COEFFICIENT", "const LAD_RESIDUAL_FLOOR", "fn centered_column", "fn col", "fn compensated_sum", "fn content_fingerprint", "fn ensure_centered_columns", "fn fingerprint", "fn laplace_bic_local", "fn matrix_bytes", "fn new", "fn polish_lad_vertex", "fn solve_spd", "fn solve_square", "struct GraphScoreData"]
+sha256 = "19908695bb29267f011e48491f7a5a24477eddab2d7fcd08c621e7374910cdc7"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-state/src/graph_score_laplace_tests.rs"
 items = ["fn lad_minimum", "fn laplace", "fn laplace_score_equals_the_exhaustive_lad_optimum", "fn laplace_score_is_unchanged_by_rescaling_and_shifting_the_outcome", "fn reference_enumeration_solves_known_least_absolute_deviation_problems", "fn reference_score", "fn score", "fn solve", "fn unit", "struct Lcg"]
-sha256 = "5172567943ae2df3b86b7a309af8c4a8b0bef37fdaee41bffc69802c1a0cb049"
+sha256 = "0100c02e7c96ecc07ccdf734683b8f77004f6479c022c470002fbb1f032fb560"

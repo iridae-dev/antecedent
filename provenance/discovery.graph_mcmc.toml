@@ -6,13 +6,14 @@ copied_comments = false
 copied_tests = false
 
 papers = [
- { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["BIC penalty term used by the shared Gaussian score"] },
+ { title = "Estimating the Dimension of a Model", doi = "10.1214/aos/1176344136", sections = ["Page 461, displayed model-selection criterion using the maximized log likelihood and the half-log sample size penalty per parameter"] },
 ]
 
 implementation_deviations = [
+ "The shared local-score cache retains the compensated mean-centered columns and reuses them for the Gram and corrected residual calculation. Centering reuse leaves the score formula unchanged.",
  "Normalizes exp(Gaussian-BIC/2) times a simple graph prior as a graph posterior; this is a BIC pseudo-posterior rather than an integrated Bayesian posterior.",
  "The local Gaussian score is the maximised log-likelihood minus (k/2) ln n with k = parents + intercept; the noise-variance parameter is omitted from k because every node has one, so it adds the same constant to every graph and cancels in the normalised posterior. The log target is therefore already on the BIC/2 scale and is exponentiated without a further halving.",
- "MCMC results are finite-chain empirical frequencies subject to R-hat and ESS gates, and graph states are limited to 16 variables (240 directed-edge bits).",
+ "MCMC results are finite-chain empirical frequencies with R-hat and ESS diagnostics. Graph storage has single-word and wide masks. The exact-target comparisons here cover three variables and do not validate mixing or calibration at wider widths.",
 ]
 
 upstream_implementations_observed = []
@@ -34,13 +35,13 @@ redistribution = "The reference script and new tests are repository-authored und
 limitations = "Exact-path agreement is shown on two three-variable data sets and two priors only. Order and structure MCMC kernels (proposal ratios, tempering, the topological-order count correction) are not independently re-derived; their evidence remains the 0.08-band exhaustive comparisons and the existing unit tests. Constrained priors (forbidden or required edges, parent caps) are not covered by the new reference. Calibration remains deferred. The signed-uniform score has its own dispatch path. The Gaussian BIC factors and normalization covered by this numerical review retain their definitions. Calibration of edge probabilities is assessed separately."
 sources = ["https://doi.org/10.1214/aos/1176344136", "conformance/discovery/graph_mcmc_exact/reference_exact.py", "conformance/discovery/graph_mcmc_exact/expected.json"]
 findings_resolved = ["No defect found in the exact normalisation, parent-set score decomposition, Bernoulli edge prior or acyclicity filter: the independent enumeration matches product marginals to better than 1e-9 for both priors.", "The fixture's only generator was an unretained external script; a standard-library generator that reproduces its marginals to 2.5e-14 is now retained, and the exact path is asserted against the fixture at rounding level rather than only through a sampler band.", "Recorded that the noise-variance parameter is omitted from the penalty count and why this does not change the posterior."]
-record_sha256 = "8b047fb441f98562f3649a8b95f7f85c648efeab8fe6c6cb9b022f2803448046"
+record_sha256 = "1ff8998b12da5731c8af755e11bcc446315671cd07516a6ce7757b4970c7b318"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-state/src/graph_score.rs"
-items = ["enum GraphScoreFamily", "fn content_fingerprint", "fn fingerprint", "fn new"]
-sha256 = "cf0d28895866aba1cfd47a51b52d42b1796d8f2edce255a8a23664de88bfe776"
+items = ["enum GraphScoreFamily", "fn content_fingerprint", "fn ensure_centered_columns", "fn fingerprint", "fn new"]
+sha256 = "ea589171ef2063a5f95fe1a003a8d442cc76c4e32de9397aeb15fe0a1923382f"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -52,13 +53,13 @@ sha256 = "d845f04f6d17923e16183380169b183c85e4d8e3112402bdc098413fa7c72825"
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_enumeration.rs"
 items = ["const MAX_ENUM_NODES", "fn default", "fn enumerate_unique_dags", "fn grow_dags", "fn new", "fn run", "fn sample_instead", "struct ExactDagPosterior"]
-sha256 = "f75d536d4eb997e71098cbfa2ceb0122bfb15a99acf15a9ddea56ab4b52a46f4"
+sha256 = "0242ad37273b045865382a78aa367ac222b8a89184816e2fb305989616be8500"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-discovery/src/graph_posterior.rs"
 items = ["enum GraphPosteriorAtomKind", "fn algorithm", "fn as_str", "fn atom_kind", "fn atoms", "fn bernoulli_edges", "fn default", "fn diagnostics", "fn distinct_graph_keys", "fn edge_ess", "fn edge_marginals", "fn edge_mcse", "fn edge_rhat", "fn ess", "fn from_atoms", "fn graph_keys", "fn lag_bidirected_masks", "fn lag_masks", "fn lagged_edge_marginals", "fn lagged_edge_mcse", "fn mark_atoms", "fn max_lag", "fn n_graphs", "fn n_vars", "fn new", "fn orientation_marginals", "fn rejected_invalid", "fn uniform", "fn weights", "struct GraphPosterior", "struct GraphPrior", "struct SamplingSummary"]
-sha256 = "547e48181dd357e7f873e52e8999db3369cb9544095c11b6b1fc6b4b6fd65a36"
+sha256 = "7eb892baef2956dea84ce213b54fc288332a2fbecdfe75855e2507a70a0cf338"
 
 [[method_review.artifacts]]
 role = "assertion"

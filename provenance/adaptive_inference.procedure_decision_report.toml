@@ -21,16 +21,16 @@ test_sources = [
 status = "justified_non_algorithm"
 kind = "derivation"
 rationale = "Exact stopping-time law, expected enrolment, decision law, wrong-decision probability and expected regret of a declared adaptive procedure under a hypothesized truth."
-no_independent_algorithm = "Probability-weighted enumeration of the finite decision tree of the declared procedure; the weights are products of the Bernoulli outcome probabilities along each path."
+no_independent_algorithm = "This projection consumes the finite terminal law computed by adaptive_inference.procedure_law. Its context entry point passes admission and cancellation through to that enumerator."
 covered_by = ["adaptive_inference.procedure_law"]
-derivation = "For a finite tree of looks, the probability of a path is the product of its outcome probabilities under the hypothesized arm means. The stopping-look law, expected units, decision law, P(wrong decision) and expected regret are sums of path probabilities times the path's stopping look, units, decision indicator or regret."
+derivation = "The terminal law already incorporates the probabilities of the declared assignment, exposure, outcomes and loss transitions under the supplied truth. The report sums terminal weights by stop look and decision and weights enrolment and regret by terminal mass."
 record_sha256 = "861c64b689dd877e0c78605bf35498235950125873c20385cf4d8f8bb8162ed5"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_uncertainty.rs"
-items = ["const DERIVED_NOT_MEASURED", "const MAX_INVERSION_LAWS", "const TIE_TOLERANCE", "enum EstimandStatement", "enum Functional", "enum UncertaintyParadigm", "fn admit", "fn anytime_exclusion_probability", "fn anytime_valid_report", "fn bayesian_report", "fn check_paradigm", "fn compare", "fn decision_probabilities", "fn decision_report", "fn defined_mass", "fn estimator_law", "fn expected_enrolled", "fn functional_value", "fn horizon_probability", "fn inversion_interval", "fn mean", "fn ordering_p_values", "fn posterior_mean_gaps", "fn premise", "fn rank_of", "fn rule_stop_probabilities", "fn variance", "struct AnytimeCellBound", "struct AnytimeReport", "struct BayesianReport", "struct DecisionReport", "struct EstimatorLaw", "struct InversionGrid", "struct InversionInterval", "struct ObservedTerminal", "struct OrderingPValues", "struct PosteriorMeanGap", "struct Rank"]
-sha256 = "0dee9b2ab85f497548c200fc95d915cea3007d1c9c3193cfb03c82f581f866c4"
+items = ["const DERIVED_NOT_MEASURED", "const MAX_INVERSION_LAWS", "const TIE_TOLERANCE", "enum EstimandStatement", "enum Functional", "enum UncertaintyParadigm", "fn admit", "fn anytime_exclusion_probability", "fn anytime_exclusion_probability_in", "fn anytime_valid_report", "fn bayesian_report", "fn check_paradigm", "fn compare", "fn decision_probabilities", "fn decision_report", "fn decision_report_in", "fn defined_mass", "fn estimator_law", "fn expected_enrolled", "fn functional_value", "fn horizon_probability", "fn inversion_interval", "fn inversion_interval_in", "fn mean", "fn ordering_p_values", "fn posterior_mean_gaps", "fn posterior_mean_gaps_in", "fn premise", "fn rank_of", "fn rule_stop_probabilities", "fn variance", "struct AnytimeCellBound", "struct AnytimeReport", "struct BayesianReport", "struct DecisionReport", "struct EstimatorLaw", "struct InversionGrid", "struct InversionInterval", "struct ObservedTerminal", "struct OrderingPValues", "struct PosteriorMeanGap", "struct Rank"]
+sha256 = "0768a10dfb3bb5ea758d0e9783c87c1c6b7893515e05088ebec7c2f0e834cb6e"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
