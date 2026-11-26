@@ -163,6 +163,93 @@ fn two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_de
 }
 
 #[test]
+fn shared_subject_bootstrap_matches_the_joint_supremum_order_statistic() {
+    use antecedent_core::execution::StreamDomain;
+
+    let ctx = ExecutionContext::for_tests(17);
+    let spec = LongitudinalSensitivitySpec {
+        level: 0.9025,
+        assignment_limits: [[-0.02, 0.055], [-0.03, 0.04]],
+        mnar_limits: [-0.04, 0.10],
+        ..declaration()
+    };
+    let rows = observed_data();
+    let plan = compile_longitudinal_joint_sensitivity(spec.clone(), rows.clone(), &ctx).unwrap();
+    let fit = plan.execute(&ctx).unwrap();
+
+    // Standardize each intervention mean directly from the sampled trajectories.
+    // The observed means are constant within histories in this fixture. Refitting
+    // still changes the baseline, assignment, history and recording frequencies.
+    let means = |sample: &[&LongitudinalSubject], point: LongitudinalSensitivityPoint| {
+        let mut contrast = 0.0;
+        for a in 0..=1 {
+            let sign = if a == 0 { -1.0 } else { 1.0 };
+            for w in 0..=1 {
+                let base: Vec<_> = sample.iter().filter(|r| r.baseline == w).collect();
+                let first: Vec<_> = base.iter().filter(|r| r.treatment[0] == a).collect();
+                let mut mean = 0.0;
+                for l in 0..=1 {
+                    let history: Vec<_> = first.iter().filter(|r| r.intermediate == l).collect();
+                    let follows: Vec<_> = history.iter().filter(|r| r.treatment[1] == a).collect();
+                    let missing = follows.iter().filter(|r| r.outcome.is_none()).count();
+                    let history_mean = recorded_mean(w, a, l)
+                        - sign
+                            * (point.missingness * missing as f64 / follows.len() as f64
+                                + point.assignment[1]
+                                    * (1.0 - follows.len() as f64 / history.len() as f64));
+                    mean += history_mean * history.len() as f64 / first.len() as f64;
+                }
+                mean -= sign * point.assignment[0] * (1.0 - first.len() as f64 / base.len() as f64);
+                contrast += sign * mean * base.len() as f64 / sample.len() as f64;
+            }
+        }
+        contrast
+    };
+    let original: Vec<_> = rows.iter().collect();
+    let mut corners = Vec::new();
+    for a0 in spec.assignment_limits[0] {
+        for a1 in spec.assignment_limits[1] {
+            for missingness in spec.mnar_limits {
+                let point = LongitudinalSensitivityPoint { assignment: [a0, a1], missingness };
+                corners.push((point, means(&original, point)));
+            }
+        }
+    }
+    let mut suprema = Vec::new();
+    let n = rows.len() as u64;
+    for draw in 0..199 {
+        let mut rng = ctx.rng.stream_for(StreamDomain::external(0x4C4A_5345_4E53), draw);
+        let sample: Vec<_> = (0..n)
+            .map(|_| {
+                let choice = rng.next_u64();
+                // This fixed stream never hits the rejection tail of uniform sampling.
+                assert!(choice < u64::MAX - u64::MAX % n);
+                &rows[(choice % n) as usize]
+            })
+            .collect();
+        let deviation = corners.iter().map(|&(p, center)| (means(&sample, p) - center).abs());
+        suprema.push(deviation.fold(0.0, f64::max));
+    }
+    suprema.sort_by(f64::total_cmp);
+    // 0.9025 * (199 + 1) is halfway between order statistics 180 and 181.
+    let radius = (suprema[179] + suprema[180]) / 2.0;
+    let report = fit.report();
+    assert!((report.sampling_radius - radius).abs() < 1e-12);
+    assert_eq!(report.corners.len(), corners.len());
+    for (point, center) in &corners {
+        let fitted = report.corners.iter().find(|c| c.departures == *point).unwrap();
+        assert!((fitted.sampling_interval[0] - (center - radius)).abs() < 1e-12);
+        assert!((fitted.sampling_interval[1] - (center + radius)).abs() < 1e-12);
+    }
+    let lo = corners.iter().map(|c| c.1).fold(f64::INFINITY, f64::min);
+    let hi = corners.iter().map(|c| c.1).fold(f64::NEG_INFINITY, f64::max);
+    for (interval, center) in report.extrema_intervals.into_iter().zip([lo, hi]) {
+        assert!((interval[0] - (center - radius)).abs() < 1e-12);
+        assert!((interval[1] - (center + radius)).abs() < 1e-12);
+    }
+}
+
+#[test]
 fn repeated_studies_cover_the_entire_surface_and_both_decision_extrema_jointly() {
     const STUDIES: u64 = 64;
     const N: u64 = 1024;

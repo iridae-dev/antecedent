@@ -26976,10 +26976,10 @@ compatibility = "Additive bounded scientific route."
 coverage_records = ["cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners", "cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema"]
 search = false
 bounds = { cancellation = true, max_rows = 100000, max_refits = 2000, max_artifact_bytes = 16777216 }
-surface = ["crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", "python/antecedent/longitudinal_joint_sensitivity.py"]
+surface = ["python/antecedent/longitudinal_joint_sensitivity.py"]
 surface_pyo3 = ["python/src/longitudinal_joint_sensitivity_api.rs"]
-surface_rust = ["crates/antecedent/src/analysis/longitudinal_joint_sensitivity/kernel.rs", "crates/antecedent/src/analysis/composition_longitudinal_joint_sensitivity.rs"]
-surface_values = ["CompiledLongitudinalJointSensitivity", "JointSensitivityError", "LongitudinalSensitivityArtifact", "LongitudinalSensitivityCoverageDesign", "LongitudinalSensitivityChoice", "LongitudinalSensitivityCorner", "LongitudinalSensitivityDecision", "LongitudinalSensitivityPoint", "LongitudinalSensitivityReport", "LongitudinalSensitivityRefusal", "LongitudinalSensitivityResult", "LongitudinalSensitivitySpec", "LongitudinalSubject"]
+surface_rust = ["crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", "crates/antecedent/src/analysis/longitudinal_joint_sensitivity/kernel.rs", "crates/antecedent/src/analysis/composition_longitudinal_joint_sensitivity.rs"]
+surface_values = ["CompiledLongitudinalJointSensitivity", "JointSensitivityError", "LongitudinalSensitivityArtifact", "LongitudinalSensitivityCoverageDesign", "LongitudinalSensitivityChoice", "LongitudinalSensitivityCorner", "LongitudinalSensitivityDecision", "LongitudinalSensitivityPoint", "LongitudinalSensitivityReport", "LongitudinalSensitivityRefusal", "LongitudinalSensitivityResult", "LongitudinalSensitivitySpec", "LongitudinalSubject", "LongitudinalJointSensitivityPlanHandle", "LongitudinalJointSensitivityResultHandle"]
 refusals = [
   { detail = "longitudinal_joint_sensitivity.invalid_declaration" },
   { detail = "longitudinal_joint_sensitivity.positivity" },
@@ -26989,14 +26989,16 @@ refusals = [
   { detail = "longitudinal_joint_sensitivity.identity" },
 ]
 routes = [
-  { name = "antecedent.sensitivity.compile_longitudinal_joint_sensitivity", stage = "evaluate", status = "supported", claim = "interval", covers = ["longitudinal_joint_sensitivity_compile", "CompiledLongitudinalJointSensitivity.execute", "LongitudinalSensitivityArtifact.to_bytes"] },
-  { name = "antecedent.sensitivity.consume_longitudinal_joint_sensitivity", stage = "consume", status = "supported", claim = "interval", covers = ["longitudinal_joint_sensitivity_consume", "LongitudinalSensitivityResult.export"] },
+  { name = "antecedent.sensitivity.compile_longitudinal_joint_sensitivity", stage = "evaluate", status = "supported", claim = "interval", covers = ["longitudinal_joint_sensitivity_compile", "CompiledLongitudinalJointSensitivity.execute", "LongitudinalJointSensitivityPlanHandle.execute"] },
+  { name = "antecedent.sensitivity.consume_longitudinal_joint_sensitivity", stage = "consume", status = "supported", claim = "interval", covers = ["longitudinal_joint_sensitivity_consume", "LongitudinalSensitivityArtifact.to_bytes", "LongitudinalJointSensitivityResultHandle.export"] },
 ]
 fixtures = [
   { id = "sensitivity.longitudinal_joint.positive", role = "positive", intent = "Both zero-axis limits recover the stand-alone references, the full box flips the threshold decision, and incompatible support refuses.", evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision", shared_evidence = true },
   { id = "sensitivity.longitudinal_joint.truth", role = "truth", intent = "Separate complete-data mechanisms for each corner share their observed data; enumerating both potential means reproduces every fitted corner and the two jointly optimized extrema.", evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision", shared_evidence = true },
-  { id = "sensitivity.longitudinal_joint.coverage", role = "calibration", intent = "Independently generated studies score simultaneous coverage of the whole affine response surface and the two decision extrema together.", evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs", evidence_assertion = "longitudinal_two_decision_joint_box_and_extrema_l95" },
-  { id = "sensitivity.longitudinal_joint.replay", role = "artifact", intent = "Typed Python executes the same model on the Rust fixture, replays the full artifact and refuses inconsistent identity or outcome support.", evidence_test = "python/tests/test_longitudinal_joint_sensitivity.py", evidence_assertion = "test_typed_joint_sensitivity_executes_and_replays_with_bound_decision" },
+  { id = "sensitivity.longitudinal_joint.shared_refits.construction", role = "construction", intent = "Independently standardize each resampled trajectory cohort and compare the bootstrap supremum order statistic with all eight corner intervals and both extrema intervals.", evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", evidence_assertion = "shared_subject_bootstrap_matches_the_joint_supremum_order_statistic" },
+  { id = "sensitivity.longitudinal_joint.outcome_positivity.negative", role = "negative", intent = "When a followed history has no observed outcomes, the compiled fit refuses the entire joint surface with the typed positivity reason.", evidence_test = "python/tests/test_longitudinal_joint_sensitivity.py", evidence_assertion = "test_followed_history_without_observed_outcomes_refuses_joint_fit" },
+  { id = "sensitivity.longitudinal_joint.coverage_keys.calibration", role = "calibration", intent = "A declared Bernoulli study binds distinct calibration keys for the simultaneous surface and joint decision extrema, and portable replay preserves both keys.", evidence_test = "python/tests/test_longitudinal_joint_sensitivity.py", evidence_assertion = "test_declared_bernoulli_box_has_separate_surface_and_decision_keys" },
+  { id = "sensitivity.longitudinal_joint.replay.artifact", role = "artifact", intent = "Typed Python executes the same model on the Rust fixture, replays the full artifact and refuses inconsistent identity or outcome support.", evidence_test = "python/tests/test_longitudinal_joint_sensitivity.py", evidence_assertion = "test_typed_joint_sensitivity_executes_and_replays_with_bound_decision" },
 ]
 
 [[record.inference_outputs]]

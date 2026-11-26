@@ -98,6 +98,22 @@ def test_typed_joint_sensitivity_executes_and_replays_with_bound_decision() -> N
     assert impossible.value.detail == reason_details.longitudinal_joint_sensitivity.INCOHERENT_BOX
 
 
+def test_followed_history_without_observed_outcomes_refuses_joint_fit() -> None:
+    rows = [
+        replace(row, outcome=None)
+        if row.baseline == 0 and row.treatment == (1, 1) and row.intermediate == 1
+        else row
+        for row in _rows()
+    ]
+    plan = require_success(compile_longitudinal_joint_sensitivity(_spec(), rows))
+    outcome = plan.execute()
+    assert outcome.refusal is not None
+    assert outcome.refusal.code == "positivity_violated"
+    with pytest.raises(LongitudinalSensitivityRefusal) as missing:
+        require_success(outcome)
+    assert missing.value.detail == reason_details.longitudinal_joint_sensitivity.POSITIVITY
+
+
 def test_declared_bernoulli_box_has_separate_surface_and_decision_keys() -> None:
     rng = Random(5)
     rows = []
