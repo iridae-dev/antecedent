@@ -2480,7 +2480,7 @@
     "The integrated schedule terminal accepts replayed source, target and declaration products under their compiled child identities. Reference declarations without numerical replay do not supply those products.",
     "The ledger node delegates to the evidence ledger reader. A separate pool selection verifies its result, operation, retained synthesis input and value digest, and active standing against the replayed ledger. The affine terminal reads that branch's dependency closure; a stale sibling does not block the valid branch. Its scientific quantity remains caller-declared."
    ],
-   "digest": "9e11944a911a377c467a659c59a33bb4b1e0bdef066b33f1dea974220cb6e53f",
+   "digest": "abe34de60f40af7935f352dc0d1274b9e0e57a6401c68eb35cf3cd5173786b12",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
