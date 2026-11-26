@@ -548,6 +548,12 @@ class Value:
 
     __slots__ = ("_expr_value", "_units", "_relations", "_attributes", "_tradeoffs")
 
+    _expr_value: ValueExpr
+    _units: str
+    _relations: tuple[Relation, ...]
+    _attributes: tuple[Attribute, ...]
+    _tradeoffs: tuple[Tradeoff, ...]
+
     def __init__(
         self,
         expr: Any,

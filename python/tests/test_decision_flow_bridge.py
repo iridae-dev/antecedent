@@ -269,6 +269,50 @@ def test_design_decision_from_contract_extracts_the_affine_utilities_and_ranks()
     assert ranked.decision_contract_identity == contract.identity
 
 
+def test_design_decision_lowers_fixed_named_values_and_refuses_ranged_preferences() -> None:
+    state = _state()
+    attribute = decision.attribute("state", units=state.units)
+    offset = decision.attribute("offset", units="utility")
+    sign = decision.attribute("sign", units="unitless")
+    actions = (
+        decision.Action("guess0", inputs={"state": state, "offset": 1.0, "sign": -1.0}),
+        decision.Action("guess1", inputs={"state": state, "offset": 0.0, "sign": 1.0}),
+    )
+    fixed = decision.Contract(
+        actions=actions,
+        target_population="target",
+        value=decision.Value(offset + sign * attribute, units="utility"),
+    )
+    prior = dr.StatePrior.draws([0.0, 1.0])
+    declared = dr.DesignDecision.from_contract(fixed, prior=prior)
+    ordinary = dr.DesignDecision.from_contract(_guess_contract(), prior=prior)
+    assert declared.contract is fixed
+    assert declared.actions == ordinary.actions
+    ranked = require_success(
+        dr.rank_designs(
+            [_guess_candidate("cand-1", 0.75)],
+            decision=declared,
+            signal=_signal(),
+            cost_map=UTILITY_MAP,
+        )
+    )
+    assert ranked.decision_contract_identity == fixed.identity
+    assert ranked.candidates[0].evsi == pytest.approx(0.25, abs=1e-12)
+
+    weight = decision.tradeoff(
+        "weight", units="unitless", lower=0.5, upper=1.5, assumption="preference_panel"
+    )
+    ranged = decision.Contract(
+        actions=actions,
+        target_population="target",
+        value=decision.Value(offset + weight * sign * attribute, units="utility"),
+    )
+    with pytest.raises(decision.PreferenceRefusal) as refused:
+        dr.DesignDecision.from_contract(ranged, prior=prior)
+    assert refused.value.reason_code == "route_not_supported"
+    assert refused.value.detail == reason_details.preference_contract.NO_ORDINARY_FORM
+
+
 def test_from_contract_names_the_action_that_is_not_affine() -> None:
     state = _state()
     contract = decision.Contract(

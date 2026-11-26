@@ -324,6 +324,7 @@ class DesignDecision:
         utility expression and extracts exactly that pair, so the declaration cannot drift
         from the contract it names. ``state`` is the one quantity the utilities read; when
         omitted it is the single distinct input quantity across the contract's actions.
+        A named value uses its ordinary form when the declaration reduces to one.
 
         Raises:
             CausalTypeError: ``contract`` is not a ``decision.Contract`` or ``prior`` is not
@@ -333,24 +334,26 @@ class DesignDecision:
                 or an action's utility is not affine in the state (the message names the
                 action and why: a nonlinear product, a ``max``/``min`` of the state, or an
                 input that is not the state quantity).
+            PreferenceRefusal: a named value has no ordinary decision form.
         """
         if not isinstance(contract, Contract):
             raise CausalTypeError(
                 "DesignDecision.from_contract needs a decision.Contract, "
                 f"not {type(contract).__name__}"
             )
-        if contract.criterion.kind != "posterior_expected_utility":
+        criterion = contract._criterion().kind
+        if criterion != "posterior_expected_utility":
             raise CausalValueError(
-                "study ranking values expected utility; the contract's criterion is "
-                f"{contract.criterion.kind!r}"
+                f"study ranking values expected utility; the contract's criterion is {criterion!r}"
             )
         if contract.constraints:
             raise CausalValueError(
                 "study ranking does not carry hard constraints; the contract declares "
                 f"{[c.id for c in contract.constraints]}"
             )
+        ordinary = contract._ordinary()
         if state is None:
-            distinct = {q for action in contract.actions for q in action.inputs}
+            distinct = {q for action in ordinary.actions for q in action.quantities}
             if len(distinct) != 1:
                 raise CausalValueError(
                     f"state= is required: the actions read {len(distinct)} distinct input "
@@ -360,10 +363,11 @@ class DesignDecision:
         elif not isinstance(state, ScientificQuantity):
             raise CausalTypeError("state must be a ScientificQuantity")
         actions = []
-        for action in contract.actions:
+        for action in ordinary.actions:
             intercept, slope = _affine_in_state(action, state)
             actions.append(ActionUtility(action.id, intercept, slope))
-        return cls(contract=contract, actions=tuple(actions), prior=prior)
+        units = ordinary.utility_units if ordinary is not contract else None
+        return cls(contract=contract, actions=tuple(actions), prior=prior, utility_units=units)
 
     def _identity(self) -> str:
         return self.contract if isinstance(self.contract, str) else str(self.contract.identity)

@@ -980,19 +980,6 @@ class Contract:
         ``decision_contract_unsatisfied`` (``decision_evaluation.mean_source_insufficient``).
         Regret and EVPI are unavailable for such a decision.
         """
-        tuning = dict(
-            zip(
-                _TUNING,
-                (measure, tie_tolerance, vertex_cap, max_boxes, min_width_fraction),
-                strict=True,
-            )
-        )
-        binding = {
-            "program": program,
-            "outcome_units": outcome_units,
-            "dose_units": dose_units,
-            "population": population,
-        }
         if self._engine() == "tradeoff":
             if admissibility is not None:
                 raise _not_applicable(
@@ -1001,13 +988,37 @@ class Contract:
                 )
             from ._decision_tradeoff import evaluate_tradeoff
 
-            return evaluate_tradeoff(self, source, **tuning, **binding, execution=execution)
-        given = [f"{name}=" for name, value in tuning.items() if value is not None]
+            return evaluate_tradeoff(
+                self,
+                source,
+                measure=measure,
+                tie_tolerance=tie_tolerance,
+                vertex_cap=vertex_cap,
+                max_boxes=max_boxes,
+                min_width_fraction=min_width_fraction,
+                program=program,
+                outcome_units=outcome_units,
+                dose_units=dose_units,
+                population=population,
+                execution=execution,
+            )
+        tuning = zip(
+            _TUNING,
+            (measure, tie_tolerance, vertex_cap, max_boxes, min_width_fraction),
+            strict=True,
+        )
+        given = [f"{name}=" for name, value in tuning if value is not None]
         if given:
             raise _not_applicable(
                 f"{', '.join(given)} apply to a decision across trade-off ranges; this "
                 "contract is decided as an ordinary contract"
             )
+        binding = {
+            "program": program,
+            "outcome_units": outcome_units,
+            "dose_units": dose_units,
+            "population": population,
+        }
         return self._evaluate_ordinary(source, admissibility, binding, execution)
 
     def _evaluate_ordinary(
@@ -1032,15 +1043,15 @@ class Contract:
         if isinstance(source, Structures):
             from .decision_robust import AdmissibilityRules, AdmissibleContract, robust
 
-            result = require_success(
+            decision = require_success(
                 robust(
                     AdmissibleContract(contract, admissibility or AdmissibilityRules()),
                     source.claims,
                     kind=source.kind,
                 )
             )
-            result._declared = self
-            return result
+            decision._declared = self
+            return decision
         if admissibility is not None:
             raise _not_applicable(
                 "admissibility= applies to a decision across Structures; pass "
@@ -1477,7 +1488,7 @@ class Decision(DecisionResult):
         """Why this action, or why none: the choice, its evidence and its limits."""
         verdict = self.verdict
         by_id = {a.id: a for a in self.actions}
-        criterion = self._contract.criterion.kind.replace("_", " ")
+        criterion = self._contract._criterion().kind.replace("_", " ")
         if verdict.kind == "no_admissible_action":
             reasons = "; ".join(
                 f"{a.id} failed {e.constraint_id} (held {e.probability:.3g}, required {e.required:.3g})"
