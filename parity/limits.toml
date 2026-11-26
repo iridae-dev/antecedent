@@ -1714,3 +1714,27 @@ implementation = [{ path = "crates/antecedent/src/analysis/rpcmci_portable.rs", 
 guard = { path = "crates/antecedent/src/analysis/rpcmci_portable.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES' }
 refusal = { path = "crates/antecedent/src/analysis/rpcmci_portable.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES \{\s*return Err\(IoError::TooLarge\.into\(\)\)' }
 scope_fixture = { path = "crates/antecedent/tests/discovery_admission.rs", pattern = 'fn learned_rpcmci_checks_cells_and_artifact_bytes_before_resource_admission\(' }
+
+[[bound]]
+record = "sensitivity.longitudinal_joint"
+key = "max_rows"
+implementation = [{ path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", constant = "MAX_ROWS" }]
+guard = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = '!\(16\.\.=MAX_ROWS\)\.contains\(&rows\.len\(\)\)' }
+refusal = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = 'return Err\(JointSensitivityError::Invalid\(\s*"target names, sampling design, or cohort size"' }
+scope_fixture = { path = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", pattern = 'fn public_compiler_checks_longitudinal_subject_and_refit_limits\(' }
+
+[[bound]]
+record = "sensitivity.longitudinal_joint"
+key = "max_refits"
+implementation = [{ path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", constant = "MAX_REPLICATES" }]
+guard = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = '!\(199\.\.=MAX_REPLICATES\)\.contains\(&self\.replicates\)' }
+refusal = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = 'return Err\(JointSensitivityError::Invalid\(\s*"target names, sampling design, or cohort size"' }
+scope_fixture = { path = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", pattern = 'fn public_compiler_checks_longitudinal_subject_and_refit_limits\(' }
+
+[[bound]]
+record = "sensitivity.longitudinal_joint"
+key = "max_artifact_bytes"
+implementation = [{ path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", constant = "MAX_WIRE_BYTES" }]
+guard = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = 'if bytes\.len\(\) > MAX_WIRE_BYTES' }
+refusal = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = 'if bytes\.len\(\) > MAX_WIRE_BYTES \{\s*return Err\(JointSensitivityError::Resource\("portable artifact exceeds byte bound"' }
+scope_fixture = { path = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", pattern = 'fn longitudinal_reader_checks_artifact_size_before_decoding\(' }

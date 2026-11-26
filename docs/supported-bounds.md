@@ -264,6 +264,9 @@ markers below and compares it. Prose outside those markers is not read.
 | estimate.latent_soft_intervention | depth_limit | 2 | `crates/antecedent/src/analysis/latent_soft_intervention/fit.rs` |
 | discovery.learned_rpcmci_replay | max_cells | 1000000 | `crates/antecedent/src/analysis/rpcmci_portable.rs` |
 | discovery.learned_rpcmci_replay | max_bytes | 16777216 | `crates/antecedent/src/analysis/rpcmci_portable.rs` |
+| sensitivity.longitudinal_joint | max_rows | 100000 | `crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs` |
+| sensitivity.longitudinal_joint | max_refits | 2000 | `crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs` |
+| sensitivity.longitudinal_joint | max_artifact_bytes | 16777216 | `crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.
