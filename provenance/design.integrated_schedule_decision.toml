@@ -5,7 +5,7 @@ copied_code = false
 copied_comments = false
 copied_tests = false
 papers = [
-  { title = "Probability Inequalities for Sums of Bounded Random Variables", doi = "10.1080/01621459.1963.10500830", url = "https://www.cs.rpi.edu/academics/courses/spring06/random/hoefding.pdf", sections = ["Section 2, Theorem 2 and inequality (2.6), applied to each tail"] },
+  { title = "Probability Inequalities for Sums of Bounded Random Variables", authors = ["Wassily Hoeffding"], year = 1963, doi = "10.1080/01621459.1963.10500830", url = "https://www.cs.rpi.edu/academics/courses/spring06/random/hoefding.pdf", sections = ["Section 2, Theorem 2 and inequality (2.6), applied to each tail"] },
 ]
 implementation_deviations = [
   "The calculation uses a union bound over thirteen primitives from shared source trajectories and an independently sampled target baseline.",
@@ -20,3 +20,40 @@ test_sources = [
   "crates/antecedent/tests/integrated_schedule_decision.rs (point_oracle_replays_and_changed_parent_invalidates_terminal uses an independent rational fixture and integrated_schedule_unique_optima_coverage and integrated_schedule_all_tied_optima_coverage score all true maximizers across worlds)",
   "python/tests/test_integrated_schedule_decision.py",
 ]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Finite-world optimum set for two static binary decisions with censoring, joint source learning, independent target standardization and prespecified preferences. Review covers the whole-procedure coverage event and artifact replay."
+assumptions = [
+  "Source subjects are independent, target baseline rows are an independent sample, endpoint support is [0,1], treatments have overlap, and censoring is exchangeable given baseline and both realized actions.",
+  "The graph-specific treatment assumptions identify the target conditional values by a source-cell mean or a natural second-action average. Each of these conditional values transports across populations at the common binary baseline.",
+  "The two causal structures and all finite preference costs are prespecified and carry no probability weights.",
+]
+historical_exposure = "Review compared the bounded-mean formula with Hoeffding's published inequality, and derived the source-cell and target-mixture calculations independently. Historical author exposure is not established."
+redistribution = "Repository-authored implementation and fixtures. The linked literature is not redistributed."
+limitations = "This is source and method review. The empirical release evidence requires independent repetitions of both registered laws on the selected revision. The analytic probability controls false publication across repeated studies, and does not condition on passing the overlap filter. No graph posterior, preference distribution, or guarantee of a singleton optimum is inferred."
+sources = ["https://doi.org/10.1080/01621459.1963.10500830"]
+findings_resolved = [
+  "Checked the eight source endpoint means, four natural second-action probabilities and one target prevalence. Conditioning on each relevant count permits bounded-mean inference without requiring independence among the fitted source quantities.",
+  "Confirmed that the one common region yields simultaneous comparisons within every prespecified world. Shared early-action terms cancel exactly under the first-action-only model. Strict elimination at a negative upper endpoint retains ties.",
+  "Replayed evidence independently checks that a source claiming the fixed Bernoulli calibration has observed binary endpoints. Refused overlap replicates remain in the repeated-study denominator.",
+]
+record_sha256 = "aa8e9a3bd52d3de60ffca5e4f8ffb73747e449295635011c8c1cdd7bdf06ab6f"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/intervention_schedule_decision.rs"
+items = ["impl ScheduleSourceFit", "fn calibration_basis", "impl Region", "fn mix", "fn difference", "impl PreparedIntegratedScheduleDecision"]
+sha256 = "9fe5503e41c48b3fe4abf6f6859b78b38eda3a986e08d455c628a2b6f71c5083"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs"
+items = ["impl CompiledScheduleEvidence", "fn verified_evidence", "fn run", "impl DecisionVerifier"]
+sha256 = "56b4be5961390b0c5aac3c6d8816c993b128bfe94e086f63d58412ed93fffd73"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent/tests/integrated_schedule_decision.rs"
+items = ["const OUTCOME", "const EARLY", "const LATE", "const RETAIN", "const TARGET_PREVALENCE", "fn true_optima", "fn point_oracle_replays_and_changed_parent_invalidates_terminal", "fn empirical_schedule_scope_requires_verified_binary_endpoints", "fn coverage"]
+sha256 = "9d13728aae89b2f9bcc93c1d7eed5ca542c8929857a55fc39da61132b9c218da"

@@ -27055,7 +27055,8 @@ evidence_family = "An exact eight-cell oracle and repeated production-route stud
 estimand = "The union of all true optimal schedules under the declared structural and preference worlds after standardization to the target population."
 provider = "Compiler-owned joint source fit, independent target prevalence fit and prespecified finite structural/preference world declaration."
 inference_claim = "interval"
-inference_notes = "The route reports a confidence set for the final optimum set, with a finite-sample false-publication guarantee under its premises and a separately resolved empirical calibration scope."
+inference_notes = "The route reports a confidence set for the final optimum set, with a finite-sample false-publication guarantee under its premises and a separately resolved empirical calibration scope. The example calibration requires verified binary endpoints and its matching prespecified world declaration."
+coverage_records = ["cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_unique_optima_coverage.v2_validation_not_applicable", "cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_all_tied_optima_coverage.v2_validation_not_applicable"]
 owners = ["antecedent-design", "antecedent", "python/antecedent"]
 identity_inputs = ["source trajectory rows and censoring indications", "independent target rows", "fixed finite schedule, structure and preference worlds", "each compiled child's premises and program identity", "explicit source-fixed calibration design where declared"]
 wire_changes = ["Source, target and declaration children bind a compiled-program identity to their replayed products, and the terminal binds all three child products to the outer program."]
@@ -27076,3 +27077,28 @@ fixtures = [
   { id = "design.integrated_schedule_decision.scope.negative", role = "negative", intent = "An incomplete structure declaration, thin support and an inadequate resource budget produce actionable refusals.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "insufficient_scope_and_budget_are_refused" },
   { id = "design.integrated_schedule_decision.bundle.artifact", role = "artifact", intent = "A verified bundle independently executes its source, target and declaration children and recomputes its confidence set. Substituted and disconnected targets refuse.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal", shared_evidence = true },
 ]
+
+[[record.inference_outputs]]
+id = "design.integrated_schedule_decision.final_optimum_set"
+fields = ["IntegratedScheduleDecision.optimum_set", "IntegratedScheduleDecision.scenarios", "IntegratedScheduleDecision.minimum_coverage", "IntegratedScheduleDecision.coverage_scope"]
+method = "A common 0.95 confidence region for thirteen bounded means is projected jointly through fixed graph and preference alternatives. All maximizing schedules, including ties in any world, form the target set."
+implementation_status = "implemented_not_measured"
+owner = "antecedent-design"
+operation_or_object = "PreparedIntegratedScheduleDecision::execute"
+public_producers = ["antecedent.design.compile_integrated_schedule_decision"]
+closed_producers = []
+independent_consumers = ["antecedent.design.consume_schedule_decision_bundle"]
+method_source = "crates/antecedent-design/src/intervention_schedule_decision.rs"
+truth_design = "The independent source and target study law fixes binary baseline, both treatment probabilities, stratum- and schedule-specific retention and conditional Bernoulli endpoint probabilities. Independent oracle contrasts have a single maximizing schedule per world in the unique study and include multiple tied maximizing schedules in the tied study."
+truth_fixtures = ["crates/antecedent/tests/integrated_schedule_decision.rs::integrated_schedule_unique_optima_coverage", "crates/antecedent/tests/integrated_schedule_decision.rs::integrated_schedule_all_tied_optima_coverage"]
+nominal_level = "0.95"
+acceptance_threshold = "A repeated study succeeds only when the compiled final set and all of its declared worlds retain every exact maximizing schedule. Refused designs count as attempted but uncovered studies. The one-sided acceptance gate applies a coverage floor."
+measurement_suite = "crates/antecedent/tests/integrated_schedule_decision.rs"
+allocated_coverage_records = ["cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_unique_optima_coverage.v2_validation_not_applicable", "cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_all_tied_optima_coverage.v2_validation_not_applicable"]
+inherited_coverage_records = []
+boundary = "The analytic bound is over repeated sampling under the stated model. The measured status is specific to two prespecified binary study laws with independently sampled target rows and requires a current matching receipt."
+activation_disposition = "runtime_scope_checked_against_current_covering_record"
+allocation_status = "source_fixed_new_coverage_record"
+measurement_design_status = "complete_measurement_pending"
+truth_grid_allocation = "2048, 4096 and 8192 source subjects, with one independent target row per three source subjects, rounded down."
+

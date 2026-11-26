@@ -32,6 +32,7 @@ const ROLES: [&str; 3] = ["source", "target", "declaration"];
 const TERMINAL: &str = "decision";
 const CHILD_PROGRAM: &str = "schedule_child_program";
 const CHECKED_CHILD: &str = "checked_schedule_child";
+const BINARY_OBSERVED_ENDPOINTS: &str = "schedule_binary_observed_endpoints";
 
 /// One independently retained input to the schedule decision.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -301,13 +302,17 @@ fn decode_binding(fact: &str) -> Option<EvidenceBinding> {
 }
 
 fn verified_evidence(binding: &EvidenceBinding) -> Result<VerifiedNode, IoError> {
+    let mut facts = BTreeMap::from([
+        (FACT.into(), to_hex(&to_cbor(binding)?)),
+        (CHILD_PROGRAM.into(), to_hex(&binding.program)),
+        ("schedule_child_operation".into(), binding.operation.clone()),
+    ]);
+    if let EvidenceProduct::Source { fit } = &binding.result {
+        facts.insert(BINARY_OBSERVED_ENDPOINTS.into(), fit.binary_observed_endpoints.to_string());
+    }
     Ok(VerifiedNode {
         identity: digest(binding)?,
-        facts: BTreeMap::from([
-            (FACT.into(), to_hex(&to_cbor(binding)?)),
-            (CHILD_PROGRAM.into(), to_hex(&binding.program)),
-            ("schedule_child_operation".into(), binding.operation.clone()),
-        ]),
+        facts,
         values: vec![(CHECKED_CHILD.into(), 1.0)],
     })
 }
@@ -583,7 +588,7 @@ impl NodeVerifier for DecisionVerifier {
                     ScheduleBundleError::MissingParent,
                 ));
             }
-            let binding: EvidenceBinding =
+            let mut binding: EvidenceBinding =
                 parent.facts.get(FACT).and_then(|fact| decode_binding(fact)).ok_or_else(|| {
                     failure(BundleStage::CallbackUnavailable, ScheduleBundleError::MissingParent)
                 })?;
@@ -599,6 +604,12 @@ impl NodeVerifier for DecisionVerifier {
                     BundleStage::SwappedEvidence,
                     "schedule decision parent identity changed",
                 ));
+            }
+            if let EvidenceProduct::Source { fit } = &mut binding.result {
+                fit.binary_observed_endpoints = parent
+                    .facts
+                    .get(BINARY_OBSERVED_ENDPOINTS)
+                    .is_some_and(|status| status == "true");
             }
             inputs[role] = Some(binding.result);
         }

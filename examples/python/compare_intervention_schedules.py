@@ -39,7 +39,9 @@ def main() -> None:
         preference_costs=((0.0, 0.0625, 0.125, 0.1875), (0.0, 0.1875, 0.4609375, 0.4609375)),
     )
     run = compile_schedule_decision_bundle(source, target, declaration)
-    replay = consume_schedule_decision_bundle(run.data, expected_identity=run.identity)
+    portable = run.export()
+    assert portable.expectation is not None
+    replay = consume_schedule_decision_bundle(portable, expected_identity=portable.expectation)
     assert replay.optimum_set == (0, 2, 3)
     print("Compatible schedules:", [format(code, "02b") for code in replay.optimum_set])
     print("Coverage scope:", replay.coverage_scope)

@@ -133,6 +133,9 @@ pub(crate) struct Cell {
 #[serde(deny_unknown_fields)]
 pub struct ScheduleSourceFit {
     cells: [[Cell; 4]; 2],
+    // Only a fit from checked rows can establish this calibration requirement.
+    #[serde(skip)]
+    binary_observed_endpoints: bool,
 }
 
 impl ScheduleSourceFit {
@@ -145,6 +148,7 @@ impl ScheduleSourceFit {
             return Err(ScheduleDecisionError::InvalidDeclaration);
         }
         let mut cells = [[Cell::default(); 4]; 2];
+        let mut binary_observed_endpoints = true;
         for row in rows {
             let action = 2 * usize::from(row.actions[0]) + usize::from(row.actions[1]);
             let cell = &mut cells[usize::from(row.baseline)][action];
@@ -155,9 +159,10 @@ impl ScheduleSourceFit {
                 }
                 cell.observed += 1;
                 cell.endpoint_sum += endpoint;
+                binary_observed_endpoints &= matches!(endpoint, 0.0 | 1.0);
             }
         }
-        let fit = Self { cells };
+        let fit = Self { cells, binary_observed_endpoints };
         fit.check()?;
         Ok(fit)
     }
@@ -282,8 +287,10 @@ fn calibration_basis(
     declaration: &ScheduleDecisionDeclaration,
     source_rows: u64,
     target_rows: u64,
+    binary_observed_endpoints: bool,
 ) -> Option<CalibrationBasisWire> {
-    if declaration.schedules != [0, 1, 2, 3]
+    if !binary_observed_endpoints
+        || declaration.schedules != [0, 1, 2, 3]
         || declaration.preference_costs.len() != 2
         || declaration.preference_costs[0] != [0.0, 0.0625, 0.125, 0.1875]
         || target_rows != source_rows / 3
@@ -475,6 +482,7 @@ impl PreparedIntegratedScheduleDecision {
                 &self.declaration,
                 groups.iter().flatten().map(|cell| cell.assigned as u64).sum(),
                 self.target.subjects as u64,
+                self.source.binary_observed_endpoints,
             ),
         })
     }

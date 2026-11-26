@@ -214,6 +214,37 @@ fn insufficient_scope_and_budget_are_refused() {
     ));
 }
 
+#[test]
+fn empirical_schedule_scope_requires_verified_binary_endpoints() {
+    let rows = exact_source();
+    let binary_rows = rows
+        .iter()
+        .enumerate()
+        .map(|(i, row)| ScheduleSourceSubject {
+            endpoint: row.endpoint.map(|_| f64::from(i % 2 != 0)),
+            ..*row
+        })
+        .collect();
+    let target: Vec<bool> = (0..rows.len() / 3).map(|i| i % 4 != 0).collect();
+    let mut problem = declaration(true);
+    problem.calibration_design = Some(ScheduleCalibrationDesign::ExampleTiedOptima);
+    let ctx = ExecutionContext::for_tests(0);
+    let bounded =
+        compile_schedule_decision_bundle(rows, target.clone(), problem.clone(), &ctx).unwrap();
+    assert!(bounded.decision.calibration_basis.is_none());
+
+    let bernoulli = compile_schedule_decision_bundle(binary_rows, target, problem, &ctx).unwrap();
+    assert_eq!(
+        bernoulli.decision.calibration_basis.as_ref().unwrap().key.functional,
+        "integrated_schedule_example_all_tied_optima"
+    );
+    let portable = bernoulli.bundle.to_bytes("study-scope", &BundleLimits::default()).unwrap();
+    assert_eq!(
+        consume_schedule_decision_bundle(&portable, bernoulli.bundle.identity()).unwrap(),
+        bernoulli.decision,
+    );
+}
+
 fn coverage(tied: bool, name: &'static str) {
     let mut problem = declaration(tied);
     problem.calibration_design = Some(if tied {
@@ -245,14 +276,18 @@ fn coverage(tied: bool, name: &'static str) {
             .collect();
         let target: Vec<_> =
             (0..target_subjects).map(|_| target_draw() < TARGET_PREVALENCE).collect();
-        let decision = compile_schedule_decision_bundle(
+        let decision = match compile_schedule_decision_bundle(
             source,
             target,
             problem.clone(),
             &ExecutionContext::for_tests(seed),
-        )
-        .unwrap()
-        .decision;
+        ) {
+            Ok(built) => built.decision,
+            Err(ScheduleBundleError::Procedure(ScheduleDecisionError::InadequateOverlap)) => {
+                return None;
+            }
+            Err(error) => panic!("unexpected calibration refusal: {error}"),
+        };
         assert_eq!(decision.minimum_coverage, REPORTED_LEVEL);
         let every_world = decision.scenarios.iter().all(|row| {
             true_optima(row.structure, problem.preference_costs[row.preference_state])
@@ -260,7 +295,11 @@ fn coverage(tied: bool, name: &'static str) {
                 .all(|code| row.compatible_optima.contains(code))
         });
         let final_set = target_optima.iter().all(|code| decision.optimum_set.contains(code));
-        (every_world && final_set, decision.optimum_set.len(), decision.calibration_basis.unwrap())
+        Some((
+            every_world && final_set,
+            decision.optimum_set.len(),
+            decision.calibration_basis.unwrap(),
+        ))
     });
     let dgp = if tied {
         "independent_source_and_target_two_graphs_joint_preferences_all_optima_tie"
@@ -272,7 +311,13 @@ fn coverage(tied: bool, name: &'static str) {
         REPORTED_LEVEL,
     );
     let mut set_size = 0;
-    for (hit, size, basis) in covered {
+    let mut published = 0;
+    for study in covered {
+        let Some((hit, size, basis)) = study else {
+            tally.skip();
+            continue;
+        };
+        published += 1;
         let key = basis.key;
         assert_eq!(
             key.functional,
@@ -309,7 +354,12 @@ fn coverage(tied: bool, name: &'static str) {
         tally.record(Some((0.0, 0.0)), if hit { 0.0 } else { 1.0 });
         set_size += size;
     }
-    eprintln!("{name}: mean optimum set cardinality {:.3}", set_size as f64 / f64::from(n_sim()));
+    assert!(published > 0, "no repeated study returned a decision");
+    eprintln!(
+        "{name}: {published}/{} decisions published, mean published optimum set cardinality {:.3}",
+        n_sim(),
+        set_size as f64 / f64::from(published),
+    );
     tally.assert_one_sided(
         CoverageSide::Upper,
         "zero omitted true optima in the final joint decision and its declared worlds",

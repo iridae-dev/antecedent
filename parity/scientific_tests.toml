@@ -3675,3 +3675,10 @@ evidence_assertion = "portable_shared_series_replays_and_accepts_explicit_regime
 kind = "known_truth"
 fixtures = ["conformance/discovery/rpcmci_shared_portable.json"]
 why = "Two known regimes have opposite directed lag effects. Compare the estimated assignments up to label permutation and check both graph directions after portable replay and explicit regime selection."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs"
+evidence_assertion = "empirical_schedule_scope_requires_verified_binary_endpoints"
+kind = "known_truth"
+fixtures = []
+why = "A fractional sample with the matching sizes and declared study scope retains the theorem but cannot activate the fixed Bernoulli calibration. The binary sample retains its calibration coordinate through replay."
