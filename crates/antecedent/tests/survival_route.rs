@@ -443,6 +443,58 @@ fn supported_delayed_entry_fixed_known_incidence_round_trips_and_refuses_forgery
 }
 
 #[test]
+fn delayed_entry_incidence_refuses_out_of_range_event_codes() {
+    let excluded = i64::MAX as f64;
+    let largest = f64::from_bits(excluded.to_bits() - 1);
+    let cause = i64::MAX - 1_023;
+    let duration: Vec<_> = (0..320).map(|row| if row % 4 < 2 { 2.0 } else { 3.0 }).collect();
+    let mut event: Vec<_> = (0..320)
+        .map(|row| match row % 4 {
+            0 => largest,
+            1 => 2.0,
+            _ => 0.0,
+        })
+        .collect();
+    let treatment: Vec<_> = (0..320).map(|row| f64::from(row >= 160)).collect();
+    let entry: Vec<_> = (0..320).map(|row| f64::from(row % 3 == 0)).collect();
+    let table = |event: &[f64]| {
+        TabularData::from_f64_columns([
+            ("duration", duration.as_slice()),
+            ("event", event),
+            ("treatment", treatment.as_slice()),
+            ("entry", entry.as_slice()),
+        ])
+        .unwrap()
+    };
+    let data = table(&event);
+    let mut q = query(SurvivalFunctional::CumulativeIncidence { target_cause: cause });
+    q.tau = 3.0;
+    q.delayed_entry = Some(VariableId::from_raw(3));
+    let ctx = ExecutionContext::for_tests(297);
+    let prepared = Study::tabular(data.clone())
+        .query(CausalQuery::Survival(q))
+        .bootstrap_replicates(299)
+        .build()
+        .unwrap()
+        .prepare(&ctx)
+        .unwrap();
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    assert_eq!(result.survival().unwrap().target_cause, Some(cause));
+    let bytes = prepared
+        .encode_contracted_result_with_source(&result, &data, "largest-floating-cause", &ctx)
+        .unwrap();
+    let loaded = antecedent_io::load_analysis_result(&bytes).unwrap();
+    assert!(loaded.replay(&antecedent_io::ReplayOptions::default()).replayed());
+    assert_eq!(loaded.body.survival.as_ref().unwrap().target_cause, Some(cause));
+
+    event[0] = excluded;
+    let data = table(&event);
+    let rebound = prepared.rebind_data(data.clone(), &ctx).unwrap();
+    let error = rebound.estimate(&data, &ctx).unwrap_err();
+    assert!(error.to_string().contains("within the signed 64-bit range"));
+}
+
+#[test]
 fn historical_delayed_entry_incidence_replays_without_inheriting_calibration() {
     use antecedent_io::{
         CalibrationStatus, ReplayOptions, RetainedArtifactIdentity,
@@ -733,6 +785,13 @@ fn retained_delayed_entry_incidence(arm_size: usize, fixed_known: bool, supporte
             bundled.value("incidence", "lower_95"),
             curve.difference_at_tau_interval.map(|limits| limits[0]),
         );
+        let measured = &consumed.contract.as_ref().unwrap().claim.as_ref().unwrap().calibration;
+        let facts = &bundled.node("incidence").unwrap().facts;
+        assert_eq!(facts.get("calibration").map(String::as_str), Some(measured.status.as_str()));
+        assert_eq!(facts.get("calibration_record_id"), measured.record_id.as_ref());
+        if measured.record_id.is_some() {
+            assert!(facts.contains_key("calibration_benchmark_dgp"));
+        }
         let mut bounded = antecedent_io::ReplayOptions::default();
         bounded.limits.max_operations = 0;
         assert!(
@@ -758,16 +817,43 @@ fn retained_delayed_entry_incidence(arm_size: usize, fixed_known: bool, supporte
         let revised = prepared.rebind_data(revised_data.clone(), &ctx).unwrap();
         let revised_result = revised.estimate(&revised_data, &ctx).unwrap();
         let revised_bytes = revised
-            .encode_contracted_result(&revised_result, "revised-delayed-entry-incidence", &ctx)
+            .encode_contracted_result_with_source(
+                &revised_result,
+                &revised_data,
+                "revised-delayed-entry-incidence",
+                &ctx,
+            )
             .unwrap();
         assert!(
             antecedent_io::replay_analysis_result_expecting(&revised_bytes, &identity).is_err()
         );
         let revised_replay = antecedent_io::replay_analysis_result(&revised_bytes).unwrap();
+        assert!(revised_replay.acceptance.accepts_as_claim());
         assert_ne!(revised_replay.body.survival.unwrap().control, replayed_curve.control);
         assert_ne!(
             revised_replay.contract.unwrap().identities.data_snapshot,
             replayed_contract.identities.data_snapshot,
+        );
+        let mut builder = BundleBuilder::new();
+        builder.add_detected_artifact(Some("incidence"), &revised_bytes).unwrap();
+        let revised_bundle = builder.build().unwrap();
+        let bytes =
+            composition::export_bundle(&revised_bundle, "revised-incidence-bundle").unwrap();
+        assert!(
+            composition::consume(&bytes, bundle.identity(), &SuppliedSources::default()).is_err()
+        );
+        let revised_bundle =
+            composition::consume(&bytes, revised_bundle.identity(), &SuppliedSources::default())
+                .unwrap();
+        revised_bundle.require_verified().unwrap();
+        let revised_curve = revised_result.survival().unwrap();
+        assert_eq!(
+            revised_bundle.value("incidence", "lower_95"),
+            revised_curve.difference_at_tau_interval.map(|limits| limits[0])
+        );
+        assert_ne!(
+            revised_bundle.value("incidence", "incidence_difference"),
+            bundled.value("incidence", "incidence_difference")
         );
     }
     assert_eq!(
@@ -1019,9 +1105,14 @@ fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
                     &SuppliedSources::default(),
                 )
                 .unwrap();
+                replacement.require_verified().unwrap();
                 assert_eq!(
                     replacement.value("band", "horizon_lower_95"),
                     revised_curve.lower.last().copied()
+                );
+                assert_eq!(
+                    replacement.value("band", "whole_grid_upper_95"),
+                    revised_curve.upper.iter().copied().reduce(f64::max)
                 );
             }
             let replayed = antecedent_io::replay_analysis_result(&bytes).unwrap();
@@ -1990,6 +2081,10 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
         composition::consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap();
     checked.require_verified().unwrap();
     assert_eq!(checked.value("standardized", "horizon_lower_95"), band.lower.last().copied());
+    let facts = &checked.node("standardized").unwrap().facts;
+    assert_eq!(facts.get("calibration").map(String::as_str), Some("not_measured"));
+    assert!(!facts.contains_key("calibration_record_id"));
+    assert!(!facts.contains_key("calibration_benchmark_dgp"));
 
     let mut revised = rows.clone();
     let subject = revised.iter_mut().find(|row| row[0] == 3.0 && row[2] == 0.0).unwrap();
@@ -2020,6 +2115,30 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
         .unwrap();
     let replacement = antecedent_io::replay_analysis_result(&revised_bytes).unwrap();
     assert!(replacement.acceptance.accepts_as_claim());
+    let mut builder = BundleBuilder::new();
+    builder.add_detected_artifact(Some("standardized"), &revised_bytes).unwrap();
+    let revised_bundle = builder.build().unwrap();
+    let revised_bytes =
+        composition::export_bundle(&revised_bundle, "revised-standardized-band").unwrap();
+    assert!(
+        composition::consume(&revised_bytes, bundle.identity(), &SuppliedSources::default())
+            .is_err()
+    );
+    let revised_bundle = composition::consume(
+        &revised_bytes,
+        revised_bundle.identity(),
+        &SuppliedSources::default(),
+    )
+    .unwrap();
+    revised_bundle.require_verified().unwrap();
+    assert_eq!(
+        revised_bundle.value("standardized", "horizon_lower_95"),
+        revised_curve.lower.last().copied()
+    );
+    assert_eq!(
+        revised_bundle.value("standardized", "whole_grid_upper_95"),
+        revised_curve.upper.iter().copied().reduce(f64::max)
+    );
 
     let mut missing = query;
     missing.stratified_censoring = None;
@@ -2030,5 +2149,16 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
     }
     let bad = fixture::table(&bad);
     let refusal = prepared.estimate(&bad, &ctx).unwrap_err();
+    let antecedent::CausalError::Estimate(antecedent::estimate::EstimationError::Refused {
+        message,
+        ..
+    }) = refusal.peeled()
+    else {
+        panic!("expected a structured conditional-observation refusal: {refusal}");
+    };
+    assert_eq!(
+        message.detail(),
+        Some(antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_SUPPORT)
+    );
     assert!(refusal.to_string().contains("inadequate entry or follow-up overlap"));
 }

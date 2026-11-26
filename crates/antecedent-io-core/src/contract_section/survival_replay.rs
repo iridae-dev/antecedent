@@ -14,7 +14,7 @@ use antecedent_stats::survival::{
     ConditionalObservationRows, KnownCensoring, RandomizedSurvivalSummary, SurvivalDifferenceBand,
     SurvivalEndpoint, SurvivalRows, randomized_survival_bootstrap_difference_band_with_observation,
     randomized_survival_bootstrap_intervals_controlled, randomized_survival_ipcw_summary,
-    randomized_survival_summary, standardized_conditional_survival,
+    randomized_survival_summary, standardized_conditional_survival, survival_event_code,
 };
 
 pub(super) fn declares_survival_replay(
@@ -112,20 +112,9 @@ pub(super) fn replay_delayed_entry_survival(
     if cancelled() || operation_count > limits.max_operations as u64 {
         return Err(SurvivalIncidenceReplayResource);
     }
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "the source events are checked for integrality and range before conversion"
-    )]
     let events = event
         .iter()
-        .map(|&value| {
-            if value.is_finite() && value >= 0.0 && value.fract() == 0.0 && value <= i64::MAX as f64
-            {
-                Ok(value as i64)
-            } else {
-                Err(BodySurvivalIncidence)
-            }
-        })
+        .map(|&value| survival_event_code(value).ok_or(BodySurvivalIncidence))
         .collect::<Result<Vec<_>, _>>()?;
     let treated = column(query.treatment)?
         .iter()

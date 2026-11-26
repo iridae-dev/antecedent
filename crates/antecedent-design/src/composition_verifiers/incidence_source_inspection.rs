@@ -1,12 +1,25 @@
 //! Source-bound delayed-entry inference at the bundle boundary.
 
-use antecedent_io_core::{AnalysisResultWire, CausalQueryWire, replay_analysis_result};
+use antecedent_io_core::coverage_records_data::RECORDS;
+use antecedent_io_core::{
+    AnalysisResultWire, CalibrationSlotWire, CausalQueryWire, replay_analysis_result,
+};
 
 use super::{
     FACT_REQUEST, FACT_SNAPSHOT, Inspected, MAX_SNIFF_BYTES, failure, io_failure, publish,
     push_value,
 };
 use crate::composition_bundle::{BundleStage, NodeFailure, NodeKind};
+
+fn publish_calibration(inspected: &mut Inspected, slot: &CalibrationSlotWire) {
+    publish(&mut inspected.facts, "calibration", slot.status.as_str());
+    if let Some(id) = &slot.record_id {
+        publish(&mut inspected.facts, "calibration_record_id", id.as_str());
+        if let Some(record) = RECORDS.iter().find(|record| record.id == id.as_str()) {
+            publish(&mut inspected.facts, "calibration_benchmark_dgp", record.dgp);
+        }
+    }
+}
 
 pub(super) fn is_delayed_entry_incidence(body: &AnalysisResultWire) -> bool {
     matches!(&body.query, CausalQueryWire::Survival(query)
@@ -61,7 +74,7 @@ pub(super) fn inspect(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     publish(&mut inspected.facts, FACT_REQUEST, digest(contract.identities.target));
     publish(&mut inspected.facts, "program_identity", digest(contract.identities.program));
     publish(&mut inspected.facts, "target_cause", cause.to_string());
-    publish(&mut inspected.facts, "calibration", claim.calibration.status.as_str());
+    publish_calibration(&mut inspected, &claim.calibration);
     publish(&mut inspected.facts, "inference_scope", curve.uncertainty.clone());
     publish(
         &mut inspected.facts,
@@ -107,7 +120,7 @@ pub(super) fn inspect_band(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
     publish(&mut inspected.facts, FACT_SNAPSHOT, digest(contract.identities.data_snapshot));
     publish(&mut inspected.facts, FACT_REQUEST, digest(contract.identities.target));
     publish(&mut inspected.facts, "program_identity", digest(contract.identities.program));
-    publish(&mut inspected.facts, "calibration", claim.calibration.status.as_str());
+    publish_calibration(&mut inspected, &claim.calibration);
     publish(&mut inspected.facts, "inference_scope", "simultaneous_95_difference_band");
     if let Some(provenance) = &curve.censoring_survival_provenance {
         publish(&mut inspected.facts, "censoring_survival_provenance", provenance);

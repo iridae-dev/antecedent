@@ -16,6 +16,17 @@ pub use conditional_observation::{
     STRATIFIED_CENSORING_PROVENANCE, standardized_conditional_survival,
 };
 
+/// Convert a numeric survival event code without rounding or saturating it.
+/// Code zero means censoring.
+#[doc(hidden)]
+#[must_use]
+#[allow(clippy::cast_possible_truncation, reason = "validated finite integral code in i64 range")]
+pub fn survival_event_code(value: f64) -> Option<i64> {
+    // i64::MAX rounds up to 2^63 in f64. That boundary is excluded.
+    (value.is_finite() && value >= 0.0 && value.fract() == 0.0 && value < i64::MAX as f64)
+        .then(|| value as i64)
+}
+
 /// Outcome summarized over randomized treatment arms.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SurvivalEndpoint {

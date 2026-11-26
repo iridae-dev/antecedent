@@ -409,8 +409,9 @@ print(json.dumps(consumed.value("fit", "horizon_lower_95")))
     revised.loc[
         (revised["treatment"] == 1.0) & (revised["entry_history"] == 1.0), "censor_history"
     ] = 0.0
-    with pytest.raises(Exception, match="inadequate entry or follow-up overlap"):
+    with pytest.raises(StructuredRefusal, match="inadequate entry or follow-up overlap") as overlap:
         require_success(ant.analyze(revised, query=query, inference=inference, execution=context))
+    assert overlap.value.detail == reason_details.survival.CONDITIONAL_OBSERVATION_SUPPORT
 
 
 def test_combined_entry_fixed_g_refuses_conditional_entry_and_bad_g() -> None:

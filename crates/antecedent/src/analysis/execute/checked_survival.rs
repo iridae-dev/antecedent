@@ -22,6 +22,7 @@ use antecedent_estimate::survival::{
 use antecedent_stats::survival::{
     ConditionalObservationRows, STRATIFIED_CENSORING_BAND, STRATIFIED_CENSORING_PROVENANCE,
     randomized_survival_bootstrap_intervals_controlled, standardized_conditional_survival,
+    survival_event_code,
 };
 
 mod bayesian;
@@ -293,25 +294,9 @@ impl CheckedSurvivalOperation {
     /// Reads the survival columns and validates event codes and the binary arm before any estimator runs.
     fn survival_columns(&self, data: &TabularData) -> Result<SurvivalColumns, CausalError> {
         let duration = numeric_column(data, self.query.duration)?;
-        let event_raw = numeric_column(data, self.query.event)?;
+        let event = event_codes(data, self.query.event)?;
         let treatment_raw = numeric_column(data, self.query.treatment)?;
         let entry = self.query.delayed_entry.map(|id| numeric_column(data, id)).transpose()?;
-        #[allow(
-            clippy::cast_possible_truncation,
-            reason = "each value is validated finite, integral, nonnegative, and within i64 range on the line above the cast"
-        )]
-        let event = event_raw
-            .iter()
-            .map(|&v| {
-                if !v.is_finite() || v < 0.0 || v.fract() != 0.0 || v > i64::MAX as f64 {
-                    Err(CausalError::Unsupported {
-                        message: "survival event codes must be finite nonnegative integers",
-                    })
-                } else {
-                    Ok(v as i64)
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
         let treated = treatment_raw
             .iter()
             .map(|&v| match v {
@@ -667,6 +652,32 @@ struct SurvivalColumns {
 
 /// Caller-supplied censoring survival: grid times, row-major probabilities, and the probability floor.
 type CensoringGrid<'a> = (&'a [f64], Vec<f64>, f64);
+
+fn event_codes(data: &TabularData, id: VariableId) -> Result<Vec<i64>, CausalError> {
+    use antecedent_data::ColumnView;
+    let invalid_code = || CausalError::Unsupported {
+        message: "survival event codes must be finite nonnegative integers within the signed 64-bit range",
+    };
+    match data.column(id).map_err(CausalError::from)? {
+        ColumnView::Float64(col) if col.validity.is_all_valid() => col
+            .values
+            .iter()
+            .map(|&value| survival_event_code(value).ok_or_else(invalid_code))
+            .collect(),
+        ColumnView::Int64(col) if col.validity.is_all_valid() => {
+            if col.values.iter().any(|&value| value < 0) {
+                return Err(invalid_code());
+            }
+            Ok(col.values.to_vec())
+        }
+        ColumnView::Boolean(col) if col.validity.is_all_valid() => {
+            Ok(col.values.iter().map(|&value| i64::from(value)).collect())
+        }
+        _ => Err(CausalError::Unsupported {
+            message: "survival duration, event, treatment, and entry columns must be complete numeric data",
+        }),
+    }
+}
 
 fn numeric_column(data: &TabularData, id: VariableId) -> Result<Vec<f64>, CausalError> {
     match data.column(id).map_err(CausalError::from)? {
