@@ -121,7 +121,7 @@ def test_probability_of_necessity_and_coupled_joint_event_match_enumerated_truth
     )
     interval = cw.seal(replace(necessity, reading="interval"))
     assert interval.refusal.code == "uncertainty_representation_insufficient"
-    assert interval.refusal.detail == "joint_law_propagation.no_interval_construction"
+    assert interval.refusal.detail == reason_details.joint_law_propagation.NO_INTERVAL_CONSTRUCTION
 
     sealed = require_success(cw.seal(necessity))
     fixture = (

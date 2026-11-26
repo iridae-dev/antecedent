@@ -151,7 +151,7 @@ fn io_refusal_json(error: &antecedent::io::IoError) -> String {
         );
     }
     if let IoError::Refused { code, message } = error
-        && let Some(text) = message.strip_prefix("decision_reliability.artifact_kind_mismatch: ")
+        && let Some((detail::ARTIFACT_KIND_MISMATCH, text)) = message.split_once(": ")
     {
         return crate::bridge::compact_refusal_json(
             code,

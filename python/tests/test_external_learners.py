@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.extensibility import (
     CausalProviderSpec,
     FoldPolicy,
@@ -711,7 +712,7 @@ def test_portable_learners_are_admitted_only_on_artifact_routes():
     assert learners.outcome.portable is False
     for route in ("smoothed_dose", "trial_aipw", "joint_cells"):
         with pytest.raises(
-            CausalUnsupportedError, match="dose_response.learner_not_portable"
+            CausalUnsupportedError, match=reason_details.dose_response.LEARNER_NOT_PORTABLE
         ) as caught:
             declare_portable_route(route, learners)
         assert caught.value.reason_code == "route_not_supported"

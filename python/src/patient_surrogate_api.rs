@@ -8,6 +8,7 @@ use antecedent::analysis::kernel_programs::patient_surrogate::{
     consume_patient_surrogate,
 };
 use antecedent::reason::reason_code;
+use antecedent::reason::reason_details::patient_surrogate as details;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;
@@ -24,21 +25,21 @@ fn refusal(code: &str, detail: &str, error: impl ToString) -> String {
 
 fn scientific(error: &E) -> String {
     let (code, detail) = match error {
-        E::Cancelled => (reason_code!("cancelled_no_claim"), "patient_surrogate.cancelled"),
-        E::Resource => (reason_code!("route_not_supported"), "patient_surrogate.resource"),
+        E::Cancelled => (reason_code!("cancelled_no_claim"), details::CANCELLED),
+        E::Resource => (reason_code!("route_not_supported"), details::RESOURCE),
         E::Identification(PrincipalSurrogateError::Monotonicity) => {
-            (reason_code!("invalid_argument"), "patient_surrogate.monotonicity")
+            (reason_code!("invalid_argument"), details::MONOTONICITY)
         }
         E::Identification(PrincipalSurrogateError::EmptyImproverStratum) => {
-            (reason_code!("invalid_argument"), "patient_surrogate.empty_stratum")
+            (reason_code!("invalid_argument"), details::EMPTY_STRATUM)
         }
         E::DecisionReading | E::PointNotIdentified => {
-            (reason_code!("route_not_supported"), "patient_surrogate.unsupported_reading")
+            (reason_code!("route_not_supported"), details::UNSUPPORTED_READING)
         }
         E::Artifact(_) | E::ReplayMismatch => {
-            (reason_code!("invalid_argument"), "patient_surrogate.replay")
+            (reason_code!("invalid_argument"), details::REPLAY)
         }
-        _ => (reason_code!("invalid_argument"), "patient_surrogate.declaration"),
+        _ => (reason_code!("invalid_argument"), details::DECLARATION),
     };
     refusal(code, detail, error)
 }
@@ -46,9 +47,9 @@ fn scientific(error: &E) -> String {
 fn program(error: &P) -> String {
     match error {
         P::Scientific(error) => scientific(error),
-        P::Support(error) => refusal(error.code(), "patient_surrogate.not_supported", error),
+        P::Support(error) => refusal(error.code(), details::NOT_SUPPORTED, error),
         P::Compile(error) => {
-            refusal(reason_code!("invalid_argument"), "patient_surrogate.declaration", error)
+            refusal(reason_code!("invalid_argument"), details::DECLARATION, error)
         }
     }
 }
@@ -196,7 +197,7 @@ fn patient_surrogate_compile(
                     None,
                     Some(refusal(
                         reason_code!("invalid_argument"),
-                        "patient_surrogate.declaration",
+                        details::DECLARATION,
                         error,
                     )),
                 ));

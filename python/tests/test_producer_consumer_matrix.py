@@ -2446,7 +2446,7 @@ print(json.dumps([consumed.node("transport").facts["construction"],
         assert isinstance(changed.node("decision").status, cb.Failed)
         with pytest.raises(cb.CompositionBundleRefusal) as refusal:
             cb.mean_decision(replace(contract, criterion=decision.Criterion.quantile(0.5)), result)
-        assert refusal.value.detail == "composition_bundle.unsupported_law"
+        assert refusal.value.detail == reason_details.composition_bundle.UNSUPPORTED_LAW
 
 
 # ------------------------------------------------------------ fitted effect cohort decision source
@@ -2579,7 +2579,7 @@ def _check_compact_model_bundle(o: Objs) -> None:
         export.evaluate({"z": 1.5})
     with pytest.raises(cb.CompositionBundleRefusal) as absence:
         cb.require_compact_refit_inputs(export)
-    assert absence.value.detail == "composition_bundle.callback_unavailable"
+    assert absence.value.detail == reason_details.composition_bundle.CALLBACK_UNAVAILABLE
     contract = _cohort_contract(o.cohort)
 
     def build(model: CompactExport) -> cb.Bundle:

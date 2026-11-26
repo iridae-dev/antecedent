@@ -6,6 +6,7 @@ import sys
 from dataclasses import replace
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent.errors import CausalTypeError
 from antecedent.outcomes import require_success
 from antecedent.patient_surrogate import (
@@ -93,7 +94,7 @@ def test_sample_bounds_cannot_be_used_as_a_population_decision_claim() -> None:
     assert result.bounds == (0.0, 0.0)
     with pytest.raises(PatientSurrogateRefusal) as refused:
         require_success(result.decide(0, 1))
-    assert refused.value.detail == "patient_surrogate.unsupported_reading"
+    assert refused.value.detail == reason_details.patient_surrogate.UNSUPPORTED_READING
 
     with pytest.raises(CausalTypeError, match="joint patient-level"):
         require_success(compile_patient_surrogate(DESIGN, (0.5, 0.25)))  # type: ignore[arg-type]

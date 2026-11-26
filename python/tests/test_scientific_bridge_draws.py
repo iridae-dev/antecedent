@@ -1022,7 +1022,7 @@ def test_trial_bridge_release_design_rejects_a_neighboring_resample_count(shared
     )
     with pytest.raises(ScientificBridgeRefusal) as refused:
         require_success(plan.execute())
-    assert refused.value.detail == "scientific_bridge.draws_unusable"
+    assert refused.value.detail == reason_details.scientific_bridge.DRAWS_UNUSABLE
     assert "399 refits" in refused.value.remedy
 
 

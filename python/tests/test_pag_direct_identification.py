@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from antecedent import _native
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
 from antecedent import pag_identification as pid
 from antecedent.outcomes import require_success
@@ -123,7 +124,7 @@ def test_cidp_exchanges_observation_and_intervention_and_reports_a_blocking_path
     assert witness.proof["path"] == [0, 3, 2]
     with pytest.raises(pid.PagIdentificationRefusal) as refused:
         require_success(plan.execute(steps=2))
-    assert refused.value.detail == "pag_identification.resource_exhausted"
+    assert refused.value.detail == reason_details.pag_identification.RESOURCE_EXHAUSTED
 
 
 def test_visible_nonnull_effect_and_retained_search_stop() -> None:

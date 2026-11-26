@@ -28,7 +28,7 @@ fn refused(error: &RpcmciReplayError) -> String {
     RefusalJson::new(
         reason,
         "rpcmci_learned",
-        "rpcmci_learned.portable_refusal",
+        antecedent::reason::reason_details::rpcmci_learned::PORTABLE_REFUSAL,
         &error.to_string(),
     )
     .json()

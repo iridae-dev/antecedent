@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import cohort_decision as cd
 from antecedent import composition_bundle as cb
 from antecedent import decision
@@ -242,7 +243,7 @@ print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
             treatment=treatment,
             features=features,
         )
-    assert error.value.detail == "composition_bundle.graph_or_snapshot_mismatch"
+    assert error.value.detail == reason_details.composition_bundle.GRAPH_OR_SNAPSHOT_MISMATCH
     with pytest.raises(cb.CompositionBundleRefusal) as error:
         cb.refit_compact_model(
             fit,
@@ -252,7 +253,7 @@ print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
             treatment=treatment,
             features=features,
         )
-    assert error.value.detail == "composition_bundle.provider_request_changed"
+    assert error.value.detail == reason_details.composition_bundle.PROVIDER_REQUEST_CHANGED
 
     legacy = CompactExport.consume(
         (FIXTURES / "compact_runtime_export_v1.bin").read_bytes(),
@@ -267,7 +268,7 @@ print(json.dumps([checked.identity, checked.evaluate({"z": 0.5}).point]))""",
             treatment=treatment,
             features=features,
         )
-    assert error.value.detail == "composition_bundle.callback_unavailable"
+    assert error.value.detail == reason_details.composition_bundle.CALLBACK_UNAVAILABLE
 
 
 def test_native_and_compact_fit_program_receipts_preserve_the_shared_digest() -> None:
@@ -322,7 +323,7 @@ def test_native_and_compact_fit_program_receipts_preserve_the_shared_digest() ->
     assert native_limit.value.reason_code == "execution_resource_limit"
     with pytest.raises(cb.CompositionBundleRefusal) as refit_limit:
         require_success(refit.execute(execution=limited))
-    assert refit_limit.value.detail == "composition_bundle.resource_refused"
+    assert refit_limit.value.detail == reason_details.composition_bundle.RESOURCE_REFUSED
 
     token = CancellationToken()
     token.cancel()
@@ -332,4 +333,4 @@ def test_native_and_compact_fit_program_receipts_preserve_the_shared_digest() ->
     assert native_cancel.value.reason_code == "cancelled_no_claim"
     with pytest.raises(cb.CompositionBundleRefusal) as refit_cancel:
         require_success(refit.execute(execution=stopped))
-    assert refit_cancel.value.detail == "composition_bundle.execution_cancelled"
+    assert refit_cancel.value.detail == reason_details.composition_bundle.EXECUTION_CANCELLED

@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from antecedent import Execution, ResourceLimits, decision
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
 from antecedent.joint_distribution import ScientificQuantity
 from antecedent.outcomes import require_success
@@ -119,7 +120,7 @@ print(json.dumps([result.replayed, result.program_identity, result.decision_fing
     ):
         with pytest.raises(cb.CompositionBundleRefusal) as refused:
             run()
-        assert refused.value.detail == "composition_bundle.resource_refused"
+        assert refused.value.detail == reason_details.composition_bundle.RESOURCE_REFUSED
 
     changed = require_success(
         cb.compile_counterfactual_transport_decision_bundle_recomputation(
@@ -136,8 +137,8 @@ print(json.dumps([result.replayed, result.program_identity, result.decision_fing
                 build(source, connect_contract=False), "decision"
             )
         )
-    assert missing.value.detail == "composition_bundle.graph_or_snapshot_mismatch"
+    assert missing.value.detail == reason_details.composition_bundle.GRAPH_OR_SNAPSHOT_MISMATCH
 
     with pytest.raises(cb.CompositionBundleRefusal) as refusal:
         cb.mean_decision(replace(contract, criterion=decision.Criterion.quantile(0.5)), source)
-    assert refusal.value.detail == "composition_bundle.unsupported_law"
+    assert refusal.value.detail == reason_details.composition_bundle.UNSUPPORTED_LAW

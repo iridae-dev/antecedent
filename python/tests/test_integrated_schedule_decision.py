@@ -10,6 +10,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from antecedent import _reason_details as reason_details
 from antecedent import load
 from antecedent.artifacts import artifact_identity
 from antecedent.execution import Execution, ResourceLimits
@@ -56,7 +57,7 @@ def test_schedule_decision_joint_scope_and_portable_replay(tmp_path: Path) -> No
     limited_execution = Execution(limits=ResourceLimits(memory_bytes=1))
     with pytest.raises(ScheduleDecisionRefusal) as stopped:
         require_success(compiled.execute(execution=limited_execution))
-    assert stopped.value.detail == "integrated_schedule.resource_refused"
+    assert stopped.value.detail == reason_details.integrated_schedule.RESOURCE_REFUSED
     built = require_success(compiled.execute())
     assert built.child_program_identities == compiled.child_program_identities
     assert built.decision.minimum_coverage == 0.95
@@ -120,7 +121,7 @@ print(json.dumps([result.optimum_set, result.minimum_coverage]))
     )
     with pytest.raises(ScheduleDecisionRefusal, match="retained identity") as mismatch:
         consume_schedule_decision_bundle(changed.data, expected_identity=built.identity)
-    assert mismatch.value.detail == "integrated_schedule.artifact_refused"
+    assert mismatch.value.detail == reason_details.integrated_schedule.ARTIFACT_REFUSED
     assert load(changed.data, expected=exported.expectation).refusal is not None
     with pytest.raises(ScheduleDecisionRefusal) as limited:
         consume_schedule_decision_bundle(
@@ -128,7 +129,7 @@ print(json.dumps([result.optimum_set, result.minimum_coverage]))
             expected_identity=built.identity,
             execution=Execution(limits=ResourceLimits(memory_bytes=1)),
         )
-    assert limited.value.detail == "integrated_schedule.resource_refused"
+    assert limited.value.detail == reason_details.integrated_schedule.RESOURCE_REFUSED
 
 
 def test_missing_joint_evidence_explains_what_to_supply() -> None:
@@ -142,7 +143,7 @@ def test_missing_joint_evidence_explains_what_to_supply() -> None:
         match="both structural alternatives and finite joint preference costs",
     ) as missing:
         compile_schedule_decision_bundle([], [], incomplete)
-    assert missing.value.detail == "integrated_schedule.missing_joint_evidence"
+    assert missing.value.detail == reason_details.integrated_schedule.MISSING_JOINT_EVIDENCE
 
 
 def test_schedule_confidence_bounds_match_all_joint_region_corners() -> None:

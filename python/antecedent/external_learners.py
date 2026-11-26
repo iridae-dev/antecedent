@@ -26,6 +26,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from . import _deprecation
+from . import _reason_details as reason_details
 from .errors import CausalTypeError, CausalUnsupportedError, CausalValueError
 from .execution import Execution, native_controls
 from .extensibility import (
@@ -333,7 +334,7 @@ PORTABLE_PREDICTION_MAP = "portable_prediction_map_v1"
 
 #: One refusal for a non-portable learner declared on smoothed dose, trial AIPW
 #: or joint-cell scores. The runtime reason is ``route_not_supported``.
-LEARNER_NOT_PORTABLE = "dose_response.learner_not_portable"
+LEARNER_NOT_PORTABLE = reason_details.dose_response.LEARNER_NOT_PORTABLE
 
 PORTABLE_ROUTES = ("smoothed_dose", "trial_aipw", "joint_cells")
 

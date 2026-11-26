@@ -8,6 +8,7 @@ from random import Random
 
 import pytest
 from antecedent import Execution, load
+from antecedent import _reason_details as reason_details
 from antecedent import composition_bundle as cb
 from antecedent.longitudinal_joint_sensitivity import (
     LongitudinalSensitivityRefusal,
@@ -86,7 +87,7 @@ def test_typed_joint_sensitivity_executes_and_replays_with_bound_decision() -> N
             fit.export(), expected="a" * 64, expected_program=plan.identity
         )
     assert wrong.value.reason_code == "invalid_argument"
-    assert wrong.value.detail == "longitudinal_joint_sensitivity.identity"
+    assert wrong.value.detail == reason_details.longitudinal_joint_sensitivity.IDENTITY
 
     incoherent = require_success(
         compile_longitudinal_joint_sensitivity(replace(_spec(), mnar_limits=(0, 2.0)), _rows())
@@ -94,7 +95,7 @@ def test_typed_joint_sensitivity_executes_and_replays_with_bound_decision() -> N
     with pytest.raises(LongitudinalSensitivityRefusal) as impossible:
         incoherent.execute()
     assert impossible.value.reason_code == "invalid_argument"
-    assert impossible.value.detail == "longitudinal_joint_sensitivity.incoherent_box"
+    assert impossible.value.detail == reason_details.longitudinal_joint_sensitivity.INCOHERENT_BOX
 
 
 def test_declared_bernoulli_box_has_separate_surface_and_decision_keys() -> None:
@@ -138,4 +139,4 @@ def test_declared_bernoulli_box_has_separate_surface_and_decision_keys() -> None
 
     with pytest.raises(LongitudinalSensitivityRefusal) as refused:
         compile_longitudinal_joint_sensitivity(replace(spec, decision_threshold=0.076), rows)
-    assert refused.value.detail == "longitudinal_joint_sensitivity.invalid_declaration"
+    assert refused.value.detail == reason_details.longitudinal_joint_sensitivity.INVALID_DECLARATION

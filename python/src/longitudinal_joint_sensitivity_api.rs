@@ -5,6 +5,7 @@ use antecedent::analysis::longitudinal_joint_sensitivity::{
     consume_longitudinal_joint_sensitivity,
 };
 use antecedent::reason::reason_code;
+use antecedent::reason::reason_details::longitudinal_joint_sensitivity as details;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -18,22 +19,22 @@ type RawSubject = (u64, u8, [u8; 2], u8, Option<f64>);
 fn refusal(error: &JointSensitivityError) -> String {
     let (code, detail) = match error {
         JointSensitivityError::Positivity | JointSensitivityError::RefitPositivity(_) => {
-            (reason_code!("positivity_violated"), "longitudinal_joint_sensitivity.positivity")
+            (reason_code!("positivity_violated"), details::POSITIVITY)
         }
         JointSensitivityError::IncoherentBox => {
-            (reason_code!("invalid_argument"), "longitudinal_joint_sensitivity.incoherent_box")
+            (reason_code!("invalid_argument"), details::INCOHERENT_BOX)
         }
         JointSensitivityError::Cancelled => {
-            (reason_code!("cancelled_no_claim"), "longitudinal_joint_sensitivity.cancelled")
+            (reason_code!("cancelled_no_claim"), details::CANCELLED)
         }
         JointSensitivityError::Resource(_) => {
-            (reason_code!("route_not_supported"), "longitudinal_joint_sensitivity.resources")
+            (reason_code!("route_not_supported"), details::RESOURCES)
         }
         JointSensitivityError::Identity => {
-            (reason_code!("invalid_argument"), "longitudinal_joint_sensitivity.identity")
+            (reason_code!("invalid_argument"), details::IDENTITY)
         }
         _ => {
-            (reason_code!("invalid_argument"), "longitudinal_joint_sensitivity.invalid_declaration")
+            (reason_code!("invalid_argument"), details::INVALID_DECLARATION)
         }
     };
     RefusalJson::new(code, "longitudinal_joint_sensitivity", detail, &error.to_string()).json()
