@@ -230,6 +230,7 @@ def compile_longitudinal_joint_sensitivity(
     proof="Recompile both mechanisms and reproduce the simultaneous band and decision from retained subject trajectories.",
     replayable=True,
     identity=("expected", "expected_program"),
+    input="data",
 )
 def consume_longitudinal_joint_sensitivity(
     data: object,
