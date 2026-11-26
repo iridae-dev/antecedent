@@ -91,7 +91,7 @@ sha256 = "ba9f04362c6abaf6c1c75c87cd04878ccec4aae526eaf8d60fd1b3e98da152e8"
 role = "assertion"
 path = "python/tests/test_rpcmci_regime_learning.py"
 items = ["fn test_portable_shared_series_replays_in_fresh_process_and_reviews_each_graph"]
-sha256 = "c34964e0f8f76ba38ace195c97338b91315fcdbee1eb86447b01a01393ffd8b2"
+sha256 = "04e44a0f215e2aa593c33f9b8f32c51e0dbd515f07d5d0ca6b008c439439d27b"
 
 [[method_review.artifacts]]
 role = "fixture"
