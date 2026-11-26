@@ -6078,3 +6078,99 @@ rust = "antecedent::analysis::longitudinal_joint_sensitivity::consume_longitudin
 kind = "fn"
 status = "bound"
 python = "antecedent.longitudinal_joint_sensitivity.consume_longitudinal_joint_sensitivity"
+
+[[entry]]
+rust = "antecedent::analysis::composition::describe_artifact"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.describe_artifact"
+
+[[entry]]
+rust = "antecedent::analysis::composition::detect_node_kind"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.detect_kind"
+
+[[entry]]
+rust = "antecedent::analysis::composition::mean_decision_bytes"
+kind = "fn"
+status = "bound"
+python = "antecedent.composition_bundle.mean_decision"
+
+[[entry]]
+rust = "antecedent::analysis::composition_integrated_schedule::compile_integrated_schedule_decision"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_schedule_decision.compile_integrated_schedule_decision"
+
+[[entry]]
+rust = "antecedent::analysis::composition_integrated_schedule::compile_schedule_decision_bundle"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_schedule_decision.compile_schedule_decision_bundle"
+
+[[entry]]
+rust = "antecedent::analysis::composition_integrated_schedule::consume_schedule_decision_bundle"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_schedule_decision.consume_schedule_decision_bundle"
+
+[[entry]]
+rust = "antecedent::analysis::composition_integrated_schedule::consume_schedule_decision_bundle_with_context"
+kind = "fn"
+status = "bound"
+python = "antecedent.intervention_schedule_decision.consume_schedule_decision_bundle"
+
+[[entry]]
+rust = "antecedent::analysis::composition_integrated_schedule::CompiledIntegratedScheduleDecision"
+kind = "type"
+status = "bound"
+python = "antecedent.intervention_schedule_decision.CompiledIntegratedScheduleDecision"
+
+[[entry]]
+rust = "antecedent::analysis::kernel_programs::bridge_images::consume_bridge_image"
+kind = "fn"
+status = "bound"
+python = "antecedent.scientific_bridge.consume_bridge_image"
+
+[[entry]]
+rust = "antecedent::analysis::kernel_programs::bridge_images::CompiledBridgeImage"
+kind = "type"
+status = "bound"
+python = "antecedent.scientific_bridge.CompiledBridgeImage"
+
+[[entry]]
+rust = "antecedent::analysis::longitudinal_joint_sensitivity::CompiledLongitudinalJointSensitivity"
+kind = "type"
+status = "bound"
+python = "antecedent.longitudinal_joint_sensitivity.CompiledLongitudinalJointSensitivity"
+
+[[entry]]
+rust = "antecedent::analysis::pag_identification::CompiledPagIdentification"
+kind = "type"
+status = "bound"
+python = "antecedent.pag_identification.CompiledPagIdentification"
+
+[[entry]]
+rust = "antecedent::analysis::rpcmci_portable::LearnedRpcmciArtifact::accept_regime"
+kind = "method"
+status = "bound"
+python = "antecedent.rpcmci_portable.LearnedRpcmciArtifact.accept_regime"
+
+[[entry]]
+rust = "antecedent::PreparedScientificBridgeDistribution::compile_sampling"
+kind = "method"
+status = "bound"
+python = "antecedent.scientific_bridge.PreparedDistributionBridge.compile_sampling"
+
+[[entry]]
+rust = "antecedent::Study::compile_patient_surrogate"
+kind = "method"
+status = "bound"
+python = "antecedent.patient_surrogate.compile_patient_surrogate"
+
+[[entry]]
+rust = "antecedent::analysis::composition::standard_consumer"
+kind = "fn"
+status = "internal"
+reason = "Constructs the native verifier registry. Python invokes the same registry through composition_bundle.consume_bundle and does not expose mutation of native verifier registrations."

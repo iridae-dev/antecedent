@@ -8,7 +8,7 @@ semantics. This check makes the promise mechanical without building anything. It
   `pub mod`s of `crates/antecedent/src/analysis/mod.rs` (the snapshot is regenerated deliberately
   and can lag the source),
 * `parity/python_facade_surface.toml` (one `[[entry]]` per public free function and per public
-  prepared or session type), and
+  prepared or session type, plus explicitly tracked public types and inherent methods), and
 * the Python sources under `python/`,
 
 and fails when
@@ -41,14 +41,14 @@ from _repo import REPO_ROOT as ROOT
 SNAPSHOT = ROOT / "parity/public_api/antecedent.txt"
 REGISTRY = ROOT / "parity/python_facade_surface.toml"
 STATUSES = {"bound", "internal", "missing", "unverified"}
-KINDS = {"fn", "type"}
+KINDS = {"fn", "type", "method"}
 
 # A prepared or session type is an entry point of its own; builders and result types are not.
 TYPE_SUFFIX = re.compile(r"::(Prepared[A-Za-z]*|[A-Za-z]*Session|[A-Za-z]*Study|CompiledRobustDecision)$")
 
 
-def snapshot_entries(text: str) -> dict[str, str]:
-    """Public free functions and prepared / session types of the facade snapshot."""
+def snapshot_entries(text: str, tracked: frozenset[str] = frozenset()) -> dict[str, str]:
+    """Public free functions, prepared/session types, and explicitly registered API items."""
     entries: dict[str, str] = {}
     for line in text.splitlines():
         if line.startswith("#") and not line.startswith("#["):
@@ -60,9 +60,20 @@ def snapshot_entries(text: str) -> dict[str, str]:
         if match:
             entries[match.group(1)] = "fn"
             continue
-        match = re.match(r"pub struct (antecedent(?:::[A-Za-z_0-9]+)+)", line)
-        if match and TYPE_SUFFIX.search(match.group(1)):
-            entries[match.group(1)] = "type"
+        match = re.match(r"pub (?:struct|enum|type) (antecedent(?:::[A-Za-z_0-9]+)+)", line)
+        if match:
+            path = match.group(1)
+            if path in tracked or (line.startswith("pub struct ") and TYPE_SUFFIX.search(path)):
+                entries[path] = "type"
+            continue
+        method = re.match(
+            r"pub (?:const |async )?fn <(antecedent(?:::[A-Za-z_0-9]+)+)>::fn ([a-z_0-9]+)[(<]",
+            line,
+        )
+        if method:
+            path = f"{method[1]}::{method[2]}"
+            if path in tracked:
+                entries[path] = "method"
     return entries
 
 
@@ -222,11 +233,18 @@ def registry_problems(
 
 
 def run(root: Path = ROOT) -> int:
-    entries = snapshot_entries((root / SNAPSHOT.relative_to(ROOT)).read_text(encoding="utf-8"))
-    # An item the snapshot already lists under another public path is one entry, not two.
-    known = {path.rsplit("::", 1)[-1] for path in entries}
-    entries |= {k: v for k, v in source_entries(root).items() if k.rsplit("::", 1)[-1] not in known}
     rows = load_registry(root / REGISTRY.relative_to(ROOT))
+    tracked = frozenset(row["rust"] for row in rows if row.get("kind") in {"type", "method"})
+    entries = snapshot_entries(
+        (root / SNAPSHOT.relative_to(ROOT)).read_text(encoding="utf-8"), tracked
+    )
+    # An item the snapshot already lists under another public path is one entry, not two.
+    known = {(path.rsplit("::", 1)[-1], kind) for path, kind in entries.items()}
+    entries |= {
+        path: kind
+        for path, kind in source_entries(root).items()
+        if (path.rsplit("::", 1)[-1], kind) not in known
+    }
     problems, counts = registry_problems(entries, rows, PythonIndex(root))
     summary = ", ".join(f"{count} {status}" for status, count in sorted(counts.items()))
     if problems:
@@ -244,6 +262,9 @@ def self_test() -> int:
         "pub fn antecedent::analysis::tier_diagnostics::read_tier_diagnostics(x: i32)\n"
         "pub struct antecedent::PreparedThing\n"
         "pub struct antecedent::Plain\n"
+        "pub fn <antecedent::Plain>::fn run(&self)\n"
+        "pub fn <antecedent::Plain>::fn internal_name(&self)\n"
+        "#[doc(hidden)] pub fn <antecedent::Plain>::fn hidden(&self)\n"
     )
     assert snapshot_entries("pub struct antecedent::CompiledRobustDecision\n") == {"antecedent::CompiledRobustDecision": "type"}
     entries = snapshot_entries(snapshot)
@@ -251,6 +272,11 @@ def self_test() -> int:
         "antecedent::analysis::tier_diagnostics::read_tier_diagnostics": "fn",
         "antecedent::PreparedThing": "type",
     }, entries
+    tracked = frozenset(
+        {"antecedent::Plain", "antecedent::Plain::run", "antecedent::Plain::hidden"}
+    )
+    explicit = snapshot_entries(snapshot, tracked)
+    assert explicit == {**entries, "antecedent::Plain": "type", "antecedent::Plain::run": "method"}
     index = PythonIndex(ROOT)
     rows = [
         {"rust": "antecedent::PreparedThing", "kind": "type", "status": "internal"},
@@ -265,6 +291,14 @@ def self_test() -> int:
     assert not problems, problems
     problems, _ = registry_problems(entries, rows[:1], index)
     assert any("has no row" in p for p in problems), problems
+    check = {"rust": "antecedent::Plain::run", "kind": "method", "status": "bound",
+             "python": "antecedent.discovery.RPCMCI.run"}
+    typed = {"rust": "antecedent::Plain", "kind": "type", "status": "internal"}
+    problems, _ = registry_problems(explicit, [*rows, typed, check], index)
+    assert not problems, problems
+    check["rust"] = "antecedent::Plain::gone"
+    problems, _ = registry_problems(explicit, [*rows, typed, check], index)
+    assert any("gone: row names an entry" in problem for problem in problems), problems
     hidden_source = (
         "#[doc(hidden)]\npub fn sealed_helper(x: i32) {}\n\n/// Doc.\npub fn open_helper() {}\n"
     )
