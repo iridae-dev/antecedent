@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::rpcmci_regime_learning::independent_changing_graphs_recover_labels_and_replay"
+  ],
+  "id": "discovery.learned_rpcmci_replay",
+  "kind": "capability",
+  "measurements": []
+}

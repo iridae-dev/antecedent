@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::intervention_response_class_validation_truth::intervention_response_class_cheap_and_full_match_each_completions_closed_form"
+  ],
+  "id": "InterventionResponse/Cpdag/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.cpdag.bayesian.posterior_quantile.l90.intervention_response_cpdag_bayesian_given.v2_validation_full.v2_structure_accepted",
+    "cov.intervention_response.cpdag.bayesian.posterior_quantile.l95.intervention_response_cpdag_bayesian_given.v2_validation_full.v2_structure_accepted"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-estimate::temporal_dependent_interval::dynamic_scm_interval_point_equals_enumerated_truth",
+    "antecedent::compiled_twins_interval_families::the_compiled_temporal_interval_reports_the_enumerated_marginalized_response"
+  ],
+  "id": "temporal.dependent_interval",
+  "kind": "capability",
+  "measurements": [
+    "cov.temporal_transport.selection_admg.frequentist.bootstrap_studentized.l95.temporal_two_step_units_studentized_l95.v2_validation_not_applicable"
+  ]
+}

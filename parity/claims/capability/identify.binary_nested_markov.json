@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent-estimate::nested_markov_binary_reference::constrained_fit_reaches_the_reference_maximum_on_hard_tables"
+  ],
+  "id": "identify.binary_nested_markov",
+  "kind": "capability",
+  "measurements": [
+    "cov.average_effect.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.v2_validation_not_applicable.contrast",
+    "cov.average_effect.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.v2_validation_not_applicable.contrast",
+    "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.v2_validation_not_applicable.mean0",
+    "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_beta2_l95.v2_validation_not_applicable.mean1",
+    "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.v2_validation_not_applicable.mean0",
+    "cov.intervention_response.admg.bayesian.posterior_eti.l95.nested_bayesian_full11d_uniform_l95.v2_validation_not_applicable.mean1"
+  ]
+}

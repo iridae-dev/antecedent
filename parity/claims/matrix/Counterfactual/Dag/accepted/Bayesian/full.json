@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::cross_world_dag_validation_truth::counterfactual_dag_cheap_and_full_validation_refutes_the_structural_slope"
+  ],
+  "id": "Counterfactual/Dag/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.counterfactual.dag.bayesian.posterior_quantile.l90.counterfactual_cpdag_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.counterfactual.dag.bayesian.posterior_quantile.l95.counterfactual_cpdag_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

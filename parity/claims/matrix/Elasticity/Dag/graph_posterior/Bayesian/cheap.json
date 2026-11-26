@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::graph_posterior_derivative_known_truth::graph_posterior_derivative_mixtures_and_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/Dag/graph_posterior/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.dag.bayesian.posterior_quantile.l90.plain_elasticity_dag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.elasticity.dag.bayesian.posterior_quantile.l95.plain_elasticity_dag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

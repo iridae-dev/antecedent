@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_class_posterior_known_truth::temporal_class_mediation_matches_the_path_product_under_cheap_and_full"
+  ],
+  "id": "TemporalMediationEffect/TemporalCpdag/graph_posterior/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_bayesian_graph_posterior_coverage.v2_validation_full.v2_structure_graph_posterior",
+    "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_graph_posterior_coverage.v2_validation_full.v2_structure_graph_posterior"
+  ]
+}

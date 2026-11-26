@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent::prepared_adjusted_retarget::adjusted_retarget_matches_independent_logit_standardization_and_fisher_covariance"
+  ],
+  "groups": [
+    "prepared_adjusted_retarget_calibration: prepared_adjusted_fixed_target_fisher_interval",
+    "prepared_adjusted_retarget_calibration: prepared_adjusted_fixed_target_hc1_interval"
+  ],
+  "id": "recalculation.prepared_adjusted",
+  "kind": "capability",
+  "measurements": []
+}

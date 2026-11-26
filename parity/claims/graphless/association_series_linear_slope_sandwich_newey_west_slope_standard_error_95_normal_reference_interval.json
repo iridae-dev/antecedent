@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::estimate_association_reference::estimates_and_analytic_errors_match_the_definition_references"
+  ],
+  "id": "association:series_linear_slope:sandwich_newey_west:slope_standard_error_95_normal_reference_interval",
+  "kind": "graphless",
+  "measurements": []
+}

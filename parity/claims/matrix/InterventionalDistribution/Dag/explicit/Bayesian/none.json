@@ -1,0 +1,17 @@
+{
+  "assertions": [
+    "antecedent::supported_static_cells::distribution_bayesian_known_truth_all_structures_and_suites"
+  ],
+  "id": "InterventionalDistribution/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_one_nominal_90_coverage.v2_validation_none",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_bayesian_near_zero_boundary_within_band.v2_validation_none",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_dag_bayesian_near_one_default_coverage.v2_validation_none.base_0_95",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.interventional_distribution_dag_bayesian_near_zero_default_coverage.v2_validation_none.base_0_02",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_bayesian_near_one_nominal_90_coverage.v2_validation_none",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_bayesian_near_zero_boundary_within_band.v2_validation_none",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_dag_bayesian_near_one_default_coverage.v2_validation_none.base_0_95",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.interventional_distribution_dag_bayesian_near_zero_default_coverage.v2_validation_none.base_0_02"
+  ]
+}

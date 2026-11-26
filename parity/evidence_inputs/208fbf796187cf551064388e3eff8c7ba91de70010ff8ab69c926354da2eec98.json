@@ -1,1 +1,0 @@
-[{"digest":"e6629eda603b97e83fd87fdfa80631faeedcbf6b803a9322d85aae557777f7cd","kind":"evidence_file","path":"crates/antecedent/tests/known_truth_cells/coordinates.tsv","role":"external"},{"digest":"be86343fea3cb58ae8e99233407a325014bdfacb8158eb689b2f2046d8ed40ad","kind":"evidence_file","path":"crates/antecedent/tests/known_truth_cells/mod.rs","role":"external","text":"rust"}]

@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-counterfactual::suite_01::cross_world_execution::probability_of_necessity_is_the_abduced_posterior_mass"
+  ],
+  "id": "cross_world_execution.sampled_and_interval_readings",
+  "kind": "capability",
+  "measurements": [
+    "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_fixed_units_balanced_types_l95.v2_validation_not_applicable",
+    "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_balanced_types_l95.v2_validation_not_applicable",
+    "cov.counterfactual.dag.frequentist.normal_approximation.l95.cross_world_interval_independent_sample_rare_types_l95.v2_validation_not_applicable"
+  ]
+}

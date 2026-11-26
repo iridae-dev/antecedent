@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_class_bayesian_envelope::temporal_class_bayesian_response_is_identified_set"
+  ],
+  "id": "ResponseCurve/TemporalPag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.temporal_pag.bayesian.posterior_quantile.l95.temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage.v2_validation_none.v2_structure_accepted.a_0",
+    "cov.response_curve.temporal_pag.bayesian.posterior_quantile.l95.temporal_pag_response_curve_bayesian_accepted_pointwise_nominal_coverage.v2_validation_none.v2_structure_accepted.a_1"
+  ]
+}

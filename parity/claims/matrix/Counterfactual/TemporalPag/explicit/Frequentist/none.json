@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_class_point_queries::temporal_class_cross_world_points_match_the_linear_mechanism"
+  ],
+  "id": "Counterfactual/TemporalPag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.counterfactual.temporal_pag.frequentist.circular_block_se.l90.counterfactual_temporal_pag_frequentist_given_coverage.v2_validation_none",
+    "cov.counterfactual.temporal_pag.frequentist.circular_block_se.l95.counterfactual_temporal_pag_frequentist_given_coverage.v2_validation_none"
+  ]
+}

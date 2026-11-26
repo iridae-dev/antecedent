@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::evidence_plan::verified_options_come_first_and_are_ordered_by_net_value_under_the_declared_cost_map"
+  ],
+  "id": "design.evidence_plan",
+  "kind": "capability",
+  "measurements": []
+}

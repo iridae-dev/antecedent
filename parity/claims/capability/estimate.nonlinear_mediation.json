@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-estimate::nonlinear_mediation::mediation_exact_scm_recovers_closed_form_effects"
+  ],
+  "groups": [
+    "nonlinear_mediation_interval_calibration"
+  ],
+  "id": "estimate.nonlinear_mediation",
+  "kind": "capability",
+  "measurements": []
+}

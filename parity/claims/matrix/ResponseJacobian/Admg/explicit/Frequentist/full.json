@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::class_derivative_known_truth::class_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "ResponseJacobian/Admg/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_jacobian.admg.frequentist.analytic_se.l90.response_jacobian_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.dv_da",
+    "cov.response_jacobian.admg.frequentist.analytic_se.l90.response_jacobian_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.dy_da",
+    "cov.response_jacobian.admg.frequentist.analytic_se.l95.response_jacobian_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.dv_da",
+    "cov.response_jacobian.admg.frequentist.analytic_se.l95.response_jacobian_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.dy_da"
+  ]
+}

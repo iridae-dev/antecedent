@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::prepared_analysis::bayesian_conditional_staged_known_truth"
+  ],
+  "id": "ConditionalEffect/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.conditional_effect.dag.bayesian.posterior_quantile.l90.conditional_effect_dag_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.conditional_effect.dag.bayesian.posterior_quantile.l95.conditional_effect_dag_bayesian_nominal_90_coverage.v2_validation_none"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::distribution_validation_route_evidence::distribution_pag_accepted_bayesian_full"
+  ],
+  "id": "InterventionalDistribution/Pag/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.pag.bayesian.posterior_quantile.l90.distribution_pag_bayesian_given.v2_validation_full.v2_structure_accepted",
+    "cov.interventional_distribution.pag.bayesian.posterior_quantile.l95.distribution_pag_bayesian_given.v2_validation_full.v2_structure_accepted"
+  ]
+}

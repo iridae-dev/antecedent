@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-design::lib::identification_repair::tests::an_unmeasured_front_door_mediator_is_owed_as_a_joint_law",
+    "antecedent-design::obligations_exact::the_frontdoor_obligation_names_the_mediator_and_not_the_irrelevant_nodes"
+  ],
+  "id": "design.identification_repair",
+  "kind": "capability",
+  "measurements": []
+}

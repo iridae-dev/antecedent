@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_cross_world_effect::temporal_dag_cross_world_points_match_the_linear_mechanism"
+  ],
+  "id": "PathSpecificEffect/TemporalDag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.path_specific_effect.temporal_dag.frequentist.circular_block_se.l90.path_specific_effect_temporal_dag_frequentist_given_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.path_specific_effect.temporal_dag.frequentist.circular_block_se.l95.path_specific_effect_temporal_dag_frequentist_given_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

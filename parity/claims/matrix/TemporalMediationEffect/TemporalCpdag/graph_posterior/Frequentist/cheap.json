@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_class_posterior_known_truth::temporal_class_mediation_matches_the_path_product_under_cheap_and_full"
+  ],
+  "id": "TemporalMediationEffect/TemporalCpdag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_mediation_effect_temporal_cpdag_frequentist_graph_posterior_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_mediation_effect_temporal_cpdag_frequentist_graph_posterior_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

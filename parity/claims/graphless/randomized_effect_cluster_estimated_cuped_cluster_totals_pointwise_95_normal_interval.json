@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::randomized_neyman::estimated_cluster_total_slope_is_not_the_fixed_coefficient_identity"
+  ],
+  "id": "randomized_effect:cluster:estimated_cuped_cluster_totals:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-stats::adaptive_procedure_uncertainty_oracle::bayesian_report_matches_closed_forms"
+  ],
+  "id": "adaptive_inference.procedure_bayesian_martingale_gap",
+  "kind": "capability",
+  "measurements": []
+}

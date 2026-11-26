@@ -1,0 +1,7087 @@
+{
+  "analyzer": "compiler-items-v2",
+  "bookkeeping_review": {
+    "baseline_commit": "39414ab1acc617bf0797ecb4235c7869f0981388",
+    "basis": "The workspace Cargo.toml adds optional arrow-data; antecedent-data/Cargo.toml enables arrow-data on ipc with lz4 and zstd; the owed execution sources (cancel.rs, context.rs) add child tokens and map_parallelism; error and fault enums gain model-operation, conditional-survival, overlap, search-quote and unordered-schedule variants; DirectedCore indexes edges only past a size threshold and AdjacencyMask moved; table.rs borrows Float64 only when every value is valid; the other owed sources are the compiler port of the specialist engines. This assertion does not read Arrow IPC; for_tests leaves map_parallelism None and registers no child, so the serial seed is unchanged; this assertion does not construct those inputs; has_edge and the bit operations answer the same question; a column with no null is the same borrow, and these designs do not read a null Float64 slot through this path; compiled_twins_*.rs compare compiled and direct results bit for bit, as 7353fa2 did for the joint-panel route.",
+    "original_manifest": "9549d3bc51baebf82f3d50d6f42d40122adb3b5c88d703f89f8df0d5cdc15b83",
+    "reviewed_commit": "099a0caa2cfa28270f93e77e6398ac74687e0f35"
+  },
+  "compiler": {
+    "commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+    "release": "1.97.1"
+  },
+  "declarations": {
+    "evidence_assertion": "evaluation_runs_on_linear_scm",
+    "evidence_test": "crates/antecedent-model/src/evaluate.rs",
+    "fixtures": [],
+    "roles": [
+      "scientific",
+      "software"
+    ]
+  },
+  "fallbacks": [],
+  "inputs": [
+    {
+      "digest": "c1089a05bfcd747478102fa0ee43e665cafe11177a213f3afa3fde29f8032a65",
+      "form": "python",
+      "kind": "build_recipe",
+      "path": "scripts/compile_time_environment.py",
+      "raw": "7e2a6baa4208ce0729329597a140869978b92788c6eadf50ea88491748754c0a",
+      "role": "external"
+    },
+    {
+      "digest": "e81c44d1e1e21adf4fc182a06e51ba5194c5518f14be5cbe3f7a1da6f8bf811a",
+      "form": "python",
+      "kind": "build_recipe",
+      "path": "scripts/nix_evidence_deps.py",
+      "raw": "40e1a6a21ec5f8a0c185bc9410b846028e3eaa00e1f5202b833031eb2e6d7f98",
+      "role": "external"
+    },
+    {
+      "digest": "7f5572fe7736ab6541db219a480a3da911c9f8f514e0b3e343a2dda857e4c5c9",
+      "form": "python",
+      "kind": "build_recipe",
+      "path": "scripts/nix_evidence_policy.py",
+      "raw": "4871c156b43a255d6062e887404193aaf274ff7f9bf6c2ec4c856b9e0cda8b4d",
+      "role": "external"
+    },
+    {
+      "digest": "459af567e86c385508ec67fe09865a0f394c36be264fd5220a84ef71d7742a37",
+      "file": "0eb8c7b7bdb2cf7ccdd19f6140617ae066bc2cd9c587cf1884b4949da47bb980",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/scc_compile/routing.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "sig": [
+          16
+        ]
+      },
+      "table": "6453a17acc4d88bcbb1ec16ec1bcdd1475a399a65483d36158b76106cc23a7b8"
+    },
+    {
+      "digest": "7295787def7974ee4f189aad358ef5d9a8898ea2ef979a86e0b74ca738797f10",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-expr/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-expr/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "1c622a1ea810504c58d1441ed721486073f6951cfb87c39b052e05d03ce6c93c",
+      "form": "flake-lock",
+      "kind": "build_recipe",
+      "nodes": [
+        "nixpkgs"
+      ],
+      "path": "flake.lock",
+      "raw": "e094085d4dc7831f288b983b9d37395e20af7a7c8cb32dda1974c3c1235ef75f",
+      "role": "external"
+    },
+    {
+      "digest": "90b2c79859e7659254ca70ec0d2b18b4cdbbb314d23aa1d2589db58192e21604",
+      "kind": "evidence_file",
+      "path": "Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "rust-toolchain",
+      "role": "external"
+    },
+    {
+      "digest": "334b413bce7d0b808abd4011f89c9fdbca10530300c8c402751d53aedf2d94d4",
+      "kind": "evidence_file",
+      "path": "rust-toolchain.toml",
+      "role": "external"
+    },
+    {
+      "digest": "aa419a1990fcb10f6a20c050400cc7d11acc592b3e2a769be19ec1d8c4f2f6c1",
+      "file": "0877eecc52a82c6ba8addc42a470236fd5e62a57cb237a2437b58ba809f57bd7",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/error.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          3
+        ]
+      },
+      "table": "ce0b792598629ddaa137c9b14113bc271d7d54ef44b3f43f0f98f3a5b61a61f3"
+    },
+    {
+      "digest": "a0c2dea86edd1beee74a33bed1a971c8e0cdb55f7fe89f99271b86b5700d1ef8",
+      "file": "445ba7d7600d58262b0f91ac0868985c86337842c52f1575359635d5e8fd87a1",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/faer_backend.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          14,
+          15,
+          16,
+          18,
+          19,
+          21,
+          28,
+          29,
+          30,
+          31,
+          33,
+          34,
+          36,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          50,
+          51,
+          52,
+          54
+        ],
+        "head": [
+          20,
+          32,
+          35
+        ],
+        "sig": [
+          53
+        ]
+      },
+      "table": "fbdc33d0888b267c6dc8606293e1ef88b50b2bebb0cd91bc6dadfcd329cce705"
+    },
+    {
+      "digest": "3c5de89f7b2a80fa653d0bf3e7d6180ba4ffa789199c259f0f7fe16eb58c216a",
+      "file": "16cda313524f6d0ff913efb9aeebdf555e48f9b75648d063861d1aa56eddd34c",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/faer_scope.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          5,
+          8,
+          10,
+          16
+        ],
+        "head": [
+          7
+        ],
+        "sig": [
+          11
+        ]
+      },
+      "table": "223dff884caae1f64b47fde3b1d4e429d779f0f438c344bfda39fdc07343c9a0"
+    },
+    {
+      "digest": "6ac01eaa2a611986ac3596400c6b04ea15f9c0e497b0ba815f5bf38d78be1c43",
+      "file": "9dbb4f02869fabf5ce190aea953f269080d8394ed30a935535acffc71f564157",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/fit_counts.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          0,
+          2
+        ]
+      },
+      "table": "c6aceccd437332b65483382c8d59a2331c893c8ae1fe0a15371bc2189d239e92"
+    },
+    {
+      "digest": "a74a01bc6a0505f4dc754860d360ea0a97b30f9a0d85c6160775b7cfcf5dfe96",
+      "file": "d5ec770165802807d43d46ca43108409a8f306db414a799fd6cf20c19746b19f",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/glm.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          3,
+          6,
+          13,
+          14,
+          17,
+          19,
+          26,
+          36,
+          37,
+          38,
+          39
+        ],
+        "inner": [
+          -1
+        ],
+        "sig": [
+          31,
+          32
+        ]
+      },
+      "table": "77ad2ac8b0d1a70d0105492d878e117226666c74787e2eb5e547833bea4988f5"
+    },
+    {
+      "digest": "63a3c38688751062e6f2b26d6972b2d6d2a391af3c03daeab03d4cb58b72b6e1",
+      "file": "deba52885b6dbe91158fd010557a29a586c3609bce77dbde004ba347e615247e",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/gram.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "e422636ae735a75e4ede78a15daed62f48a72a588f1b346432edbbc783360df5"
+    },
+    {
+      "digest": "2c088cfb93f31e253a03b42d0b65c6cfaa54f3ceb88595a003ea1ae618859a2c",
+      "file": "dafbf7c21f128730c587faaf9a6917003f12afd59189902ab732ee677d15c516",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/layout_rules.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "2748b0bb65bbea90ac21bc660a858a5c1f723115c743c42e0e764691daa4220e"
+    },
+    {
+      "digest": "8a54bba0c9e94195026d273503ccf8b79ea39b699cd70d1b95adf948b27ca5db",
+      "file": "5a433102ed28126f908231fad383c5b6632a4aa19605427e391bdc592e00953d",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          1,
+          10,
+          11,
+          12,
+          14,
+          16,
+          22,
+          25
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "ca0fb95a5c12512268461dc73c6c046818c05ed14442cb0998cb7690c2a5b82c"
+    },
+    {
+      "digest": "f40e9f28e2b0752cf29a9bf94fd7a58c3fb2c886cec0866801535d73aed5f24c",
+      "file": "5646cfca897730e3408cc9910de08c8100c257ff711c5e01d8ac7ae12fd8a6e8",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/linalg.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          1,
+          3,
+          6,
+          7,
+          10
+        ],
+        "head": [
+          2
+        ],
+        "sig": [
+          8,
+          9
+        ]
+      },
+      "table": "1ca2d192b352a6f43921d187492de6c644c3c00386023200b21e3d99446a96d3"
+    },
+    {
+      "digest": "069c3d99c47e101481cd8f9d5ebe5a7cec677a89ac12979ddda2d76895e99914",
+      "file": "258c24de1d8ddf91bb25bcf7fef6e36fa5aece088727fee8f3342e46e8f7b0fc",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/matching.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          11,
+          12,
+          13,
+          54
+        ]
+      },
+      "table": "b98cd5aeab7c781854c8665cd1562dd0ae5642fc4fdff4eb4be395f58350302d"
+    },
+    {
+      "digest": "3331716fad338d395ee2e90f796ea2cbfbb86977f966f68a704de92259990d17",
+      "file": "8ac19d5114964ad0b0102df528e11957ce48d29e7a534f3f0c38fe6b4a435884",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/intervention/capability.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "1f38474fc754e1bf5dc3ab109014e842f894df61e8eec37934f4e3565a011e4c"
+    },
+    {
+      "digest": "01bfcba464d204e5b5d11a1fa7b075076aa693a2fd236a3fb1f1f2f1e91b77da",
+      "file": "e815b84c6124d7e63d8edaa7b9cc914138c52d8007b4e23af1a23dea86f34159",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/basis.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          5
+        ],
+        "head": [
+          6
+        ],
+        "sig": [
+          8,
+          9,
+          21
+        ]
+      },
+      "table": "a92f4b00d7eb6a008fd9dd3fc7938612be426bd9dabd71fa8aad3ac4e49c4df9"
+    },
+    {
+      "digest": "1d9fb3be2c04c2afb609d7014902634b2bb259988e94a0d4a2cde907e3960f62",
+      "file": "02be56d586d1a8df11da95865e434a4684d552848ab51e392d65d53d79ff515a",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/batch.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          4,
+          27,
+          30,
+          31,
+          32,
+          34
+        ],
+        "head": [
+          28,
+          33
+        ],
+        "sig": [
+          29
+        ]
+      },
+      "table": "8c02f12c7bf7c4c8c1935aceb0d24988fe64728b535471db9e8a7fab4e8f0094"
+    },
+    {
+      "digest": "148a1a634135cc241ea483b3f2fb50124ca392d3218bb78917cc4485a28f3d2b",
+      "file": "1b810f9e8f388fe7b11d9f2ee36441105f0499f6260c7ce2b3a3ea9ba580eaeb",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/compile.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          6,
+          8,
+          10,
+          11,
+          19,
+          24,
+          26,
+          27,
+          29,
+          31,
+          32,
+          33,
+          35,
+          36
+        ],
+        "head": [
+          7,
+          25,
+          30
+        ],
+        "sig": [
+          14,
+          15,
+          16,
+          17
+        ]
+      },
+      "table": "0198de7fd270df9702fd5a014be2fe64e915f62236feac8835b22d6476d8b122"
+    },
+    {
+      "digest": "75da7129a5572c4c439215c5e0f01e4f9960aca811c5765faec818796d8e5cf3",
+      "file": "3d51f2303c799528ba7596fdfca55099cd7a19d293e1a7af74c2c74ab607f1a6",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/continuous_cyclic.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "f1f84e7bf7db822df94be48da4588a90f31131c90fb64ce7bc28fc35bfd03342"
+    },
+    {
+      "digest": "75da7129a5572c4c439215c5e0f01e4f9960aca811c5765faec818796d8e5cf3",
+      "file": "e94a8afb21a9fe8df4cfc0d5fb933a4cae2f20c951fe6af9ea076af8c8adbcd7",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/equation_system.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "828b4db952f9957a0d2526871ca55e311b3f6fc00488b7271c72752adba53ed5"
+    },
+    {
+      "digest": "d0522559e89bc27bceb5733a23ae3d883465271c778e5e71e728e9ea35ecafe4",
+      "file": "9bcac3b8b53ccc4a1aa0f1d71a25d32bb7702d71d326f35d01e8adc5617ccb5a",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/error.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          5
+        ]
+      },
+      "table": "1b19303e66c1fc85425aa5f242d2b6066430b2b77ea4a18a06c7619115771f51"
+    },
+    {
+      "digest": "f33334079d1bc67e5b3b77e12f3b205c58bb7d24256477b8fece5884896c0da8",
+      "file": "f141cd4069bd92ccbe190d30b148f8edcede705d7b15a806732ad5f1b8c6cea7",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/evaluate.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ],
+        [
+          [
+            "tests"
+          ],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          11,
+          12,
+          14,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          47
+        ],
+        "head": [
+          13,
+          15,
+          22,
+          38
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "2e2ebfca04d0b6f1e1f77d17621545145502267b4001409da33291b4c0a6de98"
+    },
+    {
+      "digest": "5bc1783aa79b05c4d769e8c98bbb3afca38266d0b12b62b8ddb7e081f0a9459a",
+      "file": "6634aff3ad14cb4b05c7de60455302973d14f0aa156e1cf0952c1fbc4aec3cd7",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/lgssm.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          6
+        ],
+        "inner": [
+          -1
+        ],
+        "sig": [
+          4,
+          7
+        ]
+      },
+      "table": "7df4c9840d18542b929085679d58207a93f0b7133bc05d034a715653b3fccda1"
+    },
+    {
+      "digest": "f9308c1be68fe43ca6c48e10b09c53d1f29129dd4507b2a57991e1ed422f5074",
+      "file": "f1cf4bd8c57952a52f299a1eaa015784199be5af487a6258a6cd21f060664738",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          1,
+          2,
+          3,
+          15,
+          16,
+          22,
+          27,
+          37,
+          39,
+          42
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "787c63062a39c2c0d5320a4c4768e7e47a965c502fe2c28fe2c7b44534530fe4"
+    },
+    {
+      "digest": "956be9fb305165be307fc9ca1bb7a3b537868e1ea19c5a5dc8b6fa998b023706",
+      "file": "616ec4b05b9abc0c1c82e7a1defa88d28c3b6deea1e94c6eb529985cc53b1a42",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/mechanism.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          8,
+          20,
+          21,
+          26,
+          28,
+          29,
+          30
+        ],
+        "inner": [
+          -1
+        ],
+        "sig": [
+          16,
+          17,
+          18,
+          19,
+          22,
+          23,
+          25,
+          27,
+          33,
+          34,
+          56
+        ]
+      },
+      "table": "a0456e5dc2bd208c819f0d1d3761a6245e44d4f076a202184154b9d58bee8ffc"
+    },
+    {
+      "digest": "57259f27d1faafdad7b3539c72e9d25e8c689e163d4f64b1915afd50728f59e2",
+      "file": "5a841777eef1cf8cc916cdb41b48a7cbbb8f1b72bf5155f0aabae366cfc07f35",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/nonlinear_equilibrium.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "b0bc9fc4fb587202212d122066323ab866813d14bc0aa4cbc3ab1d781ed4a5fe"
+    },
+    {
+      "digest": "e03cb77d8c2c30f0828390c41d251af21c8eb6713a56c57f8d36fc041a28728e",
+      "file": "5d7a5d4cb41a78d6db9a6bf419ce604b237ff49dc188f8a009ffdc12be623d0b",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/scc_compile.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          11
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "ce2b21e8174ee6b0bbea20046fc7d30603f78f2bf64d3f8789330650b9362e34"
+    },
+    {
+      "digest": "2b49e88b77413f0d098fdb8afc64691ef4aa58348101184e4f733b476609e7b0",
+      "file": "73f5e91b7bbed66f7d432b1477e58338757144c23d8adf31b671e86604f2e4ae",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/system_compile.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "6dfd9076ff24ad7a1c6911b9b0a7f26d12b8b53ca4dfe004070a63499c116b97"
+    },
+    {
+      "digest": "2d407a9c479df9e51f4ab47f5cc4e34a6e7d811cccde6fcdd886930259318175",
+      "file": "abaac9db0e4ed9f60f3eef3d981ea7239e1dc1c571439befa866bcde654ae1b8",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/tree.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          4
+        ],
+        "head": [
+          5
+        ],
+        "sig": [
+          10,
+          11
+        ]
+      },
+      "table": "89fa77537415989bea9cf10e1ebfff573198cd4f1bb59b574425f6a908a10fa5"
+    },
+    {
+      "digest": "7c644eb505a3f000f2af9d76ccd5f797f6f8611db6581cd8606e11243d4fed36",
+      "kind": "declarations",
+      "path": "parity/fingerprint_inputs.toml",
+      "role": "identity",
+      "sources": [
+        "crates/antecedent-identify/src/sid/mixed_source/search/tests.rs"
+      ]
+    },
+    {
+      "digest": "a1fb7b7dc6ef5d6472a3763599afdb5e193dfae444dc118a1292654bb90badaf",
+      "file": "8e1528f6a0c6a80bb78089d7afb7b87664a9bd2a6b1aef517010b608b35d1085",
+      "kind": "rust_items",
+      "path": "crates/antecedent-kernels/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          5,
+          8,
+          10,
+          11
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "1a207858c68ffd0aed36233043ec26c94832c873c061f55bb7296e999ed7a170"
+    },
+    {
+      "digest": "17cb6e92acb63352d4bb1143ba049eb2edae396285573ccd07322c21b7a85d64",
+      "file": "8bacaa3a069b0c583714880dbb758bbf36c9bd0e0f5e1a208466f2f2dc70f269",
+      "kind": "rust_items",
+      "path": "crates/antecedent-kernels/src/parcorr.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          3,
+          8
+        ]
+      },
+      "table": "ed7adfef378a47a88e23bd4136bf1e6d6c0f4979456862703841cc9a1f620f2e"
+    },
+    {
+      "digest": "c07433714fb48434776234c555eb13f9712d58090f2edc48bcca691a1700ac0b",
+      "file": "794a53c2f0fc0d1bd4a04e983fc7e57b16a5ffce8beedba551772e585426ff1f",
+      "kind": "rust_items",
+      "path": "crates/antecedent-kernels/src/rng.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          11,
+          12,
+          13
+        ]
+      },
+      "table": "b330fc22d244a38e35ab9bad29171ce50ddbf57b82eb6a6078c1a863d59ddc46"
+    },
+    {
+      "digest": "7b0a69503c4dd768ff9ad10035e3cc4f44e5b3d47212261de9ca9f7c5f76bdb1",
+      "file": "c1fcf41fc5891d2b3724cf2d1218bfa246b3ae5afcce0b32274c6fcc14e144fa",
+      "kind": "rust_items",
+      "path": "crates/antecedent-kernels/src/special.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          22,
+          26,
+          28
+        ]
+      },
+      "table": "563f218ea98bcd5518ebf07252cb948c564c2c8479eba6ac57738f3c3ca733f2"
+    },
+    {
+      "digest": "0073b086ec49a4fdc7b72c205bb212b5b38280192a481ece1354b3ea2e163b20",
+      "file": "f4a59516f2f05d22f7959d7ac217f0ca780f4f724882c1af6606a863692c760a",
+      "kind": "rust_items",
+      "path": "crates/antecedent-kernels/src/view.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          1
+        ]
+      },
+      "table": "40ecc46a3a6da8e30f7a2058572254a64a35d8c9d2601c44b9f6af270d12645e"
+    },
+    {
+      "digest": "577b9fb5039ceebb50ecfd8e38198d7e70f79ec8bbc4ce6de0374f2b8a99685f",
+      "file": "6f34a0ff4fee93460c988d5cb053d33231115b03f06fcd5c6b93265a789e5f54",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/algo.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          8,
+          18,
+          19
+        ]
+      },
+      "table": "7f2cf4490812ebdf39b007d0bbe9626c26e3fec0c991dde6299139a8c59fdcf3"
+    },
+    {
+      "digest": "8c21f478997545ca9cc6c2deb7ff7d3f990d553ab85887120353bf9122045c63",
+      "file": "2bddeee69aba3406baf599947a6d256beabf4402c5c4515fc7bb095028a026b7",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/ancestry.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          9,
+          10
+        ],
+        "head": [
+          6
+        ]
+      },
+      "table": "35cf3df97a5f4460dab66fba4c235e9a02096226fcd0ede4bd1d99ad156bb240"
+    },
+    {
+      "digest": "c7c0189327818134c058d257528d7f022edbdf394908045663128d234f2b893e",
+      "file": "95a8b5ab88ba2c0429de79ef6d5ce1416d84bd61818fe9fe324b085bf5f4db3d",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/dag.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          6,
+          11,
+          14,
+          19,
+          21,
+          22,
+          23,
+          31,
+          32,
+          35,
+          39
+        ],
+        "head": [
+          10
+        ]
+      },
+      "table": "902e1bf36d1c09aa3b623ff0c856c4956fc0eea4f5d6bd708c1cc727baf65a22"
+    },
+    {
+      "digest": "74032f1f2efdbe95590cc5047b0dde9cf99da437e5fac99cf6c6079f0e1e27b1",
+      "file": "458025b8df56e362624264405bebfd103ab6569001368390728e1cf893348416",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/directed.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          9,
+          10,
+          14,
+          20,
+          21,
+          23,
+          25,
+          26,
+          29,
+          30,
+          34,
+          36,
+          38,
+          40
+        ],
+        "head": [
+          8,
+          19
+        ]
+      },
+      "table": "53be1931b3554f002ec66f8b9d0b787525fa535780168e70b68fbc0c33222da7"
+    },
+    {
+      "digest": "650139d406fe0db4d85e914a45691733d3bf65d2583bbfc4a06f77e34f6e0fb8",
+      "file": "b054226b78cbbfb620e9b2304421339a2c89ce078285944ef3292492cbf9023c",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/error.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          3
+        ]
+      },
+      "table": "cd9102ed7c9b738ddd1a62624bdf83eea8ecbc4b24c34de0ef6f865b70988e97"
+    },
+    {
+      "digest": "539411c5d6512155e076a5c67b7e0ca9264d685a86bac10fcf2cae30564d7d4b",
+      "file": "61344c43ca7d48508eb4953cfe6903275c299e2fa0e6ded506fe76d6cb941147",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          1,
+          2,
+          7,
+          8,
+          10,
+          15,
+          27,
+          30
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "64d8796897c38670d230f3b763abbbb338e5719475bff8195db3f79122164dc0"
+    },
+    {
+      "digest": "199e923fc307decf33d27acc7f5b064c084446110c8e8943bf58e21c9b1308a3",
+      "file": "320ec98f62802ffbca24c6498d60f7e4cddd7db8f173025b199c480192efce5a",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/overlay.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          5
+        ],
+        "head": [
+          6
+        ],
+        "sig": [
+          10
+        ]
+      },
+      "table": "38ccd207422c93463d7115aa7193c7b02b14845333c80b97688e3ea95239cd46"
+    },
+    {
+      "digest": "827f643770d30cd91c997ae83c4548c53eeb61345b8306cca76fbbdc9786d4ec",
+      "file": "dbd3835b50b55e55bd4ab83e1a832d471cf413fbebbc5dc7c83950ba8ab063eb",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/types.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          4,
+          6,
+          8,
+          9,
+          10
+        ],
+        "head": [
+          3
+        ]
+      },
+      "table": "6117571c5203268a5e77f875c30191b33f4ccb0b784d83a8d42b992852a879a0"
+    },
+    {
+      "digest": "96dce9f64a767fdae63ddd4bd0cbb9bc42475519672ca48bd50cc25c705744f7",
+      "file": "ec556236d53640a9e17eda62678e95d373a697d267118b7ca3f10031b8a41ab7",
+      "kind": "rust_items",
+      "path": "crates/antecedent-graph/src/workspace.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          4,
+          6,
+          7,
+          10,
+          11,
+          13,
+          30,
+          32
+        ],
+        "head": [
+          3,
+          31
+        ]
+      },
+      "table": "7314cbc5338bd4ee45fb77fe2977db466edc6c23726f5291241d1447337ddc8d"
+    },
+    {
+      "digest": "a25483e274332d0d48f90f9bc54a56c247ec188fe9eb51c28100d93675676ac5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-identify/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-identify/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "245363ed1ec2fba6bccffbe2c91c1f179397b5f34570735ec5fab4091fb15237",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-prob/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-prob/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "830e5e7c3641a38d564e60904e45f02ec8004225b4cc8fcf913d22f343fecf0d",
+      "file": "f235ee90a7417e239fc65577ca23b33f9e8a25db83d5744ec8d7da37fe85acf4",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/buffer.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          3,
+          4,
+          5,
+          14,
+          17,
+          18,
+          21,
+          22,
+          25,
+          26,
+          28
+        ],
+        "head": [
+          8,
+          13,
+          24,
+          27
+        ],
+        "inner": [
+          -1
+        ],
+        "sig": [
+          10,
+          11
+        ]
+      },
+      "table": "22f9f6d7b9fde4c60e720108211ca9c2787d1c8f668f6a601ef74095db26dddd"
+    },
+    {
+      "digest": "a9cf50a20b1ab25032a0c89a9f2685228b7cf03c8592a2de598a7ab1ed9e800a",
+      "file": "dbba79d1525dd5ee4f7e3b520a51e225f541a189b1970f9ff26f34300fb7a45c",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/categorical.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          4,
+          9,
+          10,
+          11,
+          17
+        ],
+        "head": [
+          18
+        ],
+        "sig": [
+          20
+        ]
+      },
+      "table": "5e7c780fbe6d95775163bc27538b05136c9e9a79424bb10a5374ffe3ace09545"
+    },
+    {
+      "digest": "74c3229b6e47d0cddc524b535411aeef782840bfb0d8680d31072facc06c047f",
+      "file": "175bda199da996dd9dfa3e9009c21e8963dbe05ea2bea143bd1d71879bd9f03b",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/column.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          6,
+          13,
+          16,
+          21,
+          32,
+          34,
+          35,
+          39,
+          40,
+          44,
+          49,
+          54,
+          59,
+          64,
+          66,
+          67,
+          70,
+          76,
+          78,
+          80
+        ],
+        "head": [
+          12,
+          33,
+          45,
+          50,
+          55,
+          60,
+          65,
+          75
+        ],
+        "sig": [
+          20,
+          41,
+          42,
+          43,
+          47,
+          52,
+          57,
+          62
+        ]
+      },
+      "table": "d67d042786434f5993302c09c7ed872402ca040e74a30033769dfca3c1771e54"
+    },
+    {
+      "digest": "6ad1b4899f784d21747d7c6a203c5c4cd3fd2021ef58ba3d274ebf7bffb0c51b",
+      "file": "481d20c780ade81971b80bdc8a8e2be39fbd4b25fb5149464d7e49f48e60e2e7",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/dataset.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          9,
+          19,
+          20,
+          21
+        ],
+        "head": [
+          8,
+          18
+        ]
+      },
+      "table": "c6a392a209cfca24cb5e5e4a933e27be5393e8e5baae7d7598c918d88cf19c49"
+    },
+    {
+      "digest": "359616ca8c7dcdc921a4bdb2d09649c0e6ffb38eeeac646381017f8dd73f372f",
+      "file": "72fbc99404b382e310d18baeebcd8f5e8b4a7c42f05c1c7afdf1a3553a4aa720",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/error.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          6,
+          9
+        ],
+        "head": [
+          14
+        ],
+        "sig": [
+          17
+        ]
+      },
+      "table": "cb64acf222ce6984628399074c07daaeafacf7709bd2065ab3bbc39282260c6c"
+    },
+    {
+      "digest": "49fb4082b68b4b35fac2ebf2ac38dce6c40b205032679e5b985bd7b16c7fb14c",
+      "file": "286a73318d451e15f79a51ad8cda34035384e5890cadff9723bc0fb4f7407b3b",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          4,
+          5,
+          6,
+          9,
+          12,
+          33,
+          35,
+          37,
+          38
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "d288cc13479359fe55b87a1a3630656df94b890cc448b9a406ea3c1b4a69ddf8"
+    },
+    {
+      "digest": "0d013454e7425d1633fb17b50f308cd5be96c1c8614fb32fb4f18c3fef9db8a6",
+      "file": "21e1d76aab21dd72eb24397dfd2533d11b5691d677ccaea3b2938b6b07095571",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/storage.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          5,
+          7,
+          21,
+          22,
+          23
+        ],
+        "head": [
+          6,
+          20
+        ],
+        "sig": [
+          19
+        ]
+      },
+      "table": "dd848125ef69f36aaa9203f00f144f204ca9a837a5bb651ff34b392befc933c9"
+    },
+    {
+      "digest": "2d0650f9bdaf37537e2679d4dcb53fb6a160be2fd8c52de6af10c8700b041410",
+      "file": "64a1cdea88d2027997c3f3a101e356c0f45e55bae79db2b7aefcd5e4426bec62",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/table.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          4,
+          8,
+          9,
+          10
+        ],
+        "sig": [
+          3,
+          5,
+          6,
+          7
+        ]
+      },
+      "table": "6a012263b8388f1441d0409f70b48c8eada4f2c82ccf5ea57f7aa829034ae602"
+    },
+    {
+      "digest": "4ccd2d1020f11cfe09d1218f28db6312de71b5168f10168cb44047773d3d0e73",
+      "file": "c3dca229c3d88e06ab708141faadd51aee0553132a2c4342ef74f3827a778c55",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/temporal.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "cbdc4909feac91b4baa877c4eba619a119a4994f5f77919485f19a16cbd67cb4"
+    },
+    {
+      "digest": "8fd0c17a3dc1001669b5f6869d74d6348778daf89f6baf9915e8e1b48a71dae3",
+      "file": "7824e23e856dfef0be84e01e886d1603754c1f1989038d185e8deac7b48049f8",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/unbalanced_panel.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          35
+        ]
+      },
+      "table": "0885cef9052c6e41b4f6d4119da20c560b817c4e1525c5385bfc2d77fd0636bf"
+    },
+    {
+      "digest": "41bebfe1497d53f8693c423b33034d0236e1ac399d69a162dc56681f4e09531f",
+      "file": "9bc7ea7b279fd1b5343d31342948db5039b96766362ce24cb0800613bfdd7e43",
+      "kind": "rust_items",
+      "path": "crates/antecedent-data/src/unit_key.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          8
+        ]
+      },
+      "table": "5e59e2f11dba19ea169a904f5544cd52cf275e7bf617b5b9d97f46cbcc5df950"
+    },
+    {
+      "digest": "66fd876e247750848c90b1c6e91ccf5c8eceefde97b285339fe1ff29b6c78f11",
+      "file": "d0ec16081033e6a952dce080d75d6ae14ae7ffda2f609c6f3f1ba8a8824f86e5",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/ci/mod.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          9,
+          12
+        ]
+      },
+      "table": "033fbba270f22a05bce39bf7dccdc5a1d0120c3dcb5d8d89b58135a9577d2e58"
+    },
+    {
+      "digest": "d185a7268b511b6b3068cd7e0cb3a3fc3c64920c0caf9d7298878b9a2693d062",
+      "file": "39011279d77170693980099c1d6137dd0c26111350ff3ac144b76dd69043cdba",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/ci/parcorr.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          9,
+          12
+        ],
+        "head": [
+          11
+        ]
+      },
+      "table": "c529d12132b3bdd44ad22fdeedfcc913507c40f65d6e14ac8093ac68630a47bb"
+    },
+    {
+      "digest": "3fec3b89e30e45985cdc254590266785651f5a2a3c5eb28ca39dca67429c0ced",
+      "file": "7686b4a2db4a235b3a6365ff581630ab9c52ed557911b77f6e90d1ef96390737",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/ci/types.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          3,
+          4,
+          5,
+          25,
+          26,
+          27,
+          28,
+          29,
+          43
+        ],
+        "sig": [
+          39
+        ]
+      },
+      "table": "6bf86f5dacbd5f6f377f44651c74220ef1151b78d5978f002a9c4866ec5113eb"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "CARGO_BUILD_TARGET",
+      "role": "identity"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "CARGO_ENCODED_RUSTFLAGS",
+      "role": "identity"
+    },
+    {
+      "digest": "7c34f4008331f2046c55ad7c6165711ab86fb36d5fd72998c8bc8e82edebb71d",
+      "kind": "build_env",
+      "name": "CARGO_PROFILE_TEST_DEBUG",
+      "role": "identity"
+    },
+    {
+      "digest": "cc11310c456c3690d5a74c23aa31cc25b4e74cdae146c71e54ad9dbc1d109fde",
+      "kind": "build_env",
+      "name": "CARGO_PROFILE_TEST_OPT_LEVEL",
+      "role": "identity"
+    },
+    {
+      "digest": "16ec26faa23bfe3a14d61e75d8627439b135309a2e4adf335f3a8c66f64cd16b",
+      "kind": "build_env",
+      "name": "RUSTC",
+      "role": "identity"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "RUSTC_BOOTSTRAP",
+      "role": "identity"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "RUSTFLAGS",
+      "role": "identity"
+    },
+    {
+      "digest": "c5cdff8f07ba916e918f310fbc82f3d2127532a57586b41f3ea8c1a7d457eaf1",
+      "file": "71564011bf623c87a364ec656f297158086e0480fa2cead03d3d5d77824f0f97",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/execution/admission.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          9,
+          14,
+          16,
+          20,
+          23,
+          24,
+          25,
+          26,
+          27,
+          29,
+          37,
+          38,
+          40,
+          41,
+          43,
+          44,
+          45,
+          46,
+          47,
+          50,
+          60,
+          63,
+          64
+        ],
+        "head": [
+          8,
+          15,
+          28,
+          48,
+          59
+        ],
+        "sig": [
+          17,
+          39,
+          52,
+          65,
+          67
+        ]
+      },
+      "table": "b0cd42cac07462061139e86f7c717cd840ddc527c5249e7dc6f4a83e1c51e7ff"
+    },
+    {
+      "digest": "de3c1f01396b35f604441c4fce7b62cea21b5f92c6e94baeeff2bb0ed07a6008",
+      "file": "ba8fb62b5caba73cc861f37457ba62f135983f9b4b92011b5aa7d54c493a9afd",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/execution/budget.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          3,
+          7,
+          8,
+          9,
+          11,
+          13,
+          14,
+          15,
+          16,
+          18,
+          20,
+          21,
+          30,
+          33,
+          37,
+          40
+        ],
+        "head": [
+          6,
+          12,
+          19,
+          31,
+          38
+        ]
+      },
+      "table": "1cfeb1cc2969fb1b45ca44dd7c54586efb15ceafe68d0c7840d8f139042229e5"
+    },
+    {
+      "digest": "f9037a9a6db58b74543868c827e2d9d9c7a9dba1f242fb7e397c2fcdadc3dc84",
+      "file": "a23d2477b272eed7da03a11729ea10e2893c3a47659c41f0c93d512f2ecefbb4",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/execution/cancel.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          6,
+          8,
+          11,
+          12,
+          14,
+          16,
+          17,
+          21,
+          25,
+          31,
+          36
+        ],
+        "head": [
+          7,
+          13,
+          15,
+          24
+        ]
+      },
+      "table": "a6c7b6c610e495b9945b9f308d695eee7e1271ff80a22211772ae4fe9b39cd16"
+    },
+    {
+      "digest": "8848d751d111feb84c97abb638cf00c1ad65b042c3b85a9431f401d17f2739ca",
+      "file": "305693bc5c02e6d71faa16729db6a00b1fde9da172dcfd50354af6ddf45093c0",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/execution/context.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          6,
+          9,
+          19,
+          22,
+          25,
+          28,
+          33,
+          36,
+          37,
+          44,
+          48,
+          49
+        ],
+        "head": [
+          10
+        ]
+      },
+      "table": "6ecfb0c1ea4a0c323eb849ed12c66e93f19e447eb0eb37d822ac824afaedbd3f"
+    },
+    {
+      "digest": "6c93e86fee93d68456540c8765d94967ec3794d0425a4b6171dfc44306f7ef63",
+      "file": "6d8cc8fa4dc49e2fb862b470f43350f549fc9c460c6891472bfca495ea5e5fbc",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/execution/mod.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          0,
+          1,
+          2,
+          3,
+          6
+        ]
+      },
+      "table": "e939f1a67b0df1a5cb521e3a44e2f3e40e868d97887c528995e82e97179f18b8"
+    },
+    {
+      "digest": "67ac0692fdd9ab6853cbfac369a1a52e37a5778b096bf259712c15d933b9b443",
+      "file": "a04004892821974a4fac420cc9dd42bfcb1a36b6b1529119095e948c382c7398",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/execution/rng.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          26,
+          28,
+          29,
+          32,
+          34,
+          35,
+          36,
+          38,
+          41,
+          42
+        ],
+        "head": [
+          27,
+          37
+        ]
+      },
+      "table": "502f17badafb4e94a26bc4f79dd3ade6847e6a0c2c92319934c0e9bc13df1b04"
+    },
+    {
+      "digest": "d0e92463122c2e605fb8b7c2842db0cd2d0a276929ca1ce59cc6c8b7778d28e8",
+      "dirs": [
+        "crates/antecedent-core",
+        "crates/antecedent-data",
+        "crates/antecedent-expr",
+        "crates/antecedent-graph",
+        "crates/antecedent-identify",
+        "crates/antecedent-kernels",
+        "crates/antecedent-learn",
+        "crates/antecedent-learn-burn",
+        "crates/antecedent-model",
+        "crates/antecedent-prob",
+        "crates/antecedent-stats"
+      ],
+      "kind": "rust_guards",
+      "path": "crates/antecedent-model",
+      "role": "selection",
+      "spec": {
+        "impls": [
+          [
+            "AsDisplay",
+            [
+              "AllowedRule"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "AttemptedRule"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "CallbackFailure"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "ExprType"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "ExpressionFault"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "Lag"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "SamplingDesign"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "SplittingRule"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "StochasticPolicyFault"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "String"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "VariableId"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "i32"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "u32"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "u64"
+            ],
+            false
+          ],
+          [
+            "AsDisplay",
+            [
+              "usize"
+            ],
+            false
+          ],
+          [
+            "AsMut",
+            [
+              "Mat"
+            ],
+            false
+          ],
+          [
+            "AsMut",
+            [
+              "Option"
+            ],
+            false
+          ],
+          [
+            "AsRef",
+            [
+              "Mat"
+            ],
+            false
+          ],
+          [
+            "AsRef",
+            [
+              "Option"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "Binding",
+              "Ref"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "MechanismSlot"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "Option"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "Ref",
+              "Vec"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "ValidityBitmap"
+            ],
+            false
+          ],
+          [
+            "ConditionalIndependenceTest",
+            [
+              "MechanismWorkspace"
+            ],
+            false
+          ],
+          [
+            "DenseLinearAlgebra",
+            [
+              "FaerBackend"
+            ],
+            false
+          ],
+          [
+            "DynamicMechanism",
+            [
+              "Arc",
+              "DynamicMechanism"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "Arc",
+              "Vec"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "Arc",
+              "[]"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "CausalSchema"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "Cow",
+              "[]"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "F64Buffer"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "MemBuffer",
+              "[]"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "RowMask"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "ValidityBitmap"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "Vec"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "[]"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "Arc",
+              "[]"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "Chain"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "Chunks"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "ChunksExact"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "IntoIter"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "Iter"
+            ],
+            false
+          ],
+          [
+            "TableView",
+            [
+              "OwnedColumnarStorage"
+            ],
+            false
+          ],
+          [
+            "ToOwned",
+            [
+              "Mat"
+            ],
+            false
+          ],
+          [
+            "ToString",
+            [
+              "AdmissionError"
+            ],
+            false
+          ],
+          [
+            "ToString",
+            [
+              "Arc"
+            ],
+            false
+          ],
+          [
+            "ToString",
+            [
+              "GaussianDensityError"
+            ],
+            false
+          ],
+          [
+            "ToString",
+            [
+              "ModelError"
+            ],
+            false
+          ]
+        ],
+        "inherent": [
+          [
+            "acquire_admission",
+            "ExecutionContext",
+            "crates/antecedent-core"
+          ],
+          [
+            "acquire_child",
+            "AdmissionLease",
+            "crates/antecedent-core"
+          ],
+          [
+            "add",
+            "NodeLoglik",
+            "crates/antecedent-model"
+          ],
+          [
+            "add_node",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "add_variable",
+            "CausalSchemaBuilder",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "AllowedRule",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "AttemptedRule",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "CallbackFailure",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "ExprType",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "ExpressionFault",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "Lag",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "SamplingDesign",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "SplittingRule",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "StochasticPolicyFault",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_display",
+            "VariableId",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_dyn_error",
+            "AdmissionError",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_dyn_error",
+            "CallbackFailure",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_dyn_error",
+            "DataError",
+            "crates/antecedent-data"
+          ],
+          [
+            "as_dyn_error",
+            "GraphError",
+            "crates/antecedent-graph"
+          ],
+          [
+            "as_dyn_error",
+            "InterventionError",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_dyn_error",
+            "StatsError",
+            "crates/antecedent-stats"
+          ],
+          [
+            "as_dyn_error",
+            "TemporalMaterializationError",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_slice",
+            "F64Buffer",
+            "crates/antecedent-data"
+          ],
+          [
+            "as_usize",
+            "DenseNodeId",
+            "crates/antecedent-graph"
+          ],
+          [
+            "assign_and_fit",
+            "MechanismRegistry",
+            "crates/antecedent-model"
+          ],
+          [
+            "attach_current",
+            "ObservedAdmission",
+            "crates/antecedent-core"
+          ],
+          [
+            "cancel_flag",
+            "CancellationToken",
+            "crates/antecedent-core"
+          ],
+          [
+            "children_of",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "claim",
+            "StaticLabels",
+            "crates/antecedent-graph"
+          ],
+          [
+            "clear",
+            "BitSet",
+            "crates/antecedent-graph"
+          ],
+          [
+            "clone",
+            "Binding",
+            "crates/antecedent-core"
+          ],
+          [
+            "clone",
+            "ExecutionContext",
+            "crates/antecedent-core"
+          ],
+          [
+            "clone",
+            "MechanismSlot",
+            "crates/antecedent-model"
+          ],
+          [
+            "clone",
+            "ValidityBitmap",
+            "crates/antecedent-data"
+          ],
+          [
+            "column",
+            "OwnedColumnarStorage",
+            "crates/antecedent-data"
+          ],
+          [
+            "column_major",
+            "FitFrame",
+            "crates/antecedent-model"
+          ],
+          [
+            "columns",
+            "ParentBatch",
+            "crates/antecedent-model"
+          ],
+          [
+            "contains",
+            "BitSet",
+            "crates/antecedent-graph"
+          ],
+          [
+            "contains",
+            "ObservedAdmission",
+            "crates/antecedent-core"
+          ],
+          [
+            "default",
+            "CancellationToken",
+            "crates/antecedent-core"
+          ],
+          [
+            "default",
+            "CausalSchemaBuilder",
+            "crates/antecedent-core"
+          ],
+          [
+            "default",
+            "CiWorkspace",
+            "crates/antecedent-stats"
+          ],
+          [
+            "default",
+            "ConfidenceMethod",
+            "crates/antecedent-stats"
+          ],
+          [
+            "default",
+            "GlmOptions",
+            "crates/antecedent-stats"
+          ],
+          [
+            "default",
+            "GraphWorkspace",
+            "crates/antecedent-graph"
+          ],
+          [
+            "default",
+            "LeastSquaresWorkspace",
+            "crates/antecedent-stats"
+          ],
+          [
+            "default",
+            "MeasurementSpec",
+            "crates/antecedent-core"
+          ],
+          [
+            "default",
+            "MechanismWorkspace",
+            "crates/antecedent-model"
+          ],
+          [
+            "default",
+            "ModelEvaluator",
+            "crates/antecedent-model"
+          ],
+          [
+            "default",
+            "NodeLoglik",
+            "crates/antecedent-model"
+          ],
+          [
+            "default",
+            "SelectionOptions",
+            "crates/antecedent-model"
+          ],
+          [
+            "descendants_of",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "evaluate",
+            "ModelEvaluator",
+            "crates/antecedent-model"
+          ],
+          [
+            "float64_cow",
+            "TabularData",
+            "crates/antecedent-data"
+          ],
+          [
+            "float64_values",
+            "TabularData",
+            "crates/antecedent-data"
+          ],
+          [
+            "from",
+            "ModelError",
+            "crates/antecedent-model"
+          ],
+          [
+            "get",
+            "CompiledMechanismStore",
+            "crates/antecedent-model"
+          ],
+          [
+            "has_edge",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "id",
+            "MechanismFamily",
+            "crates/antecedent-model"
+          ],
+          [
+            "infer_noise_column",
+            "DynamicMechanism",
+            "crates/antecedent-model"
+          ],
+          [
+            "insert",
+            "BitSet",
+            "crates/antecedent-graph"
+          ],
+          [
+            "insert_directed",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "is_all_set",
+            "RowMask",
+            "crates/antecedent-core"
+          ],
+          [
+            "is_all_valid",
+            "ValidityBitmap",
+            "crates/antecedent-data"
+          ],
+          [
+            "is_categorical",
+            "MechanismFamily",
+            "crates/antecedent-model"
+          ],
+          [
+            "is_continuous",
+            "MechanismFamily",
+            "crates/antecedent-model"
+          ],
+          [
+            "is_nan_free",
+            "F64Buffer",
+            "crates/antecedent-data"
+          ],
+          [
+            "is_valid",
+            "ValidityBitmap",
+            "crates/antecedent-data"
+          ],
+          [
+            "least_squares",
+            "FaerBackend",
+            "crates/antecedent-stats"
+          ],
+          [
+            "len",
+            "CausalSchema",
+            "crates/antecedent-core"
+          ],
+          [
+            "len",
+            "F64Buffer",
+            "crates/antecedent-data"
+          ],
+          [
+            "len",
+            "RowMask",
+            "crates/antecedent-core"
+          ],
+          [
+            "len",
+            "ValidityBitmap",
+            "crates/antecedent-data"
+          ],
+          [
+            "log_prob_column",
+            "DynamicMechanism",
+            "crates/antecedent-model"
+          ],
+          [
+            "mark_nan_free",
+            "F64Buffer",
+            "crates/antecedent-data"
+          ],
+          [
+            "master_seed",
+            "RngFactory",
+            "crates/antecedent-core"
+          ],
+          [
+            "mean",
+            "NodeLoglik",
+            "crates/antecedent-model"
+          ],
+          [
+            "next_f64",
+            "CausalRng",
+            "crates/antecedent-core"
+          ],
+          [
+            "node_count",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "node_count",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "nodes",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "nodes",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "noise_inference_mode",
+            "DynamicMechanism",
+            "crates/antecedent-model"
+          ],
+          [
+            "parents",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "parents_of",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "prepare",
+            "MechanismWorkspace",
+            "crates/antecedent-model"
+          ],
+          [
+            "push_labeled",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "rank_and_rcond",
+            "ScopedQr",
+            "crates/antecedent-stats"
+          ],
+          [
+            "resize",
+            "BitSet",
+            "crates/antecedent-graph"
+          ],
+          [
+            "row_count",
+            "OwnedColumnarStorage",
+            "crates/antecedent-data"
+          ],
+          [
+            "row_count",
+            "TabularData",
+            "crates/antecedent-data"
+          ],
+          [
+            "schema",
+            "OwnedColumnarStorage",
+            "crates/antecedent-data"
+          ],
+          [
+            "schema",
+            "TabularData",
+            "crates/antecedent-data"
+          ],
+          [
+            "split_plan",
+            "FitFrame",
+            "crates/antecedent-model"
+          ],
+          [
+            "supports_noise_inference",
+            "DynamicMechanism",
+            "crates/antecedent-model"
+          ],
+          [
+            "test_batch_adhoc",
+            "PartialCorrelation",
+            "crates/antecedent-stats"
+          ],
+          [
+            "to_string",
+            "AdmissionError",
+            "crates/antecedent-core"
+          ],
+          [
+            "to_string",
+            "GaussianDensityError",
+            "crates/antecedent-kernels"
+          ],
+          [
+            "to_string",
+            "ModelError",
+            "crates/antecedent-model"
+          ],
+          [
+            "to_vec",
+            "F64Buffer",
+            "crates/antecedent-data"
+          ],
+          [
+            "topological_order",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "topological_order",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "try_insert",
+            "DirectedCore",
+            "crates/antecedent-graph"
+          ],
+          [
+            "validate_node",
+            "Dag",
+            "crates/antecedent-graph"
+          ],
+          [
+            "wait",
+            "CancelFlag",
+            "crates/antecedent-core"
+          ]
+        ],
+        "macros": [
+          "dense_id",
+          "reason_code"
+        ]
+      },
+      "tree": "79b3c19db0c4b387f1cd4f518415e2f9faedec59792f68d39b01022aef194f0c"
+    },
+    {
+      "bits": 5800,
+      "digest": "aa879222a1dce32485358bf507ea78d47090be0286b42d6ca55d367777c1063f",
+      "filter": "01a5b82a32a16c43416180e1a6cbf532bc8567d32ab6fb8b437304260810a8c6f86a0496048103cd550c80426cc06241ce54ad3a53a044c922509539d06ddb4595e6bb99a289aa774470510145a484f386a6812501759ffcb468140b48e12f4207086c56016a432844170e66cbe289c389ad355309a06376d2d3ce22a01d02084c244312ddb0182a7aa1183079a1b8472d24a6013101282a9a05a822954ba0a55d74149d067d06e271715f10d210f622324b5613d887a19585a268948d0f0ac9823b08819a3baed005ba7fe87a9a0b2a58d33fc900b89b374a55af29aad37d47f83791361263ed6646537e1bf471c1ddd20611a1cc8f2fac913082a9136853b001c0c36fe1adb8bdd983bccec126032064e200e144521c89b6a19423b066ee614192bbf0ae94a6c26c728056985d9b6b018f2411f08a6c67d20848219da71b97c0c560a00a09c2bd8e856890a089603c30b3699aec7eec79448370b192f470dda9a00318de032cc421822193915e81e8073b4d3e51ed2b985140b760f51c20f6a916caaa910ab9a8c0220427c3ae16ccac05f36734b83f40bca9e2ecc9fd100514c3800b2af4b806f4fce2e21f1c0789b5f8be66230208e0ae317d103033a6d4853388164103b4ba2072c187ea8ccb111335cc206d4d4a1204294a330cecc69c3cfb2f9c69814de53f0d0401c60621e6699654520ab1d36312ca5081be377cc1ac08829fb5fc0aad2cb393216a8119464ba84cbd209b5f50aa0c4509cf0181f05692da81724066b29a629987ae95b14006003168cd0bd2f4469c9b25d09c600f5f2bd15e8ae565f621e84d4d470c2db1072cd1b5621e9c0913600aff20994239ee0903a242386056a16c74a8a54cfa248c30c20977167caa94c13440fc41a99fa7300a70f73632053177f8b9f6ca04a71b3852a36196c6452b6ec9700319ab1830fca4f1a9ecc1231ac7648a7d74602a975b60aa117d0293bea615a506433981312a6048087000c4dc1e39daa673f5de28200df52c",
+      "kind": "rust_names",
+      "path": "crates/antecedent-model",
+      "role": "selection"
+    },
+    {
+      "digest": "6860c61d6f652b5fc2dc3e327dea62653335046308a84cb06b319cc217df9665",
+      "file": "714dbdd11b9d54f799ef6ff5d231043dba564a4ddfec41c7498295edc50d95da",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/cv.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          18,
+          19,
+          21,
+          22,
+          23,
+          24,
+          25,
+          27,
+          28,
+          30,
+          32,
+          33,
+          34,
+          36,
+          37,
+          38,
+          39,
+          41,
+          42,
+          43
+        ],
+        "head": [
+          17
+        ],
+        "sig": [
+          29,
+          31,
+          35,
+          40
+        ]
+      },
+      "table": "77d52b5252ea1b1b0fff807fc3142802a8e7e3366843bb2254d54d46bf970561"
+    },
+    {
+      "digest": "c8bc9352b2d74dd846e107417190ddc1eb5f8c31c2570a39dbda4c06ef9f5c28",
+      "file": "0ac972b62fd09462c744d55e238a8d106b826a911395a307d65dac35edb9418a",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/mod.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          8,
+          9,
+          14,
+          18,
+          19,
+          20,
+          23,
+          24,
+          25,
+          30,
+          38,
+          39,
+          41,
+          43,
+          44,
+          45,
+          47,
+          48,
+          49,
+          50,
+          51
+        ],
+        "head": [
+          10,
+          29,
+          46
+        ],
+        "inner": [
+          -1
+        ],
+        "sig": [
+          11,
+          15
+        ]
+      },
+      "table": "5a00eb2800e682d261c42d5cd564f9a01c76b272fda9a8acc7000dce1e1ed1c2"
+    },
+    {
+      "digest": "6f2d86e98fd95fa15a4abe0634a72d94ec852daa937806f48597f25b7995a518",
+      "file": "912b74d4ce1c198ec734719aed4385731c2fa48a5971fa7fefdfa0e9fe823c04",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/select.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          3,
+          5
+        ]
+      },
+      "table": "c89b3198828b332be5cb86638e07fb94156b95bbf5061d2503b659b0e92bde19"
+    },
+    {
+      "digest": "d2aa20fd4df0ad34b5dbfd8d2cf86d7fa3967eb9eaf491cbb8c1186c00baf227",
+      "file": "87986dacbd79c7c4beaa0c1b766f652be104767ae4043ae7208c5cea80258696",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/selection.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          4,
+          5,
+          8,
+          10,
+          11,
+          14,
+          15
+        ],
+        "head": [
+          9
+        ]
+      },
+      "table": "635929394db898fb3f30a9bf40b12192b94b90a807a2695cfa1d6cd7459b65b2"
+    },
+    {
+      "digest": "a4588c838aaeaee4f439cc7d5fe7e90648bb7eb8d90e29b3a74765092efe2048",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-core/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-core/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "01ddc6de8fca6a183ebf8bf1dfc69201614924795a75fdfee69ef3a09c478e70",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-data/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-data/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "d8694d0e0252306217352fa56309564534ce8f8683042e7d36429c5c64426991",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-model/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-model/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "f35a0cf0ef896a2236d8419cac8a2d85bfb33d12859af555f9cf7825dc785109",
+      "kind": "env",
+      "name": "ANTECEDENT_BASELINE_SCALAR_KERNELS",
+      "role": "identity"
+    },
+    {
+      "digest": "f35a0cf0ef896a2236d8419cac8a2d85bfb33d12859af555f9cf7825dc785109",
+      "kind": "env",
+      "name": "ANTECEDENT_DISABLE_DEVICE",
+      "role": "identity"
+    },
+    {
+      "digest": "f35a0cf0ef896a2236d8419cac8a2d85bfb33d12859af555f9cf7825dc785109",
+      "kind": "env",
+      "name": "ANTECEDENT_MEASUREMENT_OUT",
+      "role": "identity"
+    },
+    {
+      "digest": "f35a0cf0ef896a2236d8419cac8a2d85bfb33d12859af555f9cf7825dc785109",
+      "kind": "env",
+      "name": "ANTECEDENT_SCIENTIFIC_FEATURES",
+      "role": "identity"
+    },
+    {
+      "digest": "f40f6f880688ccfbe0dcedf5ffc07fba4d33e32135ed4f4eba1fb13be82412c1",
+      "file": "8370e4c9a2bd339712dcee4991c6b2278c881f052244e9268c9e5a7e4fddba5a",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/glm/binomial.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          10
+        ],
+        "sig": [
+          9,
+          13
+        ]
+      },
+      "table": "0106446af91e63323805f4e59a88af075c3d1b1fa76b6a16c612fb78abdacb94"
+    },
+    {
+      "digest": "d46ae7388dd29b3ee4578b3a8387e4238130593b54bb51cb88885afc369dc0dd",
+      "file": "1ed42338275bea1fb42bf2f040adb8afa715954eea2f838f360923555464381e",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/glm/count.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "a9b8d1f4460b78e424aaff30ba07c9678f90f18aa64a25251ffc3d8931ee58ad"
+    },
+    {
+      "digest": "83a9e25c7fe57bb52ba21805ad3e29a930f70406a8644c490249177d739a266b",
+      "file": "670af0d2ff15e2c2b7a3b34eee550c13ba51fd244f3b07a2b0af0fc8e8820c55",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/glm/gaussian.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "b0e32b5bf0f1ad7f808e6cafd2162530fedc7aea4e86d346469fc3e29b147075"
+    },
+    {
+      "digest": "14e4a7f8d1823c49f2cd554a6083585cf0d40e96a1c83f90e358709306722d92",
+      "file": "78bdf6230328df1dea391498dc6b3f25dac1cbefd457a310ce096bdb5aa2006e",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/glm/multinomial.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          5,
+          6,
+          10,
+          11
+        ],
+        "sig": [
+          13
+        ]
+      },
+      "table": "9812a0d86e00af616cdaf3d4f9f671795dc40a680ce47151a5d5651f7cfece34"
+    },
+    {
+      "digest": "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75",
+      "kind": "locked_package",
+      "name": "ahash 0.8.12",
+      "role": "compile"
+    },
+    {
+      "digest": "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299",
+      "kind": "locked_package",
+      "name": "anes 0.1.6",
+      "role": "compile"
+    },
+    {
+      "digest": "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000",
+      "kind": "locked_package",
+      "name": "anstyle 1.0.14",
+      "role": "compile"
+    },
+    {
+      "digest": "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56",
+      "kind": "locked_package",
+      "name": "arrayvec 0.7.8",
+      "role": "compile"
+    },
+    {
+      "digest": "0f3d22a41d3df78b71df0b685af219ae3a94188ab98d6fb29c958eb55c3247f4",
+      "kind": "locked_package",
+      "name": "arrow-array 60.1.0",
+      "role": "compile"
+    },
+    {
+      "digest": "7bd46a530bc1a8e763102fc36c1dc0f51f3ffa150c78e7f5658ccb54b1458ade",
+      "kind": "locked_package",
+      "name": "arrow-buffer 60.1.0",
+      "role": "compile"
+    },
+    {
+      "digest": "415b7fbc4cf56b080bb5677a4ae74211b5c79e571ed37a1d547633ec07f3b43b",
+      "kind": "locked_package",
+      "name": "arrow-data 60.1.0",
+      "role": "compile"
+    },
+    {
+      "digest": "de2c8e714b466404cdc1189e89f892426efea614d938e16c15518c340cd43ba3",
+      "kind": "locked_package",
+      "name": "arrow-schema 60.1.0",
+      "role": "compile"
+    },
+    {
+      "digest": "a55b94919229f2c42292fd71ffa4b75e83193bffdd77b1e858cd55fd2d0b0ea8",
+      "kind": "locked_package",
+      "name": "atomic-wait 1.1.0",
+      "role": "compile"
+    },
+    {
+      "digest": "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53",
+      "kind": "locked_package",
+      "name": "autocfg 1.5.1",
+      "role": "compile"
+    },
+    {
+      "digest": "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06",
+      "kind": "locked_package",
+      "name": "bitflags 2.13.2",
+      "role": "compile"
+    },
+    {
+      "digest": "6d9e454fc11f76977dc803893aff6304ed33d6a26efae8696573bea74baa27ae",
+      "kind": "locked_package",
+      "name": "blake3 1.8.7",
+      "role": "compile"
+    },
+    {
+      "digest": "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797",
+      "kind": "locked_package",
+      "name": "bytemuck 1.25.2",
+      "role": "compile"
+    },
+    {
+      "digest": "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b",
+      "kind": "locked_package",
+      "name": "byteorder 1.5.0",
+      "role": "compile"
+    },
+    {
+      "digest": "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04",
+      "kind": "locked_package",
+      "name": "bytes 1.12.1",
+      "role": "compile"
+    },
+    {
+      "digest": "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5",
+      "kind": "locked_package",
+      "name": "cast 0.3.0",
+      "role": "compile"
+    },
+    {
+      "digest": "54413ede23c2daf518f35156dfde027feb2374004d63bd497f983c8db9c0e313",
+      "kind": "locked_package",
+      "name": "cc 1.4.7",
+      "role": "compile"
+    },
+    {
+      "digest": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600",
+      "kind": "locked_package",
+      "name": "cfg-if 1.0.5",
+      "role": "compile"
+    },
+    {
+      "digest": "1aa79e62e7697b8e29b513a68abacf485adcd1fe8284a4316c5ae868e6633327",
+      "kind": "locked_package",
+      "name": "chrono 0.4.45",
+      "role": "compile"
+    },
+    {
+      "digest": "42e69ffd6f0917f5c029256a24d0161db17cea3997d185db0d35926308770f0e",
+      "kind": "locked_package",
+      "name": "ciborium 0.2.2",
+      "role": "compile"
+    },
+    {
+      "digest": "05afea1e0a06c9be33d539b876f1ce3692f4afea2cb41f740e7743225ed1c757",
+      "kind": "locked_package",
+      "name": "ciborium-io 0.2.2",
+      "role": "compile"
+    },
+    {
+      "digest": "57663b653d948a338bfb3eeba9bb2fd5fcfaecb9e199e87e1eda4d9e8b240fd9",
+      "kind": "locked_package",
+      "name": "ciborium-ll 0.2.2",
+      "role": "compile"
+    },
+    {
+      "digest": "aa8876b300ab35ba921adea3dfd70157a46249b33f95c9084ae5709785478946",
+      "kind": "locked_package",
+      "name": "clap 4.6.7",
+      "role": "compile"
+    },
+    {
+      "digest": "ec0797fb7aeb1406c84efac526901f7ec3ead2124f946b494e72879d4b54704d",
+      "kind": "locked_package",
+      "name": "clap_builder 4.6.7",
+      "role": "compile"
+    },
+    {
+      "digest": "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486",
+      "kind": "locked_package",
+      "name": "clap_lex 1.1.1",
+      "role": "compile"
+    },
+    {
+      "digest": "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b",
+      "kind": "locked_package",
+      "name": "constant_time_eq 0.4.2",
+      "role": "compile"
+    },
+    {
+      "digest": "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b",
+      "kind": "locked_package",
+      "name": "core-foundation-sys 0.8.7",
+      "role": "compile"
+    },
+    {
+      "digest": "f2b12d017a929603d80db1831cd3a24082f8137ce19c69e6447f54f5fc8d692f",
+      "kind": "locked_package",
+      "name": "criterion 0.5.1",
+      "role": "compile"
+    },
+    {
+      "digest": "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1",
+      "kind": "locked_package",
+      "name": "criterion-plot 0.5.0",
+      "role": "compile"
+    },
+    {
+      "digest": "e71406cd8807725f7ac2f999a4cdd32e98f829fdf65f528343cebf945e41df1e",
+      "kind": "locked_package",
+      "name": "crossbeam 0.8.5",
+      "role": "compile"
+    },
+    {
+      "digest": "98b0cc327b5bc766e7fda9c9260cc0fa81b43a8e240440422dff70788e3f9ef1",
+      "kind": "locked_package",
+      "name": "crossbeam-channel 0.5.17",
+      "role": "compile"
+    },
+    {
+      "digest": "622f3fc73690be383c7214310406f28a90e6edeadc3cea882f9d71e495b9711a",
+      "kind": "locked_package",
+      "name": "crossbeam-deque 0.8.8",
+      "role": "compile"
+    },
+    {
+      "digest": "dc74980687109a3b14c72fd458107bf0baa1da1a1a805e178d15501ba9b86d9d",
+      "kind": "locked_package",
+      "name": "crossbeam-epoch 0.9.21",
+      "role": "compile"
+    },
+    {
+      "digest": "03e8bd762f7479489c70ed6c768ddca99d7296857de437a68dcb2a94365b3fae",
+      "kind": "locked_package",
+      "name": "crossbeam-queue 0.3.14",
+      "role": "compile"
+    },
+    {
+      "digest": "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6",
+      "kind": "locked_package",
+      "name": "crossbeam-utils 0.8.23",
+      "role": "compile"
+    },
+    {
+      "digest": "1c4713e43e2886ba72b8271aa66c93d722116acf7a75555cce11dcde84388fe8",
+      "kind": "locked_package",
+      "name": "dyn-stack 0.13.2",
+      "role": "compile"
+    },
+    {
+      "digest": "e1d926b4d407d372f141f93bb444696142c29d32962ccbd3531117cf3aa0bfa9",
+      "kind": "locked_package",
+      "name": "dyn-stack-macros 0.1.3",
+      "role": "compile"
+    },
+    {
+      "digest": "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34",
+      "kind": "locked_package",
+      "name": "either 1.18.0",
+      "role": "compile"
+    },
+    {
+      "digest": "a1e6a265c649f3f5979b601d26f1d05ada116434c87741c9493cb56218f76cbc",
+      "kind": "locked_package",
+      "name": "enum-as-inner 0.6.1",
+      "role": "compile"
+    },
+    {
+      "digest": "c35da53b5a021d2484a7cc49b2ac7f2d840f8236a286f84202369bd338d761ea",
+      "kind": "locked_package",
+      "name": "equator 0.2.2",
+      "role": "compile"
+    },
+    {
+      "digest": "4711b213838dfee0117e3be6ac926007d7f433d7bbe33595975d4190cb07e6fc",
+      "kind": "locked_package",
+      "name": "equator 0.4.2",
+      "role": "compile"
+    },
+    {
+      "digest": "02da895aab06bbebefb6b2595f6d637b18c9ff629b4cd840965bb3164e4194b0",
+      "kind": "locked_package",
+      "name": "equator 0.6.0",
+      "role": "compile"
+    },
+    {
+      "digest": "3bf679796c0322556351f287a51b49e48f7c4986e727b5dd78c972d30e2e16cc",
+      "kind": "locked_package",
+      "name": "equator-macro 0.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "44f23cf4b44bfce11a86ace86f8a73ffdec849c9fd00a386a53d278bd9e81fb3",
+      "kind": "locked_package",
+      "name": "equator-macro 0.4.2",
+      "role": "compile"
+    },
+    {
+      "digest": "2b14b339eb76d07f052cdbad76ca7c1310e56173a138095d3bf42a23c06ef5d8",
+      "kind": "locked_package",
+      "name": "equator-macro 0.6.0",
+      "role": "compile"
+    },
+    {
+      "digest": "5ab6df3dd147fe8d702a288b95bcd8fcc499ab572fc80da6828f60cd4d524d67",
+      "kind": "locked_package",
+      "name": "faer 0.24.4",
+      "role": "compile"
+    },
+    {
+      "digest": "b87d23ed7ab1f26c0cba0e5b9e061a796fbb7dc170fa8bee6970055a1308bb0f",
+      "kind": "locked_package",
+      "name": "faer-traits 0.24.0",
+      "role": "compile"
+    },
+    {
+      "digest": "ef25905e51abafe4dcea6c15fec58c57b601cdbd0ee53d22ea1d3016c587d39b",
+      "kind": "locked_package",
+      "name": "find-msvc-tools 0.1.13",
+      "role": "compile"
+    },
+    {
+      "digest": "aa0673db364b12263d103b68337a68fbecc541d6f6b61ba72fe438654709eacb",
+      "kind": "locked_package",
+      "name": "gemm 0.19.0",
+      "role": "compile"
+    },
+    {
+      "digest": "086936dbdcb99e37aad81d320f98f670e53c1e55a98bee70573e83f95beb128c",
+      "kind": "locked_package",
+      "name": "gemm-c32 0.19.0",
+      "role": "compile"
+    },
+    {
+      "digest": "20c8aeeeec425959bda4d9827664029ba1501a90a0d1e6228e48bef741db3a3f",
+      "kind": "locked_package",
+      "name": "gemm-c64 0.19.0",
+      "role": "compile"
+    },
+    {
+      "digest": "88027625910cc9b1085aaaa1c4bc46bb3a36aad323452b33c25b5e4e7c8e2a3e",
+      "kind": "locked_package",
+      "name": "gemm-common 0.19.0",
+      "role": "compile"
+    },
+    {
+      "digest": "02e0b8c9da1fbec6e3e3ab2ce6bc259ef18eb5f6f0d3e4edf54b75f9fd41a81c",
+      "kind": "locked_package",
+      "name": "gemm-f32 0.19.0",
+      "role": "compile"
+    },
+    {
+      "digest": "056131e8f2a521bfab322f804ccd652520c79700d81209e9d9275bbdecaadc6a",
+      "kind": "locked_package",
+      "name": "gemm-f64 0.19.0",
+      "role": "compile"
+    },
+    {
+      "digest": "d2c81fb5260e37854d09d5c87183309fd8c555b75289427884b25660bc87a85e",
+      "kind": "locked_package",
+      "name": "generativity 1.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd",
+      "kind": "locked_package",
+      "name": "getrandom 0.3.4",
+      "role": "compile"
+    },
+    {
+      "digest": "6ea2d84b969582b4b1864a92dc5d27cd2b77b622a8d79306834f1be5ba20d84b",
+      "kind": "locked_package",
+      "name": "half 2.7.1",
+      "role": "compile"
+    },
+    {
+      "digest": "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a",
+      "kind": "locked_package",
+      "name": "hashbrown 0.17.1",
+      "role": "compile"
+    },
+    {
+      "digest": "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea",
+      "kind": "locked_package",
+      "name": "heck 0.5.0",
+      "role": "compile"
+    },
+    {
+      "digest": "e31bc9ad994ba00e440a8aa5c9ef0ec67d5cb5e5cb0cc7f8b744a35b389cc470",
+      "kind": "locked_package",
+      "name": "iana-time-zone 0.1.65",
+      "role": "compile"
+    },
+    {
+      "digest": "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46",
+      "kind": "locked_package",
+      "name": "is-terminal 0.4.17",
+      "role": "compile"
+    },
+    {
+      "digest": "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473",
+      "kind": "locked_package",
+      "name": "itertools 0.10.5",
+      "role": "compile"
+    },
+    {
+      "digest": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682",
+      "kind": "locked_package",
+      "name": "itoa 1.0.18",
+      "role": "compile"
+    },
+    {
+      "digest": "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2",
+      "kind": "locked_package",
+      "name": "libc 0.2.189",
+      "role": "compile"
+    },
+    {
+      "digest": "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981",
+      "kind": "locked_package",
+      "name": "libm 0.2.16",
+      "role": "compile"
+    },
+    {
+      "digest": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98",
+      "kind": "locked_package",
+      "name": "memchr 2.8.3",
+      "role": "compile"
+    },
+    {
+      "digest": "9e04345dc84b498ff89fe0d38543d1f170da9e43a2c2bcee73a0f9069f72d081",
+      "kind": "locked_package",
+      "name": "nano-gemm 0.2.2",
+      "role": "compile"
+    },
+    {
+      "digest": "0775b1e2520e64deee8fc78b7732e3091fb7585017c0b0f9f4b451757bbbc562",
+      "kind": "locked_package",
+      "name": "nano-gemm-c32 0.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "9af49a20d58816e6b5ee65f64142e50edb5eba152678d4bb7377fcbf63f8437a",
+      "kind": "locked_package",
+      "name": "nano-gemm-c64 0.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "6cc8d495c791627779477a2cf5df60049f5b165342610eb0d76bee5ff5c5d74c",
+      "kind": "locked_package",
+      "name": "nano-gemm-codegen 0.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "d998dfa644de87a0f8660e5ea511d7cb5c33b5a2d9847b7af57a2565105089f0",
+      "kind": "locked_package",
+      "name": "nano-gemm-core 0.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "879d962e79bc8952e4ad21ca4845a21132540ed3f5e01184b2ff7f720e666523",
+      "kind": "locked_package",
+      "name": "nano-gemm-f32 0.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "b9a513473dce7dc00c7e7c318481ca4494034e76997218d8dad51bd9f007a815",
+      "kind": "locked_package",
+      "name": "nano-gemm-f64 0.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "93e7820bc0a80a0238e650327316f929ba18d5be054b647490a3a6a339f3e7c0",
+      "kind": "locked_package",
+      "name": "num-bigint 0.5.1",
+      "role": "compile"
+    },
+    {
+      "digest": "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495",
+      "kind": "locked_package",
+      "name": "num-complex 0.4.6",
+      "role": "compile"
+    },
+    {
+      "digest": "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b",
+      "kind": "locked_package",
+      "name": "num-integer 0.1.47",
+      "role": "compile"
+    },
+    {
+      "digest": "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841",
+      "kind": "locked_package",
+      "name": "num-traits 0.2.19",
+      "role": "compile"
+    },
+    {
+      "digest": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50",
+      "kind": "locked_package",
+      "name": "once_cell 1.21.4",
+      "role": "compile"
+    },
+    {
+      "digest": "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e",
+      "kind": "locked_package",
+      "name": "oorandom 11.1.5",
+      "role": "compile"
+    },
+    {
+      "digest": "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a",
+      "kind": "locked_package",
+      "name": "paste 1.0.15",
+      "role": "compile"
+    },
+    {
+      "digest": "dc0d895b311e3af9902528fbb8f928688abbd95872819320517cc24ca6b2bd08",
+      "kind": "locked_package",
+      "name": "primal-check 0.3.4",
+      "role": "compile"
+    },
+    {
+      "digest": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9",
+      "kind": "locked_package",
+      "name": "proc-macro2 1.0.107",
+      "role": "compile"
+    },
+    {
+      "digest": "046aa45b989642ec2e4717c8e72d677b13edd831a4d3b6cf37d9a3e54912496a",
+      "kind": "locked_package",
+      "name": "pulp 0.22.3",
+      "role": "compile"
+    },
+    {
+      "digest": "1d8f70e07b9c3962945a74e59ca1c511bba65b6419468acc217c457d93f3c740",
+      "kind": "locked_package",
+      "name": "pulp-wasm-simd-flag 0.1.1",
+      "role": "compile"
+    },
+    {
+      "digest": "15f1304a5aecdcfe9ee72fbba90aa37b3aa067a69d14cb7f3d9deada0be7c07c",
+      "kind": "locked_package",
+      "name": "qd 0.8.0",
+      "role": "compile"
+    },
+    {
+      "digest": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001",
+      "kind": "locked_package",
+      "name": "quote 1.0.47",
+      "role": "compile"
+    },
+    {
+      "digest": "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186",
+      "kind": "locked_package",
+      "name": "raw-cpuid 11.6.0",
+      "role": "compile"
+    },
+    {
+      "digest": "fb39b166781f92d482534ef4b4b1b2568f42613b53e5b6c160e24cfbfa30926d",
+      "kind": "locked_package",
+      "name": "rayon 1.12.0",
+      "role": "compile"
+    },
+    {
+      "digest": "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91",
+      "kind": "locked_package",
+      "name": "rayon-core 1.13.0",
+      "role": "compile"
+    },
+    {
+      "digest": "f821338fddb99d089116342c46e9f1fbf3828dba077674613e734e01d6ea8677",
+      "kind": "locked_package",
+      "name": "realfft 3.5.0",
+      "role": "compile"
+    },
+    {
+      "digest": "03251193000f4bd3b042892be858ee50e8b3719f2b08e5833ac4353724632430",
+      "kind": "locked_package",
+      "name": "reborrow 0.5.5",
+      "role": "compile"
+    },
+    {
+      "digest": "f020237b6c8eed93db2e2cb53c00c60a8e1bc73da7d073199a1180401450218d",
+      "kind": "locked_package",
+      "name": "regex 1.13.1",
+      "role": "compile"
+    },
+    {
+      "digest": "ad8553b9b26413251cbf30e620595c7a41b3887f03da04579c0e6b0d6a06b4b2",
+      "kind": "locked_package",
+      "name": "regex-automata 0.4.18",
+      "role": "compile"
+    },
+    {
+      "digest": "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4",
+      "kind": "locked_package",
+      "name": "regex-syntax 0.8.11",
+      "role": "compile"
+    },
+    {
+      "digest": "21db5f9893e91f41798c88680037dba611ca6674703c1a18601b01a72c8adb89",
+      "kind": "locked_package",
+      "name": "rustfft 6.4.1",
+      "role": "compile"
+    },
+    {
+      "digest": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502",
+      "kind": "locked_package",
+      "name": "same-file 1.0.6",
+      "role": "compile"
+    },
+    {
+      "digest": "1bc711410fbe7399f390ca1c3b60ad0f53f80e95c5eb935e52268a0e2cd49acc",
+      "kind": "locked_package",
+      "name": "seq-macro 0.3.6",
+      "role": "compile"
+    },
+    {
+      "digest": "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba",
+      "kind": "locked_package",
+      "name": "serde 1.0.229",
+      "role": "compile"
+    },
+    {
+      "digest": "67dca2c9c51e58a4791a4b1ed58308b39c64224d349a935ab5039aa360942a48",
+      "kind": "locked_package",
+      "name": "serde_core 1.0.229",
+      "role": "compile"
+    },
+    {
+      "digest": "e7a5d71263a5a7d47b41f6b3f06ba276f10cc18b0931f1799f710578e2309348",
+      "kind": "locked_package",
+      "name": "serde_derive 1.0.229",
+      "role": "compile"
+    },
+    {
+      "digest": "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14",
+      "kind": "locked_package",
+      "name": "serde_json 1.0.151",
+      "role": "compile"
+    },
+    {
+      "digest": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba",
+      "kind": "locked_package",
+      "name": "shlex 2.0.1",
+      "role": "compile"
+    },
+    {
+      "digest": "673aaca3d8aa5387a6eba861fbf984af5348d9df5d940c25c6366b19556fdf64",
+      "kind": "locked_package",
+      "name": "spindle 0.2.6",
+      "role": "compile"
+    },
+    {
+      "digest": "fe895eb47f22e2ddd4dabc02bce419d2e643c8e3b585c78158b349195bc24d82",
+      "kind": "locked_package",
+      "name": "strength_reduce 0.2.4",
+      "role": "compile"
+    },
+    {
+      "digest": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297",
+      "kind": "locked_package",
+      "name": "syn 2.0.119",
+      "role": "compile"
+    },
+    {
+      "digest": "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee",
+      "kind": "locked_package",
+      "name": "syn 3.0.6",
+      "role": "compile"
+    },
+    {
+      "digest": "01198a2debb237c62b6826ec7081082d951f46dbb64b0e8c7649a452230d1dfc",
+      "kind": "locked_package",
+      "name": "sysctl 0.6.0",
+      "role": "compile"
+    },
+    {
+      "digest": "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52",
+      "kind": "locked_package",
+      "name": "thiserror 1.0.69",
+      "role": "compile"
+    },
+    {
+      "digest": "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f",
+      "kind": "locked_package",
+      "name": "thiserror 2.0.20",
+      "role": "compile"
+    },
+    {
+      "digest": "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1",
+      "kind": "locked_package",
+      "name": "thiserror-impl 1.0.69",
+      "role": "compile"
+    },
+    {
+      "digest": "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af",
+      "kind": "locked_package",
+      "name": "thiserror-impl 2.0.20",
+      "role": "compile"
+    },
+    {
+      "digest": "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc",
+      "kind": "locked_package",
+      "name": "tinytemplate 1.2.1",
+      "role": "compile"
+    },
+    {
+      "digest": "1ad61aed86bc3faea4300c7aee358b4c6d0c8d6ccc36524c96e4c92ccf26e77e",
+      "kind": "locked_package",
+      "name": "transpose 0.2.3",
+      "role": "compile"
+    },
+    {
+      "digest": "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954",
+      "kind": "locked_package",
+      "name": "unicode-ident 1.0.26",
+      "role": "compile"
+    },
+    {
+      "digest": "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a",
+      "kind": "locked_package",
+      "name": "version_check 0.9.5",
+      "role": "compile"
+    },
+    {
+      "digest": "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b",
+      "kind": "locked_package",
+      "name": "walkdir 2.5.0",
+      "role": "compile"
+    },
+    {
+      "digest": "d35102a9f36d089ccae9e4c6802bc118be4487b80aaffc0ab4e0cf5ce92d2873",
+      "kind": "locked_package",
+      "name": "zerocopy 0.8.57",
+      "role": "compile"
+    },
+    {
+      "digest": "146c01f5ab44258da43cf276c74a2763db2ff3969c9c652c3f2de07041d0b2bc",
+      "kind": "locked_package",
+      "name": "zerocopy-derive 0.8.57",
+      "role": "compile"
+    },
+    {
+      "digest": "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b",
+      "kind": "locked_package",
+      "name": "zmij 1.0.23",
+      "role": "compile"
+    },
+    {
+      "digest": "192d002ae3087dd5554d4b2af36663a2654ddb8942ef798d6e7bb9c23abd5bb6",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-learn-burn/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-learn-burn/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "fbafb1e29d14ac4f5daad87564d79cacc46df98c2b116bb904b50e50d42be718",
+      "file": "ed8f55813b96fc8cf63fd00f48111be5b400054847ee8c3235909a0ae978886c",
+      "kind": "rust_items",
+      "path": "crates/antecedent-stats/src/faer_backend/resampling.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "390b150040f46a4722762d5cbf435a74055be5c3a924b9fd636ce4456132e25d"
+    },
+    {
+      "digest": "9ecd572fffbe56a9cb8e1fb473ee852334473f4dd262709d580008a7592f16e7",
+      "file": "3b4e1ebb76e6fc29e25881d049358a44341f02a395fa27e890b28bc6262c2be5",
+      "kind": "rust_items",
+      "path": "crates/antecedent-learn/src/design.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "c7f9f7f8ec88c356bac483e384bfad08d4b2f9da6bc25d4d9aa8a436eb3b9861"
+    },
+    {
+      "digest": "c086548a1cb711332965b2e0a9d9b402186c65707e521ba792a1d39152e0ea8e",
+      "file": "dffb225f4396f1847796d143eb24428f62d38c3b9d20f5a8e338a815e0a95c1e",
+      "kind": "rust_items",
+      "path": "crates/antecedent-learn/src/error.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "ba1eb2624457d7db3f24fae06e1bbf681432b5833d12dd73c058c6d4e3d55e1c"
+    },
+    {
+      "digest": "914447c2ef4203abe89fc3a1896cc09844cc0d238afc1fdfb0545c08031a52cc",
+      "file": "7f8739b84af61ea229f95d1340ff3c58835cc78a9fbfd2000d3c564c154a1449",
+      "kind": "rust_items",
+      "path": "crates/antecedent-learn/src/learner.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          7
+        ]
+      },
+      "table": "5aa8db646c9ed7a5f4e72f51822a770ad287867936f730804d6b00d89e18071f"
+    },
+    {
+      "digest": "d1da8d363fce32ae2cef3dda1b479522868bcf46d504125282dfa283d99b4a2d",
+      "file": "e2af4dd369af76845b5dfca0b393e4a1cf8bcc8b7e7b4ae15b617b044e382989",
+      "kind": "rust_items",
+      "path": "crates/antecedent-learn/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          21,
+          22
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "199dfb31a6fe1a108232e92fab34d4e4b76e68a14fdc510088abdbd3cdf46ba0"
+    },
+    {
+      "digest": "ff2941c0540b877c304c4295a636c936770c0c18027792c02fd3e5151944babb",
+      "file": "e2f2618e08107c411f4223694f93bf217194e0c5fb7dc931ba904670bb154092",
+      "kind": "rust_items",
+      "path": "crates/antecedent-learn/src/portable.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          3,
+          4,
+          8
+        ]
+      },
+      "table": "8513ddcf5dda926366b5aaa3c15b04e87cced60a28fdb423d74680bcdd54f561"
+    },
+    {
+      "digest": "0c7cc1e5cf8702e73c6a84456847c1726da29247103080ee532286cf6f799ec4",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-learn/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-learn/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "1e76f2965113f4840a5570ba513338246d61185ac762c6f7d95b9901cd1561d2",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-common.nix",
+      "raw": "c3643f29bd4c6b1552ef4c27e213600ff9401940d415d3aa381adedcd345b59a",
+      "role": "external"
+    },
+    {
+      "digest": "064af02e1bb3639db30a7187045223c91356481944430b66a3b2fd4dfe7f17e7",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-deps.nix",
+      "raw": "222b61a2f0139d2169937f90817061f6f35eafc8f30fc7a339aaf57e7200f0b7",
+      "role": "external"
+    },
+    {
+      "digest": "08c8dc598115605638f0166647e9ab1579501378edb129acc31a4a27638a8aa8",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-driver.nix",
+      "raw": "56dac2e6aceb7866a819997389469111a074073e75d4affab3df7628eac231c6",
+      "role": "external"
+    },
+    {
+      "digest": "8beb51f8079c3ffa26b288a11b062bf762a098101200f9f6874810a51bc44e0f",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-target.nix",
+      "raw": "774699853b1f8081c85ddd21b49e8e7f32cae73c440b39c46f9a8cf7ded9954f",
+      "role": "external"
+    },
+    {
+      "digest": "5d63b3058b9fd16462f5e0c7f73439d8a3c9f3b2c63809d53b3f80b92e1caadd",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-toolchain.nix",
+      "raw": "54249610eb1ed177677d43fc7880f40d04717ef5ddcd3b669f4db70c888cf11b",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": ".cargo/config",
+      "role": "external"
+    },
+    {
+      "digest": "c2378562efdbd7f5d34af233c3bd02712382f47bd466814bebdc44d8ddefd858",
+      "kind": "evidence_file",
+      "path": ".cargo/config.toml",
+      "role": "external"
+    },
+    {
+      "digest": "718c5162693a68c0300fe787b66c52c799fa1ad1d3d4d72d31c4b5eb7c7a1328",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-kernels/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-kernels/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "68117ea434e66637968bf9dfba56903cc0d431e03bc6aab70e554f64cb48cb2c",
+      "file": "8728db3f29fbdce5718cae541cef67c00e28ee0d1bb47971de04b1672c09bd78",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/callback.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          33
+        ]
+      },
+      "table": "60acb8f358b973a2fdc8da224966d641ccd573ac70c3059882ccb176c2c904f9"
+    },
+    {
+      "digest": "45ba987ca441738d51cbb115086cb3f1e2a9f6f755329cdeb225633fae0aeac1",
+      "file": "247fdd8cad39696ff7585ca5affd41f27917e89b680857e154315f682250bf73",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/canonical_encode.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "041c8f9345adac26b4022fe0280635cbf6aef0d4c4c4e7e323947a69afc401a8"
+    },
+    {
+      "digest": "c96f40718f4b4ed59078fbc247414d9f34c495e581d348b062e04993c74a92fe",
+      "file": "133ea0400ec5f18f73c658a918958213753cc181f6e2659c56ea64b27069a0dc",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/diagnostic.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          30,
+          31,
+          41,
+          46,
+          52
+        ]
+      },
+      "table": "ca3b937d24134b0f4d8c8af5db65fe58bbd74b0ef2c939548f7413dd43314644"
+    },
+    {
+      "digest": "bb3495705b836fac8d47a7d7ab1b02cbb37cf2924aa8fcd6e17848c943254072",
+      "file": "53b0fc912dc1b1a95689af561b6ef07d9d23d8f26be01c4c4a1af4dd59a06250",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/error.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          0
+        ]
+      },
+      "table": "11c7dadac7acd9d3b5441c413634a9c803eaeb4783e574010e30ce5d3b416088"
+    },
+    {
+      "digest": "7549c8587e3446adefac323e97403aafc116f04148c8a34dd285f60032fb09fa",
+      "file": "0b377887ca5c8f01e14d3f2164258226a57d39663922550048b6c43a2d7a4738",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/execution_attempt.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          16,
+          20,
+          23,
+          25,
+          32,
+          35,
+          36,
+          42,
+          48,
+          50,
+          51,
+          53
+        ],
+        "head": [
+          18,
+          24,
+          49,
+          52
+        ],
+        "sig": [
+          14,
+          17,
+          19,
+          21,
+          22
+        ]
+      },
+      "table": "edb505eb9694025393c736b8c8882e3d5c50abddc72ab4db13a3bff871af8def"
+    },
+    {
+      "digest": "0c79ccbdc4afef741ee6ca678ca9727a4b078e211e47d5e89cdb60a2b142350b",
+      "file": "f801a98f658ae8f7fb453e50304bf9bff372b7279a630059c0bfc4c66877e958",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/identity.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          51
+        ]
+      },
+      "table": "3cc84d270a9880d6b781e68976061f9f057bca2cb26d793c14f231f72b92c372"
+    },
+    {
+      "digest": "a56e0a4a78e415d0a8255859ca2ca251c8aa30dc1ad2c194cc820a729a03273c",
+      "file": "d007f3be2e04018ee10e41948a54d46b9dce20a980626338d062d72e5bf87906",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/ids.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          3,
+          4,
+          8,
+          13
+        ]
+      },
+      "table": "6d060cb48835b955499a6b5d09ff491495686523c204907cece3c66603ee30af"
+    },
+    {
+      "digest": "4944481dd45740445599e61b7211cd8beac827fd3ddcc5484fde7a85251b186f",
+      "file": "0658b3755309b14f787669a985d748c1283f1bf796d012ab02805a5fc1d34794",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/intervention.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          9,
+          19,
+          97,
+          98
+        ]
+      },
+      "table": "096cf246c41dc104983b4fcd429ae79c9e477445da4cc74aad16525e838bb504"
+    },
+    {
+      "digest": "05d88ae895c5f1319c6f5bc568c4689c6e0a87684021e49c0b00f8c32b054fca",
+      "file": "e3954eac966f7b8b0fa8b7889794e94d7b1939c5a79ad5ec415f55693b14ef73",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          6,
+          7,
+          8,
+          9,
+          13,
+          14,
+          18,
+          22,
+          29,
+          32,
+          36,
+          37,
+          38,
+          44,
+          50,
+          98
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "d244243dd236b6fc669732ac84e13385bb12a44a63dba494f25283435fe43bfd"
+    },
+    {
+      "digest": "f07d053b044e3adafb3860de5785c13f49cd47386d3f552197d894f314165045",
+      "file": "40e96304cc36e7e48d07575c750f9714888a8dd01ba24337ff29eb50a64ba4cd",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/node.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          1,
+          5
+        ],
+        "head": [
+          2
+        ]
+      },
+      "table": "e1e025ab93d87fa8a63b83092f40c81b5374ca6c030dfe93faa87f4d30400dcb"
+    },
+    {
+      "digest": "ea9b3bc71a6668a567e46ac661ccbd93f7e71c4eb8df8c6ead07cef9ce5fdc23",
+      "file": "83258d74a2fe7c9756009156da283530849d29f812dfbb0a3fb0461610cfd738",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/numerical_admission.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          3,
+          14
+        ]
+      },
+      "table": "4977cf2d0b2ebbb15c8871ae36231616585b899c93eedf8c968a98b97e31ca45"
+    },
+    {
+      "digest": "284afbe6d38eb26c27f6bfefb1834ad85bbdcb1e20ac9bb5e7755ca607cba9e5",
+      "file": "01164eed8276edc00dca80bbaf39c6eb655cfb086e22a11ac40b4b4160bc0dcd",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/reason_code.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          0,
+          2,
+          3,
+          4,
+          6,
+          8
+        ]
+      },
+      "table": "c0f711a4acc99fb137dd6017ac66a0639c99608ba8aeefdbf2ac8e6534df1644"
+    },
+    {
+      "digest": "20b9d4dda9300c760267f94b7ad1b4faa91f656b367d4a7bad77aa020e82ec6c",
+      "file": "fb35cb8ac741669db74aa96b6aedfcc5544e3a452b98e6b1401aaede67a7a67c",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/reason_codes_data.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          0
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "83f0985c2735e7e1418783e4dcdfafdeb846248a6bde05f7a061f44054008803"
+    },
+    {
+      "digest": "23a11506247f2c3aa0e21724ab920a448ddccdf56c795ef90c18a6fa5497a856",
+      "file": "46b9efba7c85111204754c4042ce9136f6aea7117bb58c67ca5d278f5d80fb8e",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/refusal.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          19
+        ]
+      },
+      "table": "b6cea8bbabc957cbe9011e23c5462539997ab110353ac70f28610fc58c30400a"
+    },
+    {
+      "digest": "50bb6fda1f3c6b3c086aac7517f232099767de57fa1dca8b9012b1c29036eb62",
+      "file": "084455c189216da7f081e8e0ed55f07ee12b7dc4034f93bf909c68b4e90ad1f5",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/row_mask.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          2,
+          7,
+          12,
+          16
+        ],
+        "head": [
+          6
+        ]
+      },
+      "table": "35deb04ac752581a1957371702660af2e8aac48c87e446e8ccc1655ba49dc6b6"
+    },
+    {
+      "digest": "0ead203e9efda6d1dda492ffc259a6e558bd168c84e63a24a635e133e75cc5b5",
+      "file": "54f004bc015e721a6d1f2cc00418f6e407d50984145c805442277ba57ed54a0b",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/sampling_design.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          1,
+          21,
+          26,
+          31,
+          36,
+          47,
+          50,
+          53
+        ]
+      },
+      "table": "cb49e2841d2c3dccad4bace8bd0d4180bf9ec4ff9af8ced9411614bf0089d806"
+    },
+    {
+      "digest": "9d2f4b5bfbb69cdb73d6ef39f30f7023a2eec414d315bf325b519d8b4b21b7f8",
+      "file": "f3d3bb88aba16aefc54452bdf15b59e4bfc1c29b46e70d8848c6314354b4c6ce",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/schema.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          6,
+          7,
+          9,
+          10,
+          11,
+          14,
+          17,
+          24,
+          25,
+          26,
+          28,
+          30,
+          31,
+          34,
+          35,
+          37,
+          42,
+          44,
+          54
+        ],
+        "head": [
+          8,
+          12,
+          27,
+          36
+        ]
+      },
+      "table": "c16e116b55cbddc34b618a366253721e2a35e40620c5dbf151b41b5383519b3b"
+    },
+    {
+      "digest": "9f92d4976332e6ce9be0fed5f6699b11338bc2c53ead1dd7f196ce837d0adfb9",
+      "file": "5a3cc19166d8504665e03102077df7a4928215865f9d5411fe0cf9ec0ffe6002",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/support_gate.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          5
+        ]
+      },
+      "table": "9d33413a24b18431bb60cb526961ea1c8025f7ba5ce97a869563caafba2e7c38"
+    },
+    {
+      "digest": "0641d7022b83c3a3308332eb702eda25d483ff49a79d75005b38fc77007aa091",
+      "file": "f78b123b27fb26f5f9bcd04d370727556890e442256980a1495588e9316c87e0",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/value.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "d764c14520fea16c84cf91db061953a7b1f0942ba04f858e6782d6d1e0c934ee"
+    },
+    {
+      "digest": "f43b2babad507f01b3f8dea4db7834411fbdd3184fe5726979bd250e8b9846be",
+      "file": "3481a7455e034b7b7a094b05ddf7b46839f6d61710da9d945c90e3919e17db92",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/value_expr.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          8,
+          30
+        ]
+      },
+      "table": "a049c1872ca0c2ecad1c0b2be440d6980e9f2fe9340a04480fd1fe6e122df64f"
+    },
+    {
+      "digest": "d87c6a6b13208665041038717ede518eb485bf3f43c4d9dea90fcedd9cb88d31",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-stats/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-stats/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "31b02e9c3790af38ee36c4a04b377cf4d2f3fade7a5a9d8175885aace76f8646",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-graph/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-graph/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "0d83838f05f748c975c69874978a19e1ed5b8a8885388e18bb60e9e83b27b061",
+      "file": "2bb3b3e65615c2d9e65e78749a67e4c15f2ca4063ed800586493818521dd9e6c",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/fit/basis.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "sig": [
+          10,
+          15,
+          16,
+          17,
+          18
+        ]
+      },
+      "table": "675d5d9aeac36df6eccd1cdec0a3d105edf525809aa0d783a8ce17e4e4da0e7a"
+    },
+    {
+      "digest": "c4e7903ebfb49ed0a39886820a423ea5b33f6cfd2a2279151de8b98d5b90ba19",
+      "file": "8e57c818c7a49ca7858be80b1c689a9ce977844f7b762d77acb313a230287bf1",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/fit/hierarchical.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "sig": [
+          7,
+          8
+        ]
+      },
+      "table": "72e6f7ebf342960ef11e8fbc2f8c1ade0f2a785401397800ace9ae0ef0e14523"
+    },
+    {
+      "digest": "f043824e92002f2ff89b9078bdc98c7f8ce39403e4c76623adaaa42c554b80bf",
+      "file": "5fc86bc23616dbd01cc57549c42e46c9b97f469af4f3baa0f7869f7d9cce2837",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/fit/linear.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7
+        ]
+      },
+      "table": "ed5b6874754d51461f2f37bd4cc0e116ab4edc7c95a012638e169bf56d1f058a"
+    },
+    {
+      "digest": "8b7027a0570aa648a75641cbf6d332fdfd2d044619d5069c407ab9bdde9ad489",
+      "file": "2df4b2779d9b452e8a8ee3a0ee23bc7d57f772658ada6f3d6b5c3cd8e97047aa",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/fit/mod.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          10,
+          12,
+          13,
+          14,
+          15,
+          25,
+          26,
+          27,
+          28,
+          31
+        ],
+        "sig": [
+          29
+        ]
+      },
+      "table": "cbcc95fffd6b530e47ab63ea807e5de0d485d751d6c7ad8c2a9a2d59d8b1518b"
+    },
+    {
+      "digest": "99d81ca655a916b50c091d987afde8a1f2a23103005f228d3ee7de7a0bd0e90e",
+      "file": "d295f0f0c411140b37de145de820167d96df05653333f54aa0355f104aa0d2da",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/fit/state_space.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "sig": [
+          7,
+          8
+        ]
+      },
+      "table": "b7c5dc18dd4993b1d5a0479f4fa61e8b3e71c851daedb86f2bc615682b0cd29c"
+    },
+    {
+      "digest": "51969331127ad3a1982cebff145afacb2ebc4e4698c22946fe2398376b6dd99f",
+      "file": "f9bc8e390415994104f4e387789befe29bfd75a7adb2a1d904cbbec2b503ae0d",
+      "kind": "rust_items",
+      "path": "crates/antecedent-model/src/registry/fit/tree.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          14
+        ],
+        "sig": [
+          22,
+          23
+        ]
+      },
+      "table": "c8848a76d593d945bc6c98991253616246e70ba36f5b7e6fe53490e85aeb2231"
+    }
+  ],
+  "nix_build": {
+    "artifact": {
+      "binary": "targets/antecedent-model/lib/lib/bin/test",
+      "binary_sha256": "4a8ddf4278e020b1e1c1a5f5ed6dc9b0ec70518aafd92898cbf1900889805e1e",
+      "build_targets": [
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "admg_frontdoor_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "attribution_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_intervention_response_refuter_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_temporal_mediation_validation_targets"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_bayesian_temporal_class_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_temporal_class_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_temporal_graph_posterior_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_attribution_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_explicit_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_posterior_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "codetermined_bayesian_response_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "compiled_robust_decisions"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_effect_admg_bayesian_interval"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_effect_admg_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_study_ranking_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_accepted_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_lifecycle"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_class_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_counterfactual_posterior_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_dag_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_posterior_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_temporal_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "dag_response_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "derivative_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "distribution_validation_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_uncertainty_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "functional_graph_posterior_mixture_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "gcm"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graph_imputation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_did_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "interference_estimators_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "intervention_response_class_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "interventional_distribution_class_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_sensitivity_source_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "lag_zero_average_effect_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "learned_continuous_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "local_design_support_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_decomposition_validation"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_mixed_graph_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "path_specific_admg_route"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "path_specific_mixed_graph_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "prepared_adjusted_retarget"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "prepared_analysis"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "quasi_rollout_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_attempt_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_composite_hand_utilities"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_posterior_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_validation_routes_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_facade"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_claims_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "smoothed_dose_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "source_evidence_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "staged_derivatives"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "staged_static_kinds"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_02"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_03"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_04"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_05"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_06"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_07"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_08"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_09"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "supported_compiler"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "supported_static_cells"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_admg_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_class_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_class_posterior_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_conditional_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_derivative_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_design_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_graph_posterior_product_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_pag_mediation"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_response_facade"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_sequential_gcomp_multistep_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_window_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "tier_diagnostics_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "tiered_average_effect_closed_form"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "transport_interference_cell_evidence"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "distribution_change_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "feature_relevance_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_change_detection_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "unit_change_reference"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "wide_structure_posterior_acceptance"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_score_route_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cancellation_expansion_cells"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cluster_dml_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "clustered_score_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_association_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "generalized_propensity_aipw_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "penalized_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sampling_weights"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_dependent_interval"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "two_step_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "z_transport_cited_evidence"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [
+            "ml-forest",
+            "ml-gbdt"
+          ],
+          "kind": "test",
+          "name": "mechanism_selection"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "registry_family_selection_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "scm_oracle"
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        }
+      ],
+      "crate": "antecedent-model",
+      "deps_source": "/nix/store/yjq0yvncdm9wlm79b8hsb43gfw9djvxn-antecedent-deps-source",
+      "deps_targets": [
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "admg_frontdoor_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "attribution_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_intervention_response_refuter_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_temporal_mediation_validation_targets"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "callback_downstream_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_bayesian_temporal_class_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_temporal_class_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_temporal_graph_posterior_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_attribution_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_explicit_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_posterior_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "codetermined_bayesian_response_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "compiled_robust_decisions"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_effect_admg_bayesian_interval"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_effect_admg_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_study_ranking_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_accepted_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_lifecycle"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_class_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_counterfactual_posterior_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_dag_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_posterior_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_temporal_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "dag_response_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "derivative_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "dirichlet_update_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "distribution_validation_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_uncertainty_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "functional_graph_posterior_mixture_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "gcm"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graph_imputation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_did_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "horizon_composition"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "interference_estimators_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "intervention_response_class_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "interventional_distribution_class_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_response_calibration"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_sensitivity_calibration"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_sensitivity_source_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "lag_zero_average_effect_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "learned_continuous_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "local_design_support_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_decomposition_validation"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_mixed_graph_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "native_response_claims_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "path_specific_admg_route"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "path_specific_mixed_graph_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "period_refresh_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "prepared_adjusted_retarget"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "prepared_analysis"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "proposal_arrival_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "quasi_rollout_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_attempt_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_cell_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_composite_hand_utilities"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_posterior_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_validation_routes_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_facade"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_claims_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "smoothed_dose_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "smoothed_dose_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "source_evidence_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "staged_derivatives"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "staged_static_kinds"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "study_planning_lifecycle"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_02"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_03"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_04"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_05"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_06"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_07"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_08"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_09"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "supported_compiler"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "supported_static_cells"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_admg_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_class_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_class_posterior_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_conditional_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_derivative_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_design_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_graph_posterior_product_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_pag_mediation"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_response_facade"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_sequential_gcomp_multistep_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_window_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "tier_diagnostics_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "tiered_average_effect_closed_form"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "transport_interference_cell_evidence"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "anomaly_arrow_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "distribution_change_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "feature_relevance_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "intrinsic_influence"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "intrinsic_influence_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_change_detection_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "path_reference"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "unit_change_reference"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_design_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "callback_consumers_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "composition_provenance_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_negotiation_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_probe_enumeration"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_trust_probe_verdicts"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_dependence_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_independence_exhaustive"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_transport_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "program_binding_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "provider_admission_table"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "typed_bridges_reference"
+        },
+        {
+          "crate": "antecedent-counterfactual",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "certified_program_search_reference"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "composition_bundle_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "composition_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "decision_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "design_ranking_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "external_provider_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "native_authority_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "obligations_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "proposal_receipt_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "repair_search_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "signal_provider_bayes_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "structured_refusals_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "study_candidate_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "suite_02"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "transported_decision_artifact_exact"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "bootstrap_stability_reference"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "wide_structure_posterior_acceptance"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_interval_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "admg_conditional_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "admg_conditional_transport_scm"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "ancova_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "augmented_did_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_local_ratio_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_panel_did_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_route_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_score_route_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_synthetic_control_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_temporal_regime_survival_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cancellation_expansion_cells"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "categorical_treatment"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "categorical_treatment_posterior"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "choice_interval_construction"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cluster_dml_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "clustered_score_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cohort_linear_effect"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "complier_posterior_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_sampled"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "dependence_aware_interval_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "descriptive_comparison"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "dose_grid_functional"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "dose_grid_functional_bayesian_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "dose_posterior_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "effect_constancy"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_association_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_policy_continuous_dose_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_response_gam_derivative_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "generalized_propensity_aipw_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_interference_saturation_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_local_polynomial_ratio_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_published_intervals_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_randomized_cuped_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_survival_bootstrap_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "history_outcome_model_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "iv_bounds_interval_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "joint_bayesian_transport"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "joint_cell_factorized"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "latent_class_effects"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "latent_class_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "learned_joint_transport"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "marginal_structural_model_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "matched_case_control"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "measurement_models"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_discrepancy"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_ridge_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mixed_source_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "multi_source_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mz_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nested_markov_binary_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nested_markov_uncertainty"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "neyman_randomization_enumeration"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nonlinear_mediation"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observation_recovery_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observational_policy_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observational_survival_replicated"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "ordered_response_recovery_chain_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "penalized_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "policy_value_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "randomized_posterior_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "randomized_quantile_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "randomized_scores_enumeration"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_binary_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_chain_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_sampled"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sampling_weights"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sampling_weights_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_covariance"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_covariance_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "score_posterior_interval_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sequential_contrast_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "shared_scenario_covariance_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "support_coordinate_ess_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "survival_posterior_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "switchback_posterior_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_dependent_interval"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_design_dose_quantile_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_design_excursion_bayesian_bootstrap_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_design_excursion_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_initial_state"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_initial_state_bayesian_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_regime_survival_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "two_step_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "vector_treatment"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "z_transport_cited_evidence"
+        },
+        {
+          "crate": "antecedent-graph",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-graph",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "causaleffect_transport_subset"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_invariance_numeric"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-io",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-io",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-io-core",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-io-core",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-learn",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-learn",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_basis"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "discretized_scm"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "discretized_scm_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "evidence_requirement_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "finite_law_conditioning_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "graph_falsification_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "intervention_programs"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_composition"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [
+            "ml-forest",
+            "ml-gbdt"
+          ],
+          "kind": "test",
+          "name": "mechanism_selection"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_transport"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "observation_query"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "program_expression_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "registry_family_selection_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "scm_oracle"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "transport_obstruction_agreement"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "typed_mechanism_transport"
+        },
+        {
+          "crate": "antecedent-prob",
+          "features": [],
+          "kind": "test",
+          "name": "mcmc_arviz_oracle"
+        },
+        {
+          "crate": "antecedent-prob",
+          "features": [],
+          "kind": "test",
+          "name": "prior_support_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inference_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inversion_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_correlation_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_family"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_posterior"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_procedure_uncertainty_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_repeated_measures_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "advanced_ci_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_ci_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "discovery_ci_stats"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "foundations_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_g_formula_interval_known_truth"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "hierarchical_choice_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "longitudinal_regime_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "measurement_continuous_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "synthesis_oracle"
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "test",
+          "name": "predictive_assessment_reference"
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        }
+      ],
+      "derivation": "/nix/store/nmgqniyy78h8abyykqzmz5c8n1jva641-antecedent-evidence-targets-0.drv",
+      "features": [],
+      "output": "/nix/store/8j1x01myj2ncr9rjakclf8nnqq84rrj9-antecedent-evidence-targets-0",
+      "output_nar_hash": "sha256-NoDoPA78iX4b5ko82GTU7X/Bz+kIW2jWcNwO6jlvaiE=",
+      "recipe_sha256": {
+        "flake.lock": "e094085d4dc7831f288b983b9d37395e20af7a7c8cb32dda1974c3c1235ef75f",
+        "nix/evidence-common.nix": "c3643f29bd4c6b1552ef4c27e213600ff9401940d415d3aa381adedcd345b59a",
+        "nix/evidence-deps.nix": "222b61a2f0139d2169937f90817061f6f35eafc8f30fc7a339aaf57e7200f0b7",
+        "nix/evidence-driver.nix": "56dac2e6aceb7866a819997389469111a074073e75d4affab3df7628eac231c6",
+        "nix/evidence-target.nix": "774699853b1f8081c85ddd21b49e8e7f32cae73c440b39c46f9a8cf7ded9954f",
+        "nix/evidence-toolchain.nix": "54249610eb1ed177677d43fc7880f40d04717ef5ddcd3b669f4db70c888cf11b"
+      },
+      "sandbox_verified": false,
+      "schema": 2,
+      "source": "/nix/store/1wabqhbsvwd9d4r8wj52qkjcprl8v83z-antecedent-source",
+      "source_nar_hash": "sha256-IaefVwQ5PLSbcSw5WQLdE6Mp6xBW6eyJK0KPX9WBX2A=",
+      "target_kind": "lib",
+      "target_name": ""
+    },
+    "compiler_graph_sha256": "cb3ff52473b34104b95baa5d166350fe20c098e609da353ee68d110314ec8519",
+    "execution": "exact-binary",
+    "policy": {
+      "audit_selection_sha256": "1340c88c4037aee2ab2e62b36ee07c957a0884e0414a48038fa749a477c5f831",
+      "cargo_lock_sha256": "9f92ed26f5ecb9c621ef81d7728d121a440924832ab26b6cb3e1cf859e8e641b",
+      "covered_units": 73,
+      "id": "nix-darwin-private-tmp-audit-v1",
+      "selected_unit_ids": [
+        "01561827621848925d2d0d76e0ae13c94eb06f7a28aa2865ac8149f44458bf32",
+        "03159c609e1fff106ebe5886d5efa49fa41e687a43c1fc40287f146285b67bb3",
+        "0b7b5ed8c447b82af140f861d5ea1a1a52f5529d0974a0839d1730fae334e678",
+        "16bce398f477136e3ea1c6fa463ad70060306ecbe4d8a39d5005505d31df8d82",
+        "17331c482214a7ff03e255fa3c090a1356a9f5c38c46251d8e7d1bf687132312",
+        "18faa25025491f36188d995d8ae7394cdc523051eb5a03432428c67b765106e2",
+        "1b7694e559a71826f563dd3dfc3d6b480c016934ae0860fc5486e9d22210b708",
+        "1b8edae64468d2327fcd8d6c79fe2738014a4048d0f437a9bb70f1a9f467b9d0",
+        "1dce4c077688991d9a58d240c2f7ea9b519e2b3373d6aa6db96b5380fcf3c00f",
+        "1ef5b2996d4b0a05c8344b18e37d0c614e3c65e4133f2072278637a1b86b64c8",
+        "245853b1d992168de9d24ceaaf6514f8ec76a288f819ad37e59c4b8eea585853",
+        "24c7ef6977326eaa14b8db1f4e2f3e3306b2c534cbfe9ee71400aecc9807e420",
+        "282f0b43aca2cfc5ba2bd7a6f296d02f3d388cf85e97d3088fe1a578bc9dad0c",
+        "2a1f84fe42d1fa2b8aa96f83066ea5c432492a5ed4c1f9b602e08aff24e62968",
+        "2d0e2d1a2e93e7b9dc4e34316a39029340843e253d093567a14c45cf6dbc603f",
+        "2f2cf5913fc9de693116c98109d7089d5a428293cba68dd3155bc97472c61610",
+        "3200fe682b8128ba13f41f246c73ffc6e80e620df2a70b8067f782e6f33bc581",
+        "32a507d354561b1b8a66137f35211aaa766c3dfa697016408f1003ec275b5e8c",
+        "3aa11179ab9bc01362e293360b76d31e68afa4a1df6a38576ca09862e24acba4",
+        "3fef3112122d3a5b3f94fcf792790c3ecddcc3c02933c970e1a65e89416b1147",
+        "47733fc1d45d320df0d14f8e50f5cdec6070fec4d93ad1a22562d4b378aa573d",
+        "486847bc6b761532ca50c70daf91961f1c7901759b95949f7965feda4b0b2bf0",
+        "4cb6db3d77b42d1f0b447a6d85f84669d0da9361e1f58842f9accf74f9424742",
+        "4edf30d11663731ead8f3f8d2f82d32f79610eed29c9fc7c01abcc191a0292ca",
+        "50e5c6b0510dcf832e01b09443d1cf7eaa2c707ee069c3220bd12e0f17cf6990",
+        "5143f45588fdef6e4386300b8023aae13134e879098cf057c5b9628d43718e51",
+        "51ba99b79dfc173e2a0ac340fb4c529803adf8f491823d3b708183aa86decb82",
+        "546f15facbea44b30fbc09faca97ed3931e091d3e4ff2f876b637f5628148030",
+        "5e3e468b9b5f138036fa875a55d652b504c298db181a02a4f2a464850fb3b0d8",
+        "61bebfc321a60142e70ddae91434fe441cb331102380096594c086e74b654ec1",
+        "631fcd70b2d4ba993e64a7b5f9dddf150a44b5e8b14e1837f9406d37fed42c39",
+        "6799a73c88c0f061b06dd916c32ef41a1b8d47dc940567b4b9f7416c000d0598",
+        "6af6e505453db168387a0ddc52343d75428c8b10ee6c502392c810217bc0ab6d",
+        "6e272646b2dc13dd3664cc1e0866583f25d02fb8f9f8bdb4a08ccdebd987de44",
+        "72b6222864d6c4b6defc8cfab1bbd6ffafd5efa4d997750c6a037b59e576c0df",
+        "79186666f7012ea4a6964924aff0fdb0bf9c817955687dbaad1c99ecc135a246",
+        "7ac3faca5af0cd4ba5741325e03a593ccd9c218e833e7b08534447d8c218018c",
+        "7d4696543830688afe9148e35ad3fd456b0619e6ed533db5b8477a21d9aab13c",
+        "7f4f0f16df518bab6ac85b560cecccce220ef9f8e6660827bf2b9ed7e5552618",
+        "8302d1261d1f5c6131337e8c040bf0045858e5f30f7f247eaef911b0303eab44",
+        "882dcde99a49dddc4983c3de478bbd1cce6ece1fdec90da3ca0cd35d1e03c573",
+        "89a21b24e8839c0d9ffbd5f348b7f5e35b6a7a77dc988d1e674bcbda974774a9",
+        "8b0bcb0d73faf10a1623c56fd54f2e5e98659c289aa1e2e11f3b1d1a7a7774de",
+        "8d9e371d53b4cf1a209144c6949b72c3c1a3fa1b62082ffe1ed8dcec56e8d51b",
+        "8f0ab8637e7794d16f3d642ad932b1fb5602ebb1a370da5e21a9aad4e6021f3e",
+        "8f93d9b1e307046f69765e98b88d94b1bf4e48ade67dbdd4191798250f5ccc12",
+        "906e88421f1b46121023a9fe3931d2387caf8202039edbb63ba5d02ca45c2153",
+        "95789e24a8c959342fe51763c8df81e47f7825073108728d117e81e23f7aa6ed",
+        "9992371bdb7e5a742998b499978d1ac74f00399cd24f7d44329ee8559262f81a",
+        "9a96b71c2b91ece0160bf407db519fc096565d76a4e529389e0a4287725df3cc",
+        "a16a9bdb15063bc65606aa14646976165d96edee105fa45c097a210cc02d73ff",
+        "a55dec100cad5a95a624fc1e932d7236feff91262508b96f9ae1f78353f19d25",
+        "a78a3da74e25a2d3d94a9d3aaac1ede92d4511ed9ca8368ddba396a757e2a4fb",
+        "a934cc753d7c5597f6ebf9cdd30dd67bbb4c2f4d7ab024f0151ba0ab274b26a3",
+        "b0e8bb8a9dbf422bfa056ca1f6827a34dc389f53f5768cc22c8181c7baca4af8",
+        "b165c6e3866572288a5fa6fa0afe9846204f0320fbf9ad32de1747a9eaf8f312",
+        "b530ffa5ed01fc58d6c6cc9d370db59b354cc8b696f8cb0949cff4f4eea3b77a",
+        "b6151a4ca530e3d44070051842eef4da414cfe83ac1ea6c13f9c109e8c883a75",
+        "b7c0cf9fb58ea0bdd2f4c3e2ca1b430e8ada40d6ccfd89919c5d19261993ad09",
+        "bdca23639beb2271a3e4f1fc6dc8bf2b7d328c508b5577eafcf49c32b85c2765",
+        "c19d964a63a210a23403110c22d2e8407cd1fc8c3552d03a815dc4063033fc4b",
+        "c48ffaa09124ddf81e2280fd6935ea7bb51a8edda1de6a3a80b9e82891fa148e",
+        "cfa19b6157147e1c21481920c5d5d4555fe76d5dd181c540740b4c5c430e7dff",
+        "cfe43a15d0bada4d4e62b1a8ef11131116e0b625d997cabd03d0c9bd0b7cbd22",
+        "d43b49e2d29241238398e1f1a6c466923dc79080067a9595696e12bc1814586f",
+        "ddc3d35e482376af762fb7bda802ee6fae94a7f828e107d61b5ea4abff86df3c",
+        "dfc4dc22f8ea23e80ee37468acd5277ca7b62edab5aad5c77c99fab0f5eeea01",
+        "e168ba160b458f08703087523d1769fcaed8b300a9a45e2a928bd3abd60f0135",
+        "e458f21b1dcc197c36fe99cce202d507e6a8f41aad67fb124f587efdd003cd88",
+        "f3af7f72e3de0f27d2f70d2437fd1b15553e05e4dfb76bf274a379930a25ee76",
+        "f5a384cf859b76a97c0cc24b69a98ece3524383d461f2e0a8448a72d234e3ad2",
+        "f969e399ae9e8d7df32848caa73d0ff08dc9001aee21b43b9a00bda90e78c4e0",
+        "fc82054b88ea86224ca484e32888d08abc43c4997961f4260b20a61202b89b7f"
+      ],
+      "source_projection": "reviewed-safe",
+      "source_projection_allowed": true,
+      "target": "aarch64-apple-darwin"
+    },
+    "schema": "nix-build-v1",
+    "source": {
+      "commit": "b965a3aeec7fd2c2caf0132c76bd891b17aac663",
+      "nar_hash": "sha256-IaefVwQ5PLSbcSw5WQLdE6Mp6xBW6eyJK0KPX9WBX2A=",
+      "store_path": "/nix/store/1wabqhbsvwd9d4r8wj52qkjcprl8v83z-antecedent-source"
+    },
+    "tools": {
+      "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
+      "host": "aarch64-apple-darwin",
+      "rustc": "1.97.1",
+      "rustc_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452"
+    }
+  },
+  "normalization": "raw-bytes-v1",
+  "record": {
+    "fingerprint": "43a616581668b7ccaa6a24916dfa4d46078d9c302dec69aea1efc836cee226bf",
+    "key": "antecedent-model::lib::evaluate::evaluation_runs_on_linear_scm",
+    "kind": "scientific",
+    "measurement": null
+  },
+  "schema": 1,
+  "whole_sources": []
+}

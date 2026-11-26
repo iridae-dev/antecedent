@@ -152,7 +152,7 @@ class CommandTests(unittest.TestCase):
     def test_the_summary_counts_the_owed_items_by_reason(self):
         routes = [route_row("r", "mapped", NOT_MEASURED, groups=["g_file"])]
         text = self.run_status(routes=routes)[1]
-        self.assertIn("owed: 2 item(s): 1 no_record, 1 inputs_changed, 0 probe_mismatch", text)
+        self.assertIn("flagged: 2 item(s): 1 no_record, 1 inputs_changed, 0 probe_mismatch", text)
         self.assertIn("(0 record(s) have no manifest)", text)
 
     def test_json_lists_the_owed_items_with_their_reasons(self):

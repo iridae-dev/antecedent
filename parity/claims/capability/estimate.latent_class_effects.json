@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::latent_class_effects::latent_recovers_hand_derived_two_class_fixed_point"
+  ],
+  "id": "estimate.latent_class_effects",
+  "kind": "capability",
+  "measurements": []
+}

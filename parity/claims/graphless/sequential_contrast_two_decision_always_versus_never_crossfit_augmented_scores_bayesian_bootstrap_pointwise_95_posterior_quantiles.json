@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::sequential_contrast_reference::the_posterior_laws_of_both_regimes_and_the_shared_weight_contrast_match_the_exact_laws"
+  ],
+  "id": "sequential_contrast:two_decision_always_versus_never:crossfit_augmented_scores_bayesian_bootstrap:pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

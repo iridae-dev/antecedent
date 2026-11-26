@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::synthetic_control::additive_unit_and_time_effects_recover_known_treatment_and_refuse_sparse_pre_support",
+    "antecedent-estimate::lib::synthetic_control::known_convex_donor_truth_and_support_refusal"
+  ],
+  "id": "quasi.synthetic_control",
+  "kind": "capability",
+  "measurements": []
+}

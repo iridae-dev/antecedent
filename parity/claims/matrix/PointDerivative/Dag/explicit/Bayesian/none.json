@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_functional_routes::derivative_bayesian_pins"
+  ],
+  "id": "PointDerivative/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_bayesian_curvature_nominal_90_coverage.v2_validation_none",
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_order_2_bayesian_curvature_nominal_90_coverage.v2_validation_none",
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l95.point_derivative_bayesian_curvature_nominal_90_coverage.v2_validation_none",
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l95.point_derivative_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l95.point_derivative_order_2_bayesian_curvature_nominal_90_coverage.v2_validation_none"
+  ]
+}

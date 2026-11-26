@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-estimate::mz_transport_execution::combined_formula_matches_the_target_interventional_truth",
+    "antecedent-estimate::mz_transport_execution::fig_2_obstruction_is_real_the_papers_two_models_agree_on_every_experiment",
+    "antecedent-estimate::mz_transport_execution::two_sources_certifying_one_factor_give_the_same_truth_either_way"
+  ],
+  "id": "transport.multi_source_limited_experiment",
+  "kind": "capability",
+  "measurements": [
+    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_independent_studies.v2_validation_not_applicable",
+    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.multi_source_mz_shared_units.v2_validation_not_applicable"
+  ]
+}

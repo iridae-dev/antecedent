@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::inverse_observational_scenarios::an_at_most_event_inverts_the_tail",
+    "antecedent-design::suite_01::inverse_observational_scenarios::weights_and_a_zero_weight_row_follow_the_oracle"
+  ],
+  "id": "inverse.observational_scenarios",
+  "kind": "capability",
+  "measurements": []
+}

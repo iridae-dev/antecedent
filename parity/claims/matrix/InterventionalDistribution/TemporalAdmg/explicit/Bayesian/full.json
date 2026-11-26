@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_explicit_bayesian_full"
+  ],
+  "id": "InterventionalDistribution/TemporalAdmg/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.temporal_admg.bayesian.posterior_quantile.l90.distribution_temporal_admg_bayesian_given.v2_validation_full",
+    "cov.interventional_distribution.temporal_admg.bayesian.posterior_quantile.l95.distribution_temporal_admg_bayesian_given.v2_validation_full"
+  ]
+}

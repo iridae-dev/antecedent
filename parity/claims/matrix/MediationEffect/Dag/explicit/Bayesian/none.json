@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    "antecedent::supported_static_cells::mediation_bayesian_known_truth_all_structures_and_suites"
+  ],
+  "id": "MediationEffect/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_default_nominal_coverage.v2_validation_none.nde",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nde_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nie_bayesian_default_nominal_coverage.v2_validation_none.nie",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l90.mediation_nie_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_contrasts_bayesian_nominal_95_coverage.v2_validation_none.direct",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_contrasts_bayesian_nominal_95_coverage.v2_validation_none.mediated",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_contrasts_bayesian_nominal_95_coverage.v2_validation_none.total",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nde_bayesian_default_nominal_coverage.v2_validation_none.nde",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nde_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nie_bayesian_default_nominal_coverage.v2_validation_none.nie",
+    "cov.mediation_effect.dag.bayesian.posterior_quantile.l95.mediation_nie_bayesian_nominal_90_coverage.v2_validation_none"
+  ]
+}

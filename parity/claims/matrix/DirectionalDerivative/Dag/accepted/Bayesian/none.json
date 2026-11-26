@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_functional_routes::derivative_bayesian_pins"
+  ],
+  "id": "DirectionalDerivative/Dag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.y1",
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.y2",
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l95.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.y1",
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l95.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.y2"
+  ]
+}

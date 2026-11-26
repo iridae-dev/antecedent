@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::conditional_study_ranking_exact::the_selected_action_and_candidate_order_follow_the_hand_derived_utilities"
+  ],
+  "id": "design.conditional_study_ranking",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,30 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::preference_decision::around_the_switch_point_the_choice_depends_on_the_preference",
+    "antecedent-design::suite_02::preference_decision::maximin_and_minimax_regret_match_hand_values",
+    "antecedent-design::suite_02::preference_decision_structural::every_linear_program_quantity_agrees_with_a_dense_grid",
+    "antecedent-design::suite_02::preference_model_reference::linear_forms_match_the_exact_rational_reference",
+    "antecedent-estimate::lib::joint_design::unit_bootstrap::cluster_refits_are_independent_across_arms_and_match_the_within_arm_covariance",
+    "antecedent-estimate::lib::joint_design::unit_bootstrap::pair_refits_converge_to_the_pair_level_arm_covariance",
+    "antecedent-estimate::lib::joint_design::unit_bootstrap::sequence_refits_converge_to_the_polarised_switchback_covariance",
+    "antecedent-graph::suite_01::mec_uniform_sampling::clique_picking_counts_equal_enumeration_on_random_chordal_graphs",
+    "antecedent-graph::suite_01::mec_uniform_sampling::cpdag_draws_are_uniform_members_reproduced_by_their_seed",
+    "antecedent-graph::suite_01::mec_uniform_sampling::pag_draws_are_uniform_over_the_enumerated_members",
+    "antecedent-stats::linear_program::textbook_production_program_has_its_known_optimum_and_active_set",
+    "antecedent-stats::linear_program_reference::optima_match_exact_vertex_enumeration",
+    "antecedent-stats::linear_program_reference::vertex_sets_match_exact_enumeration",
+    "antecedent::suite_09::preference_decision_class_weighting::a_pag_class_keeps_its_unidentified_member_mass",
+    "antecedent::suite_09::preference_decision_class_weighting::a_uniform_prior_reads_class_members_as_probabilities",
+    "antecedent::suite_09::preference_decision_class_weighting::clopper_pearson_bounds_match_their_closed_forms",
+    "antecedent::suite_09::preference_decision_class_weighting::keyed_masses_are_read_by_member_fingerprint",
+    "antecedent::suite_09::preference_decision_compiled_chain_binding::the_bound_table_draws_the_law_the_chain_compiled_after_fitting_draws",
+    "antecedent::suite_09::preference_decision_compiled_design::a_cluster_randomized_design_answers_by_its_arm_means",
+    "antecedent::suite_09::preference_decision_compiled_design::a_matched_pair_experiment_answers_by_its_arm_means",
+    "antecedent::suite_09::preference_decision_compiled_joint_law::studies_that_share_observations_need_a_declared_cross_study_covariance",
+    "antecedent::suite_09::preference_decision_compiled_unit_keys::keyed_studies_of_different_tables_are_judged_by_the_units_they_share",
+    "antecedent::suite_09::preference_decision_compiled_unit_keys::projections_of_one_table_share_its_rows"
+  ],
+  "id": "preference_decision.exact",
+  "kind": "capability",
+  "measurements": []
+}

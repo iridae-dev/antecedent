@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-estimate::estimate_response_gam_derivative_reference::the_plug_in_gradient_level_and_scales_match_the_exact_fits"
+  ],
+  "groups": [
+    "derivative_calibration: directional_derivative_dag_frequentist_nominal_90_coverage",
+    "derivative_calibration: response_jacobian_dag_frequentist_nominal_90_coverage"
+  ],
+  "id": "estimate.response_gam_derivative",
+  "kind": "capability",
+  "measurements": []
+}

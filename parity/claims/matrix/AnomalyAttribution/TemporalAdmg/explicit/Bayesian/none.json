@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_attribution_known_truth::class_anomaly_attribution_known_truth"
+  ],
+  "id": "AnomalyAttribution/TemporalAdmg/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.anomaly_attribution.temporal_admg.bayesian.posterior_quantile.l90.anomaly_attribution_temporal_admg_given_bayesian_coverage.v2_validation_none",
+    "cov.anomaly_attribution.temporal_admg.bayesian.posterior_quantile.l95.anomaly_attribution_temporal_admg_given_bayesian_coverage.v2_validation_none"
+  ]
+}

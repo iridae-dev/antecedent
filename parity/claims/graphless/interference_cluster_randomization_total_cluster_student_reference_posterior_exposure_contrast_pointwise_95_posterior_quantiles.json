@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::interference_estimators_known_truth::cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_every_coordinate"
+  ],
+  "id": "interference:cluster_randomization_total:cluster_student_reference_posterior:exposure_contrast_pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

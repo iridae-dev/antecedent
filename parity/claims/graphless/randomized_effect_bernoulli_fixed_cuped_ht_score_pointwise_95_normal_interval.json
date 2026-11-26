@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_published_intervals_known_truth::fixed_coefficient_cuped_is_unbiased_over_every_assignment_and_publishes_the_hand_interval"
+  ],
+  "id": "randomized_effect:bernoulli:fixed_cuped_ht_score:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

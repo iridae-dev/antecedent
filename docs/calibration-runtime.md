@@ -74,7 +74,7 @@ environment, a clean commit) and compares the prefix digests bit for bit.
   the observed coverage minus the acceptance floor at the record's worst grid
   point. A match for `k` replicates bounds the per-replicate rate of an undetected
   change at `3/k`, which the margin covers. A record whose margin needs more than
-  1000 replicates, or that stores no digests, is `measurement_owed` and takes a
+  1000 replicates, or that stores no digests, is `measurement_flagged` and takes a
   measurement.
 
 A probe costs `k` of the 400 first-pass replicates (up to 2000 with the recheck)

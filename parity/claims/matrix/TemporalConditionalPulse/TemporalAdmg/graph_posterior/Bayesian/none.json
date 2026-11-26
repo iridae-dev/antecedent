@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_posterior_mixes_by_posterior_weight_and_accounts_for_unidentified_mass"
+  ],
+  "id": "TemporalConditionalPulse/TemporalAdmg/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_pulse.temporal_admg.bayesian.posterior_quantile.l90.temporal_conditional_pulse_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.temporal_conditional_pulse.temporal_admg.bayesian.posterior_quantile.l95.temporal_conditional_pulse_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

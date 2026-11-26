@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_06::recalc_adjusted::adjusted_linear_first_rerun_utility_and_contrast_match_independent_algebra"
+  ],
+  "id": "recalculation.adjusted",
+  "kind": "capability",
+  "measurements": []
+}

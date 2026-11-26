@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::suite_01::interface_adapters::a_measurement_model_is_produced_under_its_identity_and_consumers_state_the_model_they_rely_on"
+  ],
+  "id": "interface_contract.component_adapters",
+  "kind": "capability",
+  "measurements": []
+}

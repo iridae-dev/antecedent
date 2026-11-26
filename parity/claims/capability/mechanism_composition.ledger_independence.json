@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::ledger_independence_exhaustive::declared_independence_matches_set_intersection_for_every_ordered_pair_of_sources"
+  ],
+  "id": "mechanism_composition.ledger_independence",
+  "kind": "capability",
+  "measurements": []
+}

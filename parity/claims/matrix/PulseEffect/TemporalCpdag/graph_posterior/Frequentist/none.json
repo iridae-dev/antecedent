@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_class_posterior::temporal_class_graph_posterior_numeric_pins"
+  ],
+  "id": "PulseEffect/TemporalCpdag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.pulse_effect_temporal_cpdag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

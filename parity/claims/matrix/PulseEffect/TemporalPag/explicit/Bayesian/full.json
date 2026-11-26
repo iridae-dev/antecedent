@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_class_bayesian_envelope::temporal_pag_bayesian_pulse_and_sustained_all_structures_and_suites"
+  ],
+  "id": "PulseEffect/TemporalPag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l90.pulse_effect_temporal_pag_bayesian_given_coverage.v2_validation_full",
+    "cov.pulse_effect.temporal_pag.bayesian.posterior_quantile.l95.pulse_effect_temporal_pag_bayesian_given_coverage.v2_validation_full"
+  ]
+}

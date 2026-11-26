@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::dml::dr_learner_and_causal_forest_tables_are_the_marginal_aipw_scores",
+    "antecedent-estimate::lib::dml::the_dml_score_table_averages_to_the_fitted_ate_with_the_iid_score_covariance",
+    "antecedent-estimate::lib::dml::the_score_table_formulas_match_a_hand_calculation_on_a_fixed_bundle"
+  ],
+  "id": "estimate.dml_score_covariance",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_derivative_effect::temporal_dag_derivatives_publish_the_linear_slope"
+  ],
+  "id": "AverageDerivative/TemporalDag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_derivative.temporal_dag.bayesian.posterior_quantile.l90.bayesian_average_derivative_temporal_dag_given.v2_validation_none.v2_structure_accepted",
+    "cov.average_derivative.temporal_dag.bayesian.posterior_quantile.l95.bayesian_average_derivative_temporal_dag_given.v2_validation_none.v2_structure_accepted"
+  ]
+}

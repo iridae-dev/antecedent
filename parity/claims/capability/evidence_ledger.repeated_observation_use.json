@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::ledger_transport_exact::repeated_use_over_overlapping_stages_counts_the_union_once"
+  ],
+  "id": "evidence_ledger.repeated_observation_use",
+  "kind": "capability",
+  "measurements": []
+}

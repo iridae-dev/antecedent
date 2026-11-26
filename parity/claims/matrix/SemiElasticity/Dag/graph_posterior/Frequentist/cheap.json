@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::graph_posterior_derivative_known_truth::graph_posterior_derivative_mixtures_and_refuter_states_known_truth"
+  ],
+  "id": "SemiElasticity/Dag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.semi_elasticity.dag.frequentist.analytic_se.l90.semi_elasticity_dag_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.semi_elasticity.dag.frequentist.analytic_se.l95.semi_elasticity_dag_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::distribution_validation_route_evidence::distribution_admg_accepted_frequentist_cheap"
+  ],
+  "id": "InterventionalDistribution/Admg/accepted/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.distribution_admg_frequentist_given.v2_validation_cheap.v2_structure_accepted",
+    "cov.interventional_distribution.admg.frequentist.bootstrap_se.l95.distribution_admg_frequentist_given.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

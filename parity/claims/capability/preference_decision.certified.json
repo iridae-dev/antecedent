@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::preference_certified::affine_model_agrees_with_hand_computed_margins",
+    "antecedent-design::suite_02::preference_certified::breakpoint_location_switch_is_certified_on_each_side",
+    "antecedent-design::suite_02::preference_certified::discount_factor_switch_is_certified_on_each_side_and_shrinks_with_the_budget",
+    "antecedent-design::suite_02::preference_certified::exponential_risk_attitude_brackets_the_indifference_point",
+    "antecedent-design::suite_02::preference_certified::largest_regret_certificates_hold_on_a_dense_grid",
+    "antecedent-design::suite_02::preference_certified::quantile_certificates_hold_on_a_dense_grid",
+    "antecedent-design::suite_02::preference_certified::threshold_probability_certificates_hold_on_a_dense_grid",
+    "antecedent-design::suite_02::preference_shape_learning::a_learned_risk_attitude_decides_on_the_certified_route_as_a_dense_grid_does"
+  ],
+  "id": "preference_decision.certified",
+  "kind": "capability",
+  "measurements": []
+}

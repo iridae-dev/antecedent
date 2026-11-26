@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::distribution_validation_route_evidence::distribution_cpdag_explicit_frequentist_full"
+  ],
+  "id": "InterventionalDistribution/Cpdag/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.cpdag.frequentist.bootstrap_se.l90.distribution_cpdag_frequentist_given.v2_validation_full",
+    "cov.interventional_distribution.cpdag.frequentist.bootstrap_se.l95.distribution_cpdag_frequentist_given.v2_validation_full"
+  ]
+}

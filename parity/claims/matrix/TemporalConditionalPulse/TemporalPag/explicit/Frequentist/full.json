@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_conditional_validation_truth::temporal_conditional_cheap_and_full_pass_on_the_clean_law_at_the_marginal_effect"
+  ],
+  "id": "TemporalConditionalPulse/TemporalPag/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_pulse.temporal_pag.frequentist.circular_block_se.l90.temporal_conditional_pulse_temporal_pag_frequentist_given_coverage.v2_validation_full",
+    "cov.temporal_conditional_pulse.temporal_pag.frequentist.circular_block_se.l95.temporal_conditional_pulse_temporal_pag_frequentist_given_coverage.v2_validation_full"
+  ]
+}

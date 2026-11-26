@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::two_step_posterior_exact::two_step_sequence_on_dirichlet_updated_laws_equals_the_target_interventional_truth"
+  ],
+  "id": "transport.two_step_temporal.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

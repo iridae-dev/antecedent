@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::prepared_analysis::prepared_temporal_mediation_reuses_identification"
+  ],
+  "id": "TemporalMediationEffect/TemporalDag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_dag_bayesian_given_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.temporal_mediation_effect.temporal_dag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_dag_bayesian_given_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

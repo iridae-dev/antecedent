@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_06::recalc_static::verma_checked_scalar_functionals_match_enumerated_latent_scm"
+  ],
+  "id": "recalculation.static_response",
+  "kind": "capability",
+  "measurements": []
+}

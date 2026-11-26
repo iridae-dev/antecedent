@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::neyman_randomization_enumeration::factorial_main_effects_and_interaction_match_the_four_cell_randomization_law"
+  ],
+  "id": "randomized_effect:factorial_2x2:fixed_cell_neyman_contrasts:three_pointwise_95_normal_intervals",
+  "kind": "graphless",
+  "measurements": []
+}

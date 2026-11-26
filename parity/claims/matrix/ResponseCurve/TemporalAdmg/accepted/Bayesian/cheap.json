@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::response_curve_validation_routes_known_truth::response_curve_validation_temporal_admg_known_truth"
+  ],
+  "id": "ResponseCurve/TemporalAdmg/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.temporal_admg.bayesian.posterior_quantile.l90.response_curve_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.t_0",
+    "cov.response_curve.temporal_admg.bayesian.posterior_quantile.l90.response_curve_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.t_1",
+    "cov.response_curve.temporal_admg.bayesian.posterior_quantile.l95.response_curve_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.t_0",
+    "cov.response_curve.temporal_admg.bayesian.posterior_quantile.l95.response_curve_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.t_1"
+  ]
+}

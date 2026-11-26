@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_survival_bootstrap_known_truth::randomized_survival_scalar_intervals_match_the_exact_bootstrap_law"
+  ],
+  "id": "survival:two_arm_individual_randomized:arm_stratified_subject_bootstrap_product_limit:rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+  "kind": "graphless",
+  "measurements": []
+}

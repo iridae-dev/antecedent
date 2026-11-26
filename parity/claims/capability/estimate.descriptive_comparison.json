@@ -1,0 +1,14 @@
+{
+  "assertions": [
+    "antecedent-estimate::descriptive_comparison::log_risk_ratio_and_its_delta_method_variance_match_the_hand_computation",
+    "antecedent-estimate::descriptive_comparison::raw_arm_means_carry_the_independent_groups_covariance_into_a_transform",
+    "antecedent-estimate::descriptive_comparison::the_family_covariance_matches_an_independent_finite_difference_jacobian",
+    "antecedent-estimate::descriptive_comparison::the_raw_contrast_matches_the_hand_computation"
+  ],
+  "groups": [
+    "descriptive_comparison_interval_calibration"
+  ],
+  "id": "estimate.descriptive_comparison",
+  "kind": "capability",
+  "measurements": []
+}

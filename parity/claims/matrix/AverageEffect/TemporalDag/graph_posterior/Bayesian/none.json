@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::lag_zero_average_effect_truth::lag_zero_average_effect_matches_the_structural_coefficient_on_every_temporal_cell"
+  ],
+  "id": "AverageEffect/TemporalDag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.temporal_dag.bayesian.posterior_quantile.l90.average_effect_temporal_dag_bayesian_graph_posterior_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.temporal_dag.bayesian.posterior_quantile.l95.average_effect_temporal_dag_bayesian_graph_posterior_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

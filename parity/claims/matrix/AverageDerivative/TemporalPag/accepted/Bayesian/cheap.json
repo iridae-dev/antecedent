@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_class_derivative_known_truth::temporal_class_derivative_refuter_states_known_truth"
+  ],
+  "id": "AverageDerivative/TemporalPag/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_derivative.temporal_pag.bayesian.posterior_quantile.l90.bayesian_average_derivative_temporal_pag_given.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_derivative.temporal_pag.bayesian.posterior_quantile.l95.bayesian_average_derivative_temporal_pag_given.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

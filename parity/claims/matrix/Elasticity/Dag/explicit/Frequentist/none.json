@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::staged_derivatives::staged_derivatives_known_truth"
+  ],
+  "id": "Elasticity/Dag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.dag.frequentist.analytic_se.l90.elasticity_dag_frequentist_nominal_90_coverage.v2_validation_none",
+    "cov.elasticity.dag.frequentist.analytic_se.l95.elasticity_dag_frequentist_nominal_95_coverage.v2_validation_none"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "assertions": [],
+  "groups": [
+    "event_count_calibration: hawkes_recursive_refit_count_l90"
+  ],
+  "id": "forecast.event_count_interval",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-design::composition_bundle_exact::claim_labels_statuses_and_readable_values_follow_the_hand_derivation",
+    "antecedent::composition_cohort_decision::compact_prediction_replays_into_a_supported_cohort_and_names_missing_refit_inputs",
+    "antecedent::composition_cohort_decision::inherited_cohort_bundle_replays_affine_decision_and_reweights",
+    "antecedent::composition_ledger_decision::inherited_ledger_replays_a_selected_point_and_refuses_an_assumption_range",
+    "antecedent::counterfactual_transport_lifecycle::counterfactual_bundle_replays_exact_and_sampled_affine_decisions"
+  ],
+  "id": "composition.bundle",
+  "kind": "capability",
+  "measurements": []
+}

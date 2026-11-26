@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::interventional_distribution_class_route_evidence::distribution_pag_explicit_bayesian_none"
+  ],
+  "id": "InterventionalDistribution/Pag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.pag.bayesian.posterior_quantile.l90.distribution_pag_bayesian_given.v2_validation_none",
+    "cov.interventional_distribution.pag.bayesian.posterior_quantile.l95.distribution_pag_bayesian_given.v2_validation_none"
+  ]
+}

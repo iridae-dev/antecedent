@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-validate::suite_01::predictive_assessment::miscalibrated_generators_are_flagged_by_the_diagnostics",
+    "antecedent-validate::suite_01::predictive_assessment::reliability_and_the_discrete_pit_match_hand_values"
+  ],
+  "id": "predictive_assessment.calibration_diagnostics",
+  "kind": "capability",
+  "measurements": []
+}

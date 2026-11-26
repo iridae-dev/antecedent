@@ -1,0 +1,14 @@
+{
+  "assertions": [
+    "antecedent-model::finite_law_conditioning_reference::queries_match_an_exact_rational_enumeration",
+    "antecedent-model::observation_query::conditioning_and_intervention_disagree_on_a_confounded_model_and_both_are_exact",
+    "antecedent::observation_structural_support::fitted_joint_error_table_draws_match_the_dirichlet_posterior_quadrature"
+  ],
+  "groups": [
+    "count_fitted_posterior_calibration",
+    "fitted_dependent_measurement_calibration: fitted_dependent_measurement_joint_error_l95"
+  ],
+  "id": "observation_query.finite_law_conditioning",
+  "kind": "capability",
+  "measurements": []
+}

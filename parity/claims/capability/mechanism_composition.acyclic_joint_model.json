@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-model::mechanism_composition::composition_matches_the_hand_computed_gaussian_scm"
+  ],
+  "groups": [
+    "mechanism_composition_interval_calibration: composed_linear_gaussian"
+  ],
+  "id": "mechanism_composition.acyclic_joint_model",
+  "kind": "capability",
+  "measurements": []
+}

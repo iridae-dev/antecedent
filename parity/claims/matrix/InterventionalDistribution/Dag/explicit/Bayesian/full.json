@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::supported_static_cells::distribution_bayesian_known_truth_all_structures_and_suites"
+  ],
+  "id": "InterventionalDistribution/Dag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l90.distribution_dag_bayesian_given.v2_validation_full",
+    "cov.interventional_distribution.dag.bayesian.posterior_quantile.l95.distribution_dag_bayesian_given.v2_validation_full"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-stats::lib::measurement_error::exposure_tests::outcome_specific_rates_recover_the_planted_exposure_odds_ratio"
+  ],
+  "groups": [
+    "measurement_exposure_calibration: measurement_exposure_differential_by_outcome_wald_l95",
+    "measurement_exposure_calibration: measurement_exposure_shared_rates_wald_l95"
+  ],
+  "id": "measurement.exposure_misclassification",
+  "kind": "capability",
+  "measurements": []
+}

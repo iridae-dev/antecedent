@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::sequential_evaluation::history_and_decision_receipts_account_for_the_value"
+  ],
+  "groups": [
+    "sequential_off_policy_interval_calibration: off_policy_importance_weighted_wald_interval"
+  ],
+  "id": "sequential_evaluation.policy_evaluation",
+  "kind": "capability",
+  "measurements": []
+}

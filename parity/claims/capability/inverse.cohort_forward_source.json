@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::inverse_forward_source::a_cohort_contrast_is_a_point_source_with_its_own_law_refusal"
+  ],
+  "id": "inverse.cohort_forward_source",
+  "kind": "capability",
+  "measurements": []
+}

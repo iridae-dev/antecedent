@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent-estimate::generalized_propensity_aipw_reference::level_means_and_pairwise_contrasts_match_the_fixed_fold_references"
+  ],
+  "id": "estimate.generalized_propensity_aipw",
+  "kind": "capability",
+  "measurements": [
+    "cov.multi_level_contrast.not_applicable.frequentist.analytic_se.l95.multilevel_generalized_propensity_interval.v2_validation_not_applicable"
+  ]
+}

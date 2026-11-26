@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::signal_provider_bayes_exact::external_posterior_derives_the_generating_likelihood_and_the_independent_posterior"
+  ],
+  "id": "design.external_signal",
+  "kind": "capability",
+  "measurements": []
+}

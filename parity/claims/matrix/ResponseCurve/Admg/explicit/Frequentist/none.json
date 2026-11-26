@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_05::pag_admg_numeric_pins::admg_frontdoor_response_pins_against_distribution"
+  ],
+  "id": "ResponseCurve/Admg/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.admg.frequentist.bootstrap_se.l95.response_curve_admg_frequentist_pointwise_nominal_coverage.v2_validation_none.a_0",
+    "cov.response_curve.admg.frequentist.bootstrap_se.l95.response_curve_admg_frequentist_pointwise_nominal_coverage.v2_validation_none.a_1"
+  ]
+}

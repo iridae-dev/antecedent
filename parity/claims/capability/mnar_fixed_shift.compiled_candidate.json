@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-io::lib::measured_inference::mnar_candidate::declared_shifts_and_unbalanced_arms_match_the_reference_derivation"
+  ],
+  "groups": [
+    "mnar_interval_calibration: mnar_compiled_shift_delta_io_interval"
+  ],
+  "id": "mnar_fixed_shift.compiled_candidate",
+  "kind": "capability",
+  "measurements": []
+}

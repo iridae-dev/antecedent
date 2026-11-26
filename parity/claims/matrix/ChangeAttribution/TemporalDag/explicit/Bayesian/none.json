@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_attribution_route_evidence::temporal_attribution_bayesian_known_truth"
+  ],
+  "id": "ChangeAttribution/TemporalDag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.change_attribution.temporal_dag.bayesian.posterior_quantile.l90.change_attribution_temporal_dag_graph_posterior_bayesian_coverage.v2_validation_none",
+    "cov.change_attribution.temporal_dag.bayesian.posterior_quantile.l95.change_attribution_temporal_dag_graph_posterior_bayesian_coverage.v2_validation_none"
+  ]
+}

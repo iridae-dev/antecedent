@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::transport_cpdag_posterior_cells_run_the_class_envelope_of_sid"
+  ],
+  "id": "TransportQuery/Cpdag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": []
+}

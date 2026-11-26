@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::interventional_distribution_class_route_evidence::distribution_pag_explicit_frequentist_none"
+  ],
+  "id": "InterventionalDistribution/Pag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.pag.frequentist.bootstrap_se.l90.distribution_pag_frequentist_given.v2_validation_none",
+    "cov.interventional_distribution.pag.frequentist.bootstrap_se.l95.distribution_pag_frequentist_given.v2_validation_none"
+  ]
+}

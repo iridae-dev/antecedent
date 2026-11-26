@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_trial_transport::bayesian_trial_transport_matches_two_source_row_dirichlet_moments"
+  ],
+  "id": "TransportQuery/Admg/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.transport_query.admg.bayesian.posterior_quantile.l90.transport_query_admg_bayesian_bootstrap_nominal_coverage.v2_validation_none",
+    "cov.transport_query.admg.bayesian.posterior_quantile.l95.transport_query_admg_bayesian_bootstrap_nominal_coverage.v2_validation_none"
+  ]
+}

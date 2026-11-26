@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_survival_bootstrap_known_truth::simultaneous_competing_incidence_band_radius_is_the_exact_supremum_quantile"
+  ],
+  "id": "survival:two_arm_individual_randomized:arm_stratified_subject_bootstrap_supremum_band:simultaneous_95_cumulative_incidence_difference_band",
+  "kind": "graphless",
+  "measurements": []
+}

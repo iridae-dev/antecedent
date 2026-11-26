@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_07::staged_attribution_transport_interference::accepted_dag_attribution_known_truth"
+  ],
+  "id": "ChangeAttribution/Dag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

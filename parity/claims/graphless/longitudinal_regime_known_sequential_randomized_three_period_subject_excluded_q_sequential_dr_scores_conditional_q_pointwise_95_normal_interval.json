@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-stats::longitudinal_regime_reference::regime_values_match_the_exact_rational_references"
+  ],
+  "id": "longitudinal_regime:known_sequential_randomized_three_period:subject_excluded_q_sequential_dr_scores:conditional_q_pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

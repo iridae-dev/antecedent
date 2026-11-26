@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::lib::analysis::inverse_outcome::forward_inverse_round_trip_matches_the_analytic_inverse"
+  ],
+  "id": "decision.finite_action_inverse",
+  "kind": "capability",
+  "measurements": []
+}

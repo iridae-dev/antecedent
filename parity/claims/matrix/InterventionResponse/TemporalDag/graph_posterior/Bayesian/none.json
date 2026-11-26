@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_05::manufacturing_temporal::dbn_posterior_intervention_response_matches_identified_atom"
+  ],
+  "id": "InterventionResponse/TemporalDag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l90.bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.intervention_response.temporal_dag.bayesian.posterior_quantile.l95.bayesian_temporal_dag_graph_posterior_intervention_response_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

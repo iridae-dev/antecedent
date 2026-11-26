@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_admg_derivative_known_truth::temporal_admg_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/TemporalAdmg/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.temporal_admg.bayesian.posterior_quantile.l90.bayesian_elasticity_temporal_admg_given.v2_validation_full",
+    "cov.elasticity.temporal_admg.bayesian.posterior_quantile.l90.plain_elasticity_admg_graph_posterior_bayesian_coverage.v2_validation_full",
+    "cov.elasticity.temporal_admg.bayesian.posterior_quantile.l95.bayesian_elasticity_temporal_admg_given.v2_validation_full",
+    "cov.elasticity.temporal_admg.bayesian.posterior_quantile.l95.plain_elasticity_admg_graph_posterior_bayesian_coverage.v2_validation_full"
+  ]
+}

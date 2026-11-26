@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-stats::adaptive_inference_oracle::confidence_sequence_radius_matches_the_closed_form",
+    "antecedent-stats::adaptive_inference_oracle::the_sequence_survives_optional_stopping_where_the_fixed_sample_interval_does_not"
+  ],
+  "groups": [
+    "adaptive_inference_calibration: anytime_valid_sequence_arm_mean_record_l95",
+    "adaptive_inference_calibration: anytime_valid_sequence_contrast_record_l95"
+  ],
+  "id": "adaptive_inference.anytime_valid_sequence",
+  "kind": "capability",
+  "measurements": []
+}

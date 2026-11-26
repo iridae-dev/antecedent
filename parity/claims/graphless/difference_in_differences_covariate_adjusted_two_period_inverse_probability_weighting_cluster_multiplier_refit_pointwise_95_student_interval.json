@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::heterogeneity_robust_did::tests::covariate_adjusted_contrasts_match_the_closed_form_on_a_binary_covariate"
+  ],
+  "id": "difference_in_differences:covariate_adjusted_two_period:inverse_probability_weighting_cluster_multiplier_refit:pointwise_95_student_interval",
+  "kind": "graphless",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_07::rollout_artifact::rollout_finite_source_and_ranking_replay_match_independent_bet_truth"
+  ],
+  "id": "composition.rollout_state",
+  "kind": "capability",
+  "measurements": []
+}

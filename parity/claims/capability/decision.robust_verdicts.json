@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::decision_exact::a_leader_in_every_structure_is_robust_with_ranges_computed_from_the_laws"
+  ],
+  "id": "decision.robust_verdicts",
+  "kind": "capability",
+  "measurements": []
+}

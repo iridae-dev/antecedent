@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-estimate::categorical_treatment_posterior::reported_contrast_intervals_equal_the_independent_student_t_quantiles"
+  ],
+  "groups": [
+    "categorical_posterior_calibration: categorical_conjugate_contrast_prior_predictive_interval"
+  ],
+  "id": "categorical_treatment.compiled_candidate",
+  "kind": "capability",
+  "measurements": []
+}

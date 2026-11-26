@@ -1,0 +1,21 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_mediation_horizons::temporal_cpdag_mediation_returns_per_horizon_identified_sets"
+  ],
+  "id": "TemporalMediationEffect/TemporalCpdag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.v2_validation_none.kappa_med_kappa",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.v2_validation_none.kappa_med_kappa_direct",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.v2_validation_none.kappa_med_kappa_total",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.v2_validation_none.kappa_0",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.v2_validation_none.kappa_0_direct",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.v2_validation_none.kappa_0_total",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.v2_validation_none.kappa_med_kappa",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.v2_validation_none.kappa_med_kappa_direct",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_confounded_nominal_coverage.v2_validation_none.kappa_med_kappa_total",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.v2_validation_none.kappa_0",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.v2_validation_none.kappa_0_direct",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_cpdag_mediation_frequentist_unconfounded_nominal_coverage.v2_validation_none.kappa_0_total"
+  ]
+}

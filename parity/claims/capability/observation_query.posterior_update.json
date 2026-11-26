@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-model::evidence_requirement_reference::finite_bayes_posteriors_match_the_reference_at_large_counts",
+    "antecedent-model::observation_query::finite_bayes_update_matches_the_hand_computed_posterior"
+  ],
+  "id": "observation_query.posterior_update",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_posterior_known_truth::class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
+  ],
+  "id": "ConditionalEffect/Pag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.conditional_effect.pag.frequentist.analytic_se.l90.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.conditional_effect.pag.frequentist.analytic_se.l95.conditional_effect_pag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

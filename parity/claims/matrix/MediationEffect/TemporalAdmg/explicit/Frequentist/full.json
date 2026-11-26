@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_explicit_frequentist_full"
+  ],
+  "id": "MediationEffect/TemporalAdmg/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l90.mediation_temporal_admg_given_frequentist_coverage.v2_validation_full",
+    "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_given_frequentist_coverage.v2_validation_full"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-estimate::sampling_weights::linear_adjustment_is_the_weighted_least_squares_fit_with_a_sampling_sandwich",
+    "antecedent-estimate::sampling_weights_reference::normalised_weights_zero_counts_and_kish_size_match_the_exact_reference"
+  ],
+  "id": "estimate.sampling_weights",
+  "kind": "capability",
+  "measurements": []
+}

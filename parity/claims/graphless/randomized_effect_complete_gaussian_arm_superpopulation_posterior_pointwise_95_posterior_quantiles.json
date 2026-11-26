@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::randomized_posterior_reference::every_contrast_law_matches_the_exact_reference"
+  ],
+  "id": "randomized_effect:complete:gaussian_arm_superpopulation_posterior:pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

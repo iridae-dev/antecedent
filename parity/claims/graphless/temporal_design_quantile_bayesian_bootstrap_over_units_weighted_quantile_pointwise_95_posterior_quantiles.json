@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::temporal_design_dose_quantile_known_truth::weighted_median_posterior_matches_the_exact_dirichlet_law"
+  ],
+  "id": "temporal_design:quantile:bayesian_bootstrap_over_units_weighted_quantile:pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

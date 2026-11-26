@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::temporal_design_dose_quantile_known_truth::smoothed_dose_targets_match_the_hand_kernel_ratio_and_its_cluster_interval"
+  ],
+  "id": "temporal_design:continuous_dose:cluster_robust_ratio_normal:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

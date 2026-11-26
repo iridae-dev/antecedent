@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::external_cyclic_fit::analytic_determinant_score_matches_a_central_difference_in_a_loop",
+    "antecedent::compiled_twins_dose_feedback::the_compiled_external_fit_recovers_the_least_squares_gain"
+  ],
+  "id": "cyclic.external_mechanisms",
+  "kind": "capability",
+  "measurements": []
+}

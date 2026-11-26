@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_07::specification_conformance::the_clean_room_consumer_agrees_with_the_implementation_on_every_distinct_identity"
+  ],
+  "id": "interface_contract.portable_specification",
+  "kind": "capability",
+  "measurements": []
+}

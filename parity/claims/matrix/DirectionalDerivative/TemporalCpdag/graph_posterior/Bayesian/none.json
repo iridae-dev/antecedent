@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_class_point_queries::temporal_class_derivatives_publish_the_linear_slope"
+  ],
+  "id": "DirectionalDerivative/TemporalCpdag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_none.v2_structure_graph_posterior.v",
+    "cov.directional_derivative.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_none.v2_structure_graph_posterior.y",
+    "cov.directional_derivative.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_none.v2_structure_graph_posterior.v",
+    "cov.directional_derivative.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_none.v2_structure_graph_posterior.y"
+  ]
+}

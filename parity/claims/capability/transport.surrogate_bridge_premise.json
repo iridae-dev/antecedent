@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::transported_bridge::a_claim_in_the_validated_population_needs_no_premise_and_ignores_the_diagram"
+  ],
+  "id": "transport.surrogate_bridge_premise",
+  "kind": "capability",
+  "measurements": []
+}

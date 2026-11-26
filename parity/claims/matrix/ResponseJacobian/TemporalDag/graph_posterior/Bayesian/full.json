@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_graph_posterior_derivative_known_truth::temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "ResponseJacobian/TemporalDag/graph_posterior/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l90.bayesian_response_jacobian_temporal_dag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.dy_db",
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l90.bayesian_response_jacobian_temporal_dag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.dy_dx",
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l95.bayesian_response_jacobian_temporal_dag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.dy_db",
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l95.bayesian_response_jacobian_temporal_dag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.dy_dx"
+  ]
+}

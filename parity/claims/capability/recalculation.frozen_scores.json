@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::recalc_cell_exact_effect::cell_aipw_interaction_equals_the_hand_effect_with_25_first_run_fits_and_none_on_reuse"
+  ],
+  "id": "recalculation.frozen_scores",
+  "kind": "capability",
+  "measurements": []
+}

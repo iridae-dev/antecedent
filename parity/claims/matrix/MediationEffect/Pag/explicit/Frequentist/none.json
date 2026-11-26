@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_explicit_frequentist_none"
+  ],
+  "id": "MediationEffect/Pag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.pag.frequentist.identified_set.l95.mediation_pag_given_frequentist_coverage.v2_validation_none"
+  ]
+}

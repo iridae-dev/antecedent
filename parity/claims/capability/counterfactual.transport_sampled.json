@@ -1,0 +1,14 @@
+{
+  "assertions": [
+    "antecedent-estimate::counterfactual_transport_sampled::a_factor_that_reads_fewer_coordinates_than_its_table_is_pooled_not_refused",
+    "antecedent-estimate::counterfactual_transport_sampled::natural_direct_and_indirect_effects_converge_to_the_enumerated_contrasts",
+    "antecedent-estimate::counterfactual_transport_sampled::reported_standard_error_matches_the_empirical_standard_deviation_of_the_estimator"
+  ],
+  "id": "counterfactual.transport_sampled",
+  "kind": "capability",
+  "measurements": [
+    "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district.v2_validation_not_applicable",
+    "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift.v2_validation_not_applicable",
+    "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint.v2_validation_not_applicable"
+  ]
+}

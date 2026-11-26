@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::temporal_initial_state_bayesian_exact::dirichlet_updated_initial_state_law_gives_the_hand_marginalized_effect"
+  ],
+  "id": "temporal.uncertain_initial_state.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

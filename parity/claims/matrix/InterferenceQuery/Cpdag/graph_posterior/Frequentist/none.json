@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::interference_cpdag_posterior_cells_carry_the_design_contrast_and_the_atom_mass"
+  ],
+  "id": "InterferenceQuery/Cpdag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

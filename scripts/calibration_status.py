@@ -2,23 +2,23 @@
 """Calibration status of the coverage records: an annotation on support, a currency check for CI.
 
 A coverage record in `parity/coverage_records.toml` was measured at some state of
-the code. Its `dependency_manifest` (`scripts/evidence_earning.py`, the manifests
-the scientific records use) lists what its `test` target depended on when it was
+the code. Its `dependency_manifest` is `pass:calibration:<id>` (`scripts/claim_passes.py`):
+one file, updated in place, listing what its `test` target depended on when it was
 measured. A record is
 
 * `current`            its manifest still matches the tree
                        (`scripts/evidence_manifests.py`), or a passing probe
                        attestation (`parity/calibration_probe_attestations.toml`) of
                        its measurement has a manifest that still matches;
-* `probe_owed`         not current, and its measurement stored replicate digests,
+* `probe_flagged`      not current, and its measurement stored replicate digests,
                        so `scripts/calibration_probe.py` can reproduce them;
-* `measurement_owed`   not current and nothing to probe: only a re-measurement
+* `measurement_flagged` not current and nothing to probe: only a re-measurement
                        (`scripts/measure_calibration.sh`) makes it current.
 
 A record without a manifest is never current through its measurement.
 
-What is owed, and why, is the one list the measurement queue runs
-(`bash scripts/measure_calibration.sh --owed`). An owed item has one reason:
+What is flagged, and why, is the one list the measurement queue runs
+(`bash scripts/measure_calibration.sh --owed`). A flagged item has one reason:
 
 * `no_record`           a registered coverage study lacks its own record, or an interval route has no coverage record of its own: a supported
                         interval route with no measured record, whether the record is
@@ -26,8 +26,8 @@ What is owed, and why, is the one list the measurement queue runs
                         `parity/calibration_routes.toml`; and an open ledger row
                         (`parity/pending_measurement.toml`, `parity/unmeasured_statements.toml`,
                         or a supported coordinate whose estimator grid is not measured) whose
-                        named gate groups have produced no record yet, so the owed run
-                        executes them (a row that names no group is owed and `unwired`);
+                        named gate groups have produced no record yet, so the flagged run
+                        executes them (a row that names no group is flagged and `unwired`);
 * `missing_gate`        a pass/fail study lacks a passing receipt for its protocol;
 * `stale_gate`          a recorded pass cannot be carried to the working tree;
 * `inputs_changed`      a coverage record whose manifest no longer matches the tree (or
@@ -39,10 +39,10 @@ Every supported interval route names the group that measures it in
 `parity/calibration_routes.toml` (or says why it publishes no interval); a route that does
 neither is `unmapped` in `intervals` and cannot be queued. Calibration status never changes support and never refuses a route. Calibration is
 measured on a development machine; CI and releases only check, through `--check`,
-that nothing is owed.
+that nothing is flagged.
 
-    python3 scripts/calibration_status.py status            # counts, then the owed ids
-    python3 scripts/calibration_status.py status --owed     # every owed item, one per line: record ids, then
+    python3 scripts/calibration_status.py status            # counts, then the flagged ids
+    python3 scripts/calibration_status.py status --flagged  # every flagged item, one per line: record ids, then
                                                             #   `route:<capability record>/<route>` for a route with no record
     python3 scripts/calibration_status.py status --json     # machine-readable
     python3 scripts/calibration_status.py intervals         # per interval route: calibrated, outside_measured_scope,
@@ -50,10 +50,10 @@ that nothing is owed.
     python3 scripts/calibration_status.py backlog           # cells whose interval has no measurement yet
     python3 scripts/calibration_status.py readiness         # which of those have measurement wiring
     python3 scripts/calibration_status.py plan              # records owning coverage ids, with their status
-    python3 scripts/calibration_status.py --check           # shape, and nothing owed (exit 1 otherwise)
+    python3 scripts/calibration_status.py --check           # shape, and nothing flagged (exit 1 otherwise)
 
 Every subcommand is informational and exits 0. `--check` is the currency check CI and
-releases run: it exits 1 on a malformed coverage record and on any owed item (a record whose
+releases run: it exits 1 on a malformed coverage record and on any flagged item (a record whose
 inputs changed or that has no manifest, a probe that does not cover the tree, an interval
 route with no record). It executes nothing.
 """
@@ -78,8 +78,8 @@ from evidence_fingerprint import Fingerprinter, coverage_fingerprint
 RECORDS = ROOT / "parity" / "coverage_records.toml"
 
 CURRENT = "current"
-PROBE_OWED = "probe_owed"
-MEASUREMENT_OWED = "measurement_owed"
+PROBE_OWED = "probe_flagged"
+MEASUREMENT_OWED = "measurement_flagged"
 STATUSES = (CURRENT, PROBE_OWED, MEASUREMENT_OWED)
 
 
@@ -527,12 +527,12 @@ def cmd_status(args: argparse.Namespace) -> int:
     else:
         print(
             f"calibration records: {counts[CURRENT]} current "
-            f"({counts['current_by_probe']} by probe), {counts[PROBE_OWED]} probe owed, "
-            f"{counts[MEASUREMENT_OWED]} measurement owed of {len(statuses)}"
+            f"({counts['current_by_probe']} by probe), {counts[PROBE_OWED]} probe flagged, "
+            f"{counts[MEASUREMENT_OWED]} measurement flagged of {len(statuses)}"
         )
         never = sum(1 for i in items if i["kind"] == "record" and not i["has_manifest"])
         print(
-            f"owed: {len(items)} item(s): "
+            f"flagged: {len(items)} item(s): "
             + ", ".join(f"{reasons[name]} {name}" for name in OWED_REASONS)
             + f" ({never} record(s) have no manifest)"
         )
@@ -969,7 +969,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     if items:
         reasons = owed_counts(items)
         print(
-            f"calibration records owed: {len(items)} item(s): "
+            f"calibration records flagged: {len(items)} item(s): "
             + ", ".join(f"{reasons[name]} {name}" for name in OWED_REASONS)
         )
         for item in items[:50]:
@@ -1003,6 +1003,7 @@ def main(argv: list[str] | None = None) -> int:
     status = sub.add_parser("status")
     status.add_argument(
         "--owed",
+        "--flagged",
         action="store_true",
         help="print only the ids of the records that are not current",
     )

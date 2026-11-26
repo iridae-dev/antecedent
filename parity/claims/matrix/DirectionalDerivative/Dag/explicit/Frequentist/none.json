@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::staged_derivatives::staged_derivatives_known_truth"
+  ],
+  "id": "DirectionalDerivative/Dag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_none.y1",
+    "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_none.y2",
+    "cov.directional_derivative.dag.frequentist.analytic_se.l95.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_none.y1",
+    "cov.directional_derivative.dag.frequentist.analytic_se.l95.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_none.y2"
+  ]
+}

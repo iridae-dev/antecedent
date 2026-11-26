@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_conditional_effect::temporal_dag_conditional_pulse_and_sustained_publish_the_marginal_point"
+  ],
+  "id": "TemporalConditionalPulse/TemporalDag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_pulse.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_pulse_temporal_dag_bayesian_given_coverage.v2_validation_none",
+    "cov.temporal_conditional_pulse.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_pulse_temporal_dag_bayesian_given_coverage.v2_validation_none"
+  ]
+}

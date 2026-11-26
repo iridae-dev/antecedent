@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::lib::analysis::execute::tests::graph_posterior_ate_known_truth_mixture_frequentist"
+  ],
+  "id": "AverageEffect/Dag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l90.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.static_graph_posterior_frequentist_ate_joint_if_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

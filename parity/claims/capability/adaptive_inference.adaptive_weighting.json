@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-stats::adaptive_inference_oracle::scores_and_weighted_estimates_match_the_hand_calculation",
+    "antecedent-stats::adaptive_inference_oracle::weighted_score_sums_are_martingales_under_an_adaptive_policy_by_enumeration"
+  ],
+  "groups": [
+    "adaptive_inference_calibration: epsilon_greedy_weighted"
+  ],
+  "id": "adaptive_inference.adaptive_weighting",
+  "kind": "capability",
+  "measurements": []
+}

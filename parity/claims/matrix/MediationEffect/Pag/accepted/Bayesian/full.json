@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent::mediation_mixed_graph_route_evidence::mediation_pag_accepted_bayesian_full"
+  ],
+  "id": "MediationEffect/Pag/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.pag.bayesian.identified_set.l90.mediation_pag_given_bayesian_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::dirichlet_update_exact::decision_functionals_of_the_dirichlet_posterior_mean_match_the_conjugate_update"
+  ],
+  "id": "decision.functionals.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

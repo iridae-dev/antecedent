@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::class_explicit_known_truth::class_conditional_effect_matches_the_structural_slope_explicit_and_accepted"
+  ],
+  "id": "ConditionalEffect/Pag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.conditional_effect.pag.bayesian.posterior_quantile.l90.conditional_effect_pag_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.conditional_effect.pag.bayesian.posterior_quantile.l90.conditional_effect_pag_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.conditional_effect.pag.bayesian.posterior_quantile.l95.conditional_effect_pag_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.conditional_effect.pag.bayesian.posterior_quantile.l95.conditional_effect_pag_bayesian_nominal_90_coverage.v2_validation_none"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_graph_posterior_derivative_known_truth::temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "DirectionalDerivative/TemporalDag/graph_posterior/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l90.bayesian_directional_derivative_temporal_dag_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior.v",
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l90.bayesian_directional_derivative_temporal_dag_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior.y",
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l95.bayesian_directional_derivative_temporal_dag_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior.v",
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l95.bayesian_directional_derivative_temporal_dag_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior.y"
+  ]
+}

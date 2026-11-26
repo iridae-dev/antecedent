@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::recalc_exact_effect::receipt_counts_for_each_step_equal_the_hand_enumerated_work_and_identities_track_changes"
+  ],
+  "id": "recalculation.receipt",
+  "kind": "capability",
+  "measurements": []
+}

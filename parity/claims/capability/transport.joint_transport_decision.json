@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent::joint_transport_decision_reference::the_effect_posterior_and_its_decision_equal_the_hand_solved_conjugate_posterior",
+    "antecedent::joint_transport_decision_reference::the_predictive_worlds_follow_the_hand_solved_posterior_predictive_law"
+  ],
+  "id": "transport.joint_transport_decision",
+  "kind": "capability",
+  "measurements": []
+}

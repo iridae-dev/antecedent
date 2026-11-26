@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_attribution_route_evidence::temporal_accepted_attribution_known_truth"
+  ],
+  "id": "ChangeAttribution/TemporalDag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.change_attribution.temporal_dag.frequentist.circular_block_se.l90.change_attribution_temporal_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.change_attribution.temporal_dag.frequentist.circular_block_se.l95.change_attribution_temporal_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

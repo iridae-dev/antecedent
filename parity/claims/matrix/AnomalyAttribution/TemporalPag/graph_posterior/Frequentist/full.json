@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::class_attribution_known_truth::graph_posterior_anomaly_attribution_refuter_states_known_truth"
+  ],
+  "id": "AnomalyAttribution/TemporalPag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": []
+}

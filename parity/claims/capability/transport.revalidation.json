@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-contract::suite_01::transport_revalidation::changed_target_recomputes_a_point_claim_and_withdraws_a_claim_calibrated_elsewhere",
+    "antecedent::suite_08::transport_revalidation_facade::a_changed_source_recomputes_only_the_claims_that_count_it"
+  ],
+  "id": "transport.revalidation",
+  "kind": "capability",
+  "measurements": []
+}

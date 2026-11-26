@@ -510,7 +510,7 @@ def judge(
     for probe in probes:
         rid = str(probe.record["id"])
         if probe.k is None:
-            verdicts[rid] = f"owed: {probe.owed_reason}"
+            verdicts[rid] = f"flagged: {probe.owed_reason}"
             continue
         observed: dict[int, dict[str, str]] = {}
         failed = []
@@ -547,7 +547,7 @@ def judge(
             }
         )
         verdicts[rid] = (
-            "owed (mismatch): " + "; ".join(problems)
+            "flagged (mismatch): " + "; ".join(problems)
             if problems
             else f"pass at k={probe.k} (bound {RULE_OF_THREE / probe.k:.4f})"
         )
@@ -649,7 +649,9 @@ def main(argv: list[str] | None = None) -> int:
             built, coverage = run_evidence(ROOT, PROBE_LOG_DIR, runs.get(row['record_id'], set()))
             snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')), probe_binding(row), fp,
                                 nix_build=built, allowed_outputs=allowed)
-            row['dependency_manifest'] = publish_executed(snapshot, built, coverage)
+            from claim_passes import pass_ref
+            publish_executed(snapshot, built, coverage)
+            row['dependency_manifest'] = pass_ref("probe", row["record_id"])
             for output in snapshot.outputs:
                 _remember_nix_output(ROOT, allowed, output)
     existing = (
@@ -662,11 +664,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     for rid in sorted(verdicts):
         print(f"{rid}: {verdicts[rid]}")
-    owed = [rid for rid, text in verdicts.items() if text.startswith(("owed", "unprobed"))]
+    owed = [rid for rid, text in verdicts.items() if text.startswith(("flagged", "unprobed"))]
     print(
-        f"{len(verdicts) - len(owed)} record(s) reproduced their digests; {len(owed)} owed. "
+        f"{len(verdicts) - len(owed)} record(s) reproduced their digests; {len(owed)} flagged. "
         f"Wrote {ATTESTATIONS.relative_to(ROOT)}; "
-        "`python3 scripts/calibration_status.py status` shows what is still owed."
+        "`python3 scripts/calibration_status.py status` shows what is still flagged."
     )
     return 1 if owed else 0
 

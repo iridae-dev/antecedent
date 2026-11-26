@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-estimate::measurement_models::outcome_conditioned_draws_combine_by_rubins_rules",
+    "antecedent-estimate::measurement_models::posterior_mean_substitution_recovers_the_slope_that_a_single_draw_attenuates"
+  ],
+  "groups": [
+    "measurement_composition_calibration: measurement_latent_posterior_mean_substitution_wald_l95",
+    "measurement_composition_calibration: measurement_latent_posterior_multiple_imputation_wald_l95"
+  ],
+  "id": "measurement.external_latent_posterior",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,18 @@
+{
+  "assertions": [
+    "antecedent-estimate::cancellation_expansion_cells::clustered_dml_polls_equal_the_planned_folds",
+    "antecedent-estimate::cluster_dml_aipw::the_cluster_covariance_diagonal_is_the_receipt_variance",
+    "antecedent-estimate::cluster_dml_aipw::the_cluster_sandwich_equals_hand_computed_cluster_sums",
+    "antecedent-estimate::cluster_dml_aipw::the_cluster_summed_covariance_matches_a_hand_calculation_on_a_fixed_table",
+    "antecedent-estimate::cluster_dml_aipw::the_cluster_variance_has_its_closed_form_on_deterministic_scores",
+    "antecedent-estimate::cluster_dml_aipw::the_two_way_variance_equals_hand_computed_cgm_sums",
+    "antecedent-estimate::cluster_dml_aipw::the_two_way_variance_has_its_closed_form_on_a_repeated_endpoint_grid",
+    "antecedent-estimate::suite_01::cluster_dml_known_truth::the_cluster_sandwich_receipt_covers_the_known_effect_and_the_iid_se_does_not",
+    "antecedent::suite_03::cost_expansion_cells::clustered_dml_cost_counts_folds_and_whole_clusters"
+  ],
+  "id": "estimate.clustered_dml_aipw",
+  "kind": "capability",
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l95.cluster_dml_t_wald_interval.v2_validation_not_applicable"
+  ]
+}

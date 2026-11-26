@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent-discovery::lib::selective::populations::identical_structures_agree_on_every_edge",
+    "antecedent-discovery::suite_01::selective_populations_and_split::populations_with_a_known_graph_difference_report_exactly_that_edge",
+    "antecedent::compiled_twins_discovery_engines::the_compiled_per_population_structures_differ_on_exactly_the_hand_derived_marks"
+  ],
+  "id": "discovery.per_population",
+  "kind": "capability",
+  "measurements": []
+}

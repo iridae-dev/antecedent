@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::hawkes_marks::an_immigrant_step_explains_regular_arrivals_and_withholds_the_constant_mass",
+    "antecedent::hawkes_marks::compiled_offspring_match_the_closed_forms",
+    "antecedent::lib::analysis::events::hawkes::resolvent_descendants_exclude_the_initiating_event",
+    "antecedent::lib::analysis::events::hawkes::univariate_horizon_is_the_closed_form_and_not_the_discounted_resolvent"
+  ],
+  "id": "forecast.hawkes_excitation",
+  "kind": "capability",
+  "measurements": []
+}

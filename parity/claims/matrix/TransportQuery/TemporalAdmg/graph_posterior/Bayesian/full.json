@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::transport_temporal_admg_posterior_cells_mix_the_atoms_sid_certifies"
+  ],
+  "id": "TransportQuery/TemporalAdmg/graph_posterior/Bayesian/full",
+  "kind": "matrix",
+  "measurements": []
+}

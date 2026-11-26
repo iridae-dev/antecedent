@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-attribution::mechanism_change_detection_reference::detection_statistics_and_family_correction_match_the_reference"
+  ],
+  "groups": [
+    "fitted_model_calibration: mechanism_change_posterior_probability_credible_set_coverage"
+  ],
+  "id": "attribution.mechanism_change_detection",
+  "kind": "capability",
+  "measurements": []
+}

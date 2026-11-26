@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::graph_posterior_derivative_known_truth::graph_posterior_derivative_mixtures_and_refuter_states_known_truth"
+  ],
+  "id": "PointDerivative/Dag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.point_derivative.dag.frequentist.analytic_se.l90.point_derivative_dag_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior",
+    "cov.point_derivative.dag.frequentist.analytic_se.l95.point_derivative_dag_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior"
+  ]
+}

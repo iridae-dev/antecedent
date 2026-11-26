@@ -250,7 +250,7 @@ mod tests {
 
     fn cell(query: &str, status: Option<&str>) -> String {
         let status = status.map_or(String::new(), |s| {
-            format!(r#","status":"{s}","missing_evidence":["owed: x"]"#)
+            format!(r#","status":"{s}","missing_evidence":["flagged: x"]"#)
         });
         format!(
             r#"{{"query":"{query}","graph_class":"Dag","structure":"explicit","inference":"Frequentist","validation":"none","route_estimator":null,"estimators":[]{status}}}"#

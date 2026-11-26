@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_class_envelope_numeric_pins::temporal_cpdag_frequentist_pulse_and_sustained_all_structures_and_suites"
+  ],
+  "id": "SustainedEffect/TemporalCpdag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l90.frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_multistep_sustained_nominal_90_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.sustained_effect.temporal_cpdag.frequentist.circular_block_se.l95.frequentist_temporal_cpdag_sustained_envelope_nominal_90_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-stats::synthesis_oracle::reml_matches_a_likelihood_grid",
+    "antecedent-stats::synthesis_oracle::two_study_reml_and_moments_agree_with_the_closed_form"
+  ],
+  "id": "evidence_ledger.random_effects",
+  "kind": "capability",
+  "measurements": []
+}

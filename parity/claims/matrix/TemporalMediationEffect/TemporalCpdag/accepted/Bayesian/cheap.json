@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_mediation_horizons::temporal_class_bayesian_mediation_cheap_and_full_run"
+  ],
+  "id": "TemporalMediationEffect/TemporalCpdag/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.temporal_mediation_effect.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

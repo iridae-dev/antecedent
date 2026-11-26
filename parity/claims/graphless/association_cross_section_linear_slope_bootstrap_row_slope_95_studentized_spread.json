@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::estimate_association_reference::resampling_summaries_and_posteriors_match_the_references_on_the_library_streams"
+  ],
+  "id": "association:cross_section_linear_slope:bootstrap_row:slope_95_studentized_spread",
+  "kind": "graphless",
+  "measurements": []
+}

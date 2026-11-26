@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::bayesian_synthetic_control::tests::predictive_path_draws_are_centred_on_the_posterior_mean_gap"
+  ],
+  "id": "synthetic_control:single_treated_unit:simplex_dirichlet_posterior_predictive_path:per_period_and_average_95_posterior_predictive_intervals",
+  "kind": "graphless",
+  "measurements": []
+}

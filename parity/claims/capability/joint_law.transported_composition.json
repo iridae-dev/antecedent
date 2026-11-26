@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_03::composed_uncertainty_facade::a_transported_composition_equals_the_independent_moment_truth"
+  ],
+  "id": "joint_law.transported_composition",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-validate::suite_01::predictive_assessment::bernoulli_brier_log_and_crps_match_hand_values",
+    "antecedent-validate::suite_01::predictive_assessment::energy_score_matches_hand_values_and_reduces_to_the_crps_in_one_dimension",
+    "antecedent-validate::suite_01::predictive_assessment::finite_law_and_ensemble_crps_agree_with_the_energy_form",
+    "antecedent-validate::suite_01::predictive_assessment::gaussian_crps_equals_the_integral_of_the_squared_distribution_difference",
+    "antecedent-validate::suite_01::predictive_assessment::the_true_finite_law_has_the_smallest_expected_score"
+  ],
+  "id": "predictive_assessment.proper_scores",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_graph_posterior_derivative_known_truth::class_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "SemiElasticity/TemporalAdmg/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.semi_elasticity.temporal_admg.frequentist.analytic_se.l90.semi_elasticity_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior",
+    "cov.semi_elasticity.temporal_admg.frequentist.analytic_se.l95.semi_elasticity_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior"
+  ]
+}

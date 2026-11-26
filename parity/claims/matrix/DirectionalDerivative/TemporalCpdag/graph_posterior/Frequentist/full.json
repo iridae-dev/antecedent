@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_graph_posterior_derivative_known_truth::temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "DirectionalDerivative/TemporalCpdag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.temporal_cpdag.frequentist.circular_block_se.l90.gcomp_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.v",
+    "cov.directional_derivative.temporal_cpdag.frequentist.circular_block_se.l90.gcomp_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.y",
+    "cov.directional_derivative.temporal_cpdag.frequentist.circular_block_se.l95.gcomp_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.v",
+    "cov.directional_derivative.temporal_cpdag.frequentist.circular_block_se.l95.gcomp_directional_derivative_temporal_cpdag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.y"
+  ]
+}

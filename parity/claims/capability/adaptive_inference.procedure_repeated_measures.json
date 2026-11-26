@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-stats::adaptive_repeated_measures_oracle::autoregressive_correlation_matches_the_hand_summed_matrix_and_gls_closed_form",
+    "antecedent-stats::adaptive_repeated_measures_oracle::simulated_cluster_robust_contrast_matches_the_exact_mixture_under_compound_symmetry"
+  ],
+  "id": "adaptive_inference.procedure_repeated_measures",
+  "kind": "capability",
+  "measurements": []
+}

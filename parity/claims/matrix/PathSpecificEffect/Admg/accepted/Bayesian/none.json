@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::path_specific_mixed_graph_route_evidence::path_specific_admg_accepted_bayesian_none"
+  ],
+  "id": "PathSpecificEffect/Admg/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.path_specific_effect.admg.bayesian.posterior_quantile.l90.path_specific_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.path_specific_effect.admg.bayesian.posterior_quantile.l95.path_specific_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

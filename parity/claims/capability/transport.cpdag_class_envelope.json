@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    "antecedent-identify::suite_01::discovered_transport::a_temporal_cpdag_orients_contemporaneous_edges_both_ways_and_keeps_lagged_edges_forward",
+    "antecedent-identify::suite_01::discovered_transport::member_bound_stops_the_enumeration_and_no_every_member_statement_is_made",
+    "antecedent-identify::suite_01::discovered_transport::pag_members_disagree_when_a_selected_cause_may_share_a_latent_cause_with_the_outcome",
+    "antecedent::compiled_twins_discovery_engines::the_compiled_chain_class_holds_the_three_oracle_members_with_their_fixed_verdicts",
+    "antecedent::compiled_twins_discovery_engines::the_compiled_pag_class_estimate_is_the_direct_estimate_and_covers_the_enumerated_truth",
+    "antecedent::suite_04::discovered_transport_facade::a_lagged_class_is_estimated_at_the_declared_horizon_against_the_stationary_truth",
+    "antecedent::suite_04::discovered_transport_facade::an_identified_pag_class_is_estimated_and_covers_the_enumerated_truth",
+    "antecedent::suite_04::discovered_transport_facade::fci_on_simulated_rows_then_transport_recovers_the_enumerated_target_effect"
+  ],
+  "id": "transport.cpdag_class_envelope",
+  "kind": "capability",
+  "measurements": [
+    "cov.discovered_transport.pag.frequentist.percentile_bootstrap_or_logical_support.l95.discovered_pag_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set",
+    "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_contrast_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1",
+    "cov.discovered_transport.temporal_cpdag.frequentist.block_percentile_bootstrap.l95.discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage.v2_validation_not_applicable.full_allowed_edge_holm_including_contemporaneous_v1"
+  ]
+}

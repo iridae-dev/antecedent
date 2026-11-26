@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::staged_static_kinds::static_kinds_known_truth"
+  ],
+  "id": "MediationEffect/Dag/accepted/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.dag.frequentist.bootstrap_se.l90.mediation_dag_frequentist_given.v2_validation_full.v2_structure_accepted",
+    "cov.mediation_effect.dag.frequentist.bootstrap_se.l95.mediation_dag_frequentist_given.v2_validation_full.v2_structure_accepted"
+  ]
+}

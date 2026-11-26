@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-stats::lib::measurement_error::exposure_tests::three_binary_codings_recover_the_planted_latent_class_model"
+  ],
+  "groups": [
+    "measurement_exposure_calibration: measurement_repeat_codings_binary_latent_class_wald_l95",
+    "measurement_exposure_calibration: measurement_repeat_codings_ordinal_latent_class_wald_l95"
+  ],
+  "id": "measurement.repeat_codings_latent_class",
+  "kind": "capability",
+  "measurements": []
+}

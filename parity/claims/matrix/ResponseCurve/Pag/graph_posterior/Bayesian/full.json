@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::response_curve_posterior_validation_truth::response_curve_graph_posterior_cheap_and_full_match_the_identified_curves"
+  ],
+  "id": "ResponseCurve/Pag/graph_posterior/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_0",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_1",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a__1",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_0",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_1",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a__1"
+  ]
+}

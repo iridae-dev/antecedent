@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::graph_posterior_derivative_known_truth::graph_posterior_derivative_mixtures_and_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/Dag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.dag.frequentist.analytic_se.l90.plain_elasticity_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.elasticity.dag.frequentist.analytic_se.l95.plain_elasticity_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

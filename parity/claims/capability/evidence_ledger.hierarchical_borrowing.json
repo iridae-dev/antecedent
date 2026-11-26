@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-stats::synthesis_oracle::hierarchical_mixture_matches_numerical_integration"
+  ],
+  "id": "evidence_ledger.hierarchical_borrowing",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::response_facade::two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
+  ],
+  "id": "InterventionResponse/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.intervention_response.dag.bayesian.posterior_quantile.l90.intervention_response_dag_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.intervention_response.dag.bayesian.posterior_quantile.l95.intervention_response_dag_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.intervention_response.dag.bayesian.posterior_quantile.l95.intervention_response_dag_bayesian_nominal_90_coverage.v2_validation_none"
+  ]
+}

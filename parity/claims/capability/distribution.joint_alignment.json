@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-io::suite_01::distribution_artifact::joint_moments_match_the_enumerated_law"
+  ],
+  "id": "distribution.joint_alignment",
+  "kind": "capability",
+  "measurements": []
+}

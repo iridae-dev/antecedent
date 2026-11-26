@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_explicit_bayesian_full"
+  ],
+  "id": "MediationEffect/Cpdag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.cpdag.bayesian.posterior_quantile.l90.mediation_cpdag_given_bayesian_coverage.v2_validation_full",
+    "cov.mediation_effect.cpdag.bayesian.posterior_quantile.l95.mediation_cpdag_given_bayesian_coverage.v2_validation_full"
+  ]
+}

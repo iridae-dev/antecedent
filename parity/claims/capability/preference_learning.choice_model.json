@@ -1,0 +1,16 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::preference_choice_model::consistency_from_one_cost_column_matches_the_hand_derivation",
+    "antecedent-design::suite_02::preference_choice_model::two_rates_and_consistency_are_recovered_from_simulated_choices",
+    "antecedent-design::suite_02::preference_shape_learning::a_risk_attitude_and_a_harm_weight_are_recovered_from_noisy_choices",
+    "antecedent-stats::conditional_logit::cluster_sandwich_matches_the_hand_formula_in_the_two_option_case",
+    "antecedent-stats::conditional_logit::two_options_one_feature_has_the_closed_form_maximum",
+    "antecedent-stats::conditional_logit_reference::conditional_logit_matches_fifty_digit_newton"
+  ],
+  "groups": [
+    "preference_choice_model_calibration: choice_model_trade_off_one_parameter_l95"
+  ],
+  "id": "preference_learning.choice_model",
+  "kind": "capability",
+  "measurements": []
+}

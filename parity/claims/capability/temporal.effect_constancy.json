@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::effect_constancy::constancy_oracle_one_versus_two_has_statistic_two"
+  ],
+  "id": "temporal.effect_constancy",
+  "kind": "capability",
+  "measurements": []
+}

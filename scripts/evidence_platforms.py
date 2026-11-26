@@ -333,11 +333,18 @@ def manifest_platform(manifest: object) -> str | None:
 
 @functools.cache
 def stored_platform(root: Path, ref: object) -> str | None:
-    """`manifest_platform` of the manifest stored under `ref` (content-addressed)."""
-    if not isinstance(ref, str) or not re.fullmatch(r"[0-9a-f]{64}", ref):
+    """`manifest_platform` of the manifest stored under `ref`."""
+    if not isinstance(ref, str):
         return None
     try:
-        return manifest_platform(json.loads((root / "parity/evidence_manifests" / f"{ref}.json").read_bytes()))
+        if ref.startswith("pass:"):
+            from claim_passes import read_pass
+            manifest = read_pass(root, ref)
+        elif re.fullmatch(r"[0-9a-f]{64}", ref):
+            manifest = json.loads((root / "parity/evidence_manifests" / f"{ref}.json").read_bytes())
+        else:
+            return None
+        return manifest_platform(manifest)
     except (OSError, ValueError):
         return None
 

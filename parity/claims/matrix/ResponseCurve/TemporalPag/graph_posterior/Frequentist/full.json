@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::response_curve_validation_routes_known_truth::response_curve_validation_temporal_posterior_known_truth"
+  ],
+  "id": "ResponseCurve/TemporalPag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l90.gcomp_response_curve_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_0",
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l90.gcomp_response_curve_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_1",
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l90.gcomp_response_curve_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a__1",
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l95.gcomp_response_curve_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_0",
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l95.gcomp_response_curve_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a_1",
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l95.gcomp_response_curve_temporal_pag_graph_posterior.v2_validation_full.v2_structure_graph_posterior.a__1"
+  ]
+}

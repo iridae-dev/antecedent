@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_derivative_known_truth::class_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "PointDerivative/Pag/explicit/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.point_derivative.pag.bayesian.posterior_quantile.l90.point_derivative_pag_graph_posterior_bayesian_coverage.v2_validation_cheap",
+    "cov.point_derivative.pag.bayesian.posterior_quantile.l95.point_derivative_pag_graph_posterior_bayesian_coverage.v2_validation_cheap"
+  ]
+}

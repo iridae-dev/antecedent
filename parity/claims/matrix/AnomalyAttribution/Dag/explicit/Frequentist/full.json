@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::attribution_refuter_known_truth::anomaly_attribution_refuter_states_known_truth"
+  ],
+  "id": "AnomalyAttribution/Dag/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": []
+}

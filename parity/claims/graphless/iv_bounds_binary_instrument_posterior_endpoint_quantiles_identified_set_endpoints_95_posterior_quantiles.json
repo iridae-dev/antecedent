@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::iv_bounds_interval_reference::the_endpoint_posterior_interval_is_the_tail_quantile_of_its_draws"
+  ],
+  "id": "iv_bounds:binary_instrument:posterior_endpoint_quantiles:identified_set_endpoints_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

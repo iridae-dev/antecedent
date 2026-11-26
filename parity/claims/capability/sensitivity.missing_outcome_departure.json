@@ -1,0 +1,28 @@
+{
+  "assertions": [
+    "antecedent-validate::suite_01::mnar_sensitivity::mnar_shift_tipping_points_match_the_closed_form"
+  ],
+  "groups": [
+    "mnar_interval_calibration: mnar_compiled_shift_delta_io_interval"
+  ],
+  "id": "sensitivity.missing_outcome_departure",
+  "kind": "capability",
+  "measurements": [
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p000_0p125",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p125_0p250",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p250_0p375",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p0_0p5_missing_0p375_0p500",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p000_0p125",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p125_0p250",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p250_0p375",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_0p5_1p0_missing_0p375_0p500",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p000_0p125",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p125_0p250",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p250_0p375",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p0_1p5_missing_0p375_0p500",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p000_0p125",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p125_0p250",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p250_0p375",
+    "cov.average_effect.not_applicable.frequentist.delta_normal.l95.mnar_compiled_shift_delta_io_interval.v2_validation_not_applicable.mnar_treated_shift_sd_1p5_2p0_missing_0p375_0p500"
+  ]
+}

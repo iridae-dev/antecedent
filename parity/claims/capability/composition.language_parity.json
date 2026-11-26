@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-io::suite_01::cross_surface_joint_law::python_built_joint_law_reports_the_enumerated_truth_under_constants"
+  ],
+  "id": "composition.language_parity",
+  "kind": "capability",
+  "measurements": []
+}

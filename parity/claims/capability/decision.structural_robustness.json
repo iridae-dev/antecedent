@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::decision_adapters::adapter_partial_identification_gives_an_interval_per_action_with_conflicting_leaders"
+  ],
+  "id": "decision.structural_robustness",
+  "kind": "capability",
+  "measurements": []
+}

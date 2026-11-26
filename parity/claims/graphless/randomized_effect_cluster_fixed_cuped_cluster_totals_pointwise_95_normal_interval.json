@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_randomized_cuped_known_truth::covariate_adjusted_cluster_totals_have_the_exact_neyman_mean_and_variance"
+  ],
+  "id": "randomized_effect:cluster:fixed_cuped_cluster_totals:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

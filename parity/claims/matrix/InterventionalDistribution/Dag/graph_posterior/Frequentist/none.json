@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::functional_graph_posterior_mixture_truth::interventional_distribution_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_laws_under_every_suite"
+  ],
+  "id": "InterventionalDistribution/Dag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.dag.frequentist.bootstrap_se.l90.distribution_dag_frequentist_graph_posterior.v2_validation_none.v2_structure_graph_posterior",
+    "cov.interventional_distribution.dag.frequentist.bootstrap_se.l95.distribution_dag_frequentist_graph_posterior.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

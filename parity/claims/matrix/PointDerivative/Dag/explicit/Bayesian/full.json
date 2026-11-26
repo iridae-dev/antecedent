@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::derivative_refuter_known_truth::derivative_refuter_states_known_truth"
+  ],
+  "id": "PointDerivative/Dag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l90.point_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_full",
+    "cov.point_derivative.dag.bayesian.posterior_quantile.l95.point_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_full"
+  ]
+}

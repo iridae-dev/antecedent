@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-estimate::randomized_quantile_reference::empirical_grid_recovers_the_location_shift_at_three_levels"
+  ],
+  "groups": [
+    "randomized_quantile_interval_calibration"
+  ],
+  "id": "estimate.randomized_quantile",
+  "kind": "capability",
+  "measurements": []
+}

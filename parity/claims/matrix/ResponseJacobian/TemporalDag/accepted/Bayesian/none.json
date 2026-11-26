@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_derivative_effect::temporal_dag_derivatives_publish_the_linear_slope"
+  ],
+  "id": "ResponseJacobian/TemporalDag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l90.bayesian_response_jacobian_temporal_dag_given.v2_validation_none.v2_structure_accepted.dy_db",
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l90.bayesian_response_jacobian_temporal_dag_given.v2_validation_none.v2_structure_accepted.dy_dx",
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l95.bayesian_response_jacobian_temporal_dag_given.v2_validation_none.v2_structure_accepted.dy_db",
+    "cov.response_jacobian.temporal_dag.bayesian.posterior_quantile.l95.bayesian_response_jacobian_temporal_dag_given.v2_validation_none.v2_structure_accepted.dy_dx"
+  ]
+}

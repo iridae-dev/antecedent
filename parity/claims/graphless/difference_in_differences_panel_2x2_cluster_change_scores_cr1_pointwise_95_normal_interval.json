@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::graphless_did_known_truth::panel_2x2_matches_the_analytic_effect_cluster_sandwich_and_interval"
+  ],
+  "id": "difference_in_differences:panel_2x2:cluster_change_scores_cr1:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

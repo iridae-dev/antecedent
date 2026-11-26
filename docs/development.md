@@ -452,15 +452,15 @@ record in `parity/coverage_records.toml`:
   stamps a measurement at HEAD) still matches the tree, or a passing probe
   attestation of its measurement has a manifest that still matches
   (see [Probes](#probes));
-- `probe_owed` — not current, and the measurement stored replicate digests, so a
+- `probe_flagged` — not current, and the measurement stored replicate digests, so a
   probe can reproduce them;
-- `measurement_owed` — not current and nothing to probe; only a re-measurement
+- `measurement_flagged` — not current and nothing to probe; only a re-measurement
   makes it current.
 
 A record without a dependency manifest is never current through its
 measurement. `status --owed` prints the ids that are not current, `status --json`
 the counts and per-record status. `status` always exits 0; `calibration_status.py --check`
-exits 1 while any item is owed and is what CI and the release candidate run. The runtime snapshot of attesting record ids is the
+exits 1 while any item is flagged and is what CI and the release candidate run. The runtime snapshot of attesting record ids is the
 `current` set.
 
 ### Measuring

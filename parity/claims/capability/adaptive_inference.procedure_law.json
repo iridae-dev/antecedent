@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent-stats::adaptive_procedure_uncertainty_oracle::epsilon_greedy_law_matches_integer_arithmetic_enumeration",
+    "antecedent-stats::adaptive_procedure_uncertainty_oracle::outcome_delay_hides_pending_outcomes_from_the_policy",
+    "antecedent-stats::adaptive_procedure_uncertainty_oracle::thompson_law_matches_the_enumerated_history_tree"
+  ],
+  "id": "adaptive_inference.procedure_law",
+  "kind": "capability",
+  "measurements": []
+}

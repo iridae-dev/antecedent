@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_posterior_mixes_by_posterior_weight_and_accounts_for_unidentified_mass"
+  ],
+  "id": "TemporalConditionalSustained/TemporalAdmg/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_sustained.temporal_admg.frequentist.circular_block_se.l90.temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.temporal_conditional_sustained.temporal_admg.frequentist.circular_block_se.l95.temporal_conditional_sustained_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

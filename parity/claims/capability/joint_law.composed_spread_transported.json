@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_03::composed_uncertainty_facade::a_transported_spread_from_aligned_pieces_matches_the_row_sums"
+  ],
+  "id": "joint_law.composed_spread_transported",
+  "kind": "capability",
+  "measurements": []
+}

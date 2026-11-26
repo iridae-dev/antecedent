@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::decision_reliability::batch_means_recovers_the_autocorrelation_time_of_an_ar1_stream",
+    "antecedent-design::suite_01::decision_reliability::cvar_of_a_known_normal_has_the_influence_function_standard_error",
+    "antecedent-design::suite_01::decision_reliability::cvar_standard_error_matches_the_across_seed_spread",
+    "antecedent-design::suite_01::decision_reliability::importance_weights_use_kish_ess_and_the_self_normalized_delta_method",
+    "antecedent-design::suite_01::decision_reliability::maritz_jarrett_quantile_error_matches_the_normal_theory_value",
+    "antecedent-design::suite_01::decision_reliability::shared_stream_difference_variance_is_smaller_and_matches_one_minus_rho"
+  ],
+  "id": "decision_reliability.sampled_decision",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::response_curve_validation_known_truth::response_curve_validation_class_known_truth"
+  ],
+  "id": "ResponseCurve/Pag/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_given_frequentist_coverage.v2_validation_full.a_0",
+    "cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_given_frequentist_coverage.v2_validation_full.a_1",
+    "cov.response_curve.pag.frequentist.analytic_se.l90.response_curve_pag_given_frequentist_coverage.v2_validation_full.a__1",
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_given_frequentist_coverage.v2_validation_full.a_0",
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_given_frequentist_coverage.v2_validation_full.a_1",
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_given_frequentist_coverage.v2_validation_full.a__1"
+  ]
+}

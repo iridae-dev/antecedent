@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_derivative_known_truth::class_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/Pag/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.pag.bayesian.posterior_quantile.l90.plain_elasticity_cpdag_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.elasticity.pag.bayesian.posterior_quantile.l95.plain_elasticity_cpdag_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

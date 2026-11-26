@@ -83,6 +83,54 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(result["current"])
         self.assertEqual(result["reasons"], [])
 
+    def test_a_standing_pass_loads_and_flags_when_its_input_changes(self):
+        from claim_passes import pass_path, pass_ref, read_pass, write_pass
+
+        manifest = self.manifest()
+        ref = pass_ref("scientific", self.binding["key"])
+        write_pass(self.root, ref, manifest)
+        self.assertTrue(em.Checker(self.root, {}).check(self.binding, ref)["current"])
+        self.write("src/a.rs", "fn a() { 2; }\n")
+        result = em.Checker(self.root, {}).check(self.binding, ref)
+        self.assertFalse(result["current"])
+        self.assertTrue(any(reason.startswith("input_changed:") for reason in result["reasons"]))
+        # The recorded pass stays. Flagging it does not remove it.
+        self.assertEqual(read_pass(self.root, ref)["inputs"], manifest["inputs"])
+        self.assertTrue(pass_path(self.root, ref).is_file())
+
+    def test_a_long_pass_key_keeps_one_stable_path(self):
+        from claim_passes import pass_ref, read_pass, write_pass
+
+        key = "cov." + ("segment_" * 40)
+        ref = pass_ref("calibration", key)
+        manifest = self.manifest()
+        manifest["record"] = {**self.binding, "kind": "calibration", "key": key}
+        first = write_pass(self.root, ref, manifest)
+        write_pass(self.root, ref, manifest)
+        self.assertIn("/long/", first)
+        self.assertEqual(read_pass(self.root, ref)["record"]["key"], key)
+
+    def test_prune_keeps_the_item_table_a_pass_names(self):
+        from claim_passes import pass_ref, write_pass
+
+        source = "fn used() -> i32 { 1 }\n"
+        self.write("src/a.rs", source)
+        manifest = self.manifest()
+        manifest["inputs"] = self.item_entries("src/a.rs", [source.index("{ 1 }")])
+        ref = pass_ref("scientific", self.binding["key"])
+        write_pass(self.root, ref, manifest)
+        self.write(
+            "parity/scientific_records.toml",
+            f'[[record]]\ntest = "crate::test"\nfingerprint = "old"\n'
+            f"dependency_manifest = {json.dumps(ref)}\n",
+        )
+        orphan = self.store(self.manifest())
+        removed = em.prune_evidence(self.root)
+        self.assertIn(f"{em.STORE}/{orphan}.json", removed)
+        table = next(entry["table"] for entry in manifest["inputs"] if entry["kind"] == "rust_items")
+        self.assertNotIn(f"parity/evidence_items/{table}.json", removed)
+        self.assertTrue(em.Checker(self.root, {}).check(self.binding, ref)["current"])
+
     def test_a_locked_package_binds_its_lock_entry_only(self):
         lock = ('version = 4\n\n[[package]]\nname = "dep"\nversion = "1.0.0"\n'
                 'source = "registry+https://github.com/rust-lang/crates.io-index"\n'

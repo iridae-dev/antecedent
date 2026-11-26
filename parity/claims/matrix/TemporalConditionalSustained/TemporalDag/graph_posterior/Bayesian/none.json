@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_conditional_validation_truth::temporal_conditional_graph_posterior_cells_match_the_marginal_effect"
+  ],
+  "id": "TemporalConditionalSustained/TemporalDag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l90.temporal_conditional_sustained_temporal_dag_bayesian_graph_posterior_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.temporal_conditional_sustained.temporal_dag.bayesian.posterior_quantile.l95.temporal_conditional_sustained_temporal_dag_bayesian_graph_posterior_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

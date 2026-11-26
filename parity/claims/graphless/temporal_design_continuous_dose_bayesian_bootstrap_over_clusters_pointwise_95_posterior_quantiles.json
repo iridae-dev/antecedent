@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::temporal_design_dose_quantile_known_truth::smoothed_dose_posterior_is_uniform_between_the_two_unit_ratios"
+  ],
+  "id": "temporal_design:continuous_dose:bayesian_bootstrap_over_clusters:pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

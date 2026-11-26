@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::decision_reliability::two_gaussian_candidates_match_the_exact_probability_within_the_ess_band"
+  ],
+  "id": "decision_reliability.ranking_statement",
+  "kind": "capability",
+  "measurements": []
+}

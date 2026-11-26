@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    "antecedent-estimate::mixed_source_execution::a_surrogate_trial_corrects_the_confounded_observational_conditional",
+    "antecedent-estimate::mixed_source_execution::complementary_studies_formula_matches_the_target_interventional_truth",
+    "antecedent-estimate::mixed_source_execution::every_identified_query_matches_the_enumerated_truth",
+    "antecedent-estimate::mixed_source_execution::every_identified_query_on_every_three_node_admg_matches_the_enumerated_truth",
+    "antecedent-estimate::mixed_source_execution::the_ananke_gid_and_aid_specimens_match_the_enumerated_truth",
+    "antecedent-estimate::mixed_source_execution::the_ancestral_action_counterexample_is_never_identified_and_its_wrong_formula_differs",
+    "antecedent-identify::lib::sid::mixed_source::search::tests::every_accepted_rule_instance_holds_in_the_enumerated_model",
+    "antecedent-identify::lib::sid::mixed_source::search::tests::three_node_sweep_matches_id_exactly",
+    "antecedent-identify::suite_01::mixed_source_external_parity::ananke_gid_and_aid_cases_agree_and_every_disagreement_is_recorded",
+    "antecedent-identify::suite_01::mixed_source_external_parity::cases_outside_the_route_are_recorded_out_of_scope_not_shaped",
+    "antecedent-identify::suite_01::mixed_source_external_parity::every_agreed_proof_computes_the_enumerated_truth_of_its_case",
+    "antecedent-identify::suite_01::mixed_source_external_parity::the_verbatim_output_is_read_not_trusted"
+  ],
+  "id": "identify.mixed_source_proof_search",
+  "kind": "capability",
+  "measurements": []
+}

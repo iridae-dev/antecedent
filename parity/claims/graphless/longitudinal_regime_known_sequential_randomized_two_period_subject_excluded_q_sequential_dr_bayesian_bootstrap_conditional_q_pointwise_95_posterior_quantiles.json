@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::score_posterior_interval_known_truth::the_sequential_regime_interval_is_the_exact_central_interval_of_the_hand_scores"
+  ],
+  "id": "longitudinal_regime:known_sequential_randomized_two_period:subject_excluded_q_sequential_dr_bayesian_bootstrap:conditional_q_pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

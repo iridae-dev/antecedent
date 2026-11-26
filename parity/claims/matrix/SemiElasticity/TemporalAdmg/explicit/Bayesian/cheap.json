@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_admg_derivative_known_truth::temporal_admg_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "SemiElasticity/TemporalAdmg/explicit/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.semi_elasticity.temporal_admg.bayesian.posterior_quantile.l90.bayesian_semi_elasticity_temporal_admg_given.v2_validation_cheap",
+    "cov.semi_elasticity.temporal_admg.bayesian.posterior_quantile.l90.semi_elasticity_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap",
+    "cov.semi_elasticity.temporal_admg.bayesian.posterior_quantile.l95.bayesian_semi_elasticity_temporal_admg_given.v2_validation_cheap",
+    "cov.semi_elasticity.temporal_admg.bayesian.posterior_quantile.l95.semi_elasticity_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_cheap"
+  ]
+}

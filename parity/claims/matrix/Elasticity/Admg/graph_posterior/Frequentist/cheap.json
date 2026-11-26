@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_graph_posterior_derivative_known_truth::class_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/Admg/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.admg.frequentist.analytic_se.l90.plain_elasticity_admg_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.elasticity.admg.frequentist.analytic_se.l95.plain_elasticity_admg_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

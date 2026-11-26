@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_functional_routes::derivative_bayesian_pins"
+  ],
+  "id": "Elasticity/Dag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.dag.bayesian.posterior_quantile.l90.plain_elasticity_dag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.elasticity.dag.bayesian.posterior_quantile.l95.plain_elasticity_dag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

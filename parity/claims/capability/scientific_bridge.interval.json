@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-contract::typed_bridges_reference::rogan_gladen_inversion_and_forward_map_match_the_exact_reference_with_rate_variances"
+  ],
+  "id": "scientific_bridge.interval",
+  "kind": "capability",
+  "measurements": [
+    "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_low_prevalence_boundary_l95.v2_validation_not_applicable",
+    "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_2_l95.v2_validation_not_applicable",
+    "cov.bridged_claim_interval.not_applicable.frequentist.normal_delta_method_clipped.l95.latent_measured_correction_prevalence_0_5_l95.v2_validation_not_applicable",
+    "cov.bridged_claim_interval.not_applicable.frequentist.student_t_prediction_interval.l95.surrogate_trial_level_prediction_interval_l95.v2_validation_not_applicable"
+  ]
+}

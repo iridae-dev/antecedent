@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_functional_routes::admg_frontdoor_bayesian_all_structures_and_validation"
+  ],
+  "id": "AverageEffect/Admg/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

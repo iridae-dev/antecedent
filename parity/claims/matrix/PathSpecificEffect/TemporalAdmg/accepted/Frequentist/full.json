@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::path_specific_mixed_graph_route_evidence::path_specific_temporal_admg_accepted_frequentist_full"
+  ],
+  "id": "PathSpecificEffect/TemporalAdmg/accepted/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.path_specific_effect.temporal_admg.frequentist.circular_block_se.l90.path_specific_temporal_admg_given_frequentist_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.path_specific_effect.temporal_admg.frequentist.circular_block_se.l95.path_specific_temporal_admg_given_frequentist_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

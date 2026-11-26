@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::ledger_transport_exact::citing_an_overlapping_pool_reports_its_hand_counted_union_each_time"
+  ],
+  "id": "evidence_ledger.evidence_reuse",
+  "kind": "capability",
+  "measurements": []
+}

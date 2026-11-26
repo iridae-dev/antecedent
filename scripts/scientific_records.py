@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Recorded passes of the scientific assertions, current while their dependency manifests match.
 
-    scientific_records.py status [--check]   owed versus current records; --check exits 1 when any
-                                             is owed and executes nothing (CI and releases)
+    scientific_records.py status [--check]   flagged versus current records; --check exits 1 when any
+                                             is flagged and executes nothing (CI and releases)
     scientific_records.py run [--all] [--only PATTERN]
-                                             earn the owed assertions and record their passes
+                                             earn the flagged assertions and record their passes
 
-`parity/scientific_records.toml` holds one row per assertion that passed, with the
-content-addressed dependency manifest it earned (`scripts/evidence_earning.py`). `status`
-checks manifests with `scripts/evidence_manifests.py` only: no compiler, Cargo or test runs.
-A row without a manifest, or whose manifest no longer matches, is owed.
+`parity/scientific_records.toml` holds one row per assertion that passed. Its
+`dependency_manifest` is `pass:scientific:<selector>` (`scripts/claim_passes.py`): one file,
+updated in place. `status` checks that file with `scripts/evidence_manifests.py` only: no
+compiler, Cargo or test runs. A row without a pass, or whose pass no longer matches, is
+flagged: it needs a new run or a written justification. The recorded pass stays in the file.
 
-`run` earns owed Rust assertions: every owed test target is built once with coverage
+`run` earns flagged Rust assertions: every flagged test target is built once with coverage
 instrumentation in one Nix derivation, and each assertion then runs exactly, the assertions
 of all targets concurrently. Scientific assertions are Rust tests. A rerun withdraws the old pass first, so a failed or interrupted run never leaves a
 superseded pass standing. `--all` or ANTECEDENT_SCIENTIFIC_ALL=1 reruns everything.
@@ -47,8 +48,8 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 #
 # One [[record]] per scientific assertion that passed, written by
 # `python3 scripts/scientific_records.py run`, the one place scientific assertions
-# run. A record is current while its dependency manifest matches; an owed
-# assertion reruns, a current one carries forward. A recorded pass is evidence for
+# run. A record is current while its pass matches; a flagged assertion is rerun or
+# justified in that same file, and a current one carries forward. A recorded pass is evidence for
 # support only. It is never a calibration measurement or a coverage claim.
 #
 # test         exact selector: rust `crate::binary::module::name` (`lib` for the
@@ -59,7 +60,7 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 # dirty        whether the working tree differed from that commit
 # fingerprint  sha256 of the assertion's dependency closure when it passed (identity only)
 # recorded_at  UTC time of the pass
-# dependency_manifest  parity/evidence_manifests/<sha256>.json: what the pass depended on
+# dependency_manifest  pass:scientific:<selector>, the standing pass file
 """
 
 
@@ -350,7 +351,9 @@ def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str
                 print(f"FAIL: {info['selector']}: {error}")
                 failed += 1
                 continue
-            earned.append({**row, "selector": info["selector"], "dependency_manifest": ref,
+            from claim_passes import pass_ref
+            earned.append({**row, "selector": info["selector"],
+                           "dependency_manifest": pass_ref("scientific", info["selector"]),
                            "fingerprint": snapshot.manifest["record"]["fingerprint"]})
         recorded += record_passes(root, earned)
         print(f"  {crate} {' '.join(target)}: {len(earned)}/{len(todo)} earned", flush=True)
@@ -486,7 +489,9 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                     # Manifest filenames are content addresses, not merely paths to trust.
                     if allowed[manifest] != ref:
                         raise RuntimeError("published evidence manifest does not match its content address")
-                    earned.append({**row, "selector": selector, "dependency_manifest": ref,
+                    from claim_passes import pass_ref
+                    earned.append({**row, "selector": selector,
+                                   "dependency_manifest": pass_ref("scientific", selector),
                                    "fingerprint": snapshots[selector].manifest["record"]["fingerprint"]})
                 source_commit, _ = _clean_head(root, allowed)
                 if source_commit != built["source"]["commit"]:
@@ -517,9 +522,9 @@ def cmd_status(root: Path, args: argparse.Namespace) -> int:
 
 def report_status(root: Path, owed: list[dict], current: list[dict], *, check: bool) -> int:
     rows = owed + current
-    print(f"scientific records: {len(current)} current, {len(owed)} owed of {len(rows)}")
+    print(f"scientific records: {len(current)} current, {len(owed)} flagged of {len(rows)}")
     for item in owed:
-        print(f"  owed: {item['selector']} ({', '.join(item['manifest_reasons'][:3])})")
+        print(f"  flagged: {item['selector']} ({', '.join(item['manifest_reasons'][:3])})")
     # Every row must name exactly one test, so a run never builds for a name it cannot find.
     unresolved = []
     for row in rows:

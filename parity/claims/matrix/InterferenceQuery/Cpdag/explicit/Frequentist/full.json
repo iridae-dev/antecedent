@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast"
+  ],
+  "id": "InterferenceQuery/Cpdag/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": []
+}

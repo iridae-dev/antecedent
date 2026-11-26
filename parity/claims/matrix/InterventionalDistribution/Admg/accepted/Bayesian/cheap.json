@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::distribution_validation_route_evidence::distribution_admg_accepted_bayesian_cheap"
+  ],
+  "id": "InterventionalDistribution/Admg/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.admg.bayesian.posterior_quantile.l90.distribution_admg_bayesian_given.v2_validation_cheap.v2_structure_accepted",
+    "cov.interventional_distribution.admg.bayesian.posterior_quantile.l95.distribution_admg_bayesian_given.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

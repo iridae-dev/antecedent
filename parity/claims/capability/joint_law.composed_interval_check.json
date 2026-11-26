@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_03::composed_uncertainty_facade::a_composed_interval_is_reported_with_its_calibration_at_its_coordinate"
+  ],
+  "groups": [
+    "joint_law_composed_interval_calibration",
+    "measurement_composition_calibration: composed_contrast_aligned_posterior_gaussian_l95",
+    "measurement_composition_calibration: composed_contrast_aligned_posterior_skewed_pair_l95"
+  ],
+  "id": "joint_law.composed_interval_check",
+  "kind": "capability",
+  "measurements": []
+}

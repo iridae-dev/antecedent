@@ -1196,7 +1196,9 @@ def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_D
         snapshot = Snapshot(ROOT, coverage_row(rec['test'], rec.get('dgp', '')),
                             measurement_binding(rec), fp, nix_build=built, allowed_outputs={})
         snapshot.verify_commit(sha)
-        return rid, publish_executed(snapshot, built, coverage), list(stored_writes)
+        from claim_passes import pass_ref
+        publish_executed(snapshot, built, coverage)
+        return rid, pass_ref("calibration", rid), list(stored_writes)
 
     evidence_earning._write_addressed = recording_write
     todo = [rid for rid in records if fingerprints.get(rid)]

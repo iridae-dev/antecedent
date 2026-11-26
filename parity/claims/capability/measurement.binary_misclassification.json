@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-estimate::measurement_models::binary_prevalence_inverts_the_misclassification_algebra",
+    "antecedent-estimate::measurement_models::binary_risk_difference_recovers_truth_and_pooling_differential_error_fails"
+  ],
+  "groups": [
+    "measurement_composition_calibration: measurement_binary_prevalence_wald_l95",
+    "measurement_composition_calibration: measurement_binary_risk_difference_wald_l95"
+  ],
+  "id": "measurement.binary_misclassification",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::evsi::gaussian_mean_matches_the_closed_form_normal_linear_loss_value"
+  ],
+  "id": "design.evsi",
+  "kind": "capability",
+  "measurements": []
+}

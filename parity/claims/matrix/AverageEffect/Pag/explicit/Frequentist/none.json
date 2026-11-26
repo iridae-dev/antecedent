@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_05::pag_identified_envelope_numeric_pins::pag_identified_envelope_average_effect_pins"
+  ],
+  "id": "AverageEffect/Pag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.pag.frequentist.analytic_se.l90.average_effect_pag_frequentist_envelope_nominal_coverage.v2_validation_none",
+    "cov.average_effect.pag.frequentist.analytic_se.l90.static_pag_ate_envelope_frequentist_nominal_90_coverage.v2_validation_none",
+    "cov.average_effect.pag.frequentist.analytic_se.l95.average_effect_pag_frequentist_envelope_nominal_coverage.v2_validation_none",
+    "cov.average_effect.pag.frequentist.analytic_se.l95.static_pag_ate_envelope_frequentist_nominal_90_coverage.v2_validation_none"
+  ]
+}

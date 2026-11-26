@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent::suite_05::pag_identified_envelope_numeric_pins::pag_identified_envelope_intervention_response_matches_completion_effects"
+  ],
+  "id": "InterventionResponse/Pag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.pag.frequentist.analytic_se.l95.intervention_response_pag_frequentist_accepted_nominal_coverage.v2_validation_none.v2_structure_accepted.a_1"
+  ]
+}

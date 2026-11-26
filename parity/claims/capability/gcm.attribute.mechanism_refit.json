@@ -1,0 +1,26 @@
+{
+  "assertions": [
+    "antecedent-attribution::anomaly_arrow_reference::arrow_strength_is_the_cut_edge_divergence_and_the_variance_contribution_is_reported_too",
+    "antecedent-attribution::anomaly_arrow_reference::fixed_reference_scores_and_exact_shapley_equal_the_definition",
+    "antecedent-attribution::distribution_change_reference::regression_hybrid_path_equals_the_exact_mean_shapley_values",
+    "antecedent-attribution::feature_relevance_reference::an_additive_linear_game_gives_each_feature_its_own_coefficient_times_the_shift",
+    "antecedent-attribution::path_reference::path_products_match_exact_total_effects",
+    "antecedent-attribution::population_do_contrast_reference::the_contrast_is_the_total_effect_times_the_width_with_no_monte_carlo_error",
+    "antecedent::suite_07::temporal_attribution_route_evidence::temporal_attribution_bayesian_known_truth",
+    "antecedent::suite_07::temporal_attribution_route_evidence::temporal_attribution_frequentist_known_truth"
+  ],
+  "groups": [
+    "fitted_model_calibration: attribute_anomaly_dag_bayesian_dirichlet_coverage",
+    "fitted_model_calibration: attribute_distribution_change_dag_bayesian_dirichlet_coverage",
+    "fitted_model_calibration: attribute_distribution_change_dag_frequentist_bootstrap_coverage",
+    "fitted_model_calibration: attribute_feature_relevance_dag_bayesian_dirichlet_coverage",
+    "fitted_model_calibration: attribute_paths_dag_bayesian_dirichlet_coverage",
+    "fitted_model_calibration: attribute_root_causes_dag_bayesian_dirichlet_coverage",
+    "fitted_model_calibration: attribute_root_causes_dag_frequentist_bootstrap_coverage",
+    "fitted_model_calibration: attribute_temporal_dag_bayesian_block_weights_coverage",
+    "fitted_model_calibration: attribute_temporal_dag_frequentist_block_bootstrap_coverage"
+  ],
+  "id": "gcm.attribute.mechanism_refit",
+  "kind": "capability",
+  "measurements": []
+}

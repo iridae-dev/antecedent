@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_contrasts_match_the_enumerated_truth_on_both_inferences"
+  ],
+  "id": "SustainedEffect/TemporalAdmg/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.sustained_effect.temporal_admg.bayesian.posterior_quantile.l90.sustained_effect_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.sustained_effect.temporal_admg.bayesian.posterior_quantile.l95.sustained_effect_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

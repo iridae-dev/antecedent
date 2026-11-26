@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_conditional_validation_truth::temporal_conditional_graph_posterior_cells_match_the_marginal_effect"
+  ],
+  "id": "TemporalConditionalSustained/TemporalCpdag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_sustained.temporal_cpdag.frequentist.circular_block_se.l90.temporal_conditional_sustained_temporal_cpdag_frequentist_graph_posterior_coverage.v2_validation_full.v2_structure_graph_posterior",
+    "cov.temporal_conditional_sustained.temporal_cpdag.frequentist.circular_block_se.l95.temporal_conditional_sustained_temporal_cpdag_frequentist_graph_posterior_coverage.v2_validation_full.v2_structure_graph_posterior"
+  ]
+}

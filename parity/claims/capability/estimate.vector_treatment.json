@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::vector_treatment::vector_coefficients_and_full_covariance_match_hand_algebra"
+  ],
+  "id": "estimate.vector_treatment",
+  "kind": "capability",
+  "measurements": []
+}

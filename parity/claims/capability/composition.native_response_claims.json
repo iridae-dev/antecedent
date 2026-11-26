@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::native_response_claims_exact::retained_draws_give_the_hand_derived_aligned_expected_utilities_and_probability"
+  ],
+  "id": "composition.native_response_claims",
+  "kind": "capability",
+  "measurements": []
+}

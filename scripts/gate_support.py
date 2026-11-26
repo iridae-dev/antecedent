@@ -26,9 +26,9 @@ One rule decides support for every unit:
   current      every scientific check the unit cites has a CURRENT PASSING record in the
   record       scientific-records ledger (parity/scientific_records.toml, maintained by
                scripts/scientific_records.py). A record is current while the fingerprint of
-               everything the check depends on is unchanged. An owed or missing record
+               everything the check depends on is unchanged. A flagged or missing record
                (including a failing check, which is never recorded) makes the unit
-               not_supported with missing evidence `owed: <selector>`, until the scientific
+               not_supported with missing evidence `flagged: <selector>`, until the scientific
                lane re-earns it. The release build refuses the unit like any other
                not_supported route; the development build runs it with `would_refuse`.
 
@@ -140,7 +140,7 @@ def _load(rel: str) -> dict:
     return _repo.load_toml(ROOT / rel)
 
 
-OWED_PREFIX = "owed: "
+OWED_PREFIX = "flagged: "
 
 
 class Ledger:
@@ -581,7 +581,7 @@ def evaluate(ledger: Ledger | None = None, evidence_only: bool = False) -> dict:
     }
 
 
-OWED = "owed: a cited scientific check has no current passing record"
+OWED = "flagged: a cited scientific check has no current passing record"
 STALE = "independent check: a reviewed item or fixture changed since its review digest was bound"
 
 

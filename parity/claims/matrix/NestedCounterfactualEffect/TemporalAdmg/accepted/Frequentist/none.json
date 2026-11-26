@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::cross_world_class_truth::class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+  ],
+  "id": "NestedCounterfactualEffect/TemporalAdmg/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

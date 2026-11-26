@@ -1,0 +1,14 @@
+{
+  "assertions": [
+    "antecedent-estimate::measurement_models::classical_error_recovers_the_coefficient_and_the_naive_fit_is_attenuated",
+    "antecedent-stats::lib::measurement_error::tests::corrected_normal_equations_equal_regression_calibration",
+    "antecedent-stats::lib::measurement_error::tests::simulated_replicates_recover_truth_and_the_reported_se_matches_the_spread"
+  ],
+  "groups": [
+    "measurement_composition_calibration: measurement_classical_error_declared_variance_wald_l95",
+    "measurement_composition_calibration: measurement_classical_error_estimated_variance_wald_l95"
+  ],
+  "id": "measurement.classical_continuous_error",
+  "kind": "capability",
+  "measurements": []
+}

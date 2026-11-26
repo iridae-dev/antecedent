@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_05::nested_counterfactual_route_evidence::bayesian_natural_direct_effect_publishes_the_posterior_mean_without_an_interval"
+  ],
+  "id": "NestedCounterfactualEffect/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": []
+}

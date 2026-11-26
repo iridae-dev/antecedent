@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite"
+  ],
+  "id": "TransportQuery/Cpdag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

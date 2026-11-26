@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::conditional_effect_admg_validation_truth::conditional_effect_admg_explicit_and_accepted_match_the_stratified_difference"
+  ],
+  "id": "ConditionalEffect/Admg/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.conditional_effect.admg.frequentist.bootstrap_se.l90.conditional_effect_admg_given_frequentist_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.conditional_effect.admg.frequentist.bootstrap_se.l95.conditional_effect_admg_given_frequentist_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

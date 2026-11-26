@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent::trial_ipw_decision_reference::the_effect_draws_follow_the_exact_dirichlet_moments_of_the_inverse_odds_scores",
+    "antecedent::trial_ipw_decision_reference::the_predictive_worlds_are_the_arm_empirical_laws_and_independent_given_the_declared_premise"
+  ],
+  "id": "transport.trial_ipw_decision",
+  "kind": "capability",
+  "measurements": []
+}

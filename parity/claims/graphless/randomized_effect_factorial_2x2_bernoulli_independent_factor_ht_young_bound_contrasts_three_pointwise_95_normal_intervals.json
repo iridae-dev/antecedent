@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::factorial_ipw_known_truth::factorial_contrasts_are_unbiased_over_the_full_independent_factor_law"
+  ],
+  "id": "randomized_effect:factorial_2x2_bernoulli:independent_factor_ht_young_bound_contrasts:three_pointwise_95_normal_intervals",
+  "kind": "graphless",
+  "measurements": []
+}

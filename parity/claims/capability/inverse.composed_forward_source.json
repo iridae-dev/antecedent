@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::inverse_forward_source::a_finite_composition_answers_mean_quantile_and_probability_exactly",
+    "antecedent-design::suite_01::inverse_forward_source::composed_identity_is_order_invariant_and_follows_the_premises",
+    "antecedent::suite_05::inverse_forward_sources_facade::composed_gaussian_outcome_law_matches_independent_chain_reference"
+  ],
+  "id": "inverse.composed_forward_source",
+  "kind": "capability",
+  "measurements": []
+}

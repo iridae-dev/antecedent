@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_03::composition_release_fixture::the_decision_reads_the_supported_mean_and_matches_the_hand_computed_utilities"
+  ],
+  "groups": [
+    "evidence_synthesis_calibration"
+  ],
+  "id": "composition.release_boundary_fixture",
+  "kind": "capability",
+  "measurements": []
+}

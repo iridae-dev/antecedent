@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::counterfactual_accepted_known_truth::accepted_counterfactual_matches_the_closed_form_mean_effect"
+  ],
+  "id": "Counterfactual/Dag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

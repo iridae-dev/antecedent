@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    "antecedent::suite_05::manufacturing_temporal::manufacturing_dbn_posterior_frequentist_shared_block_bootstrap"
+  ],
+  "id": "PulseEffect/TemporalDag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_shared_block_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l90.frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho05_n160_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho05_n60_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_ar1_rho09_n400_boundary_within_band.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_shared_block_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_dag.frequentist.circular_block_se.l95.frequentist_dbn_pulse_single_atom_baseline_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

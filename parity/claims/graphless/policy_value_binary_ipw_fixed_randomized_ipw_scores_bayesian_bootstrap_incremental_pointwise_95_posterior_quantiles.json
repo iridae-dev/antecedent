@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::score_posterior_interval_known_truth::the_inverse_probability_policy_interval_is_the_exact_central_interval_of_the_hand_scores"
+  ],
+  "id": "policy_value:binary_ipw:fixed_randomized_ipw_scores_bayesian_bootstrap:incremental_pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

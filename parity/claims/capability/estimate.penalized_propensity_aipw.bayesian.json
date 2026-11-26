@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::bayesian_score_route_exact::penalized_posterior_mean_equals_the_hand_update_of_the_route_score_table"
+  ],
+  "id": "estimate.penalized_propensity_aipw.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

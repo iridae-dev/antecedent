@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::dependence_aware_interval_reference::a_three_period_hand_case_pins_the_newey_west_arithmetic"
+  ],
+  "id": "history_match:within_period_nearest_history:period_newey_west_fixed_b:pointwise_95_fixed_b_interval",
+  "kind": "graphless",
+  "measurements": []
+}

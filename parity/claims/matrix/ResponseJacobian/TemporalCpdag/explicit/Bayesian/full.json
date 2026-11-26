@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_class_derivative_known_truth::temporal_class_derivative_refuter_states_known_truth"
+  ],
+  "id": "ResponseJacobian/TemporalCpdag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_jacobian.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_response_jacobian_temporal_cpdag_given.v2_validation_full.dy_db",
+    "cov.response_jacobian.temporal_cpdag.bayesian.posterior_quantile.l90.bayesian_response_jacobian_temporal_cpdag_given.v2_validation_full.dy_dx",
+    "cov.response_jacobian.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_response_jacobian_temporal_cpdag_given.v2_validation_full.dy_db",
+    "cov.response_jacobian.temporal_cpdag.bayesian.posterior_quantile.l95.bayesian_response_jacobian_temporal_cpdag_given.v2_validation_full.dy_dx"
+  ]
+}

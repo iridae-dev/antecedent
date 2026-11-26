@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_conditional_validation_truth::temporal_conditional_cheap_and_full_pass_on_the_clean_law_at_the_marginal_effect"
+  ],
+  "id": "TemporalConditionalPulse/TemporalCpdag/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_pulse.temporal_cpdag.bayesian.posterior_quantile.l90.temporal_conditional_pulse_temporal_cpdag_bayesian_given_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.temporal_conditional_pulse.temporal_cpdag.bayesian.posterior_quantile.l95.temporal_conditional_pulse_temporal_cpdag_bayesian_given_coverage.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

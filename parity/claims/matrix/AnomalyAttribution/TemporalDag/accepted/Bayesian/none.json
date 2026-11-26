@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_attribution_route_evidence::temporal_accepted_attribution_known_truth"
+  ],
+  "id": "AnomalyAttribution/TemporalDag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.anomaly_attribution.temporal_dag.bayesian.posterior_quantile.l90.anomaly_attribution_temporal_cpdag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.anomaly_attribution.temporal_dag.bayesian.posterior_quantile.l95.anomaly_attribution_temporal_cpdag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

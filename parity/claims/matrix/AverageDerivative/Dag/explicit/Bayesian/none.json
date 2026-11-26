@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_functional_routes::derivative_bayesian_pins"
+  ],
+  "id": "AverageDerivative/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_derivative.dag.bayesian.posterior_quantile.l90.ade_bayesian_gaussian_treatment_nominal_90_coverage.v2_validation_none",
+    "cov.average_derivative.dag.bayesian.posterior_quantile.l90.average_derivative_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.average_derivative.dag.bayesian.posterior_quantile.l95.ade_bayesian_gaussian_treatment_nominal_90_coverage.v2_validation_none",
+    "cov.average_derivative.dag.bayesian.posterior_quantile.l95.average_derivative_bayesian_default_nominal_coverage.v2_validation_none"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "assertions": [
+    "antecedent::class_explicit_known_truth::class_responses_match_the_closed_form_curve_explicit_and_accepted"
+  ],
+  "id": "ResponseCurve/Pag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.v2_validation_none.a_0",
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.v2_validation_none.a_0_5",
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.v2_validation_none.a_1",
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.v2_validation_none.a__0_5",
+    "cov.response_curve.pag.frequentist.analytic_se.l95.response_curve_pag_frequentist_pointwise_nominal_coverage.v2_validation_none.a__1"
+  ]
+}

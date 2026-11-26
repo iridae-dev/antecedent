@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-stats::synthesis_oracle::the_envelope_agrees_with_brute_force_grids"
+  ],
+  "id": "evidence_ledger.dependence_range",
+  "kind": "capability",
+  "measurements": []
+}

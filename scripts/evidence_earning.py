@@ -490,7 +490,18 @@ class Snapshot:
             self.outputs.append(_write_addressed(self.root / INPUT_GROUPS, address, data, self.root))
         ref = manifest_id(stored)
         self.outputs.append(_write_addressed(self.root / STORE, ref, canonical(stored), self.root))
+        self._write_stable_pass()
         return ref
+
+    def _write_stable_pass(self) -> None:
+        """The standing copy. A later run updates this file; the content address is only
+        the Nix output check."""
+        record = self.manifest.get("record") or {}
+        kind, key = record.get("kind"), record.get("key")
+        if kind not in ("scientific", "calibration", "probe") or not isinstance(key, str) or not key:
+            return
+        from claim_passes import pass_ref, write_pass
+        self.outputs.append(write_pass(self.root, pass_ref(kind, key), self.manifest))
 
 
 def _write_addressed(store: Path, address: str, data: bytes, root: Path) -> str:

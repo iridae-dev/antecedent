@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::distribution_validation_route_evidence::distribution_temporal_admg_explicit_frequentist_full"
+  ],
+  "id": "InterventionalDistribution/TemporalAdmg/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.temporal_admg.frequentist.bootstrap_se.l90.distribution_temporal_admg_frequentist_given.v2_validation_full",
+    "cov.interventional_distribution.temporal_admg.frequentist.bootstrap_se.l95.distribution_temporal_admg_frequentist_given.v2_validation_full"
+  ]
+}

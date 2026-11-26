@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::augmented_did_reference::the_augmented_effect_and_comparison_size_match_the_exact_reference"
+  ],
+  "id": "difference_in_differences:augmented_panel:whole_cluster_bootstrap_supplied_nuisance_held_fixed:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-estimate::categorical_treatment::categorical_dummy_regression_covariance_matches_group_mean_algebra"
+  ],
+  "groups": [
+    "categorical_posterior_calibration: categorical_conjugate_contrast_prior_predictive_interval"
+  ],
+  "id": "estimate.categorical_treatment",
+  "kind": "capability",
+  "measurements": [
+    "cov.categorical_treatment_contrast.not_applicable.bayesian.posterior_quantile.l95.categorical_conjugate_contrast_prior_predictive_interval.v2_validation_not_applicable"
+  ]
+}

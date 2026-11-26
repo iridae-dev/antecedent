@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::staged_static_kinds::fixed_dag_nested_natural_direct_effect_executes_and_refuses_other_graphs"
+  ],
+  "id": "NestedCounterfactualEffect/Dag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

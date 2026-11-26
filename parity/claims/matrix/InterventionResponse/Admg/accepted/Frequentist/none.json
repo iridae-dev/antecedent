@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent::suite_05::pag_admg_numeric_pins::admg_frontdoor_response_pins_against_distribution"
+  ],
+  "id": "InterventionResponse/Admg/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.admg.frequentist.bootstrap_se.l95.intervention_response_admg_frequentist_accepted_nominal_coverage.v2_validation_none.v2_structure_accepted.a_1"
+  ]
+}

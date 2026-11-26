@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::learned_trial_reference_tests::estimate_scores_nuisances_replicates_and_interval_match_the_recorded_reference"
+  ],
+  "groups": [
+    "learned_continuous_bootstrap_calibration: learned_trial_aipw_independent_samples_joint_bootstrap_mean_contrast",
+    "learned_continuous_bootstrap_calibration: learned_trial_aipw_nested_cohort_joint_bootstrap_mean_contrast"
+  ],
+  "id": "transport.learned_continuous_trial",
+  "kind": "capability",
+  "measurements": [
+    "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_independent_samples_continuous_mean_contrast.v2_validation_not_applicable",
+    "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast.v2_validation_not_applicable"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_graph_posterior_derivative_known_truth::class_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "SemiElasticity/Cpdag/graph_posterior/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.semi_elasticity.cpdag.bayesian.posterior_quantile.l90.semi_elasticity_cpdag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.semi_elasticity.cpdag.bayesian.posterior_quantile.l95.semi_elasticity_cpdag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

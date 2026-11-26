@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::joint_sensitivity_source_exact::the_replayed_surface_is_the_hand_derived_range_and_moves_with_the_law"
+  ],
+  "id": "sensitivity.source_lineage",
+  "kind": "capability",
+  "measurements": []
+}

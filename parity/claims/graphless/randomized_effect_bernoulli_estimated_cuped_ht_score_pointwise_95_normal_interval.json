@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_06::compiled_twins_randomized::estimated_slope_cuped_matches_the_direct_kernel"
+  ],
+  "id": "randomized_effect:bernoulli:estimated_cuped_ht_score:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

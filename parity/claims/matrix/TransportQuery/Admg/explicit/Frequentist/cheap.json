@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite"
+  ],
+  "id": "TransportQuery/Admg/explicit/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": []
+}

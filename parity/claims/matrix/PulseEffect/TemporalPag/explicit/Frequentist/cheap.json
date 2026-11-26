@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_class_envelope_numeric_pins::temporal_pag_identified_multi_completion_pulse_and_sustained"
+  ],
+  "id": "PulseEffect/TemporalPag/explicit/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l90.pulse_effect_temporal_pag_frequentist_given_coverage.v2_validation_cheap",
+    "cov.pulse_effect.temporal_pag.frequentist.circular_block_se.l95.pulse_effect_temporal_pag_frequentist_given_coverage.v2_validation_cheap"
+  ]
+}

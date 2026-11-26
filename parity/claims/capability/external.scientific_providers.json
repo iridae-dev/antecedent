@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::external_provider_exact::a_negotiated_bernoulli_law_is_consumed_by_the_library_functionals"
+  ],
+  "id": "external.scientific_providers",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,17 @@
+{
+  "assertions": [
+    "antecedent-contract::lib::bridge::point_propagation::a_nonlinear_square_reports_the_bias_against_the_second_moment_closed_form",
+    "antecedent-contract::lib::bridge::point_propagation::a_trial_level_line_carries_the_variance_of_its_fitted_mean_line",
+    "antecedent-contract::lib::bridge::point_propagation::an_affine_map_with_declared_uncertainty_carries_the_hand_delta_variance",
+    "antecedent-contract::suite_01::scientific_bridge::a_measured_prevalence_is_the_latent_prevalence_only_through_the_model",
+    "antecedent-contract::suite_01::scientific_bridge::a_model_parameter_is_an_intervention_response_only_through_its_declared_contrast",
+    "antecedent-contract::suite_01::scientific_bridge::an_association_is_a_causal_quantity_only_under_a_named_identification",
+    "antecedent-contract::suite_01::scientific_bridge::surrogate_bridge_matches_the_hand_computed_trial_level_regression",
+    "antecedent-io-core::lib::bridge_image_tests::fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images",
+    "antecedent::lib::analysis::scientific_bridge_propagation_tests::an_affine_map_publishes_the_hand_delta_variance_beside_the_plug_in_value",
+    "antecedent::suite_07::scientific_bridge_facade::the_correction_agrees_with_the_independent_corrected_prevalence_routine"
+  ],
+  "id": "scientific_bridge.typed_bridges",
+  "kind": "capability",
+  "measurements": []
+}

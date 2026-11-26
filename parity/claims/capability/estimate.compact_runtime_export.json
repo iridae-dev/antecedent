@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-io::suite_01::compact_export::compact_quadratic_point_and_se_match_hand_values"
+  ],
+  "id": "estimate.compact_runtime_export",
+  "kind": "capability",
+  "measurements": []
+}

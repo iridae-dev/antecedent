@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_published_intervals_known_truth::observational_known_propensity_cluster_t_interval_matches_the_hand_computation"
+  ],
+  "id": "interference:observational_known_exposure:observational_known_exposure_cluster_t:exposure_contrast_pointwise_95_student_interval",
+  "kind": "graphless",
+  "measurements": []
+}

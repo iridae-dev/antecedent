@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::randomized_scores_enumeration::two_action_contrast_is_unbiased_and_its_sandwich_slack_is_the_effect_variation"
+  ],
+  "id": "randomized_effect:bernoulli:independent_action_ht_score:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

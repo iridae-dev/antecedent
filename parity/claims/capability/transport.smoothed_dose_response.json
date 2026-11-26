@@ -1,0 +1,16 @@
+{
+  "assertions": [
+    "antecedent::smoothed_dose_reference::cross_fitted_smoothed_score_matches_the_multiprecision_reference",
+    "antecedent::suite_07::smoothed_dose_lifecycle::quadrature_matches_exact_integration_and_the_oracle_score_is_centred"
+  ],
+  "groups": [
+    "smoothed_dose_calibration: smoothed_dose_transport_independent_samples_psi_h",
+    "smoothed_dose_calibration: smoothed_dose_transport_nested_cohort_psi_h"
+  ],
+  "id": "transport.smoothed_dose_response",
+  "kind": "capability",
+  "measurements": [
+    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_independent_samples_psi_h.v2_validation_not_applicable",
+    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.smoothed_dose_transport_nested_cohort_psi_h.v2_validation_not_applicable"
+  ]
+}

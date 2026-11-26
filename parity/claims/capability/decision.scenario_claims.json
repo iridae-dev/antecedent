@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::scenario_claims_exact::per_scenario_leaders_and_policies_follow_the_hand_derived_utilities"
+  ],
+  "id": "decision.scenario_claims",
+  "kind": "capability",
+  "measurements": []
+}

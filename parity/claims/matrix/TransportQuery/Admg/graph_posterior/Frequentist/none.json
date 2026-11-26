@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::transport_admg_posterior_cells_state_the_unidentified_and_unevaluable_mass"
+  ],
+  "id": "TransportQuery/Admg/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_05::multi_source_acceptance::acceptance_the_joint_law_decision_matches_the_hand_derived_values"
+  ],
+  "id": "composition.multi_source",
+  "kind": "capability",
+  "measurements": []
+}

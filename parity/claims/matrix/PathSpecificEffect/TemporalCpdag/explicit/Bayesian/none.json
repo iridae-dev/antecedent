@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_class_point_queries::temporal_class_cross_world_points_match_the_linear_mechanism"
+  ],
+  "id": "PathSpecificEffect/TemporalCpdag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.path_specific_effect.temporal_cpdag.bayesian.posterior_quantile.l90.path_specific_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_none",
+    "cov.path_specific_effect.temporal_cpdag.bayesian.posterior_quantile.l95.path_specific_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_none"
+  ]
+}

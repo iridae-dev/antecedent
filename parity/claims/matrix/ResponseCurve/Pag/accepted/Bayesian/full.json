@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::response_curve_validation_known_truth::response_curve_validation_class_known_truth"
+  ],
+  "id": "ResponseCurve/Pag/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_given.v2_validation_full.v2_structure_accepted.a_0",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_given.v2_validation_full.v2_structure_accepted.a_1",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l90.mean_curve_pag_bayesian_given.v2_validation_full.v2_structure_accepted.a__1",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_given.v2_validation_full.v2_structure_accepted.a_0",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_given.v2_validation_full.v2_structure_accepted.a_1",
+    "cov.response_curve.pag.bayesian.posterior_quantile.l95.mean_curve_pag_bayesian_given.v2_validation_full.v2_structure_accepted.a__1"
+  ]
+}

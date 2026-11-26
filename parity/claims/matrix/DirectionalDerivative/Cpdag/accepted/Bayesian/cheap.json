@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::class_derivative_known_truth::class_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "DirectionalDerivative/Cpdag/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.cpdag.bayesian.posterior_quantile.l90.directional_derivative_pag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.v",
+    "cov.directional_derivative.cpdag.bayesian.posterior_quantile.l90.directional_derivative_pag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.y",
+    "cov.directional_derivative.cpdag.bayesian.posterior_quantile.l95.directional_derivative_pag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.v",
+    "cov.directional_derivative.cpdag.bayesian.posterior_quantile.l95.directional_derivative_pag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted.y"
+  ]
+}

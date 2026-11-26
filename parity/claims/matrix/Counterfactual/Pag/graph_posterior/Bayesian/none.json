@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::cross_world_counterfactual_posterior_truth::counterfactual_graph_posterior_is_the_weighted_mean_of_the_atoms_closed_forms_under_every_suite"
+  ],
+  "id": "Counterfactual/Pag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.counterfactual.pag.bayesian.posterior_quantile.l90.counterfactual_pag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.counterfactual.pag.bayesian.posterior_quantile.l95.counterfactual_pag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

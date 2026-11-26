@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::derivative_refuter_known_truth::derivative_refuter_states_known_truth"
+  ],
+  "id": "DirectionalDerivative/Dag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_full.y1",
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l90.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_full.y2",
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l95.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_full.y1",
+    "cov.directional_derivative.dag.bayesian.posterior_quantile.l95.directional_derivative_dag_graph_posterior_bayesian_coverage.v2_validation_full.y2"
+  ]
+}

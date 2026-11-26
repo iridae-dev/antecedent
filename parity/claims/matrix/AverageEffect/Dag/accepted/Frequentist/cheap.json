@@ -1,0 +1,41 @@
+{
+  "assertions": [
+    "antecedent::supported_static_cells::average_effect_dag_frequentist_known_truth_all_structures_and_suites"
+  ],
+  "id": "AverageEffect/Dag/accepted/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_aipw.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_causal_forest.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_distance_matching.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_dml.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_dr_learner.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_frontdoor_functional.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_glm_adjustment.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_primary.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_propensity_matching.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_propensity_stratification.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_propensity_weighting.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_given_rd_sharp.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_aipw.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_causal_forest.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_distance_matching.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_dml.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_dr_learner.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_frontdoor_functional.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_glm_adjustment.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_primary.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_propensity_matching.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_propensity_stratification.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_propensity_weighting.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_given_rd_sharp.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.anderson_rubin.l90.average_effect_dag_frequentist_given_iv_2sls.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.anderson_rubin.l90.average_effect_dag_frequentist_given_iv_wald.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.anderson_rubin.l95.average_effect_dag_frequentist_given_iv_2sls.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.anderson_rubin.l95.average_effect_dag_frequentist_given_iv_wald.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.bootstrap_se.l90.average_effect_dag_frequentist_given_frontdoor_linear_two_stage.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.bootstrap_se.l90.average_effect_dag_frequentist_given_functional_effect.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.bootstrap_se.l95.average_effect_dag_frequentist_given_frontdoor_linear_two_stage.v2_validation_cheap.v2_structure_accepted",
+    "cov.average_effect.dag.frequentist.bootstrap_se.l95.average_effect_dag_frequentist_given_functional_effect.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

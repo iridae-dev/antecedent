@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::prepared_analysis::admg_frontdoor_distribution_known_truth"
+  ],
+  "id": "InterventionalDistribution/Admg/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.admg.bayesian.posterior_quantile.l90.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage.v2_validation_none",
+    "cov.interventional_distribution.admg.bayesian.posterior_quantile.l95.interventional_distribution_admg_frontdoor_bayesian_nominal_coverage.v2_validation_none"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_validation_reports_the_known_refits_and_detects_a_planted_break"
+  ],
+  "id": "TemporalConditionalPulse/TemporalAdmg/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_pulse.temporal_admg.bayesian.posterior_quantile.l90.temporal_conditional_pulse_temporal_admg_given_bayesian_coverage.v2_validation_full",
+    "cov.temporal_conditional_pulse.temporal_admg.bayesian.posterior_quantile.l95.temporal_conditional_pulse_temporal_admg_given_bayesian_coverage.v2_validation_full"
+  ]
+}

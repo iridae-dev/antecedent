@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::staged_attribution_transport_interference::transport_direct_trial_ipw_known_truth"
+  ],
+  "id": "TransportQuery/Admg/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.transport_query.admg.frequentist.analytic_se.l90.transport_admg_trial_ipw_frequentist_nominal_coverage.v2_validation_none",
+    "cov.transport_query.admg.frequentist.analytic_se.l95.transport_admg_trial_ipw_frequentist_nominal_coverage.v2_validation_none"
+  ]
+}

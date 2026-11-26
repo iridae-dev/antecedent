@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::response_curve_posterior_validation_truth::response_curve_graph_posterior_cheap_and_full_match_the_identified_curves"
+  ],
+  "id": "ResponseCurve/Admg/graph_posterior/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.admg.bayesian.posterior_quantile.l90.response_curve_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior.t_0",
+    "cov.response_curve.admg.bayesian.posterior_quantile.l90.response_curve_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior.t_1",
+    "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior.t_0",
+    "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior.t_1"
+  ]
+}

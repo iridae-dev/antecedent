@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    "antecedent-estimate::cancellation_expansion_cells::penalized_selection_polls_equal_the_planned_penalty_candidates",
+    "antecedent-estimate::penalized_aipw::scores_match_an_independent_calculation_and_retarget_exactly",
+    "antecedent-estimate::penalized_aipw::the_influence_interval_covers_the_known_effect_in_repeated_sampling",
+    "antecedent-estimate::penalized_aipw::the_refit_bootstrap_is_close_to_an_independent_bootstrap_through_the_public_fit",
+    "antecedent-learn::lib::lasso_logistic::the_null_threshold_is_the_largest_absolute_score_and_the_argmax_enters_first",
+    "antecedent-learn::lib::lasso_logistic::the_solution_satisfies_the_kkt_conditions_of_the_exact_objective",
+    "antecedent-learn::lib::lasso_logistic::the_two_group_fit_matches_its_closed_form_and_threshold",
+    "antecedent::suite_03::cost_expansion_cells::penalized_aipw_cost_is_the_grid_times_inner_folds_per_outer_fold"
+  ],
+  "id": "estimate.penalized_propensity_aipw",
+  "kind": "capability",
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_lasso_influence_ci_coverage.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_ridge_influence_ci_coverage.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.bootstrap_se.l95.aipw_lasso_refit_bootstrap_ci_coverage.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.bootstrap_se.l95.aipw_ridge_refit_bootstrap_ci_coverage.v2_validation_not_applicable"
+  ]
+}

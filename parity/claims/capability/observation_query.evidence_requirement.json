@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-model::evidence_requirement_reference::binary_signal_counts_match_exact_arithmetic",
+    "antecedent-model::observation_query::observations_required_for_a_binary_signal_are_the_exact_minimum"
+  ],
+  "id": "observation_query.evidence_requirement",
+  "kind": "capability",
+  "measurements": []
+}

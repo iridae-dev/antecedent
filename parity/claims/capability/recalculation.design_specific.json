@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_06::recalc_design::design_first_fits_match_iv_rd_frontdoor_structural_and_covariance_truth"
+  ],
+  "id": "recalculation.design_specific",
+  "kind": "capability",
+  "measurements": []
+}

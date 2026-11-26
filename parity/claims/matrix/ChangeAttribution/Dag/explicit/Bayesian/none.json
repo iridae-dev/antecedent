@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::staged_attribution_transport_interference::bayesian_attribution_shared_row_weight_known_truth"
+  ],
+  "id": "ChangeAttribution/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.change_attribution.dag.bayesian.posterior_quantile.l90.change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage.v2_validation_none",
+    "cov.change_attribution.dag.bayesian.posterior_quantile.l95.change_attribution_dag_bayesian_shared_dirichlet_nominal_coverage.v2_validation_none"
+  ]
+}

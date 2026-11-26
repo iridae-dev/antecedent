@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::derivative_refuter_known_truth::derivative_refuter_states_known_truth"
+  ],
+  "id": "SemiElasticity/Dag/explicit/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.semi_elasticity.dag.frequentist.analytic_se.l90.semi_elasticity_dag_given_frequentist_coverage.v2_validation_cheap",
+    "cov.semi_elasticity.dag.frequentist.analytic_se.l95.semi_elasticity_dag_given_frequentist_coverage.v2_validation_cheap"
+  ]
+}

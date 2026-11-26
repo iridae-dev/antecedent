@@ -1,0 +1,3426 @@
+{
+  "analyzer": "compiler-items-v2",
+  "bookkeeping_review": {
+    "baseline_commit": "de323962fec4897e3f85b3bc976e18b786b29b10",
+    "basis": "Specialist functions were ported into the compiler, and the compiled-twin tests at 7353fa2f04 check compiled and direct results against each other. Later edits add APIs, optional fields, and execution admission on an unlimited serial pool, with canonical framing still writing the same bytes. The recorded value, seed, selection, and decision do not move.",
+    "original_manifest": "330e9adff5a6e4e731219a152e5f72015f4f02c334bd893ffbf74c12d8dbfbe0",
+    "reviewed_commit": "099a0caa2cfa28270f93e77e6398ac74687e0f35"
+  },
+  "compiler": {
+    "commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452",
+    "release": "1.97.1"
+  },
+  "declarations": {
+    "evidence_assertion": "the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates",
+    "evidence_test": "crates/antecedent-contract/tests/composition_verification.rs",
+    "fixtures": [],
+    "roles": [
+      "scientific"
+    ]
+  },
+  "fallbacks": [],
+  "inputs": [
+    {
+      "digest": "c1089a05bfcd747478102fa0ee43e665cafe11177a213f3afa3fde29f8032a65",
+      "form": "python",
+      "kind": "build_recipe",
+      "path": "scripts/compile_time_environment.py",
+      "raw": "7e2a6baa4208ce0729329597a140869978b92788c6eadf50ea88491748754c0a",
+      "role": "external"
+    },
+    {
+      "digest": "e81c44d1e1e21adf4fc182a06e51ba5194c5518f14be5cbe3f7a1da6f8bf811a",
+      "form": "python",
+      "kind": "build_recipe",
+      "path": "scripts/nix_evidence_deps.py",
+      "raw": "40e1a6a21ec5f8a0c185bc9410b846028e3eaa00e1f5202b833031eb2e6d7f98",
+      "role": "external"
+    },
+    {
+      "digest": "7f5572fe7736ab6541db219a480a3da911c9f8f514e0b3e343a2dda857e4c5c9",
+      "form": "python",
+      "kind": "build_recipe",
+      "path": "scripts/nix_evidence_policy.py",
+      "raw": "4871c156b43a255d6062e887404193aaf274ff7f9bf6c2ec4c856b9e0cda8b4d",
+      "role": "external"
+    },
+    {
+      "digest": "1c622a1ea810504c58d1441ed721486073f6951cfb87c39b052e05d03ce6c93c",
+      "form": "flake-lock",
+      "kind": "build_recipe",
+      "nodes": [
+        "nixpkgs"
+      ],
+      "path": "flake.lock",
+      "raw": "e094085d4dc7831f288b983b9d37395e20af7a7c8cb32dda1974c3c1235ef75f",
+      "role": "external"
+    },
+    {
+      "digest": "90b2c79859e7659254ca70ec0d2b18b4cdbbb314d23aa1d2589db58192e21604",
+      "kind": "evidence_file",
+      "path": "Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "rust-toolchain",
+      "role": "external"
+    },
+    {
+      "digest": "334b413bce7d0b808abd4011f89c9fdbca10530300c8c402751d53aedf2d94d4",
+      "kind": "evidence_file",
+      "path": "rust-toolchain.toml",
+      "role": "external"
+    },
+    {
+      "digest": "62874399738de5c78083237b7ab3cfc5d683ddafccd920ad68f5027cbc200d1f",
+      "file": "f801a98f658ae8f7fb453e50304bf9bff372b7279a630059c0bfc4c66877e958",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/identity.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          16,
+          18,
+          21,
+          22,
+          24,
+          29,
+          30,
+          33,
+          51,
+          53,
+          54
+        ],
+        "head": [
+          17,
+          52
+        ],
+        "sig": [
+          55
+        ]
+      },
+      "table": "3cc84d270a9880d6b781e68976061f9f057bca2cb26d793c14f231f72b92c372"
+    },
+    {
+      "digest": "a68030563029b6b2179070dcf736c2c10aba0a1198100fa059a513a49242629a",
+      "file": "e3954eac966f7b8b0fa8b7889794e94d7b1939c5a79ad5ec415f55693b14ef73",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          13,
+          31,
+          32
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "d244243dd236b6fc669732ac84e13385bb12a44a63dba494f25283435fe43bfd"
+    },
+    {
+      "digest": "15bf1065078fed78e3bd07233eae0d4461d51bdee73e8129e24ccce824f76803",
+      "file": "752403892778a1db20ad4dfd9e55d9fb55df879dfed53620199be6f7a1f1707e",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/recalc.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          58
+        ]
+      },
+      "table": "3b9f7c7533cbfeffe96472a5e95216300b70f199308586fb13ee8d96a347a8ff"
+    },
+    {
+      "digest": "95209065c6ab942ef777605d709bc0582b2be8c8ced27de6a05caaa145147bc0",
+      "file": "46b9efba7c85111204754c4042ce9136f6aea7117bb58c67ca5d278f5d80fb8e",
+      "kind": "rust_items",
+      "path": "crates/antecedent-core/src/refusal.rs",
+      "role": "compile",
+      "scopes": [],
+      "select": {
+        "full": [
+          30
+        ]
+      },
+      "table": "b6cea8bbabc957cbe9011e23c5462539997ab110353ac70f28610fc58c30400a"
+    },
+    {
+      "digest": "7c6f062b14f8ea2731b2f3b8fe431ccb0f1e1833ed49503a5b62d8a9f87a99f1",
+      "file": "cacaa625918705693ad721f7308c3ab5d88df8e6e371dc4ac2e6ae7cd3632362",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/composition_verification/graph.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          5,
+          10,
+          11,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          21,
+          29,
+          31,
+          32,
+          33,
+          34,
+          35,
+          38,
+          39,
+          40,
+          41,
+          43,
+          44,
+          50,
+          51,
+          52,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69
+        ],
+        "head": [
+          12,
+          30,
+          53
+        ]
+      },
+      "table": "d996a28f8992b9fe17ae9148c41cd794c067c0464355da8d32fda3f02bf6d704"
+    },
+    {
+      "digest": "a5d972503762bbbca6bfb59a0c0b90d633c621daa66f5f727b03243f01d5907f",
+      "file": "76d3835304887cc98acdacb88bf4e4bb33e45a40240ad8ec6e44b3247be0a77a",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/composition_verification/mod.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          0,
+          1,
+          2
+        ]
+      },
+      "table": "04941c62578042c973f7e8416e1a8ae413d3435a309270ea4f3d14bde86e9818"
+    },
+    {
+      "digest": "ac50b5086a20778a9e483deb2904d8e709501af4ef6abfd010141c98b60ce0ef",
+      "file": "f16cf79c225c9b5f52ac7f6daa2e9f27b76d33cfb7ec82127f79ea7263c6874b",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/composition_verification/revalidate.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          16,
+          19,
+          20,
+          23,
+          24,
+          25,
+          28,
+          30,
+          31,
+          35,
+          37,
+          45,
+          46,
+          47,
+          48,
+          49,
+          51,
+          52,
+          53
+        ],
+        "head": [
+          29,
+          36
+        ],
+        "sig": [
+          50
+        ]
+      },
+      "table": "f2eb9bc6d9917f578ddfde792a09bc4ff8cf9b2e59138c3bc6817a26667beeba"
+    },
+    {
+      "digest": "54498ae98fb90d0b005b30cf676078b5b685da64446d039027a2b3ae4019f0fd",
+      "file": "41307221799ea32d8cd1fb53b86d027b1dc67ac8489f1d0f8677820a6adee796",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/composition_verification/view.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          13,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          23,
+          24
+        ],
+        "head": [
+          22
+        ]
+      },
+      "table": "e919d74e52d137f1c4cf3483add9a3654d0a43e5569ae1794c4098eee34e250c"
+    },
+    {
+      "digest": "15f999fc5ad0721bd99d99c5b03c9b00e16f09807a10aea915817d7fd6175369",
+      "file": "8c91a35d7e28c4538b21579bc3a220240d23330e619cebf94ba079b5de1822ac",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/claim.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {},
+      "table": "41354dedd49bd9be8c8eddb1bf6ec73599b8e76fdcd16283a5740249b7f11b5a"
+    },
+    {
+      "digest": "1ed2d66db01ad9d24f2feb435d6d7bca2f627dee1143970dab6223678dd4e5d0",
+      "file": "dce0b37cad098709164afd2a0ab7642de7a330e0518ccca8a17ad448a10a3a47",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/evidence_ledger.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          0,
+          4
+        ]
+      },
+      "table": "6907706105ef14d96d51f1b22222eb9bf799b3462618d6f52505adbfd17cae7c"
+    },
+    {
+      "digest": "d496c858dc20e360a24c0ae5886178ebb425de43d645ea20113f06b923b2aa84",
+      "file": "16b52ecc820163bed8190e7607eb76da14ce2a406f3df42fa1b0d8efbe13145d",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/lib.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          7,
+          10
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "52cb9b30b7d42495bb7ae64970a3d67d4f966dde64f83d2bfddbfe983c998849"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "CARGO_BUILD_TARGET",
+      "role": "identity"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "CARGO_ENCODED_RUSTFLAGS",
+      "role": "identity"
+    },
+    {
+      "digest": "7c34f4008331f2046c55ad7c6165711ab86fb36d5fd72998c8bc8e82edebb71d",
+      "kind": "build_env",
+      "name": "CARGO_PROFILE_TEST_DEBUG",
+      "role": "identity"
+    },
+    {
+      "digest": "cc11310c456c3690d5a74c23aa31cc25b4e74cdae146c71e54ad9dbc1d109fde",
+      "kind": "build_env",
+      "name": "CARGO_PROFILE_TEST_OPT_LEVEL",
+      "role": "identity"
+    },
+    {
+      "digest": "16ec26faa23bfe3a14d61e75d8627439b135309a2e4adf335f3a8c66f64cd16b",
+      "kind": "build_env",
+      "name": "RUSTC",
+      "role": "identity"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "RUSTC_BOOTSTRAP",
+      "role": "identity"
+    },
+    {
+      "digest": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126",
+      "kind": "build_env",
+      "name": "RUSTFLAGS",
+      "role": "identity"
+    },
+    {
+      "digest": "5393c3e89c49e0d5bf3159ff8119495bba551e6210f66e4c2e3a1f5f224de7ba",
+      "file": "a054b071e44933f81baa433f136ac829437cfc695c31126ba7fa4a4d46c36619",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/evidence_ledger/ids.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          3,
+          5
+        ],
+        "sig": [
+          10
+        ]
+      },
+      "table": "cfbe0d5680b7b2c2ea29d1a37faa698ef39895067665e40407e6781d9a91aa22"
+    },
+    {
+      "digest": "725e005438d4e155721b135f2b04ebd0d7304c0823e64e748026f6216c5bfcf3",
+      "file": "673f351b70b317e4285c7d8d904398484a40331524b25017751c193bc37a2159",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/src/evidence_ledger/refusal.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          false
+        ]
+      ],
+      "select": {
+        "full": [
+          3,
+          4
+        ]
+      },
+      "table": "ef1ec664531150d7d21f82507b901dbc36475ed6dcb9f3420332f7d730782d5c"
+    },
+    {
+      "digest": "af2af01c23c0a328a239b3ada22bbaba9ec18ad3c4ac151ad1ad3a391ff1d730",
+      "dirs": [
+        "crates/antecedent-contract",
+        "crates/antecedent-core"
+      ],
+      "kind": "rust_guards",
+      "path": "crates/antecedent-contract",
+      "role": "selection",
+      "spec": {
+        "impls": [
+          [
+            "Clone",
+            [
+              "CalibrationDeclaration"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "CalibrationLineage"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "Option"
+            ],
+            false
+          ],
+          [
+            "Clone",
+            [
+              "String"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "BTreeMap"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "BTreeSet"
+            ],
+            false
+          ],
+          [
+            "ExactSizeIterator",
+            [
+              "Vec"
+            ],
+            false
+          ],
+          [
+            "Extend",
+            [
+              "BTreeSet"
+            ],
+            false
+          ],
+          [
+            "Extend",
+            [
+              "Vec"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "IntoIter"
+            ],
+            false
+          ],
+          [
+            "Iterator",
+            [
+              "Iter"
+            ],
+            false
+          ]
+        ],
+        "inherent": [
+          [
+            "add_edge",
+            "CompositionGraph",
+            "crates/antecedent-contract"
+          ],
+          [
+            "add_node",
+            "CompositionGraph",
+            "crates/antecedent-contract"
+          ],
+          [
+            "ancestors_of",
+            "CompositionGraph",
+            "crates/antecedent-contract"
+          ],
+          [
+            "as_bytes",
+            "SemanticDigest",
+            "crates/antecedent-core"
+          ],
+          [
+            "as_str",
+            "DependencyKind",
+            "crates/antecedent-contract"
+          ],
+          [
+            "as_str",
+            "NodeKind",
+            "crates/antecedent-contract"
+          ],
+          [
+            "as_str",
+            "TrustStanding",
+            "crates/antecedent-contract"
+          ],
+          [
+            "clone",
+            "CalibrationDeclaration",
+            "crates/antecedent-contract"
+          ],
+          [
+            "clone",
+            "CalibrationLineage",
+            "crates/antecedent-contract"
+          ],
+          [
+            "default",
+            "CompositionGraph",
+            "crates/antecedent-contract"
+          ],
+          [
+            "text",
+            "CanonicalWriter",
+            "crates/antecedent-core"
+          ],
+          [
+            "to_hex",
+            "SemanticDigest",
+            "crates/antecedent-core"
+          ],
+          [
+            "versions",
+            "CompositionView",
+            "crates/antecedent-contract"
+          ],
+          [
+            "word",
+            "CanonicalWriter",
+            "crates/antecedent-core"
+          ]
+        ],
+        "macros": [
+          "ledger_id",
+          "named_variants"
+        ]
+      },
+      "tree": "c6e082eaf08e5a2915e0934908ac22e79a8d75506dbf4799126f37bd4aa0657f"
+    },
+    {
+      "bits": 1384,
+      "digest": "ed2350f5e4290f46370da86240b0dd0e35f8c6f578e1aaddad4e27423935d37b",
+      "filter": "27ea55b12c107463a651b0e70022c3dfd6b11a0102c0adb0989aa9f2166914625848253e1828142655be920dac4253b56020dfa2efc514b86039780719b168144cc271318d58405036436c062abc2708164c80d689648ba0290a244304e1675123c00a66a82847266dcf19bbe4f8e44bfa896c4797a05d5ef32988a3f2416866b4e4475c2c01c8df001638d55c9ba3a30304f3415e0c3a12ea4d306e4ab8ccc5c415d6affc97ec03cbac6a08da",
+      "kind": "rust_names",
+      "path": "crates/antecedent-contract",
+      "role": "selection"
+    },
+    {
+      "digest": "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56",
+      "kind": "locked_package",
+      "name": "arrayvec 0.7.8",
+      "role": "compile"
+    },
+    {
+      "digest": "6d9e454fc11f76977dc803893aff6304ed33d6a26efae8696573bea74baa27ae",
+      "kind": "locked_package",
+      "name": "blake3 1.8.7",
+      "role": "compile"
+    },
+    {
+      "digest": "54413ede23c2daf518f35156dfde027feb2374004d63bd497f983c8db9c0e313",
+      "kind": "locked_package",
+      "name": "cc 1.4.7",
+      "role": "compile"
+    },
+    {
+      "digest": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600",
+      "kind": "locked_package",
+      "name": "cfg-if 1.0.5",
+      "role": "compile"
+    },
+    {
+      "digest": "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b",
+      "kind": "locked_package",
+      "name": "constant_time_eq 0.4.2",
+      "role": "compile"
+    },
+    {
+      "digest": "ef25905e51abafe4dcea6c15fec58c57b601cdbd0ee53d22ea1d3016c587d39b",
+      "kind": "locked_package",
+      "name": "find-msvc-tools 0.1.13",
+      "role": "compile"
+    },
+    {
+      "digest": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9",
+      "kind": "locked_package",
+      "name": "proc-macro2 1.0.107",
+      "role": "compile"
+    },
+    {
+      "digest": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001",
+      "kind": "locked_package",
+      "name": "quote 1.0.47",
+      "role": "compile"
+    },
+    {
+      "digest": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba",
+      "kind": "locked_package",
+      "name": "shlex 2.0.1",
+      "role": "compile"
+    },
+    {
+      "digest": "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee",
+      "kind": "locked_package",
+      "name": "syn 3.0.6",
+      "role": "compile"
+    },
+    {
+      "digest": "ec86235f5fcc2a73650310756d2ac5b138a5780bbbdfae3eeccec992c435ba4f",
+      "kind": "locked_package",
+      "name": "thiserror 2.0.20",
+      "role": "compile"
+    },
+    {
+      "digest": "bc04cd3e1236dd4a98afca4569f2deb3f120e5422a4023be2cb683f8486292af",
+      "kind": "locked_package",
+      "name": "thiserror-impl 2.0.20",
+      "role": "compile"
+    },
+    {
+      "digest": "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954",
+      "kind": "locked_package",
+      "name": "unicode-ident 1.0.26",
+      "role": "compile"
+    },
+    {
+      "digest": "a4588c838aaeaee4f439cc7d5fe7e90648bb7eb8d90e29b3a74765092efe2048",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-core/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-core/build.rs",
+      "role": "external"
+    },
+    {
+      "digest": "f35a0cf0ef896a2236d8419cac8a2d85bfb33d12859af555f9cf7825dc785109",
+      "kind": "env",
+      "name": "ANTECEDENT_BASELINE_SCALAR_KERNELS",
+      "role": "identity"
+    },
+    {
+      "digest": "f35a0cf0ef896a2236d8419cac8a2d85bfb33d12859af555f9cf7825dc785109",
+      "kind": "env",
+      "name": "ANTECEDENT_SCIENTIFIC_FEATURES",
+      "role": "identity"
+    },
+    {
+      "digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "kind": "declarations",
+      "path": "parity/fingerprint_inputs.toml",
+      "role": "identity",
+      "sources": []
+    },
+    {
+      "digest": "1e76f2965113f4840a5570ba513338246d61185ac762c6f7d95b9901cd1561d2",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-common.nix",
+      "raw": "c3643f29bd4c6b1552ef4c27e213600ff9401940d415d3aa381adedcd345b59a",
+      "role": "external"
+    },
+    {
+      "digest": "064af02e1bb3639db30a7187045223c91356481944430b66a3b2fd4dfe7f17e7",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-deps.nix",
+      "raw": "222b61a2f0139d2169937f90817061f6f35eafc8f30fc7a339aaf57e7200f0b7",
+      "role": "external"
+    },
+    {
+      "digest": "08c8dc598115605638f0166647e9ab1579501378edb129acc31a4a27638a8aa8",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-driver.nix",
+      "raw": "56dac2e6aceb7866a819997389469111a074073e75d4affab3df7628eac231c6",
+      "role": "external"
+    },
+    {
+      "digest": "8beb51f8079c3ffa26b288a11b062bf762a098101200f9f6874810a51bc44e0f",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-target.nix",
+      "raw": "774699853b1f8081c85ddd21b49e8e7f32cae73c440b39c46f9a8cf7ded9954f",
+      "role": "external"
+    },
+    {
+      "digest": "5d63b3058b9fd16462f5e0c7f73439d8a3c9f3b2c63809d53b3f80b92e1caadd",
+      "form": "nix",
+      "kind": "build_recipe",
+      "path": "nix/evidence-toolchain.nix",
+      "raw": "54249610eb1ed177677d43fc7880f40d04717ef5ddcd3b669f4db70c888cf11b",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": ".cargo/config",
+      "role": "external"
+    },
+    {
+      "digest": "c2378562efdbd7f5d34af233c3bd02712382f47bd466814bebdc44d8ddefd858",
+      "kind": "evidence_file",
+      "path": ".cargo/config.toml",
+      "role": "external"
+    },
+    {
+      "digest": "384a164d0ce25821b19044d02454f6e9524bf62042b99f651b1a6acb2a54fd76",
+      "file": "15dd6a1212cf655d743b17fb4ab76eb9604240758acbaef27f87db59d1f9c931",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/tests/composition_verification.rs",
+      "role": "compile",
+      "scopes": [
+        [
+          [],
+          true
+        ]
+      ],
+      "select": {
+        "full": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          27
+        ]
+      },
+      "table": "527aca8048074e478bee054489f97b4dbe1f1f0ebbc2742e2f4a0531b8b487b0"
+    },
+    {
+      "digest": "0ff76c8739dc5958500d5bd0f6fe816fe66f776ffdf8047aa89800bbe39013de",
+      "file": "e88ec825906dcc49d8faa226228cd5ef3f4792fb681662aecfe6e60925a32a47",
+      "kind": "rust_items",
+      "path": "crates/antecedent-contract/tests/suite_01.rs",
+      "role": "compile",
+      "scopes": [],
+      "select": {
+        "full": [
+          4
+        ],
+        "inner": [
+          -1
+        ]
+      },
+      "table": "675bd84472d8a358113229eb4967abccd8a3c899e66ac5074b5dcee9805abb96"
+    },
+    {
+      "digest": "1db3af6ba03879f6f7002675b26bbb2cf17da01beb4eebf056fd2e9ed285d7b0",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-contract/Cargo.toml",
+      "role": "external"
+    },
+    {
+      "digest": "e3f72a949210cda138f8020d4776cdb06ecc11f075df02d5feee439cc928a2f5",
+      "kind": "evidence_file",
+      "path": "crates/antecedent-contract/build.rs",
+      "role": "external"
+    }
+  ],
+  "narrowed_from": "839c091046d91f8bd6fa12034ed915937449eda78ffa4e07aeb5413aff6e2d04",
+  "nix_build": {
+    "artifact": {
+      "binary": "targets/antecedent-contract/test/suite_01/bin/test",
+      "binary_sha256": "bde315759025437e60ceef2786303b82928701b577596ad82a1fd6c2592142d6",
+      "build_targets": [
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "callback_downstream_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_study_ranking_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_lifecycle"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "dirichlet_update_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_uncertainty_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_did_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_sensitivity_calibration"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_sensitivity_source_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "learned_continuous_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "native_response_claims_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "period_refresh_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "proposal_arrival_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_attempt_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_cell_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_composite_hand_utilities"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_claims_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "smoothed_dose_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "smoothed_dose_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "source_evidence_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "study_planning_lifecycle"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_03"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_04"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_05"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_06"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_07"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_08"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_09"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "tier_diagnostics_exact"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "intrinsic_influence_reference"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_design_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "callback_consumers_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "composition_provenance_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_negotiation_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_probe_enumeration"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_trust_probe_verdicts"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_dependence_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_independence_exhaustive"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_transport_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "program_binding_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "provider_admission_table"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "typed_bridges_reference"
+        },
+        {
+          "crate": "antecedent-counterfactual",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "composition_bundle_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "composition_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "decision_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "design_ranking_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "external_provider_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "native_authority_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "obligations_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "proposal_receipt_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "repair_search_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "signal_provider_bayes_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "structured_refusals_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "study_candidate_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "suite_02"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "transported_decision_artifact_exact"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_interval_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "admg_conditional_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "admg_conditional_transport_scm"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "ancova_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_route_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_score_route_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cancellation_expansion_cells"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "categorical_treatment"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "categorical_treatment_posterior"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "choice_interval_construction"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cluster_dml_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "clustered_score_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cohort_linear_effect"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_sampled"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "descriptive_comparison"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "dose_grid_functional"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "effect_constancy"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_policy_continuous_dose_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_response_gam_derivative_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "generalized_propensity_aipw_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_interference_saturation_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_local_polynomial_ratio_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_published_intervals_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_randomized_cuped_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_survival_bootstrap_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "joint_bayesian_transport"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "joint_cell_factorized"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "latent_class_effects"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "latent_class_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "learned_joint_transport"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "marginal_structural_model_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "matched_case_control"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "measurement_models"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_discrepancy"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_ridge_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mixed_source_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "multi_source_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mz_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nested_markov_binary_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nested_markov_uncertainty"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "neyman_randomization_enumeration"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nonlinear_mediation"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observation_recovery_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observational_policy_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observational_survival_replicated"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "ordered_response_recovery_chain_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "penalized_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "policy_value_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "randomized_quantile_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "randomized_scores_enumeration"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_binary_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_chain_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_sampled"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sampling_weights"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sampling_weights_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_covariance"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_covariance_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "shared_scenario_covariance_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "support_coordinate_ess_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_dependent_interval"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_initial_state"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_initial_state_bayesian_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "two_step_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "vector_treatment"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_invariance_numeric"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-io",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-io",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-io-core",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-io-core",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-learn",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "discretized_scm"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "discretized_scm_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "evidence_requirement_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "finite_law_conditioning_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "graph_falsification_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_composition"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_transport"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "observation_query"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "transport_obstruction_agreement"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "typed_mechanism_transport"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inference_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inversion_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_family"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_posterior"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_procedure_uncertainty_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_repeated_measures_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_g_formula_interval_known_truth"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "longitudinal_regime_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "measurement_continuous_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "synthesis_oracle"
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "test",
+          "name": "predictive_assessment_reference"
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        }
+      ],
+      "crate": "antecedent-contract",
+      "deps_source": "/nix/store/kv0gay01p375xk46j88n37niam1qpidb-antecedent-deps-source",
+      "deps_targets": [
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "admg_frontdoor_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "attribution_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_intervention_response_refuter_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_temporal_mediation_validation_targets"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "callback_downstream_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_bayesian_temporal_class_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_temporal_class_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "checked_temporal_graph_posterior_effect_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_attribution_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_explicit_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "class_posterior_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "codetermined_bayesian_response_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "compiled_robust_decisions"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_effect_admg_bayesian_interval"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_effect_admg_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "conditional_study_ranking_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_accepted_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_lifecycle"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_class_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_counterfactual_posterior_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_dag_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_posterior_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "cross_world_temporal_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "dag_response_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "derivative_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "dirichlet_update_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "distribution_validation_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_uncertainty_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "functional_graph_posterior_mixture_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "gcm"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_did_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "intervention_response_class_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "interventional_distribution_class_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_sensitivity_calibration"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "joint_sensitivity_source_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "lag_zero_average_effect_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "learned_continuous_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_decomposition_validation"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_mixed_graph_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "native_response_claims_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "path_specific_admg_route"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "path_specific_mixed_graph_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "period_refresh_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "prepared_adjusted_retarget"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "prepared_analysis"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "proposal_arrival_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_attempt_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_cell_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_composite_hand_utilities"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "recalc_exact_effect"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_posterior_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_validation_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_curve_validation_routes_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "response_facade"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_claims_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "smoothed_dose_posterior_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "smoothed_dose_reference"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "source_evidence_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "staged_derivatives"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "staged_static_kinds"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "study_planning_lifecycle"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_02"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_03"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_04"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_05"
+        },
+        {
+          "crate": "antecedent",
+          "features": [
+            "calibration-internal"
+          ],
+          "kind": "test",
+          "name": "suite_06"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_07"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_08"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "suite_09"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "supported_compiler"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "supported_static_cells"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_admg_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_class_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_class_posterior_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_conditional_validation_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_derivative_refuter_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_graph_posterior_derivative_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_graph_posterior_product_routes"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_pag_mediation"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_response_facade"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_sequential_gcomp_multistep_known_truth"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_window_route_evidence"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "tier_diagnostics_exact"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "tiered_average_effect_closed_form"
+        },
+        {
+          "crate": "antecedent",
+          "features": [],
+          "kind": "test",
+          "name": "transport_interference_cell_evidence"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "intrinsic_influence"
+        },
+        {
+          "crate": "antecedent-attribution",
+          "features": [],
+          "kind": "test",
+          "name": "intrinsic_influence_reference"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_design_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "callback_consumers_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "composition_provenance_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_negotiation_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_probe_enumeration"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "external_trust_probe_verdicts"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_dependence_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_independence_exhaustive"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "ledger_transport_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "program_binding_exact"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "provider_admission_table"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-contract",
+          "features": [],
+          "kind": "test",
+          "name": "typed_bridges_reference"
+        },
+        {
+          "crate": "antecedent-counterfactual",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "certified_program_search_reference"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "composition_bundle_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "composition_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "decision_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "design_ranking_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "external_provider_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "native_authority_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "obligations_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "proposal_receipt_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "repair_search_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "signal_provider_bayes_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "structured_refusals_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "study_candidate_exact"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "suite_02"
+        },
+        {
+          "crate": "antecedent-design",
+          "features": [],
+          "kind": "test",
+          "name": "transported_decision_artifact_exact"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-discovery",
+          "features": [],
+          "kind": "test",
+          "name": "wide_structure_posterior_acceptance"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_interval_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "admg_conditional_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "admg_conditional_transport_scm"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "ancova_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_route_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_score_route_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cancellation_expansion_cells"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "categorical_treatment"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "categorical_treatment_posterior"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "choice_interval_construction"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cluster_dml_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "clustered_score_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "cohort_linear_effect"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "counterfactual_transport_sampled"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "descriptive_comparison"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "dose_grid_functional"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "effect_constancy"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_policy_continuous_dose_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "estimate_response_gam_derivative_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "generalized_propensity_aipw_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_interference_saturation_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_local_polynomial_ratio_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_published_intervals_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_randomized_cuped_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_survival_bootstrap_known_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "joint_bayesian_transport"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "joint_cell_factorized"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "latent_class_effects"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "latent_class_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "learned_joint_transport"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "marginal_structural_model_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "matched_case_control"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "measurement_models"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_discrepancy"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_ridge_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mediation_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mixed_source_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "multi_source_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "mz_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nested_markov_binary_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nested_markov_uncertainty"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "neyman_randomization_enumeration"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "nonlinear_mediation"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observation_recovery_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observational_policy_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "observational_survival_replicated"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "ordered_response_recovery_chain_truth"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "penalized_aipw"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "policy_value_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "randomized_quantile_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "randomized_scores_enumeration"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_binary_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_chain_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "recovery_sampled"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sampling_weights"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "sampling_weights_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_covariance"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_covariance_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "shared_scenario_covariance_reference"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "support_coordinate_ess_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_dependent_interval"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_initial_state"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_initial_state_bayesian_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "temporal_transport_execution"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "two_step_posterior_exact"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "vector_treatment"
+        },
+        {
+          "crate": "antecedent-estimate",
+          "features": [],
+          "kind": "test",
+          "name": "z_transport_cited_evidence"
+        },
+        {
+          "crate": "antecedent-graph",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-graph",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "causaleffect_transport_subset"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "scenario_invariance_numeric"
+        },
+        {
+          "crate": "antecedent-identify",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-io",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-io",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-io-core",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-io-core",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        },
+        {
+          "crate": "antecedent-learn",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-learn",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_basis"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "discretized_scm"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "discretized_scm_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "evidence_requirement_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "finite_law_conditioning_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "graph_falsification_reference"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_composition"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [
+            "ml-forest",
+            "ml-gbdt"
+          ],
+          "kind": "test",
+          "name": "mechanism_selection"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "mechanism_transport"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "observation_query"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "scm_oracle"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "transport_obstruction_agreement"
+        },
+        {
+          "crate": "antecedent-model",
+          "features": [],
+          "kind": "test",
+          "name": "typed_mechanism_transport"
+        },
+        {
+          "crate": "antecedent-prob",
+          "features": [],
+          "kind": "test",
+          "name": "mcmc_arviz_oracle"
+        },
+        {
+          "crate": "antecedent-prob",
+          "features": [],
+          "kind": "test",
+          "name": "prior_support_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inference_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_inversion_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_correlation_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_family"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_participant_posterior"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_procedure_uncertainty_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "adaptive_repeated_measures_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "advanced_ci_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "bayesian_ci_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "discovery_ci_stats"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "foundations_oracle"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "graphless_g_formula_interval_known_truth"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "hierarchical_choice_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "longitudinal_regime_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "measurement_continuous_reference"
+        },
+        {
+          "crate": "antecedent-stats",
+          "features": [],
+          "kind": "test",
+          "name": "synthesis_oracle"
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "lib",
+          "name": ""
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "test",
+          "name": "predictive_assessment_reference"
+        },
+        {
+          "crate": "antecedent-validate",
+          "features": [],
+          "kind": "test",
+          "name": "suite_01"
+        }
+      ],
+      "derivation": "/nix/store/cz7lm2mhsvbls5q6xf12bihni5yk1v48-antecedent-evidence-targets-0.drv",
+      "features": [],
+      "output": "/nix/store/9m359s8q39v8kl3p9anhp3sp1g4izafk-antecedent-evidence-targets-0",
+      "output_nar_hash": "sha256-piTkvcw/Ifj+arDHbtC82Q8bRm+C4fa5y95TH6+wrkw=",
+      "recipe_sha256": {
+        "flake.lock": "e094085d4dc7831f288b983b9d37395e20af7a7c8cb32dda1974c3c1235ef75f",
+        "nix/evidence-common.nix": "c3643f29bd4c6b1552ef4c27e213600ff9401940d415d3aa381adedcd345b59a",
+        "nix/evidence-deps.nix": "222b61a2f0139d2169937f90817061f6f35eafc8f30fc7a339aaf57e7200f0b7",
+        "nix/evidence-driver.nix": "56dac2e6aceb7866a819997389469111a074073e75d4affab3df7628eac231c6",
+        "nix/evidence-target.nix": "774699853b1f8081c85ddd21b49e8e7f32cae73c440b39c46f9a8cf7ded9954f",
+        "nix/evidence-toolchain.nix": "54249610eb1ed177677d43fc7880f40d04717ef5ddcd3b669f4db70c888cf11b"
+      },
+      "sandbox_verified": false,
+      "schema": 2,
+      "source": "/nix/store/9wrkx8918x4wlm57gdvmnv10x0wrhyr0-antecedent-source",
+      "source_nar_hash": "sha256-Wdg5Ny/NfR6Pz6MqK1vz+L88jF2froIdaIJ0R7IX8D8=",
+      "target_kind": "test",
+      "target_name": "suite_01"
+    },
+    "compiler_graph_sha256": "1c9ea0475be4c82360b50655444f86870fc7bbe2b2a60ee7dd61a66936d77923",
+    "execution": "exact-binary",
+    "policy": {
+      "audit_selection_sha256": "98736517cab6104b38e312c251fbe5f42c2086aec847456af7104882bd2e4c79",
+      "cargo_lock_sha256": "15df5baadf12136cc92d9ae9dac41e44c2f8d6f000748db4a26e41e053243d5f",
+      "covered_units": 16,
+      "id": "nix-darwin-private-tmp-audit-v1",
+      "selected_unit_ids": [
+        "03159c609e1fff106ebe5886d5efa49fa41e687a43c1fc40287f146285b67bb3",
+        "0b7b5ed8c447b82af140f861d5ea1a1a52f5529d0974a0839d1730fae334e678",
+        "1ef5b2996d4b0a05c8344b18e37d0c614e3c65e4133f2072278637a1b86b64c8",
+        "2a1f84fe42d1fa2b8aa96f83066ea5c432492a5ed4c1f9b602e08aff24e62968",
+        "47733fc1d45d320df0d14f8e50f5cdec6070fec4d93ad1a22562d4b378aa573d",
+        "631fcd70b2d4ba993e64a7b5f9dddf150a44b5e8b14e1837f9406d37fed42c39",
+        "6af6e505453db168387a0ddc52343d75428c8b10ee6c502392c810217bc0ab6d",
+        "6e272646b2dc13dd3664cc1e0866583f25d02fb8f9f8bdb4a08ccdebd987de44",
+        "7f4f0f16df518bab6ac85b560cecccce220ef9f8e6660827bf2b9ed7e5552618",
+        "8302d1261d1f5c6131337e8c040bf0045858e5f30f7f247eaef911b0303eab44",
+        "89a21b24e8839c0d9ffbd5f348b7f5e35b6a7a77dc988d1e674bcbda974774a9",
+        "b165c6e3866572288a5fa6fa0afe9846204f0320fbf9ad32de1747a9eaf8f312",
+        "b7c0cf9fb58ea0bdd2f4c3e2ca1b430e8ada40d6ccfd89919c5d19261993ad09",
+        "bdca23639beb2271a3e4f1fc6dc8bf2b7d328c508b5577eafcf49c32b85c2765",
+        "dfc4dc22f8ea23e80ee37468acd5277ca7b62edab5aad5c77c99fab0f5eeea01",
+        "f5a384cf859b76a97c0cc24b69a98ece3524383d461f2e0a8448a72d234e3ad2"
+      ],
+      "source_projection": "reviewed-safe",
+      "source_projection_allowed": true,
+      "target": "aarch64-apple-darwin"
+    },
+    "schema": "nix-build-v1",
+    "source": {
+      "commit": "de323962fec4897e3f85b3bc976e18b786b29b10",
+      "nar_hash": "sha256-Wdg5Ny/NfR6Pz6MqK1vz+L88jF2froIdaIJ0R7IX8D8=",
+      "store_path": "/nix/store/9wrkx8918x4wlm57gdvmnv10x0wrhyr0-antecedent-source"
+    },
+    "tools": {
+      "cargo": "cargo 1.97.0 (c980f4866 2026-06-30)",
+      "host": "aarch64-apple-darwin",
+      "rustc": "1.97.1",
+      "rustc_commit": "8bab26f4f68e0e26f0bb7960be334d5b520ea452"
+    }
+  },
+  "normalization": "raw-bytes-v1",
+  "record": {
+    "fingerprint": "b291099130abfdecddc8ae8e5055e7688e0219900437cda2524aa2ffd70f958b",
+    "key": "antecedent-contract::suite_01::composition_verification::the_view_reports_lineage_boundaries_versions_and_unsupported_coordinates",
+    "kind": "scientific",
+    "measurement": null
+  },
+  "schema": 1,
+  "whole_sources": [
+    "crates/antecedent-core/build.rs: bound whole",
+    "crates/antecedent-contract/build.rs: bound whole"
+  ]
+}

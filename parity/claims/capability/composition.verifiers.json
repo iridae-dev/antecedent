@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::composition_verifiers::verifiers_joint_decision_verifies_every_node_and_reads_the_hand_computed_values"
+  ],
+  "id": "composition.verifiers",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_attribution_known_truth::graph_posterior_attribution_known_truth"
+  ],
+  "id": "AnomalyAttribution/TemporalCpdag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.anomaly_attribution.temporal_cpdag.bayesian.posterior_quantile.l90.anomaly_attribution_temporal_cpdag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.anomaly_attribution.temporal_cpdag.bayesian.posterior_quantile.l95.anomaly_attribution_temporal_cpdag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

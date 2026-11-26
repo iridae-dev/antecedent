@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::planning_known_truth::sample_sizes_match_cohens_two_sample_t_table"
+  ],
+  "id": "design.experiment_planning",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::dirichlet_update_exact::msm_posterior_is_the_identified_ate_of_the_conjugate_updated_laws"
+  ],
+  "id": "sensitivity.marginal_structural_model.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::heterogeneity_robust_did::tests::rollout_point_estimates_match_the_hand_computed_contrasts"
+  ],
+  "id": "difference_in_differences:staggered_heterogeneity_robust:imputation_not_yet_treated_cluster_multiplier_refit:simple_aggregate_pointwise_95_student_interval",
+  "kind": "graphless",
+  "measurements": []
+}

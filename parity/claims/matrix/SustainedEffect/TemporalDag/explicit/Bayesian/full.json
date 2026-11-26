@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian::temporal_sustained_explicit_full_completes_with_data_subset_refuter"
+  ],
+  "id": "SustainedEffect/TemporalDag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.sustained_effect_temporal_dag_bayesian_given_coverage.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.sustained_effect_temporal_dag_bayesian_given_glm_link.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.sustained_effect_temporal_dag_bayesian_given_lagged_instrument.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.sustained_effect_temporal_dag_bayesian_given_one_step_window.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l90.sustained_effect_temporal_dag_bayesian_given_white_innovation.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.sustained_effect_temporal_dag_bayesian_given_coverage.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.sustained_effect_temporal_dag_bayesian_given_glm_link.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.sustained_effect_temporal_dag_bayesian_given_lagged_instrument.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.sustained_effect_temporal_dag_bayesian_given_one_step_window.v2_validation_full",
+    "cov.sustained_effect.temporal_dag.bayesian.posterior_quantile.l95.sustained_effect_temporal_dag_bayesian_given_white_innovation.v2_validation_full"
+  ]
+}

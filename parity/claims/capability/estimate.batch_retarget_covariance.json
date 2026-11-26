@@ -1,0 +1,17 @@
+{
+  "assertions": [
+    "antecedent::lib::analysis::batch_retarget::a_cluster_family_uses_the_declared_student_t_reference",
+    "antecedent::lib::analysis::batch_retarget::a_weighted_variance_matches_a_hand_calculation_and_the_library",
+    "antecedent::lib::analysis::batch_retarget::independent_claims_solve_the_product_equation",
+    "antecedent::lib::analysis::batch_retarget::one_claim_is_the_two_sided_normal_quantile",
+    "antecedent::lib::analysis::batch_retarget::the_covariance_of_two_claims_matches_a_hand_calculation",
+    "antecedent::suite_01::batch_retarget::the_joint_score_covariance_matches_an_independent_calculation",
+    "antecedent::suite_01::batch_retarget_known_truth::the_max_t_band_covers_the_known_retargeted_truths_family_wise",
+    "antecedent::suite_03::cost_expansion_cells::batch_retarget_cost_is_zero_fits_and_counts_claims_contrasts_and_rows"
+  ],
+  "id": "estimate.batch_retarget_covariance",
+  "kind": "capability",
+  "measurements": [
+    "cov.average_effect.dag.frequentist.simultaneous_band.l95.batch_retarget_max_t_simultaneous_band.v2_validation_not_applicable"
+  ]
+}

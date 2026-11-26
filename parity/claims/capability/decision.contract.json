@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::decision_acceptance::two_actions_nonlinear_utility_joint_rows_choose_b"
+  ],
+  "id": "decision.contract",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-stats::lib::joint_law::tests::interval_candidates_are_the_closed_form_and_carry_no_coverage",
+    "antecedent::horizon_composition::a_linear_composition_interval_equals_the_hand_construction"
+  ],
+  "groups": [
+    "measurement_composition_horizon_calibration"
+  ],
+  "id": "joint_law.composed_spread_aligned_functional",
+  "kind": "capability",
+  "measurements": []
+}

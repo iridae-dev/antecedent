@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::transport_dag_posterior_cells_mix_the_atoms_sid_certifies"
+  ],
+  "id": "TransportQuery/Dag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": []
+}

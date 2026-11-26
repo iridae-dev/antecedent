@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::external_trust_probe_verdicts::a_provider_receives_a_receipt_only_when_every_hand_derived_gap_is_within_tolerance"
+  ],
+  "id": "external.trust_receipt",
+  "kind": "capability",
+  "measurements": []
+}

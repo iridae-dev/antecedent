@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::functional_graph_posterior_mixture_truth::path_specific_graph_posterior_is_the_weighted_mean_of_the_atoms_identified_functionals_under_every_suite"
+  ],
+  "id": "PathSpecificEffect/Pag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.path_specific_effect.pag.frequentist.bootstrap_se.l90.path_specific_dag_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior",
+    "cov.path_specific_effect.pag.frequentist.bootstrap_se.l95.path_specific_dag_given_frequentist_coverage.v2_validation_full.v2_structure_graph_posterior"
+  ]
+}

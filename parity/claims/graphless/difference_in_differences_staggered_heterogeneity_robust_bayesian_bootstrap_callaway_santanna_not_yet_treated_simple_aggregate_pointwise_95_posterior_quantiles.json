@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::heterogeneity_robust_did::tests::bayesian_bootstrap_posterior_matches_the_dirichlet_moments_of_a_two_by_two"
+  ],
+  "id": "difference_in_differences:staggered_heterogeneity_robust:bayesian_bootstrap_callaway_santanna_not_yet_treated:simple_aggregate_pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

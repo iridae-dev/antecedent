@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_01::admg_posterior_ate::admg_posterior_average_effect_none_runs"
+  ],
+  "id": "AverageEffect/Admg/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.admg.bayesian.posterior_quantile.l90.average_effect_admg_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.admg.bayesian.posterior_quantile.l95.average_effect_admg_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

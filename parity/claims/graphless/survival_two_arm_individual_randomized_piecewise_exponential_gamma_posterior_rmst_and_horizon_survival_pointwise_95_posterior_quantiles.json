@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::survival_posterior_reference::conjugate_updates_means_and_draw_moments_match_the_exact_reference"
+  ],
+  "id": "survival:two_arm_individual_randomized:piecewise_exponential_gamma_posterior:rmst_and_horizon_survival_pointwise_95_posterior_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

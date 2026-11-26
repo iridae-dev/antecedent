@@ -196,7 +196,12 @@ def refine_records(root: Path, records: list[tuple[dict, dict, dict]]) -> dict[s
                         continue
                     new = {k: v for k, v in manifest.items() if k != "inputs"}
                     new["inputs"] = inputs
-                    moved[record["dependency_manifest"]] = store(root, new)
+                    ref = record["dependency_manifest"]
+                    if isinstance(ref, str) and ref.startswith("pass:"):
+                        from claim_passes import write_pass
+                        write_pass(root, ref, new)
+                    else:
+                        moved[ref] = store(root, new)
             finally:
                 release(root, tree)
     return moved

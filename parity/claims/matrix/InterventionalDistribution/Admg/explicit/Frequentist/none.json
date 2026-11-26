@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::prepared_analysis::admg_frontdoor_distribution_known_truth"
+  ],
+  "id": "InterventionalDistribution/Admg/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.admg.frequentist.bootstrap_se.l90.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage.v2_validation_none",
+    "cov.interventional_distribution.admg.frequentist.bootstrap_se.l95.interventional_distribution_admg_frontdoor_frequentist_nominal_coverage.v2_validation_none"
+  ]
+}

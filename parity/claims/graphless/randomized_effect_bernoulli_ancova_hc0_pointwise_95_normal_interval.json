@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::ancova_reference::hc0_hc2_and_degrees_of_freedom_match_the_exact_rational_fit"
+  ],
+  "id": "randomized_effect:bernoulli:ancova_hc0:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-model::mechanism_selection::basis_families_recover_the_family_that_suits_each_known_truth",
+    "antecedent-model::registry_family_selection_reference::registry_family_selection_reference_exact_ties_keep_the_listing_order"
+  ],
+  "id": "gcm.model.mechanism_selection",
+  "kind": "capability",
+  "measurements": []
+}

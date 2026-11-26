@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_posterior_known_truth::class_graph_posterior_average_effect_matches_the_closed_forms_on_every_cell"
+  ],
+  "id": "AverageEffect/Cpdag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.cpdag.bayesian.posterior_quantile.l90.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.cpdag.bayesian.posterior_quantile.l95.average_effect_cpdag_graph_posterior_bayesian_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

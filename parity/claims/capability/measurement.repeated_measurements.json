@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-estimate::measurement_models::repeated_measurements_estimate_the_icc_and_recover_the_coefficient"
+  ],
+  "groups": [
+    "measurement_composition_calibration: measurement_repeated_measurements_wald_l95"
+  ],
+  "id": "measurement.repeated_measurements",
+  "kind": "capability",
+  "measurements": []
+}

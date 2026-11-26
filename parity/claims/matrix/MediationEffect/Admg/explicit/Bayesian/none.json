@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::mediation_mixed_graph_route_evidence::mediation_admg_explicit_bayesian_none"
+  ],
+  "id": "MediationEffect/Admg/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.admg.bayesian.posterior_quantile.l90.mediation_admg_given_bayesian_coverage.v2_validation_none",
+    "cov.mediation_effect.admg.bayesian.posterior_quantile.l95.mediation_admg_given_bayesian_coverage.v2_validation_none"
+  ]
+}

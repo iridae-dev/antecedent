@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::staged_attribution_transport_interference::interference_bernoulli_neighbor_count_known_truth"
+  ],
+  "id": "InterferenceQuery/Dag/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interference_query.dag.frequentist.analytic_se.l90.interference_dag_bernoulli_neighbor_count_conservative_bound_boundary.v2_validation_none",
+    "cov.interference_query.dag.frequentist.analytic_se.l95.interference_dag_bernoulli_neighbor_count_conservative_bound_boundary.v2_validation_none"
+  ]
+}

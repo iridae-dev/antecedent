@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_interference_saturation_known_truth::saturation_pointwise_interval_matches_the_cluster_neyman_welch_construction"
+  ],
+  "id": "interference:two_stage_saturation:saturation_cluster_neyman_welch:exposure_contrast_pointwise_95_student_interval",
+  "kind": "graphless",
+  "measurements": []
+}

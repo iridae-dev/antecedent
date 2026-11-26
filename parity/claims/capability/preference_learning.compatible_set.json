@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::choice_record_reference::option_terms_match_the_exact_rational_reference",
+    "antecedent-design::suite_02::preference_set_learning::a_contradictory_pair_is_the_smallest_conflict_with_its_needed_tolerance",
+    "antecedent-design::suite_02::preference_set_learning::records_on_both_sides_bracket_one_parameter",
+    "antecedent-design::suite_02::preference_set_learning::simulated_choices_recover_a_set_holding_the_truth_that_shrinks_with_records",
+    "antecedent-design::suite_02::preference_set_learning_reference::learned_ranges_and_conflicts_match_the_exact_rational_reference",
+    "antecedent-design::suite_02::preference_shape_learning::a_risk_attitude_interval_is_enclosed_from_one_recorded_choice"
+  ],
+  "id": "preference_learning.compatible_set",
+  "kind": "capability",
+  "measurements": []
+}

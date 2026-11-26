@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_class_derivative_known_truth::temporal_class_derivative_refuter_states_known_truth"
+  ],
+  "id": "PointDerivative/TemporalPag/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.point_derivative.temporal_pag.frequentist.circular_block_se.l90.gcomp_point_derivative_temporal_pag_given.v2_validation_full",
+    "cov.point_derivative.temporal_pag.frequentist.circular_block_se.l95.gcomp_point_derivative_temporal_pag_given.v2_validation_full"
+  ]
+}

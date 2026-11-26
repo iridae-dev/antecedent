@@ -1,0 +1,23 @@
+{
+  "assertions": [
+    "antecedent-estimate::dml_outcome_prior_reference::a_correct_propensity_keeps_the_estimate_consistent_under_a_badly_misspecified_prior",
+    "antecedent-estimate::dml_outcome_prior_reference::a_kernel_weighted_composed_prior_gives_the_hand_computed_map_nuisance_estimate",
+    "antecedent-estimate::dml_outcome_prior_reference::the_aipw_estimator_route_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits",
+    "antecedent-estimate::dml_outcome_prior_reference::the_aipw_estimator_route_stays_consistent_under_a_misspecified_prior",
+    "antecedent-estimate::dml_outcome_prior_reference::the_aipw_point_is_the_hand_computed_doubly_robust_estimate_of_the_fold_map_fits"
+  ],
+  "groups": [
+    "dml_outcome_prior_calibration: aipw_composed_prior_informative_interval",
+    "dml_outcome_prior_calibration: aipw_outcome_prior_informative_interval",
+    "dml_outcome_prior_calibration: aipw_outcome_prior_misspecified_interval",
+    "dml_outcome_prior_calibration: aipw_outcome_prior_weak_interval",
+    "dml_outcome_prior_calibration: dml_composed_prior_informative_interval",
+    "dml_outcome_prior_calibration: dml_composed_prior_misspecified_interval",
+    "dml_outcome_prior_calibration: dml_outcome_prior_informative_interval",
+    "dml_outcome_prior_calibration: dml_outcome_prior_misspecified_interval",
+    "dml_outcome_prior_calibration: dml_outcome_prior_weak_interval"
+  ],
+  "id": "estimate.outcome_nuisance_prior",
+  "kind": "capability",
+  "measurements": []
+}

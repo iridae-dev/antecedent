@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_derivative_known_truth::class_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/Pag/accepted/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.pag.frequentist.analytic_se.l90.plain_elasticity_pag_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.elasticity.pag.frequentist.analytic_se.l95.plain_elasticity_pag_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::ledger_dependence_exact::the_plan_names_exactly_the_sources_that_share_rows"
+  ],
+  "id": "joint_law.ledger_overlap_and_row_pairing",
+  "kind": "capability",
+  "measurements": []
+}

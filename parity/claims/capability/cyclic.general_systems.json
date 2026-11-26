@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-model::lib::nonlinear_equilibrium::nonlinear_equilibrium_linear_truth_clamps_and_shared_noise"
+  ],
+  "id": "cyclic.general_systems",
+  "kind": "capability",
+  "measurements": []
+}

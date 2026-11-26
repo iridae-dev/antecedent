@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::smoothed_dose_posterior_exact::smoothed_dose_posterior_means_equal_the_hand_update_of_the_route_scores"
+  ],
+  "id": "transport.smoothed_dose_response.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

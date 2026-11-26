@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::cross_world_temporal_truth::temporal_cross_world_cells_match_the_linear_mechanism_under_every_suite"
+  ],
+  "id": "InterventionalDistribution/TemporalCpdag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.temporal_cpdag.bayesian.posterior_quantile.l90.interventional_distribution_temporal_cpdag_bayesian_given_coverage.v2_validation_full",
+    "cov.interventional_distribution.temporal_cpdag.bayesian.posterior_quantile.l95.interventional_distribution_temporal_cpdag_bayesian_given_coverage.v2_validation_full"
+  ]
+}

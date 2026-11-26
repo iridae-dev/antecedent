@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::measurement_transport::differential_case_uses_the_target_populations_own_model",
+    "antecedent::suite_08::transported_measurement_facade::a_model_established_for_the_target_borrows_nothing"
+  ],
+  "id": "transport.measurement_model",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::lib::randomized_missing::saturated_binary_covariate_equals_the_poststratified_mean"
+  ],
+  "id": "estimate.randomized_missing_outcomes",
+  "kind": "capability",
+  "measurements": []
+}

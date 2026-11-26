@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-counterfactual::suite_01::cross_world_execution_temporal::staged_execution_is_bit_identical_to_the_one_shot_evaluator"
+  ],
+  "id": "cross_world_execution.temporal_selective",
+  "kind": "capability",
+  "measurements": []
+}

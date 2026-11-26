@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::functional_graph_posterior_mixture_truth::mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite"
+  ],
+  "id": "MediationEffect/TemporalAdmg/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l90.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::decision_transported_source::a_transported_law_answers_a_probability_criterion_and_refuses_an_interval",
+    "antecedent-design::suite_01::decision_transported_source::a_transported_policy_value_decides_between_policies_and_keeps_the_diagram"
+  ],
+  "id": "decision.transported_source",
+  "kind": "capability",
+  "measurements": []
+}

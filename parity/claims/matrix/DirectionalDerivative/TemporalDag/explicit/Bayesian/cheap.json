@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_derivative_refuter_known_truth::temporal_derivative_refuter_states_known_truth"
+  ],
+  "id": "DirectionalDerivative/TemporalDag/explicit/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l90.bayesian_directional_derivative_temporal_dag_given.v2_validation_cheap.v",
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l90.bayesian_directional_derivative_temporal_dag_given.v2_validation_cheap.y",
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l95.bayesian_directional_derivative_temporal_dag_given.v2_validation_cheap.v",
+    "cov.directional_derivative.temporal_dag.bayesian.posterior_quantile.l95.bayesian_directional_derivative_temporal_dag_given.v2_validation_cheap.y"
+  ]
+}

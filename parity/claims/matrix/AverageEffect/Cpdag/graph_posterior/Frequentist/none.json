@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::suite_03::class_posterior_ate::class_posterior_frequentist_numeric_pins"
+  ],
+  "id": "AverageEffect/Cpdag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.cpdag.frequentist.analytic_se.l90.average_effect_cpdag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l90.class_posterior_frequentist_ate_joint_if_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l90.practitioner_class_posterior_interval.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l95.average_effect_cpdag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l95.class_posterior_frequentist_ate_joint_if_nominal_90_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_effect.cpdag.frequentist.analytic_se.l95.practitioner_class_posterior_interval.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

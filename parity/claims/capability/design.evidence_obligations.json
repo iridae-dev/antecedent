@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::obligations_exact::the_backdoor_obligation_names_the_minimal_adjustment_set_and_not_the_irrelevant_nodes"
+  ],
+  "id": "design.evidence_obligations",
+  "kind": "capability",
+  "measurements": []
+}

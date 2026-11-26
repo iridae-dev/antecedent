@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent::functional_graph_posterior_mixture_truth::mediation_graph_posterior_is_the_weighted_mean_of_the_atoms_components_under_every_suite"
+  ],
+  "id": "MediationEffect/Pag/graph_posterior/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.pag.bayesian.identified_set.l90.mediation_effect_pag_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

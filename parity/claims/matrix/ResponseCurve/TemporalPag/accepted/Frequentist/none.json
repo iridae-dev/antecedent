@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_class_envelope_numeric_pins::temporal_class_response_returns_completion_identified_set"
+  ],
+  "id": "ResponseCurve/TemporalPag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l95.temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage.v2_validation_none.v2_structure_accepted.a_0",
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l95.temporal_pag_response_curve_frequentist_accepted_pointwise_nominal_coverage.v2_validation_none.v2_structure_accepted.a_1"
+  ]
+}

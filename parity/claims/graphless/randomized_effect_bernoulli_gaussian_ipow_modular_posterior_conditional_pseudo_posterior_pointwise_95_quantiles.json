@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_randomized_routes::supported_ipow_posterior_recovers_the_causal_target_and_declared_prior_update"
+  ],
+  "id": "randomized_effect:bernoulli:gaussian_ipow_modular_posterior:conditional_pseudo_posterior_pointwise_95_quantiles",
+  "kind": "graphless",
+  "measurements": []
+}

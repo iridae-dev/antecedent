@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::class_attribution_known_truth::class_change_attribution_known_truth"
+  ],
+  "id": "ChangeAttribution/Pag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": []
+}

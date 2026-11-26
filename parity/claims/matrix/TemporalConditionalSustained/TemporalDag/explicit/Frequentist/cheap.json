@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::temporal_conditional_validation_truth::temporal_conditional_cheap_and_full_pass_on_the_clean_law_at_the_marginal_effect"
+  ],
+  "id": "TemporalConditionalSustained/TemporalDag/explicit/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_sustained.temporal_dag.frequentist.circular_block_se.l90.temporal_conditional_sustained_temporal_dag_frequentist_given_coverage.v2_validation_cheap",
+    "cov.temporal_conditional_sustained.temporal_dag.frequentist.circular_block_se.l90.temporal_conditional_sustained_temporal_dag_frequentist_given_sequential_gcomp.v2_validation_cheap",
+    "cov.temporal_conditional_sustained.temporal_dag.frequentist.circular_block_se.l95.temporal_conditional_sustained_temporal_dag_frequentist_given_coverage.v2_validation_cheap",
+    "cov.temporal_conditional_sustained.temporal_dag.frequentist.circular_block_se.l95.temporal_conditional_sustained_temporal_dag_frequentist_given_sequential_gcomp.v2_validation_cheap"
+  ]
+}

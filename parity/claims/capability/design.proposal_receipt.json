@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::proposal_receipt_exact::a_sufficient_study_ranks_before_an_insufficient_one_with_larger_net_value"
+  ],
+  "id": "design.proposal_receipt",
+  "kind": "capability",
+  "measurements": []
+}

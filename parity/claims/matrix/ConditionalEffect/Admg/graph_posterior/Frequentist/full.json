@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::conditional_effect_admg_validation_truth::conditional_effect_admg_graph_posterior_states_its_mass_and_matches_the_stratified_difference"
+  ],
+  "id": "ConditionalEffect/Admg/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": []
+}

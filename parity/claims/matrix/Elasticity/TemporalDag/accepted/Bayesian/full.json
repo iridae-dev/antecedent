@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_derivative_refuter_known_truth::temporal_derivative_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/TemporalDag/accepted/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.temporal_dag.bayesian.posterior_quantile.l90.bayesian_elasticity_temporal_dag_given.v2_validation_full.v2_structure_accepted",
+    "cov.elasticity.temporal_dag.bayesian.posterior_quantile.l95.bayesian_elasticity_temporal_dag_given.v2_validation_full.v2_structure_accepted"
+  ]
+}

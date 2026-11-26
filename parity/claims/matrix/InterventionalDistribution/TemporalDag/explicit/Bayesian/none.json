@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_cross_world_effect::temporal_dag_cross_world_points_match_the_linear_mechanism"
+  ],
+  "id": "InterventionalDistribution/TemporalDag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.temporal_dag.bayesian.posterior_quantile.l90.interventional_distribution_temporal_dag_bayesian_given_coverage.v2_validation_none",
+    "cov.interventional_distribution.temporal_dag.bayesian.posterior_quantile.l95.interventional_distribution_temporal_dag_bayesian_given_coverage.v2_validation_none"
+  ]
+}

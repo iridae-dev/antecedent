@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::tiered_average_effect_closed_form::codetermined_average_effect_matches_the_closure_functional"
+  ],
+  "id": "AverageEffect/CoDetermined/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.co_determined.bayesian.posterior_quantile.l90.average_effect_codetermined_tier_bayesian_given.v2_validation_none",
+    "cov.average_effect.co_determined.bayesian.posterior_quantile.l95.average_effect_codetermined_tier_bayesian_given.v2_validation_none"
+  ]
+}

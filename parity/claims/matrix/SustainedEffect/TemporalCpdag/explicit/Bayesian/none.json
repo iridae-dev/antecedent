@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_class_bayesian_envelope::temporal_class_multi_step_is_not_last_step_collapse"
+  ],
+  "id": "SustainedEffect/TemporalCpdag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_none",
+    "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l90.sustained_effect_temporal_cpdag_bayesian_given_one_step_window.v2_validation_none",
+    "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l95.sustained_effect_temporal_cpdag_bayesian_given_coverage.v2_validation_none",
+    "cov.sustained_effect.temporal_cpdag.bayesian.posterior_quantile.l95.sustained_effect_temporal_cpdag_bayesian_given_one_step_window.v2_validation_none"
+  ]
+}

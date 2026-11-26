@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::mediation_posterior_exact::mediation_posterior_means_equal_ridge_solutions_built_from_the_rows_and_summaries"
+  ],
+  "id": "estimate.nonlinear_mediation.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-estimate::adaptive_inference::a_subject_size_multiplier_reweights_the_scores"
+  ],
+  "groups": [
+    "adaptive_inference_calibration: epsilon_greedy_repeated_measures"
+  ],
+  "id": "adaptive_inference.repeated_measures_weighting",
+  "kind": "capability",
+  "measurements": []
+}

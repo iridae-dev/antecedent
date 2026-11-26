@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent-stats::adaptive_inversion_oracle::ordering_tails_of_the_adaptive_procedure_match_the_enumeration",
+    "antecedent-stats::adaptive_procedure_uncertainty_oracle::stagewise_ordering_ranks_an_early_efficacy_stop_above_a_late_one",
+    "antecedent-stats::adaptive_procedure_uncertainty_oracle::stagewise_p_value_at_the_boundary_is_the_alpha_spent"
+  ],
+  "id": "adaptive_inference.procedure_ordered_p_value",
+  "kind": "capability",
+  "measurements": []
+}

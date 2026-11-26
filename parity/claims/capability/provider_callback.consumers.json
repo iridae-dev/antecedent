@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-contract::callback_consumers_exact::each_semantic_field_refuses_alone_and_the_matching_consumer_connects",
+    "antecedent::callback_downstream_exact::a_callback_law_is_offered_exactly_when_replayable_complete_and_attested_or_confirmed"
+  ],
+  "id": "provider_callback.consumers",
+  "kind": "capability",
+  "measurements": []
+}

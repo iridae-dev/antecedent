@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_pag_window_mediation_validation_runs_the_mediation_suite_on_every_member"
+  ],
+  "id": "TemporalMediationEffect/TemporalPag/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_pag.bayesian.identified_set.l90.temporal_mediation_effect_temporal_pag_given_bayesian_coverage.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

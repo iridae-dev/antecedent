@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::supported_static_cells::conditional_effect_dag_frequentist_known_truth_all_structures_and_suites"
+  ],
+  "id": "ConditionalEffect/Dag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.conditional_effect.dag.frequentist.analytic_se.l90.conditional_effect_dag_frequentist_given.v2_validation_none.v2_structure_accepted",
+    "cov.conditional_effect.dag.frequentist.analytic_se.l95.conditional_effect_dag_frequentist_given.v2_validation_none.v2_structure_accepted"
+  ]
+}

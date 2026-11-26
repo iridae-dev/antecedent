@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::cross_world_class_truth::class_cross_world_effects_match_the_exact_functionals_of_the_count_tables"
+  ],
+  "id": "NestedCounterfactualEffect/Cpdag/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.nested_counterfactual_effect.cpdag.bayesian.posterior_quantile.l90.nested_counterfactual_effect_cpdag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.nested_counterfactual_effect.cpdag.bayesian.posterior_quantile.l95.nested_counterfactual_effect_cpdag_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

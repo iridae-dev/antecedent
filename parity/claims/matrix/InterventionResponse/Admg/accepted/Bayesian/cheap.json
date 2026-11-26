@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::admg_frontdoor_validation_known_truth::admg_intervention_response_matches_the_frontdoor_formula_under_cheap_and_full"
+  ],
+  "id": "InterventionResponse/Admg/accepted/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.intervention_response.admg.bayesian.posterior_quantile.l90.intervention_response_temporal_admg_given_bayesian_response_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.intervention_response.admg.bayesian.posterior_quantile.l95.intervention_response_admg_graph_posterior_bayesian_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.intervention_response.admg.bayesian.posterior_quantile.l95.intervention_response_temporal_admg_given_bayesian_response_bayesian_coverage.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

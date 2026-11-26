@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::sensitivity_decision::tipping_coordinate_is_the_closed_form_crossing"
+  ],
+  "id": "decision.sensitivity_composition",
+  "kind": "capability",
+  "measurements": []
+}

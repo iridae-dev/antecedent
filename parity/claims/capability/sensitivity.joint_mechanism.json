@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-validate::suite_01::joint_mechanism_sensitivity::exact_range_equals_brute_force_vertex_enumeration",
+    "antecedent::compiled_twins_z_mechanism_sensitivity::the_compiled_one_factor_range_is_the_joint_route_with_only_the_kernel_factor"
+  ],
+  "id": "sensitivity.joint_mechanism",
+  "kind": "capability",
+  "measurements": []
+}

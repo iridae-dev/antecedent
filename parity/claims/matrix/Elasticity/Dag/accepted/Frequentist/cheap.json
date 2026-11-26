@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::derivative_refuter_known_truth::derivative_refuter_states_known_truth"
+  ],
+  "id": "Elasticity/Dag/accepted/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.elasticity.dag.frequentist.analytic_se.l90.plain_elasticity_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.elasticity.dag.frequentist.analytic_se.l95.plain_elasticity_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

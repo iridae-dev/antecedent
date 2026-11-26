@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-counterfactual::suite_01::transported_path_specific::enumeration_over_the_noise_space_matches_and_noise_cancels",
+    "antecedent-counterfactual::suite_01::transported_path_specific::target_law_change_moves_the_answer_by_exactly_the_hand_amount"
+  ],
+  "id": "counterfactual.transported_additive",
+  "kind": "capability",
+  "measurements": []
+}

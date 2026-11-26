@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::bayesian_route_exact::local_quadratic_posterior_equals_the_weighted_ridge_solution_for_both_routes"
+  ],
+  "id": "estimate.quadratic_dose.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

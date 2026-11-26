@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-io-core::suite_01::transport_handoff_provider_trust::a_native_or_unverified_label_is_refused_and_an_edited_label_changes_identity"
+  ],
+  "id": "transport.handoff_artifact",
+  "kind": "capability",
+  "measurements": []
+}

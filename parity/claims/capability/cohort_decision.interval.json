@@ -1,0 +1,16 @@
+{
+  "assertions": [
+    "antecedent-estimate::cohort_linear_effect::the_native_interval_is_a_symmetric_student_t_band_over_the_recomputed_standard_error",
+    "antecedent::compiled_twins_interval_families::the_compiled_cohort_interval_is_centred_on_the_true_cohort_mean_effect"
+  ],
+  "id": "cohort_decision.interval",
+  "kind": "capability",
+  "measurements": [
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95.v2_validation_not_applicable"
+  ]
+}

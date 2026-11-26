@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_published_intervals_known_truth::ipw_uplift_bins_and_policy_intervals_match_the_hand_computation"
+  ],
+  "id": "policy_value:binary_ipw_uplift:fixed_randomized_ipw_frozen_rank_scores:paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals",
+  "kind": "graphless",
+  "measurements": []
+}

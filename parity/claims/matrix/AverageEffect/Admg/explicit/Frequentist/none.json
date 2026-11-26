@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_05::pag_admg_numeric_pins::admg_frontdoor_functional_effect_numeric_pin"
+  ],
+  "id": "AverageEffect/Admg/explicit/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_frontdoor_frequentist_nominal_coverage.v2_validation_none",
+    "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_frontdoor_frequentist_nominal_coverage.v2_validation_none"
+  ]
+}

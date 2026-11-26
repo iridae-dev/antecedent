@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::codetermined_bayesian_response_truth::codetermined_bayesian_joint_level_matches_the_closed_form_additive_law"
+  ],
+  "id": "InterventionResponse/CoDetermined/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.co_determined.bayesian.posterior_quantile.l90.intervention_response_codetermined_tier_bayesian_given.v2_validation_none",
+    "cov.intervention_response.co_determined.bayesian.posterior_quantile.l95.intervention_response_codetermined_tier_bayesian_given.v2_validation_none"
+  ]
+}

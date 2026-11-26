@@ -1,0 +1,14 @@
+{
+  "assertions": [
+    "antecedent-estimate::cancellation_expansion_cells::joint_cell_learner_polls_equal_the_plan",
+    "antecedent-estimate::cancellation_expansion_cells::joint_cell_ridge_conditionals_and_polls_equal_the_plan",
+    "antecedent-estimate::joint_cell_factorized::a_declared_learner_recovers_the_known_effect_point_only",
+    "antecedent-estimate::joint_cell_factorized::factorized_propensities_and_means_match_the_enumerated_law",
+    "antecedent-estimate::joint_cell_factorized::the_factorized_product_reproduces_the_empirical_joint_frequencies",
+    "antecedent-estimate::joint_cell_factorized::the_two_by_two_interaction_recovers_the_known_value",
+    "antecedent::suite_03::cost_expansion_cells::factorized_joint_cell_cost_follows_folds_orderings_and_route"
+  ],
+  "id": "estimate.factorized_joint_cells",
+  "kind": "capability",
+  "measurements": []
+}

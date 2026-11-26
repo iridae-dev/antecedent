@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_mediation_matches_the_enumerated_decomposition_on_both_inferences"
+  ],
+  "id": "TemporalMediationEffect/TemporalAdmg/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_admg.bayesian.posterior_quantile.l90.temporal_mediation_effect_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.temporal_mediation_effect.temporal_admg.bayesian.posterior_quantile.l95.temporal_mediation_effect_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted"
+  ]
+}

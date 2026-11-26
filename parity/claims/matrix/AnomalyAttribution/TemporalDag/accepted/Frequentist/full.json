@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::attribution_refuter_known_truth::temporal_anomaly_attribution_refuter_states_known_truth"
+  ],
+  "id": "AnomalyAttribution/TemporalDag/accepted/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.anomaly_attribution.temporal_dag.frequentist.circular_block_se.l90.anomaly_attribution_temporal_dag_given_frequentist_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.anomaly_attribution.temporal_dag.frequentist.circular_block_se.l95.anomaly_attribution_temporal_dag_given_frequentist_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::mediation_mixed_graph_route_evidence::mediation_temporal_admg_accepted_frequentist_cheap"
+  ],
+  "id": "MediationEffect/TemporalAdmg/accepted/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l90.mediation_temporal_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.mediation_effect.temporal_admg.frequentist.circular_block_se.l95.mediation_temporal_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::lib::analysis::execute::tests::graph_posterior_ate_known_truth_mixture_frequentist"
+  ],
+  "id": "AverageEffect/Dag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l90.average_effect_dag_frequentist_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.average_effect_dag_frequentist_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

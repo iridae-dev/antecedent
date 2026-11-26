@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::observational_survival_replicated::replicate_average_survival_effects_match_the_closed_form_truth_within_a_stated_bound"
+  ],
+  "id": "estimate.observational_survival_effect",
+  "kind": "capability",
+  "measurements": []
+}

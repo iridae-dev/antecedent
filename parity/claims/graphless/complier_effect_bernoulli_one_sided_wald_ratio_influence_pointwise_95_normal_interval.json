@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::randomized_scores_enumeration::wald_ratio_components_are_unbiased_and_the_variance_is_the_delta_method"
+  ],
+  "id": "complier_effect:bernoulli_one_sided:wald_ratio_influence:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

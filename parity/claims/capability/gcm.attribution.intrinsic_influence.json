@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-attribution::intrinsic_influence_reference::contributions_match_exact_shapley_values_of_the_variance_game"
+  ],
+  "groups": [
+    "fitted_model_calibration: attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage",
+    "fitted_model_calibration: intrinsic_influence_whole_procedure_interval_coverage"
+  ],
+  "id": "gcm.attribution.intrinsic_influence",
+  "kind": "capability",
+  "measurements": []
+}

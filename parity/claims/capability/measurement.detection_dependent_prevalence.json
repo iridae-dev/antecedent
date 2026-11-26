@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-stats::lib::measurement_error::exposure_tests::a_fully_declared_detection_function_recovers_the_planted_prevalence"
+  ],
+  "groups": [
+    "measurement_exposure_calibration: measurement_detection_declared_function_wald_l95",
+    "measurement_exposure_calibration: measurement_detection_estimated_function_wald_l95"
+  ],
+  "id": "measurement.detection_dependent_prevalence",
+  "kind": "capability",
+  "measurements": []
+}

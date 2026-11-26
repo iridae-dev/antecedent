@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::response_curve_validation_routes_known_truth::response_curve_validation_dag_posterior_known_truth"
+  ],
+  "id": "ResponseCurve/Dag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.a_0",
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.a_1",
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.a__1",
+    "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.a_0",
+    "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.a_1",
+    "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.a__1"
+  ]
+}

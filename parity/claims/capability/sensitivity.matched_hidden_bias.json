@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent::compiled_twins_supplied_sensitivity::matched_sets_follow_the_randomization_moments_and_the_worst_hidden_covariate",
+    "antecedent::compiled_twins_supplied_sensitivity::the_gamma_one_bound_is_the_exact_signed_rank_permutation_p_value"
+  ],
+  "id": "sensitivity.matched_hidden_bias",
+  "kind": "capability",
+  "measurements": []
+}

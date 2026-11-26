@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-estimate::graphless_survival_bootstrap_known_truth::delayed_entry_scalar_intervals_match_the_exact_bootstrap_law"
+  ],
+  "groups": [
+    "delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_percentile_coverage"
+  ],
+  "id": "survival:delayed_entry_two_arm_individual_randomized:arm_stratified_subject_bootstrap_product_limit:rmst_and_horizon_survival_pointwise_95_percentile_intervals",
+  "kind": "graphless",
+  "measurements": []
+}

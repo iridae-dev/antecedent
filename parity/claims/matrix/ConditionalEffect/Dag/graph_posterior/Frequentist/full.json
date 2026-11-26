@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::supported_static_cells::conditional_effect_graph_posterior_known_truth_all_inferences_and_suites"
+  ],
+  "id": "ConditionalEffect/Dag/graph_posterior/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.conditional_effect.dag.frequentist.analytic_se.l90.conditional_effect_dag_frequentist_graph_posterior.v2_validation_full.v2_structure_graph_posterior",
+    "cov.conditional_effect.dag.frequentist.analytic_se.l95.conditional_effect_dag_frequentist_graph_posterior.v2_validation_full.v2_structure_graph_posterior"
+  ]
+}

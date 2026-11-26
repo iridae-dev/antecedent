@@ -1,0 +1,27 @@
+{
+  "assertions": [
+    "antecedent-discovery::bootstrap_stability_reference::tabulated_frequencies_equal_exact_counting_in_every_regime",
+    "antecedent-discovery::edge_prior_reference::per_edge_marginals_equal_brute_force_enumeration_over_all_dags",
+    "antecedent-discovery::edge_prior_reference::soft_tier_penalty_is_the_hand_computed_posterior_ratio",
+    "antecedent-discovery::suite_01::dag_posterior_conformance::exact_engine_reproduces_an_independent_bic_enumeration_and_samplers_agree_with_it",
+    "antecedent-discovery::suite_01::graph_mcmc_oracle::dbn_exact_template_posterior_matches_brute_force_over_a_two_unit_panel",
+    "antecedent-discovery::suite_01::static_discovery_oracle::fci_and_ges_match_causal_learn_across_motifs_and_all_permutations",
+    "antecedent::compiled_twins_selective_and_observed::compiled_observed_marginals_agree_with_an_independent_integration",
+    "antecedent::compiled_twins_selective_and_observed::compiled_observed_marginals_are_the_kernel_under_the_master_seed",
+    "antecedent::pooled_structure_and_prior_selection::the_pooled_accepted_posterior_is_the_engine_mixture_with_its_provenance",
+    "antecedent::rpcmci_regime_learning::independent_changing_graphs_recover_labels_and_replay",
+    "antecedent::structure_prior_routes::a_declared_prior_is_the_query_the_engine_and_the_hand_reweighting",
+    "antecedent::structure_prior_routes::a_pooled_dbn_posterior_is_the_hand_mixture_keyed_by_atom_and_lag_mask",
+    "antecedent::structure_prior_routes::a_pooled_posterior_is_the_hand_mixture_of_the_per_imputation_exact_posteriors",
+    "antecedent::structure_prior_routes::pooled_exact_marginals_are_the_means_of_the_per_imputation_marginals",
+    "antecedent::structure_prior_routes::pooled_sampled_posteriors_are_the_mixture_of_the_per_imputation_draw_sets",
+    "tests/test_rpcmci_regime_learning.py::test_rpcmci_bic_prefers_a_single_regime_with_weak_departure_and_skips_short_counts"
+  ],
+  "groups": [
+    "fitted_model_calibration: discovery_static_exact_class_posterior_credible_set_coverage",
+    "fitted_model_calibration: discovery_temporal_dbn_posterior_credible_set_coverage"
+  ],
+  "id": "discovery.structure_posterior",
+  "kind": "capability",
+  "measurements": []
+}

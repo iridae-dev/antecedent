@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::path_specific_mixed_graph_route_evidence::path_specific_cpdag_explicit_bayesian_full"
+  ],
+  "id": "PathSpecificEffect/Cpdag/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.path_specific_effect.cpdag.bayesian.posterior_quantile.l90.path_specific_dag_given_bayesian_coverage.v2_validation_full",
+    "cov.path_specific_effect.cpdag.bayesian.posterior_quantile.l95.path_specific_dag_given_bayesian_coverage.v2_validation_full"
+  ]
+}

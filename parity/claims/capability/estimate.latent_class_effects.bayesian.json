@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::latent_class_posterior_exact::latent_class_posterior_means_equal_ridge_solutions_built_from_the_class_rows"
+  ],
+  "id": "estimate.latent_class_effects.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

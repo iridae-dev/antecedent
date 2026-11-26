@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_posterior_known_truth::class_graph_posterior_conditional_effect_matches_the_structural_slope_on_every_cell"
+  ],
+  "id": "ConditionalEffect/Cpdag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.conditional_effect.cpdag.frequentist.analytic_se.l90.conditional_effect_cpdag_frequentist_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.conditional_effect.cpdag.frequentist.analytic_se.l95.conditional_effect_cpdag_frequentist_graph_posterior.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

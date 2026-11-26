@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::recalc_exact_effect::frozen_scores_resume_in_a_fresh_session_to_the_hand_effect_and_hand_decision"
+  ],
+  "id": "recalculation.frozen_scores_artifact",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-design::suite_01::decision_reliability_intervals::many_candidates_use_the_dependence_free_marginal_construction"
+  ],
+  "id": "decision_reliability.optimality_confidence_set",
+  "kind": "capability",
+  "measurements": []
+}

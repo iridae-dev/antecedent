@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::source_evidence_exact::the_native_means_and_projected_action_utilities_follow_the_hand_derivation"
+  ],
+  "id": "composition.source_evidence",
+  "kind": "capability",
+  "measurements": []
+}

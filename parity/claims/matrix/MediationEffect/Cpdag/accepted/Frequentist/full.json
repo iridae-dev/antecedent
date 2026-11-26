@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::mediation_mixed_graph_route_evidence::mediation_cpdag_accepted_frequentist_full"
+  ],
+  "id": "MediationEffect/Cpdag/accepted/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.mediation_effect.cpdag.frequentist.bootstrap_se.l90.mediation_cpdag_given_frequentist_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.mediation_effect.cpdag.frequentist.bootstrap_se.l95.mediation_cpdag_given_frequentist_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

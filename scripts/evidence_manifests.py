@@ -702,7 +702,17 @@ class Checker:
         return value
 
     def load(self, ref: object) -> dict:
-        if not isinstance(ref, str) or not HEX.fullmatch(ref):
+        if not isinstance(ref, str):
+            raise InvalidManifest("missing or invalid dependency_manifest reference")
+        if ref.startswith("pass:"):
+            if ref not in self.manifests:
+                from claim_passes import read_pass
+                try:
+                    self.manifests[ref] = read_pass(self.root, ref)
+                except (OSError, ValueError) as error:
+                    raise InvalidManifest(str(error)) from error
+            return self.manifests[ref]
+        if not HEX.fullmatch(ref):
             raise InvalidManifest("missing or invalid dependency_manifest reference")
         if ref not in self.manifests:
             start = time.perf_counter()
@@ -817,6 +827,14 @@ def reachable_evidence(root: Path) -> set[str]:
     checker = Checker(root)
     reached: set[str] = set()
     for _, ref in inventory(root):
+        if isinstance(ref, str) and ref.startswith("pass:"):
+            try:
+                inputs = checker.load(ref)["inputs"]
+            except (OSError, ValueError, KeyError, TypeError, InvalidManifest):
+                continue
+            reached.update(f"{ITEMS}/{e['table']}.json" for e in inputs
+                           if e.get("kind") == "rust_items" and isinstance(e.get("table"), str))
+            continue
         if not isinstance(ref, str) or not HEX.fullmatch(ref):
             continue
         path = root / STORE / f"{ref}.json"

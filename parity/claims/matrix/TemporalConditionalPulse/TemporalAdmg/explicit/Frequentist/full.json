@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_validation_reports_the_known_refits_and_detects_a_planted_break"
+  ],
+  "id": "TemporalConditionalPulse/TemporalAdmg/explicit/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_conditional_pulse.temporal_admg.frequentist.circular_block_se.l90.temporal_conditional_pulse_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full",
+    "cov.temporal_conditional_pulse.temporal_admg.frequentist.circular_block_se.l95.temporal_conditional_pulse_temporal_admg_graph_posterior_frequentist_coverage.v2_validation_full"
+  ]
+}

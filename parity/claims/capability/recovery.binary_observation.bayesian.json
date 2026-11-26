@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::recovery_binary_posterior_exact::binary_recovery_of_the_dirichlet_updated_pattern_law_equals_the_enumerated_truth"
+  ],
+  "id": "recovery.binary_observation.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

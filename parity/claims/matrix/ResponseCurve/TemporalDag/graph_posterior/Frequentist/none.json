@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_05::manufacturing_temporal::dbn_posterior_response_curve_matches_identified_atom"
+  ],
+  "id": "ResponseCurve/TemporalDag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.x_0",
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.frequentist_temporal_dag_graph_posterior_response_curve_x1_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.x_1"
+  ]
+}

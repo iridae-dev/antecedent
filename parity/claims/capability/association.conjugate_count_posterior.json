@@ -1,0 +1,19 @@
+{
+  "assertions": [
+    "antecedent::association_count_conjugate::a_binary_outcomes_conditional_probability_is_the_same_posterior",
+    "antecedent::association_count_conjugate::the_exceedance_of_each_cell_is_the_beta_binomial_posterior_in_closed_form",
+    "antecedent::association_count_conjugate::the_rate_of_a_count_outcome_in_each_cell_is_the_gamma_poisson_posterior_in_closed_form"
+  ],
+  "groups": [
+    "conjugate_routes_calibration: association_count_rate_gamma_stated_prior_posterior_equal_tailed_l95",
+    "conjugate_routes_calibration: association_exceedance_beta_stated_prior_posterior_equal_tailed_l95",
+    "conjugate_routes_calibration: association_exceedance_prior_from_source_counts_posterior_equal_tailed_l95",
+    "conjugate_routes_calibration: select_alpha_prior_beta_binomial_bias_aware_interval_l95",
+    "conjugate_routes_calibration: select_alpha_prior_beta_binomial_uniform_interval_l95",
+    "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_bias_aware_interval_l95",
+    "conjugate_routes_calibration: select_alpha_prior_gamma_poisson_uniform_interval_l95"
+  ],
+  "id": "association.conjugate_count_posterior",
+  "kind": "capability",
+  "measurements": []
+}

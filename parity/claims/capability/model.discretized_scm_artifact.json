@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-model::discretized_scm_reference::grid_tables_contrasts_and_bound_match_the_high_precision_reference"
+  ],
+  "id": "model.discretized_scm_artifact",
+  "kind": "capability",
+  "measurements": []
+}

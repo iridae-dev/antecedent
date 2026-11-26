@@ -28,11 +28,12 @@ analytic or enumerated value, or an external reference implementation; never
 internal consistency or a frozen output of this library) **with a current passing
 record** in the scientific-records ledger (`parity/scientific_records.toml`). A
 record is current while the fingerprint of everything the check depends on is
-unchanged. A change to anything a check depends on makes its record owed, and the
+unchanged. A change to anything a check depends on flags its record, and the
 unit is **not supported** until the scientific lane
-(`python3 scripts/scientific_records.py run`) re-earns it; a failing check is never
+(`python3 scripts/scientific_records.py run`) re-earns it or the same pass file
+records why the old run still stands; a failing check is never
 recorded, so it leaves the unit not supported too. The gate names the missing
-evidence as `owed: <selector>`, and the embedded support data marks the unit
+evidence as `flagged: <selector>`, and the embedded support data marks the unit
 `not_supported` with that evidence. A unit is one of:
 
 - a **matrix cell** (this page, 2776 supported of 2776 listed),
@@ -68,7 +69,7 @@ whether it runs.
 | n/a | 1434 | Typed impossibilities (temporal query on a static graph, static query on a temporal graph, ATE-shaped cheap/full on a function-valued estimand, and similar). These are not holes. |
 | Meaningful remainder | 2886 | Combinations that could in principle be a claim |
 | Supported (matrix units) | 2776 | Staged path plus the row's recorded evidence contract and limitations; passes the support rule |
-| Not supported — listed cell fails the support rule | 0 | Missing provenance, a missing independent check, or an owed scientific record (`owed: <selector>`); `scripts/gate_support.py --report` names each and counts the owed ones apart. The release gate requires 0 |
+| Not supported — listed cell fails the support rule | 0 | Missing provenance, a missing independent check, or a flagged scientific record (`flagged: <selector>`); `scripts/gate_support.py --report` names each and counts the flagged ones apart. The release gate requires 0 |
 | Not supported — reason on file | 110 | Same runtime outcome as any other refused cell; documented in `support_refusal_reasons.toml` |
 | Not supported — no reason on file | 0 | Must stay 0; `gate_support.py` fails if a refused cell has no `support_refusal_reasons.toml` rule |
 

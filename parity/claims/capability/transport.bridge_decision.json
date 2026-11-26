@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent::lib::analysis::bridge_transport_decision::an_affine_bridge_decision_scores_the_known_map_of_the_source_draws",
+    "antecedent::lib::analysis::bridge_transport_decision::the_robust_bounds_shift_the_fitted_line_mean_by_the_hand_written_bands"
+  ],
+  "id": "transport.bridge_decision",
+  "kind": "capability",
+  "measurements": []
+}

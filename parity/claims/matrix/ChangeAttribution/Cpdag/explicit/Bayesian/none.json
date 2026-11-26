@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_attribution_known_truth::class_change_attribution_known_truth"
+  ],
+  "id": "ChangeAttribution/Cpdag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.change_attribution.cpdag.bayesian.posterior_quantile.l90.change_attribution_cpdag_graph_posterior_bayesian_coverage.v2_validation_none",
+    "cov.change_attribution.cpdag.bayesian.posterior_quantile.l95.change_attribution_cpdag_graph_posterior_bayesian_coverage.v2_validation_none"
+  ]
+}

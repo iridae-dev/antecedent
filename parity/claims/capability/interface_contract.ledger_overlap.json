@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::ledger_dependence_exact::disjoint_evidence_ports_are_met_by_exactly_the_row_disjoint_pairs"
+  ],
+  "id": "interface_contract.ledger_overlap",
+  "kind": "capability",
+  "measurements": []
+}

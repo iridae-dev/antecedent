@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::response_facade::two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
+  ],
+  "id": "ResponseCurve/Dag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_0",
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_1",
+    "cov.response_curve.dag.frequentist.analytic_se.l90.response_curve_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a__1",
+    "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_0",
+    "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_1",
+    "cov.response_curve.dag.frequentist.analytic_se.l95.response_curve_dag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a__1"
+  ]
+}

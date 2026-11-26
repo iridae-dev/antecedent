@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-estimate::admg_conditional_transport_scm::a_seeded_four_node_sample_matches_the_enumerated_truth",
+    "antecedent-estimate::admg_conditional_transport_scm::every_three_node_conditional_query_matches_the_enumerated_truth"
+  ],
+  "id": "transport.admg_conditional",
+  "kind": "capability",
+  "measurements": []
+}

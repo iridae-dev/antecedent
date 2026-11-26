@@ -36,7 +36,7 @@ class OwedRecordsMakeUnitsNotSupported(unittest.TestCase):
         unit = gate_support.check_cell(self.cell, self.prov, FakeLedger())
         self.assertFalse(unit.supported)
         self.assertTrue(unit.owed_only)
-        self.assertEqual(unit.problems, [f"owed: fake::{self.cited[0]}::{self.cited[1]}"])
+        self.assertEqual(unit.problems, [f"flagged: fake::{self.cited[0]}::{self.cited[1]}"])
         self.assertEqual(gate_support.cause(unit.problems[0]), gate_support.OWED)
 
     def test_a_current_record_keeps_the_cell_supported(self):
@@ -106,7 +106,7 @@ class EmbeddedStatusFollowsTheLedger(unittest.TestCase):
         owed = gate_support.derived_status(gate_support.check_cell(cell, prov, FakeLedger()))
         current = gate_support.derived_status(gate_support.check_cell(cell, prov, FakeLedger([cited])))
         self.assertEqual(owed["status"], "not_supported")
-        self.assertTrue(owed["missing_evidence"][0].startswith("owed: "))
+        self.assertTrue(owed["missing_evidence"][0].startswith("flagged: "))
         self.assertEqual(current, {"status": "supported", "missing_evidence": []})
         self.assertEqual(set(owed), set(gate_support.DERIVED_STATUS_FIELDS))
 
@@ -114,7 +114,7 @@ class EmbeddedStatusFollowsTheLedger(unittest.TestCase):
         cell = dict(query="AverageEffect", graph_class="Dag", structure="explicit",
                     inference="Frequentist", validation="none", calibration=[], estimators=["explicit"])
         ident = gate_support.cell_ident(cell)
-        owed = {"status": "not_supported", "missing_evidence": ["owed: x::y"]}
+        owed = {"status": "not_supported", "missing_evidence": ["flagged: x::y"]}
         with (
             patch.object(generator, "load", return_value={"record": []}),
             patch.object(generator.external_evidence, "routes", return_value={}),
@@ -122,7 +122,7 @@ class EmbeddedStatusFollowsTheLedger(unittest.TestCase):
             with_status = generator.support_snapshot([], [], [cell], {ident: owed})["supported"][0]
             no_ledger = generator.support_snapshot([], [], [cell])["supported"][0]
         self.assertEqual(with_status["status"], "not_supported")
-        self.assertEqual(with_status["missing_evidence"], ["owed: x::y"])
+        self.assertEqual(with_status["missing_evidence"], ["flagged: x::y"])
         stripped = {k: v for k, v in with_status.items() if k not in gate_support.DERIVED_STATUS_FIELDS}
         self.assertEqual(stripped, {k: v for k, v in no_ledger.items() if k not in gate_support.DERIVED_STATUS_FIELDS})
 

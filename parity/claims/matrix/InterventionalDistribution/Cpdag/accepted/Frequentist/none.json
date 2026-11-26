@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::interventional_distribution_class_route_evidence::distribution_cpdag_accepted_frequentist_none"
+  ],
+  "id": "InterventionalDistribution/Cpdag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.interventional_distribution.cpdag.frequentist.bootstrap_se.l90.distribution_cpdag_frequentist_given.v2_validation_none.v2_structure_accepted",
+    "cov.interventional_distribution.cpdag.frequentist.bootstrap_se.l95.distribution_cpdag_frequentist_given.v2_validation_none.v2_structure_accepted"
+  ]
+}

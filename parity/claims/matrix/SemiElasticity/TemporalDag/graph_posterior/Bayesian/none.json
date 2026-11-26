@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_graph_posterior_derivative_known_truth::temporal_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "SemiElasticity/TemporalDag/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.semi_elasticity.temporal_dag.bayesian.posterior_quantile.l90.bayesian_semi_elasticity_temporal_dag_graph_posterior.v2_validation_none.v2_structure_graph_posterior",
+    "cov.semi_elasticity.temporal_dag.bayesian.posterior_quantile.l95.bayesian_semi_elasticity_temporal_dag_graph_posterior.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

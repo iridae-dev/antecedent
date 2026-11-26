@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::class_posterior_known_truth::class_graph_posterior_responses_match_the_closed_form_curves"
+  ],
+  "id": "InterventionResponse/Cpdag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.cpdag.frequentist.analytic_se.l90.intervention_response_cpdag_frequentist_graph_posterior.v2_validation_none.v2_structure_graph_posterior",
+    "cov.intervention_response.cpdag.frequentist.analytic_se.l90.intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.intervention_response.cpdag.frequentist.analytic_se.l95.intervention_response_cpdag_frequentist_graph_posterior.v2_validation_none.v2_structure_graph_posterior",
+    "cov.intervention_response.cpdag.frequentist.analytic_se.l95.intervention_response_cpdag_graph_posterior_frequentist_nominal_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::class_derivative_known_truth::class_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "ResponseJacobian/Admg/accepted/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_jacobian.admg.bayesian.posterior_quantile.l90.response_jacobian_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.dv_da",
+    "cov.response_jacobian.admg.bayesian.posterior_quantile.l90.response_jacobian_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.dy_da",
+    "cov.response_jacobian.admg.bayesian.posterior_quantile.l95.response_jacobian_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.dv_da",
+    "cov.response_jacobian.admg.bayesian.posterior_quantile.l95.response_jacobian_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_accepted.dy_da"
+  ]
+}

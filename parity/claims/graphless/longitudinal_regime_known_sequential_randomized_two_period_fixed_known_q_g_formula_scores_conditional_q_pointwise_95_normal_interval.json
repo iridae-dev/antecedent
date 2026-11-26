@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-stats::graphless_g_formula_interval_known_truth::fixed_known_q_g_formula_value_standard_error_and_interval_match_the_hand_computation"
+  ],
+  "id": "longitudinal_regime:known_sequential_randomized_two_period:fixed_known_q_g_formula_scores:conditional_q_pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

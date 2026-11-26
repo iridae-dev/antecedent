@@ -1,0 +1,12 @@
+{
+  "assertions": [
+    "antecedent-estimate::counterfactual_transport_sampled::delta_standard_error_and_clamped_wald_interval_equal_the_multiprecision_reference"
+  ],
+  "id": "counterfactual.transport_sampled_interval",
+  "kind": "capability",
+  "measurements": [
+    "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_latent_district.v2_validation_not_applicable",
+    "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_mediation_covariate_shift.v2_validation_not_applicable",
+    "cov.counterfactual_transport.admg.frequentist.delta_method_wald.l95.sampled_two_source_joint.v2_validation_not_applicable"
+  ]
+}

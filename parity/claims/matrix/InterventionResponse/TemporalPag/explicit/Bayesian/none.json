@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent::suite_07::temporal_class_bayesian_envelope::temporal_class_bayesian_response_is_identified_set"
+  ],
+  "id": "InterventionResponse/TemporalPag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.intervention_response.temporal_pag.bayesian.posterior_quantile.l95.temporal_pag_intervention_response_bayesian_nominal_coverage.v2_validation_none"
+  ]
+}

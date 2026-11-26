@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::external_negotiation_exact::each_provider_kind_can_declare_only_its_own_operations"
+  ],
+  "id": "external.capability_negotiation",
+  "kind": "capability",
+  "measurements": []
+}

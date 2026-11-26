@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian::temporal_pulse_staged_all_structures_and_suites"
+  ],
+  "id": "PulseEffect/TemporalDag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.practitioner_temporal_bayesian_pulse_interval.v2_validation_none",
+    "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l90.pulse_effect_temporal_dag_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.practitioner_temporal_bayesian_pulse_interval.v2_validation_none",
+    "cov.pulse_effect.temporal_dag.bayesian.posterior_quantile.l95.pulse_effect_temporal_dag_bayesian_default_nominal_coverage.v2_validation_none"
+  ]
+}

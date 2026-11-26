@@ -1,1 +1,0 @@
-[{"digest":"bfa0bb22eec85c718ebf702df451f47378340c0b6cde263cde3619fad6644539","kind":"evidence_file","path":"crates/antecedent-io/tests/fixtures/inherited/external_claim.bin","role":"external"},{"digest":"967afeb973f96d42a95a5ec6fb0f2207aac8d4c54307d4a55a15e497577084e8","kind":"evidence_file","path":"crates/antecedent-io/tests/fixtures/inherited/joint_law.bin","role":"external"}]

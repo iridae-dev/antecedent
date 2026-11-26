@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::response_curve_validation_routes_known_truth::response_curve_validation_temporal_dag_known_truth"
+  ],
+  "id": "ResponseCurve/TemporalDag/explicit/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l90.gcomp_response_curve_temporal_dag_given.v2_validation_cheap.a_0",
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l90.gcomp_response_curve_temporal_dag_given.v2_validation_cheap.a_1",
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l90.gcomp_response_curve_temporal_dag_given.v2_validation_cheap.a__1",
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.gcomp_response_curve_temporal_dag_given.v2_validation_cheap.a_0",
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.gcomp_response_curve_temporal_dag_given.v2_validation_cheap.a_1",
+    "cov.response_curve.temporal_dag.frequentist.circular_block_se.l95.gcomp_response_curve_temporal_dag_given.v2_validation_cheap.a__1"
+  ]
+}

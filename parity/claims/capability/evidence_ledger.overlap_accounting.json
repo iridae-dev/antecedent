@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_04::evidence_ledger_facade::a_pooled_value_matches_the_hand_calculation_and_mass_counts_each_observation_once"
+  ],
+  "groups": [
+    "evidence_synthesis_calibration"
+  ],
+  "id": "evidence_ledger.overlap_accounting",
+  "kind": "capability",
+  "measurements": []
+}

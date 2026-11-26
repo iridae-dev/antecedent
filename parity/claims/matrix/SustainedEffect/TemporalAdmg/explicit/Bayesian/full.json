@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_validation_reports_the_known_refits_and_detects_a_planted_break"
+  ],
+  "id": "SustainedEffect/TemporalAdmg/explicit/Bayesian/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.sustained_effect.temporal_admg.bayesian.posterior_quantile.l90.sustained_effect_temporal_admg_given_bayesian_coverage.v2_validation_full",
+    "cov.sustained_effect.temporal_admg.bayesian.posterior_quantile.l95.sustained_effect_temporal_admg_given_bayesian_coverage.v2_validation_full"
+  ]
+}

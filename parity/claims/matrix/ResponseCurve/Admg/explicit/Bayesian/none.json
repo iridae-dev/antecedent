@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_05::pag_admg_numeric_pins::admg_frontdoor_response_pins_against_distribution"
+  ],
+  "id": "ResponseCurve/Admg/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_pointwise_nominal_coverage.v2_validation_none.a_0",
+    "cov.response_curve.admg.bayesian.posterior_quantile.l95.response_curve_admg_bayesian_pointwise_nominal_coverage.v2_validation_none.a_1"
+  ]
+}

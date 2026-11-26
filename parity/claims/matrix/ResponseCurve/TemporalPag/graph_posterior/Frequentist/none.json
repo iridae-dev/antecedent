@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_class_posterior::temporal_class_graph_posterior_response_mixes"
+  ],
+  "id": "ResponseCurve/TemporalPag/graph_posterior/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l95.response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.a_0",
+    "cov.response_curve.temporal_pag.frequentist.circular_block_se.l95.response_curve_temporal_pag_graph_posterior_frequentist_pointwise_nominal_coverage.v2_validation_none.v2_structure_graph_posterior.a_1"
+  ]
+}

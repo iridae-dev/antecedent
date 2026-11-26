@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::temporal_design_excursion_reference::excursion_designs_match_the_exact_reference"
+  ],
+  "id": "temporal_design:two_arm:cluster_robust_ratio_normal:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

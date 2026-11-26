@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::admg_frontdoor_validation_known_truth::admg_graph_posterior_average_effect_matches_the_frontdoor_formula_under_cheap_and_full"
+  ],
+  "id": "AverageEffect/Admg/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_effect.admg.frequentist.bootstrap_se.l90.average_effect_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.average_effect.admg.frequentist.bootstrap_se.l95.average_effect_admg_given_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

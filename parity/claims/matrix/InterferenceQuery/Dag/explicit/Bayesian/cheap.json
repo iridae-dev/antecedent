@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::transport_interference_cell_evidence::interference_dag_explicit_cheap_and_full_run_the_design_suite"
+  ],
+  "id": "InterferenceQuery/Dag/explicit/Bayesian/cheap",
+  "kind": "matrix",
+  "measurements": []
+}

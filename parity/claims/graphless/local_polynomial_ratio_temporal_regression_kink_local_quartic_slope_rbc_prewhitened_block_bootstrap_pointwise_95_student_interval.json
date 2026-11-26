@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::local_design_support_routes::a_kink_in_time_interval_matches_the_analytic_serial_standard_error"
+  ],
+  "id": "local_polynomial_ratio:temporal_regression_kink:local_quartic_slope_rbc_prewhitened_block_bootstrap:pointwise_95_student_interval",
+  "kind": "graphless",
+  "measurements": []
+}

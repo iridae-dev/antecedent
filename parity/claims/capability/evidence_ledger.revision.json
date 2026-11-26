@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-contract::ledger_transport_exact::withdrawing_an_overlapping_source_reclassifies_and_the_recompute_recounts_the_union"
+  ],
+  "id": "evidence_ledger.revision",
+  "kind": "capability",
+  "measurements": []
+}

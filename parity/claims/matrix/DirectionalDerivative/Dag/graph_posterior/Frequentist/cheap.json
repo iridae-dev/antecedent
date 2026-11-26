@@ -1,0 +1,13 @@
+{
+  "assertions": [
+    "antecedent::graph_posterior_derivative_known_truth::graph_posterior_derivative_mixtures_and_refuter_states_known_truth"
+  ],
+  "id": "DirectionalDerivative/Dag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.y1",
+    "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.y2",
+    "cov.directional_derivative.dag.frequentist.analytic_se.l95.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.y1",
+    "cov.directional_derivative.dag.frequentist.analytic_se.l95.directional_derivative_dag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior.y2"
+  ]
+}

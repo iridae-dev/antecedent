@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::recalc_exact_effect::selective_recalculation_gives_the_hand_values_and_refits_only_the_hand_enumerated_stages"
+  ],
+  "id": "recalculation.selective",
+  "kind": "capability",
+  "measurements": []
+}

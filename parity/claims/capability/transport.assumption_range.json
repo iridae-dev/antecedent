@@ -1,0 +1,9 @@
+{
+  "assertions": [
+    "antecedent-design::suite_02::transport_sensitivity::proportional_range_scales_with_the_magnitude_of_a_negative_point_value",
+    "antecedent-design::suite_02::transport_sensitivity::reference_is_reached_at_the_closed_form_shift_or_not_at_all"
+  ],
+  "id": "transport.assumption_range",
+  "kind": "capability",
+  "measurements": []
+}

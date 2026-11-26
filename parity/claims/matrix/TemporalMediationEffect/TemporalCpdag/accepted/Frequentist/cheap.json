@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_mediation_horizons::temporal_cpdag_mediation_cheap_and_full_run_per_completion"
+  ],
+  "id": "TemporalMediationEffect/TemporalCpdag/accepted/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l90.temporal_mediation_effect_temporal_cpdag_frequentist_given_coverage.v2_validation_cheap.v2_structure_accepted",
+    "cov.temporal_mediation_effect.temporal_cpdag.frequentist.circular_block_se.l95.temporal_mediation_effect_temporal_cpdag_frequentist_given_coverage.v2_validation_cheap.v2_structure_accepted"
+  ]
+}

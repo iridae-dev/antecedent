@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_derivative_known_truth::class_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "PointDerivative/Pag/accepted/Frequentist/full",
+  "kind": "matrix",
+  "measurements": [
+    "cov.point_derivative.pag.frequentist.analytic_se.l90.point_derivative_cpdag_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.point_derivative.pag.frequentist.analytic_se.l95.point_derivative_cpdag_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_accepted"
+  ]
+}

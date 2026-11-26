@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::neyman_randomization_enumeration::complete_randomization_is_unbiased_with_the_neyman_variance_and_exact_slack"
+  ],
+  "id": "randomized_effect:complete:neyman_difference_in_means:pointwise_95_normal_interval",
+  "kind": "graphless",
+  "measurements": []
+}

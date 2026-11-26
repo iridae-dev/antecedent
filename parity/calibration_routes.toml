@@ -130,6 +130,8 @@ groups = [
 record = "choice_inference.interval_candidates"
 routes = [
   "antecedent.choice_inference.measured_interval",
+  "antecedent.analysis.compiled_choice_interval.CompiledChoiceInterval.execute",
+  "antecedent.python.choice_inference.ChoiceInferenceSession.compiled_interval",
 ]
 groups = [
   "choice_interval_calibration",
@@ -776,6 +778,7 @@ groups = ["event_count_calibration: hawkes_recursive_refit_count_l90"]
 record = "preference_learning.choice_model"
 routes = [
   "antecedent_design.estimate_choice_model",
+  "antecedent.analysis.preference_learning_programs.CompiledPreferenceChoiceModel.execute",
   "antecedent.decision_learning.ChoiceModel.learn",
 ]
 groups = [
@@ -786,6 +789,7 @@ groups = [
 record = "preference_learning.accepted_preferences"
 routes = [
   "antecedent_design.estimate_accepted",
+  "antecedent.analysis.preference_learning_programs.CompiledPreferenceChoiceModel.accept",
   "antecedent.decision_learning.ChoiceModel.accept",
 ]
 groups = [

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_window_route_evidence::temporal_admg_window_contrasts_match_the_enumerated_truth_on_both_inferences"
+  ],
+  "id": "PulseEffect/TemporalAdmg/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.pulse_effect.temporal_admg.bayesian.posterior_quantile.l90.pulse_effect_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none",
+    "cov.pulse_effect.temporal_admg.bayesian.posterior_quantile.l95.pulse_effect_temporal_admg_graph_posterior_bayesian_coverage.v2_validation_none"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "assertions": [
+    "antecedent::class_explicit_known_truth::class_responses_match_the_closed_form_curve_explicit_and_accepted"
+  ],
+  "id": "ResponseCurve/Cpdag/accepted/Frequentist/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_0",
+    "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_1",
+    "cov.response_curve.cpdag.frequentist.analytic_se.l90.response_curve_cpdag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a__1",
+    "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_0",
+    "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a_1",
+    "cov.response_curve.cpdag.frequentist.analytic_se.l95.response_curve_cpdag_given_frequentist_coverage.v2_validation_none.v2_structure_accepted.a__1"
+  ]
+}

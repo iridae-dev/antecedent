@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::class_graph_posterior_derivative_known_truth::class_graph_posterior_derivative_routes_and_refuter_states_known_truth"
+  ],
+  "id": "AverageDerivative/Admg/graph_posterior/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.average_derivative.admg.bayesian.posterior_quantile.l90.average_derivative_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.average_derivative.admg.bayesian.posterior_quantile.l95.average_derivative_admg_graph_posterior_bayesian_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
+}

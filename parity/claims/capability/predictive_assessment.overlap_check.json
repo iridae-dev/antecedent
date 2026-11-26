@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-validate::suite_01::predictive_assessment::overlap_is_detected_from_row_identities_and_labelled"
+  ],
+  "id": "predictive_assessment.overlap_check",
+  "kind": "capability",
+  "measurements": []
+}

@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::suite_08::temporal_class_point_queries::temporal_class_cross_world_points_match_the_linear_mechanism"
+  ],
+  "id": "NestedCounterfactualEffect/TemporalPag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.nested_counterfactual_effect.temporal_pag.bayesian.posterior_quantile.l90.nested_counterfactual_effect_temporal_pag_bayesian_given_coverage.v2_validation_none",
+    "cov.nested_counterfactual_effect.temporal_pag.bayesian.posterior_quantile.l95.nested_counterfactual_effect_temporal_pag_bayesian_given_coverage.v2_validation_none"
+  ]
+}

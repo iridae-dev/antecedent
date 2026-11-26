@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::suite_04::effect_constancy_consumers::original_covariance_aware_contrast_replays_and_does_not_support_transport"
+  ],
+  "id": "temporal.effect_constancy_consumers",
+  "kind": "capability",
+  "measurements": []
+}

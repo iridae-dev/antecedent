@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::period_refresh_reference::every_period_outcome_matches_the_exact_replay"
+  ],
+  "id": "temporal.new_period_refresh.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

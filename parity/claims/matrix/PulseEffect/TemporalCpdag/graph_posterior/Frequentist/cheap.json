@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent::temporal_class_posterior_known_truth::temporal_class_pulse_and_sustained_match_the_structural_coefficient_under_cheap_and_full"
+  ],
+  "id": "PulseEffect/TemporalCpdag/graph_posterior/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": [
+    "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l90.pulse_effect_temporal_cpdag_frequentist_graph_posterior_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.pulse_effect.temporal_cpdag.frequentist.circular_block_se.l95.pulse_effect_temporal_cpdag_frequentist_graph_posterior_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
+}

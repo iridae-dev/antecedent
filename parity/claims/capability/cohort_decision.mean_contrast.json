@@ -1,0 +1,11 @@
+{
+  "assertions": [
+    "antecedent-io-core::lib::cohort_decision::tests::weighted_cohort_mean_matches_the_hand_calculation"
+  ],
+  "groups": [
+    "cohort_linear_effect_calibration"
+  ],
+  "id": "cohort_decision.mean_contrast",
+  "kind": "capability",
+  "measurements": []
+}

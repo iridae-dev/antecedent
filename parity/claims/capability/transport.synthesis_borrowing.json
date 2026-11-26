@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-stats::lib::synthesis_transport::borrowing_with_a_point_mass_tau_is_inverse_variance_on_inflated_variances"
+  ],
+  "id": "transport.synthesis_borrowing",
+  "kind": "capability",
+  "measurements": []
+}

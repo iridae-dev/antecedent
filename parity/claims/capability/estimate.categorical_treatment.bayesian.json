@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent-estimate::bayesian_route_exact::categorical_treatment_posterior_equals_the_dummy_ridge_solution_built_from_the_rows"
+  ],
+  "id": "estimate.categorical_treatment.bayesian",
+  "kind": "capability",
+  "measurements": []
+}

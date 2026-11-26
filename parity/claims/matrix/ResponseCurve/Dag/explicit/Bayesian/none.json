@@ -1,0 +1,29 @@
+{
+  "assertions": [
+    "antecedent::response_facade::two_point_curve_contrast_conforms_to_average_effect_under_shared_linear_contract"
+  ],
+  "id": "ResponseCurve/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a_0",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a_0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a_1",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a__0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a__1",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a_0",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a_0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a_1",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a__0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l90.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a__1",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a_0",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a_0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a_1",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a__0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_default_pointwise_nominal_coverage.v2_validation_none.a__1",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a_0",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a_0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a_1",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a__0_5",
+    "cov.response_curve.dag.bayesian.posterior_quantile.l95.response_curve_dag_bayesian_pointwise_nominal_90_coverage.v2_validation_none.a__1"
+  ]
+}

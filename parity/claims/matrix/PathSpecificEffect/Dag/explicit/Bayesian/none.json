@@ -1,0 +1,17 @@
+{
+  "assertions": [
+    "antecedent::suite_01::bayesian_functional_routes::functional_bayesian_path_distribution_and_admg"
+  ],
+  "id": "PathSpecificEffect/Dag/explicit/Bayesian/none",
+  "kind": "matrix",
+  "measurements": [
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_chain_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_two_path_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l90.path_specific_two_path_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_bayesian_nominal_90_coverage.v2_validation_none",
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_chain_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_two_path_bayesian_default_nominal_coverage.v2_validation_none",
+    "cov.path_specific_effect.dag.bayesian.posterior_quantile.l95.path_specific_two_path_bayesian_nominal_90_coverage.v2_validation_none"
+  ]
+}

@@ -13,7 +13,7 @@ Every reported answer rests on one small model. Five terms carry it. Other pages
 | Term | Meaning | Effect |
 | --- | --- | --- |
 | **Supported** | A unit has a provenance record and an executed independent scientific check (known truth, an analytic value, or a reference implementation) with a current passing record in the scientific-records ledger. A change to anything a check depends on makes its record owed and the unit `not_supported` until it is re-earned on a development machine (see [Earning and checking the records](#earning-and-checking-the-records)). A unit that reports an interval also has an independent construction check of that interval. A unit is a support-matrix cell, a graphless design-family row, or a capability outside the matrix. | The route runs. |
-| **`not_supported`** | A unit lacks that evidence, including a current passing record of a check it cites (the missing evidence reads `owed: <selector>`). A failing check is never recorded, so it leaves the unit here. | A release build refuses with reason `not_supported`, a detail, and the missing evidence. |
+| **`not_supported`** | A unit lacks that evidence, including a current passing record of a check it cites (the missing evidence reads `flagged: <selector>`). A failing check is never recorded, so it leaves the unit here. | A release build refuses with reason `not_supported`, a detail, and the missing evidence. |
 | **Scientific refusal** | The question is not identified, is a typed n/a, has an invalid declaration or input, names no such method, or is numerically impossible. A run that exceeds a resource limit or is cancelled is an operational failure, not a scientific statement, but it is likewise never `not_supported`. | Refuses in every build, with its own reason code, never `not_supported`. |
 | **Calibration status** | `calibrated`, `outside_measured_scope`, `measured_below_nominal` or `not_measured`, derived from coverage records. | Attached to every reported interval. It never refuses and never changes support; `measured_below_nominal` only annotates the result. |
 | **Development build** | Cargo feature `development`. In Python, build with `scripts/dev_python.sh` and read `antecedent.build_flavor()`. | Runs `not_supported` routes. Results carry `would_refuse` (the code, the detail and the missing evidence). Release consumers refuse development-stamped artifacts. |
@@ -59,7 +59,7 @@ A record is **current** while its manifest still matches the tree, and **owed** 
 
 | Record | Owed means | Effect |
 | --- | --- | --- |
-| Scientific (`parity/scientific_records.toml`) | The assertion changed or something it depends on changed, or it was never recorded. | The unit that cites it is `not_supported` (`owed: <selector>`) until the assertion is rerun and its pass recorded. CI fails. |
+| Scientific (`parity/scientific_records.toml`) | The assertion changed or something it depends on changed, or it was never recorded. | The unit that cites it is `not_supported` (`flagged: <selector>`) until the assertion is rerun and its pass recorded. CI fails. |
 | Calibration (`parity/coverage_records.toml`) | An input of the measurement changed and no current probe covers it, or an interval route has no record. | No effect on support and no refusal. CI fails until it is measured. |
 
 `measured_below_nominal` is a calibration *status*, not an owed state. A record can be current and show that the measured coverage fell below nominal. The result carries that annotation. It changes neither support nor routing.

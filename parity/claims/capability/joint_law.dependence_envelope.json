@@ -1,0 +1,10 @@
+{
+  "assertions": [
+    "antecedent-stats::lib::joint_law::tests::correlation_range_endpoints_are_the_closed_form",
+    "antecedent-stats::lib::joint_law::tests::equal_mass_marginals_envelopes_equal_permutation_enumeration",
+    "antecedent-stats::lib::joint_law::tests::uniform_marginals_makarov_bounds_match_the_continuous_closed_form"
+  ],
+  "id": "joint_law.dependence_envelope",
+  "kind": "capability",
+  "measurements": []
+}

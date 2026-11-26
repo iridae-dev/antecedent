@@ -1,0 +1,8 @@
+{
+  "assertions": [
+    "antecedent::cross_world_dag_validation_truth::counterfactual_dag_cheap_and_full_validation_refutes_the_structural_slope"
+  ],
+  "id": "Counterfactual/Dag/explicit/Frequentist/cheap",
+  "kind": "matrix",
+  "measurements": []
+}
