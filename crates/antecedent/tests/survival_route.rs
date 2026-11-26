@@ -773,11 +773,34 @@ fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
             let (prepared, data, ctx) =
                 delayed_entry_band_fixture(fixed_known, incidence, false, false);
             let result = prepared.estimate(&data, &ctx).unwrap();
+            retained_graphless::assert_retained_graphless_program(
+                "delayed-entry-difference-band",
+                &prepared,
+                &result,
+                &ctx,
+            );
             let curve = result.survival().unwrap();
             let band = curve.difference_band.as_ref().unwrap();
             assert_eq!(band.support_status, Some(antecedent::support::CellStatus::Supported));
             assert!(band.minimum_horizon_risk_set.unwrap() >= 25);
             assert_eq!(band.times, curve.times);
+            // The 40 late entrants per arm are outside the first risk set.
+            // At time 2 they are the only failures and are all the competing
+            // cause for the incidence functional.
+            let horizon = |first_failures, survivors| {
+                let [failure_weight, survivor_weight] =
+                    if fixed_known { [2.0, 1.25] } else { [1.0, 1.0] };
+                let first = failure_weight * first_failures;
+                let surviving = survivor_weight * survivors;
+                let late = failure_weight * 40.0;
+                if incidence {
+                    first / (first + surviving)
+                } else {
+                    (surviving / (first + surviving)) * (surviving / (surviving + late))
+                }
+            };
+            let expected = horizon(40.0, 120.0) - horizon(60.0, 100.0);
+            assert!((band.difference.last().copied().unwrap() - expected).abs() < 1e-12);
             if incidence {
                 assert!(result.support_status().is_none());
             }
@@ -849,7 +872,10 @@ fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
             let wire = replayed.body.survival.as_ref().unwrap();
             assert_eq!(wire.target_cause, incidence.then_some(1));
             assert_eq!(wire.tau, 3.0);
-            assert_eq!(wire.difference_band.as_ref().unwrap().lower, band.lower.as_ref());
+            let replayed_band = wire.difference_band.as_ref().unwrap();
+            assert_eq!(replayed_band.difference, band.difference.as_ref());
+            assert_eq!(replayed_band.lower, band.lower.as_ref());
+            assert_eq!(replayed_band.upper, band.upper.as_ref());
             let mut forged = replayed.body;
             forged
                 .survival
@@ -1710,6 +1736,12 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    retained_graphless::assert_retained_graphless_program(
+        "conditional-survival-difference-band",
+        &prepared,
+        &result,
+        &ctx,
+    );
     let expected = fixture::truth(1, 3.0) - fixture::truth(0, 3.0);
     let curve = result.survival().unwrap();
     let band = curve.difference_band.as_ref().unwrap();
