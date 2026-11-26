@@ -335,7 +335,7 @@ fn delayed_entry_fixed_known_censoring_scalar_intervals_match_the_exact_weighted
 /// Enumerate the four-category arm laws, conditioned on exactly the two scientific support
 /// conditions the bootstrap can lose in this fixture: follow-up to tau in each arm and
 /// observing both competing causes across the trial.
-fn delayed_entry_incidence_law(weighted: bool, observed: [[usize; 4]; 2]) -> Law {
+fn delayed_entry_incidence_law(weighted: bool, observed: [[usize; 4]; 2]) -> (Law, f64) {
     let arm_atoms = |counts: [usize; 4]| {
         let n: usize = counts.iter().sum();
         let log_factorials = ln_factorials(n);
@@ -389,7 +389,7 @@ fn delayed_entry_incidence_law(weighted: bool, observed: [[usize; 4]; 2]) -> Law
     for (_, probability) in &mut joint {
         *probability /= acceptance_probability;
     }
-    Law::new(joint)
+    (Law::new(joint), acceptance_probability)
 }
 
 fn delayed_entry_incidence_scenario(weighted: bool) {
@@ -432,7 +432,12 @@ fn delayed_entry_incidence_scenario(weighted: bool) {
     )
     .unwrap();
     assert!(interval.rmst_difference.is_none());
-    let exact = delayed_entry_incidence_law(weighted, observed);
+    let (exact, acceptance_probability) = delayed_entry_incidence_law(weighted, observed);
+    let acceptance_mcse =
+        (acceptance_probability * (1.0 - acceptance_probability) / f64::from(DRAWS)).sqrt();
+    let retained = f64::from(interval.replicates_ok) / f64::from(DRAWS);
+    assert!((retained - acceptance_probability).abs() < 6.0 * acceptance_mcse);
+
     exact.assert_quantile(interval.difference_at_tau[0], 0.025, "delayed incidence lower");
     exact.assert_quantile(interval.difference_at_tau[1], 0.975, "delayed incidence upper");
 }
@@ -451,7 +456,7 @@ fn delayed_entry_band_reference(fixed_known: bool, incidence: bool) {
     const N: usize = 200;
     const BOOTSTRAP: u32 = 4_000;
     const SEED: u64 = 911;
-    let counts = [[60, 100, 40], [40, 110, 50]];
+    let counts = [[50, 30, 90, 30], [30, 30, 100, 40]];
     let grid = [0.0, 1.0, 2.0, TAU];
     let (mut duration, mut event, mut entry, mut treated, mut probabilities) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -459,8 +464,9 @@ fn delayed_entry_band_reference(fixed_known: bool, incidence: bool) {
         for (kind, count) in group.into_iter().enumerate() {
             let (exit, cause, left, g) = [
                 (1.0, 1, 0.0, 0.5),
+                (1.0, if incidence { 2 } else { 1 }, 0.0, 0.8),
                 (TAU, 0, 0.0, 0.8),
-                (2.0, if incidence { 2 } else { 1 }, 1.0, 0.5),
+                (2.0, 1, 1.0, 0.5),
             ][kind];
             for _ in 0..count {
                 duration.push(exit);
@@ -484,21 +490,25 @@ fn delayed_entry_band_reference(fixed_known: bool, incidence: bool) {
     } else {
         SurvivalEndpoint::Survival
     };
-    // The late entrants miss event 1. At time 2 the early survivors and late entrants are at
-    // risk, with only the late entrants failing. This is the closed-form curve on the fixture.
-    let arm_curve = |[early, surviving, late]: [usize; 3]| {
-        let [wa, ws, wl] = if fixed_known { [2.0, 1.25, 2.0] } else { [1.0; 3] };
-        let (early, surviving, late) = (wa * early as f64, ws * surviving as f64, wl * late as f64);
+    // Late entrants miss the first risk set but change the target-cause jump
+    // at time 2. The early competing event also changes survival to that jump.
+    let arm_curve = |counts: [usize; 4]| {
+        let weights = if fixed_known { [2.0, 1.25, 1.25, 2.0] } else { [1.0; 4] };
+        let [target, competing, surviving, late] =
+            std::array::from_fn(|i| weights[i] * counts[i] as f64);
+        let early_risk = target + competing + surviving;
+        let first_survival = surviving / early_risk;
+        let late_hazard = late / (surviving + late);
         if incidence {
-            let target = early / (early + surviving);
-            [0.0, target, target, target]
+            let first = target / early_risk;
+            let second = first + first_survival * late_hazard;
+            [0.0, first, second, second]
         } else {
-            let first = surviving / (early + surviving);
-            let second = first * surviving / (surviving + late);
-            [1.0, first, second, second]
+            let second = first_survival * (1.0 - late_hazard);
+            [1.0, first_survival, second, second]
         }
     };
-    let difference = |counts: [[usize; 3]; 2]| {
+    let difference = |counts: [[usize; 4]; 2]| {
         let [control, active] = counts.map(arm_curve);
         std::array::from_fn::<_, 4, _>(|index| active[index] - control[index])
     };
@@ -507,10 +517,11 @@ fn delayed_entry_band_reference(fixed_known: bool, incidence: bool) {
     let mut radii: Vec<_> = (0..BOOTSTRAP)
         .map(|_| {
             let drawn = counts.map(|arm| {
-                let mut multiplicities = [0; 3];
+                let mut multiplicities = [0; 4];
+                let cuts = [arm[0], arm[0] + arm[1], arm[0] + arm[1] + arm[2]];
                 for _ in 0..N {
                     let item = antecedent_core::splitmix64(&mut stream) as usize % N;
-                    let kind = usize::from(item >= arm[0]) + usize::from(item >= arm[0] + arm[1]);
+                    let kind = cuts.partition_point(|&cut| cut <= item);
                     multiplicities[kind] += 1;
                 }
                 assert!(multiplicities.iter().all(|&count| count > 0));
@@ -537,7 +548,7 @@ fn delayed_entry_band_reference(fixed_known: bool, incidence: bool) {
     )
     .unwrap();
     assert_eq!(band.replicates_ok, BOOTSTRAP);
-    assert_eq!(band.minimum_horizon_risk_set, Some(100));
+    assert_eq!(band.minimum_horizon_risk_set, Some(90));
     assert_eq!(band.times, grid);
     for (index, &center) in point.iter().enumerate() {
         assert!((band.difference[index] - center).abs() < 1e-12);

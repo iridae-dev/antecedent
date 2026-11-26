@@ -71,8 +71,13 @@ pub fn exact(delayed: bool, censoring: bool) -> Vec<Row> {
     observed_rows
 }
 
-/// Generate independent randomized study units with both observation mechanisms active.
-pub fn sampled(arm_size: usize, mut uniform: impl FnMut() -> f64) -> Vec<Row> {
+/// Sample independent study units under one prespecified observation design.
+pub fn sampled(
+    arm_size: usize,
+    delayed: bool,
+    censoring: bool,
+    mut uniform: impl FnMut() -> f64,
+) -> Vec<Row> {
     let mut rows = Vec::with_capacity(2 * arm_size);
     for arm in 0..2 {
         while rows.len() < (arm + 1) * arm_size {
@@ -84,8 +89,8 @@ pub fn sampled(arm_size: usize, mut uniform: impl FnMut() -> f64) -> Vec<Row> {
                 sample(8),
                 sample(8),
                 sample(8),
-                true,
-                true,
+                delayed,
+                censoring,
             ));
         }
     }

@@ -5,13 +5,15 @@
 //! contrast at horizon three is therefore -0.10. Entry is drawn independently of
 //! event time and cause. The weighted design adds subject-specific independent
 //! censoring at 1.5 and 2.5 with fixed known probabilities at both times.
+//! Coverage uses all attempted studies. An unpublished interval or band is a miss.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 mod common;
 
 use std::sync::Arc;
 
-use antecedent::Study;
+use antecedent::support::CellStatus;
+use antecedent::{PreparedStudy, Study, StudyResult};
 use antecedent_core::{
     CausalQuery, ExecutionContext, KnownCensoringSurvival, ObservationAssumption,
     SurvivalFunctional, SurvivalQuery, VariableId,
@@ -116,6 +118,20 @@ fn trial(fixed_known: bool, incidence: bool, seed: u64) -> (TabularData, Surviva
     (data, query)
 }
 
+fn published_construction(
+    prepared: &PreparedStudy,
+    result: &StudyResult,
+    method: &str,
+) -> (Construction, ScopeFacts) {
+    let contract = prepared.contract_for_result(result).expect("published result has a contract");
+    let (construction, scope, validation) = constructions(&contract, result)
+        .into_iter()
+        .find(|(construction, _, _)| construction.interval_method == method)
+        .expect("published interval has a calibration basis");
+    assert_eq!(validation, "not_applicable");
+    (construction, scope)
+}
+
 fn replicate(fixed_known: bool, seed: u64) -> Option<((f64, f64), Construction, ScopeFacts)> {
     let (data, query) = trial(fixed_known, true, seed);
     let ctx = ExecutionContext::for_tests(seed);
@@ -127,16 +143,12 @@ fn replicate(fixed_known: bool, seed: u64) -> Option<((f64, f64), Construction, 
         .prepare(&ctx)
         .ok()?;
     let result = prepared.estimate(&data, &ctx).ok()?;
-    let curve = result.survival()?;
-    let [lower, upper] = curve.difference_at_tau_interval?;
-    let contract = prepared.contract_for_result(&result).ok()?;
-    let (construction, scope, validation) = constructions(&contract, &result)
-        .into_iter()
-        .find(|(construction, _, _)| construction.interval_method == "percentile_bootstrap")?;
-    assert_eq!(validation, "not_applicable");
-    if construction.functional.ends_with("+scope=insufficient") {
+    if result.support_status() != Some(CellStatus::Supported) {
         return None;
     }
+    let curve = result.survival()?;
+    let [lower, upper] = curve.difference_at_tau_interval?;
+    let (construction, scope) = published_construction(&prepared, &result, "percentile_bootstrap");
     let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
     assert_eq!(
         construction.functional,
@@ -203,6 +215,9 @@ fn band_replicate(
         .ok()?;
     let result = prepared.estimate(&data, &ctx).ok()?;
     let band = result.survival()?.difference_band.as_ref()?;
+    if band.support_status != Some(CellStatus::Supported) {
+        return None;
+    }
     let exact = |time| {
         let sign = if incidence { -1.0 } else { 1.0 };
         sign * (0.05 * f64::from(time >= 1.0) + 0.05 * f64::from(time >= 2.0))
@@ -215,11 +230,7 @@ fn band_replicate(
         .zip(&*band.upper)
         .map(|((&time, &lower), &upper)| (lower, upper, exact(time)))
         .min_by(|&left, &right| slack(left).total_cmp(&slack(right)))?;
-    let contract = prepared.contract_for_result(&result).ok()?;
-    let (construction, scope, validation) = constructions(&contract, &result)
-        .into_iter()
-        .find(|(construction, _, _)| construction.interval_method == "simultaneous_band")?;
-    assert_eq!(validation, "not_applicable");
+    let (construction, scope) = published_construction(&prepared, &result, "simultaneous_band");
     assert_eq!(scope.replicates_ok, Some(BAND_BOOTSTRAP));
     let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
     let endpoint = if incidence { "incidence:1" } else { "survival" };
@@ -294,8 +305,12 @@ fn jointly_conditional_entry_and_censoring_survival_band_coverage() {
     );
     let run = |rep| -> Option<((f64, f64), f64, Construction, ScopeFacts)> {
         let seed = 0xD3E7_0000 + rep;
-        let data =
-            fixture::table(&fixture::sampled(grid_n(fixture::MIN_ARM), uniform(seed, 0xED0F)));
+        let data = fixture::table(&fixture::sampled(
+            grid_n(2 * fixture::MIN_ARM),
+            true,
+            true,
+            uniform(seed, 0xED0F),
+        ));
         let ctx = ExecutionContext::for_tests(seed);
         let prepared = Study::tabular(data.clone())
             .query(CausalQuery::Survival(fixture::query(true)))
@@ -306,6 +321,9 @@ fn jointly_conditional_entry_and_censoring_survival_band_coverage() {
             .ok()?;
         let result = prepared.estimate(&data, &ctx).ok()?;
         let band = result.survival()?.difference_band.as_ref()?;
+        if band.support_status != Some(CellStatus::Supported) {
+            return None;
+        }
         let slack = |(lower, upper, truth): (f64, f64, f64)| (truth - lower).min(upper - truth);
         let (lower, upper, truth) = band
             .times
@@ -316,11 +334,7 @@ fn jointly_conditional_entry_and_censoring_survival_band_coverage() {
                 (lower, upper, fixture::truth(1, time) - fixture::truth(0, time))
             })
             .min_by(|&left, &right| slack(left).total_cmp(&slack(right)))?;
-        let contract = prepared.contract_for_result(&result).ok()?;
-        let (construction, scope, validation) = constructions(&contract, &result)
-            .into_iter()
-            .find(|(construction, _, _)| construction.interval_method == "simultaneous_band")?;
-        assert_eq!(validation, "not_applicable");
+        let (construction, scope) = published_construction(&prepared, &result, "simultaneous_band");
         assert_eq!(scope.replicates_ok, Some(fixture::DRAWS));
         assert_eq!(
             construction.functional,

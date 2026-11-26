@@ -1576,10 +1576,46 @@ fn rebind_estimate(
 #[path = "common/conditional_survival_fixture.rs"]
 mod conditional_survival_fixture;
 
+fn contrast_at(result: &antecedent::StudyResult, time: f64) -> f64 {
+    let curve = result.survival().unwrap();
+    let at = curve.times.iter().rposition(|&knot| knot <= time).unwrap();
+    curve.treated[at] - curve.control[at]
+}
+
+// This independent two-jump product limit keeps delayed entry and the population
+// mixture but omits the censoring weights.
+fn conditional_survival_without_censoring_weights(rows: &[[f64; 6]], delayed: bool) -> f64 {
+    let [control, treated] = [0.0, 1.0].map(|arm| {
+        [0.0, 1.0]
+            .iter()
+            .map(|&entry_stratum| {
+                let step = |time| {
+                    let at_risk = rows.iter().filter(|row| {
+                        row[2] == arm
+                            && row[4] == entry_stratum
+                            && row[0] >= time
+                            && (!delayed || row[3] < time)
+                    });
+                    let risk = u32::try_from(at_risk.clone().count()).unwrap();
+                    let events = u32::try_from(
+                        at_risk.filter(|row| row[0] == time && row[1] == 1.0).count(),
+                    )
+                    .unwrap();
+                    assert!(risk > 0);
+                    1.0 - f64::from(events) / f64::from(risk)
+                };
+                0.5 * step(1.0) * step(2.0)
+            })
+            .sum::<f64>()
+    });
+    treated - control
+}
+
 #[test]
 fn fitted_conditional_survival_identifies_the_pre_entry_population() {
-    use antecedent_stats::survival::{SurvivalEndpoint, SurvivalRows, randomized_survival_summary};
     use conditional_survival_fixture as fixture;
+    const REPEATS: u32 = 32;
+    const ARM_SIZE: usize = 2_048;
     let ctx = ExecutionContext::for_tests(9_732);
     let estimate = |rows: &[[f64; 6]], declare_entry| {
         let data = fixture::table(rows);
@@ -1592,6 +1628,8 @@ fn fitted_conditional_survival_identifies_the_pre_entry_population() {
             .estimate(&data, &ctx)
             .unwrap()
     };
+    let early_truth = fixture::truth(1, 1.0) - fixture::truth(0, 1.0);
+    let horizon_truth = fixture::truth(1, fixture::TAU) - fixture::truth(0, fixture::TAU);
     for delayed in [false, true] {
         for censor in [false, true] {
             let rows = fixture::exact(delayed, censor);
@@ -1601,46 +1639,59 @@ fn fitted_conditional_survival_identifies_the_pre_entry_population() {
                 assert!((curve.control[position] - fixture::truth(0, time)).abs() < 1e-12);
                 assert!((curve.treated[position] - fixture::truth(1, time)).abs() < 1e-12);
             }
-        }
-    }
-    let rows = fixture::exact(true, true);
-    let ignore_entry = estimate(&rows, false);
-    let curve = ignore_entry.survival().unwrap();
-    assert!(
-        (curve.treated[1] - curve.control[1] - (fixture::truth(1, 1.0) - fixture::truth(0, 1.0)))
-            .abs()
-            > 0.01
-    );
+            let entry_omission = contrast_at(&estimate(&rows, false), 1.0) - early_truth;
+            let censoring_omission =
+                conditional_survival_without_censoring_weights(&rows, delayed) - horizon_truth;
+            if delayed {
+                assert!(entry_omission > 0.03);
+            } else {
+                assert!(entry_omission.abs() < 1e-12);
+            }
+            if censor {
+                assert!(censoring_omission < -0.001);
+            } else {
+                assert!(censoring_omission.abs() < 1e-12);
+            }
 
-    let mut ignore_censor = [0.0; 2];
-    for baseline in [0.0, 1.0] {
-        let (mut duration, mut event, mut treated, mut entry) =
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-        for row in rows.iter().filter(|row| row[4] == baseline) {
-            duration.push(row[0]);
-            event.push(i64::from(row[1] == 1.0));
-            treated.push(row[2] == 1.0);
-            entry.push(row[3]);
+            // Separate fixed streams for the four observation designs. Each omission is
+            // compared with the correctly adjusted fit on the same subjects.
+            let mut averages = [0.0; 4];
+            for replicate in 0..REPEATS {
+                let mut stream = 0xD3E0_0000
+                    + 4 * u64::from(replicate)
+                    + 2 * u64::from(delayed)
+                    + u64::from(censor);
+                let sample = fixture::sampled(ARM_SIZE, delayed, censor, || {
+                    let bits =
+                        u32::try_from(antecedent_core::splitmix64(&mut stream) >> 32).unwrap();
+                    f64::from(bits) / 4_294_967_296.0
+                });
+                let fitted = estimate(&sample, delayed);
+                let early = contrast_at(&fitted, 1.0);
+                let horizon = contrast_at(&fitted, fixture::TAU);
+                let ignore_entry = contrast_at(&estimate(&sample, false), 1.0);
+                let ignore_censoring =
+                    conditional_survival_without_censoring_weights(&sample, delayed);
+                let readings = [early, horizon, ignore_entry - early, ignore_censoring - horizon];
+                for (average, reading) in averages.iter_mut().zip(readings) {
+                    *average += reading / f64::from(REPEATS);
+                }
+            }
+            let [early, horizon, entry_omission, censoring_omission] = averages;
+            assert!((early - early_truth).abs() < 0.015);
+            assert!((horizon - horizon_truth).abs() < 0.015);
+            if delayed {
+                assert!(entry_omission > 0.03);
+            } else {
+                assert!(entry_omission.abs() < 1e-12);
+            }
+            if censor {
+                assert!(censoring_omission < -0.001);
+            } else {
+                assert!(censoring_omission.abs() < 1e-12);
+            }
         }
-        let unweighted = randomized_survival_summary(
-            &SurvivalRows {
-                duration: &duration,
-                event_code: &event,
-                treated: &treated,
-                delayed_entry: Some(&entry),
-            },
-            3.0,
-            SurvivalEndpoint::Survival,
-        )
-        .unwrap();
-        ignore_censor[0] += unweighted.control.last().unwrap() / 2.0;
-        ignore_censor[1] += unweighted.treated.last().unwrap() / 2.0;
     }
-    assert!(
-        (ignore_censor[1] - ignore_censor[0] - (fixture::truth(1, 3.0) - fixture::truth(0, 3.0)))
-            .abs()
-            > 0.001
-    );
 }
 
 #[test]
@@ -1670,6 +1721,16 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
     assert_eq!(band.replicates_ok, fixture::DRAWS);
     assert!((band.difference.last().unwrap() - expected).abs() < 1e-12);
     assert_eq!(curve.difference_at_tau_interval, None);
+
+    // Adequate risk-set overlap can still produce a descriptive band below
+    // the minimum arm size of the release row.
+    let off_axis_data = fixture::table(&rows.iter().step_by(2).copied().collect::<Vec<_>>());
+    let mut off_axis = prepared.clone();
+    let off_axis_result = rebind_estimate(&mut off_axis, off_axis_data, &ctx).unwrap();
+    let off_axis_curve = off_axis_result.survival().unwrap();
+    assert!(off_axis_curve.assignment_counts.iter().all(|&n| n < fixture::MIN_ARM));
+    assert_eq!(off_axis_curve.difference_band.as_ref().unwrap().support_status, None);
+
     let compact = prepared.encode_contracted_result(&result, "compact-fit", &ctx).unwrap();
     assert!(
         antecedent_io::replay_analysis_result(&compact)
