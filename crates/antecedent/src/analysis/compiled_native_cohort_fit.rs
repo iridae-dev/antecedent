@@ -12,6 +12,7 @@ use antecedent_estimate::EstimationError;
 use antecedent_estimate::cohort_linear_effect::{
     FIT_PROCEDURE_ID, MAX_FIT_FEATURES, MAX_FIT_ROWS, NativeCohortFit,
 };
+use antecedent_io::artifact_codec::CanonicalSize;
 use antecedent_io::quantity_wire::ScientificQuantityWire;
 
 use super::compiled_measured_interval::{MeasuredIntervalProgram, frequentist};
