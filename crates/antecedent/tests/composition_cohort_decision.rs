@@ -355,9 +355,9 @@ fn compact_refit_checks_original_training_and_replays_the_named_bundle_model() {
     let feature = [-1.0, 0.0, 1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 1.0, -1.0, 0.0, 1.0];
     let outcome = [0.0, 1.0, 2.0, 2.0, 3.0, 4.0, 2.0, 3.5, 5.0, 4.0, 5.5, 7.0];
     let treatment = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0];
-    let fit =
-        fit_cohort_effect(&outcome, &treatment, &[&feature], &response.into(), &[modifier.into()])
-            .unwrap();
+    let response = (&response).into();
+    let modifiers = [(&modifier).into()];
+    let fit = fit_cohort_effect(&outcome, &treatment, &[&feature], &response, &modifiers).unwrap();
     let model = fit.export();
     let bytes = model.to_bytes("retained-native-model").unwrap();
     let ctx = ExecutionContext::for_tests(9);

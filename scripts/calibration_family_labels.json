@@ -2041,27 +2041,27 @@
     },
     {
       "path": "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs",
-      "sha256": "b5692cb44dea85e40fd21f41e6b5c53d1cbf7af99888f31618c9a33ed4530565",
+      "sha256": "5c51ef841fa72a439298ff5824591b2518fabf9b9931ed0519f818a93ad58c88",
       "labelled_calls": [
         {
-          "line": 108,
+          "line": 117,
           "call": ".labelled(",
           "argument": "\"all_corners\""
         },
         {
-          "line": 113,
+          "line": 122,
           "call": ".labelled(",
           "argument": "\"joint_extrema\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 104,
+          "line": 113,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 109,
+          "line": 118,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
@@ -2070,55 +2070,55 @@
     },
     {
       "path": "crates/antecedent/tests/longitudinal_regime_calibration.rs",
-      "sha256": "84f4ca47165afafa5bd26df68dcc65b729ddb358ce8305a4a80cfe7031b6d105",
+      "sha256": "5d33217d61e565deb49860d6d612988be6c82d83f4bd375f5fe0efbc6346cf9a",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 113,
+          "line": 117,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"four_period_sequential_dr_coverage\",\n            dgp: \"four_randomized_fair_coin_decisions_monotone_censoring_additive_gaussian_value\",\n            interval: \"analytic_se\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 240,
+          "line": 255,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test,\n            dgp: \"two_fair_coin_decisions_binary_baseline_additive_normal_terminal_reward\",\n            interval: \"percentile_bootstrap\",\n        },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "Source-fixed fair-coin always-treat designs. The four-decision study holds conditional censoring survival at 0.95, freezes external fold-indexed Q predictions, and scores the compiled 0.95 normal interval against the additive Gaussian outcome's value of six over 2400/4800/9600 subjects. The two uncensored two-decision studies use a binary baseline and additive Gaussian terminal outcome with population value 3.75 over 400/800/1600 subjects. Each scores the compiled 0.95 percentile interval of 199 whole-subject refits, with fixed internal fold exclusion or a separate external training fold. The targets, labels, interval levels and hypotheses are fixed before any measurement."
+      "review": "Source-fixed fair-coin always-treat designs. The four-decision study holds conditional censoring survival at 0.95, freezes external fold-indexed Q predictions, and scores the compiled 0.95 normal interval against the additive Gaussian outcome's value of six over 2400/4800/9600 subjects. The two uncensored two-decision studies use a binary baseline and additive Gaussian terminal outcome with population value 3.75 over 400/800/1600 subjects. Each scores the compiled 0.95 percentile interval of 199 whole-subject refits, with fixed internal fold exclusion or a separate external training fold. Refused refits remain in the denominator. The targets, labels, interval levels and hypotheses are fixed before any measurement."
     },
     {
       "path": "crates/antecedent/tests/longitudinal_schedule_calibration.rs",
-      "sha256": "75eece6a726cbac16a901c32db99d375d82cff8f8090cf3a8592280308e6cb9a",
+      "sha256": "94c499e9dcf65895d0eb2aeb943db32625615c09312af227a4d74fee1441c5a1",
       "labelled_calls": [
         {
-          "line": 153,
+          "line": 170,
           "call": ".labelled(",
           "argument": "\"selected_value\""
         },
         {
-          "line": 158,
+          "line": 175,
           "call": ".labelled(",
           "argument": "\"all_true_optima\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 101,
+          "line": 109,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"fixed_longitudinal_schedule_family_joint_coverage\",\n            dgp: \"independent_fair_coin_decisions_four_known_gaussian_schedule_values\",\n            interval: \"simultaneous_band\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 152,
+          "line": 169,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"analytic_se\" }, REPORTED_LEVEL"
         },
         {
-          "line": 154,
+          "line": 171,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"simultaneous_band\" },\n        REPORTED_LEVEL,"
         }
       ],
-      "review": "Three source-fixed two-decision fair-coin laws, four binary schedules, two fixed candidates for the optimum multiplicity, and 199 subject-level draws. The fixed family scores coverage of all three contrasts to never-treat over the 400/800/1600 source grid. The other laws train on alternating rows and independently evaluate the chosen schedule and all six class contrasts. The selected-value target is the known population value of the realized trained schedule, paired with a separately predeclared nominal lower bound on inclusion of every true optimum. Neither the family, labels nor score construction is chosen from outcomes."
+      "review": "Three source-fixed two-decision fair-coin laws, four binary schedules, two fixed candidates for the optimum multiplicity, and 199 subject-level draws. The fixed family scores coverage of all three contrasts to never-treat over the 400/800/1600 source grid. The other laws train on alternating rows and independently evaluate the chosen schedule and all six class contrasts. The selected-value target is the known population value of the realized trained schedule, paired with a separately predeclared nominal lower bound on inclusion of every true optimum. Unique and tied studies have distinct declared outcome laws, and refused overlap remains in both denominators. Neither the family, labels nor score construction is chosen from outcomes."
     },
     {
       "path": "crates/antecedent/tests/measured_exposure_calibration.rs",
@@ -3321,7 +3321,7 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_routes_calibration.rs",
-      "sha256": "7ef38fba5727069fc6832143ba8e5cda0e376bde484fea1ed923bad827b8c5e9",
+      "sha256": "289e2de89e72d97c93b338d49e05fb911be00ef3265e0f74d96cbdccfb23adac",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -3347,11 +3347,11 @@
     },
     {
       "path": "crates/antecedent/tests/temporal_routes_statements_calibration.rs",
-      "sha256": "dfefb35a91b54a7ba1f76cd9a088958fde8a832d92b4e15c2155179a9fb6ba0a",
+      "sha256": "9e6998f02bb8bd32d7d69da09c3e9be2a33bda8b4843b38fcd561aba52297c46",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 219,
+          "line": 220,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"bayesian_sequential_regime_value_fitted_crossfit_posterior_coverage\",\n            dgp: \"crossfit_regime_trial\",\n            interval: POSTERIOR_INTERVAL,\n        },\n        REPORTED_LEVEL,"
         }
