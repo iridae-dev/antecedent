@@ -27722,3 +27722,388 @@ cargo_target = "script"
 path = "python/tests/test_counterfactual_transport_compiled_bundle.py"
 gates = ["inventory"]
 why = "Check both transport variants through the public decision compiler, portable receipt, changed target and replay resource refusal."
+
+[[test]]
+id = "antecedent-contract-src-fold-policy"
+crate = "antecedent-contract"
+cargo_target = "lib"
+path = "crates/antecedent-contract/src/fold_policy.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-data-src-file-source-ipc-validity"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/file_source/ipc_validity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-data-src-file-source-parquet-validity"
+crate = "antecedent-data"
+cargo_target = "lib"
+path = "crates/antecedent-data/src/file_source/parquet_validity.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-src-composition-bundle-producer-reference"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/composition_bundle/producer_reference.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-design-src-winning-design"
+crate = "antecedent-design"
+cargo_target = "lib"
+path = "crates/antecedent-design/src/winning_design.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-discovery-src-rpcmci-learn"
+crate = "antecedent-discovery"
+cargo_target = "lib"
+path = "crates/antecedent-discovery/src/rpcmci/learn.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-estimate-src-multiple-imputation-impute"
+crate = "antecedent-estimate"
+cargo_target = "lib"
+path = "crates/antecedent-estimate/src/multiple_imputation/impute.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-identify-src-pag-id"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/pag_id.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-identify-src-principal-surrogate"
+crate = "antecedent-identify"
+cargo_target = "lib"
+path = "crates/antecedent-identify/src/principal_surrogate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-core-src-bridge-image-artifact"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/bridge_image_artifact.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-core-src-bridge-image-tests"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/bridge_image_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-core-src-compiled-study"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/compiled_study.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-io-core-src-patient-surrogate"
+crate = "antecedent-io-core"
+cargo_target = "lib"
+path = "crates/antecedent-io-core/src/patient_surrogate.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-learn-src-forest"
+crate = "antecedent-learn"
+cargo_target = "lib"
+path = "crates/antecedent-learn/src/forest.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-compiled-study"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/compiled_study.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-decision-reliability-programs"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/decision_reliability_programs.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-decision-result"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/decision_result.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-kernel-programs-discretized-bridge"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/discretized_bridge.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-kernel-programs-fitted-mechanism-transport"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/fitted_mechanism_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-kernel-programs-policy-transport"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/policy_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-kernel-programs-sequential-evaluation"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/sequential_evaluation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-kernel-programs-surrogate-bridge"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/surrogate_bridge.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-kernel-programs-transported-synthesis"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/kernel_programs/transported_synthesis.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-legacy-posterior"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/legacy_posterior.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-lowering-remaining-cells-tests"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/lowering/remaining_cells_tests.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-mechanism-reuse"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/mechanism_reuse.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-rpcmci-portable"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/rpcmci_portable.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-transport-assumption-program"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/transport_assumption_program.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-analysis-transport-receipt-projection"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/analysis/transport_receipt_projection.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-planner-lowered-canon"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/planner/lowered/canon.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-src-planner-lowered-child-codec"
+crate = "antecedent"
+cargo_target = "lib"
+path = "crates/antecedent/src/planner/lowered/child_codec.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-compiled-twins-decision-reliability-doors"
+crate = "antecedent"
+cargo_target = "compiled_twins_decision_reliability_doors"
+path = "crates/antecedent/tests/compiled_twins_decision_reliability_doors.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-compiled-twins-discretized-bridge"
+crate = "antecedent"
+cargo_target = "compiled_twins_discretized_bridge"
+path = "crates/antecedent/tests/compiled_twins_discretized_bridge.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-compiled-twins-fitted-mechanism-transport"
+crate = "antecedent"
+cargo_target = "compiled_twins_fitted_mechanism_transport"
+path = "crates/antecedent/tests/compiled_twins_fitted_mechanism_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-compiled-twins-policy-transport"
+crate = "antecedent"
+cargo_target = "compiled_twins_policy_transport"
+path = "crates/antecedent/tests/compiled_twins_policy_transport.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-compiled-twins-sequential-evaluation"
+crate = "antecedent"
+cargo_target = "compiled_twins_sequential_evaluation"
+path = "crates/antecedent/tests/compiled_twins_sequential_evaluation.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-compiled-twins-transport-assumption-range"
+crate = "antecedent"
+cargo_target = "compiled_twins_transport_assumption_range"
+path = "crates/antecedent/tests/compiled_twins_transport_assumption_range.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-discovery-admission"
+crate = "antecedent"
+cargo_target = "discovery_admission"
+path = "crates/antecedent/tests/discovery_admission.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-longitudinal-regime-calibration"
+crate = "antecedent"
+cargo_target = "longitudinal_regime_calibration"
+path = "crates/antecedent/tests/longitudinal_regime_calibration.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-longitudinal-schedule-calibration"
+crate = "antecedent"
+cargo_target = "longitudinal_schedule_calibration"
+path = "crates/antecedent/tests/longitudinal_schedule_calibration.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "antecedent-tests-longitudinal-schedule-route"
+crate = "antecedent"
+cargo_target = "longitudinal_schedule_route"
+path = "crates/antecedent/tests/longitudinal_schedule_route.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "antecedent-tests-pag-direct-identification"
+crate = "antecedent"
+cargo_target = "pag_direct_identification"
+path = "crates/antecedent/tests/pag_direct_identification.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-src-preferences-api"
+crate = "python"
+cargo_target = "lib"
+path = "python/src/preferences_api.rs"
+gates = ["inventory", "named"]
+
+[[test]]
+id = "python-tests-test-aio"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_aio.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-compiled-study"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_compiled_study.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-decision-result-projection"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_decision_result_projection.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-discovery-admission"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_discovery_admission.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-integrated-schedule-decision"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_integrated_schedule_decision.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-legacy-posterior"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_legacy_posterior.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-longitudinal-schedule-families"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_longitudinal_schedule_families.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-numeric-binding-copies"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_numeric_binding_copies.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-pag-direct-identification"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_pag_direct_identification.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-patient-surrogate"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_patient_surrogate.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-transport-receipt-projection"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_transport_receipt_projection.py"
+gates = ["inventory"]
+
+[[test]]
+id = "python-tests-test-winning-design"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_winning_design.py"
+gates = ["inventory"]
