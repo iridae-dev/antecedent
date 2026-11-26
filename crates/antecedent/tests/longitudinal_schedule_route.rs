@@ -73,6 +73,7 @@ fn simultaneous_schedule_intervals_use_paired_subject_scores_and_bound_the_contr
     let ctx = ExecutionContext::for_tests(408);
     let first = compiled(&table, q.clone(), &ctx);
     let result = first.estimate(&table, &ctx).unwrap();
+    assert!(result.calibration_bases(&first.contract_for_result(&result).unwrap()).unwrap().is_empty());
     let family = result.longitudinal_regime().unwrap().schedule_family.as_ref().unwrap();
     let contrasts: [Vec<f64>; 2] = [1, 3].map(|candidate| {
         outcomes
@@ -142,6 +143,7 @@ fn learned_schedule_replays_unique_and_tied_optima_and_refuses_missing_trajector
         let (table, query, outcomes) = fixture(means, target);
         let prepared = compiled(&table, query, &ctx);
         let result = prepared.estimate(&table, &ctx).unwrap();
+
         let fit = result.longitudinal_regime().unwrap();
         let learned = fit.schedule_family.as_ref().unwrap().learning.as_ref().unwrap();
         assert_eq!(learned.selected_schedule, want);

@@ -47,6 +47,28 @@ def test_paired_longitudinal_comparisons_replay_and_bind_the_class():
     bundle = cb.BundleBuilder().add_artifact(sourced, node_id="regimes").build()
     consumed = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
     assert consumed.value("regimes", "schedule.3.versus.0.difference") == pytest.approx(9.0)
+    assert result.calibration.functional is None
+    assert result.calibration.status == "not_measured"
+
+    full_data, full_query = _study((1.0, 2.0, 3.0, 10.0), FixedScheduleContrasts(
+        SCHEDULES, SCHEDULES[0], SCHEDULES[1:], draws=199,
+    ))
+    measured = require_success(ant.analyze(full_data, query=full_query))
+    assert measured.calibration.functional == "fixed_h2_four_schedules_vs_never_treat"
+    assert not measured.calibration.secondary
+
+    revised_data = {
+        "outcome": [y + 4.0 * (i % 4 == 3) for i, y in enumerate(data["outcome"])]
+    }
+    revised = require_success(ant.analyze(revised_data, query=query))
+    revised_bundle = cb.BundleBuilder().add_artifact(
+        bytes(revised.export(source_data=revised_data)), node_id="regimes",
+    ).build()
+    revised_bytes = bytes(revised_bundle.export())
+    with pytest.raises(cb.ExpectedIdentityMismatchRefusal):
+        require_success(cb.consume_bundle(revised_bytes, expected_identity=bundle.identity))
+    verified = require_success(cb.consume_bundle(revised_bytes, expected_identity=revised_bundle.identity))
+    assert verified.value("regimes", "schedule.3.versus.0.difference") == pytest.approx(13.0)
     _, smaller = _study((1.0, 2.0, 3.0, 10.0), FixedScheduleContrasts(
         (SCHEDULES[0], SCHEDULES[1], SCHEDULES[3]), SCHEDULES[0],
         (SCHEDULES[1], SCHEDULES[3]), draws=199,
