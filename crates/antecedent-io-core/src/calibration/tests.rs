@@ -676,6 +676,76 @@ fn integrated_schedule_decisions_use_only_attested_exact_sample_sizes() {
 }
 
 #[test]
+fn trial_bridge_receipts_require_exact_trial_counts_measurements_and_refits() {
+    use crate::coverage_records_data::IntervalCounts;
+
+    static POINTS: [CoverageGridPoint; 2] = [
+        CoverageGridPoint {
+            interval_counts: Some(IntervalCounts { attempted: 400, returned: 375, covered: 370 }),
+            ..grid_point(0, 40, 0.925, true)
+        },
+        CoverageGridPoint {
+            interval_counts: Some(IntervalCounts { attempted: 400, returned: 390, covered: 380 }),
+            ..grid_point(1, 80, 0.95, false)
+        },
+    ];
+    const SHARED: &str = "release_design=shared_uniform_gaussian_v1;source_design=equal_source_and_validation_counts;refits=399;min_r_squared=0000000000000000;min_trials=3";
+    const INDEPENDENT: &str = "release_design=independent_shifted_uniform_v1;source_design=equal_source_and_validation_counts;refits=399;min_r_squared=0000000000000000;min_trials=3";
+    let shared = CoverageRecord {
+        query: "TrialBridgePercentileInterval",
+        estimator: "trial_ols_at_source_mean",
+        interval_method: "trial_pairs_percentile_type7",
+        dependence: "shared_trial_mean",
+        functional: SHARED,
+        boundary: true,
+        replicates_min: 399,
+        ..gridded("cov.trial.shared", &POINTS)
+    };
+    let independent = CoverageRecord {
+        id: "cov.trial.independent.v2_validation_none",
+        dependence: "independent_trial_mean",
+        functional: INDEPENDENT,
+        ..shared
+    };
+    for (record, other) in [(shared, independent), (independent, shared)] {
+        let mut b = basis();
+        b.key = key_from(&record);
+        b.scope.replicates_ok = Some(399);
+        b.scope.row_count = 80;
+        let live = calibration_slot_with(&b, &[other, record], |_| true);
+        assert_eq!(live.status, CalibrationStatus::Calibrated);
+        assert_eq!(live.record_id.as_deref(), Some(record.id));
+        assert_eq!(live.observed, Some(0.95));
+        assert_eq!((live.scope_n, live.scope_n_max), (Some(80), Some(80)));
+        assert_eq!(
+            calibration_slot_with(&b, &[other], |_| true).status,
+            CalibrationStatus::NotMeasured
+        );
+        b.scope.row_count = 60;
+        assert_eq!(
+            calibration_slot_with(&b, &[record], |_| true).status,
+            CalibrationStatus::NotMeasured
+        );
+        b.scope.row_count = 80;
+        for refits in [398, 400] {
+            b.scope.replicates_ok = Some(refits);
+            assert_eq!(
+                calibration_slot_with(&b, &[record], |_| true).status,
+                CalibrationStatus::NotMeasured
+            );
+        }
+        b.scope.replicates_ok = Some(399);
+        b.scope.row_count = 40;
+        let boundary = calibration_slot_with(&b, &[record], |_| true);
+        assert_eq!(boundary.status, CalibrationStatus::MeasuredBelowNominal);
+        assert_eq!(boundary.observed, Some(0.925));
+        let stale = calibration_slot_with(&b, &[record], |_| false);
+        assert_eq!(stale.status, CalibrationStatus::OutsideMeasuredScope);
+        assert_eq!(stale.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
+    }
+}
+
+#[test]
 fn a_passing_grid_is_calibrated_across_its_whole_measured_range() {
     for n in [250, 251, 500, 777, 1000] {
         let mut b = basis();

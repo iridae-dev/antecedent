@@ -1254,4 +1254,23 @@ fn trial_bootstrap_publication_is_keyed_to_the_declared_release_design() {
 
     experiment.release_design = Some(TrialBridgeReleaseDesign::IndependentShiftedUniformV1);
     assert!(experiment.construct(&ctx).is_err());
+
+    experiment.contract.source_dependence =
+        Some(SourceMappingDependence::Independent { evidence: "distinct trial series".into() });
+    experiment.study = TrialMeanStudy::Independent {
+        study_id: "separate-source".into(),
+        surrogate_effects: vec![0.25; 23],
+    };
+    assert!(experiment.construct(&ctx).is_err(), "measured sample counts must match");
+
+    experiment.study = TrialMeanStudy::Independent {
+        study_id: "separate-source".into(),
+        surrogate_effects: vec![0.25; 24],
+    };
+    let independent = experiment.construct(&ctx).unwrap();
+    assert_ne!(independent.identity, scoped.identity);
+    assert_ne!(independent.basis.key.dependence, scoped.basis.key.dependence);
+    assert!(independent.basis.key.functional.starts_with(
+        "release_design=independent_shifted_uniform_v1;source_design=equal_source_and_validation_counts;"
+    ));
 }

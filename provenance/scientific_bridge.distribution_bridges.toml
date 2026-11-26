@@ -15,7 +15,7 @@ implementation_deviations = [
   "An exact fixed affine law transforms each source row, with no distributional reinterpretation or inference. An estimated trial-level map uses whole validation-pair bootstrap refits. In the shared design the source surrogate centroid and the least-squares fit use the same trial-pair indexes; replay validates the ordered centroid sequence and provenance. Independent-study refits use different deterministic streams.",
   "Monotone affine identified-set images use both extrema and preserve order even when the slope is negative or zero. Joint outcome images sum declared affine contributions to each output over each weighted, jointly aligned input row. Maps without a supported exact extrema rule refuse an identified-set reading.",
   "Posterior credible intervals use weighted generalized-inverse quantiles of the mapped joint posterior. The returned attained mass is the closed-interval mass including tied endpoints. The trial sampling interval uses type-7 percentile endpoints of the whole refit statistic and requires a current exact-scope coverage receipt.",
-  "Publication matches an explicit caller-declared shared or independent data-generating law, exact tuning, sample-size scope and current calibration record. A threshold decision preserves the interval reading and source calibration reference; it has no separately measured decision calibration.",
+  "Publication matches the declared shared or independent data-generating law, exactly 399 refits, the specific sample size measured and a current calibration record. A threshold decision preserves the interval reading and source calibration reference; it has no separately measured decision calibration.",
   "The numerical artifact binds declarations, source data, method, seed and result. Current coverage metadata is resolved during replay and its revision is excluded from numerical equality. A missing or stale current coverage record still refuses confidence-interval publication.",
 ]
 upstream_implementations_observed = []
@@ -24,6 +24,7 @@ test_sources = [
   "crates/antecedent-io-core/src/bridge_image_tests.rs",
   "crates/antecedent-io-core/src/bridge_image_artifact.rs",
   "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",
+  "crates/antecedent-io-core/src/calibration/tests.rs (trial_bridge_receipts_require_exact_trial_counts_measurements_and_refits)",
   "python/tests/test_scientific_bridge_draws.py",
 ]
 
@@ -42,10 +43,11 @@ sources = ["https://doi.org/10.1214/aos/1176344552", "https://robjhyndman.com/pu
 findings_resolved = [
   "Checked decreasing and constant scalar maps, weighted multivariate row mapping with same-row covariance, exact posterior atom mass, and independent and shared source bootstrap formulas against the existing numerical references.",
   "Added cancellation checkpoints during the original generation or regeneration of the shared trial source. Scoped confidence publication to the explicit measured design, including the source declaration and observed support, instead of matching only a generic array shape.",
+  "The trial coverage lookup requires an exact measured sample size for the matching source law and design. It reports the repeated study denominator of all attempts, including refusals. A stale boundary record cannot publish a below-nominal measurement.",
   "The numerical readout binds the independently reconstructed endpoints, mapped refits and threshold decision. When current coverage is unavailable, a historical carrier reports the verified numerical result with a nominal sampling reading. New publication and export still require a current receipt.",
   "Retained bytes are admitted before manifest, section and source parsing. The continued lease covers restored inputs and their compiler encoding, and the numerical result's readout has a separate quote. Standalone and bundle replay preserve resource and cancellation stops.",
 ]
-record_sha256 = "6e0df8a9bbf9e8f6ab6d3dadeada68b1d4b67947b5db4f17421d18199d78d301"
+record_sha256 = "3a79ce6d21d0ff32435579aa5e24f45a0d3a9f894974bc3ca29a5dbd2edab661"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -93,7 +95,7 @@ sha256 = "63d7a34fd1293201b2546b0e04effcf4fabeb9f0d5ad3ae341512911fb3b5af4"
 role = "assertion"
 path = "crates/antecedent-io-core/src/bridge_distribution_tests.rs"
 items = ["fn fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit", "fn joint_coefficient_posterior_interval_contains_the_exact_weighted_mass", "fn whole_trial_bootstrap_interval_refits_both_sources_before_taking_quantiles", "fn trial_bootstrap_publication_is_keyed_to_the_declared_release_design"]
-sha256 = "1b6524a9860e0ab64270a82b18c4d3a1c9b240b3a56d5fce03eb7d5cd99215b5"
+sha256 = "e9dc91068a04dd2957fd075b4106f33ab9948f4535a4dce4f5f82c315b588c05"
 
 [[method_review.artifacts]]
 role = "assertion"
@@ -113,3 +115,15 @@ role = "assertion"
 path = "crates/antecedent/src/analysis/scientific_bridge_distribution_tests.rs"
 items = ["fn stored_trial_images_replay_numerically_without_current_coverage_and_preserve_resource_stops"]
 sha256 = "773400658a0c6e6b715ad05c7a52b9d926940938c725bc4b537c570d09c470c3"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent-io-core/src/calibration.rs"
+items = ["fn calibration_slot_with"]
+sha256 = "5bac5caddc1598fbbe5ed045e52ec29e2cf1ecea981262911a8b70946360497d"
+
+[[method_review.artifacts]]
+role = "assertion"
+path = "crates/antecedent-io-core/src/calibration/tests.rs"
+items = ["fn trial_bridge_receipts_require_exact_trial_counts_measurements_and_refits"]
+sha256 = "04b3227bcabb1d97f5cbe9725d39d498ee1404136e4ba2abdf201a0eb7f95b32"

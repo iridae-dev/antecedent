@@ -528,13 +528,26 @@ pub fn calibration_slot_with(
     // Match an individual experimental design before applying ordinary
     // level, identification, boundary, and attestation checks.
     let exact_longitudinal = longitudinal_exact_grid(key);
+    // The trial-pairs study measures coverage at each exact validation/source sample size
+    // and scores refused trials as misses, even when there are returned intervals.
+    let exact_trial_bridge = key.query == "TrialBridgePercentileInterval"
+        && key.estimator == "trial_ols_at_source_mean"
+        && key.interval_method == "trial_pairs_percentile_type7";
+    let observed_at = |point: &CoverageGridPoint| {
+        point.interval_counts.map_or(point.observed, |counts| {
+            let denominator = if exact_trial_bridge { counts.attempted } else { counts.returned };
+            f64::from(counts.covered) / f64::from(denominator)
+        })
+    };
     let exact_grid = exact_longitudinal
+        || exact_trial_bridge
         || (key.query == "SyntheticControl"
             && key.estimator == "bayesian.synthetic_control"
             && key.functional.starts_with("synthetic_control/"))
         || (key.query == "IntegratedScheduleDecision"
             && key.estimator == "schedule_decision.joint_fit_and_transport"
-            && key.interval_method == antecedent_core::IntervalMethod::HoeffdingOptimumSet.as_str()
+            && key.interval_method
+                == antecedent_core::IntervalMethod::HoeffdingOptimumSet.as_str()
             && matches!(
                 key.functional.as_str(),
                 "integrated_schedule_example_unique_optima"
@@ -548,9 +561,7 @@ pub fn calibration_slot_with(
                 let point = record.grid.iter().find(|point| {
                     point.n_min == scope.row_count && point.n_max == scope.row_count
                 })?;
-                let observed = point.interval_counts.map_or(point.observed, |counts| {
-                    f64::from(counts.covered) / f64::from(counts.returned)
-                });
+                let observed = observed_at(point);
                 Some(CoverageRecord {
                     n_min: point.n_min,
                     n_max: point.n_max,
@@ -587,9 +598,10 @@ pub fn calibration_slot_with(
     if measured.is_empty() {
         return not_measured(IDENTIFICATION_NOT_MEASURED);
     }
-    if exact_longitudinal
+    if (exact_longitudinal
         && matches!(key.interval_method.as_str(), "percentile_bootstrap" | "simultaneous_band")
-        && scope.replicates_ok != Some(199)
+        && scope.replicates_ok != Some(199))
+        || (exact_trial_bridge && scope.replicates_ok != Some(399))
     {
         return not_measured(REPLICATES_BELOW_MEASURED);
     }
@@ -640,9 +652,7 @@ pub fn calibration_slot_with(
             .filter(|point| point.boundary)
             .min_by(|a, b| a.observed.total_cmp(&b.observed))
         {
-            slot.observed = Some(point.interval_counts.map_or(point.observed, |counts| {
-                f64::from(counts.covered) / f64::from(counts.returned)
-            }));
+            slot.observed = Some(observed_at(point));
         }
         return slot;
     }
