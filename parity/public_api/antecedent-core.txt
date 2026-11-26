@@ -11526,6 +11526,7 @@ pub field antecedent_core::RandomizationTestLimits::max_row_visits: u64
 pub field antecedent_core::RandomizedEffectQuery::ancova_covariates: alloc::sync::Arc<[antecedent_core::VariableId]>
 pub field antecedent_core::RandomizedEffectQuery::assignment_probabilities: alloc::sync::Arc<[f64]>
 pub field antecedent_core::RandomizedEffectQuery::assignment_units: alloc::sync::Arc<[alloc::sync::Arc<str>]>
+pub field antecedent_core::RandomizedEffectQuery::cupac: bool
 pub field antecedent_core::RandomizedEffectQuery::design: antecedent_core::RandomizationDesign
 pub field antecedent_core::RandomizedEffectQuery::estimand: antecedent_core::RandomizedEstimand
 pub field antecedent_core::RandomizedEffectQuery::exact_randomization_test: bool
@@ -12662,6 +12663,7 @@ pub fn <antecedent_core::QueryId>::const fn raw(self) -> u32
 pub fn <antecedent_core::RandomizedEffectQuery>::fn bernoulli_itt(outcome: antecedent_core::VariableId, realized_assignment: impl core::convert::Into<alloc::sync::Arc<[bool]>>, assignment_probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, assignment_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, outcome_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, treatment_arms: (impl core::convert::Into<alloc::sync::Arc<str>>, impl core::convert::Into<alloc::sync::Arc<str>>)) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn validate(&self) -> core::result::Result<(), antecedent_core::QueryError>
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_ancova(self, covariates: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::VariableId]>>) -> Self
+pub fn <antecedent_core::RandomizedEffectQuery>::fn with_cupac(self) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_design(design: antecedent_core::RandomizationDesign, outcome: antecedent_core::VariableId, realized_assignment: impl core::convert::Into<alloc::sync::Arc<[bool]>>, assignment_probabilities: impl core::convert::Into<alloc::sync::Arc<[f64]>>, assignment_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, outcome_units: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<str>]>>, treatment_arms: (impl core::convert::Into<alloc::sync::Arc<str>>, impl core::convert::Into<alloc::sync::Arc<str>>)) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_exact_randomization_test(self) -> Self
 pub fn <antecedent_core::RandomizedEffectQuery>::fn with_fixed_cuped(self, covariate: antecedent_core::VariableId, coefficient: f64) -> Self

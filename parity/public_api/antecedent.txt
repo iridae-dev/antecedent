@@ -23370,6 +23370,7 @@ pub fn <antecedent::analysis::proposal_arrival::ArrivalArtifact>::fn produce_wit
 pub fn <antecedent::analysis::proposal_arrival::ArrivalArtifact>::fn to_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::proposal_arrival::ArrivalArtifact>::fn to_bytes_with_limits(&self, limits: antecedent::analysis::proposal_arrival::ArrivalLimits) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent::analysis::provider_callbacks::CallbackFailure>::fn new(message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn <antecedent::analysis::randomized_adjustment::RandomizedAdjustment>::const fn bernoulli_slope(self) -> bool
 pub fn <antecedent::analysis::randomized_adjustment::RandomizedAdjustment>::const fn covariate(&self) -> antecedent_core::ids::VariableId
 pub fn <antecedent::analysis::recalc_adjusted::AdjustedRequest>::fn identities(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> antecedent_core::recalc::StageIdentities
 pub fn <antecedent::analysis::recalc_adjusted::AdjustedSession>::const fn boundary(&self) -> antecedent_core::recalc::Boundary
@@ -32544,6 +32545,7 @@ pub variant antecedent::EstimatorId::PropensityMatching
 pub variant antecedent::EstimatorId::PropensityStratification
 pub variant antecedent::EstimatorId::PropensityWeighting
 pub variant antecedent::EstimatorId::RandomizedAncova
+pub variant antecedent::EstimatorId::RandomizedClusterEstimatedCuped
 pub variant antecedent::EstimatorId::RandomizedClusterFixedCuped
 pub variant antecedent::EstimatorId::RandomizedDrPolicy
 pub variant antecedent::EstimatorId::RandomizedEstimatedCupedHt
@@ -33387,6 +33389,8 @@ pub variant antecedent::analysis::preference_decision::SampledStructuralVerdict:
 pub variant antecedent::analysis::preference_decision::StructureIdentification::Identified(antecedent_core::identification::IdentificationStatus)
 pub variant antecedent::analysis::preference_decision::StructureIdentification::IdentifiedAtPreparation
 pub variant antecedent::analysis::preference_decision::StructureIdentification::NotIdentified(alloc::string::String)
+pub variant antecedent::analysis::randomized_adjustment::RandomizedAdjustment::ClusterTotalCupac { covariate: antecedent_core::ids::VariableId }
+pub variant antecedent::analysis::randomized_adjustment::RandomizedAdjustment::EstimatedCupac { covariate: antecedent_core::ids::VariableId }
 pub variant antecedent::analysis::randomized_adjustment::RandomizedAdjustment::EstimatedCuped { covariate: antecedent_core::ids::VariableId }
 pub variant antecedent::analysis::recalc_adjusted::AdjustedContrast::Categorical { from: alloc::string::String, to: alloc::string::String }
 pub variant antecedent::analysis::recalc_adjusted::AdjustedContrast::Numeric { active: alloc::vec::Vec<f64>, control: alloc::vec::Vec<f64> }

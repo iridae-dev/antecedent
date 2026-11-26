@@ -16,7 +16,7 @@ target = "AverageEffect"
 provenance = [
   "estimate.linear_adjustment",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 22 of 22 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 23 of 23 public items reviewed"
 identifying_result = "AverageEffect identified by backdoor.adjustment"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -149,7 +149,7 @@ provenance = [
   "estimate.gcomp",
   "estimate.glm",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 12 of 12 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 13 of 13 public items reviewed"
 identifying_result = "Fits a logistic GLM Y ~ T + Z and recovers the ATE by finite-difference g-computation: the fitted model is evaluated at T = active and T = control for every row (holding Z fixed), and the ATE is the mean of the per-row predicted-probability contrast."
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -383,7 +383,7 @@ provenance = [
   "estimate.longitudinal.ipw_regime",
   "estimate.longitudinal.sequential_dr_regime",
 ]
-api_review = "parity/public_api/antecedent-stats.txt: 14 of 14 public items reviewed"
+api_review = "parity/public_api/antecedent-stats.txt: 16 of 16 public items reviewed"
 identifying_result = "longitudinal_regime"
 assumptions = "the identification premises of longitudinal_regime on the recorded route; the module documents no further premise"
 sampling_units = "known_sequential_randomized_two_period"
@@ -536,7 +536,7 @@ target = "Discover"
 provenance = [
   "discovery.dbn_posterior",
 ]
-api_review = "parity/public_api/antecedent-discovery.txt: 15 of 15 public items reviewed"
+api_review = "parity/public_api/antecedent-discovery.txt: 16 of 16 public items reviewed"
 identifying_result = "Discover"
 assumptions = "Exact enumeration is used only when p ≤ DBN_EXACT_MAX_VARS, max_lag ≤ DBN_EXACT_MAX_LAG, and the lag-bit space is small; otherwise the engine falls back to template MCMC automatically (or when force_mcmc is set)."
 sampling_units = "series, panel units, event or multi-environment data; methods=pcmci,pcmci_plus,lpcmci,jpcmci_plus,rpcmci (frequentist) and dbn_posterior (Bayesian); bootstrap_stability over pcmci, pcmci_plus, lpcmci, jpcmci_plus or rpcmci (circular blocks of one series, whole units of a panel, every environment's series in blocks)"
@@ -552,7 +552,7 @@ target = "AverageEffect"
 provenance = [
   "estimate.envelope",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 4 of 4 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 5 of 5 public items reviewed"
 identifying_result = "AverageEffect identified by generalized.adjustment"
 assumptions = "the identification premises of AverageEffect on the recorded route; the module documents no further premise"
 sampling_units = "Published moments and draws are the identified-atom BMA (P(τ | identified))."
@@ -1073,12 +1073,12 @@ parent = "P09"
 route = "graphless.randomized_effect.bernoulli.independent_action_ht_score"
 target = "randomized_effect"
 provenance = [
-  "estimate.randomized.fixed_cuped_ht_itt",
   "estimate.randomized.estimated_cuped_ht_itt",
+  "estimate.randomized.fixed_cuped_ht_itt",
   "estimate.randomized.ht_itt",
   "estimate.randomized.wald_cace_late",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 8 of 8 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 10 of 10 public items reviewed"
 identifying_result = "randomized_effect"
 assumptions = "the identification premises of randomized_effect on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -1270,10 +1270,11 @@ parent = "P09"
 route = "graphless.randomized_effect.factorial_2x2.fixed_cell_neyman_contrasts"
 target = "randomized_effect"
 provenance = [
+  "estimate.randomized.cluster_estimated_cuped_itt",
   "estimate.randomized.cluster_fixed_cuped_itt",
   "estimate.randomized.neyman_itt",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 12 of 12 public items reviewed"
+api_review = "parity/public_api/antecedent-estimate.txt: 16 of 16 public items reviewed"
 identifying_result = "randomized_effect"
 assumptions = "the identification premises of randomized_effect on the recorded route; the module documents no further premise"
 sampling_units = "Design-based inference for complete randomization of independent clusters."
@@ -1543,7 +1544,7 @@ target = "survival"
 provenance = [
   "estimate.survival.product_limit",
 ]
-api_review = "parity/public_api/antecedent-estimate.txt: 10 of 10 public items reviewed"
+api_review = "internal: the module defines no public item"
 identifying_result = "These point estimators consume an already identified randomized contrast."
 assumptions = "the identification premises of survival on the recorded route; the module documents no further premise"
 sampling_units = "Independent censoring and entry are scientific assumptions supplied by the query; this module cannot verify them from observed follow-up."
@@ -2122,7 +2123,7 @@ provenance = [
   "model.lgssm",
   "model.registry",
 ]
-api_review = "parity/public_api/antecedent.txt: 8 of 15 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 31 of 38 public items reviewed"
 identifying_result = "Counterfactual"
 assumptions = "the identification premises of Counterfactual on the recorded route; the module documents no further premise"
 sampling_units = "independent rows of the declared sample; the study's sampling design may declare clusters or weights"
@@ -2679,7 +2680,7 @@ target = "ComposedQuantity"
 provenance = [
   "composition.multi_source",
 ]
-api_review = "parity/public_api/antecedent.txt: 78 of 78 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 83 of 83 public items reviewed"
 identifying_result = "ComposedQuantity"
 assumptions = "Also crates/antecedent-contract/src/measurement.rs and crates/antecedent-estimate/src/measurement."
 sampling_units = "declared measurement model (population, regime, arm, representation, error structure) prepared with StudyBuilder::measurement_model; binary sensitivity-specificity (Rogan-Gladen), categorical confusion matrix, classical linear moment, repeated measurements, continuous regression calibration and SIMEX"
@@ -2695,7 +2696,7 @@ target = "ComposedQuantity"
 provenance = [
   "composition.multi_source",
 ]
-api_review = "parity/public_api/antecedent.txt: 78 of 78 public items reviewed"
+api_review = "parity/public_api/antecedent.txt: 83 of 83 public items reviewed"
 identifying_result = "ComposedQuantity"
 assumptions = "A BundleBuilder collects the parts of a composed decision as nodes of a typed graph: artifacts embedded from their bytes (a distribution, an external claim, a decision contract and result, a sensitivity artifact, a study ranking, an inverse query, a repair report), references to a provider or data source the consumer must supply, dependency edges, and declared evidence relationships."
 sampling_units = "external latent posterior of the construct bound to its source snapshot, combined with the linear outcome functional"

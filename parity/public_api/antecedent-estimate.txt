@@ -1019,6 +1019,7 @@ impl core::clone::Clone for antecedent_estimate::randomized_missing::ResponderWe
 impl core::clone::Clone for antecedent_estimate::randomized_neyman::BlockedItt
 impl core::clone::Clone for antecedent_estimate::randomized_neyman::ClusterItt
 impl core::clone::Clone for antecedent_estimate::randomized_neyman::CompleteItt
+impl core::clone::Clone for antecedent_estimate::randomized_neyman::EstimatedClusterCuped
 impl core::clone::Clone for antecedent_estimate::randomized_neyman::Factorial2x2
 impl core::clone::Clone for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect
 impl core::clone::Clone for antecedent_estimate::randomized_neyman::WeightedItt
@@ -2279,6 +2280,7 @@ impl core::cmp::PartialEq for antecedent_estimate::randomized_missing::Responder
 impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::BlockedItt
 impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::ClusterItt
 impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::CompleteItt
+impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::EstimatedClusterCuped
 impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::Factorial2x2
 impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect
 impl core::cmp::PartialEq for antecedent_estimate::randomized_neyman::WeightedItt
@@ -3584,6 +3586,7 @@ impl core::fmt::Debug for antecedent_estimate::randomized_missing::ResponderWeig
 impl core::fmt::Debug for antecedent_estimate::randomized_neyman::BlockedItt
 impl core::fmt::Debug for antecedent_estimate::randomized_neyman::ClusterItt
 impl core::fmt::Debug for antecedent_estimate::randomized_neyman::CompleteItt
+impl core::fmt::Debug for antecedent_estimate::randomized_neyman::EstimatedClusterCuped
 impl core::fmt::Debug for antecedent_estimate::randomized_neyman::Factorial2x2
 impl core::fmt::Debug for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect
 impl core::fmt::Debug for antecedent_estimate::randomized_neyman::WeightedItt
@@ -4139,6 +4142,7 @@ impl core::marker::Copy for antecedent_estimate::randomized_missing::ResponderWe
 impl core::marker::Copy for antecedent_estimate::randomized_neyman::BlockedItt
 impl core::marker::Copy for antecedent_estimate::randomized_neyman::ClusterItt
 impl core::marker::Copy for antecedent_estimate::randomized_neyman::CompleteItt
+impl core::marker::Copy for antecedent_estimate::randomized_neyman::EstimatedClusterCuped
 impl core::marker::Copy for antecedent_estimate::randomized_neyman::Factorial2x2
 impl core::marker::Copy for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect
 impl core::marker::Copy for antecedent_estimate::randomized_neyman::WeightedItt
@@ -5138,6 +5142,7 @@ impl core::marker::Freeze for antecedent_estimate::randomized_missing::Responder
 impl core::marker::Freeze for antecedent_estimate::randomized_neyman::BlockedItt [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_neyman::ClusterItt [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_neyman::CompleteItt [auto]
+impl core::marker::Freeze for antecedent_estimate::randomized_neyman::EstimatedClusterCuped [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_neyman::Factorial2x2 [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect [auto]
 impl core::marker::Freeze for antecedent_estimate::randomized_neyman::WeightedItt [auto]
@@ -6267,6 +6272,7 @@ impl core::marker::Send for antecedent_estimate::randomized_missing::ResponderWe
 impl core::marker::Send for antecedent_estimate::randomized_neyman::BlockedItt [auto]
 impl core::marker::Send for antecedent_estimate::randomized_neyman::ClusterItt [auto]
 impl core::marker::Send for antecedent_estimate::randomized_neyman::CompleteItt [auto]
+impl core::marker::Send for antecedent_estimate::randomized_neyman::EstimatedClusterCuped [auto]
 impl core::marker::Send for antecedent_estimate::randomized_neyman::Factorial2x2 [auto]
 impl core::marker::Send for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect [auto]
 impl core::marker::Send for antecedent_estimate::randomized_neyman::WeightedItt [auto]
@@ -7243,6 +7249,7 @@ impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_missi
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::BlockedItt
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::ClusterItt
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::CompleteItt
+impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::EstimatedClusterCuped
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::Factorial2x2
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect
 impl core::marker::StructuralPartialEq for antecedent_estimate::randomized_neyman::WeightedItt
@@ -8336,6 +8343,7 @@ impl core::marker::Sync for antecedent_estimate::randomized_missing::ResponderWe
 impl core::marker::Sync for antecedent_estimate::randomized_neyman::BlockedItt [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_neyman::ClusterItt [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_neyman::CompleteItt [auto]
+impl core::marker::Sync for antecedent_estimate::randomized_neyman::EstimatedClusterCuped [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_neyman::Factorial2x2 [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect [auto]
 impl core::marker::Sync for antecedent_estimate::randomized_neyman::WeightedItt [auto]
@@ -9466,6 +9474,7 @@ impl core::marker::Unpin for antecedent_estimate::randomized_missing::ResponderW
 impl core::marker::Unpin for antecedent_estimate::randomized_neyman::BlockedItt [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_neyman::ClusterItt [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_neyman::CompleteItt [auto]
+impl core::marker::Unpin for antecedent_estimate::randomized_neyman::EstimatedClusterCuped [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_neyman::Factorial2x2 [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect [auto]
 impl core::marker::Unpin for antecedent_estimate::randomized_neyman::WeightedItt [auto]
@@ -10599,6 +10608,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::BlockedItt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::ClusterItt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::CompleteItt [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::EstimatedClusterCuped [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::Factorial2x2 [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_estimate::randomized_neyman::WeightedItt [auto]
@@ -11728,6 +11738,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_mi
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::BlockedItt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::ClusterItt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::CompleteItt [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::EstimatedClusterCuped [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::Factorial2x2 [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::StratifiedNeymanEffect [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_estimate::randomized_neyman::WeightedItt [auto]
@@ -16184,6 +16195,7 @@ pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjus
 pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::coefficient: f64
 pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::component_name: alloc::string::String
 pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::covariate: alloc::string::String
+pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::estimate_slope: bool
 pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::preassignment: alloc::string::String
 pub field antecedent_estimate::joint_design::cluster_decision::FixedClusterAdjustment::pretreatment_totals: alloc::vec::Vec<f64>
 pub field antecedent_estimate::joint_design::cluster_decision::JointClusterLaw::control_clusters: usize
@@ -17636,6 +17648,10 @@ pub field antecedent_estimate::randomized_neyman::ClusterItt::variance_upper_bou
 pub field antecedent_estimate::randomized_neyman::CompleteItt::effect: f64
 pub field antecedent_estimate::randomized_neyman::CompleteItt::interval_95: core::option::Option<[f64; 2]>
 pub field antecedent_estimate::randomized_neyman::CompleteItt::variance_upper_bound: f64
+pub field antecedent_estimate::randomized_neyman::EstimatedClusterCuped::effect: f64
+pub field antecedent_estimate::randomized_neyman::EstimatedClusterCuped::interval_95: core::option::Option<[f64; 2]>
+pub field antecedent_estimate::randomized_neyman::EstimatedClusterCuped::theta: f64
+pub field antecedent_estimate::randomized_neyman::EstimatedClusterCuped::variance_upper_bound: f64
 pub field antecedent_estimate::randomized_neyman::Factorial2x2::interaction: f64
 pub field antecedent_estimate::randomized_neyman::Factorial2x2::interaction_interval_95: core::option::Option<[f64; 2]>
 pub field antecedent_estimate::randomized_neyman::Factorial2x2::interaction_variance_upper_bound: f64
@@ -20242,8 +20258,11 @@ pub fn antecedent_estimate::randomized_joint::matched_pair_joint_contrast(totals
 pub fn antecedent_estimate::randomized_missing::responder_pseudo_outcomes(outcome: &[f64], observed: &[bool], group: &[usize], covariates_colmajor: &[f64], ncov: usize) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_missing::responder_weighted_itt(outcome: &[f64], observed: &[bool], treated: &[bool], covariates_colmajor: &[f64], ncov: usize) -> core::result::Result<antecedent_estimate::randomized_missing::ResponderWeightedItt, antecedent_estimate::EstimationError>
 pub fn antecedent_estimate::randomized_neyman::blocked_unit_itt(blocks: &[(&[f64], &[f64])]) -> core::option::Option<antecedent_estimate::randomized_neyman::BlockedItt>
+pub fn antecedent_estimate::randomized_neyman::cluster_total_ols_slope(outcome_totals: &[f64], prediction_totals: &[f64]) -> core::option::Option<f64>
+pub fn antecedent_estimate::randomized_neyman::cluster_totals_adjusted_by_slope(outcome_totals: &[f64], prediction_totals: &[f64], theta: f64) -> core::option::Option<alloc::vec::Vec<f64>>
 pub fn antecedent_estimate::randomized_neyman::complete_cluster_itt(treated_totals: &[f64], control_totals: &[f64], outcome_rows: usize) -> core::option::Option<antecedent_estimate::randomized_neyman::ClusterItt>
 pub fn antecedent_estimate::randomized_neyman::complete_unit_itt(treated: &[f64], control: &[f64]) -> core::option::Option<antecedent_estimate::randomized_neyman::CompleteItt>
+pub fn antecedent_estimate::randomized_neyman::estimated_cluster_cuped_itt(outcome_totals: &[f64], prediction_totals: &[f64], assigned: &[bool], outcome_rows: usize) -> core::option::Option<antecedent_estimate::randomized_neyman::EstimatedClusterCuped>
 pub fn antecedent_estimate::randomized_neyman::factorial_2x2(cells: [&[f64]; 4]) -> core::option::Option<antecedent_estimate::randomized_neyman::Factorial2x2>
 pub fn antecedent_estimate::randomized_neyman::stratified_neyman_effect(outcome: &[f64], assignment: &[bool], blocks: &[impl core::convert::AsRef<str>]) -> core::result::Result<antecedent_estimate::randomized_neyman::StratifiedNeymanEffect, &'static str>
 pub fn antecedent_estimate::randomized_neyman::weighted_itt(outcomes: &[f64], treated: &[bool], arm_probability: &[f64], weights: &[f64]) -> core::option::Option<antecedent_estimate::randomized_neyman::WeightedItt>
@@ -21468,6 +21487,7 @@ pub struct antecedent_estimate::randomized_missing::ResponderWeightedItt
 pub struct antecedent_estimate::randomized_neyman::BlockedItt
 pub struct antecedent_estimate::randomized_neyman::ClusterItt
 pub struct antecedent_estimate::randomized_neyman::CompleteItt
+pub struct antecedent_estimate::randomized_neyman::EstimatedClusterCuped
 pub struct antecedent_estimate::randomized_neyman::Factorial2x2
 pub struct antecedent_estimate::randomized_neyman::StratifiedNeymanEffect
 pub struct antecedent_estimate::randomized_neyman::WeightedItt

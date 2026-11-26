@@ -16721,6 +16721,7 @@ pub variant antecedent_design::decision_evaluation::RequestedCarrier::Draws
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Means
 pub variant antecedent_design::decision_evaluation::RequestedCarrier::Predictions
 pub variant antecedent_design::decision_evidence::AdjustmentKind::CenteredFixedCuped { covariate: alloc::string::String, coefficient: f64 }
+pub variant antecedent_design::decision_evidence::AdjustmentKind::ClusterTotalSlope { covariate: alloc::string::String }
 pub variant antecedent_design::decision_evidence::AdjustmentKind::FixedCuped { covariate: alloc::string::String, coefficient: f64 }
 pub variant antecedent_design::decision_evidence::AdjustmentKind::None
 pub variant antecedent_design::decision_evidence::Arm::Control

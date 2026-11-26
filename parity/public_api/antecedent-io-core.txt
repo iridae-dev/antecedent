@@ -13271,6 +13271,7 @@ pub field antecedent_io_core::RandomizedEffectQueryWire::ancova_covariates: allo
 pub field antecedent_io_core::RandomizedEffectQueryWire::assignment_probabilities: alloc::vec::Vec<f64>
 pub field antecedent_io_core::RandomizedEffectQueryWire::assignment_units: alloc::vec::Vec<alloc::string::String>
 pub field antecedent_io_core::RandomizedEffectQueryWire::blocks: alloc::vec::Vec<alloc::string::String>
+pub field antecedent_io_core::RandomizedEffectQueryWire::cupac: bool
 pub field antecedent_io_core::RandomizedEffectQueryWire::design: antecedent_io_core::RandomizationDesignWire
 pub field antecedent_io_core::RandomizedEffectQueryWire::estimand: antecedent_io_core::RandomizedEstimandWire
 pub field antecedent_io_core::RandomizedEffectQueryWire::exact_randomization_test: bool
