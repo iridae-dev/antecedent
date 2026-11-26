@@ -2,7 +2,7 @@
 
 use antecedent::StudyBuilder;
 use antecedent::analysis::composition::{
-    BundleBuilder, BundleStage, CompositionBundle, NodeKind, SuppliedSources, consume,
+    BundleBuilder, BundleStage, CompositionBundle, NodeKind, NodeStatus, SuppliedSources, consume,
     export_bundle,
 };
 use antecedent::analysis::composition_ledger_decision::{
@@ -306,7 +306,24 @@ fn ledger_binding_refuses_swapped_study_summaries_even_when_the_mean_is_identica
     assert_eq!(retained.estimate().to_bits(), changed.estimate().to_bits());
     assert_ne!(retained.identity(), changed.identity());
     assert_ne!(original.identity, updated.identity);
+    for (ledger, selected) in [(&original, &retained), (&updated, &changed)] {
+        let matched = graph(&ledger.bytes, selected, None);
+        let bytes = export_bundle(&matched, "matched").unwrap();
+        let replay = consume(&bytes, matched.identity(), &SuppliedSources::default()).unwrap();
+        assert!(replay.all_replayed());
+        assert_eq!(replay.value("selection", "pooled_estimate"), Some(2.0));
+    }
     let selected_from_wrong_evidence = graph(&updated.bytes, &retained, None);
+    let bytes = export_bundle(&selected_from_wrong_evidence, "crossed").unwrap();
+    let replay =
+        consume(&bytes, selected_from_wrong_evidence.identity(), &SuppliedSources::default())
+            .unwrap();
+    assert!(replay.node_replayed("ledger"));
+    assert!(matches!(
+        replay.node("selection").unwrap().status,
+        NodeStatus::Failed { stage: BundleStage::SwappedEvidence, .. }
+    ));
+    assert!(!replay.node_replayed("decision"));
     let plan = compile_ledger_pooled_decision_bundle_recomputation(
         selected_from_wrong_evidence,
         "decision",
