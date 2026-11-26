@@ -402,6 +402,7 @@ fn load_admissible_contract(data: &[u8], expected_identity: &str) -> PyResult<St
 struct Prepared {
     contract: AdmissibleDecisionContract,
     adapted: AdaptedClaims,
+    method_provenance: Option<antecedent::io::method_provenance::MethodProvenanceWire>,
 }
 
 /// Adapt claims for joint-scenario binding and identity-checked artifact replay.
@@ -415,7 +416,7 @@ fn prepare_claims(
     let adapted = claims
         .adapt(contract.contract.structural_policy)
         .map_err(|e| external_refusal_json(&e.to_refusal()))?;
-    Ok(Prepared { contract, adapted })
+    Ok(Prepared { contract, adapted, method_provenance: None })
 }
 
 /// Parse the declaration and claims, then adapt and decide over them through the compiled
@@ -435,7 +436,11 @@ fn decide_compiled(
     let program = compile_supplied_claim_decision(contract, claims, &ctx).map_err(crate::py_err)?;
     match program.execute(&ctx) {
         Ok(readout) => Ok(Ok((
-            Prepared { contract: program.contract().clone(), adapted: readout.adapted },
+            Prepared {
+                contract: program.contract().clone(),
+                adapted: readout.adapted,
+                method_provenance: Some(readout.method_provenance),
+            },
             readout.decision,
         ))),
         Err(TerminalError::Kernel(error)) => Ok(Err(external_refusal_json(&error.to_refusal()))),
@@ -592,14 +597,18 @@ fn seal(
     receipts_json: &str,
 ) -> Result<RobustResultArtifact, String> {
     let receipts = receipts_from(receipts_json)?;
-    RobustResultArtifact::new(
+    let artifact = RobustResultArtifact::new(
         &prepared.contract,
         decision.robust.clone(),
         &prepared.adapted.profile,
         &prepared.adapted.atoms,
         receipts,
     )
-    .map_err(|e| io_refusal(&e, "seal"))
+    .map_err(|e| io_refusal(&e, "seal"))?;
+    Ok(match &prepared.method_provenance {
+        Some(methods) => artifact.with_method_provenance(methods.clone()),
+        None => artifact,
+    })
 }
 
 fn robust_value(artifact: &RobustResultArtifact) -> Result<serde_json::Value, String> {
@@ -630,6 +639,7 @@ fn evaluate_robust_decision(
                 "kind": kind,
                 "structural": structural_json(&decision.structural),
                 "robust": robust_value(&artifact)?,
+                "method_provenance": artifact.method_provenance(),
                 "completion_counts": decision.completion_counts,
                 "standing": decision.robust.standing().as_str(),
                 "statement": decision.robust.statement(),
@@ -700,6 +710,7 @@ fn replay_robust_decision(
                 .map_err(|e| io_refusal(&e, "replay"))?;
             Ok(serde_json::json!({
                 "robust": robust_value(&artifact)?,
+                "method_provenance": artifact.method_provenance(),
                 "standing": artifact.result().standing().as_str(),
                 "statement": artifact.result().statement(),
                 "replay": {

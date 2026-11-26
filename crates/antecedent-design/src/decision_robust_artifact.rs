@@ -34,6 +34,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::signal::RefusalBuilder;
 
+use antecedent_io_core::MethodProvenanceWire;
+use crate::decision_artifact::{decode_with_method_provenance, encode_with_method_provenance};
 use crate::decision_artifact::{
     ContractBody, MAX_DECISION_ARTIFACT_BYTES, body_from_contract, contract_from_body, decode,
     encode, refused, source_digest,
@@ -1021,12 +1023,20 @@ pub struct ReplayReceipt {
 
 /// A robust decision result bound to its admissible contract, structures and
 /// claim profile, with the external callback receipts behind any structure.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct RobustResultArtifact {
+    method_provenance: Option<MethodProvenanceWire>,
     result: RobustDecisionResult,
     profile: ClaimProfile,
     atoms: Vec<AtomWire>,
     receipts: Vec<ExternalCallbackReceipt>,
+}
+
+impl PartialEq for RobustResultArtifact {
+    fn eq(&self, other: &Self) -> bool {
+        self.result == other.result && self.profile == other.profile
+            && self.atoms == other.atoms && self.receipts == other.receipts
+    }
 }
 
 impl RobustResultArtifact {
@@ -1056,7 +1066,21 @@ impl RobustResultArtifact {
         check_atom_wires(&atoms)?;
         check_receipts(&atoms, &receipts)?;
         receipts.sort_by(|a, b| a.atom_id.cmp(&b.atom_id));
-        Ok(Self { result, profile: profile.clone(), atoms, receipts })
+        Ok(Self { result, profile: profile.clone(), atoms, receipts, method_provenance: None })
+    }
+
+    /// Method records behind the decision and its contributing evidence.
+    #[must_use]
+    pub const fn method_provenance(&self) -> Option<&MethodProvenanceWire> {
+        self.method_provenance.as_ref()
+    }
+
+    /// Attach the compiler's descriptive method snapshot.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_method_provenance(mut self, provenance: MethodProvenanceWire) -> Self {
+        self.method_provenance = Some(provenance);
+        self
     }
 
     /// The stored result.
@@ -1131,7 +1155,13 @@ impl RobustResultArtifact {
     /// An oversized payload or a blank artifact id refuses.
     pub fn to_bytes(&self, artifact_id: &str) -> Result<Vec<u8>, IoError> {
         let body = to_cbor(&self.body()?)?;
-        encode(ROBUST_KIND, artifact_id, "robust_decision_result", &body)
+        encode_with_method_provenance(
+            ROBUST_KIND,
+            artifact_id,
+            "robust_decision_result",
+            &body,
+            self.method_provenance(),
+        )
     }
 
     /// Load under the consumer's retained admissible contract identity and the
@@ -1147,7 +1177,8 @@ impl RobustResultArtifact {
         expected_contract_identity: &str,
         expected_atom_digests: &[(String, Option<String>)],
     ) -> Result<Self, IoError> {
-        let mut body: RobustBody = decode(bytes, ROBUST_KIND)?;
+        let (mut body, method_provenance): (RobustBody, _) =
+            decode_with_method_provenance(bytes, ROBUST_KIND)?;
         if body.version != 1 {
             return Err(IoError::UnsupportedVersion { version: u32::from(body.version) });
         }
@@ -1187,6 +1218,7 @@ impl RobustResultArtifact {
         }
         let stored_lineage = std::mem::take(&mut body.lineage);
         let artifact = Self {
+            method_provenance,
             result: result_from_wire(body.result)?,
             profile: profile_from_wire(body.profile)?,
             atoms: body.atoms,

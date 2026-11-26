@@ -1010,6 +1010,7 @@ def replay(
         "structural": {"atoms": []},
         "completion_counts": [],
         "robust": body["robust"],
+        "method_provenance": body.get("method_provenance"),
         "standing": body.get("standing"),
         "statement": body.get("statement"),
     }

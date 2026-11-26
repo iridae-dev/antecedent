@@ -1515,6 +1515,7 @@ class ChainDecision(ScientificResult):
     program_identity: str
     replayed: bool = False
     _handle: Any = field(repr=False, compare=False, default=None)
+    _method_provenance_json: str | None = field(repr=False, compare=False, default=None)
 
     @property
     def selected(self) -> tuple[str, ...]:
@@ -1539,6 +1540,7 @@ class ChainDecision(ScientificResult):
 
 def _decision_of(run: Any, *, replayed: bool) -> ChainDecision:
     body = json.loads(run.decision_json())
+    methods = body.get("method_provenance")
     return ChainDecision(
         chain=_chain(run.chain()),
         contract_identity=str(body["contract_identity"]),
@@ -1552,6 +1554,7 @@ def _decision_of(run: Any, *, replayed: bool) -> ChainDecision:
         program_identity=str(run.program_identity),
         replayed=replayed,
         _handle=None if replayed else run,
+        _method_provenance_json=None if methods is None else json.dumps(methods),
     )
 
 

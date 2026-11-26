@@ -168,6 +168,7 @@ fn decision_json(result: &DecisionResult) -> Json {
         "n_draws": result.n_draws,
         "effective_draws": result.effective_draws,
         "assumptions": result.assumptions,
+        "method_provenance": result.method_provenance(),
         "source": {
             "provider_id": result.source.provider_id,
             "snapshot_id": result.source.snapshot_id,

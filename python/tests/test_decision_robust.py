@@ -606,6 +606,8 @@ def test_robust_result_exports_replays_and_refuses_changed_inputs() -> None:
     assert replayed.verdict == result.verdict
     assert replayed.native_verified and replayed.external_atoms == ()
     assert replayed.lineage == result.lineage
+    assert result.method_provenance.records
+    assert replayed.method_provenance == result.method_provenance
 
     # Different draws, contract or support refuse.
     with pytest.raises(decision.DecisionRefusal):

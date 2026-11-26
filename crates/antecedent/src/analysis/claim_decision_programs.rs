@@ -38,8 +38,9 @@ use antecedent_design::decision_eval::{
     evaluate_contract, evaluate_contract_on_means, evaluate_functional,
 };
 use antecedent_design::decision_robustness::AtomSupport;
-use antecedent_design::decision_structural::AtomEvidence;
+use antecedent_design::decision_structural::{AtomEvidence, AtomStatus};
 use antecedent_io::distribution_artifact::DistributionArtifact;
+use antecedent_io::method_provenance::MethodProvenanceWire;
 use std::sync::Arc;
 
 use crate::analysis::program_handle::CompiledProgramHandle;
@@ -149,6 +150,8 @@ pub struct SuppliedClaimReadout {
     pub adapted: AdaptedClaims,
     /// The structural result and the robustness verdict.
     pub decision: AdaptedDecision,
+    /// Method records behind the decision and its evaluated claims.
+    pub method_provenance: MethodProvenanceWire,
 }
 
 compiled_terminal! {
@@ -225,7 +228,17 @@ impl CompiledSuppliedClaimDecision {
         let policy = self.contract.contract.structural_policy;
         let adapted = self.claims.clone().adapt(policy).map_err(TerminalError::Kernel)?;
         let decision = evaluate_adapted(&self.contract, &adapted).map_err(TerminalError::Kernel)?;
-        Ok(SuppliedClaimReadout { adapted, decision })
+        let mut method_provenance = self.result_method_provenance([]);
+        for atom in &decision.structural.atoms {
+            if let AtomStatus::Evaluated(evaluated) = &atom.status {
+                if let Some(methods) = evaluated.method_provenance() {
+                    method_provenance.inherit([methods]);
+                } else {
+                    method_provenance.note_unlinked_source(atom.id.clone());
+                }
+            }
+        }
+        Ok(SuppliedClaimReadout { adapted, decision, method_provenance })
     }
 }
 
@@ -506,7 +519,7 @@ impl CompiledContractDecision {
     pub fn execute_with_evidence(
         &self,
         ctx: &ExecutionContext,
-        evidence: Option<&antecedent_io::method_provenance::MethodProvenanceWire>,
+        evidence: Option<&MethodProvenanceWire>,
     ) -> Result<DecisionResult, TerminalError<DecisionEvalError>> {
         let _scoped = self.enter(ctx)?;
         let evidence = match &self.source {

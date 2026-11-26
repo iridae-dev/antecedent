@@ -171,7 +171,9 @@ def test_a_predictive_chain_and_its_decision_compile_into_one_program_and_replay
     assert result.chain.program_identity == result.program_identity
     assert result.chain.output_law.draws.tolist() == [1.0, 2.0, 3.0, 4.0]
     assert any("no measured coverage" in line for line in result.assumptions)
-    _exported_and_consumed(result)
+    replayed = _exported_and_consumed(result)
+    assert result.method_provenance.records
+    assert replayed.method_provenance == result.method_provenance
 
 
 def test_posterior_parameter_draws_do_not_answer_an_outcome_risk_decision() -> None:

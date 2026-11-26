@@ -3433,7 +3433,7 @@
     "Computes expectation, population variance, threshold probability, the left-inverse quantile and a fractional-boundary tail mean on the draws of a supplied law. The variance is that of the finite law, not an unbiased sample variance, and the tail mean splits the boundary atom; both conventions are stated in the rustdoc.",
     "An exact finite law has no sampling error. Sampled sources report finite-law point values only; they carry no certified draw-dependence contract and therefore report no Monte Carlo standard error or ranking guarantee."
    ],
-   "digest": "7b6c3260f86a792e0c446a23b26754512064cd7b2b2d20e360e87c85aa6b07f2",
+   "digest": "d57504794b7873e546e4e0ccba24dfc9427c58d3e2d036b93117ccd1b6554bdd",
    "id": "decision.functionals",
    "review": "none",
    "scope_limits": [],

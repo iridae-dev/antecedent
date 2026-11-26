@@ -555,7 +555,9 @@ fn evaluate_contract_validated(
             causal_contract_id: identity_meta.causal_contract_id.clone(),
         }
     };
-    rank_table(contract, identity, &table, exclusions, exact, receipt)
+    let mut result = rank_table(contract, identity, &table, exclusions, exact, receipt)?;
+    result.method_provenance = source.method_provenance().cloned();
+    Ok(result)
 }
 
 /// Fold per-draw action utilities and constraint exclusions into a ranked result.
