@@ -15,6 +15,7 @@ use antecedent::analysis::composition::{
     CompositionBundle, ConsumedBundle, ConsumedNode, EvidenceRelationship, NodeKind, NodeSource,
     NodeStatus, ProviderOrData, SuppliedSources, consume_with_limits, describe_artifact,
     detect_node_kind, export_bundle, mean_decision_bytes, producer_identity,
+    require_compact_model_refit_inputs,
 };
 use antecedent::contract::ExternalRefusal;
 use antecedent::design::decision_artifact::contract_from_json_refusal;
@@ -488,6 +489,20 @@ fn composition_detect_kind(data: &[u8]) -> Option<&'static str> {
     detect_node_kind(data).map(NodeKind::as_str)
 }
 
+/// Verify the compact artifact before checking whether its original fit can be replayed.
+#[pyfunction]
+fn composition_require_compact_refit(py: Python<'_>, data: &[u8]) -> PyResult<Refusal> {
+    crate::catch_ffi(|| {
+        Ok(py.detach(|| require_compact_model_refit_inputs(data)).err().map(|failure| {
+            error_refusal(&BundleError::Refused {
+                stage: failure.stage,
+                reason: failure.reason,
+                offending: None,
+            })
+        }))
+    })
+}
+
 /// The existing identity of a producer artifact, for a catalog role.
 #[pyfunction]
 fn producer_artifact_identity(role: &str, data: &[u8]) -> PyResult<String> {
@@ -501,5 +516,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(producer_artifact_identity, m)?)?;
     m.add_function(wrap_pyfunction!(composition_describe_artifact, m)?)?;
     m.add_function(wrap_pyfunction!(composition_mean_decision, m)?)?;
+    m.add_function(wrap_pyfunction!(composition_require_compact_refit, m)?)?;
     m.add_function(wrap_pyfunction!(composition_detect_kind, m)?)
 }

@@ -26,6 +26,7 @@ implementation_deviations = [
   "A node-level failure does not refuse the bundle: the node is reported failed at a named stage and the rest of the bundle keeps its inspected result. Graph defects (blank or repeated node, dangling or repeated edge, self-dependency, cycle) and a digest that differs from its recomputation share the edge_digest_mismatch stage.",
   "The cohort source node delegates to the cohort artifact reader. Its affine decision compiler requires the cohort and contract as embedded parents and binds the terminal to the full cohort source identity. Replay rebuilds the cohort mean and scores the complete decision under the retained bundle and program identities.",
   "An exact or sampled plug-in counterfactual transport result is read by its own validating consumer. Its target event probability supplies an affine decision and retains the transport premises, target population, evidence snapshot and sampled construction where present.",
+  "A compact fitted-effect node validates the stored prediction basis, coefficients, covariance, feature support and mask. A retained cohort can consume the model under its recomputed identity. Refitting requires the original training data and learner declaration.",
 ]
 
 upstream_implementations_observed = []
@@ -39,6 +40,7 @@ test_sources = [
   "crates/antecedent/tests/composition_cohort_decision.rs",
   "python/tests/test_composition_cohort_decision.py",
   "crates/antecedent/tests/counterfactual_transport_lifecycle.rs",
+  "python/tests/test_producer_consumer_matrix.py",
 ]
 
 # Additive independently consumed receipt and frozen-score nodes bind the actual producing

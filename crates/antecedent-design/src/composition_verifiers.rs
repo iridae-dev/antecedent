@@ -43,6 +43,7 @@
 mod artifact_inspection;
 mod incidence_source_inspection;
 mod cohort_source_inspection;
+mod compact_model_inspection;
 mod replay_inspection;
 
 pub use artifact_inspection::{evidence_relationship_bytes, mean_decision_bytes, mean_source_of};
@@ -53,6 +54,8 @@ use artifact_inspection::{
 };
 #[doc(hidden)]
 pub use cohort_source_inspection::CohortDecisionSourceVerifier;
+#[doc(hidden)]
+pub use compact_model_inspection::require_compact_model_refit_inputs;
 
 use replay_inspection::{
     inspect_frozen_scores, inspect_observation_query, inspect_propagation_chain,
@@ -140,13 +143,14 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 21] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 22] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
     NodeKind::Transformation,
     NodeKind::Distribution,
     NodeKind::DelayedEntryIncidenceResult,
+    NodeKind::CompactFittedEffectModel,
     NodeKind::CohortDecisionSource,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
@@ -416,6 +420,7 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         }
         NodeKind::Distribution => inspect_distribution(bytes),
         NodeKind::DelayedEntryIncidenceResult => incidence_source_inspection::inspect(bytes),
+        NodeKind::CompactFittedEffectModel => compact_model_inspection::inspect(bytes),
         NodeKind::CohortDecisionSource => {
             cohort_source_inspection::inspect(bytes, &ExecutionContext::production_default(0))
         }
@@ -837,6 +842,9 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
         KIND_DISTRIBUTION => Some(NodeKind::Distribution),
         COHORT_DECISION_ARTIFACT_KIND => Some(NodeKind::CohortDecisionSource),
+        antecedent_io_core::compact_export::COMPACT_EXPORT_ARTIFACT_KIND => {
+            Some(NodeKind::CompactFittedEffectModel)
+        }
         KIND_EXTERNAL_CLAIM => Some(NodeKind::ExternalClaim),
         KIND_CONTRACT | KIND_ADMISSIBLE => Some(NodeKind::DecisionContract),
         KIND_RESULT | KIND_ROBUST | KIND_STRUCTURAL => Some(NodeKind::DecisionResult),
@@ -984,6 +992,12 @@ kind_verifier!(
     NodeKind::DelayedEntryIncidenceResult
 );
 
+kind_verifier!(
+    /// Verifies a compact model's retained prediction basis and evidence.
+    CompactFittedEffectModelVerifier,
+    NodeKind::CompactFittedEffectModel
+);
+
 /// The verifier of one node kind, when it has one.
 #[must_use]
 pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
@@ -993,6 +1007,7 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         | NodeKind::QuantityCoordinates
         | NodeKind::Transformation => Box::new(SourceProjectionVerifier(kind)),
         NodeKind::Distribution => Box::new(DistributionVerifier),
+        NodeKind::CompactFittedEffectModel => Box::new(CompactFittedEffectModelVerifier),
         NodeKind::DelayedEntryIncidenceResult => Box::new(DelayedEntryIncidenceResultVerifier),
         NodeKind::CohortDecisionSource => {
             Box::new(CohortDecisionSourceVerifier::new(&ExecutionContext::production_default(0)))

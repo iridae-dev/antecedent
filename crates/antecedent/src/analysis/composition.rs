@@ -32,6 +32,7 @@ pub use antecedent_design::composition_verifiers::{
     ArtifactDescription, FACT_COORDINATES, FACT_MEAN_SOURCE, FACT_PROVIDER_BINDING,
     FACT_REQUIRES_DISTRIBUTION, FACT_SOURCE_DIGEST, LAW_MARGINAL, TRUST_ATTESTED, TRUST_NATIVE,
     TRUST_UNVERIFIED, TRUST_VERIFIED, VERIFIABLE_KINDS, evidence_relationship_bytes, mean_source_of,
+    require_compact_model_refit_inputs,
 };
 pub use antecedent_design::decision_artifact::mean_result_to_bytes;
 

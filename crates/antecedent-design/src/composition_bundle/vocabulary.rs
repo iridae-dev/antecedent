@@ -59,6 +59,8 @@ pub enum NodeKind {
     DelayedEntryIncidenceResult,
     /// An exact finite-law or sampled plug-in counterfactual transport point.
     CounterfactualTransportResult,
+    /// A verified compact model that evaluates its retained prediction basis.
+    CompactFittedEffectModel,
     /// A retained fitted model and weighted cohort replayed as one contrast mean.
     CohortDecisionSource,
     /// A named transformation.
@@ -117,6 +119,7 @@ named_variants! {
         Distribution => "distribution",
         DelayedEntryIncidenceResult => "delayed_entry_incidence_result",
         CounterfactualTransportResult => "counterfactual_transport_result",
+        CompactFittedEffectModel => "compact_fitted_effect_model",
         CohortDecisionSource => "cohort_decision_source",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
@@ -155,6 +158,7 @@ impl NodeKind {
             | Self::Distribution
             | Self::DelayedEntryIncidenceResult
             | Self::CounterfactualTransportResult
+            | Self::CompactFittedEffectModel
             | Self::CohortDecisionSource
             | Self::FrozenScores => CompositionStage::DistributionArtifact,
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,

@@ -81,6 +81,7 @@
             "distribution",
             "delayed_entry_incidence_result",
             "counterfactual_transport_result",
+            "compact_fitted_effect_model",
             "cohort_decision_source",
             "transformation",
             "decision_contract",

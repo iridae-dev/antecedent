@@ -1124,6 +1124,23 @@ impl CompactExport {
         limits: &ExportLimits,
         expected_identity: &str,
     ) -> Result<Self, ExportRefusal> {
+        Self::consume_inner(bytes, limits, Some(expected_identity))
+    }
+
+    /// Validate a candidate compact model before a bundle binds its verified identity.
+    ///
+    /// # Errors
+    /// Malformed model declarations, mismatched payload digests or exceeded bounds.
+    #[doc(hidden)]
+    pub fn inspect_for_bundle(bytes: &[u8], limits: &ExportLimits) -> Result<Self, ExportRefusal> {
+        Self::consume_inner(bytes, limits, None)
+    }
+
+    fn consume_inner(
+        bytes: &[u8],
+        limits: &ExportLimits,
+        expected_identity: Option<&str>,
+    ) -> Result<Self, ExportRefusal> {
         if bytes.len() > limits.max_bytes {
             return Err(invalid(
                 antecedent_core::reason_details::compact_export::OVERSIZED,
@@ -1166,7 +1183,7 @@ impl CompactExport {
         }
         let body: CompactExportBody =
             from_cbor(section.as_bytes()).map_err(|error| io_refusal(&error))?;
-        verify_body(&body, limits, expected_identity)?;
+        verify_body(&body, limits, expected_identity.unwrap_or(&body.identity))?;
         Ok(Self { body })
     }
 

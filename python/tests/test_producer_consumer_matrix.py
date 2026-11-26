@@ -83,7 +83,15 @@ from antecedent import predictive_assessment as pa
 from antecedent import sensitivity_decision as sd
 from antecedent import sequential_evaluation as seqeval
 from antecedent import transported_response as trr
-from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
+from antecedent.compact_export import (
+    CompactExport,
+    CompactExportRefusal,
+    Intercept,
+    Linear,
+    Numeric,
+    Power,
+    Quantity,
+)
 from antecedent.errors import (
     CausalSerializationError,
     CausalTypeError,
@@ -2386,10 +2394,8 @@ def _check_transport_bundle(o: Objs) -> None:
 # ------------------------------------------------------------ fitted effect cohort decision source
 
 
-def _cohort_source() -> cd.CohortDecisionSource:
-    """``tau(z) = 2 + 0.5 z`` declared as a compact contrast model; cohort ``z = (-1, 0.5, 1)``
-    with weights ``(0.2, 0.3, 0.5)``, so the weighted cohort mean is ``2.225`` by hand."""
-    export = CompactExport.build(
+def _cohort_model(slope: float = 0.5) -> CompactExport:
+    return CompactExport.build(
         response=Quantity(
             "y",
             units="mmHg",
@@ -2399,16 +2405,23 @@ def _cohort_source() -> cd.CohortDecisionSource:
         ),
         inputs=[Numeric("z", -1.0, 1.0, units="1")],
         terms=[Intercept(), Linear("z")],
-        coefficients=[2.0, 0.5],
+        coefficients=[2.0, slope],
         covariance=[[0.04, -0.01], [-0.01, 0.09]],
     )
+
+
+def _cohort_source() -> cd.CohortDecisionSource:
+    """``tau(z) = 2 + 0.5 z`` declared as a compact contrast model; cohort ``z = (-1, 0.5, 1)``
+    with weights ``(0.2, 0.3, 0.5)``, so the weighted cohort mean is ``2.225`` by hand."""
     cohort = cd.CohortBinding(
         snapshot_id="clinic-2026-q1",
         population="target",
         columns={"z": [-1.0, 0.5, 1.0]},
         weights=[0.2, 0.3, 0.5],
     )
-    return cd.decision_source_from_compact_export(export, cohort=cohort, outcome_units="mmHg")
+    return cd.decision_source_from_compact_export(
+        _cohort_model(), cohort=cohort, outcome_units="mmHg"
+    )
 
 
 def _cohort_contract(source: cd.CohortDecisionSource) -> decision.Contract:
@@ -2496,6 +2509,50 @@ def _check_cohort_inverse(o: Objs) -> None:
 
 
 # -------------------------------------------------------------- bundle boundary (new rows)
+
+
+def _check_compact_model_bundle(o: Objs) -> None:
+    description = cb.describe_artifact("auto", o.compact)
+    assert description.kind == "compact_fitted_effect_model"
+    assert description.identity == o.compact.identity
+    export = _cohort_model()
+    assert export.evaluate({"z": 0.5}).point == pytest.approx(2.25)
+    with pytest.raises(CompactExportRefusal):
+        export.evaluate({"z": 1.5})
+    with pytest.raises(cb.CompositionBundleRefusal) as absence:
+        cb.require_compact_refit_inputs(export)
+    assert absence.value.detail == "composition_bundle.callback_unavailable"
+    contract = _cohort_contract(o.cohort)
+
+    def build(model: CompactExport) -> cb.Bundle:
+        return (
+            cb.Bundle.builder()
+            .add_artifact(model, node_id="model")
+            .add_artifact(o.cohort, node_id="cohort")
+            .add_artifact(contract, node_id="contract")
+            .add_artifact(cb.cohort_decision(contract, o.cohort), node_id="decision")
+            .connect("model", "cohort")
+            .connect("cohort", "decision")
+            .connect("contract", "decision")
+            .build()
+        )
+
+    def consume(bundle: cb.Bundle) -> cb.ConsumedBundle:
+        return require_success(
+            cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
+        )
+
+    bundle = build(export)
+    verified = consume(bundle)
+    verified.require_verified()
+    assert verified.node("model").facts["prediction"] == "retained_basis"
+    assert verified.value("cohort", "mean_contrast") == pytest.approx(2.225)
+    assert verified.value("decision", "treat.expected_utility") == pytest.approx(7.4)
+    compiled = require_success(cb.compile_cohort_decision_bundle_recomputation(bundle, "decision"))
+    receipt = require_success(compiled.execute())
+    assert any(node.node_id == "model" for node in receipt.dependencies)
+    swapped = consume(build(_cohort_model(1.5)))
+    assert isinstance(swapped.node("cohort").status, cb.Failed)
 
 
 def _check_cohort_bundle(o: Objs) -> None:
@@ -3514,6 +3571,7 @@ def _check_account_is_a_spread(o: Objs) -> None:
 CHECKS: dict[tuple[str, str], Check] = {
     ("native_response", "decision"): _check_native_decision,
     ("native_response", "inverse_query"): _check_native_inverse,
+    ("fitted_effect_model", "bundle_node"): _check_compact_model_bundle,
     ("retargeted_batch", "recalc_plan"): _check_retargeted_recalc,
     ("external_claim", "decision"): _check_claim_decision,
     ("external_claim", "inverse_query"): _check_claim_inverse,
@@ -3616,8 +3674,8 @@ def test_producer_consumer_matrix_declares_every_cell_once_and_counts_them() -> 
     cells = [status for row in STATUS.values() for status in row]
     assert len(cells) == len(PRODUCERS) * len(CONSUMERS) == 280
     assert cells.count("DIRECT") == 21
-    assert cells.count("ADAPTER") == 64
-    assert cells.count("REFUSED") == 195
+    assert cells.count("ADAPTER") == 65
+    assert cells.count("REFUSED") == 194
     assert set(cells) == {"DIRECT", "ADAPTER", "REFUSED"}
     # Every non-refused cell has a check; the only shared one is the recalc adapter.
     for producer in PRODUCERS:

@@ -130,6 +130,7 @@ NodeKind = Literal[
     "distribution",
     "delayed_entry_incidence_result",
     "counterfactual_transport_result",
+    "compact_fitted_effect_model",
     "cohort_decision_source",
     "transformation",
     "decision_contract",
@@ -181,6 +182,7 @@ NODE_KINDS: tuple[str, ...] = (
     "distribution",
     "delayed_entry_incidence_result",
     "counterfactual_transport_result",
+    "compact_fitted_effect_model",
     "cohort_decision_source",
     "transformation",
     "decision_contract",
@@ -207,6 +209,7 @@ EMBEDDABLE_KINDS: tuple[str, ...] = (
     "distribution",
     "delayed_entry_incidence_result",
     "counterfactual_transport_result",
+    "compact_fitted_effect_model",
     "cohort_decision_source",
     "decision_contract",
     "decision_result",
@@ -250,6 +253,7 @@ RecomputationRoute = Literal[
     "predictive_decision",
     "posterior_decision",
     "cohort_decision",
+    "require_compact_refit_inputs",
     "predictive_fit_decision",
 ]
 """The terminal a :class:`CompiledBundleRecomputation` executes live: a propagation chain, a
@@ -1432,6 +1436,18 @@ def detect_kind(data: object) -> str | None:
         CausalTypeError: ``data`` is neither container bytes nor an exporting object.
     """
     return _native.composition_detect_kind(_bytes(data))
+
+
+def require_compact_refit_inputs(model: object) -> None:
+    """Check that a compact model can replay its original fit.
+
+    Compact exports verify the prediction model, including its basis and support.
+    A refit request requires the original training data and learner declaration.
+
+    Raises:
+        CompositionBundleRefusal: the model or its refit dependencies cannot be verified.
+    """
+    raise_refusal(_native.composition_require_compact_refit(_bytes(model)), _refusal_type)
 
 
 def cohort_decision(

@@ -77,6 +77,93 @@ fn bundle(source: &CohortDecisionSource, source_bytes: &[u8]) -> CompositionBund
     builder.build().unwrap()
 }
 
+#[test]
+fn compact_prediction_replays_into_a_supported_cohort_and_names_missing_refit_inputs() {
+    use antecedent::analysis::composition::require_compact_model_refit_inputs;
+    use antecedent_contract::{QuantityRole, ScientificQuantity};
+    use antecedent_io_core::cohort_decision::RetainedEffectModel;
+    use antecedent_io_core::compact_export::{
+        CompactExport, ExportInput, ExportQuery, ExportSpec, InputSupport, TermSpec,
+    };
+    let observed = fixture();
+    let ctx = ExecutionContext::for_tests(91);
+    let quantity =
+        |id: &str, units: &str, role, regime: &str, functional: &str| ScientificQuantity {
+            variable_id: id.into(),
+            variable_name: id.into(),
+            role,
+            units: units.into(),
+            population_id: observed.cohort().population_id().into(),
+            regime_id: regime.into(),
+            horizon: 0,
+            functional_id: functional.into(),
+            conditioning: Vec::new(),
+            transform_id: "identity".into(),
+        };
+    let spec = ExportSpec {
+        response: quantity(
+            "y",
+            "mmHg",
+            QuantityRole::Outcome,
+            "contrast:do(t=1)-do(t=0)",
+            "conditional_mean_difference",
+        )
+        .into(),
+        inputs: vec![ExportInput {
+            quantity: quantity("z", "1", QuantityRole::Covariate, "observational", "feature")
+                .into(),
+            support: InputSupport::Range { lo: -1.0, hi: 1.0 },
+        }],
+        terms: vec![TermSpec::Intercept, TermSpec::Linear { quantity: "z".into() }],
+        coefficients: vec![2.0, 0.5],
+        covariance: vec![0.04, -0.01, -0.01, 0.09],
+        mask: Vec::new(),
+    };
+    let export = CompactExport::build(spec).unwrap();
+    assert!(
+        (export.evaluate(&ExportQuery::new().with_number("z", 0.5)).unwrap().point - 2.25).abs()
+            < 1e-12
+    );
+    assert!(export.evaluate(&ExportQuery::new().with_number("z", 1.5)).is_err());
+    let model_bytes = export.to_bytes("model").unwrap();
+    assert_eq!(
+        require_compact_model_refit_inputs(&model_bytes).unwrap_err().stage,
+        BundleStage::CallbackUnavailable,
+    );
+    let model = RetainedEffectModel::from_compact_export(&export).unwrap();
+    let cohort = CohortDecisionSource::build(
+        &model,
+        observed.cohort(),
+        "mmHg",
+        &CohortOptions::default(),
+        &ctx,
+    )
+    .unwrap();
+    let terminal_contract = contract(&cohort);
+    let terminal = cohort_decision_bytes(&terminal_contract, &cohort, "cohort-decision").unwrap();
+    let declaration =
+        DecisionContractArtifact::new(terminal_contract).unwrap().to_bytes("contract").unwrap();
+    let mut builder = BundleBuilder::new();
+    builder.add_detected_artifact(Some("model"), &model_bytes).unwrap();
+    builder.add_detected_artifact(Some("cohort"), &cohort.to_bytes("cohort").unwrap()).unwrap();
+    builder.add_detected_artifact(Some("decision"), &terminal).unwrap();
+    builder.add_detected_artifact(Some("contract"), &declaration).unwrap();
+    builder.connect("model", "cohort").unwrap();
+    builder.connect("cohort", "decision").unwrap();
+    builder.connect("contract", "decision").unwrap();
+    let graph = builder.build().unwrap();
+    let bytes = export_bundle(&graph, "compact-cohort").unwrap();
+    let replayed = consume(&bytes, graph.identity(), &SuppliedSources::default()).unwrap();
+    let mean = replayed.value("cohort", "mean_contrast").unwrap();
+    assert!((mean - 2.225).abs() < 1e-12);
+    assert!((replayed.value("decision", "treat.expected_utility").unwrap() - 0.9).abs() < 1e-12);
+    let receipt = compile_cohort_decision_bundle_recomputation(graph, "decision")
+        .unwrap()
+        .execute(&ctx)
+        .unwrap();
+    assert!(receipt.dependencies.iter().any(|dependency| dependency.node_id == "model"));
+}
+
 fn revised(source: &CohortDecisionSource, ctx: &ExecutionContext) -> CohortDecisionSource {
     let old = source.cohort();
     let cohort = CohortBinding::new(

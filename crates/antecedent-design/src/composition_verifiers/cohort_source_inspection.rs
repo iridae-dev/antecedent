@@ -79,9 +79,21 @@ impl NodeVerifier for CohortDecisionSourceVerifier {
         &self,
         _node_id: &str,
         bytes: &[u8],
-        _upstream: &[UpstreamNode<'_>],
+        upstream: &[UpstreamNode<'_>],
     ) -> Result<VerifiedNode, NodeFailure> {
         let inspected = inspect(bytes, &self.0)?;
+        if upstream.iter().filter(|node| node.kind == NodeKind::CompactFittedEffectModel).any(
+            |node| {
+                node.facts
+                    .get("model_identity")
+                    .is_none_or(|identity| inspected.facts.get("model_identity") != Some(identity))
+            },
+        ) {
+            return Err(failure(
+                BundleStage::SwappedEvidence,
+                "the cohort was not evaluated on the upstream compact model",
+            ));
+        }
         Ok(VerifiedNode {
             identity: inspected.identity,
             facts: inspected.facts,
