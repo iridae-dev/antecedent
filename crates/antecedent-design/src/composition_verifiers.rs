@@ -460,9 +460,6 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             };
             Ok(Inspected { identity: verified.identity, facts: verified.facts, values: verified.values, ..Inspected::default() })
         }
-        NodeKind::DelayedEntryIncidenceResult => incidence_source_inspection::inspect(bytes),
-        NodeKind::DelayedEntrySurvivalBandResult => incidence_source_inspection::inspect_band(bytes),
-        NodeKind::CompactFittedEffectModel => compact_model_inspection::inspect(bytes),
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
         NodeKind::DecisionResult => inspect_result(bytes),
@@ -1237,9 +1234,6 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::PagIdentification => Box::new(PagIdentificationVerifier),
         NodeKind::IntegratedScheduleEvidence => Box::new(crate::intervention_schedule_decision::artifact::EvidenceVerifier),
         NodeKind::IntegratedScheduleDecision => Box::new(crate::intervention_schedule_decision::artifact::DecisionVerifier(ExecutionContext::production_default(0))),
-        NodeKind::DelayedEntryIncidenceResult => Box::new(DelayedEntryIncidenceResultVerifier),
-        NodeKind::DelayedEntrySurvivalBandResult => Box::new(DelayedEntrySurvivalBandResultVerifier),
-        NodeKind::CompactFittedEffectModel => Box::new(CompactFittedEffectModelVerifier),
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),

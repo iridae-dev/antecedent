@@ -91,6 +91,7 @@ fn threshold_decision_consumes_exact_bounds_and_replays_under_both_identities() 
     assert_eq!(tied.reading, SurrogateThresholdReading::AllAtOrAbove);
     assert_eq!(tied.source, original.identity());
     assert_eq!(replayed.decide(4, 5).unwrap().reading, SurrogateThresholdReading::Ambiguous);
+    assert_eq!(replayed.identified_set_source().unwrap().claim_identity, original.identity());
 
     let mut builder = BundleBuilder::new();
     builder.add_detected_artifact(Some("surrogate"), &bytes).unwrap();

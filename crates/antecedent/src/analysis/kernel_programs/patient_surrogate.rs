@@ -47,7 +47,7 @@ impl Study {
         let identity = request.identity(ctx)?;
         let uncertainty = match &request.evidence {
             PatientSurrogateEvidence::PopulationJointLaw { .. } => UncertaintyReading::Envelope,
-            PatientSurrogateEvidence::CompletePatientSample { .. } => UncertaintyReading::None,
+            PatientSurrogateEvidence::CompletePatientSample { .. } => UncertaintyReading::Empirical,
         };
         let shape = KernelProgramShape {
             cell: ProgramCell::PatientSurrogateIdentification,

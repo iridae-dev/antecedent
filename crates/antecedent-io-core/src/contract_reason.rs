@@ -10,14 +10,6 @@ use std::sync::Arc;
 /// One independent reason [`crate::verify_contract_against_body`] can report.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ContractReason {
-    /// `longitudinal_regime_replay.resource`: the source replay exceeded its resource limits.
-    LongitudinalRegimeReplayResource,
-    /// `longitudinal_regime_replay.source`: the witness does not match the declared source.
-    LongitudinalRegimeReplaySource,
-    /// `dependencies.checked_longitudinal_regime_operation`: provide the endpoint table witness.
-    DependenciesCheckedLongitudinalRegimeOperation,
-    /// `body.longitudinal_regime`: durable source replay disagreed with the result.
-    BodyLongitudinalRegime,
     /// `body.estimate`.
     BodyEstimate,
     /// `body.frontdoor_assumption`.
@@ -28,9 +20,11 @@ pub enum ContractReason {
     BodyIdentificationProduct,
     /// `body.interventional_distribution`.
     BodyInterventionalDistribution,
+    /// `body.longitudinal_regime`: durable source replay disagreed with the result.
+    BodyLongitudinalRegime,
     /// `body.survival_incidence`: source replay disagreed with the retained interval or curve.
     BodySurvivalIncidence,
-    /// Survival band replay disagreed with the retained band.
+    /// `body.survival_band`: source replay disagreed with the delayed-entry band.
     BodySurvivalBand,
     /// `body.nested_counterfactual_estimate`.
     BodyNestedCounterfactualEstimate,
@@ -80,9 +74,11 @@ pub enum ContractReason {
     DependenciesCheckedBatchFamilyOperation,
     /// `dependencies.checked_estimator_operation`.
     DependenciesCheckedEstimatorOperation,
+    /// `dependencies.checked_longitudinal_regime_operation`: provide the endpoint table witness.
+    DependenciesCheckedLongitudinalRegimeOperation,
     /// `dependencies.checked_survival_incidence_operation`: provide the subject table witness.
     DependenciesCheckedSurvivalIncidenceOperation,
-    /// Provide the band subject table witness.
+    /// `dependencies.checked_survival_band_operation`: provide the band subject table witness.
     DependenciesCheckedSurvivalBandOperation,
     /// Conditional survival needs the original censoring training subjects.
     DependenciesCheckedSurvivalConditionalTraining,
@@ -143,6 +139,10 @@ pub enum ContractReason {
     /// `dependencies.checked_dr_replay_unsupported`: the declaration or the witnessed table lies
     /// outside the operation the replay supports.
     DependenciesCheckedDrReplayUnsupported,
+    /// `longitudinal_regime_replay.source`: the witness does not match the declared source.
+    LongitudinalRegimeReplaySource,
+    /// `longitudinal_regime_replay.resource`: the source replay exceeded its resource limits.
+    LongitudinalRegimeReplayResource,
     /// `survival_incidence_replay.source`: the witness differs from the declared source.
     SurvivalIncidenceReplaySource,
     /// `survival_incidence_replay.resource`: the witness or replay exceeded its bounds.
@@ -486,17 +486,12 @@ impl ContractReason {
     )]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::BodyLongitudinalRegime => "body.longitudinal_regime",
-            Self::DependenciesCheckedLongitudinalRegimeOperation => {
-                "dependencies.checked_longitudinal_regime_operation"
-            }
-            Self::LongitudinalRegimeReplaySource => "longitudinal_regime_replay.source",
-            Self::LongitudinalRegimeReplayResource => "longitudinal_regime_replay.resource",
             Self::BodyEstimate => "body.estimate",
             Self::BodyFrontdoorAssumption => "body.frontdoor_assumption",
             Self::BodyIdentificationQuery => "body.identification.query",
             Self::BodyIdentificationProduct => "body.identification_product",
             Self::BodyInterventionalDistribution => "body.interventional_distribution",
+            Self::BodyLongitudinalRegime => "body.longitudinal_regime",
             Self::BodySurvivalIncidence => "body.survival_incidence",
             Self::BodySurvivalBand => "body.survival_band",
             Self::BodyNestedCounterfactualEstimate => "body.nested_counterfactual_estimate",
@@ -531,11 +526,15 @@ impl ContractReason {
             Self::DependenciesCheckedEstimatorOperation => {
                 "dependencies.checked_estimator_operation"
             }
+            Self::DependenciesCheckedLongitudinalRegimeOperation => {
+                "dependencies.checked_longitudinal_regime_operation"
             }
             Self::DependenciesCheckedSurvivalIncidenceOperation => {
                 "dependencies.checked_survival_incidence_operation"
             }
-            Self::DependenciesCheckedSurvivalBandOperation => "dependencies.checked_survival_band_operation",
+            Self::DependenciesCheckedSurvivalBandOperation => {
+                "dependencies.checked_survival_band_operation"
+            }
             Self::DependenciesCheckedSurvivalConditionalTraining => {
                 "dependencies.checked_survival_conditional_training"
             }
@@ -608,6 +607,8 @@ impl ContractReason {
             Self::DependenciesCheckedDrReplayUnsupported => {
                 "dependencies.checked_dr_replay_unsupported"
             }
+            Self::LongitudinalRegimeReplaySource => "longitudinal_regime_replay.source",
+            Self::LongitudinalRegimeReplayResource => "longitudinal_regime_replay.resource",
             Self::SurvivalIncidenceReplaySource => "survival_incidence_replay.source",
             Self::SurvivalIncidenceReplayResource => "survival_incidence_replay.resource",
             Self::DependenciesCheckedDerivativeResponseOperation => {
@@ -917,10 +918,10 @@ impl ContractReason {
                 | Self::DependenciesCheckedBayesianDagAteOperation
                 | Self::DependenciesCheckedBatchFamilyOperation
                 | Self::DependenciesCheckedEstimatorOperation
+                | Self::DependenciesCheckedLongitudinalRegimeOperation
                 | Self::DependenciesCheckedSurvivalIncidenceOperation
                 | Self::DependenciesCheckedSurvivalBandOperation
                 | Self::DependenciesCheckedSurvivalConditionalTraining
-                | Self::DependenciesCheckedLongitudinalRegimeOperation
                 | Self::DependenciesCheckedBayesianBasisAteOperation
                 | Self::DependenciesCheckedBayesianBasisCateOperation
                 | Self::DependenciesCheckedBayesianRobustAteOperation
@@ -992,15 +993,12 @@ pub(crate) fn publish_reasons(reasons: impl IntoIterator<Item = ContractReason>)
 /// Every ledger code, in spelling order. The test locks the historical strings.
 #[cfg(test)]
 pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
-    ContractReason::LongitudinalRegimeReplayResource,
-    ContractReason::LongitudinalRegimeReplaySource,
-    ContractReason::DependenciesCheckedLongitudinalRegimeOperation,
-    ContractReason::BodyLongitudinalRegime,
     ContractReason::BodyEstimate,
     ContractReason::BodyFrontdoorAssumption,
     ContractReason::BodyIdentificationQuery,
     ContractReason::BodyIdentificationProduct,
     ContractReason::BodyInterventionalDistribution,
+    ContractReason::BodyLongitudinalRegime,
     ContractReason::BodySurvivalIncidence,
     ContractReason::BodySurvivalBand,
     ContractReason::BodyNestedCounterfactualEstimate,
@@ -1027,6 +1025,7 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedAttributionOperation,
     ContractReason::DependenciesCheckedBatchFamilyOperation,
     ContractReason::DependenciesCheckedEstimatorOperation,
+    ContractReason::DependenciesCheckedLongitudinalRegimeOperation,
     ContractReason::DependenciesCheckedSurvivalIncidenceOperation,
     ContractReason::DependenciesCheckedSurvivalBandOperation,
     ContractReason::DependenciesCheckedSurvivalConditionalTraining,
@@ -1056,6 +1055,8 @@ pub const ALL_CONTRACT_REASONS: &[ContractReason] = &[
     ContractReason::DependenciesCheckedDrReplayResource,
     ContractReason::DependenciesCheckedDrReplaySource,
     ContractReason::DependenciesCheckedDrReplayUnsupported,
+    ContractReason::LongitudinalRegimeReplaySource,
+    ContractReason::LongitudinalRegimeReplayResource,
     ContractReason::SurvivalIncidenceReplaySource,
     ContractReason::SurvivalIncidenceReplayResource,
     ContractReason::DependenciesCheckedGlmOperation,
