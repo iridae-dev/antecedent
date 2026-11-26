@@ -48,7 +48,6 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-
 from antecedent import _reason_details
 
 from . import _deprecation, _native, _retained
@@ -784,7 +783,6 @@ def _read_native_fit(summary: str, export: bytes, text: str) -> NativeEffectFit:
     )
 
 
-
 @dataclass(frozen=True, slots=True)
 class NativeCohortFitRun:
     """A native effect fit and the program that executed it."""
@@ -797,7 +795,10 @@ class CompiledNativeCohortFit:
     """An inspectable native linear-effect fit over retained training columns."""
 
     def __init__(
-        self, handle: _native.NativeCohortFitPlanHandle, payload: str, policy: Execution,
+        self,
+        handle: _native.NativeCohortFitPlanHandle,
+        payload: str,
+        policy: Execution,
     ) -> None:
         self._handle = handle
         self._payload = payload
@@ -823,7 +824,11 @@ class CompiledNativeCohortFit:
         payload, refusal = policy._call(
             self._handle.execute,
             **native_controls(
-                policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+                policy,
+                seed="seed",
+                threads="threads",
+                cancel="cancel",
+                memory="memory_bytes",
             ),
         )
         raise_refusal(refusal, CohortDecisionRefusal)
@@ -850,16 +855,27 @@ def compile_native_cohort_fit(
 ) -> CompiledNativeCohortFit:
     """Compile the ordered training columns and treatment contrast before fitting."""
     text = _native_fit_json(
-        outcome=outcome, treatment=treatment, features=features,
-        outcome_name=outcome_name, treatment_name=treatment_name, active=active, control=control,
-        outcome_units=outcome_units, population=population, feature_units=feature_units,
+        outcome=outcome,
+        treatment=treatment,
+        features=features,
+        outcome_name=outcome_name,
+        treatment_name=treatment_name,
+        active=active,
+        control=control,
+        outcome_units=outcome_units,
+        population=population,
+        feature_units=feature_units,
     )
     policy = resolve_execution(execution)
     handle, refusal = policy._call(
         _native.compile_native_cohort_fit,
         text,
         **native_controls(
-            policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+            policy,
+            seed="seed",
+            threads="threads",
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
     raise_refusal(refusal, CohortDecisionRefusal)
@@ -887,9 +903,16 @@ def fit_native_cohort_effect(
     or ignorable given exactly these modifiers; the outcome mean is assumed linear in them.
     """
     text = _native_fit_json(
-        outcome=outcome, treatment=treatment, features=features,
-        outcome_name=outcome_name, treatment_name=treatment_name, active=active, control=control,
-        outcome_units=outcome_units, population=population, feature_units=feature_units,
+        outcome=outcome,
+        treatment=treatment,
+        features=features,
+        outcome_name=outcome_name,
+        treatment_name=treatment_name,
+        active=active,
+        control=control,
+        outcome_units=outcome_units,
+        population=population,
+        feature_units=feature_units,
     )
     summary, export, refusal = _fit_native(text)
     if refusal is not None:

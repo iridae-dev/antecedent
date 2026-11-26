@@ -1552,7 +1552,11 @@ class CompiledCompactModelRefit:
         result, refusal = policy._call(
             self._handle.execute,
             **native_controls(
-                policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+                policy,
+                seed="seed",
+                threads="threads",
+                cancel="cancel",
+                memory="memory_bytes",
             ),
         )
         raise_refusal(refusal, _refusal_type)
@@ -1584,7 +1588,11 @@ def compile_compact_model_refit(
         _compact_refit_training(outcome, treatment, features),
         model_node=None if model_node is None else _name(model_node, "model_node"),
         **native_controls(
-            policy, seed="seed", threads="threads", cancel="cancel", memory="memory_bytes",
+            policy,
+            seed="seed",
+            threads="threads",
+            cancel="cancel",
+            memory="memory_bytes",
         ),
     )
     raise_refusal(refusal, _refusal_type)
@@ -1630,7 +1638,6 @@ def refit_compact_model(
         raise CausalValueError("native compact refit returned neither a result nor a refusal")
     identity, data = result
     return _read_refitted_model(identity, data)
-
 
 def cohort_decision(
     contract: Contract,

@@ -245,7 +245,11 @@ def test_native_and_compact_fit_program_receipts_preserve_the_shared_digest() ->
 
     fixture_path = (
         Path(__file__).resolve().parents[2]
-        / "crates" / "antecedent" / "tests" / "fixtures" / "native_cohort_fit_program.json"
+        / "crates"
+        / "antecedent"
+        / "tests"
+        / "fixtures"
+        / "native_cohort_fit_program.json"
     )
     fixture = json.loads(fixture_path.read_text())
     inputs = fixture["input"]
@@ -258,9 +262,11 @@ def test_native_and_compact_fit_program_receipts_preserve_the_shared_digest() ->
 
     training = {key: inputs[key] for key in ("outcome", "treatment", "features")}
     learner = "ols_hc3_treatment_by_basis"
-    refit = require_success(cb.compile_compact_model_refit(
-        run.fit, expected_identity=run.fit.identity, learner=learner, **training
-    ))
+    refit = require_success(
+        cb.compile_compact_model_refit(
+            run.fit, expected_identity=run.fit.identity, learner=learner, **training
+        )
+    )
     assert refit.plan_view()["route"] == "CompactModelRefit"
     reproduced = require_success(refit.execute())
     assert reproduced.program_identity == refit.program_identity == refit.plan_view()["identity"]
@@ -268,10 +274,15 @@ def test_native_and_compact_fit_program_receipts_preserve_the_shared_digest() ->
     assert reproduced.model.evaluate({"z": 0.5}).point == pytest.approx(2.75)
 
     bundle = cb.BundleBuilder().add_artifact(run.fit, node_id="native-model").build()
-    bundled = require_success(cb.compile_compact_model_refit(
-        bundle, expected_identity=bundle.identity, model_node="native-model",
-        learner=learner, **training,
-    ))
+    bundled = require_success(
+        cb.compile_compact_model_refit(
+            bundle,
+            expected_identity=bundle.identity,
+            model_node="native-model",
+            learner=learner,
+            **training,
+        )
+    )
     assert bundled.program_identity != refit.program_identity
     assert require_success(bundled.execute()).model.identity == run.fit.identity
 
