@@ -123,23 +123,37 @@ pub struct StudyRank {
     pub calibration: &'static str,
 }
 
-fn wider_compositions(
-    k: usize,
-    _n: u32,
-    index: usize,
-    left: u32,
-    slots: &mut [u32],
-    visit: &mut dyn FnMut(&[u32]) -> Result<(), ChoiceEvsiError>,
+/// Visit count vectors in lexicographic order with one heap buffer and no recursive stack.
+fn visit_compositions(
+    n: u32,
+    options: usize,
+    cancelled: &dyn Fn() -> bool,
+    mut visit: impl FnMut(&[u32]) -> Result<(), ChoiceEvsiError>,
 ) -> Result<(), ChoiceEvsiError> {
-    if index + 1 == k {
-        slots[index] = left;
-        return visit(slots);
+    let last = options - 1;
+    let mut counts = vec![0; options];
+    counts[last] = n;
+    loop {
+        if cancelled() {
+            return Err(ChoiceEvsiError::Cancelled);
+        }
+        visit(&counts)?;
+        let mut suffix = counts[last];
+        let mut pivot = None;
+        for i in (0..last).rev() {
+            if suffix > 0 {
+                pivot = Some(i);
+                break;
+            }
+            suffix += counts[i];
+        }
+        let Some(pivot) = pivot else {
+            return Ok(());
+        };
+        counts[pivot] += 1;
+        counts[pivot + 1..last].fill(0);
+        counts[last] = suffix - 1;
     }
-    for take in 0..=left {
-        slots[index] = take;
-        wider_compositions(k, _n, index + 1, left - take, slots, visit)?;
-    }
-    Ok(())
 }
 
 fn compositions(n: u32, k: usize) -> u64 {
@@ -162,42 +176,6 @@ fn best_value(values: &[f64], alpha: &[f64], counts: &[f64], total: f64) -> f64 
         .fold(f64::MIN, f64::max)
 }
 
-struct Enumeration<'a> {
-    alpha: &'a [f64],
-    values: &'a [f64],
-    base: f64,
-    post_total: f64,
-    counts: Vec<f64>,
-    acc: f64,
-    cancelled: &'a dyn Fn() -> bool,
-}
-
-impl Enumeration<'_> {
-    fn go(&mut self, i: usize, left: u32) -> Result<(), ChoiceEvsiError> {
-        if (self.cancelled)() {
-            return Err(ChoiceEvsiError::Cancelled);
-        }
-        if i + 1 == self.counts.len() {
-            self.counts[i] = f64::from(left);
-            let ln_p = self.base
-                + self
-                    .counts
-                    .iter()
-                    .zip(self.alpha)
-                    .map(|(c, a)| ln_gamma(a + c) - ln_gamma(c + 1.0))
-                    .sum::<f64>();
-            self.acc +=
-                ln_p.exp() * best_value(self.values, self.alpha, &self.counts, self.post_total);
-            return Ok(());
-        }
-        for c in 0..=left {
-            self.counts[i] = f64::from(c);
-            self.go(i + 1, left - c)?;
-        }
-        Ok(())
-    }
-}
-
 fn exact_evsi(
     alpha: &[f64],
     values: &[f64],
@@ -209,17 +187,22 @@ fn exact_evsi(
     let base = ln_gamma(nf + 1.0) + ln_gamma(a0)
         - ln_gamma(a0 + nf)
         - alpha.iter().map(|a| ln_gamma(*a)).sum::<f64>();
-    let mut walk = Enumeration {
-        alpha,
-        values,
-        base,
-        post_total: a0 + nf,
-        counts: vec![0.0; alpha.len()],
-        acc: 0.0,
-        cancelled,
-    };
-    walk.go(0, n)?;
-    Ok(walk.acc)
+    let mut counts = vec![0.0; alpha.len()];
+    let mut expected_value = 0.0;
+    visit_compositions(n, alpha.len(), cancelled, |observed| {
+        for (count, &value) in counts.iter_mut().zip(observed) {
+            *count = f64::from(value);
+        }
+        let ln_p = base
+            + counts
+                .iter()
+                .zip(alpha)
+                .map(|(c, a)| ln_gamma(a + c) - ln_gamma(c + 1.0))
+                .sum::<f64>();
+        expected_value += ln_p.exp() * best_value(values, alpha, &counts, a0 + nf);
+        Ok(())
+    })?;
+    Ok(expected_value)
 }
 
 fn monte_carlo_evsi(
@@ -542,18 +525,45 @@ mod resource_tests {
         assert_eq!(ranked.len(), 1);
         assert!(ranked[0].evsi.is_finite());
         let candidates: Vec<StudyCandidate> = (0..1025)
-            .map(|i| StudyCandidate {
-                label: format!("c{i}"),
-                observations: 1,
-                cost: f64::from(i),
-            })
+            .map(|i| StudyCandidate { label: format!("c{i}"), observations: 1, cost: f64::from(i) })
             .collect();
         let many = rank_studies(&[1.0, 1.0], &[1.0, 1.0], &candidates, 1).expect("1025 candidates");
         assert_eq!(many.len(), 1025);
     }
 }
 
-/// Rank studies of one new respondent who makes one or two repeated choices.
+const HIERARCHICAL_RANKING: &str = "hierarchical choice ranking of predictive count vectors";
+
+/// Quote one base summary and one posterior refit for every distinct predictive outcome.
+fn hierarchical_work(
+    options: usize,
+    respondents: &[Vec<u32>],
+    study_sizes: &std::collections::BTreeSet<u32>,
+) -> Option<u64> {
+    // The posterior's wide-option stick quadrature summarizes both the 8- and
+    // 12-node product rules. Each has one dimension per option.
+    let grid = if options > 3 {
+        let dims = u32::try_from(options).ok()?;
+        8_u64.checked_pow(dims)?.checked_add(12_u64.checked_pow(dims)?)?
+    } else {
+        1
+    };
+    let width = u64::try_from(options).ok()?.checked_mul(grid)?;
+    let rows = u64::try_from(respondents.len()).ok()?;
+    let observations = respondents
+        .iter()
+        .flatten()
+        .try_fold(0u64, |total, &count| total.checked_add(u64::from(count)))?;
+    let base = width.checked_mul(rows.max(1))?.checked_mul(observations.max(1))?;
+    let refit_width = width.checked_mul(rows.checked_add(1)?)?;
+    study_sizes.iter().try_fold(base, |work, &n| {
+        let outcomes = compositions(n, options);
+        let one_refit = refit_width.checked_mul(observations.checked_add(u64::from(n))?.max(1))?;
+        work.checked_add(outcomes.checked_mul(one_refit)?)
+    })
+}
+
+/// Rank studies of one new respondent who makes a declared number of repeated choices.
 ///
 /// Each predictive outcome is a complete respondent count vector. The hierarchical posterior is
 /// refitted for every outcome, retaining dependence within that respondent. The outcome mass is
@@ -580,10 +590,7 @@ pub fn rank_hierarchical_studies(
         || values.iter().any(|v| !v.is_finite())
         || candidates.is_empty()
         || candidates.iter().any(|c| {
-            c.label.trim().is_empty()
-                || c.observations == 0
-                || !c.cost.is_finite()
-                || c.cost < 0.0
+            c.label.trim().is_empty() || c.observations == 0 || !c.cost.is_finite() || c.cost < 0.0
         })
         || candidates
             .iter()
@@ -608,28 +615,20 @@ pub fn rank_hierarchical_studies(
         .and_then(|n| u64::try_from(n).ok())
         .ok_or_else(|| ChoiceEvsiError::Resource("hierarchical ranking size overflow".into()))?;
     let _lease = ctx.acquire_admission(0, cells).map_err(|error| admission_error(ctx, error))?;
-    let observations: u64 = candidates.iter().map(|c| u64::from(c.observations)).sum();
-    let Some(quoted) = u64::try_from(k)
-        .ok()
-        .and_then(|options| options.checked_mul(u64::try_from(respondents.len()).unwrap_or(u64::MAX).max(1)))
-        .and_then(|state| state.checked_mul(observations.max(1)))
-        .and_then(|state| state.checked_mul(u64::try_from(candidates.len()).unwrap_or(u64::MAX).max(1)))
-    else {
-        return Err(choice_budget(antecedent_stats::execution_quote::unrepresentable_quote(
-            "hierarchical choice ranking of options, studies, and observations",
-        )));
-    };
-    let Some(quote_bytes) = quoted.checked_mul(16) else {
-        return Err(choice_budget(antecedent_stats::execution_quote::unrepresentable_quote(
-            "hierarchical choice ranking of options, studies, and observations",
-        )));
-    };
+    let study_sizes = candidates.iter().map(|c| c.observations).collect();
+    let (quoted, quote_bytes) = hierarchical_work(k, respondents, &study_sizes)
+        .and_then(|work| work.checked_mul(16).map(|bytes| (work, bytes)))
+        .ok_or_else(|| {
+            choice_budget(antecedent_stats::execution_quote::unrepresentable_quote(
+                HIERARCHICAL_RANKING,
+            ))
+        })?;
     let _quote = antecedent_stats::execution_quote::admit_execution_quote(
         ctx,
         quoted.max(1),
         quoted,
         quote_bytes,
-        "hierarchical choice ranking of options, studies, and observations",
+        HIERARCHICAL_RANKING,
     )
     .map_err(choice_budget)?;
     let cancelled = || ctx.cancellation.is_cancelled();
@@ -646,80 +645,39 @@ pub fn rank_hierarchical_studies(
         .map_err(convert)?;
     let now = values.iter().zip(&base.mean).map(|(v, p)| v * p).fold(f64::NEG_INFINITY, f64::max);
     let mut cache = std::collections::BTreeMap::new();
-    for n in candidates.iter().map(|c| c.observations).collect::<std::collections::BTreeSet<_>>() {
+    for n in study_sizes {
         let mut gain = 0.0;
         let mut mass = 0.0;
         let mut count = 0u64;
         let mut quadrature_change = base.quadrature_error;
         let mut data = respondents.to_vec();
-        if k > 3 {
-            let mut slots = vec![0_u32; k];
-            wider_compositions(k, n, 0, n, &mut slots, &mut |observed| {
-                data.push(observed.to_vec());
-                let updated = HierarchicalChoicePosterior::new(prior, &data)
-                    .map_err(convert)?
-                    .summary(&cancelled)
-                    .map_err(convert)?;
-                data.pop();
-                quadrature_change = quadrature_change.max(updated.quadrature_error);
-                let log_mult = ln_gamma(f64::from(n) + 1.0)
-                    - observed.iter().map(|c| ln_gamma(f64::from(*c) + 1.0)).sum::<f64>();
-                let p = (updated.log_marginal_likelihood - base.log_marginal_likelihood + log_mult)
-                    .exp();
-                let value = values
-                    .iter()
-                    .zip(&updated.mean)
-                    .map(|(v, p)| v * p)
-                    .fold(f64::NEG_INFINITY, f64::max);
-                if !p.is_finite() || !value.is_finite() {
-                    return Err(ChoiceEvsiError::Invalid(
-                        "hierarchical predictive value is non-finite".into(),
-                    ));
-                }
-                mass += p;
-                gain += p * value;
-                count += 1;
-                Ok(())
-            })?;
-        }
-        for first in 0..=n {
-            if k > 3 {
-                break;
+        visit_compositions(n, k, &cancelled, |observed| {
+            data.push(observed.to_vec());
+            let updated = HierarchicalChoicePosterior::new(prior, &data)
+                .map_err(convert)?
+                .summary(&cancelled)
+                .map_err(convert)?;
+            data.pop();
+            quadrature_change = quadrature_change.max(updated.quadrature_error);
+            let log_mult = ln_gamma(f64::from(n) + 1.0)
+                - observed.iter().map(|c| ln_gamma(f64::from(*c) + 1.0)).sum::<f64>();
+            let p =
+                (updated.log_marginal_likelihood - base.log_marginal_likelihood + log_mult).exp();
+            let value = values
+                .iter()
+                .zip(&updated.mean)
+                .map(|(v, p)| v * p)
+                .fold(f64::NEG_INFINITY, f64::max);
+            if !p.is_finite() || !value.is_finite() {
+                return Err(ChoiceEvsiError::Invalid(
+                    "hierarchical predictive value is non-finite".into(),
+                ));
             }
-            for second in 0..=n - first {
-                if k == 2 && first + second != n {
-                    continue;
-                }
-                let mut observed = vec![first, second];
-                if k == 3 {
-                    observed.push(n - first - second);
-                }
-                data.push(observed.clone());
-                let updated = HierarchicalChoicePosterior::new(prior, &data)
-                    .map_err(convert)?
-                    .summary(&cancelled)
-                    .map_err(convert)?;
-                data.pop();
-                quadrature_change = quadrature_change.max(updated.quadrature_error);
-                let log_mult = ln_gamma(f64::from(n) + 1.0)
-                    - observed.iter().map(|c| ln_gamma(f64::from(*c) + 1.0)).sum::<f64>();
-                let p = (updated.log_marginal_likelihood - base.log_marginal_likelihood + log_mult)
-                    .exp();
-                let value = values
-                    .iter()
-                    .zip(&updated.mean)
-                    .map(|(v, p)| v * p)
-                    .fold(f64::NEG_INFINITY, f64::max);
-                if !p.is_finite() || !value.is_finite() {
-                    return Err(ChoiceEvsiError::Invalid(
-                        "hierarchical predictive value is non-finite".into(),
-                    ));
-                }
-                mass += p;
-                gain += p * value;
-                count += 1;
-            }
-        }
+            mass += p;
+            gain += p * value;
+            count += 1;
+            Ok(())
+        })?;
         if !mass.is_finite() || (mass - 1.0).abs() > 1e-5 {
             return Err(ChoiceEvsiError::Invalid(
                 "hierarchical predictive outcome mass did not resolve".into(),
@@ -768,6 +726,87 @@ pub fn rank_hierarchical_studies(
 mod hierarchical_reference_tests {
     use super::*;
     use antecedent_stats::adaptive_inference::HierarchicalChoicePrior;
+
+    #[test]
+    fn hierarchical_quote_counts_predictive_outcomes_before_entering() {
+        let prior = HierarchicalChoicePrior {
+            shapes: vec![1.0; 3],
+            log_concentration_mean: 1.0,
+            log_concentration_sd: 1.0,
+        };
+        let candidate = StudyCandidate { label: "many".into(), observations: 200_000, cost: 0.0 };
+        let respondents = [vec![2, 0, 0]];
+        let ctx = antecedent_core::ExecutionContext::for_tests(1).with_memory_limit(Some(64 << 20));
+        let failure =
+            rank_hierarchical_studies(&prior, &respondents, &[1.0; 3], &[candidate], &ctx);
+        let Err(ChoiceEvsiError::Budget { receipt, .. }) = failure else {
+            panic!("expected a pre-entry budget receipt, got {failure:?}");
+        };
+        // C(n+2, 2) vectors, each requiring one refit on two respondents.
+        let n = 200_000_u64;
+        let one_refit = 3 * 2 * (n + 2);
+        let expected_work = 3 * 2 + ((n + 1) * (n + 2) / 2) * one_refit;
+        assert_eq!(receipt.stop, antecedent_core::SearchStop::Memory);
+        assert_eq!(receipt.operations_limit as u64, expected_work);
+        assert_eq!(receipt.operations_consumed, None);
+        assert_eq!(receipt.unevaluated, [HIERARCHICAL_RANKING]);
+    }
+
+    #[test]
+    fn hierarchical_wide_grid_refuses_unrepresentable_work_before_recursing() {
+        let options = 100_000;
+        let prior = HierarchicalChoicePrior {
+            shapes: vec![1.0; options],
+            log_concentration_mean: 1.0,
+            log_concentration_sd: 1.0,
+        };
+        let mut respondent = vec![0; options];
+        respondent[0] = 2;
+        let candidate = StudyCandidate { label: "one".into(), observations: 1, cost: 0.0 };
+        let failure = rank_hierarchical_studies(
+            &prior,
+            &[respondent],
+            &vec![1.0; options],
+            &[candidate],
+            &antecedent_core::ExecutionContext::for_tests(1),
+        );
+        let Err(ChoiceEvsiError::Budget { receipt, .. }) = failure else {
+            panic!("expected an unrepresentable workload receipt, got {failure:?}");
+        };
+        assert_eq!(receipt.stop, antecedent_core::SearchStop::Operations);
+        assert_eq!(receipt.operations_consumed, None);
+    }
+
+    #[test]
+    fn predictive_compositions_are_stack_safe_and_visit_each_count_once() {
+        let mut visited = Vec::new();
+        visit_compositions(2, 4, &|| false, |counts| {
+            visited.push(counts.to_vec());
+            Ok(())
+        })
+        .unwrap();
+        let expected: Vec<_> = (0..=2)
+            .flat_map(|a| {
+                (0..=2).flat_map(move |b| {
+                    (0..=2).flat_map(move |c| {
+                        (0..=2)
+                            .filter_map(move |d| (a + b + c + d == 2).then_some(vec![a, b, c, d]))
+                    })
+                })
+            })
+            .collect();
+        assert_eq!(visited, expected);
+        let options = 100_000;
+        let mut accepted = 0;
+        let stop = visit_compositions(1, options, &|| false, |counts| {
+            assert_eq!(counts.iter().sum::<u32>(), 1);
+            assert_eq!(counts[options - 1 - accepted], 1);
+            accepted += 1;
+            if accepted == 2 { Err(ChoiceEvsiError::Cancelled) } else { Ok(()) }
+        });
+        assert!(matches!(stop, Err(ChoiceEvsiError::Cancelled)));
+        assert_eq!(accepted, 2);
+    }
 
     #[test]
     fn hierarchical_evsi_matches_independent_three_option_grid() {
