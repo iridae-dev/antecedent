@@ -3805,13 +3805,13 @@ status = "bound"
 python = "antecedent.composition_bundle.compile_cohort_decision_bundle_recomputation"
 
 [[entry]]
-rust = "antecedent::analysis::composition_cohort_decision::compile_counterfactual_transport_decision_bundle_recomputation"
+rust = "antecedent::analysis::composition::compile_counterfactual_transport_decision_bundle_recomputation"
 kind = "fn"
 status = "bound"
 python = "antecedent.composition_bundle.compile_counterfactual_transport_decision_bundle_recomputation"
 
 [[entry]]
-rust = "antecedent::analysis::composition_cohort_decision::consume_portable_counterfactual_transport_decision_bundle_recomputation"
+rust = "antecedent::analysis::composition::consume_portable_counterfactual_transport_decision_bundle_recomputation"
 kind = "fn"
 status = "bound"
 python = "antecedent.composition_bundle.consume_bundle_recomputation"
