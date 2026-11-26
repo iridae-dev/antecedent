@@ -73,6 +73,43 @@ fn equal_trial_and_joint_arm_summaries_allow_opposite_individual_surrogate_answe
 }
 
 #[test]
+fn retained_patient_artifact_binds_bytes_before_program_and_result() {
+    use antecedent::analysis::kernel_programs::patient_surrogate::StoredPatientSurrogate;
+    use antecedent_io::{IoError, RetainedArtifactIdentity};
+
+    let ctx = ExecutionContext::for_tests(16);
+    let plan = Study::compile_patient_surrogate(law([3, 0, 1, 0], [0, 0, 1, 3]), &ctx).unwrap();
+    let program = plan.lowered().identity();
+    let (bytes, result) = plan.export_with_identity("baseline", &ctx).unwrap();
+    let retained = RetainedArtifactIdentity::of_bytes(&bytes);
+    let decoded = StoredPatientSurrogate::decode_expecting(&bytes, &retained).unwrap();
+    assert_eq!(decoded.program, program);
+    let stored =
+        StoredPatientSurrogate::open_expecting(&bytes, program, result, &retained).unwrap();
+    stored.verify(program, &plan.execute(&ctx).unwrap()).unwrap();
+
+    let (relabeled, same_result) = plan.export_with_identity("follow-up", &ctx).unwrap();
+    assert_eq!(same_result, result);
+    assert_ne!(bytes, relabeled);
+    StoredPatientSurrogate::open(&relabeled, program, result).unwrap();
+    for candidate in [relabeled.as_slice(), b"invalid container".as_slice()] {
+        for read in [
+            StoredPatientSurrogate::decode_expecting(candidate, &retained),
+            StoredPatientSurrogate::open_expecting(candidate, program, result, &retained),
+        ] {
+            assert!(matches!(
+                read,
+                Err(E::Artifact(IoError::Refused { code: "external_binding_mismatch", .. }))
+            ));
+        }
+    }
+    assert!(matches!(
+        StoredPatientSurrogate::open_expecting(&bytes, program, program, &retained),
+        Err(E::ReplayMismatch)
+    ));
+}
+
+#[test]
 fn threshold_decision_consumes_exact_bounds_and_replays_under_both_identities() {
     let ctx = ExecutionContext::for_tests(16);
     let input = law([3, 0, 1, 0], [0, 0, 1, 3]);

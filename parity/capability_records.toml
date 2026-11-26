@@ -26876,10 +26876,10 @@ wire_changes = ["patient_surrogate_identification_v1 is an additive versioned ar
 compatibility = "Existing trial-level surrogate mappings keep their existing targets and contracts."
 search = false
 bounds = { cancellation = true, memory_limit = "ExecutionContext.admission", max_patients = 100000, max_artifact_bytes = 16777216 }
-surface = ["crates/antecedent/src/analysis/kernel_programs/patient_surrogate.rs", "python/antecedent/patient_surrogate.py"]
+surface = ["python/antecedent/patient_surrogate.py"]
 surface_pyo3 = ["python/src/patient_surrogate_api.rs"]
-surface_rust = ["crates/antecedent-identify/src/principal_surrogate.rs", "crates/antecedent-io-core/src/patient_surrogate.rs"]
-surface_values = ["CompiledPatientSurrogate", "PatientSurrogateDesign", "PatientSurrogateEvidence", "PatientSurrogateRequest", "PatientSurrogateResult", "SurrogateThresholdDecision", "PopulationJointSurrogateLaw", "SurrogatePatientSample", "ObservedSurrogatePatient"]
+surface_rust = ["crates/antecedent/src/analysis/kernel_programs/patient_surrogate.rs", "crates/antecedent-identify/src/principal_surrogate.rs", "crates/antecedent-io-core/src/patient_surrogate.rs"]
+surface_values = ["CompiledPatientSurrogate", "PatientSurrogateDesign", "PatientSurrogateEvidence", "PatientSurrogateRequest", "PatientSurrogateResult", "SurrogateThresholdDecision", "PopulationJointSurrogateLaw", "SurrogatePatientSample", "ObservedSurrogatePatient", "PatientSurrogateProgramError", "PatientSurrogateError", "PatientSurrogateReading", "PrincipalSurrogateBounds", "PrincipalSurrogateError", "StoredPatientSurrogate", "SurrogateThresholdReading", "PatientSurrogateRefusal", "PatientSurrogatePlanHandle", "PatientSurrogateResultHandle"]
 refusals = [
   { detail = "patient_surrogate.declaration" },
   { detail = "patient_surrogate.empty_stratum" },
@@ -26891,11 +26891,12 @@ refusals = [
   { detail = "patient_surrogate.not_supported" },
 ]
 routes = [
-  { name = "antecedent.identify.compile_patient_surrogate", stage = "identify", status = "supported", claim = "none", covers = ["patient_surrogate_compile", "monotone_principal_surrogate_bounds", "CompiledPatientSurrogate.execute"] },
-  { name = "antecedent.identify.consume_patient_surrogate", stage = "consume", status = "supported", claim = "none", covers = ["patient_surrogate_consume", "CompiledPatientSurrogate.export"] },
-  { name = "antecedent.patient_surrogate.PatientSurrogateResult.decide", stage = "evaluate", status = "supported", claim = "none", covers = ["PatientSurrogateResult.point", "PatientSurrogateResult.identified_set_source"] },
+  { name = "antecedent.identify.compile_patient_surrogate", stage = "identify", status = "supported", claim = "none", covers = ["patient_surrogate_compile", "monotone_principal_surrogate_bounds", "CompiledPatientSurrogate.execute", "PatientSurrogateRequest.evaluate", "PatientSurrogatePlanHandle.execute"] },
+  { name = "antecedent.identify.consume_patient_surrogate", stage = "consume", status = "supported", claim = "none", covers = ["patient_surrogate_consume", "CompiledPatientSurrogate.export", "CompiledPatientSurrogate.export_with_identity", "PatientSurrogatePlanHandle.export", "PatientSurrogateRequest.export", "StoredPatientSurrogate.decode", "StoredPatientSurrogate.decode_expecting", "StoredPatientSurrogate.open", "StoredPatientSurrogate.open_expecting", "StoredPatientSurrogate.verify"] },
+  { name = "antecedent.patient_surrogate.PatientSurrogateResult.decide", stage = "evaluate", status = "supported", claim = "none", covers = ["PatientSurrogateResult.point", "PatientSurrogateResult.identified_set_source", "PatientSurrogateResultHandle.point", "PatientSurrogateResultHandle.decide"] },
 ]
 fixtures = [
+  { id = "identify.patient_surrogate.retained_bytes.artifact", role = "artifact", intent = "Verify the retained bytes before decoding or accepting the expected causal program and result. Replaying the same law with a different artifact label preserves the scientific result but changes the byte identity.", evidence_test = "crates/antecedent/tests/patient_surrogate.rs", evidence_assertion = "retained_patient_artifact_binds_bytes_before_program_and_result" },
   { id = "identify.patient_surrogate.identical_margins.positive", role = "positive", intent = "The joint arm marginals allow both zero and one as the individual-level principal-surrogate answer under the same observed data and monotonicity.", evidence_test = "crates/antecedent/tests/patient_surrogate.rs", evidence_assertion = "equal_trial_and_joint_arm_summaries_allow_opposite_individual_surrogate_answers" },
   { id = "identify.patient_surrogate.exhaustive_couplings.truth", role = "truth", intent = "Enumerate every four-patient latent coupling with monotone surrogates and compare the exact extrema within each joint-margin equivalence class, including empty and singleton strata.", evidence_test = "crates/antecedent-identify/src/principal_surrogate.rs", evidence_assertion = "independent_exhaustive_monotone_surrogate_couplings" },
   { id = "identify.patient_surrogate.sample_reading.negative", role = "negative", intent = "A deterministic empirical interval supplies neither a population point nor a population-threshold decision. Incomplete follow-up and zero improver mass refuse.", evidence_test = "crates/antecedent/tests/patient_surrogate.rs", evidence_assertion = "empirical_joint_counts_cannot_license_a_population_point_or_decision" },
