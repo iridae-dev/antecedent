@@ -2124,7 +2124,7 @@ routes = [
   { route = "antecedent.composition.cohort_decision_bytes", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.compile_cohort_decision_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.consume_portable_cohort_decision_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
-  { route = "antecedent.composition.select_ledger_pooled_result", stage = "bind", status = "supported", claim = "point_only" },
+  { route = "antecedent.composition.select_ledger_pooled_result", stage = "prepare", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.ledger_pooled_decision_bytes", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.compile_ledger_pooled_decision_bundle_recomputation", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.composition.consume_portable_ledger_pooled_decision_bundle_recomputation", stage = "consume", status = "supported", claim = "point_only" },
