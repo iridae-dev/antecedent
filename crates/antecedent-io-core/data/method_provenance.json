@@ -2474,13 +2474,13 @@
     "A node-level failure does not refuse the bundle: the node is reported failed at a named stage and the rest of the bundle keeps its inspected result. Graph defects (blank or repeated node, dangling or repeated edge, self-dependency, cycle) and a digest that differs from its recomputation share the edge_digest_mismatch stage.",
     "A bridge image with declared parents requires each parent to pass its own bundle verification. The embedded image verifier reconstructs the input and compares each parent with the retained source identity. The generic bind check permits new output coordinates only for that exact source edge. Every other binding remains checked.",
     "The cohort source node delegates to the cohort artifact reader. Its affine decision compiler requires the cohort and contract as embedded parents and binds the terminal to the full cohort source identity. Replay rebuilds the cohort mean and scores the complete decision under the retained bundle and program identities.",
-    "An exact or sampled plug-in counterfactual transport result is read by its own validating consumer. Its target event probability supplies an affine decision and retains the transport premises, target population, evidence snapshot and sampled construction where present.",
+    "An exact or sampled plug-in counterfactual transport result is read by its own validating consumer. Its target event probability supplies an affine decision, with transport premises, target population, evidence snapshot and sampled construction retained. The shared affine compiler binds and replays the terminal dependency closure and compares the reproduced portable receipt. The sampled plug-in contributes a mean only.",
     "A compact fitted-effect node validates the stored prediction basis, coefficients, covariance, feature support and mask. A retained cohort can consume the model under its recomputed identity. Refitting requires the original training data and learner declaration.",
     "Delayed-entry incidence and survival-band nodes require the matching raw subject table to numerically replay the interval or band. The patient surrogate node delegates to its finite coupling-bounds reader.",
     "The integrated schedule terminal accepts replayed source, target and declaration products under their compiled child identities. Reference declarations without numerical replay do not supply those products.",
     "The ledger node delegates to the evidence ledger reader. A separate pool selection verifies its result, operation, retained synthesis input and value digest, and active standing against the replayed ledger. The affine terminal reads that branch's dependency closure; a stale sibling does not block the valid branch. Its scientific quantity remains caller-declared."
    ],
-   "digest": "2da619e127666aa4da5c036920d44a128b5261ed1fd937ca2bb838597cff3162",
+   "digest": "9e11944a911a377c467a659c59a33bb4b1e0bdef066b33f1dea974220cb6e53f",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
@@ -2511,6 +2511,7 @@
     "scientific_bridge.distribution_bridges"
    ],
    "deviations": [
+    "The facade exposes the shared affine compiler for a transport result and its bound decision terminal. The source reader and the terminal verifier retain the transport-specific numerical replay.",
     "The facade exports the compiled compact-model refit handle. Its compiler binds the learner, original ordered training snapshot and compact identity. Execution delegates to the controlled OLS/HC3 replay and checks that it reproduces the retained model.",
     "Claim policy: point-only. The acceptance composes supported routes and checks their hand-derived values and refusals; it adds no source, no estimator and no interval or coverage claim. Every standard error, p-value, interval and Monte Carlo error inside a composed artifact is a diagnostic with calibration not_measured.",
     "The Python native input is obtained through an actual checked fit and opaque producer-issued claim. The direct composition adapter uses the retained execution record; reconstructed metadata and manually copied means cannot issue native authority.",
@@ -2519,7 +2520,7 @@
     "The design ranking is bound to the joint law only by its source digest; the acceptance checks the digest binding and the hand-derived EVPI 1/8, EVSI 1/16 and net values 0.0425 and 0.0125, not any deeper link between the two artifacts.",
     "Independence is declared, not inferred: E1 and E2 are declared independent, N and E2 share data (registry 7), and unknown dependence is never read as independence."
    ],
-   "digest": "448ffbe1570fbf3665e6670cb38f4eab7acb9e84dbf97618f8efb2a87a571e1a",
+   "digest": "a170ccefa69281c6a80c4f51d4c0d9a5fbbe76648cb2a87dc9509b6d384a6e5b",
    "id": "composition.multi_source",
    "review": "none",
    "scope_limits": [],
@@ -2774,13 +2775,13 @@
    "deviations": [
     "Each verifier establishes that its artifact decodes, recomputes its own identity and agrees with its neighbours on declared binding facts. Any causal or uncertainty support comes from the relevant compiled route and its underlying consumer.",
     "External mean decisions are point-only attested: an external claim publishes law 'mean_only' and trust 'externally_attested', upgraded to 'verified_extension' only when the artifact retains its exact-request verification receipt. A mean decision is evaluated only from the claim's finite response grid and refuses what a mean cannot answer.",
-    "The counterfactual fixture gives both actions the transport coordinate. The hold action reads it with zero weight. The fixture checks the include action against the enumerated probability after portable consumption and checks that quantile evaluation refuses both the exact and sampled mean sources.",
+    "The counterfactual fixture gives both actions the transport coordinate. The hold action reads it with zero weight. The fixture checks the include action against the enumerated probability after portable consumption and checks that quantile evaluation refuses both the exact and sampled mean sources. Both variants compile and replay their affine receipts, and cancellation and insufficient admission produce distinct stages.",
     "Joint-draw decisions retain the aligned-law requirement: only a joint distribution with aligned draws publishes the joint law, a decision whose functional needs it publishes requires_law, and the dependent node fails at unsupported_law over a mean-only or marginal-draw upstream.",
     "A verifier decodes through the artifact's own consumer but cannot retain an identity independently of the bundle: inside a bundle the retained identity is the node's declared identity, which the Merkle chain covers and the consumer's retained bundle identity anchors. A verifier refuses a node whose recomputed identity differs, and a decision result is checked against the contract and the sources upstream of it, so replacing either with a resealed, self-consistent artifact fails the dependent node.",
     "Embedded kinds with no verifier (a causal contract, an attestation, quantity coordinates, a transformation) fail as unknown_node_kind and must travel as reference nodes; they are never verified by default. A recalculation receipt exposes historical snapshot and score bindings as unverified facts. This inspection does not rerun its historical operations.",
     "Ordinary reference nodes pass by matching a supplied source. A registered ledger verifier can replay a catalog ledger from matched bytes before a dependent pool consumes its checked values."
    ],
-   "digest": "c03b1bc2980e887c73832b5369436a6cc4db5d841b34f0f5910208230fd5bc20",
+   "digest": "00d3da26953ed3223fb5445bf683ed278e4df6958e206eca3fcecef816a38fad",
    "id": "composition.verifiers",
    "review": "none",
    "scope_limits": [],
