@@ -598,9 +598,12 @@ def test_fixed_sampling_bridge_replays_mapped_replicates_and_preserves_law(meani
 def test_trial_bootstrap_replays_source_and_map_on_the_same_trials(tmp_path):
     from antecedent import bridge_transport_decision as btd
     from antecedent import composition_bundle as cb
+    from antecedent import load
     from antecedent.execution import Execution
 
-    trials = [(float(i), i + i**2 / 48.0) for i in range(24)]
+    # A source resample's exact surrogate sum encodes each sampled trial's count
+    # in base 16. Eight trial draws cannot carry a digit into the next place.
+    trials = [(16.0**i, i + i**2 / 4.0) for i in range(8)]
     declaration = contract(
         uncertain=False,
         value_kind="bootstrap",
@@ -614,6 +617,27 @@ def test_trial_bootstrap_replays_source_and_map_on_the_same_trials(tmp_path):
     assert compiled.unit_support()["unit"] == "scientific_bridge.distribution_bridges"
     bridged = require_success(compiled.execute())
     assert require_success(prepared.derive(source, seed=515)).claim_id == bridged.claim_id
+
+    def terminal_centroid(surrogate_mean):
+        packed = int(len(trials) * surrogate_mean)
+        assert packed == len(trials) * surrogate_mean
+        counts = []
+        for _ in trials:
+            packed, count = divmod(packed, 16)
+            counts.append(count)
+        assert packed == 0 and sum(counts) == len(trials)
+        return sum(count * y for count, (_, y) in zip(counts, trials, strict=True)) / len(trials)
+
+    # OLS with an intercept sends the centroid of its own resample to the terminal
+    # centroid. Decode it directly from the input means, without using the fitted map.
+    source_rows = np.asarray(source)
+    expected = np.array([terminal_centroid(mean) for mean in source_rows[:, 0]])
+    mapped = bridged.distribution()
+    np.testing.assert_allclose(np.asarray(mapped)[:, 0], expected, rtol=1e-12, atol=1e-12)
+    assert mapped.identity == replace(source.identity, quantities=(TARGET,))
+    assert bridged.value_kind == "bootstrap"
+    assert bridged.calibration == "not_measured"
+    assert bridged.units == TARGET.units
     parts = bridged.chain_stage("fit")
     squared = require_success(
         pc.propagate(
@@ -622,9 +646,32 @@ def test_trial_bootstrap_replays_source_and_map_on_the_same_trials(tmp_path):
             output="squared_effect",
         )
     )
-    reference = np.square(np.asarray(bridged.distribution())[:, 0])
-    assert squared.stage("squared_effect").value("variance") == pytest.approx(reference.var(ddof=1))
+    reference = np.square(expected)
+    nonlinear = squared.stage("squared_effect")
+    assert nonlinear.value("mean") == pytest.approx(reference.mean())
+    assert nonlinear.value("variance") == pytest.approx(reference.var(ddof=1))
+    assert nonlinear.value("mean") > expected.mean() ** 2
+
     terminal = bridged.export("refitted-trial-terminal")
+    assert terminal.expectation is not None
+    reopened = require_success(load(terminal, expected=terminal.expectation)).claim
+    assert reopened.identities == bridged.identities
+    assert reopened.value_kind == bridged.value_kind
+    assert reopened.distribution().identity == mapped.identity
+    np.testing.assert_array_equal(np.asarray(reopened.distribution()), np.asarray(mapped))
+
+    # Re-pair the same source values under the same declared stream and provenance.
+    # A position-sensitive proof must refuse even though the marginal law is unchanged.
+    rotated = JointDistributionArtifact(source.identity, np.roll(source_rows, 1, axis=0))
+    assert rotated.identity == source.identity
+    re_paired = prepared.compile_sampling(rotated, seed=515)
+    assert re_paired.program_identity != compiled.program_identity
+    refusal = refused(
+        lambda: require_success(re_paired.execute()),
+        "scientific_bridge_invalid",
+        reason_details.scientific_bridge.DRAWS_UNUSABLE,
+    )
+    assert "differs from the mean of its declared validation-trial resample" in refusal.remedy
     bundle = (
         cb.Bundle.builder()
         .add_artifact("distribution", bytes(source.export("trial-source")), node_id="source")
@@ -668,6 +715,36 @@ def test_trial_bootstrap_replays_source_and_map_on_the_same_trials(tmp_path):
     assert loaded.stdout.strip() == terminal.expectation.identity
     with pytest.raises(ScientificBridgeRefusal):
         require_success(prepared.derive(source, seed=514))
+
+
+def test_compiled_independent_trial_refits_preserve_bootstrap_and_refuse_extrapolation():
+    trials = [(float(i), i + i**2 / 48.0) for i in range(24)]
+    declaration = contract(
+        uncertain=False,
+        value_kind="bootstrap",
+        mapping=sb.TrialLevelMapping(trials, min_trials=5, min_r_squared=0.0),
+        source_dependence=sb.SourceDependence.independent("disjoint source and validation trials"),
+    )
+    template = table(199, semantic="bootstrap")
+    rows = np.array(template, copy=True)
+    rows[:, 0] = 12.0
+    source = JointDistributionArtifact(template.identity, rows)
+    prepared = sb.prepare_distribution_bridge(declaration)
+    bridged = require_success(prepared.compile_sampling(source, seed=515).execute())
+    assert bridged.source_dependence == declaration.source_dependence
+    mapped = bridged.distribution()
+    assert mapped.identity == replace(source.identity, quantities=(TARGET, COST))
+    # The source coordinate is constant, so variation comes from the validation refits.
+    assert np.ptp(np.asarray(mapped)[:, 0]) > 0.0
+    np.testing.assert_array_equal(np.asarray(mapped)[:, 1], rows[:, 1])
+
+    rows[0, 0] = -0.5
+    outside = JointDistributionArtifact(template.identity, rows)
+    refused(
+        lambda: require_success(prepared.compile_sampling(outside, seed=515).execute()),
+        "bridge_mapping_not_supported",
+        reason_details.scientific_bridge.DRAWS_OUTSIDE_DOMAIN,
+    )
 
 
 def test_identified_image_bounds_flow_into_the_decision_and_replay(tmp_path):

@@ -862,15 +862,48 @@ fn compiled_sampling_bridge_maps_every_replicate_and_obeys_resource_controls() {
     let mut declaration = contract(BridgeMapping::Affine { intercept: 3., slope: -2. }, None, None);
     declaration.source_value = ValueKind::Bootstrap;
     declaration.target_value = ValueKind::Bootstrap;
+    let target =
+        antecedent_io::quantity_wire::ScientificQuantityWire::from(&declaration.target.quantity);
     let source = draws_table(64, 2., 0.5, DistributionMeaningWire::Bootstrap);
+    let weights: Vec<f64> = (1..=64).map(f64::from).collect();
+    let mut metadata = source.metadata().clone();
+    metadata.weights = Some(weights.clone());
+    let source = DistributionArtifact::new(metadata, source.draws().to_vec()).unwrap();
     let bridge = PreparedScientificBridgeDistribution::prepare(declaration).unwrap();
     let plan = bridge.compile_sampling(source.clone(), None, 13, &ctx).unwrap();
+    assert_eq!(plan.plan_view().route().as_str(), "SamplingDistributionBridge");
+    assert!(plan.plan_view().unit_support().is_some());
     let live = plan.execute(&ctx).unwrap();
     for (before, after) in
         source.draws().chunks_exact(2).zip(live.distribution().draws().chunks_exact(2))
     {
         assert_eq!(after, &[3. - 2. * before[0], before[1]]);
     }
+    let expected = source
+        .draws()
+        .chunks_exact(2)
+        .zip(&weights)
+        .map(|(before, weight)| weight * (3. - 2. * before[0]))
+        .sum::<f64>()
+        / weights.iter().sum::<f64>();
+    assert!((live.mean() - expected).abs() < 1e-12);
+    let mapped = live.distribution();
+    assert_eq!(mapped.semantic(), DistributionMeaningWire::Bootstrap);
+    assert_eq!(mapped.metadata().identity.quantities[0], target);
+    assert_eq!(mapped.metadata().weights, source.metadata().weights);
+    assert_eq!(mapped.metadata().calibration, DistributionCalibration::NotMeasured);
+    assert_eq!(live.claim().alignment_identity, source.alignment_identity().unwrap());
+
+    let artifact = live.export("compiled-sampling-bridge").unwrap();
+    let replay =
+        consume_scientific_bridge_distribution_artifact(&artifact.bytes, Some(&artifact.identity))
+            .unwrap();
+    assert_eq!(replay.identity, artifact.identity);
+    assert_eq!(replay.bridged.claim().value_kind, ValueKind::Bootstrap);
+    assert_eq!(replay.bridged.claim().draws_digest, live.claim().draws_digest);
+    assert_eq!(replay.bridged.claim().source_claim_id, live.claim().source_claim_id);
+    assert_eq!(replay.bridged.distribution().metadata(), mapped.metadata());
+    assert_eq!(replay.bridged.distribution().draws(), mapped.draws());
     assert!(plan.execute(&ctx.clone().with_memory_limit(Some(1))).is_err());
     let mut stop = ctx.clone();
     stop.cancellation = antecedent_core::CancellationToken::cancel_after_checks(9);

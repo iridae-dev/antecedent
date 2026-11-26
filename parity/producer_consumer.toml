@@ -3002,9 +3002,17 @@ evidence_assertion = "test_fixed_sampling_bridge_replays_mapped_replicates_and_p
 producer = "scientific_bridge_sampling_law"
 consumer = "scientific_bridge_sampling_replay"
 status = "DIRECT"
-detail = "A trial bootstrap refits the mapping and source jointly. Its aligned squares reproduce the propagated variance, and a fresh consumer reproduces the terminal identity."
+detail = "Independent decoding of each joint trial resample reproduces every mapped row and the nonlinear propagated mean and variance. Re-pairing the same dependent rows refuses, and a fresh consumer reproduces the retained sampling meaning, coordinate, provenance, and terminal identity."
 evidence_test = "python/tests/test_scientific_bridge_draws.py"
 evidence_assertion = "test_trial_bootstrap_replays_source_and_map_on_the_same_trials"
+
+[[rust_cell]]
+producer = "scientific_bridge_sampling_law"
+consumer = "scientific_bridge_sampling_replay"
+status = "DIRECT"
+detail = "Independent validation refits vary the mapped value while a constant source coordinate and the sibling column remain fixed; the compiler refuses any input beyond the observed map domain."
+evidence_test = "python/tests/test_scientific_bridge_draws.py"
+evidence_assertion = "test_compiled_independent_trial_refits_preserve_bootstrap_and_refuse_extrapolation"
 
 [[rust_cell]]
 producer = "scientific_bridge_sampling_law"
