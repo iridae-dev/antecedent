@@ -5,7 +5,7 @@
 //! native layer holds the search, constraints, standing label, held-out refusal and replayable
 //! record; the Python object only supplies paths.
 use antecedent::analysis::input_decision_programs::{
-    TerminalError, compile_adaptive_policy_search,
+    compile_adaptive_policy_search, TerminalError,
 };
 use antecedent::design::{
     AdaptivePolicyFamily, AdaptivePolicySearchError, ChanceBound, DrawSplit, HeldOutDesign,
@@ -16,7 +16,7 @@ use antecedent::design::{
 use antecedent::gcm::{ModelPolicySource, ModelRolloutDesign, StageUtility};
 use antecedent::prelude::VariableId;
 use pyo3::prelude::*;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::Arc;
 
 use crate::PyCancellationToken;
@@ -546,11 +546,12 @@ fn run_config(
 #[pyfunction]
 #[pyo3(signature = (config_json, source, cancel=None))]
 fn adaptive_policy_search(
+    py: Python<'_>,
     config_json: &str,
     source: Py<PyAny>,
     cancel: Option<PyCancellationToken>,
 ) -> PyResult<String> {
-    crate::catch_ffi(|| {
+    crate::detach_catch(py, move || {
         crate::bridge::check_declared_size(config_json, MAX_CONFIG_BYTES, "policy search config")?;
         let config: Value = serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
         run_config(&config, &[], &PySource::bind(source)?, cancel)
@@ -571,18 +572,21 @@ impl crate::gcm_api::PyFittedGcm {
     #[pyo3(signature = (config_json, cancel=None))]
     fn optimize_adaptive_policy(
         &self,
+        py: Python<'_>,
         config_json: &str,
         cancel: Option<PyCancellationToken>,
     ) -> PyResult<String> {
-        crate::catch_ffi(|| {
+        let fitted = Arc::clone(&self.inner);
+        let names = self.names.to_vec();
+        let config_json = config_json.to_owned();
+        crate::detach_catch(py, move || {
             crate::bridge::check_declared_size(
-                config_json,
+                &config_json,
                 MAX_CONFIG_BYTES,
                 "policy search config",
             )?;
             let config: Value =
-                serde_json::from_str(config_json).map_err(|e| bad(e.to_string()))?;
-            let names: Vec<String> = self.names.to_vec();
+                serde_json::from_str(&config_json).map_err(|e| bad(e.to_string()))?;
             let spec = config.get("model_source").ok_or_else(|| bad("model_source is required"))?;
             let var = |key: &str| variable_of(spec, key, &names);
             let utility = spec.get("utility").cloned().unwrap_or(Value::Null);
@@ -647,7 +651,7 @@ impl crate::gcm_api::PyFittedGcm {
                 "fitted structural model; identification of the policy effect not established",
             );
             let source = ModelPolicySource::new(
-                vec![Arc::new(self.inner.model.clone())],
+                vec![Arc::new(fitted.model.clone())],
                 var("action")?,
                 stage,
                 design,

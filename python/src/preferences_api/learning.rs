@@ -10,26 +10,26 @@
 use antecedent::analysis::native_claims::NativeDecisionSource;
 use antecedent::analysis::preference_decision::AcceptedPreferencesError;
 use antecedent::analysis::preference_decision::{
-    AcceptedPreferences, AcceptedPreferencesArtifact, BeliefSource, ChoiceModelEstimate,
-    ChoiceModelOptions, ChoiceModelResult, ChoiceOption, ChoiceRecord, ChoiceRecordSet,
-    ConflictKind, CovarianceKind, EstimateOutcome, LearnedPreferenceSet, LearningOptions,
-    OptionBelief, PendingReview, Pooling, PreferenceBasis, SetLearningOptions, SetLearningResult,
-    SetOutcome, analysis_options,
+    analysis_options, AcceptedPreferences, AcceptedPreferencesArtifact, BeliefSource,
+    ChoiceModelEstimate, ChoiceModelOptions, ChoiceModelResult, ChoiceOption, ChoiceRecord,
+    ChoiceRecordSet, ConflictKind, CovarianceKind, EstimateOutcome, LearnedPreferenceSet,
+    LearningOptions, OptionBelief, PendingReview, Pooling, PreferenceBasis, SetLearningOptions,
+    SetLearningResult, SetOutcome,
 };
 use antecedent::analysis::preference_learning_programs::{
-    TerminalError, compile_choice_model, compile_choice_model_relearn, compile_compatible_set,
-    compile_compatible_set_relearn,
+    compile_choice_model, compile_choice_model_relearn, compile_compatible_set,
+    compile_compatible_set_relearn, TerminalError,
 };
 use antecedent::contract::ExternalRefusal;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use super::{
-    AttributeWire, Reply, attribute_from, contract_from, debug_kind, mean_source_from,
-    measure_value, model_from, model_value, parameter_to, parse, refusal, refusal_value,
-    relation_to, reply,
+    attribute_from, contract_from, debug_kind, mean_source_from, measure_value, model_from,
+    model_value, parameter_to, parse, refusal, refusal_value, relation_to, reply, AttributeWire,
+    Reply,
 };
 use crate::distribution_api::PyJointDistributionArtifact;
 
@@ -559,12 +559,13 @@ fn accepted_json(a: &AcceptedPreferences) -> Value {
 #[pyfunction]
 #[pyo3(signature = (model_json, records_json, options_json, cancel=None))]
 fn learn_preference_set(
+    py: Python<'_>,
     model_json: &str,
     records_json: &str,
     options_json: &str,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
-    crate::catch_ffi(|| {
+    crate::detach_catch(py, move || {
         let model = model_from(parse(model_json, "value model")?);
         let records = records_from(records_json)?;
         let options = set_options_from(options_json)?;
@@ -585,12 +586,13 @@ fn learn_preference_set(
 #[pyfunction]
 #[pyo3(signature = (model_json, records_json, options_json, cancel=None))]
 fn estimate_preference_choice_model(
+    py: Python<'_>,
     model_json: &str,
     records_json: &str,
     options_json: &str,
     cancel: Option<crate::PyCancellationToken>,
 ) -> PyResult<Reply> {
-    crate::catch_ffi(|| {
+    crate::detach_catch(py, move || {
         let model = model_from(parse(model_json, "value model")?);
         let records = records_from(records_json)?;
         let options = choice_options_from(options_json)?;
