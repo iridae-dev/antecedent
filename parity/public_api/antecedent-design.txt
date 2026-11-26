@@ -1,13 +1,20 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn <antecedent_design::decision_eval::DecisionResult>::fn set_method_provenance(&mut self, provenance: antecedent_io_core::method_provenance::MethodProvenanceWire)
+#[doc(hidden)] pub fn <antecedent_design::decision_eval::DecisionResult>::fn with_method_provenance(self, provenance: antecedent_io_core::method_provenance::MethodProvenanceWire) -> Self
 #[doc(hidden)] pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn admit(self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn result_json(&self, result: &antecedent_design::decision_robust_artifact::ScenarioDecision) -> core::result::Result<alloc::string::String, antecedent_io_core::error::IoError>
+#[doc(hidden)] pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn with_method_provenance(self, provenance: antecedent_io_core::method_provenance::MethodProvenanceWire) -> Self
 #[doc(hidden)] pub fn <antecedent_design::sequential_evaluation::FiniteSequentialModel>::fn identity_hex_v1(&self) -> alloc::string::String
 #[doc(hidden)] pub fn <antecedent_design::source_evidence::SourceEvidence>::fn original_consumption(&self) -> core::result::Result<&antecedent_io_core::contract_section::AnalysisResultConsumption, antecedent_design::source_evidence::SourceEvidenceError>
 #[doc(hidden)] pub fn antecedent_design::cohort_decision_input::cohort_mean_binding(source: &antecedent_io_core::cohort_decision::CohortDecisionSource) -> alloc::string::String
+#[doc(hidden)] pub fn antecedent_design::composition_verifiers::consume_ledger_for_bundle(bytes: &[u8], expected: core::option::Option<&str>, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifact, antecedent_design::composition_bundle::NodeFailure>
+#[doc(hidden)] pub fn antecedent_design::composition_verifiers::coordinate_id(quantity: &antecedent_io_core::quantity_wire::ScientificQuantityWire) -> alloc::string::String
+#[doc(hidden)] pub fn antecedent_design::composition_verifiers::describe_checked_distribution(artifact: &antecedent_io_core::distribution_artifact::DistributionArtifact) -> core::result::Result<antecedent_design::composition_verifiers::ArtifactDescription, antecedent_design::composition_bundle::NodeFailure>
 #[doc(hidden)] pub fn antecedent_design::composition_verifiers::projection_node_description(kind: antecedent_design::composition_bundle::NodeKind, artifact: &antecedent_design::source_projection_artifact::SourceProjectionArtifact, upstream: &[antecedent_design::composition_bundle::UpstreamNode<'_>]) -> core::result::Result<antecedent_design::composition_bundle::VerifiedNode, antecedent_design::composition_bundle::NodeFailure>
 #[doc(hidden)] pub fn antecedent_design::composition_verifiers::register_standard_verifiers(consumer: antecedent_design::composition_bundle::BundleConsumer) -> antecedent_design::composition_bundle::BundleConsumer
+#[doc(hidden)] pub fn antecedent_design::composition_verifiers::require_compact_model_refit_inputs(bytes: &[u8]) -> core::result::Result<(), antecedent_design::composition_bundle::NodeFailure>
 #[doc(hidden)] pub fn antecedent_design::decision_artifact::bound_mean_result_to_bytes(result: &antecedent_design::decision_eval::DecisionResult, source_binding: &str, artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_design::inverse_query_artifact::decode_parts(bytes: &[u8]) -> core::result::Result<(antecedent_design::inverse_query_artifact::InverseQueryMeta, alloc::vec::Vec<u8>, alloc::vec::Vec<u8>), antecedent_io_core::error::IoError>
 #[doc(hidden)] pub fn antecedent_design::inverse_query_artifact::encode_parts(meta: &antecedent_design::inverse_query_artifact::InverseQueryMeta, contract: &[u8], data: &[u8], artifact_id: &str) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
@@ -52,6 +59,7 @@ impl !core::marker::Send for antecedent_design::composition_bundle::BundleConsum
 impl !core::marker::Sync for antecedent_design::composition_bundle::BundleConsumer [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::BundleConsumer [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
+impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::EvidenceLedgerVerifier [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiCandidate [auto]
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::EvsiRequest [auto]
@@ -64,6 +72,7 @@ impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::Pre
 impl !core::panic::unwind_safe::RefUnwindSafe for antecedent_design::signal::PreparedSignal [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::BundleConsumer [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
+impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::EvidenceLedgerVerifier [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvaluatedEvsi [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiCandidate [auto]
 impl !core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::EvsiRequest [auto]
@@ -93,14 +102,20 @@ impl antecedent_design::RepairFamily for antecedent_design::ZTransportRepairFami
 impl antecedent_design::Utility<usize, f64> for antecedent_design::AffineUtility
 impl antecedent_design::Utility<usize, f64> for antecedent_design::GridUtility
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier
+impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DecisionContractVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DecisionResultVerifier
+impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier
+impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::DistributionVerifier
+impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::EvidenceLedgerVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::ExternalClaimVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::FrozenScoresVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::InverseQueryVerifier
+impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::ObservationQueryVerifier
+impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::PagIdentificationVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::PropagationChainVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::RecalculationReceiptVerifier
 impl antecedent_design::composition_bundle::NodeVerifier for antecedent_design::composition_verifiers::RepairReportVerifier
@@ -348,14 +363,19 @@ impl core::clone::Clone for antecedent_design::composition_bundle::SuppliedProvi
 impl core::clone::Clone for antecedent_design::composition_bundle::SuppliedSources
 impl core::clone::Clone for antecedent_design::composition_bundle::VerifiedNode
 impl core::clone::Clone for antecedent_design::composition_verifiers::ArtifactDescription
+impl core::clone::Clone for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::DecisionContractVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::DecisionResultVerifier
+impl core::clone::Clone for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier
+impl core::clone::Clone for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::DistributionVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::ExternalClaimVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::FrozenScoresVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::InverseQueryVerifier
+impl core::clone::Clone for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::ObservationQueryVerifier
+impl core::clone::Clone for antecedent_design::composition_verifiers::PagIdentificationVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::PropagationChainVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::RecalculationReceiptVerifier
 impl core::clone::Clone for antecedent_design::composition_verifiers::RepairReportVerifier
@@ -616,6 +636,18 @@ impl core::clone::Clone for antecedent_design::evsi::StudyCostSpec
 impl core::clone::Clone for antecedent_design::evsi::UpdatedDecision
 impl core::clone::Clone for antecedent_design::functional_source::LawFunctionalArtifact
 impl core::clone::Clone for antecedent_design::gaussian_forward_law::GaussianForwardLaw
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleEvidence
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
+impl core::clone::Clone for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::clone::Clone for antecedent_design::inverse_forward_source::ComposedResponse
@@ -686,6 +718,7 @@ impl core::clone::Clone for antecedent_design::joint_coupling::CouplingAbsent
 impl core::clone::Clone for antecedent_design::joint_coupling::CouplingSource
 impl core::clone::Clone for antecedent_design::joint_coupling::JointCoupling
 impl core::clone::Clone for antecedent_design::joint_coupling::SupportMarginal
+impl core::clone::Clone for antecedent_design::ledger_pool_selection::LedgerPoolSelection
 impl core::clone::Clone for antecedent_design::planning::AnalyticCharacteristics
 impl core::clone::Clone for antecedent_design::planning::ArmComparison
 impl core::clone::Clone for antecedent_design::planning::FactorialContrast
@@ -1199,6 +1232,10 @@ impl core::cmp::Eq for antecedent_design::evsi::RankingBasis
 impl core::cmp::Eq for antecedent_design::evsi::SearchReceipt
 impl core::cmp::Eq for antecedent_design::evsi::SourceOverlapDiagnostics
 impl core::cmp::Eq for antecedent_design::evsi::StudyAction
+impl core::cmp::Eq for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl core::cmp::Eq for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
+impl core::cmp::Eq for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl core::cmp::Eq for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
 impl core::cmp::Eq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::cmp::Eq for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl core::cmp::Eq for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -1788,6 +1825,16 @@ impl core::cmp::PartialEq for antecedent_design::evsi::StudyAction
 impl core::cmp::PartialEq for antecedent_design::evsi::StudyCostSpec
 impl core::cmp::PartialEq for antecedent_design::evsi::UpdatedDecision
 impl core::cmp::PartialEq for antecedent_design::gaussian_forward_law::GaussianForwardLaw
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
+impl core::cmp::PartialEq for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::cmp::PartialEq for antecedent_design::inverse_forward_source::ComposedResponse
@@ -1851,6 +1898,7 @@ impl core::cmp::PartialEq for antecedent_design::joint_coupling::CouplingAbsent
 impl core::cmp::PartialEq for antecedent_design::joint_coupling::CouplingSource
 impl core::cmp::PartialEq for antecedent_design::joint_coupling::JointCoupling
 impl core::cmp::PartialEq for antecedent_design::joint_coupling::SupportMarginal
+impl core::cmp::PartialEq for antecedent_design::ledger_pool_selection::LedgerPoolSelection
 impl core::cmp::PartialEq for antecedent_design::planning::AnalyticCharacteristics
 impl core::cmp::PartialEq for antecedent_design::planning::ArmComparison
 impl core::cmp::PartialEq for antecedent_design::planning::FactorialContrast
@@ -2172,12 +2220,14 @@ impl core::convert::From<antecedent_design::EvidencePlanError> for antecedent_de
 impl core::convert::From<antecedent_design::RepairArtifactError> for antecedent_design::EvidencePlanArtifactError
 impl core::convert::From<antecedent_design::SensitivityMethod> for antecedent_design::repair_artifact::SensitivityMethodWire
 impl core::convert::From<antecedent_design::Tail> for antecedent_design::inverse_query_artifact::TailWire
+impl core::convert::From<antecedent_design::composition_bundle::BundleError> for antecedent_design::intervention_schedule_decision::ScheduleBundleError
 impl core::convert::From<antecedent_design::decision_transported_source::TransportedRefusal> for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::convert::From<antecedent_design::decision_wire::ConstraintWire> for antecedent_design::HardConstraint
 impl core::convert::From<antecedent_design::decision_wire::CriterionWire> for antecedent_design::DecisionCriterion
 impl core::convert::From<antecedent_design::decision_wire::ExclusionWire> for antecedent_design::decision_eval::ConstraintExclusion
 impl core::convert::From<antecedent_design::decision_wire::ExprWire> for antecedent_design::UtilityExpr
 impl core::convert::From<antecedent_design::design_ranking_artifact::DesignRankingArtifactError> for antecedent_design::EvidencePlanArtifactError
+impl core::convert::From<antecedent_design::intervention_schedule_decision::ScheduleDecisionError> for antecedent_design::intervention_schedule_decision::ScheduleBundleError
 impl core::convert::From<antecedent_design::inverse_query::Comparison> for antecedent_design::inverse_query_artifact::ComparisonWire
 impl core::convert::From<antecedent_design::inverse_query::ExistenceClaim> for antecedent_design::inverse_query_artifact::ExistenceWire
 impl core::convert::From<antecedent_design::inverse_query::FeasibilityStatus> for antecedent_design::inverse_query_artifact::FeasibilityWire
@@ -2200,6 +2250,7 @@ impl core::convert::From<antecedent_identify::sid::study_planning::StudyPlanRefu
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::ZTransportPlanningError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::composition_bundle::BundleError
 impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
+impl core::convert::From<antecedent_io_core::error::IoError> for antecedent_design::intervention_schedule_decision::ScheduleBundleError
 impl core::convert::TryFrom<&antecedent_design::design_ranking_artifact::EvsiCandidateWire> for antecedent_design::ranking::EvsiRankRow
 impl core::default::Default for antecedent_design::BinomialSignal
 impl core::default::Default for antecedent_design::DesignConstraints
@@ -2215,14 +2266,19 @@ impl core::default::Default for antecedent_design::adaptive_policy_search::Polic
 impl core::default::Default for antecedent_design::composition_bundle::BundleConsumer
 impl core::default::Default for antecedent_design::composition_bundle::BundleLimits
 impl core::default::Default for antecedent_design::composition_bundle::SuppliedSources
+impl core::default::Default for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::DecisionContractVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::DecisionResultVerifier
+impl core::default::Default for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier
+impl core::default::Default for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::DistributionVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::ExternalClaimVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::FrozenScoresVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::InverseQueryVerifier
+impl core::default::Default for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::ObservationQueryVerifier
+impl core::default::Default for antecedent_design::composition_verifiers::PagIdentificationVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::PropagationChainVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::RecalculationReceiptVerifier
 impl core::default::Default for antecedent_design::composition_verifiers::RepairReportVerifier
@@ -2278,6 +2334,8 @@ impl core::error::Error for antecedent_design::decision_transported_source::Tran
 impl core::error::Error for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 impl core::error::Error for antecedent_design::evsi::EvsiError
 impl core::error::Error for antecedent_design::evsi::FutureStudyError
+impl core::error::Error for antecedent_design::intervention_schedule_decision::ScheduleBundleError
+impl core::error::Error for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
 impl core::error::Error for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::error::Error for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::error::Error for antecedent_design::joint_coupling::CouplingAbsent
@@ -2527,14 +2585,19 @@ impl core::fmt::Debug for antecedent_design::composition_bundle::SuppliedProvide
 impl core::fmt::Debug for antecedent_design::composition_bundle::SuppliedSources
 impl core::fmt::Debug for antecedent_design::composition_bundle::VerifiedNode
 impl core::fmt::Debug for antecedent_design::composition_verifiers::ArtifactDescription
+impl core::fmt::Debug for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::DecisionContractVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::DecisionResultVerifier
+impl core::fmt::Debug for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier
+impl core::fmt::Debug for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::DistributionVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::ExternalClaimVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::FrozenScoresVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::InverseQueryVerifier
+impl core::fmt::Debug for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::ObservationQueryVerifier
+impl core::fmt::Debug for antecedent_design::composition_verifiers::PagIdentificationVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::PropagationChainVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::RecalculationReceiptVerifier
 impl core::fmt::Debug for antecedent_design::composition_verifiers::RepairReportVerifier
@@ -2795,6 +2858,19 @@ impl core::fmt::Debug for antecedent_design::evsi::StudyCostSpec
 impl core::fmt::Debug for antecedent_design::evsi::UpdatedDecision
 impl core::fmt::Debug for antecedent_design::functional_source::LawFunctionalArtifact
 impl core::fmt::Debug for antecedent_design::gaussian_forward_law::GaussianForwardLaw
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleBundleError
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleEvidence
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
+impl core::fmt::Debug for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::fmt::Debug for antecedent_design::inverse_forward_source::ComposedResponse
@@ -2865,6 +2941,7 @@ impl core::fmt::Debug for antecedent_design::joint_coupling::CouplingAbsent
 impl core::fmt::Debug for antecedent_design::joint_coupling::CouplingSource
 impl core::fmt::Debug for antecedent_design::joint_coupling::JointCoupling
 impl core::fmt::Debug for antecedent_design::joint_coupling::SupportMarginal
+impl core::fmt::Debug for antecedent_design::ledger_pool_selection::LedgerPoolSelection
 impl core::fmt::Debug for antecedent_design::planning::AnalyticCharacteristics
 impl core::fmt::Debug for antecedent_design::planning::ArmComparison
 impl core::fmt::Debug for antecedent_design::planning::FactorialContrast
@@ -3211,6 +3288,8 @@ impl core::fmt::Display for antecedent_design::decision_transported_source::Tran
 impl core::fmt::Display for antecedent_design::design_ranking_artifact::DesignRankingArtifactError
 impl core::fmt::Display for antecedent_design::evsi::EvsiError
 impl core::fmt::Display for antecedent_design::evsi::FutureStudyError
+impl core::fmt::Display for antecedent_design::intervention_schedule_decision::ScheduleBundleError
+impl core::fmt::Display for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
 impl core::fmt::Display for antecedent_design::inverse_forward_source::ForwardSourceRefusal
 impl core::fmt::Display for antecedent_design::inverse_observational_scenarios::ObservationalScenarioError
 impl core::fmt::Display for antecedent_design::joint_coupling::CouplingAbsent
@@ -3330,14 +3409,19 @@ impl core::marker::Copy for antecedent_design::composition_bundle::BundleStage
 impl core::marker::Copy for antecedent_design::composition_bundle::ClaimLabel
 impl core::marker::Copy for antecedent_design::composition_bundle::EvidenceRelationship
 impl core::marker::Copy for antecedent_design::composition_bundle::NodeKind
+impl core::marker::Copy for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::DecisionContractVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::DecisionResultVerifier
+impl core::marker::Copy for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier
+impl core::marker::Copy for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::DistributionVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::ExternalClaimVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::FrozenScoresVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::InverseQueryVerifier
+impl core::marker::Copy for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::ObservationQueryVerifier
+impl core::marker::Copy for antecedent_design::composition_verifiers::PagIdentificationVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::PropagationChainVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::RecalculationReceiptVerifier
 impl core::marker::Copy for antecedent_design::composition_verifiers::RepairReportVerifier
@@ -3416,6 +3500,12 @@ impl core::marker::Copy for antecedent_design::evsi::NormalPosterior
 impl core::marker::Copy for antecedent_design::evsi::NormalStateBelief
 impl core::marker::Copy for antecedent_design::evsi::RankingBasis
 impl core::marker::Copy for antecedent_design::evsi::UpdatedDecision
+impl core::marker::Copy for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl core::marker::Copy for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
+impl core::marker::Copy for antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+impl core::marker::Copy for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+impl core::marker::Copy for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl core::marker::Copy for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
 impl core::marker::Copy for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::marker::Copy for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl core::marker::Copy for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -3744,14 +3834,20 @@ impl core::marker::Freeze for antecedent_design::composition_bundle::SuppliedSou
 impl core::marker::Freeze for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::ArtifactDescription [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
+impl core::marker::Freeze for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
+impl core::marker::Freeze for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier [auto]
+impl core::marker::Freeze for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::DistributionVerifier [auto]
+impl core::marker::Freeze for antecedent_design::composition_verifiers::EvidenceLedgerVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::ExternalClaimVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::FrozenScoresVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::InverseQueryVerifier [auto]
+impl core::marker::Freeze for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::ObservationQueryVerifier [auto]
+impl core::marker::Freeze for antecedent_design::composition_verifiers::PagIdentificationVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::PropagationChainVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::RecalculationReceiptVerifier [auto]
 impl core::marker::Freeze for antecedent_design::composition_verifiers::RepairReportVerifier [auto]
@@ -4014,6 +4110,22 @@ impl core::marker::Freeze for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Freeze for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Freeze for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Freeze for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleBundleError [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleDecisionError [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleEvidence [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleReplayInputs [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleSourceFit [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleStructure [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort [auto]
+impl core::marker::Freeze for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Freeze for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -4084,6 +4196,7 @@ impl core::marker::Freeze for antecedent_design::joint_coupling::CouplingAbsent 
 impl core::marker::Freeze for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Freeze for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Freeze for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Freeze for antecedent_design::ledger_pool_selection::LedgerPoolSelection [auto]
 impl core::marker::Freeze for antecedent_design::planning::AnalyticCharacteristics [auto]
 impl core::marker::Freeze for antecedent_design::planning::ArmComparison [auto]
 impl core::marker::Freeze for antecedent_design::planning::FactorialContrast [auto]
@@ -4636,14 +4749,20 @@ impl core::marker::Send for antecedent_design::composition_bundle::SuppliedSourc
 impl core::marker::Send for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::ArtifactDescription [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
+impl core::marker::Send for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
+impl core::marker::Send for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier [auto]
+impl core::marker::Send for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::DistributionVerifier [auto]
+impl core::marker::Send for antecedent_design::composition_verifiers::EvidenceLedgerVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::ExternalClaimVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::FrozenScoresVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::InverseQueryVerifier [auto]
+impl core::marker::Send for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::ObservationQueryVerifier [auto]
+impl core::marker::Send for antecedent_design::composition_verifiers::PagIdentificationVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::PropagationChainVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::RecalculationReceiptVerifier [auto]
 impl core::marker::Send for antecedent_design::composition_verifiers::RepairReportVerifier [auto]
@@ -4906,6 +5025,22 @@ impl core::marker::Send for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Send for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Send for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Send for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleBundleError [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleDecisionError [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleEvidence [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleReplayInputs [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleSourceFit [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleStructure [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort [auto]
+impl core::marker::Send for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Send for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -4976,6 +5111,7 @@ impl core::marker::Send for antecedent_design::joint_coupling::CouplingAbsent [a
 impl core::marker::Send for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Send for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Send for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Send for antecedent_design::ledger_pool_selection::LedgerPoolSelection [auto]
 impl core::marker::Send for antecedent_design::planning::AnalyticCharacteristics [auto]
 impl core::marker::Send for antecedent_design::planning::ArmComparison [auto]
 impl core::marker::Send for antecedent_design::planning::FactorialContrast [auto]
@@ -5514,7 +5650,6 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_contract:
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::ActionOutcome
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::ConstraintExclusion
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::DecisionEvalError
-impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::DecisionResult
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::FunctionalValue
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::MeanEstimate
 impl core::marker::StructuralPartialEq for antecedent_design::decision_eval::MeanSource
@@ -5665,7 +5800,6 @@ impl core::marker::StructuralPartialEq for antecedent_design::decision_robust_ar
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robust_artifact::ExternalCallbackReceipt
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robust_artifact::ExternalTrustLimit
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robust_artifact::ReplayReceipt
-impl core::marker::StructuralPartialEq for antecedent_design::decision_robust_artifact::RobustResultArtifact
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robustness::ActionRobustness
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robustness::AtomSupport
 impl core::marker::StructuralPartialEq for antecedent_design::decision_robustness::ClaimProfile
@@ -5730,6 +5864,16 @@ impl core::marker::StructuralPartialEq for antecedent_design::evsi::StudyAction
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::StudyCostSpec
 impl core::marker::StructuralPartialEq for antecedent_design::evsi::UpdatedDecision
 impl core::marker::StructuralPartialEq for antecedent_design::gaussian_forward_law::GaussianForwardLaw
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleDecisionError
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
+impl core::marker::StructuralPartialEq for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedActionResponse
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedFamily
 impl core::marker::StructuralPartialEq for antecedent_design::inverse_forward_source::ComposedResponse
@@ -5793,6 +5937,7 @@ impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::Co
 impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::CouplingSource
 impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::JointCoupling
 impl core::marker::StructuralPartialEq for antecedent_design::joint_coupling::SupportMarginal
+impl core::marker::StructuralPartialEq for antecedent_design::ledger_pool_selection::LedgerPoolSelection
 impl core::marker::StructuralPartialEq for antecedent_design::planning::AnalyticCharacteristics
 impl core::marker::StructuralPartialEq for antecedent_design::planning::ArmComparison
 impl core::marker::StructuralPartialEq for antecedent_design::planning::FactorialContrast
@@ -6310,14 +6455,20 @@ impl core::marker::Sync for antecedent_design::composition_bundle::SuppliedSourc
 impl core::marker::Sync for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::ArtifactDescription [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
+impl core::marker::Sync for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
+impl core::marker::Sync for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier [auto]
+impl core::marker::Sync for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::DistributionVerifier [auto]
+impl core::marker::Sync for antecedent_design::composition_verifiers::EvidenceLedgerVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::ExternalClaimVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::FrozenScoresVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::InverseQueryVerifier [auto]
+impl core::marker::Sync for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::ObservationQueryVerifier [auto]
+impl core::marker::Sync for antecedent_design::composition_verifiers::PagIdentificationVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::PropagationChainVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::RecalculationReceiptVerifier [auto]
 impl core::marker::Sync for antecedent_design::composition_verifiers::RepairReportVerifier [auto]
@@ -6580,6 +6731,22 @@ impl core::marker::Sync for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Sync for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Sync for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Sync for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleBundleError [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleDecisionError [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleEvidence [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleReplayInputs [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleSourceFit [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleStructure [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort [auto]
+impl core::marker::Sync for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Sync for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -6650,6 +6817,7 @@ impl core::marker::Sync for antecedent_design::joint_coupling::CouplingAbsent [a
 impl core::marker::Sync for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Sync for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Sync for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Sync for antecedent_design::ledger_pool_selection::LedgerPoolSelection [auto]
 impl core::marker::Sync for antecedent_design::planning::AnalyticCharacteristics [auto]
 impl core::marker::Sync for antecedent_design::planning::ArmComparison [auto]
 impl core::marker::Sync for antecedent_design::planning::FactorialContrast [auto]
@@ -7203,14 +7371,20 @@ impl core::marker::Unpin for antecedent_design::composition_bundle::SuppliedSour
 impl core::marker::Unpin for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::ArtifactDescription [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::CohortDecisionSourceVerifier [auto]
+impl core::marker::Unpin for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
+impl core::marker::Unpin for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier [auto]
+impl core::marker::Unpin for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::DistributionVerifier [auto]
+impl core::marker::Unpin for antecedent_design::composition_verifiers::EvidenceLedgerVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::ExternalClaimVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::FrozenScoresVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::InverseQueryVerifier [auto]
+impl core::marker::Unpin for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::ObservationQueryVerifier [auto]
+impl core::marker::Unpin for antecedent_design::composition_verifiers::PagIdentificationVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::PropagationChainVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::RecalculationReceiptVerifier [auto]
 impl core::marker::Unpin for antecedent_design::composition_verifiers::RepairReportVerifier [auto]
@@ -7473,6 +7647,22 @@ impl core::marker::Unpin for antecedent_design::evsi::StudyCostSpec [auto]
 impl core::marker::Unpin for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::marker::Unpin for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::marker::Unpin for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleBundleError [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleDecisionError [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleEvidence [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleReplayInputs [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleSourceFit [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleStructure [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort [auto]
+impl core::marker::Unpin for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::marker::Unpin for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -7543,6 +7733,7 @@ impl core::marker::Unpin for antecedent_design::joint_coupling::CouplingAbsent [
 impl core::marker::Unpin for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::marker::Unpin for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::marker::Unpin for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::marker::Unpin for antecedent_design::ledger_pool_selection::LedgerPoolSelection [auto]
 impl core::marker::Unpin for antecedent_design::planning::AnalyticCharacteristics [auto]
 impl core::marker::Unpin for antecedent_design::planning::ArmComparison [auto]
 impl core::marker::Unpin for antecedent_design::planning::FactorialContrast [auto]
@@ -8094,14 +8285,19 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::ArtifactDescription [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::DistributionVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::ExternalClaimVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::FrozenScoresVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::InverseQueryVerifier [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::ObservationQueryVerifier [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::PagIdentificationVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::PropagationChainVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::RecalculationReceiptVerifier [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::composition_verifiers::RepairReportVerifier [auto]
@@ -8361,6 +8557,22 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::StudyC
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleBundleError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleDecisionError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleEvidence [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleReplayInputs [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleSourceFit [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleStructure [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -8431,6 +8643,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupli
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::ledger_pool_selection::LedgerPoolSelection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::AnalyticCharacteristics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::ArmComparison [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_design::planning::FactorialContrast [auto]
@@ -8975,14 +9188,19 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bun
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::SuppliedSources [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_bundle::VerifiedNode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::ArtifactDescription [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::DecisionContractVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::DecisionResultVerifier [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::DistributionVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::EvidenceRelationshipVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::ExternalClaimVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::FrozenScoresVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::InverseQueryVerifier [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::ObservationQueryVerifier [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::PagIdentificationVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::PropagationChainVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::RecalculationReceiptVerifier [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::composition_verifiers::RepairReportVerifier [auto]
@@ -9242,6 +9460,22 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::StudyCost
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::evsi::UpdatedDecision [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::functional_source::LawFunctionalArtifact [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::gaussian_forward_law::GaussianForwardLaw [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleBundleError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleDecisionError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleEvidence [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleReplayInputs [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleSourceFit [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleStructure [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedActionResponse [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedFamily [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::inverse_forward_source::ComposedResponse [auto]
@@ -9312,6 +9546,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling:
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::CouplingSource [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::JointCoupling [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::joint_coupling::SupportMarginal [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_design::ledger_pool_selection::LedgerPoolSelection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::AnalyticCharacteristics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::ArmComparison [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_design::planning::FactorialContrast [auto]
@@ -9746,6 +9981,16 @@ impl serde_core::ser::Serialize for antecedent_design::evidence_plan_artifact::O
 impl serde_core::ser::Serialize for antecedent_design::evidence_plan_artifact::PlanOptionWire
 impl serde_core::ser::Serialize for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire
 impl serde_core::ser::Serialize for antecedent_design::gaussian_forward_law::GaussianForwardLaw
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleEvidence
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
+impl serde_core::ser::Serialize for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference
 impl serde_core::ser::Serialize for antecedent_design::inverse_forward_source::ForwardOrigin
 impl serde_core::ser::Serialize for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl serde_core::ser::Serialize for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -10087,6 +10332,16 @@ impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::evidence_plan_
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::evidence_plan_artifact::PlanOptionWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::evidence_plan_artifact::UnverifiedRouteWire
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::gaussian_forward_law::GaussianForwardLaw
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleEvidence
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleScenarioResult
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleStructure
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
+impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::inverse_forward_source::ForwardOrigin
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::inverse_forward_source::ForwardRepresentation
 impl<'de> serde_core::de::Deserialize<'de> for antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -10227,7 +10482,7 @@ pub const <antecedent_design::StudyKind>::ALL: [Self; 6]
 pub const <antecedent_design::adaptive_trial_transport::AdaptiveTransportPremises>::DECLARED: Self
 pub const <antecedent_design::composition_bundle::BundleStage>::ALL: [Self; 13]
 pub const <antecedent_design::composition_bundle::EvidenceRelationship>::ALL: [Self; 5]
-pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 35]
+pub const <antecedent_design::composition_bundle::NodeKind>::ALL: [Self; 49]
 pub const <antecedent_design::decision_artifact::DecisionResultArtifact>::CLAIM_LINK_ID: &'static str
 pub const <antecedent_design::decision_evidence::Stage>::ALL: [Self; 5]
 pub const <antecedent_design::decision_reliability::PublishedRoute>::ALL: [Self; 4]
@@ -10272,7 +10527,7 @@ pub const antecedent_design::composition_verifiers::TRUST_ATTESTED: &str
 pub const antecedent_design::composition_verifiers::TRUST_NATIVE: &str
 pub const antecedent_design::composition_verifiers::TRUST_UNVERIFIED: &str
 pub const antecedent_design::composition_verifiers::TRUST_VERIFIED: &str
-pub const antecedent_design::composition_verifiers::VERIFIABLE_KINDS: [antecedent_design::composition_bundle::NodeKind; 20]
+pub const antecedent_design::composition_verifiers::VERIFIABLE_KINDS: [antecedent_design::composition_bundle::NodeKind; 29]
 pub const antecedent_design::confounder_value::MAX_PRIOR_DRAWS: u64
 pub const antecedent_design::decision_artifact::MAX_DECISION_ARTIFACT_BYTES: usize
 pub const antecedent_design::decision_evidence::DELTA_METHOD_STATEMENT: &str
@@ -10606,6 +10861,11 @@ pub enum antecedent_design::design_ranking_artifact::ReplayKind
 pub enum antecedent_design::design_ranking_artifact::UtilityWire
 pub enum antecedent_design::evsi::IntegrationMethod
 pub enum antecedent_design::evsi::RankingBasis
+pub enum antecedent_design::intervention_schedule_decision::ScheduleBundleError
+pub enum antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign
+pub enum antecedent_design::intervention_schedule_decision::ScheduleDecisionError
+pub enum antecedent_design::intervention_schedule_decision::ScheduleEvidence
+pub enum antecedent_design::intervention_schedule_decision::ScheduleStructure
 pub enum antecedent_design::inverse_forward_source::ComposedFamily
 pub enum antecedent_design::inverse_forward_source::ForwardRepresentation
 pub enum antecedent_design::inverse_forward_source::ForwardSourceKind
@@ -11375,6 +11635,7 @@ pub field antecedent_design::composition_bundle::UpstreamNode::facts: &'a alloc:
 pub field antecedent_design::composition_bundle::UpstreamNode::id: &'a str
 pub field antecedent_design::composition_bundle::UpstreamNode::identity: &'a str
 pub field antecedent_design::composition_bundle::UpstreamNode::kind: antecedent_design::composition_bundle::NodeKind
+pub field antecedent_design::composition_bundle::UpstreamNode::values: &'a [(alloc::string::String, f64)]
 pub field antecedent_design::composition_bundle::VerifiedNode::facts: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub field antecedent_design::composition_bundle::VerifiedNode::identity: alloc::string::String
 pub field antecedent_design::composition_bundle::VerifiedNode::values: alloc::vec::Vec<(alloc::string::String, f64)>
@@ -12193,6 +12454,38 @@ pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::query_ide
 pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::snapshot_id: alloc::string::String
 pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::variance: f64
 pub field antecedent_design::gaussian_forward_law::GaussianForwardLaw::version: u16
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle::bundle: antecedent_design::composition_bundle::CompositionBundle
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle::child_program_identities: [[u8; 32]; 3]
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle::decision: antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle::program_identity: [u8; 32]
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::calibration_basis: core::option::Option<antecedent_io_core::calibration::CalibrationBasisWire>
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::coverage_scope: alloc::string::String
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::first_assignment: [f64; 2]
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::minimum_coverage: f64
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::observation_survival: [[f64; 4]; 2]
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::optimum_set: alloc::vec::Vec<u8>
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::scenarios: alloc::vec::Vec<antecedent_design::intervention_schedule_decision::ScheduleScenarioResult>
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::second_assignment: [[f64; 2]; 2]
+pub field antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision::target_prevalence: f64
+pub field antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration::calibration_design: core::option::Option<antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign>
+pub field antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration::preference_costs: alloc::vec::Vec<[f64; 4]>
+pub field antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration::schedules: alloc::vec::Vec<u8>
+pub field antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration::structures: alloc::vec::Vec<antecedent_design::intervention_schedule_decision::ScheduleStructure>
+pub field antecedent_design::intervention_schedule_decision::ScheduleReplayInputs::problem: antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+pub field antecedent_design::intervention_schedule_decision::ScheduleReplayInputs::program_identity: [u8; 32]
+pub field antecedent_design::intervention_schedule_decision::ScheduleReplayInputs::source: alloc::vec::Vec<antecedent_design::intervention_schedule_decision::ScheduleSourceSubject>
+pub field antecedent_design::intervention_schedule_decision::ScheduleReplayInputs::target: alloc::vec::Vec<bool>
+pub field antecedent_design::intervention_schedule_decision::ScheduleScenarioResult::compatible_optima: alloc::vec::Vec<u8>
+pub field antecedent_design::intervention_schedule_decision::ScheduleScenarioResult::differences: alloc::vec::Vec<antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference>
+pub field antecedent_design::intervention_schedule_decision::ScheduleScenarioResult::point_utilities: alloc::vec::Vec<(u8, f64)>
+pub field antecedent_design::intervention_schedule_decision::ScheduleScenarioResult::preference_state: usize
+pub field antecedent_design::intervention_schedule_decision::ScheduleScenarioResult::structure: antecedent_design::intervention_schedule_decision::ScheduleStructure
+pub field antecedent_design::intervention_schedule_decision::ScheduleSourceSubject::actions: [bool; 2]
+pub field antecedent_design::intervention_schedule_decision::ScheduleSourceSubject::baseline: bool
+pub field antecedent_design::intervention_schedule_decision::ScheduleSourceSubject::endpoint: core::option::Option<f64>
+pub field antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference::bounds: [f64; 2]
+pub field antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference::candidate: u8
+pub field antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference::other: u8
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::action_id: alloc::string::String
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::coordinate: antecedent_contract::quantity::ScientificQuantity
 pub field antecedent_design::inverse_forward_source::ComposedActionResponse::level_values: alloc::vec::Vec<(alloc::string::String, f64)>
@@ -13847,6 +14140,7 @@ pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_data(se
 pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_producer(self, role: &str, bytes: alloc::vec::Vec<u8>) -> Self
 pub fn <antecedent_design::composition_bundle::SuppliedSources>::fn with_provider(self, provider_id: &str, snapshot_id: &str, request_fingerprint: &str) -> Self
 pub fn <antecedent_design::composition_verifiers::CohortDecisionSourceVerifier>::fn new(ctx: &antecedent_core::execution::context::ExecutionContext) -> Self
+pub fn <antecedent_design::composition_verifiers::EvidenceLedgerVerifier>::fn new(ctx: &antecedent_core::execution::context::ExecutionContext) -> Self
 pub fn <antecedent_design::decision_adapters::AdapterError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
 pub fn <antecedent_design::decision_artifact::DecisionContractArtifact>::fn contract(&self) -> &antecedent_design::DecisionContract
 pub fn <antecedent_design::decision_artifact::DecisionContractArtifact>::fn from_bytes(bytes: &[u8], expected_identity: &str) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -13879,6 +14173,8 @@ pub fn <antecedent_design::decision_contract::UncertaintyRequirement>::const fn 
 pub fn <antecedent_design::decision_eval::DecisionEvalError>::const fn detail(&self) -> &'static str
 pub fn <antecedent_design::decision_eval::DecisionEvalError>::const fn reason_code(&self) -> &'static str
 pub fn <antecedent_design::decision_eval::DecisionEvalError>::fn to_refusal(&self) -> antecedent_contract::external_refusal::ExternalRefusal
+pub fn <antecedent_design::decision_eval::DecisionResult>::const fn method_provenance(&self) -> core::option::Option<&antecedent_io_core::method_provenance::MethodProvenanceWire>
+pub fn <antecedent_design::decision_eval::DecisionResult>::fn citations(&self) -> alloc::vec::Vec<antecedent_io_core::method_provenance::CitationWire>
 pub fn <antecedent_design::decision_evaluation::ArtifactDemand<'a>>::fn new(artifact: &'a antecedent_io_core::distribution_artifact::DistributionArtifact) -> Self
 pub fn <antecedent_design::decision_evaluation::BatchRecord>::const fn means(items: usize) -> Self
 pub fn <antecedent_design::decision_evaluation::DemandSourceError>::fn new(message: impl core::convert::Into<alloc::string::String>) -> Self
@@ -13989,6 +14285,7 @@ pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn r
 pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn replay_decision_expecting(&self, contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, program_identity: &str, bytes: &[u8], ctx: &antecedent_core::execution::context::ExecutionContext, retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<antecedent_design::decision_robust_artifact::ScenarioDecision, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn seal_decision(&self, contract: &antecedent_design::decision_contract::AdmissibleDecisionContract, program_identity: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_robust_artifact::JointScenarioCarrier>::fn search_stop(&self) -> core::option::Option<&str>
+pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::const fn method_provenance(&self) -> core::option::Option<&antecedent_io_core::method_provenance::MethodProvenanceWire>
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn atom_digests(&self) -> alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn from_bytes(bytes: &[u8], expected_contract_identity: &str, expected_atom_digests: &[(alloc::string::String, core::option::Option<alloc::string::String>)]) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::decision_robust_artifact::RobustResultArtifact>::fn from_bytes_expecting(bytes: &[u8], expected_contract_identity: &str, expected_atom_digests: &[(alloc::string::String, core::option::Option<alloc::string::String>)], retained: &antecedent_io_core::retained_artifact::RetainedArtifactIdentity) -> core::result::Result<Self, antecedent_io_core::error::IoError>
@@ -14085,6 +14382,15 @@ pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn summary
 pub fn <antecedent_design::functional_source::LawFunctionalArtifact>::fn with_source_evidence(self, evidence: &antecedent_design::source_evidence::SourceEvidence) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::gaussian_forward_law::GaussianForwardLaw>::fn evaluate(&self, contract: &antecedent_design::DecisionContract, action_id: &str, functional: antecedent_design::DecisionFunctional) -> core::result::Result<(f64, core::option::Option<f64>), antecedent_design::decision_eval::DecisionEvalError>
 pub fn <antecedent_design::gaussian_forward_law::GaussianForwardLaw>::fn validate(&self) -> bool
+pub fn <antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence>::const fn program_identity(&self) -> [u8; 32]
+pub fn <antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence>::const fn snapshot_identity(&self) -> [u8; 32]
+pub fn <antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence>::fn compile(evidence: antecedent_design::intervention_schedule_decision::ScheduleEvidence) -> core::result::Result<Self, antecedent_design::intervention_schedule_decision::ScheduleDecisionError>
+pub fn <antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision>::fn calibration(&self) -> antecedent_io_core::contract_section::CalibrationSlotWire
+pub fn <antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision>::fn compile(source: antecedent_design::intervention_schedule_decision::ScheduleSourceFit, target: antecedent_design::intervention_schedule_decision::ScheduleTargetCohort, declaration: antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration) -> core::result::Result<Self, antecedent_design::intervention_schedule_decision::ScheduleDecisionError>
+pub fn <antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision>::fn execute(&self, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision, antecedent_design::intervention_schedule_decision::ScheduleDecisionError>
+pub fn <antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration>::fn check(&self) -> core::result::Result<(), antecedent_design::intervention_schedule_decision::ScheduleDecisionError>
+pub fn <antecedent_design::intervention_schedule_decision::ScheduleSourceFit>::fn fit(rows: &[antecedent_design::intervention_schedule_decision::ScheduleSourceSubject]) -> core::result::Result<Self, antecedent_design::intervention_schedule_decision::ScheduleDecisionError>
+pub fn <antecedent_design::intervention_schedule_decision::ScheduleTargetCohort>::fn fit(baseline: &[bool]) -> core::result::Result<Self, antecedent_design::intervention_schedule_decision::ScheduleDecisionError>
 pub fn <antecedent_design::inverse_forward_source::ForwardOrigin>::fn bound_to(&self, claim: &antecedent_design::inverse_query::ForwardClaim) -> core::result::Result<Self, antecedent_io_core::error::IoError>
 pub fn <antecedent_design::inverse_forward_source::ForwardOrigin>::fn canonical_identity(&self) -> alloc::string::String
 pub fn <antecedent_design::inverse_forward_source::ForwardOrigin>::fn validate(&self) -> core::result::Result<(), &'static str>
@@ -14130,6 +14436,19 @@ pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_x(s
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn marginal_y(self) -> antecedent_design::joint_coupling::SupportMarginal
 pub fn <antecedent_design::joint_coupling::JointCoupling>::const fn mass_numerator(self, x: i64, y: i64) -> core::option::Option<i64>
 pub fn <antecedent_design::joint_coupling::SupportMarginal>::const fn is_equal_halves(self) -> bool
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn estimate(&self) -> f64
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn evidence_binding(&self) -> alloc::string::String
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn identity(&self) -> alloc::string::String
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn inspect(bytes: &[u8]) -> core::result::Result<Self, antecedent_design::composition_bundle::NodeFailure>
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn mean_source(&self) -> antecedent_design::decision_eval::MeanSource
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn method(&self) -> &str
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn operation_id(&self) -> &str
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn quantity(&self) -> &antecedent_contract::quantity::ScientificQuantity
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn recognizes(bytes: &[u8]) -> bool
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn result_id(&self) -> &str
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn select(ledger: &antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifact, result: antecedent_contract::evidence_ledger::ids::ResultId, quantity: antecedent_contract::quantity::ScientificQuantity) -> core::result::Result<Self, antecedent_design::composition_bundle::NodeFailure>
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn to_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, antecedent_design::composition_bundle::NodeFailure>
+pub fn <antecedent_design::ledger_pool_selection::LedgerPoolSelection>::fn verify_against(&self, ledger: &antecedent_io_core::evidence_ledger_artifact::EvidenceLedgerArtifact) -> core::result::Result<(), antecedent_design::composition_bundle::NodeFailure>
 pub fn <antecedent_design::planning::FactorialContrast>::const fn as_str(self) -> &'static str
 pub fn <antecedent_design::planning::FactorialContrast>::fn from_name(name: &str) -> core::option::Option<Self>
 pub fn <antecedent_design::planning::FamilyPower>::const fn as_str(self) -> &'static str
@@ -14592,6 +14911,9 @@ pub fn antecedent_design::evsi::evaluate_evsi_with_evidence<A: core::clone::Clon
 pub fn antecedent_design::failure_routes(result: &antecedent_identify::result::IdentificationResult, graph: &antecedent_graph::admg::Admg, observed: &[antecedent_core::ids::VariableId], population: &str, sensitivity: core::option::Option<&antecedent_design::SensitivityFinding>) -> core::result::Result<antecedent_design::FailureRoutes, antecedent_design::RepairError>
 pub fn antecedent_design::identification_repair::latent_expansion(admg: &antecedent_graph::admg::Admg) -> core::result::Result<(antecedent_graph::dag::Dag, alloc::vec::Vec<antecedent_design::LatentCause>), antecedent_design::RepairError>
 pub fn antecedent_design::identified_under_intervention(samples: &[antecedent_design::GraphPosteriorSample], treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId, targets: &[antecedent_core::ids::VariableId]) -> core::result::Result<alloc::vec::Vec<antecedent_prob::graph_samples::GraphIdentFlag>, antecedent_design::StructureIdentificationError>
+pub fn antecedent_design::intervention_schedule_decision::compile_program_schedule_bundle(children: &[antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence; 3], program_identity: [u8; 32], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle, antecedent_design::intervention_schedule_decision::ScheduleBundleError>
+pub fn antecedent_design::intervention_schedule_decision::consume_program_schedule_bundle(bytes: &[u8], expected_identity: &str, program_identity: [u8; 32], ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision, antecedent_design::intervention_schedule_decision::ScheduleBundleError>
+pub fn antecedent_design::intervention_schedule_decision::inspect_program_schedule_bundle(bytes: &[u8], expected_identity: &str) -> core::result::Result<antecedent_design::intervention_schedule_decision::ScheduleReplayInputs, antecedent_design::intervention_schedule_decision::ScheduleBundleError>
 pub fn antecedent_design::inverse_forward_source::cohort_forward_source(source: &antecedent_io_core::cohort_decision::CohortDecisionSource, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
 pub fn antecedent_design::inverse_forward_source::composed_forward_source(response: &antecedent_design::inverse_forward_source::ComposedResponse) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
 pub fn antecedent_design::inverse_forward_source::composed_forward_source_accepting(response: &antecedent_design::inverse_forward_source::ComposedResponse, accept: antecedent_contract::provider_transport::TransportedInputPolicy) -> core::result::Result<antecedent_design::inverse_forward_source::SupportedForwardSource, antecedent_design::inverse_forward_source::ForwardSourceRefusal>
@@ -14749,11 +15071,13 @@ pub mod antecedent_design::failure_routes
 pub mod antecedent_design::functional_source
 pub mod antecedent_design::gaussian_forward_law
 pub mod antecedent_design::identification_repair
+pub mod antecedent_design::intervention_schedule_decision
 pub mod antecedent_design::inverse_forward_source
 pub mod antecedent_design::inverse_observational_scenarios
 pub mod antecedent_design::inverse_query
 pub mod antecedent_design::inverse_query_artifact
 pub mod antecedent_design::joint_coupling
+pub mod antecedent_design::ledger_pool_selection
 pub mod antecedent_design::objective
 pub mod antecedent_design::obligation_adapters
 pub mod antecedent_design::planning
@@ -14999,14 +15323,21 @@ pub struct antecedent_design::composition_bundle::VerifiedNode
 pub struct antecedent_design::composition_verifiers::ArtifactDescription
 pub struct antecedent_design::composition_verifiers::CohortDecisionSourceVerifier
 pub struct antecedent_design::composition_verifiers::CohortDecisionSourceVerifier has private fields
+pub struct antecedent_design::composition_verifiers::CompactFittedEffectModelVerifier
 pub struct antecedent_design::composition_verifiers::DecisionContractVerifier
 pub struct antecedent_design::composition_verifiers::DecisionResultVerifier
+pub struct antecedent_design::composition_verifiers::DelayedEntryIncidenceResultVerifier
+pub struct antecedent_design::composition_verifiers::DelayedEntrySurvivalBandResultVerifier
 pub struct antecedent_design::composition_verifiers::DistributionVerifier
+pub struct antecedent_design::composition_verifiers::EvidenceLedgerVerifier
+pub struct antecedent_design::composition_verifiers::EvidenceLedgerVerifier has private fields
 pub struct antecedent_design::composition_verifiers::EvidenceRelationshipVerifier
 pub struct antecedent_design::composition_verifiers::ExternalClaimVerifier
 pub struct antecedent_design::composition_verifiers::FrozenScoresVerifier
 pub struct antecedent_design::composition_verifiers::InverseQueryVerifier
+pub struct antecedent_design::composition_verifiers::LongitudinalRegimeResultVerifier
 pub struct antecedent_design::composition_verifiers::ObservationQueryVerifier
+pub struct antecedent_design::composition_verifiers::PagIdentificationVerifier
 pub struct antecedent_design::composition_verifiers::PropagationChainVerifier
 pub struct antecedent_design::composition_verifiers::RecalculationReceiptVerifier
 pub struct antecedent_design::composition_verifiers::RepairReportVerifier
@@ -15033,6 +15364,7 @@ pub struct antecedent_design::decision_contract::SupportRule
 pub struct antecedent_design::decision_eval::ActionOutcome
 pub struct antecedent_design::decision_eval::ConstraintExclusion
 pub struct antecedent_design::decision_eval::DecisionResult
+pub struct antecedent_design::decision_eval::DecisionResult has private fields
 pub struct antecedent_design::decision_eval::FunctionalValue
 pub struct antecedent_design::decision_eval::MeanSource
 pub struct antecedent_design::decision_eval::SourceReceipt
@@ -15200,6 +15532,21 @@ pub struct antecedent_design::evsi::UpdatedDecision
 pub struct antecedent_design::functional_source::LawFunctionalArtifact
 pub struct antecedent_design::functional_source::LawFunctionalArtifact has private fields
 pub struct antecedent_design::gaussian_forward_law::GaussianForwardLaw
+pub struct antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence
+pub struct antecedent_design::intervention_schedule_decision::CompiledScheduleEvidence has private fields
+pub struct antecedent_design::intervention_schedule_decision::IntegratedScheduleBundle
+pub struct antecedent_design::intervention_schedule_decision::IntegratedScheduleDecision
+pub struct antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision
+pub struct antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision has private fields
+pub struct antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration
+pub struct antecedent_design::intervention_schedule_decision::ScheduleReplayInputs
+pub struct antecedent_design::intervention_schedule_decision::ScheduleScenarioResult
+pub struct antecedent_design::intervention_schedule_decision::ScheduleSourceFit
+pub struct antecedent_design::intervention_schedule_decision::ScheduleSourceFit has private fields
+pub struct antecedent_design::intervention_schedule_decision::ScheduleSourceSubject
+pub struct antecedent_design::intervention_schedule_decision::ScheduleTargetCohort
+pub struct antecedent_design::intervention_schedule_decision::ScheduleTargetCohort has private fields
+pub struct antecedent_design::intervention_schedule_decision::ScheduleUtilityDifference
 pub struct antecedent_design::inverse_forward_source::ComposedActionResponse
 pub struct antecedent_design::inverse_forward_source::ComposedResponse
 pub struct antecedent_design::inverse_forward_source::ForwardOrigin
@@ -15247,6 +15594,8 @@ pub struct antecedent_design::joint_coupling::CouplingAbsent has private fields
 pub struct antecedent_design::joint_coupling::JointCoupling
 pub struct antecedent_design::joint_coupling::JointCoupling has private fields
 pub struct antecedent_design::joint_coupling::SupportMarginal
+pub struct antecedent_design::ledger_pool_selection::LedgerPoolSelection
+pub struct antecedent_design::ledger_pool_selection::LedgerPoolSelection has private fields
 pub struct antecedent_design::planning::AnalyticCharacteristics
 pub struct antecedent_design::planning::FamilyCharacteristics
 pub struct antecedent_design::planning::FamilySimulation
@@ -15564,6 +15913,7 @@ pub trait fn fn antecedent_design::decision_evaluation::DemandSource::fill_draws
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::joint(&self) -> bool
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::mean_estimate(&self) -> antecedent_design::decision_eval::MeanEstimate
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::means(&mut self) -> core::result::Result<alloc::vec::Vec<f64>, antecedent_design::decision_evaluation::DemandSourceError>
+pub trait fn fn antecedent_design::decision_evaluation::DemandSource::method_provenance(&self) -> core::option::Option<&antecedent_io_core::method_provenance::MethodProvenanceWire> {default}
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::receipt(&self) -> antecedent_design::decision_eval::SourceReceipt
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::requires_joint_rows(&self) -> bool {default}
 pub trait fn fn antecedent_design::decision_evaluation::DemandSource::supplies_draws(&self) -> bool
@@ -16234,21 +16584,34 @@ pub variant antecedent_design::composition_bundle::NodeKind::AssessedBridgePoste
 pub variant antecedent_design::composition_bundle::NodeKind::Attestation
 pub variant antecedent_design::composition_bundle::NodeKind::CausalContract
 pub variant antecedent_design::composition_bundle::NodeKind::CohortDecisionSource
+pub variant antecedent_design::composition_bundle::NodeKind::CompactFittedEffectModel
+pub variant antecedent_design::composition_bundle::NodeKind::CounterfactualTransportResult
 pub variant antecedent_design::composition_bundle::NodeKind::CyclicPosteriorFit
 pub variant antecedent_design::composition_bundle::NodeKind::CyclicTargetFeedbackFit
 pub variant antecedent_design::composition_bundle::NodeKind::DecisionContract
 pub variant antecedent_design::composition_bundle::NodeKind::DecisionResult
+pub variant antecedent_design::composition_bundle::NodeKind::DelayedEntryIncidenceResult
+pub variant antecedent_design::composition_bundle::NodeKind::DelayedEntrySurvivalBandResult
 pub variant antecedent_design::composition_bundle::NodeKind::Distribution
+pub variant antecedent_design::composition_bundle::NodeKind::EvidenceLedger
 pub variant antecedent_design::composition_bundle::NodeKind::EvidenceRelationship
 pub variant antecedent_design::composition_bundle::NodeKind::ExecutionOrFit
 pub variant antecedent_design::composition_bundle::NodeKind::ExternalClaim
 pub variant antecedent_design::composition_bundle::NodeKind::FrozenScores
 pub variant antecedent_design::composition_bundle::NodeKind::GraphImputationPredictiveFit
 pub variant antecedent_design::composition_bundle::NodeKind::GraphImputationTransportFit
+pub variant antecedent_design::composition_bundle::NodeKind::IntegratedScheduleDecision
+pub variant antecedent_design::composition_bundle::NodeKind::IntegratedScheduleEvidence
 pub variant antecedent_design::composition_bundle::NodeKind::InverseQuery
 pub variant antecedent_design::composition_bundle::NodeKind::JointTransportEffectFit
 pub variant antecedent_design::composition_bundle::NodeKind::JointTransportPredictiveFit
+pub variant antecedent_design::composition_bundle::NodeKind::LearnedRpcmci
+pub variant antecedent_design::composition_bundle::NodeKind::LedgerPooledResult
+pub variant antecedent_design::composition_bundle::NodeKind::LongitudinalJointSensitivity
+pub variant antecedent_design::composition_bundle::NodeKind::LongitudinalRegimeResult
 pub variant antecedent_design::composition_bundle::NodeKind::ObservationQuery
+pub variant antecedent_design::composition_bundle::NodeKind::PagIdentification
+pub variant antecedent_design::composition_bundle::NodeKind::PatientSurrogateIdentification
 pub variant antecedent_design::composition_bundle::NodeKind::PredictiveChainDecision
 pub variant antecedent_design::composition_bundle::NodeKind::PropagationChain
 pub variant antecedent_design::composition_bundle::NodeKind::QuantityCoordinates
@@ -16256,6 +16619,7 @@ pub variant antecedent_design::composition_bundle::NodeKind::RecalculationReceip
 pub variant antecedent_design::composition_bundle::NodeKind::RepairReport
 pub variant antecedent_design::composition_bundle::NodeKind::Rollout
 pub variant antecedent_design::composition_bundle::NodeKind::ScientificBridge
+pub variant antecedent_design::composition_bundle::NodeKind::ScientificBridgeImage
 pub variant antecedent_design::composition_bundle::NodeKind::Sensitivity
 pub variant antecedent_design::composition_bundle::NodeKind::SequentialDecisionDraws
 pub variant antecedent_design::composition_bundle::NodeKind::SequentialPolicyReliabilityFit
@@ -16696,6 +17060,24 @@ pub variant antecedent_design::evsi::IntegrationMethod::ExternallyComputed
 pub variant antecedent_design::evsi::IntegrationMethod::MonteCarlo
 pub variant antecedent_design::evsi::RankingBasis::Evsi
 pub variant antecedent_design::evsi::RankingBasis::NetValue
+pub variant antecedent_design::intervention_schedule_decision::ScheduleBundleError::Bundle(antecedent_design::composition_bundle::BundleError)
+pub variant antecedent_design::intervention_schedule_decision::ScheduleBundleError::ChangedProgram
+pub variant antecedent_design::intervention_schedule_decision::ScheduleBundleError::Io(antecedent_io_core::error::IoError)
+pub variant antecedent_design::intervention_schedule_decision::ScheduleBundleError::MissingParent
+pub variant antecedent_design::intervention_schedule_decision::ScheduleBundleError::Procedure(antecedent_design::intervention_schedule_decision::ScheduleDecisionError)
+pub variant antecedent_design::intervention_schedule_decision::ScheduleBundleError::Resource(alloc::string::String)
+pub variant antecedent_design::intervention_schedule_decision::ScheduleBundleError::Unsupported(alloc::string::String)
+pub variant antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign::ExampleTiedOptima
+pub variant antecedent_design::intervention_schedule_decision::ScheduleCalibrationDesign::ExampleUniqueOptima
+pub variant antecedent_design::intervention_schedule_decision::ScheduleDecisionError::Cancelled
+pub variant antecedent_design::intervention_schedule_decision::ScheduleDecisionError::InadequateOverlap
+pub variant antecedent_design::intervention_schedule_decision::ScheduleDecisionError::InvalidDeclaration
+pub variant antecedent_design::intervention_schedule_decision::ScheduleDecisionError::MissingJointEvidence
+pub variant antecedent_design::intervention_schedule_decision::ScheduleEvidence::Declaration { problem: antecedent_design::intervention_schedule_decision::ScheduleDecisionDeclaration }
+pub variant antecedent_design::intervention_schedule_decision::ScheduleEvidence::Source { rows: alloc::vec::Vec<antecedent_design::intervention_schedule_decision::ScheduleSourceSubject> }
+pub variant antecedent_design::intervention_schedule_decision::ScheduleEvidence::Target { baseline: alloc::vec::Vec<bool> }
+pub variant antecedent_design::intervention_schedule_decision::ScheduleStructure::BothActionsCausal
+pub variant antecedent_design::intervention_schedule_decision::ScheduleStructure::FirstActionOnly
 pub variant antecedent_design::inverse_forward_source::ComposedFamily::LinearGaussian
 pub variant antecedent_design::inverse_forward_source::ComposedFamily::Tabular
 pub variant antecedent_design::inverse_forward_source::ForwardRepresentation::Law

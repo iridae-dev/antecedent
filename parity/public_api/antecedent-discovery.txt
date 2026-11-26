@@ -117,10 +117,13 @@ impl core::clone::Clone for antecedent_discovery::PcmciPlus
 impl core::clone::Clone for antecedent_discovery::PdPathBudget
 impl core::clone::Clone for antecedent_discovery::PossibleDSepBudget
 impl core::clone::Clone for antecedent_discovery::RegimeAssignment
+impl core::clone::Clone for antecedent_discovery::RegimeCountPolicy
 impl core::clone::Clone for antecedent_discovery::RegimeGraphCollection
 impl core::clone::Clone for antecedent_discovery::Rfci
 impl core::clone::Clone for antecedent_discovery::Rpcmci
 impl core::clone::Clone for antecedent_discovery::RpcmciDiscoveryResult
+impl core::clone::Clone for antecedent_discovery::RpcmciLearning
+impl core::clone::Clone for antecedent_discovery::RpcmciLearningDiagnostics
 impl core::clone::Clone for antecedent_discovery::RuleDelta
 impl core::clone::Clone for antecedent_discovery::SamplingSummary
 impl core::clone::Clone for antecedent_discovery::ScoredLink
@@ -194,6 +197,7 @@ impl core::cmp::Eq for antecedent_discovery::OrientationError
 impl core::cmp::Eq for antecedent_discovery::PdPathBudget
 impl core::cmp::Eq for antecedent_discovery::PossibleDSepBudget
 impl core::cmp::Eq for antecedent_discovery::RegimeAssignment
+impl core::cmp::Eq for antecedent_discovery::RegimeCountPolicy
 impl core::cmp::Eq for antecedent_discovery::SpaceDummyCiMode
 impl core::cmp::Eq for antecedent_discovery::TemporalAdmgAtom
 impl core::cmp::Eq for antecedent_discovery::TimeDummyCiMode
@@ -250,6 +254,9 @@ impl core::cmp::PartialEq for antecedent_discovery::OrientationError
 impl core::cmp::PartialEq for antecedent_discovery::PdPathBudget
 impl core::cmp::PartialEq for antecedent_discovery::PossibleDSepBudget
 impl core::cmp::PartialEq for antecedent_discovery::RegimeAssignment
+impl core::cmp::PartialEq for antecedent_discovery::RegimeCountPolicy
+impl core::cmp::PartialEq for antecedent_discovery::RpcmciLearning
+impl core::cmp::PartialEq for antecedent_discovery::RpcmciLearningDiagnostics
 impl core::cmp::PartialEq for antecedent_discovery::ScoredLink
 impl core::cmp::PartialEq for antecedent_discovery::ScreenedMarginals
 impl core::cmp::PartialEq for antecedent_discovery::SoftTiers
@@ -422,10 +429,13 @@ impl core::fmt::Debug for antecedent_discovery::PcmciPlus
 impl core::fmt::Debug for antecedent_discovery::PdPathBudget
 impl core::fmt::Debug for antecedent_discovery::PossibleDSepBudget
 impl core::fmt::Debug for antecedent_discovery::RegimeAssignment
+impl core::fmt::Debug for antecedent_discovery::RegimeCountPolicy
 impl core::fmt::Debug for antecedent_discovery::RegimeGraphCollection
 impl core::fmt::Debug for antecedent_discovery::Rfci
 impl core::fmt::Debug for antecedent_discovery::Rpcmci
 impl core::fmt::Debug for antecedent_discovery::RpcmciDiscoveryResult
+impl core::fmt::Debug for antecedent_discovery::RpcmciLearning
+impl core::fmt::Debug for antecedent_discovery::RpcmciLearningDiagnostics
 impl core::fmt::Debug for antecedent_discovery::RuleDelta
 impl core::fmt::Debug for antecedent_discovery::SamplingSummary
 impl core::fmt::Debug for antecedent_discovery::ScoredLink
@@ -531,6 +541,8 @@ impl core::marker::Copy for antecedent_discovery::OrientCollider
 impl core::marker::Copy for antecedent_discovery::PagMcmcSchedule
 impl core::marker::Copy for antecedent_discovery::PdPathBudget
 impl core::marker::Copy for antecedent_discovery::PossibleDSepBudget
+impl core::marker::Copy for antecedent_discovery::RegimeCountPolicy
+impl core::marker::Copy for antecedent_discovery::RpcmciLearning
 impl core::marker::Copy for antecedent_discovery::ScoredLink
 impl core::marker::Copy for antecedent_discovery::SpaceDummyCiMode
 impl core::marker::Copy for antecedent_discovery::TimeDummyCiMode
@@ -608,10 +620,13 @@ impl core::marker::Freeze for antecedent_discovery::PcmciPlus [auto]
 impl core::marker::Freeze for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Freeze for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Freeze for antecedent_discovery::RegimeAssignment [auto]
+impl core::marker::Freeze for antecedent_discovery::RegimeCountPolicy [auto]
 impl core::marker::Freeze for antecedent_discovery::RegimeGraphCollection [auto]
 impl core::marker::Freeze for antecedent_discovery::Rfci [auto]
 impl core::marker::Freeze for antecedent_discovery::Rpcmci [auto]
 impl core::marker::Freeze for antecedent_discovery::RpcmciDiscoveryResult [auto]
+impl core::marker::Freeze for antecedent_discovery::RpcmciLearning [auto]
+impl core::marker::Freeze for antecedent_discovery::RpcmciLearningDiagnostics [auto]
 impl core::marker::Freeze for antecedent_discovery::RuleDelta [auto]
 impl core::marker::Freeze for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Freeze for antecedent_discovery::ScoredLink [auto]
@@ -728,10 +743,13 @@ impl core::marker::Send for antecedent_discovery::PcmciPlus [auto]
 impl core::marker::Send for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Send for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Send for antecedent_discovery::RegimeAssignment [auto]
+impl core::marker::Send for antecedent_discovery::RegimeCountPolicy [auto]
 impl core::marker::Send for antecedent_discovery::RegimeGraphCollection [auto]
 impl core::marker::Send for antecedent_discovery::Rfci [auto]
 impl core::marker::Send for antecedent_discovery::Rpcmci [auto]
 impl core::marker::Send for antecedent_discovery::RpcmciDiscoveryResult [auto]
+impl core::marker::Send for antecedent_discovery::RpcmciLearning [auto]
+impl core::marker::Send for antecedent_discovery::RpcmciLearningDiagnostics [auto]
 impl core::marker::Send for antecedent_discovery::RuleDelta [auto]
 impl core::marker::Send for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Send for antecedent_discovery::ScoredLink [auto]
@@ -817,6 +835,9 @@ impl core::marker::StructuralPartialEq for antecedent_discovery::OrientationErro
 impl core::marker::StructuralPartialEq for antecedent_discovery::PdPathBudget
 impl core::marker::StructuralPartialEq for antecedent_discovery::PossibleDSepBudget
 impl core::marker::StructuralPartialEq for antecedent_discovery::RegimeAssignment
+impl core::marker::StructuralPartialEq for antecedent_discovery::RegimeCountPolicy
+impl core::marker::StructuralPartialEq for antecedent_discovery::RpcmciLearning
+impl core::marker::StructuralPartialEq for antecedent_discovery::RpcmciLearningDiagnostics
 impl core::marker::StructuralPartialEq for antecedent_discovery::ScoredLink
 impl core::marker::StructuralPartialEq for antecedent_discovery::ScreenedMarginals
 impl core::marker::StructuralPartialEq for antecedent_discovery::SoftTiers
@@ -914,10 +935,13 @@ impl core::marker::Sync for antecedent_discovery::PcmciPlus [auto]
 impl core::marker::Sync for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Sync for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Sync for antecedent_discovery::RegimeAssignment [auto]
+impl core::marker::Sync for antecedent_discovery::RegimeCountPolicy [auto]
 impl core::marker::Sync for antecedent_discovery::RegimeGraphCollection [auto]
 impl core::marker::Sync for antecedent_discovery::Rfci [auto]
 impl core::marker::Sync for antecedent_discovery::Rpcmci [auto]
 impl core::marker::Sync for antecedent_discovery::RpcmciDiscoveryResult [auto]
+impl core::marker::Sync for antecedent_discovery::RpcmciLearning [auto]
+impl core::marker::Sync for antecedent_discovery::RpcmciLearningDiagnostics [auto]
 impl core::marker::Sync for antecedent_discovery::RuleDelta [auto]
 impl core::marker::Sync for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Sync for antecedent_discovery::ScoredLink [auto]
@@ -1040,10 +1064,13 @@ impl core::marker::Unpin for antecedent_discovery::PcmciPlus [auto]
 impl core::marker::Unpin for antecedent_discovery::PdPathBudget [auto]
 impl core::marker::Unpin for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::marker::Unpin for antecedent_discovery::RegimeAssignment [auto]
+impl core::marker::Unpin for antecedent_discovery::RegimeCountPolicy [auto]
 impl core::marker::Unpin for antecedent_discovery::RegimeGraphCollection [auto]
 impl core::marker::Unpin for antecedent_discovery::Rfci [auto]
 impl core::marker::Unpin for antecedent_discovery::Rpcmci [auto]
 impl core::marker::Unpin for antecedent_discovery::RpcmciDiscoveryResult [auto]
+impl core::marker::Unpin for antecedent_discovery::RpcmciLearning [auto]
+impl core::marker::Unpin for antecedent_discovery::RpcmciLearningDiagnostics [auto]
 impl core::marker::Unpin for antecedent_discovery::RuleDelta [auto]
 impl core::marker::Unpin for antecedent_discovery::SamplingSummary [auto]
 impl core::marker::Unpin for antecedent_discovery::ScoredLink [auto]
@@ -1157,8 +1184,11 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PagMcmcSc
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PdPathBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RegimeAssignment [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RegimeCountPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RegimeGraphCollection [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RpcmciDiscoveryResult [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RpcmciLearning [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RpcmciLearningDiagnostics [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::RuleDelta [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::SamplingSummary [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_discovery::ScoredLink [auto]
@@ -1267,8 +1297,11 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PagMcmcSched
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PdPathBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::PossibleDSepBudget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RegimeAssignment [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RegimeCountPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RegimeGraphCollection [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RpcmciDiscoveryResult [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RpcmciLearning [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RpcmciLearningDiagnostics [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::RuleDelta [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::SamplingSummary [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_discovery::ScoredLink [auto]
@@ -1384,6 +1417,7 @@ pub enum antecedent_discovery::EvidenceSource
 pub enum antecedent_discovery::JpcmciNodeRole
 pub enum antecedent_discovery::KnowledgeFault
 pub enum antecedent_discovery::KnowledgeScope
+pub enum antecedent_discovery::RegimeCountPolicy
 pub enum antecedent_discovery::SpaceDummyCiMode
 pub enum antecedent_discovery::TimeDummyCiMode
 pub enum antecedent_discovery::conflict_resolution::ConflictResolution
@@ -1580,7 +1614,22 @@ pub field antecedent_discovery::RpcmciDiscoveryResult::algorithm: antecedent_dis
 pub field antecedent_discovery::RpcmciDiscoveryResult::assignments: antecedent_discovery::RegimeAssignment
 pub field antecedent_discovery::RpcmciDiscoveryResult::diagnostics: alloc::vec::Vec<antecedent_discovery::DiscoveryDiagnostic>
 pub field antecedent_discovery::RpcmciDiscoveryResult::graphs: antecedent_discovery::RegimeGraphCollection
+pub field antecedent_discovery::RpcmciDiscoveryResult::learning: core::option::Option<antecedent_discovery::RpcmciLearningDiagnostics>
 pub field antecedent_discovery::RpcmciDiscoveryResult::per_regime: alloc::sync::Arc<[antecedent_discovery::CpdagDiscoveryResult]>
+pub field antecedent_discovery::RpcmciLearning::count: antecedent_discovery::RegimeCountPolicy
+pub field antecedent_discovery::RpcmciLearning::max_iterations: u32
+pub field antecedent_discovery::RpcmciLearning::starts: u32
+pub field antecedent_discovery::RpcmciLearning::switch_penalty: f64
+pub field antecedent_discovery::RpcmciLearningDiagnostics::assignment_agreement: core::option::Option<f64>
+pub field antecedent_discovery::RpcmciLearningDiagnostics::candidate_scores: alloc::vec::Vec<(u32, f64)>
+pub field antecedent_discovery::RpcmciLearningDiagnostics::converged: bool
+pub field antecedent_discovery::RpcmciLearningDiagnostics::graph_agreement: alloc::vec::Vec<core::option::Option<f64>>
+pub field antecedent_discovery::RpcmciLearningDiagnostics::infeasible_counts: alloc::vec::Vec<u32>
+pub field antecedent_discovery::RpcmciLearningDiagnostics::iterations: u32
+pub field antecedent_discovery::RpcmciLearningDiagnostics::options: antecedent_discovery::RpcmciLearning
+pub field antecedent_discovery::RpcmciLearningDiagnostics::seed: u64
+pub field antecedent_discovery::RpcmciLearningDiagnostics::selected_count: u32
+pub field antecedent_discovery::RpcmciLearningDiagnostics::successful_starts: usize
 pub field antecedent_discovery::RuleDelta::conflicts: u32
 pub field antecedent_discovery::RuleDelta::edges_changed: u32
 pub field antecedent_discovery::RuleDelta::enqueued: u32
@@ -1990,6 +2039,7 @@ pub fn <antecedent_discovery::RegimeAssignment>::fn is_empty(&self) -> bool
 pub fn <antecedent_discovery::RegimeAssignment>::fn len(&self) -> usize
 pub fn <antecedent_discovery::RegimeAssignment>::fn try_new(regimes: impl core::convert::Into<alloc::sync::Arc<[antecedent_core::ids::RegimeId]>>) -> core::result::Result<Self, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::RegimeAssignment>::fn unique_regimes(&self) -> alloc::vec::Vec<antecedent_core::ids::RegimeId>
+pub fn <antecedent_discovery::RegimeCountPolicy>::const fn bounds(self) -> (u32, u32)
 pub fn <antecedent_discovery::RegimeGraphCollection>::fn get(&self, regime: antecedent_core::ids::RegimeId) -> core::option::Option<&antecedent_graph::cpdag::TemporalCpdag>
 pub fn <antecedent_discovery::Rfci>::fn new() -> Self
 pub fn <antecedent_discovery::Rfci>::fn run(&self, data: &antecedent_data::dataset::TabularData, variables: &[antecedent_core::ids::VariableId], workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::StaticPagDiscoveryResult, antecedent_discovery::DiscoveryError>
@@ -1997,6 +2047,7 @@ pub fn <antecedent_discovery::Rfci>::fn with_ci(self, ci: alloc::sync::Arc<dyn a
 pub fn <antecedent_discovery::Rfci>::fn with_constraints(self, constraints: antecedent_discovery::DiscoveryConstraints) -> Self
 pub fn <antecedent_discovery::Rfci>::fn with_fdr(self, fdr: bool) -> Self
 pub fn <antecedent_discovery::Rfci>::fn with_fdr_adjustment(self, fdr: core::option::Option<antecedent_stats::fdr::FdrAdjustment>) -> Self
+pub fn <antecedent_discovery::Rpcmci>::fn learn(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], options: antecedent_discovery::RpcmciLearning, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::RpcmciDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Rpcmci>::fn new() -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn run(&self, data: &antecedent_data::dataset::TimeSeriesData, variables: &[antecedent_core::ids::VariableId], assignments: &antecedent_discovery::RegimeAssignment, workspace: &mut antecedent_discovery::DiscoveryWorkspace, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_discovery::RpcmciDiscoveryResult, antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::Rpcmci>::fn with_alternating_iters(self, alternating_iters: usize) -> Self
@@ -2004,6 +2055,8 @@ pub fn <antecedent_discovery::Rpcmci>::fn with_assignment(self, assignment: ante
 pub fn <antecedent_discovery::Rpcmci>::fn with_ci(self, ci: alloc::sync::Arc<dyn antecedent_stats::ci::types::ConditionalIndependenceTest + core::marker::Send + core::marker::Sync>) -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn with_min_regime_len(self, min_regime_len: usize) -> Self
 pub fn <antecedent_discovery::Rpcmci>::fn with_pcmci_plus(self, pcmci_plus: antecedent_discovery::PcmciPlus) -> Self
+pub fn <antecedent_discovery::RpcmciLearning>::const fn new(count: antecedent_discovery::RegimeCountPolicy) -> Self
+pub fn <antecedent_discovery::RpcmciLearning>::fn validate(self) -> core::result::Result<(), antecedent_discovery::DiscoveryError>
 pub fn <antecedent_discovery::ScoredLink>::const fn untested(link: antecedent_discovery::LaggedLink) -> Self
 pub fn <antecedent_discovery::ScoredLink>::fn is_tested(&self) -> bool
 pub fn <antecedent_discovery::SoftTiers>::fn with_log_penalty(tiers: impl core::convert::Into<alloc::sync::Arc<[alloc::sync::Arc<[antecedent_core::ids::VariableId]>]>>, log_penalty: f64) -> Self
@@ -2342,6 +2395,8 @@ pub struct antecedent_discovery::Rfci
 pub struct antecedent_discovery::Rpcmci
 pub struct antecedent_discovery::Rpcmci has private fields
 pub struct antecedent_discovery::RpcmciDiscoveryResult
+pub struct antecedent_discovery::RpcmciLearning
+pub struct antecedent_discovery::RpcmciLearningDiagnostics
 pub struct antecedent_discovery::RuleDelta
 pub struct antecedent_discovery::SamplingSummary
 pub struct antecedent_discovery::ScoredLink
@@ -2566,9 +2621,12 @@ pub use antecedent_discovery::result::PcSepsets = antecedent_discovery::PcSepset
 pub use antecedent_discovery::result::ScoredLink = antecedent_discovery::ScoredLink
 pub use antecedent_discovery::rfci::Rfci = antecedent_discovery::Rfci
 pub use antecedent_discovery::rpcmci::RegimeAssignment = antecedent_discovery::RegimeAssignment
+pub use antecedent_discovery::rpcmci::RegimeCountPolicy = antecedent_discovery::RegimeCountPolicy
 pub use antecedent_discovery::rpcmci::RegimeGraphCollection = antecedent_discovery::RegimeGraphCollection
 pub use antecedent_discovery::rpcmci::Rpcmci = antecedent_discovery::Rpcmci
 pub use antecedent_discovery::rpcmci::RpcmciDiscoveryResult = antecedent_discovery::RpcmciDiscoveryResult
+pub use antecedent_discovery::rpcmci::RpcmciLearning = antecedent_discovery::RpcmciLearning
+pub use antecedent_discovery::rpcmci::RpcmciLearningDiagnostics = antecedent_discovery::RpcmciLearningDiagnostics
 pub use antecedent_discovery::rule_scheduling::LpcmciDiscriminatingPathRule = antecedent_discovery::LpcmciDiscriminatingPathRule
 pub use antecedent_discovery::rule_scheduling::LpcmciOrientCollider = antecedent_discovery::LpcmciOrientCollider
 pub use antecedent_discovery::rule_scheduling::LpcmciOrientationRule = antecedent_discovery::LpcmciOrientationRule
@@ -2692,6 +2750,8 @@ pub variant antecedent_discovery::OrientationError::Graph(antecedent_graph::erro
 pub variant antecedent_discovery::OrientationError::Message(alloc::string::String)
 pub variant antecedent_discovery::OrientationError::Precondition { message: &'static str }
 pub variant antecedent_discovery::OrientationError::SearchBudgetExhausted { rule: &'static str, max_paths: usize, max_len: usize }
+pub variant antecedent_discovery::RegimeCountPolicy::Bic { max_regimes: u32 }
+pub variant antecedent_discovery::RegimeCountPolicy::Fixed(u32)
 pub variant antecedent_discovery::SpaceDummyCiMode::MultivariateBlock
 pub variant antecedent_discovery::SpaceDummyCiMode::ScalarOneHot
 pub variant antecedent_discovery::TimeDummyCiMode::MultivariateBlock

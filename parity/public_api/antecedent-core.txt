@@ -1,6 +1,7 @@
 # Public API snapshot (rustdoc JSON, default features). Regenerate with
 #   python3 scripts/gate_public_api.py --write
 # One line per public item; do not edit by hand.
+#[doc(hidden)] pub fn <antecedent_core::CancellationToken>::fn child(&self) -> Self
 #[doc(hidden)] pub fn <antecedent_core::CanonicalWriter>::const fn has_runtime_callback(&self) -> bool
 #[doc(hidden)] pub fn <antecedent_core::CanonicalWriter>::fn note_runtime_callback(&mut self)
 #[doc(hidden)] pub fn <antecedent_core::ExecutionContext>::fn enter_lowered_dispatch(&self, program: antecedent_core::SemanticDigest) -> Self
@@ -252,6 +253,7 @@ impl antecedent_core::CanonicalEncode for antecedent_core::ShapleyMode
 impl antecedent_core::CanonicalEncode for antecedent_core::SimulateQuery
 impl antecedent_core::CanonicalEncode for antecedent_core::SimulationTarget
 impl antecedent_core::CanonicalEncode for antecedent_core::StochasticPolicy
+impl antecedent_core::CanonicalEncode for antecedent_core::StratifiedCensoringSurvival
 impl antecedent_core::CanonicalEncode for antecedent_core::StructuralAction
 impl antecedent_core::CanonicalEncode for antecedent_core::StructurePriorSpec
 impl antecedent_core::CanonicalEncode for antecedent_core::SupportedWeights
@@ -461,6 +463,7 @@ impl core::clone::Clone for antecedent_core::ExpressionFault
 impl core::clone::Clone for antecedent_core::FailedCapabilityAttempt
 impl core::clone::Clone for antecedent_core::FailedRngAttempt
 impl core::clone::Clone for antecedent_core::FeedbackDeclaration
+impl core::clone::Clone for antecedent_core::FittedRegimeQ
 impl core::clone::Clone for antecedent_core::FixedCandidateRegretInputs
 impl core::clone::Clone for antecedent_core::FixedGroupDosePolicy
 impl core::clone::Clone for antecedent_core::Fnv1a64
@@ -511,6 +514,8 @@ impl core::clone::Clone for antecedent_core::LogicOp
 impl core::clone::Clone for antecedent_core::LongitudinalRegimeFault
 impl core::clone::Clone for antecedent_core::LongitudinalRegimeMethod
 impl core::clone::Clone for antecedent_core::LongitudinalRegimeQuery
+impl core::clone::Clone for antecedent_core::LongitudinalScheduleFamily
+impl core::clone::Clone for antecedent_core::LongitudinalScheduleTarget
 impl core::clone::Clone for antecedent_core::LossModel
 impl core::clone::Clone for antecedent_core::MeasurementSpec
 impl core::clone::Clone for antecedent_core::MechanismChangeQuery
@@ -662,6 +667,7 @@ impl core::clone::Clone for antecedent_core::SplittingRule
 impl core::clone::Clone for antecedent_core::StateVersion
 impl core::clone::Clone for antecedent_core::StochasticPolicy
 impl core::clone::Clone for antecedent_core::StochasticPolicyFault
+impl core::clone::Clone for antecedent_core::StratifiedCensoringSurvival
 impl core::clone::Clone for antecedent_core::StreamDomain
 impl core::clone::Clone for antecedent_core::StreamRequest
 impl core::clone::Clone for antecedent_core::StructuralAction
@@ -1006,6 +1012,7 @@ impl core::cmp::Eq for antecedent_core::ExprType
 impl core::cmp::Eq for antecedent_core::ExpressionFault
 impl core::cmp::Eq for antecedent_core::FailedCapabilityAttempt
 impl core::cmp::Eq for antecedent_core::FailedRngAttempt
+impl core::cmp::Eq for antecedent_core::FittedRegimeQ
 impl core::cmp::Eq for antecedent_core::FoldId
 impl core::cmp::Eq for antecedent_core::FrozenFitReuse
 impl core::cmp::Eq for antecedent_core::GeneralizedBayes
@@ -1041,6 +1048,8 @@ impl core::cmp::Eq for antecedent_core::LocalRatioOptions
 impl core::cmp::Eq for antecedent_core::LogicOp
 impl core::cmp::Eq for antecedent_core::LongitudinalRegimeFault
 impl core::cmp::Eq for antecedent_core::LongitudinalRegimeMethod
+impl core::cmp::Eq for antecedent_core::LongitudinalScheduleFamily
+impl core::cmp::Eq for antecedent_core::LongitudinalScheduleTarget
 impl core::cmp::Eq for antecedent_core::LossModel
 impl core::cmp::Eq for antecedent_core::MeasurementSpec
 impl core::cmp::Eq for antecedent_core::MechanismChangeQuery
@@ -1539,6 +1548,7 @@ impl core::cmp::PartialEq for antecedent_core::ExpressionFault
 impl core::cmp::PartialEq for antecedent_core::FailedCapabilityAttempt
 impl core::cmp::PartialEq for antecedent_core::FailedRngAttempt
 impl core::cmp::PartialEq for antecedent_core::FeedbackDeclaration
+impl core::cmp::PartialEq for antecedent_core::FittedRegimeQ
 impl core::cmp::PartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::cmp::PartialEq for antecedent_core::FixedGroupDosePolicy
 impl core::cmp::PartialEq for antecedent_core::FoldId
@@ -1588,6 +1598,8 @@ impl core::cmp::PartialEq for antecedent_core::LogicOp
 impl core::cmp::PartialEq for antecedent_core::LongitudinalRegimeFault
 impl core::cmp::PartialEq for antecedent_core::LongitudinalRegimeMethod
 impl core::cmp::PartialEq for antecedent_core::LongitudinalRegimeQuery
+impl core::cmp::PartialEq for antecedent_core::LongitudinalScheduleFamily
+impl core::cmp::PartialEq for antecedent_core::LongitudinalScheduleTarget
 impl core::cmp::PartialEq for antecedent_core::LossModel
 impl core::cmp::PartialEq for antecedent_core::MeasurementSpec
 impl core::cmp::PartialEq for antecedent_core::MechanismChangeQuery
@@ -1737,6 +1749,7 @@ impl core::cmp::PartialEq for antecedent_core::SplittingRule
 impl core::cmp::PartialEq for antecedent_core::StateVersion
 impl core::cmp::PartialEq for antecedent_core::StochasticPolicy
 impl core::cmp::PartialEq for antecedent_core::StochasticPolicyFault
+impl core::cmp::PartialEq for antecedent_core::StratifiedCensoringSurvival
 impl core::cmp::PartialEq for antecedent_core::StreamDomain
 impl core::cmp::PartialEq for antecedent_core::StreamRequest
 impl core::cmp::PartialEq for antecedent_core::StructuralAction
@@ -2308,6 +2321,7 @@ impl core::fmt::Debug for antecedent_core::ExpressionFault
 impl core::fmt::Debug for antecedent_core::FailedCapabilityAttempt
 impl core::fmt::Debug for antecedent_core::FailedRngAttempt
 impl core::fmt::Debug for antecedent_core::FeedbackDeclaration
+impl core::fmt::Debug for antecedent_core::FittedRegimeQ
 impl core::fmt::Debug for antecedent_core::FixedCandidateRegretInputs
 impl core::fmt::Debug for antecedent_core::FixedGroupDosePolicy
 impl core::fmt::Debug for antecedent_core::Fnv1a64
@@ -2358,6 +2372,8 @@ impl core::fmt::Debug for antecedent_core::LogicOp
 impl core::fmt::Debug for antecedent_core::LongitudinalRegimeFault
 impl core::fmt::Debug for antecedent_core::LongitudinalRegimeMethod
 impl core::fmt::Debug for antecedent_core::LongitudinalRegimeQuery
+impl core::fmt::Debug for antecedent_core::LongitudinalScheduleFamily
+impl core::fmt::Debug for antecedent_core::LongitudinalScheduleTarget
 impl core::fmt::Debug for antecedent_core::LossModel
 impl core::fmt::Debug for antecedent_core::MeasurementSpec
 impl core::fmt::Debug for antecedent_core::MechanismChangeQuery
@@ -2510,6 +2526,7 @@ impl core::fmt::Debug for antecedent_core::SplittingRule
 impl core::fmt::Debug for antecedent_core::StateVersion
 impl core::fmt::Debug for antecedent_core::StochasticPolicy
 impl core::fmt::Debug for antecedent_core::StochasticPolicyFault
+impl core::fmt::Debug for antecedent_core::StratifiedCensoringSurvival
 impl core::fmt::Debug for antecedent_core::StreamDomain
 impl core::fmt::Debug for antecedent_core::StreamRequest
 impl core::fmt::Debug for antecedent_core::StructuralAction
@@ -3296,6 +3313,7 @@ impl core::marker::Copy for antecedent_core::ExprNumber
 impl core::marker::Copy for antecedent_core::ExprType
 impl core::marker::Copy for antecedent_core::ExpressionFault
 impl core::marker::Copy for antecedent_core::FailedRngAttempt
+impl core::marker::Copy for antecedent_core::FittedRegimeQ
 impl core::marker::Copy for antecedent_core::Fnv1a64
 impl core::marker::Copy for antecedent_core::FoldId
 impl core::marker::Copy for antecedent_core::FrozenFitReuse
@@ -3314,6 +3332,8 @@ impl core::marker::Copy for antecedent_core::LearningRate
 impl core::marker::Copy for antecedent_core::LocalBandwidthRule
 impl core::marker::Copy for antecedent_core::LogicOp
 impl core::marker::Copy for antecedent_core::LongitudinalRegimeMethod
+impl core::marker::Copy for antecedent_core::LongitudinalScheduleFamily
+impl core::marker::Copy for antecedent_core::LongitudinalScheduleTarget
 impl core::marker::Copy for antecedent_core::MechanismChangeTest
 impl core::marker::Copy for antecedent_core::MediationComponent
 impl core::marker::Copy for antecedent_core::MediationContrast
@@ -3654,6 +3674,7 @@ impl core::marker::Freeze for antecedent_core::ExpressionFault [auto]
 impl core::marker::Freeze for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Freeze for antecedent_core::FailedRngAttempt [auto]
 impl core::marker::Freeze for antecedent_core::FeedbackDeclaration [auto]
+impl core::marker::Freeze for antecedent_core::FittedRegimeQ [auto]
 impl core::marker::Freeze for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Freeze for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Freeze for antecedent_core::Fnv1a64 [auto]
@@ -3704,6 +3725,8 @@ impl core::marker::Freeze for antecedent_core::LogicOp [auto]
 impl core::marker::Freeze for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Freeze for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Freeze for antecedent_core::LongitudinalRegimeQuery [auto]
+impl core::marker::Freeze for antecedent_core::LongitudinalScheduleFamily [auto]
+impl core::marker::Freeze for antecedent_core::LongitudinalScheduleTarget [auto]
 impl core::marker::Freeze for antecedent_core::LossModel [auto]
 impl core::marker::Freeze for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Freeze for antecedent_core::MechanismChangeQuery [auto]
@@ -3855,6 +3878,7 @@ impl core::marker::Freeze for antecedent_core::SplittingRule [auto]
 impl core::marker::Freeze for antecedent_core::StateVersion [auto]
 impl core::marker::Freeze for antecedent_core::StochasticPolicy [auto]
 impl core::marker::Freeze for antecedent_core::StochasticPolicyFault [auto]
+impl core::marker::Freeze for antecedent_core::StratifiedCensoringSurvival [auto]
 impl core::marker::Freeze for antecedent_core::StreamDomain [auto]
 impl core::marker::Freeze for antecedent_core::StreamRequest [auto]
 impl core::marker::Freeze for antecedent_core::StructuralAction [auto]
@@ -4232,6 +4256,7 @@ impl core::marker::Send for antecedent_core::ExpressionFault [auto]
 impl core::marker::Send for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Send for antecedent_core::FailedRngAttempt [auto]
 impl core::marker::Send for antecedent_core::FeedbackDeclaration [auto]
+impl core::marker::Send for antecedent_core::FittedRegimeQ [auto]
 impl core::marker::Send for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Send for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Send for antecedent_core::Fnv1a64 [auto]
@@ -4282,6 +4307,8 @@ impl core::marker::Send for antecedent_core::LogicOp [auto]
 impl core::marker::Send for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Send for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Send for antecedent_core::LongitudinalRegimeQuery [auto]
+impl core::marker::Send for antecedent_core::LongitudinalScheduleFamily [auto]
+impl core::marker::Send for antecedent_core::LongitudinalScheduleTarget [auto]
 impl core::marker::Send for antecedent_core::LossModel [auto]
 impl core::marker::Send for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Send for antecedent_core::MechanismChangeQuery [auto]
@@ -4434,6 +4461,7 @@ impl core::marker::Send for antecedent_core::SplittingRule [auto]
 impl core::marker::Send for antecedent_core::StateVersion [auto]
 impl core::marker::Send for antecedent_core::StochasticPolicy [auto]
 impl core::marker::Send for antecedent_core::StochasticPolicyFault [auto]
+impl core::marker::Send for antecedent_core::StratifiedCensoringSurvival [auto]
 impl core::marker::Send for antecedent_core::StreamDomain [auto]
 impl core::marker::Send for antecedent_core::StreamRequest [auto]
 impl core::marker::Send for antecedent_core::StructuralAction [auto]
@@ -4807,6 +4835,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::ExpressionFault
 impl core::marker::StructuralPartialEq for antecedent_core::FailedCapabilityAttempt
 impl core::marker::StructuralPartialEq for antecedent_core::FailedRngAttempt
 impl core::marker::StructuralPartialEq for antecedent_core::FeedbackDeclaration
+impl core::marker::StructuralPartialEq for antecedent_core::FittedRegimeQ
 impl core::marker::StructuralPartialEq for antecedent_core::FixedCandidateRegretInputs
 impl core::marker::StructuralPartialEq for antecedent_core::FixedGroupDosePolicy
 impl core::marker::StructuralPartialEq for antecedent_core::FoldId
@@ -4856,6 +4885,8 @@ impl core::marker::StructuralPartialEq for antecedent_core::LogicOp
 impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeFault
 impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeMethod
 impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalRegimeQuery
+impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalScheduleFamily
+impl core::marker::StructuralPartialEq for antecedent_core::LongitudinalScheduleTarget
 impl core::marker::StructuralPartialEq for antecedent_core::LossModel
 impl core::marker::StructuralPartialEq for antecedent_core::MeasurementSpec
 impl core::marker::StructuralPartialEq for antecedent_core::MechanismChangeQuery
@@ -5001,6 +5032,7 @@ impl core::marker::StructuralPartialEq for antecedent_core::SourceDependencyId
 impl core::marker::StructuralPartialEq for antecedent_core::SplittingRule
 impl core::marker::StructuralPartialEq for antecedent_core::StateVersion
 impl core::marker::StructuralPartialEq for antecedent_core::StochasticPolicyFault
+impl core::marker::StructuralPartialEq for antecedent_core::StratifiedCensoringSurvival
 impl core::marker::StructuralPartialEq for antecedent_core::StreamDomain
 impl core::marker::StructuralPartialEq for antecedent_core::StreamRequest
 impl core::marker::StructuralPartialEq for antecedent_core::StructuralAction
@@ -5365,6 +5397,7 @@ impl core::marker::Sync for antecedent_core::ExpressionFault [auto]
 impl core::marker::Sync for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Sync for antecedent_core::FailedRngAttempt [auto]
 impl core::marker::Sync for antecedent_core::FeedbackDeclaration [auto]
+impl core::marker::Sync for antecedent_core::FittedRegimeQ [auto]
 impl core::marker::Sync for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Sync for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Sync for antecedent_core::Fnv1a64 [auto]
@@ -5415,6 +5448,8 @@ impl core::marker::Sync for antecedent_core::LogicOp [auto]
 impl core::marker::Sync for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Sync for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Sync for antecedent_core::LongitudinalRegimeQuery [auto]
+impl core::marker::Sync for antecedent_core::LongitudinalScheduleFamily [auto]
+impl core::marker::Sync for antecedent_core::LongitudinalScheduleTarget [auto]
 impl core::marker::Sync for antecedent_core::LossModel [auto]
 impl core::marker::Sync for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Sync for antecedent_core::MechanismChangeQuery [auto]
@@ -5567,6 +5602,7 @@ impl core::marker::Sync for antecedent_core::SplittingRule [auto]
 impl core::marker::Sync for antecedent_core::StateVersion [auto]
 impl core::marker::Sync for antecedent_core::StochasticPolicy [auto]
 impl core::marker::Sync for antecedent_core::StochasticPolicyFault [auto]
+impl core::marker::Sync for antecedent_core::StratifiedCensoringSurvival [auto]
 impl core::marker::Sync for antecedent_core::StreamDomain [auto]
 impl core::marker::Sync for antecedent_core::StreamRequest [auto]
 impl core::marker::Sync for antecedent_core::StructuralAction [auto]
@@ -5948,6 +5984,7 @@ impl core::marker::Unpin for antecedent_core::ExpressionFault [auto]
 impl core::marker::Unpin for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::marker::Unpin for antecedent_core::FailedRngAttempt [auto]
 impl core::marker::Unpin for antecedent_core::FeedbackDeclaration [auto]
+impl core::marker::Unpin for antecedent_core::FittedRegimeQ [auto]
 impl core::marker::Unpin for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::marker::Unpin for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::marker::Unpin for antecedent_core::Fnv1a64 [auto]
@@ -5998,6 +6035,8 @@ impl core::marker::Unpin for antecedent_core::LogicOp [auto]
 impl core::marker::Unpin for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::marker::Unpin for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::marker::Unpin for antecedent_core::LongitudinalRegimeQuery [auto]
+impl core::marker::Unpin for antecedent_core::LongitudinalScheduleFamily [auto]
+impl core::marker::Unpin for antecedent_core::LongitudinalScheduleTarget [auto]
 impl core::marker::Unpin for antecedent_core::LossModel [auto]
 impl core::marker::Unpin for antecedent_core::MeasurementSpec [auto]
 impl core::marker::Unpin for antecedent_core::MechanismChangeQuery [auto]
@@ -6150,6 +6189,7 @@ impl core::marker::Unpin for antecedent_core::SplittingRule [auto]
 impl core::marker::Unpin for antecedent_core::StateVersion [auto]
 impl core::marker::Unpin for antecedent_core::StochasticPolicy [auto]
 impl core::marker::Unpin for antecedent_core::StochasticPolicyFault [auto]
+impl core::marker::Unpin for antecedent_core::StratifiedCensoringSurvival [auto]
 impl core::marker::Unpin for antecedent_core::StreamDomain [auto]
 impl core::marker::Unpin for antecedent_core::StreamRequest [auto]
 impl core::marker::Unpin for antecedent_core::StructuralAction [auto]
@@ -6536,6 +6576,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::ExpressionFaul
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FailedRngAttempt [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FeedbackDeclaration [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FittedRegimeQ [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::Fnv1a64 [auto]
@@ -6586,6 +6627,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LogicOp [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalRegimeQuery [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalScheduleFamily [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LongitudinalScheduleTarget [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::LossModel [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MeasurementSpec [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::MechanismChangeQuery [auto]
@@ -6738,6 +6781,7 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::SplittingRule 
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StateVersion [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StochasticPolicy [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StochasticPolicyFault [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StratifiedCensoringSurvival [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StreamDomain [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StreamRequest [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_core::StructuralAction [auto]
@@ -7118,6 +7162,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::ExpressionFault [
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FailedCapabilityAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FailedRngAttempt [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FeedbackDeclaration [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FittedRegimeQ [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedCandidateRegretInputs [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::FixedGroupDosePolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::Fnv1a64 [auto]
@@ -7168,6 +7213,8 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LogicOp [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalRegimeFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalRegimeMethod [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalRegimeQuery [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalScheduleFamily [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LongitudinalScheduleTarget [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::LossModel [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MeasurementSpec [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::MechanismChangeQuery [auto]
@@ -7320,6 +7367,7 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_core::SplittingRule [au
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StateVersion [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StochasticPolicy [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StochasticPolicyFault [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StratifiedCensoringSurvival [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StreamDomain [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StreamRequest [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_core::StructuralAction [auto]
@@ -7633,7 +7681,7 @@ pub const <antecedent_core::ExecutionContext>::DEFAULT_ID_WORK_LIMIT: u64
 pub const <antecedent_core::ExecutionContext>::DEFAULT_PULSE_EXTRAPOLATION_RANGES: f64
 pub const <antecedent_core::IdentificationStatus>::ALL: [Self; 6]
 pub const <antecedent_core::IdentityDomain>::ALL: [antecedent_core::IdentityDomain; 15]
-pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMethod; 10]
+pub const <antecedent_core::IntervalMethod>::ALL: [antecedent_core::IntervalMethod; 12]
 pub const <antecedent_core::KernelPolicy>::SCALAR_BASELINE_ENV: &'static str
 pub const <antecedent_core::Lag>::CONTEMPORANEOUS: Self
 pub const <antecedent_core::ProviderCapability>::ALL: [Self; 9]
@@ -8848,6 +8896,14 @@ pub const antecedent_core::reason_details::initial_state_posterior::EMPTY_LAW: &
 pub const antecedent_core::reason_details::initial_state_posterior::EXTERNAL_POWER_PRIOR: &str
 pub const antecedent_core::reason_details::initial_state_posterior::MAPPED_PRIOR: &str
 pub const antecedent_core::reason_details::initial_state_posterior::NON_POSITIVE_SCALE: &str
+pub const antecedent_core::reason_details::integrated_schedule::ARTIFACT_REFUSED: &str
+pub const antecedent_core::reason_details::integrated_schedule::CANCELLED: &str
+pub const antecedent_core::reason_details::integrated_schedule::CHANGED_PROGRAM: &str
+pub const antecedent_core::reason_details::integrated_schedule::INADEQUATE_OVERLAP: &str
+pub const antecedent_core::reason_details::integrated_schedule::INVALID_DECLARATION: &str
+pub const antecedent_core::reason_details::integrated_schedule::MISSING_JOINT_EVIDENCE: &str
+pub const antecedent_core::reason_details::integrated_schedule::RESOURCE_REFUSED: &str
+pub const antecedent_core::reason_details::integrated_schedule::UNSUPPORTED: &str
 pub const antecedent_core::reason_details::interface_contract::ARTIFACT_INVALID: &str
 pub const antecedent_core::reason_details::interface_contract::BLANK_FIELD: &str
 pub const antecedent_core::reason_details::interface_contract::CALIBRATION_RECORD_BLANK: &str
@@ -9075,6 +9131,12 @@ pub const antecedent_core::reason_details::learned_transport::CATE_REQUESTED: &s
 pub const antecedent_core::reason_details::learned_transport::MEMBERSHIP_OVERLAP: &str
 pub const antecedent_core::reason_details::learned_transport::NON_IID_DESIGN: &str
 pub const antecedent_core::reason_details::learned_transport::TREATMENT_OVERLAP: &str
+pub const antecedent_core::reason_details::longitudinal_joint_sensitivity::CANCELLED: &str
+pub const antecedent_core::reason_details::longitudinal_joint_sensitivity::IDENTITY: &str
+pub const antecedent_core::reason_details::longitudinal_joint_sensitivity::INCOHERENT_BOX: &str
+pub const antecedent_core::reason_details::longitudinal_joint_sensitivity::INVALID_DECLARATION: &str
+pub const antecedent_core::reason_details::longitudinal_joint_sensitivity::POSITIVITY: &str
+pub const antecedent_core::reason_details::longitudinal_joint_sensitivity::RESOURCES: &str
 pub const antecedent_core::reason_details::mapped_posterior_transfer::COEFFICIENT_MAP: &str
 pub const antecedent_core::reason_details::mapped_posterior_transfer::PARAMETER_POSTERIOR: &str
 pub const antecedent_core::reason_details::mapped_posterior_transfer::RESIDUAL_VARIANCE: &str
@@ -9518,6 +9580,11 @@ pub const antecedent_core::reason_details::observation_query::UNKNOWN_QUANTITY: 
 pub const antecedent_core::reason_details::observation_query::UNKNOWN_VARIABLE: &str
 pub const antecedent_core::reason_details::observation_query::VALUE_NOT_FINITE: &str
 pub const antecedent_core::reason_details::observation_query::ZERO_PROBABILITY_EVIDENCE: &str
+pub const antecedent_core::reason_details::pag_identification::CANCELLED: &str
+pub const antecedent_core::reason_details::pag_identification::EXACT_EVALUATION_REFUSED: &str
+pub const antecedent_core::reason_details::pag_identification::INVALID_DECLARATION: &str
+pub const antecedent_core::reason_details::pag_identification::NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::pag_identification::RESOURCE_EXHAUSTED: &str
 pub const antecedent_core::reason_details::paradigm_parity::PARADIGM_NOT_SUPPORTED: &str
 pub const antecedent_core::reason_details::parent_set_effect::CONFLICT_RESOLUTION_BUDGET: &str
 pub const antecedent_core::reason_details::parent_set_effect::DISCOVERY_FAILED: &str
@@ -9532,6 +9599,14 @@ pub const antecedent_core::reason_details::parent_set_effect::STRUCTURE_CLASS: &
 pub const antecedent_core::reason_details::parent_set_effect::TRANSFORMATION_UNDECLARED: &str
 pub const antecedent_core::reason_details::parent_set_effect::TREATMENT_ORIENTATION_DEPENDS_ON_CONFLICT: &str
 pub const antecedent_core::reason_details::parent_set_effect::TREATMENT_PARENTS_AMBIGUOUS: &str
+pub const antecedent_core::reason_details::patient_surrogate::CANCELLED: &str
+pub const antecedent_core::reason_details::patient_surrogate::DECLARATION: &str
+pub const antecedent_core::reason_details::patient_surrogate::EMPTY_STRATUM: &str
+pub const antecedent_core::reason_details::patient_surrogate::MONOTONICITY: &str
+pub const antecedent_core::reason_details::patient_surrogate::NOT_SUPPORTED: &str
+pub const antecedent_core::reason_details::patient_surrogate::REPLAY: &str
+pub const antecedent_core::reason_details::patient_surrogate::RESOURCE: &str
+pub const antecedent_core::reason_details::patient_surrogate::UNSUPPORTED_READING: &str
 pub const antecedent_core::reason_details::penalized_posterior::BAND_NOT_CONSTRUCTED: &str
 pub const antecedent_core::reason_details::penalized_posterior::EMPTY_SCORES: &str
 pub const antecedent_core::reason_details::penalized_posterior::EXTERNAL_POWER_PRIOR: &str
@@ -10207,6 +10282,7 @@ pub const antecedent_core::reason_details::rollout::STATE_COORDINATE_MISMATCH: &
 pub const antecedent_core::reason_details::rollout::STATE_INTERPRETATION_MISMATCH: &str
 pub const antecedent_core::reason_details::rollout::TERMINAL_DECISION_MISMATCH: &str
 pub const antecedent_core::reason_details::rollout::UNWEIGHTED_JOINT_STATE_REQUIRED: &str
+pub const antecedent_core::reason_details::rpcmci_learned::PORTABLE_REFUSAL: &str
 pub const antecedent_core::reason_details::sampled_recovery::BOUNDS_EXCEEDED: &str
 pub const antecedent_core::reason_details::sampled_recovery::CANCELLED: &str
 pub const antecedent_core::reason_details::sampled_recovery::COMPONENT_VARIANCE_ONLY: &str
@@ -10584,6 +10660,9 @@ pub const antecedent_core::reason_details::study_plan::NONE_CERTIFIED: &str
 pub const antecedent_core::reason_details::study_plan::NO_FAILURE_TO_REPAIR: &str
 pub const antecedent_core::reason_details::study_plan::THEOREM_LIMITED: &str
 pub const antecedent_core::reason_details::supplied_estimate_evalue::REENTRY: &str
+pub const antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_IDENTIFICATION_INPUTS: &str
+pub const antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_INFERENCE: &str
+pub const antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_SUPPORT: &str
 pub const antecedent_core::reason_details::survival_effect::ARM_NOT_POPULATED: &str
 pub const antecedent_core::reason_details::survival_effect::CANCELLED: &str
 pub const antecedent_core::reason_details::survival_effect::CENSORING_ASSUMPTION_MISSING: &str
@@ -10948,6 +11027,7 @@ pub enum antecedent_core::IntervalInterpretation
 pub enum antecedent_core::LawOrigin
 pub enum antecedent_core::LocalBandwidthRule
 pub enum antecedent_core::LongitudinalRegimeMethod
+pub enum antecedent_core::LongitudinalScheduleTarget
 pub enum antecedent_core::MechanismChangeTest
 pub enum antecedent_core::MediationContrast
 pub enum antecedent_core::NodeRef
@@ -11225,6 +11305,9 @@ pub field antecedent_core::FeedbackDeclaration::initial_state: f64
 pub field antecedent_core::FeedbackDeclaration::innovation_variance: f64
 pub field antecedent_core::FeedbackDeclaration::input_gain: f64
 pub field antecedent_core::FeedbackDeclaration::level: f64
+pub field antecedent_core::FittedRegimeQ::baseline: antecedent_core::VariableId
+pub field antecedent_core::FittedRegimeQ::bootstrap_replicates: u32
+pub field antecedent_core::FittedRegimeQ::external_training_fold: core::option::Option<u32>
 pub field antecedent_core::FixedCandidateRegretInputs::candidates: alloc::sync::Arc<[alloc::sync::Arc<[bool]>]>
 pub field antecedent_core::FixedCandidateRegretInputs::selected_index: usize
 pub field antecedent_core::FixedCandidateRegretInputs::training_subject_ids: alloc::sync::Arc<[alloc::sync::Arc<str>]>
@@ -11316,6 +11399,9 @@ pub field antecedent_core::LongitudinalRegimeQuery::stabilizing_numerator_probab
 pub field antecedent_core::LongitudinalRegimeQuery::subject_ids: alloc::sync::Arc<[alloc::sync::Arc<str>]>
 pub field antecedent_core::LongitudinalRegimeQuery::treatment_history: alloc::sync::Arc<[bool]>
 pub field antecedent_core::LongitudinalRegimeQuery::treatment_probabilities: alloc::sync::Arc<[f64]>
+pub field antecedent_core::LongitudinalScheduleFamily::draws: u32
+pub field antecedent_core::LongitudinalScheduleFamily::schedules: u8
+pub field antecedent_core::LongitudinalScheduleFamily::target: antecedent_core::LongitudinalScheduleTarget
 pub field antecedent_core::MeasurementSpec::description: core::option::Option<alloc::sync::Arc<str>>
 pub field antecedent_core::MeasurementSpec::noisy: bool
 pub field antecedent_core::MechanismChangeQuery::baseline: antecedent_core::PopulationSelector
@@ -11509,6 +11595,10 @@ pub field antecedent_core::SmoothedDoseTransportQuery::kernel: antecedent_core::
 pub field antecedent_core::SmoothedDoseTransportQuery::outcome: antecedent_core::VariableId
 pub field antecedent_core::SmoothedDoseTransportQuery::source_population: alloc::sync::Arc<str>
 pub field antecedent_core::SmoothedDoseTransportQuery::target_population: alloc::sync::Arc<str>
+pub field antecedent_core::StratifiedCensoringSurvival::censoring_stratum: antecedent_core::VariableId
+pub field antecedent_core::StratifiedCensoringSurvival::entry_stratum: antecedent_core::VariableId
+pub field antecedent_core::StratifiedCensoringSurvival::minimum_probability: f64
+pub field antecedent_core::StratifiedCensoringSurvival::population_weights: [f64; 2]
 pub field antecedent_core::StructurePriorSpec::default_edge: core::option::Option<f64>
 pub field antecedent_core::StructurePriorSpec::edge_inclusion: core::option::Option<f64>
 pub field antecedent_core::StructurePriorSpec::edges: alloc::sync::Arc<[(antecedent_core::VariableId, antecedent_core::VariableId, f64)]>
@@ -11532,6 +11622,7 @@ pub field antecedent_core::SurvivalQuery::event: antecedent_core::VariableId
 pub field antecedent_core::SurvivalQuery::functional: antecedent_core::SurvivalFunctional
 pub field antecedent_core::SurvivalQuery::known_censoring: core::option::Option<antecedent_core::KnownCensoringSurvival>
 pub field antecedent_core::SurvivalQuery::observation_assumption: antecedent_core::ObservationAssumption
+pub field antecedent_core::SurvivalQuery::stratified_censoring: core::option::Option<antecedent_core::StratifiedCensoringSurvival>
 pub field antecedent_core::SurvivalQuery::tau: f64
 pub field antecedent_core::SurvivalQuery::treatment: antecedent_core::VariableId
 pub field antecedent_core::SyntheticControlQuery::augmentation_ridge: core::option::Option<f64>
@@ -13597,6 +13688,7 @@ pub mod antecedent_core::reason_details::graph_selection_imputation
 pub mod antecedent_core::reason_details::identification_repair
 pub mod antecedent_core::reason_details::initial_state
 pub mod antecedent_core::reason_details::initial_state_posterior
+pub mod antecedent_core::reason_details::integrated_schedule
 pub mod antecedent_core::reason_details::interface_contract
 pub mod antecedent_core::reason_details::intrinsic_influence
 pub mod antecedent_core::reason_details::inverse
@@ -13613,6 +13705,7 @@ pub mod antecedent_core::reason_details::latent_soft_intervention
 pub mod antecedent_core::reason_details::learned_continuous_posterior
 pub mod antecedent_core::reason_details::learned_joint_transport
 pub mod antecedent_core::reason_details::learned_transport
+pub mod antecedent_core::reason_details::longitudinal_joint_sensitivity
 pub mod antecedent_core::reason_details::mapped_posterior_transfer
 pub mod antecedent_core::reason_details::matched_case_control
 pub mod antecedent_core::reason_details::matched_design_sensitivity
@@ -13642,8 +13735,10 @@ pub mod antecedent_core::reason_details::native_distribution
 pub mod antecedent_core::reason_details::nested_markov
 pub mod antecedent_core::reason_details::nonlinear_mediation
 pub mod antecedent_core::reason_details::observation_query
+pub mod antecedent_core::reason_details::pag_identification
 pub mod antecedent_core::reason_details::paradigm_parity
 pub mod antecedent_core::reason_details::parent_set_effect
+pub mod antecedent_core::reason_details::patient_surrogate
 pub mod antecedent_core::reason_details::penalized_posterior
 pub mod antecedent_core::reason_details::penalized_propensity
 pub mod antecedent_core::reason_details::planning
@@ -13677,6 +13772,7 @@ pub mod antecedent_core::reason_details::refresh_posterior
 pub mod antecedent_core::reason_details::repair_artifact
 pub mod antecedent_core::reason_details::response_gam_derivative
 pub mod antecedent_core::reason_details::rollout
+pub mod antecedent_core::reason_details::rpcmci_learned
 pub mod antecedent_core::reason_details::sampled_recovery
 pub mod antecedent_core::reason_details::sampling_assumption_union
 pub mod antecedent_core::reason_details::sampling_weights
@@ -13701,6 +13797,7 @@ pub mod antecedent_core::reason_details::structured_refusals
 pub mod antecedent_core::reason_details::study_candidate
 pub mod antecedent_core::reason_details::study_plan
 pub mod antecedent_core::reason_details::supplied_estimate_evalue
+pub mod antecedent_core::reason_details::survival
 pub mod antecedent_core::reason_details::survival_effect
 pub mod antecedent_core::reason_details::synthetic_control_panel
 pub mod antecedent_core::reason_details::temporal_counterfactual
@@ -13871,6 +13968,7 @@ pub struct antecedent_core::FailedCapabilityAttempt has private fields
 pub struct antecedent_core::FailedRngAttempt
 pub struct antecedent_core::FailedRngAttempt has private fields
 pub struct antecedent_core::FeedbackDeclaration
+pub struct antecedent_core::FittedRegimeQ
 pub struct antecedent_core::FixedCandidateRegretInputs
 pub struct antecedent_core::FixedGroupDosePolicy
 pub struct antecedent_core::Fnv1a64
@@ -13911,6 +14009,7 @@ pub struct antecedent_core::LikelihoodModel has private fields
 pub struct antecedent_core::LocalPolynomialRatioQuery
 pub struct antecedent_core::LocalRatioOptions
 pub struct antecedent_core::LongitudinalRegimeQuery
+pub struct antecedent_core::LongitudinalScheduleFamily
 pub struct antecedent_core::LossModel
 pub struct antecedent_core::LossModel has private fields
 pub struct antecedent_core::MeasurementSpec
@@ -14052,6 +14151,7 @@ pub struct antecedent_core::SourceDependencyId
 pub struct antecedent_core::SourceDependencyId has private fields
 pub struct antecedent_core::StateVersion
 pub struct antecedent_core::StateVersion has private fields
+pub struct antecedent_core::StratifiedCensoringSurvival
 pub struct antecedent_core::StreamDomain
 pub struct antecedent_core::StreamDomain has private fields
 pub struct antecedent_core::StructuralAction
@@ -14521,6 +14621,7 @@ pub use antecedent_core::query::ExposureMapping = antecedent_core::ExposureMappi
 pub use antecedent_core::query::ExposurePropensityProvenance = antecedent_core::ExposurePropensityProvenance
 pub use antecedent_core::query::FactorNeed = antecedent_core::FactorNeed
 pub use antecedent_core::query::FeedbackDeclaration = antecedent_core::FeedbackDeclaration
+pub use antecedent_core::query::FittedRegimeQ = antecedent_core::FittedRegimeQ
 pub use antecedent_core::query::FixedCandidateRegretInputs = antecedent_core::FixedCandidateRegretInputs
 pub use antecedent_core::query::FixedGroupDosePolicy = antecedent_core::FixedGroupDosePolicy
 pub use antecedent_core::query::GridSpec = antecedent_core::GridSpec
@@ -14546,6 +14647,8 @@ pub use antecedent_core::query::LocalRatioOptions = antecedent_core::LocalRatioO
 pub use antecedent_core::query::LongitudinalRegimeFault = antecedent_core::LongitudinalRegimeFault
 pub use antecedent_core::query::LongitudinalRegimeMethod = antecedent_core::LongitudinalRegimeMethod
 pub use antecedent_core::query::LongitudinalRegimeQuery = antecedent_core::LongitudinalRegimeQuery
+pub use antecedent_core::query::LongitudinalScheduleFamily = antecedent_core::LongitudinalScheduleFamily
+pub use antecedent_core::query::LongitudinalScheduleTarget = antecedent_core::LongitudinalScheduleTarget
 pub use antecedent_core::query::MAX_NONPARAMETRIC_RESPONSE_DIM = antecedent_core::MAX_NONPARAMETRIC_RESPONSE_DIM
 pub use antecedent_core::query::MAX_REFUSED_AFTER_BYTES = antecedent_core::MAX_REFUSED_AFTER_BYTES
 pub use antecedent_core::query::MAX_TEMPORAL_RESPONSE_CELLS = antecedent_core::MAX_TEMPORAL_RESPONSE_CELLS
@@ -14606,6 +14709,7 @@ pub use antecedent_core::query::SimulateQuery = antecedent_core::SimulateQuery
 pub use antecedent_core::query::SimulationTarget = antecedent_core::SimulationTarget
 pub use antecedent_core::query::SmoothedDoseTransportQuery = antecedent_core::SmoothedDoseTransportQuery
 pub use antecedent_core::query::SmoothingKernel = antecedent_core::SmoothingKernel
+pub use antecedent_core::query::StratifiedCensoringSurvival = antecedent_core::StratifiedCensoringSurvival
 pub use antecedent_core::query::StructurePriorSpec = antecedent_core::StructurePriorSpec
 pub use antecedent_core::query::SupportedWeights = antecedent_core::SupportedWeights
 pub use antecedent_core::query::SurvivalFault = antecedent_core::SurvivalFault
@@ -15197,8 +15301,10 @@ pub variant antecedent_core::IntervalMethod::AnalyticSe
 pub variant antecedent_core::IntervalMethod::AndersonRubin
 pub variant antecedent_core::IntervalMethod::BootstrapSe
 pub variant antecedent_core::IntervalMethod::CircularBlockSe
+pub variant antecedent_core::IntervalMethod::HoeffdingOptimumSet
 pub variant antecedent_core::IntervalMethod::IdentifiedSet
 pub variant antecedent_core::IntervalMethod::None
+pub variant antecedent_core::IntervalMethod::PercentileBootstrap
 pub variant antecedent_core::IntervalMethod::PosteriorAbsoluteDeviation
 pub variant antecedent_core::IntervalMethod::PosteriorQuantile
 pub variant antecedent_core::IntervalMethod::SimultaneousBand
@@ -15263,10 +15369,14 @@ pub variant antecedent_core::LongitudinalRegimeFault::ProbabilityOwnership
 pub variant antecedent_core::LongitudinalRegimeFault::SequentialDrFields
 pub variant antecedent_core::LongitudinalRegimeFault::StabilizingNumerator
 pub variant antecedent_core::LongitudinalRegimeFault::SubjectIds
+pub variant antecedent_core::LongitudinalRegimeMethod::FittedGFormula(antecedent_core::FittedRegimeQ)
 pub variant antecedent_core::LongitudinalRegimeMethod::GFormula
 pub variant antecedent_core::LongitudinalRegimeMethod::Ipw
 pub variant antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
+pub variant antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(antecedent_core::LongitudinalScheduleFamily)
 pub variant antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust
+pub variant antecedent_core::LongitudinalScheduleTarget::Contrasts { reference: u8, contrasts: u8 }
+pub variant antecedent_core::LongitudinalScheduleTarget::Learn { training_fold: u32 }
 pub variant antecedent_core::MechanismChangeTest::ChangePoint
 pub variant antecedent_core::MechanismChangeTest::ClassifierTwoSample
 pub variant antecedent_core::MechanismChangeTest::KernelTwoSample
@@ -15734,6 +15844,7 @@ pub variant antecedent_core::SupportStatus::OutsideEmpiricalSupport
 pub variant antecedent_core::SupportStatus::Supported
 pub variant antecedent_core::SupportStatus::WeakOverlap
 pub variant antecedent_core::SurvivalFault::ColumnsNotDistinct
+pub variant antecedent_core::SurvivalFault::ConditionalObservation
 pub variant antecedent_core::SurvivalFault::EntryWithKnownCensoring
 pub variant antecedent_core::SurvivalFault::Horizon
 pub variant antecedent_core::SurvivalFault::KnownCensoring

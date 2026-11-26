@@ -335,10 +335,16 @@ impl core::clone::Clone for antecedent_identify::experimental_recovery::Recovery
 impl core::clone::Clone for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::clone::Clone for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::clone::Clone for antecedent_identify::pag_id::PagFunctional
+impl core::clone::Clone for antecedent_identify::pag_id::PagIdError
+impl core::clone::Clone for antecedent_identify::pag_id::PagIdentification
+impl core::clone::Clone for antecedent_identify::pag_id::PagObstruction
 impl core::clone::Clone for antecedent_identify::panel_unrolled::PanelNode
 impl core::clone::Clone for antecedent_identify::panel_unrolled::UnrolledPanelGraph
 impl core::clone::Clone for antecedent_identify::panel_unrolled::UnrolledPanelIdentification
 impl core::clone::Clone for antecedent_identify::panel_unrolled::UnrolledPanelSpec
+impl core::clone::Clone for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds
+impl core::clone::Clone for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::clone::Clone for antecedent_identify::sid::Rule
 impl core::clone::Clone for antecedent_identify::sid::SHedgeCertificate
 impl core::clone::Clone for antecedent_identify::sid::SHedgeRecord
@@ -554,8 +560,11 @@ impl core::cmp::Eq for antecedent_identify::experimental_recovery::InadmissibleC
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::Eq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::cmp::Eq for antecedent_identify::pag_id::PagObstruction
 impl core::cmp::Eq for antecedent_identify::panel_unrolled::PanelNode
 impl core::cmp::Eq for antecedent_identify::panel_unrolled::UnrolledPanelSpec
+impl core::cmp::Eq for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds
+impl core::cmp::Eq for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::cmp::Eq for antecedent_identify::sid::Rule
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionDag
 impl core::cmp::Eq for antecedent_identify::sid::cpdag_completion::CompletionRecord
@@ -809,8 +818,11 @@ impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::Recove
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::cmp::PartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::cmp::PartialEq for antecedent_identify::pag_id::PagObstruction
 impl core::cmp::PartialEq for antecedent_identify::panel_unrolled::PanelNode
 impl core::cmp::PartialEq for antecedent_identify::panel_unrolled::UnrolledPanelSpec
+impl core::cmp::PartialEq for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds
+impl core::cmp::PartialEq for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::cmp::PartialEq for antecedent_identify::sid::Rule
 impl core::cmp::PartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::cmp::PartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -854,6 +866,7 @@ impl core::cmp::PartialOrd for antecedent_identify::experiment_moments::MissingP
 impl core::cmp::PartialOrd for antecedent_identify::panel_unrolled::PanelNode
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::SourceInvariance
 impl core::cmp::PartialOrd for antecedent_identify::sid::scenario_invariance::TargetFactor
+impl core::convert::From<antecedent_core::execution::admission::AdmissionError> for antecedent_identify::pag_id::PagIdError
 impl core::convert::From<antecedent_graph::error::GraphError> for antecedent_identify::IdentificationError
 impl core::convert::From<antecedent_identify::ClassicalTransportQuery> for antecedent_identify::sid::scenarios::ScenarioQuestion
 impl core::convert::From<antecedent_identify::ConditionalTransportQuery> for antecedent_identify::sid::scenarios::ScenarioQuestion
@@ -904,6 +917,8 @@ impl core::error::Error for antecedent_identify::cyclic_id::CyclicIdError
 impl core::error::Error for antecedent_identify::discovered_transport::DiscoveredTransportError
 impl core::error::Error for antecedent_identify::experimental_recovery::PointCollapseRefusal
 impl core::error::Error for antecedent_identify::experimental_recovery::UncertaintyFault
+impl core::error::Error for antecedent_identify::pag_id::PagIdError
+impl core::error::Error for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::error::Error for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::error::Error for antecedent_identify::sid::scenario_invariance::InvarianceReportError
 impl core::error::Error for antecedent_identify::sid::scenarios::ScenarioSetRefusal
@@ -1197,10 +1212,16 @@ impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveryDr
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::fmt::Debug for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::fmt::Debug for antecedent_identify::pag_id::PagFunctional
+impl core::fmt::Debug for antecedent_identify::pag_id::PagIdError
+impl core::fmt::Debug for antecedent_identify::pag_id::PagIdentification
+impl core::fmt::Debug for antecedent_identify::pag_id::PagObstruction
 impl core::fmt::Debug for antecedent_identify::panel_unrolled::PanelNode
 impl core::fmt::Debug for antecedent_identify::panel_unrolled::UnrolledPanelGraph
 impl core::fmt::Debug for antecedent_identify::panel_unrolled::UnrolledPanelIdentification
 impl core::fmt::Debug for antecedent_identify::panel_unrolled::UnrolledPanelSpec
+impl core::fmt::Debug for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds
+impl core::fmt::Debug for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::fmt::Debug for antecedent_identify::sid::Rule
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeCertificate
 impl core::fmt::Debug for antecedent_identify::sid::SHedgeRecord
@@ -1268,6 +1289,8 @@ impl core::fmt::Display for antecedent_identify::experiment_moments::MomentAssem
 impl core::fmt::Display for antecedent_identify::experiment_moments::RegimeInconsistency
 impl core::fmt::Display for antecedent_identify::experimental_recovery::PointCollapseRefusal
 impl core::fmt::Display for antecedent_identify::experimental_recovery::UncertaintyFault
+impl core::fmt::Display for antecedent_identify::pag_id::PagIdError
+impl core::fmt::Display for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::fmt::Display for antecedent_identify::sid::cpdag_completion::CpdagScenarioError
 impl core::fmt::Display for antecedent_identify::sid::scenario_invariance::InvarianceReportError
 impl core::fmt::Display for antecedent_identify::sid::scenarios::ScenarioSetRefusal
@@ -1382,6 +1405,8 @@ impl core::marker::Copy for antecedent_identify::experimental_recovery::Recovery
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::Copy for antecedent_identify::experimental_recovery::UniquenessRestriction
 impl core::marker::Copy for antecedent_identify::panel_unrolled::PanelNode
+impl core::marker::Copy for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds
+impl core::marker::Copy for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::marker::Copy for antecedent_identify::sid::Rule
 impl core::marker::Copy for antecedent_identify::sid::scenarios::ScenarioDecisionLimits
 impl core::marker::Copy for antecedent_identify::sid::temporal_sequence::MechanismAssumption
@@ -1676,10 +1701,16 @@ impl core::marker::Freeze for antecedent_identify::experimental_recovery::Recove
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Freeze for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Freeze for antecedent_identify::pag_id::PagFunctional [auto]
+impl core::marker::Freeze for antecedent_identify::pag_id::PagIdError [auto]
+impl core::marker::Freeze for antecedent_identify::pag_id::PagIdentification [auto]
+impl core::marker::Freeze for antecedent_identify::pag_id::PagObstruction [auto]
 impl core::marker::Freeze for antecedent_identify::panel_unrolled::PanelNode [auto]
 impl core::marker::Freeze for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
 impl core::marker::Freeze for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
 impl core::marker::Freeze for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
+impl core::marker::Freeze for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds [auto]
+impl core::marker::Freeze for antecedent_identify::principal_surrogate::PrincipalSurrogateError [auto]
 impl core::marker::Freeze for antecedent_identify::sid::Rule [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Freeze for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2021,10 +2052,16 @@ impl core::marker::Send for antecedent_identify::experimental_recovery::Recovery
 impl core::marker::Send for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Send for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Send for antecedent_identify::pag_id::PagFunctional [auto]
+impl core::marker::Send for antecedent_identify::pag_id::PagIdError [auto]
+impl core::marker::Send for antecedent_identify::pag_id::PagIdentification [auto]
+impl core::marker::Send for antecedent_identify::pag_id::PagObstruction [auto]
 impl core::marker::Send for antecedent_identify::panel_unrolled::PanelNode [auto]
 impl core::marker::Send for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
 impl core::marker::Send for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
 impl core::marker::Send for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
+impl core::marker::Send for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds [auto]
+impl core::marker::Send for antecedent_identify::principal_surrogate::PrincipalSurrogateError [auto]
 impl core::marker::Send for antecedent_identify::sid::Rule [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Send for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2286,8 +2323,11 @@ impl core::marker::StructuralPartialEq for antecedent_identify::experimental_rec
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::RecoveryWarning
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UncertaintyFault
 impl core::marker::StructuralPartialEq for antecedent_identify::experimental_recovery::UniquenessRestriction
+impl core::marker::StructuralPartialEq for antecedent_identify::pag_id::PagObstruction
 impl core::marker::StructuralPartialEq for antecedent_identify::panel_unrolled::PanelNode
 impl core::marker::StructuralPartialEq for antecedent_identify::panel_unrolled::UnrolledPanelSpec
+impl core::marker::StructuralPartialEq for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds
+impl core::marker::StructuralPartialEq for antecedent_identify::principal_surrogate::PrincipalSurrogateError
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::Rule
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SHedgeRecord
 impl core::marker::StructuralPartialEq for antecedent_identify::sid::SelectionForestRecord
@@ -2604,10 +2644,16 @@ impl core::marker::Sync for antecedent_identify::experimental_recovery::Recovery
 impl core::marker::Sync for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Sync for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Sync for antecedent_identify::pag_id::PagFunctional [auto]
+impl core::marker::Sync for antecedent_identify::pag_id::PagIdError [auto]
+impl core::marker::Sync for antecedent_identify::pag_id::PagIdentification [auto]
+impl core::marker::Sync for antecedent_identify::pag_id::PagObstruction [auto]
 impl core::marker::Sync for antecedent_identify::panel_unrolled::PanelNode [auto]
 impl core::marker::Sync for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
 impl core::marker::Sync for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
 impl core::marker::Sync for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
+impl core::marker::Sync for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds [auto]
+impl core::marker::Sync for antecedent_identify::principal_surrogate::PrincipalSurrogateError [auto]
 impl core::marker::Sync for antecedent_identify::sid::Rule [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Sync for antecedent_identify::sid::SHedgeRecord [auto]
@@ -2949,10 +2995,16 @@ impl core::marker::Unpin for antecedent_identify::experimental_recovery::Recover
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::marker::Unpin for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::marker::Unpin for antecedent_identify::pag_id::PagFunctional [auto]
+impl core::marker::Unpin for antecedent_identify::pag_id::PagIdError [auto]
+impl core::marker::Unpin for antecedent_identify::pag_id::PagIdentification [auto]
+impl core::marker::Unpin for antecedent_identify::pag_id::PagObstruction [auto]
 impl core::marker::Unpin for antecedent_identify::panel_unrolled::PanelNode [auto]
 impl core::marker::Unpin for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
 impl core::marker::Unpin for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
 impl core::marker::Unpin for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
+impl core::marker::Unpin for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds [auto]
+impl core::marker::Unpin for antecedent_identify::principal_surrogate::PrincipalSurrogateError [auto]
 impl core::marker::Unpin for antecedent_identify::sid::Rule [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::marker::Unpin for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3288,10 +3340,16 @@ impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experiment
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::pag_id::PagFunctional [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::pag_id::PagIdError [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::pag_id::PagIdentification [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::pag_id::PagObstruction [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::PanelNode [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds [auto]
+impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::principal_surrogate::PrincipalSurrogateError [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::RefUnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -3624,10 +3682,16 @@ impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::RecoveryWarning [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UncertaintyFault [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::experimental_recovery::UniquenessRestriction [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::pag_id::PagFunctional [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::pag_id::PagIdError [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::pag_id::PagIdentification [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::pag_id::PagObstruction [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::PanelNode [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelGraph [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelIdentification [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::panel_unrolled::UnrolledPanelSpec [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::principal_surrogate::PrincipalSurrogateBounds [auto]
+impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::principal_surrogate::PrincipalSurrogateError [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::Rule [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeCertificate [auto]
 impl core::panic::unwind_safe::UnwindSafe for antecedent_identify::sid::SHedgeRecord [auto]
@@ -4043,8 +4107,11 @@ pub enum antecedent_identify::experimental_recovery::InadmissibleCoefficientDraw
 pub enum antecedent_identify::experimental_recovery::RecoveryWarning
 pub enum antecedent_identify::experimental_recovery::UncertaintyFault
 pub enum antecedent_identify::experimental_recovery::UniquenessRestriction
+pub enum antecedent_identify::pag_id::PagIdError
+pub enum antecedent_identify::pag_id::PagObstruction
 pub enum antecedent_identify::panel_unrolled::PanelNode
 pub enum antecedent_identify::panel_unrolled::UnrolledPanelIdentification
+pub enum antecedent_identify::principal_surrogate::PrincipalSurrogateError
 pub enum antecedent_identify::sid::Rule
 pub enum antecedent_identify::sid::cpdag_completion::CpdagEvidence
 pub enum antecedent_identify::sid::cpdag_completion::CpdagScenarioError
@@ -4790,6 +4857,11 @@ pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::noise_c
 pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::noise_mean: alloc::vec::Vec<f64>
 pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::unresolved: alloc::vec::Vec<antecedent_identify::UnresolvedDirection>
 pub field antecedent_identify::experimental_recovery::RecoveryDrawInput::weight: f64
+pub field antecedent_identify::pag_id::PagFunctional::arena: antecedent_expr::CausalExprArena
+pub field antecedent_identify::pag_id::PagFunctional::outcomes: alloc::vec::Vec<antecedent_core::ids::VariableId>
+pub field antecedent_identify::pag_id::PagFunctional::root: antecedent_expr::ExprId
+pub field antecedent_identify::pag_id::PagIdentification::result: core::result::Result<antecedent_identify::pag_id::PagFunctional, antecedent_identify::pag_id::PagObstruction>
+pub field antecedent_identify::pag_id::PagIdentification::work: u64
 pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::carryover_reach: usize
 pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::channel_persistence: bool
 pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::channels: usize
@@ -4798,6 +4870,10 @@ pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::history_feedba
 pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::latent_confounding: alloc::vec::Vec<(antecedent_identify::panel_unrolled::PanelNode, antecedent_identify::panel_unrolled::PanelNode)>
 pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::outcome_persistence: bool
 pub field antecedent_identify::panel_unrolled::UnrolledPanelSpec::periods: usize
+pub field antecedent_identify::principal_surrogate::PrincipalSurrogateBounds::improver_numerator: u64
+pub field antecedent_identify::principal_surrogate::PrincipalSurrogateBounds::law_denominator: u64
+pub field antecedent_identify::principal_surrogate::PrincipalSurrogateBounds::lower_numerator: u64
+pub field antecedent_identify::principal_surrogate::PrincipalSurrogateBounds::upper_numerator: u64
 pub field antecedent_identify::sid::SHedgeCertificate::larger: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeCertificate::smaller: antecedent_identify::sid::SelectionForest
 pub field antecedent_identify::sid::SHedgeRecord::evidence_setting: alloc::string::String
@@ -5433,6 +5509,9 @@ pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn node_index(
 pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn program_nodes(&self) -> alloc::vec::Vec<antecedent_core::ids::VariableId>
 pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn spec(&self) -> &antecedent_identify::panel_unrolled::UnrolledPanelSpec
 pub fn <antecedent_identify::panel_unrolled::UnrolledPanelGraph>::fn variable(&self, node: antecedent_identify::panel_unrolled::PanelNode) -> core::option::Option<antecedent_core::ids::VariableId>
+pub fn <antecedent_identify::principal_surrogate::PrincipalSurrogateBounds>::const fn point_identified(self) -> bool
+pub fn <antecedent_identify::principal_surrogate::PrincipalSurrogateBounds>::fn endpoints(self) -> [f64; 2]
+pub fn <antecedent_identify::principal_surrogate::PrincipalSurrogateBounds>::fn improver_probability(self) -> f64
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn from_record_checked(record: antecedent_identify::sid::SHedgeRecord, diagram: &antecedent_graph::selection::SelectionDiagram, query: &antecedent_identify::ClassicalTransportQuery, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<Self, antecedent_identify::IdentificationError>
 pub fn <antecedent_identify::sid::SHedgeCertificate>::fn to_record(&self) -> antecedent_identify::sid::SHedgeRecord
 pub fn <antecedent_identify::sid::cpdag_completion::CpdagCompletionDecision>::const fn is_exportable(&self) -> bool
@@ -5575,8 +5654,10 @@ pub fn antecedent_identify::intervention_mutilated_admg(graph: &antecedent_graph
 pub fn antecedent_identify::iv::check_instrument(graph: &antecedent_graph::dag::Dag, instrument: antecedent_core::ids::VariableId, treatment: antecedent_core::ids::VariableId, outcome: antecedent_core::ids::VariableId) -> core::result::Result<bool, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::lower_transport_formula(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula) -> antecedent_expr::ExprId
 pub fn antecedent_identify::lower_transport_mean(arena: &mut antecedent_expr::CausalExprArena, formula: &antecedent_identify::TransportFormula, outcome: antecedent_core::ids::VariableId) -> antecedent_expr::ExprId
+pub fn antecedent_identify::pag_id::identify_pag_direct(pag: &antecedent_graph::pag::Pag, actions: &[antecedent_core::ids::VariableId], outcomes: &[antecedent_core::ids::VariableId], given: &[antecedent_core::ids::VariableId], population: &str, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::pag_id::PagIdentification, antecedent_identify::pag_id::PagIdError>
 pub fn antecedent_identify::panel_unrolled::identify_joint_panel_intervention(graph: &antecedent_identify::panel_unrolled::UnrolledPanelGraph, outcome_periods: &[usize]) -> core::result::Result<antecedent_identify::panel_unrolled::UnrolledPanelIdentification, antecedent_identify::IdentificationError>
 pub fn antecedent_identify::plan_study_additions(graph: &antecedent_graph::admg::Admg, route: &antecedent_identify::StudyPlanRoute, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, candidates: &[antecedent_identify::StudyPlanCandidate], limits: antecedent_identify::StudyPlanLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::StudyPlan, antecedent_identify::StudyPlanRefusal>
+pub fn antecedent_identify::principal_surrogate::monotone_principal_surrogate_bounds(control: [u32; 4], treatment: [u32; 4]) -> core::result::Result<antecedent_identify::principal_surrogate::PrincipalSurrogateBounds, antecedent_identify::principal_surrogate::PrincipalSurrogateError>
 pub fn antecedent_identify::recovery::verify_observation_recovery(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, catalog: &antecedent_core::query::transport_catalog::EvidenceCatalog, effect: core::option::Option<&antecedent_identify::RecoveredEffectQuery>, stored: &antecedent_identify::StoredRecovery<'_>, max: antecedent_identify::RecoveryLimits, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::RecoveryDerivation, antecedent_identify::RecoveryError>
 pub fn antecedent_identify::recovery::verify_recovery_witness(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ObservationRecoveryQuery, witness: &antecedent_identify::RecoveryWitness) -> core::result::Result<antecedent_identify::WitnessCheck, antecedent_identify::RecoveryError>
 pub fn antecedent_identify::recovery_chain::verify_chain_witness(graph: &antecedent_graph::admg::Admg, query: &antecedent_identify::ChainRecoveryQuery, witness: &antecedent_identify::ChainRecoveryWitness, ctx: &antecedent_core::execution::context::ExecutionContext) -> core::result::Result<antecedent_identify::ChainWitnessCheck, antecedent_identify::ChainRecoveryError>
@@ -5638,9 +5719,11 @@ pub mod antecedent_identify::id
 pub mod antecedent_identify::idc
 pub mod antecedent_identify::identifier
 pub mod antecedent_identify::iv
+pub mod antecedent_identify::pag_id
 pub mod antecedent_identify::panel_unrolled
 pub mod antecedent_identify::path_specific
 pub mod antecedent_identify::prepared
+pub mod antecedent_identify::principal_surrogate
 pub mod antecedent_identify::rd
 pub mod antecedent_identify::recovery
 pub mod antecedent_identify::recovery_chain
@@ -5926,9 +6009,12 @@ pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientPoint
 pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty
 pub struct antecedent_identify::experimental_recovery::RecoveredCoefficientUncertainty has private fields
 pub struct antecedent_identify::experimental_recovery::RecoveryDrawInput
+pub struct antecedent_identify::pag_id::PagFunctional
+pub struct antecedent_identify::pag_id::PagIdentification
 pub struct antecedent_identify::panel_unrolled::UnrolledPanelGraph
 pub struct antecedent_identify::panel_unrolled::UnrolledPanelGraph has private fields
 pub struct antecedent_identify::panel_unrolled::UnrolledPanelSpec
+pub struct antecedent_identify::principal_surrogate::PrincipalSurrogateBounds
 pub struct antecedent_identify::sid::SHedgeCertificate
 pub struct antecedent_identify::sid::SHedgeCertificate has private fields
 pub struct antecedent_identify::sid::SHedgeRecord
@@ -6693,11 +6779,21 @@ pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::B
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::Faithfulness
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::MinimumNormCompletion
 pub variant antecedent_identify::experimental_recovery::UniquenessRestriction::NotOffered
+pub variant antecedent_identify::pag_id::PagIdError::Admission(antecedent_core::execution::admission::AdmissionError)
+pub variant antecedent_identify::pag_id::PagIdError::Budget(u64)
+pub variant antecedent_identify::pag_id::PagIdError::Cancelled
+pub variant antecedent_identify::pag_id::PagIdError::Depth { work: u64, limit: usize }
+pub variant antecedent_identify::pag_id::PagIdError::Invalid(&'static str)
+pub variant antecedent_identify::pag_id::PagObstruction::Conditional { bucket: alloc::vec::Vec<antecedent_core::ids::VariableId>, interventions: alloc::vec::Vec<antecedent_core::ids::VariableId>, path: alloc::vec::Vec<antecedent_core::ids::VariableId> }
+pub variant antecedent_identify::pag_id::PagObstruction::Marginal { available: alloc::vec::Vec<antecedent_core::ids::VariableId>, required: alloc::vec::Vec<antecedent_core::ids::VariableId> }
 pub variant antecedent_identify::panel_unrolled::PanelNode::Channel { channel: usize, period: usize }
 pub variant antecedent_identify::panel_unrolled::PanelNode::Context(usize)
 pub variant antecedent_identify::panel_unrolled::PanelNode::Outcome(usize)
 pub variant antecedent_identify::panel_unrolled::UnrolledPanelIdentification::Identified(alloc::boxed::Box<antecedent_identify::IdentificationResult>)
 pub variant antecedent_identify::panel_unrolled::UnrolledPanelIdentification::NotIdentified { hedge: alloc::boxed::Box<antecedent_identify::HedgeCertificate>, result: alloc::boxed::Box<antecedent_identify::IdentificationResult> }
+pub variant antecedent_identify::principal_surrogate::PrincipalSurrogateError::EmptyImproverStratum
+pub variant antecedent_identify::principal_surrogate::PrincipalSurrogateError::JointLaw
+pub variant antecedent_identify::principal_surrogate::PrincipalSurrogateError::Monotonicity
 pub variant antecedent_identify::sid::Rule::Ancestors
 pub variant antecedent_identify::sid::Rule::DirectTransport
 pub variant antecedent_identify::sid::Rule::Districts

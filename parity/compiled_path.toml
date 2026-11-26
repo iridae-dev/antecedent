@@ -1271,22 +1271,7 @@ disposition = "not_scientific"
 reason = "constructs a reference to an artifact producer"
 
 [[row]]
-path = "antecedent_design::composition_verifiers::describe_artifact"
-disposition = "not_scientific"
-reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
-
-[[row]]
-path = "antecedent_design::composition_verifiers::detect_node_kind"
-disposition = "not_scientific"
-reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
-
-[[row]]
 path = "antecedent_design::composition_verifiers::evidence_relationship_bytes"
-disposition = "not_scientific"
-reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
-
-[[row]]
-path = "antecedent_design::composition_verifiers::mean_decision_bytes"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
 
@@ -1294,10 +1279,6 @@ reason = "construction, serialization, identity or gating helper; computes no es
 path = "antecedent_design::composition_verifiers::mean_source_of"
 disposition = "not_scientific"
 reason = "construction, serialization, identity or gating helper; computes no estimate, identification or ranking"
-
-[[row]]
-path = "antecedent_design::composition_verifiers::standard_consumer"
-disposition = "consume"
 
 [[row]]
 path = "antecedent::design::evaluate_decision"
@@ -5701,3 +5682,95 @@ reason = "construction, serialization, identity or gating helper; computes no es
 path = "antecedent_discovery::Rpcmci::learn"
 disposition = "kernel"
 reason = "kernel API; DiscoverTemporal runs this engine when its DiscoverySpec declares seeded label learning"
+
+[[row]]
+path = "antecedent::analysis::rpcmci_portable::LearnedRpcmciArtifact::result"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::composition_verifiers::require_compact_model_refit_inputs"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_design::intervention_schedule_decision::PreparedIntegratedScheduleDecision::execute"
+disposition = "kernel"
+reason = "Evaluates the child evidence and optimal schedule set for the compiled integrated schedule decision."
+
+[[row]]
+path = "antecedent_io_core::convert::pag_to_wire"
+disposition = "not_scientific"
+reason = "Serializes the marked edges and variables of an existing PAG."
+
+[[row]]
+path = "antecedent_io_core::bridge_image_artifact::BridgeImageRequest::evaluate"
+disposition = "kernel"
+reason = "Executes the map admitted by the compiled bridge-image route."
+
+[[row]]
+path = "antecedent_io_core::bridge_image_artifact::BridgeImageRequest::replay_image"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_io_core::bridge_image_artifact::BridgeImageResult::admit_readout"
+disposition = "internal"
+
+[[row]]
+path = "antecedent_io_core::bridge_image_artifact::StoredBridgeImage::decode_with_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::bridge_image_artifact::StoredBridgeImage::open_with_context"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::bridge_joint_outcomes::JointOutcomeMap::apply"
+disposition = "kernel"
+reason = "Maps aligned rows for the compiled joint-outcome bridge."
+
+[[row]]
+path = "antecedent_io_core::bridge_posterior_interval::PosteriorAffineBridge::interval"
+disposition = "kernel"
+reason = "Computes posterior quantiles from joint source and mapping draws for the compiled bridge."
+
+[[row]]
+path = "antecedent_io_core::bridge_trial_interval::TrialBridgeExperiment::construct"
+disposition = "kernel"
+reason = "Constructs paired source and mapping refits for the compiled sampling bridge."
+
+[[row]]
+path = "antecedent_io_core::bridge_trial_interval::TrialBridgeExperiment::interval"
+disposition = "kernel"
+reason = "Computes the percentile interval for the compiled trial bridge."
+
+[[row]]
+path = "antecedent_io_core::pag_identification::PagIdentificationArtifact::consume"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::pag_identification::PagIdentificationArtifact::evaluate"
+disposition = "consume"
+
+[[row]]
+path = "antecedent_io_core::pag_identification::PagIdentificationArtifact::execute"
+disposition = "kernel"
+reason = "Identifies the declared interventional or conditional query for the compiled PAG route."
+
+[[row]]
+path = "antecedent_io_core::pag_identification::PagIdentificationArtifact::execute_retaining_stop"
+disposition = "kernel"
+reason = "Identifies the query and retains a bounded search stop for the compiled PAG route."
+
+[[row]]
+path = "antecedent_io_core::patient_surrogate::PatientSurrogateRequest::evaluate"
+disposition = "kernel"
+reason = "Evaluates patient-level surrogate bounds for the compiled identification route."
+
+[[row]]
+path = "antecedent_io_core::patient_surrogate::PatientSurrogateRequest::export"
+disposition = "not_scientific"
+reason = "Encodes the verified patient result together with its source and program identities."
+
+[[row]]
+path = "antecedent_io_core::patient_surrogate::PatientSurrogateRequest::identity"
+disposition = "not_scientific"
+reason = "Hashes the study design and supplied patient evidence."
