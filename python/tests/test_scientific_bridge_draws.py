@@ -822,12 +822,13 @@ def test_joint_outcome_image_consumes_paired_weighted_rows_and_feeds_affine_util
         .connect("source", "image")
         .build()
     )
-    with pytest.raises(cb.CompositionBundleRefusal):
-        require_success(
-            cb.consume_bundle(
-                bytes(changed_bundle.export()), expected_identity=changed_bundle.identity
-            )
-        )
+    changed_report = require_success(
+        cb.consume_bundle(bytes(changed_bundle.export()), expected_identity=changed_bundle.identity)
+    )
+    assert changed_report.node("source").verified
+    failure = changed_report.node("image").status
+    assert isinstance(failure, cb.Failed)
+    assert failure.stage == "tampered_quantity"
     unpaired = JointDistributionArtifact(
         replace(source.identity, alignment="independent_marginals"), np.asarray(source)
     )

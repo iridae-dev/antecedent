@@ -1281,11 +1281,20 @@ fn verify_embedded(
 }
 
 fn find_conflict(
+    node: &BundleNode,
     facts: &BTreeMap<String, String>,
     upstream: &[UpstreamNode<'_>],
 ) -> Option<(BundleStage, String)> {
     for up in upstream {
         for (key, stage) in BINDING_FACTS {
+            // A verified bridge image binds its exact input and publishes new output coordinates.
+            if key == FACT_QUANTITY_DIGEST
+                && node.kind == NodeKind::ScientificBridgeImage
+                && matches!(node.source, NodeSource::Embedded { .. })
+                && facts.get("image_source").is_some_and(|source| source == up.identity)
+            {
+                continue;
+            }
             if let (Some(a), Some(b)) = (up.facts.get(key), facts.get(key))
                 && a != b
             {
@@ -1468,13 +1477,12 @@ impl BundleConsumer {
                 let node = &nodes[position];
                 if node.kind == NodeKind::ScientificBridgeImage
                     && derived.parents[position].iter().any(|&parent| {
-                        nodes[parent].kind == NodeKind::PatientSurrogateIdentification
-                            && states[parent].is_failed()
+                        !matches!(states[parent].status, NodeStatus::Verified)
                     })
                 {
                     states[position] = NodeState::failed(
                         BundleStage::SwappedEvidence,
-                        "the declared patient-surrogate source failed verification".into(),
+                        "the declared bridge image source could not be verified".into(),
                     );
                     continue;
                 }
@@ -1535,7 +1543,7 @@ impl BundleConsumer {
                     }
                 };
                 if !state.is_failed()
-                    && let Some((stage, reason)) = find_conflict(&state.facts, &upstream)
+                    && let Some((stage, reason)) = find_conflict(node, &state.facts, &upstream)
                 {
                     state = NodeState::failed(stage, reason);
                 }
