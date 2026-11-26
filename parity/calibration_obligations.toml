@@ -423,3 +423,19 @@ prospective = [
   "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.treated_quantile",
   "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.control_quantile",
 ]
+"integrated_schedule_decision: integrated_schedule_unique_optima_coverage" = [
+  "cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_unique_optima_coverage.v2_validation_not_applicable",
+]
+"integrated_schedule_decision: integrated_schedule_all_tied_optima_coverage" = [
+  "cov.integrated_schedule_decision.not_applicable.frequentist.hoeffding_optimum_set.l95.integrated_schedule_all_tied_optima_coverage.v2_validation_not_applicable",
+]
+"longitudinal_joint_sensitivity_calibration: longitudinal_two_decision_joint_box_and_extrema_l95" = [
+  "cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners",
+  "cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema",
+]
+"scientific_bridge_interval_calibration: shared_evidence_trial_bridge_percentile_interval_l95" = [
+  "cov.trial_bridge_percentile_interval.not_applicable.frequentist.trial_pairs_percentile_type7.l95.shared_evidence_trial_bridge_percentile_interval_l95.v2_validation_not_applicable",
+]
+"scientific_bridge_interval_calibration: independent_studies_trial_bridge_percentile_interval_l95" = [
+  "cov.trial_bridge_percentile_interval.not_applicable.frequentist.trial_pairs_percentile_type7.l95.independent_studies_trial_bridge_percentile_interval_l95.v2_validation_not_applicable",
+]

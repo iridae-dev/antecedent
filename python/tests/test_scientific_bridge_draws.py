@@ -912,10 +912,7 @@ print(result.reading,result.verdict,result.decision_calibration)
         require_success(plan.compile_threshold(COST, 0.0).execute())
 
 
-@pytest.mark.parametrize("shared", [True, False], ids=["shared-trials", "independent-studies"])
-def test_measured_trial_bridge_keeps_interval_and_decision_calibration_separate(shared):
-    from antecedent import composition_bundle as cb
-
+def _trial_bridge_sampling_study(shared):
     # Balanced trial study on the interior of the validation range, matching the calibrated
     # refit construction. The external source and shared validation means are different.
     rng = np.random.default_rng(276)
@@ -936,13 +933,34 @@ def test_measured_trial_bridge_keeps_interval_and_decision_calibration_separate(
         mapping=sb.TrialLevelMapping(trials, min_trials=3, min_r_squared=0.0),
         source_dependence=dependence,
     )
+    design = "shared_uniform_gaussian_v1" if shared else "independent_shifted_uniform_v1"
+    return declaration, study, design
+
+
+@pytest.mark.parametrize("shared", [True, False], ids=["shared-trials", "independent-studies"])
+def test_trial_bridge_release_design_rejects_a_neighboring_resample_count(shared):
+    declaration, study, design = _trial_bridge_sampling_study(shared)
+    plan = sb.compile_trial_bridge_confidence_interval(
+        declaration, study, replicates=400, level=0.95, seed=167, release_design=design
+    )
+    with pytest.raises(ScientificBridgeRefusal) as refused:
+        require_success(plan.execute())
+    assert refused.value.detail == "scientific_bridge.draws_unusable"
+    assert "399 refits" in refused.value.remedy
+
+
+@pytest.mark.parametrize("shared", [True, False], ids=["shared-trials", "independent-studies"])
+def test_measured_trial_bridge_keeps_interval_and_decision_calibration_separate(shared):
+    from antecedent import composition_bundle as cb
+
+    declaration, study, design = _trial_bridge_sampling_study(shared)
     plan = sb.compile_trial_bridge_confidence_interval(
         declaration,
         study,
         replicates=399,
         level=0.95,
         seed=167,
-        release_design="shared_uniform_gaussian_v1" if shared else "independent_shifted_uniform_v1",
+        release_design=design,
     )
     interval = require_success(plan.execute())
     assert isinstance(interval, sb.TrialBridgeConfidenceInterval)

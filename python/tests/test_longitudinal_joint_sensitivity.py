@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import replace
+from random import Random
 
 import pytest
 from antecedent import Execution, load
@@ -94,3 +95,46 @@ def test_typed_joint_sensitivity_executes_and_replays_with_bound_decision() -> N
         incoherent.execute()
     assert impossible.value.reason_code == "invalid_argument"
     assert impossible.value.detail == "longitudinal_joint_sensitivity.incoherent_box"
+
+
+
+def test_declared_bernoulli_box_has_separate_surface_and_decision_keys() -> None:
+    rng = Random(5)
+    rows = []
+    for subject in range(1600):
+        w, a0, l1, a1 = (rng.randrange(2) for _ in range(4))
+        probability = 0.30 + 0.20 * a0 + 0.04 * l1 + 0.02 * w
+        outcome = float(rng.random() < probability) if rng.random() < 0.75 else None
+        rows.append(LongitudinalSubject(subject, w, (a0, a1), l1, outcome))
+    spec = LongitudinalSensitivitySpec(
+        "balanced-independent-subject-population",
+        "binary-outcome",
+        "proportion",
+        ((0.0, 0.055), (0.0, 0.055)),
+        (0.0, 0.10),
+        outcome_support=(0.0, 1.0),
+        replicates=199,
+        level=0.95,
+        decision_threshold=0.075,
+        coverage_design="balanced_binary_bernoulli_v1",
+    )
+    fit = require_success(require_success(compile_longitudinal_joint_sensitivity(spec, rows)).execute())
+    surface = fit.calibration
+    [extrema] = surface["secondary"]
+    for slot, functional in (
+        (surface, "balanced_binary_bernoulli_v1:full_box_simultaneous_band"),
+        (extrema, "balanced_binary_bernoulli_v1:joint_decision_extrema"),
+    ):
+        basis = slot["basis"]
+        assert basis["key"]["functional"] == functional
+        assert basis["key"]["interval_method"] == "simultaneous_band"
+        assert basis["key"]["dependence"] == "shared_subject_refits"
+        assert basis["scope"]["row_count"] == 1600
+        assert basis["scope"]["replicates_ok"] == 199
+    artifact = fit.export()
+    replayed = require_success(load(artifact, expected=artifact.expectation))
+    assert replayed.calibration == surface
+
+    with pytest.raises(LongitudinalSensitivityRefusal) as refused:
+        compile_longitudinal_joint_sensitivity(replace(spec, decision_threshold=0.076), rows)
+    assert refused.value.detail == "longitudinal_joint_sensitivity.invalid_declaration"

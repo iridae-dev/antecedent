@@ -217,7 +217,7 @@ fn insufficient_scope_and_budget_are_refused() {
 #[test]
 fn empirical_schedule_scope_requires_verified_binary_endpoints() {
     let rows = exact_source();
-    let binary_rows = rows
+    let binary_rows: Vec<_> = rows
         .iter()
         .enumerate()
         .map(|(i, row)| ScheduleSourceSubject {
@@ -232,6 +232,18 @@ fn empirical_schedule_scope_requires_verified_binary_endpoints() {
     let bounded =
         compile_schedule_decision_bundle(rows, target.clone(), problem.clone(), &ctx).unwrap();
     assert!(bounded.decision.calibration_basis.is_none());
+
+    let mut different_ratio = target.clone();
+    different_ratio.push(true);
+    let nominal = compile_schedule_decision_bundle(
+        binary_rows.clone(),
+        different_ratio,
+        problem.clone(),
+        &ctx,
+    )
+    .unwrap();
+    assert!(nominal.decision.calibration_basis.is_none());
+    assert_eq!(nominal.decision.minimum_coverage, REPORTED_LEVEL);
 
     let bernoulli = compile_schedule_decision_bundle(binary_rows, target, problem, &ctx).unwrap();
     assert_eq!(
