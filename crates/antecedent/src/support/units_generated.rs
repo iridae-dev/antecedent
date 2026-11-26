@@ -65,6 +65,8 @@ pub(crate) const DESIGN_EVIDENCE_PLAN: UnitId = UnitId::new("design.evidence_pla
 pub(crate) const DESIGN_EVSI: UnitId = UnitId::new("design.evsi");
 pub(crate) const DESIGN_EXPERIMENT_PLANNING: UnitId = UnitId::new("design.experiment_planning");
 pub(crate) const DESIGN_IDENTIFICATION_REPAIR: UnitId = UnitId::new("design.identification_repair");
+pub(crate) const DESIGN_INTEGRATED_SCHEDULE_DECISION: UnitId =
+    UnitId::new("design.integrated_schedule_decision");
 pub(crate) const DESIGN_PRIOR_SIGNAL_PLANNING: UnitId = UnitId::new("design.prior_signal_planning");
 pub(crate) const DESIGN_RANKING_ARTIFACT: UnitId = UnitId::new("design.ranking_artifact");
 pub(crate) const DESIGN_STUDY_PLANNING: UnitId = UnitId::new("design.study_planning");
@@ -273,6 +275,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "ChoiceStudyRanking" | "EvsiAttachedDecision" | "FiniteActionDecision" => Some(DESIGN_EVSI),
         "ExperimentPlanning" => Some(DESIGN_EXPERIMENT_PLANNING),
         "IdentificationRepair" | "ZTransportEvidencePlanning" => Some(DESIGN_IDENTIFICATION_REPAIR),
+        "IntegratedScheduleDecision" => Some(DESIGN_INTEGRATED_SCHEDULE_DECISION),
         "PriorSignalAdaptation" => Some(DESIGN_PRIOR_SIGNAL_PLANNING),
         "DesignRanking" => Some(DESIGN_RANKING_ARTIFACT),
         "StudyAdditionPlanning" => Some(DESIGN_STUDY_PLANNING),

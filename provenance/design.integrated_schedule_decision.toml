@@ -1,0 +1,22 @@
+feature_id = "design.integrated_schedule_decision"
+implementation_crate = "antecedent-design"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+papers = [
+  { title = "Probability Inequalities for Sums of Bounded Random Variables", doi = "10.1080/01621459.1963.10500830", url = "https://www.cs.rpi.edu/academics/courses/spring06/random/hoefding.pdf", sections = ["Section 2, Theorem 2 and inequality (2.6), applied to each tail"] },
+]
+implementation_deviations = [
+  "The calculation uses a union bound over thirteen primitives from shared source trajectories and an independently sampled target baseline.",
+  "Schedule contrasts reuse the common target weights. Under the first-action-only structure, shared terms cancel before uncertainty projection. Candidates are removed only when the upper contrast bound is negative. Equality retains tied candidates.",
+  "The independently replayable compiler children bind joint assignment and observation fitting, independent target standardization weights and the declared finite structural/preference worlds. The final optimum set has separate source-fixed empirical coverage designs for unique and tied optima.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent-design/src/intervention_schedule_decision.rs",
+  "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs",
+  "crates/antecedent/src/analysis/composition_integrated_schedule.rs",
+  "crates/antecedent/tests/integrated_schedule_decision.rs (point_oracle_replays_and_changed_parent_invalidates_terminal uses an independent rational fixture and integrated_schedule_unique_optima_coverage and integrated_schedule_all_tied_optima_coverage score all true maximizers across worlds)",
+  "python/tests/test_integrated_schedule_decision.py",
+]

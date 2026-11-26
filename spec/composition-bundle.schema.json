@@ -79,6 +79,8 @@
             "quantity_coordinates",
             "support_trust_calibration",
             "distribution",
+            "integrated_schedule_evidence",
+            "integrated_schedule_decision",
             "delayed_entry_incidence_result",
             "delayed_entry_survival_band_result",
             "patient_surrogate_identification",

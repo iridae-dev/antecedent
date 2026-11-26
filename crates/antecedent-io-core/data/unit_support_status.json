@@ -2491,6 +2491,11 @@
       "id": "preference_learning.choice_model",
       "status": "supported",
       "missing_evidence": []
+    },
+    {
+      "id": "design.integrated_schedule_decision",
+      "status": "supported",
+      "missing_evidence": []
     }
   ]
 }

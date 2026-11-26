@@ -15469,3 +15469,19 @@ target = "longitudinal_joint_sensitivity_calibration"
 tests = ["longitudinal_two_decision_joint_box_and_extrema_l95"]
 ignored = true
 grid = true
+
+[[group]]
+label = "integrated_schedule_decision: integrated_schedule_unique_optima_coverage"
+package = "antecedent"
+target = "integrated_schedule_decision"
+tests = ["integrated_schedule_unique_optima_coverage"]
+ignored = true
+grid = true
+
+[[group]]
+label = "integrated_schedule_decision: integrated_schedule_all_tied_optima_coverage"
+package = "antecedent"
+target = "integrated_schedule_decision"
+tests = ["integrated_schedule_all_tied_optima_coverage"]
+ignored = true
+grid = true

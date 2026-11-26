@@ -13394,3 +13394,33 @@ calibration = "nominal joint bootstrap; scoped simulation fixture without a publ
 artifact_consumer_fixture = "sensitivity.longitudinal_joint.replay"
 provider_trust = "Native completed conditional-mean calculation under caller-declared assumptions; no external provider."
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "design.integrated_schedule_decision"
+route = "antecedent.design.compile_integrated_schedule_decision"
+algorithm_provenance = ["provenance/design.integrated_schedule_decision.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "design.integrated_schedule_decision.oracle.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A rational eight-cell study and independent target mixture with two declared structures and two finite utility-cost states, plus repeated production studies with unique and tied optima."
+expected_values = "Every scenario utility equals the rational oracle. The reported final confidence set contains all maximizers under the primitive region. Replaced or absent child evidence cannot verify the retained decision."
+tolerance = "Exact for rational fixture utilities and discrete optimum set membership. Coverage is measured separately by the source-fixed repeated-study records."
+calibration = "measure_final_optimum_set_unique_and_tied"
+artifact_consumer_fixture = "design.integrated_schedule_decision.bundle.artifact"
+provider_trust = "Native compiled children from retained raw source and target rows with prespecified structure and preference states."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "design.integrated_schedule_decision"
+route = "antecedent.design.consume_schedule_decision_bundle"
+algorithm_provenance = ["provenance/design.integrated_schedule_decision.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "design.integrated_schedule_decision.oracle.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "A rational eight-cell study and independent target mixture with two declared structures and two finite utility-cost states, plus repeated production studies with unique and tied optima."
+expected_values = "Every scenario utility equals the rational oracle. The reported final confidence set contains all maximizers under the primitive region. Replaced or absent child evidence cannot verify the retained decision."
+tolerance = "Exact for rational fixture utilities and discrete optimum set membership. Coverage is measured separately by the source-fixed repeated-study records."
+calibration = "measure_final_optimum_set_unique_and_tied"
+artifact_consumer_fixture = "design.integrated_schedule_decision.bundle.artifact"
+provider_trust = "Native compiled children from retained raw source and target rows with prespecified structure and preference states."
+exact_request_verification = "not_applicable_no_external_provider"

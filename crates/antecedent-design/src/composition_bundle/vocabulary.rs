@@ -67,6 +67,10 @@ pub enum NodeKind {
     CompactFittedEffectModel,
     /// A retained fitted model and weighted cohort replayed as one contrast mean.
     CohortDecisionSource,
+    /// Whole-study input to the integrated optimal schedule procedure.
+    IntegratedScheduleEvidence,
+    /// Terminal optimal schedule set computed over joint evidence.
+    IntegratedScheduleDecision,
     /// A replayed evidence ledger with its current source and result standings.
     EvidenceLedger,
     /// A declared point quantity selected from a still-valid ledger pool.
@@ -141,6 +145,8 @@ named_variants! {
         CounterfactualTransportResult => "counterfactual_transport_result",
         CompactFittedEffectModel => "compact_fitted_effect_model",
         CohortDecisionSource => "cohort_decision_source",
+        IntegratedScheduleEvidence => "integrated_schedule_evidence",
+        IntegratedScheduleDecision => "integrated_schedule_decision",
         EvidenceLedger => "evidence_ledger",
         LedgerPooledResult => "ledger_pooled_result",
         LongitudinalRegimeResult => "longitudinal_regime_result",
@@ -199,12 +205,14 @@ impl NodeKind {
             | Self::QuantityCoordinates
             | Self::LearnedRpcmci
             | Self::SupportTrustCalibration
+            | Self::IntegratedScheduleEvidence
             | Self::RepairReport
             | Self::RecalculationReceipt => CompositionStage::Evidence,
             Self::Transformation | Self::Rollout => CompositionStage::Transformation,
             Self::DecisionContract => CompositionStage::DecisionContract,
             Self::SequentialReliabilityDiagnostic
             | Self::PredictiveChainDecision
+            | Self::IntegratedScheduleDecision
             | Self::DecisionResult
             | Self::InverseQuery
             | Self::ObservationQuery
@@ -223,6 +231,7 @@ impl NodeKind {
     pub(super) const fn identity_mismatch_stage(self) -> BundleStage {
         match self {
             Self::QuantityCoordinates
+            | Self::IntegratedScheduleDecision
             | Self::DelayedEntryIncidenceResult
             | Self::DelayedEntrySurvivalBandResult
             | Self::PatientSurrogateIdentification

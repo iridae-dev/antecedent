@@ -816,3 +816,11 @@ routes = [
   "antecedent.sensitivity.consume_longitudinal_joint_sensitivity",
 ]
 groups = ["longitudinal_joint_sensitivity_calibration: longitudinal_two_decision_joint_box_and_extrema_l95"]
+
+[[route]]
+record = "design.integrated_schedule_decision"
+routes = ["antecedent.design.compile_integrated_schedule_decision", "antecedent.design.consume_schedule_decision_bundle"]
+groups = [
+  "integrated_schedule_decision: integrated_schedule_unique_optima_coverage",
+  "integrated_schedule_decision: integrated_schedule_all_tied_optima_coverage",
+]

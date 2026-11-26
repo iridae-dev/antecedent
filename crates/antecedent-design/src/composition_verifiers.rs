@@ -152,7 +152,7 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 27] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 29] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
@@ -162,6 +162,8 @@ pub const VERIFIABLE_KINDS: [NodeKind; 27] = [
     NodeKind::DelayedEntrySurvivalBandResult,
     NodeKind::CompactFittedEffectModel,
     NodeKind::CohortDecisionSource,
+    NodeKind::IntegratedScheduleEvidence,
+    NodeKind::IntegratedScheduleDecision,
     NodeKind::EvidenceLedger,
     NodeKind::LedgerPooledResult,
     NodeKind::LongitudinalRegimeResult,
@@ -447,6 +449,18 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         NodeKind::LedgerPooledResult => inspect_selected(bytes),
         NodeKind::LongitudinalRegimeResult => inspect_longitudinal_regime(bytes),
         NodeKind::PagIdentification => inspect_pag_identification(bytes),
+        NodeKind::IntegratedScheduleEvidence | NodeKind::IntegratedScheduleDecision => {
+            use crate::intervention_schedule_decision::artifact;
+            let verified = if kind == NodeKind::IntegratedScheduleEvidence {
+                artifact::inspect_evidence(bytes)?
+            } else {
+                artifact::inspect_terminal(bytes)?
+            };
+            Ok(Inspected { identity: verified.identity, facts: verified.facts, values: verified.values, ..Inspected::default() })
+        }
+        NodeKind::DelayedEntryIncidenceResult => incidence_source_inspection::inspect(bytes),
+        NodeKind::DelayedEntrySurvivalBandResult => incidence_source_inspection::inspect_band(bytes),
+        NodeKind::CompactFittedEffectModel => compact_model_inspection::inspect(bytes),
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
         NodeKind::DecisionResult => inspect_result(bytes),
@@ -992,6 +1006,8 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
                         .then_some(NodeKind::LongitudinalRegimeResult))
             }
         }
+        crate::intervention_schedule_decision::artifact::EVIDENCE_KIND => Some(NodeKind::IntegratedScheduleEvidence),
+        crate::intervention_schedule_decision::artifact::DECISION_KIND => Some(NodeKind::IntegratedScheduleDecision),
         KIND_SCIENTIFIC_BRIDGE => Some(NodeKind::ScientificBridge),
         antecedent_io_core::patient_surrogate::PATIENT_SURROGATE_ARTIFACT_KIND => {
             Some(NodeKind::PatientSurrogateIdentification)
@@ -1199,6 +1215,11 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::LedgerPooledResult => Box::new(LedgerPooledResultVerifier),
         NodeKind::LongitudinalRegimeResult => Box::new(LongitudinalRegimeResultVerifier),
         NodeKind::PagIdentification => Box::new(PagIdentificationVerifier),
+        NodeKind::IntegratedScheduleEvidence => Box::new(crate::intervention_schedule_decision::artifact::EvidenceVerifier),
+        NodeKind::IntegratedScheduleDecision => Box::new(crate::intervention_schedule_decision::artifact::DecisionVerifier(ExecutionContext::production_default(0))),
+        NodeKind::DelayedEntryIncidenceResult => Box::new(DelayedEntryIncidenceResultVerifier),
+        NodeKind::DelayedEntrySurvivalBandResult => Box::new(DelayedEntrySurvivalBandResultVerifier),
+        NodeKind::CompactFittedEffectModel => Box::new(CompactFittedEffectModelVerifier),
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),

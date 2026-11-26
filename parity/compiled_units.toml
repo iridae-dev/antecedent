@@ -1239,3 +1239,9 @@ lowering = "LongitudinalJointSensitivity"
 unit_kind = "capability"
 unit = "sensitivity.longitudinal_joint"
 entry = { rust = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", python = "python/antecedent/longitudinal_joint_sensitivity.py" }
+
+[[route]]
+lowering = "IntegratedScheduleDecision"
+unit_kind = "capability"
+unit = "design.integrated_schedule_decision"
+entry = { rust = "crates/antecedent/src/analysis/composition_integrated_schedule.rs", python = "python/antecedent/intervention_schedule_decision.py" }

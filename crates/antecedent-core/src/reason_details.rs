@@ -1100,6 +1100,14 @@ pub const REASON_DETAILS: &[&str] = &[
     "initial_state_posterior.external_power_prior",
     "initial_state_posterior.mapped_prior",
     "initial_state_posterior.non_positive_scale",
+    "integrated_schedule.artifact_refused",
+    "integrated_schedule.cancelled",
+    "integrated_schedule.changed_program",
+    "integrated_schedule.inadequate_overlap",
+    "integrated_schedule.invalid_declaration",
+    "integrated_schedule.missing_joint_evidence",
+    "integrated_schedule.resource_refused",
+    "integrated_schedule.unsupported",
     "interface_contract.artifact_invalid",
     "interface_contract.blank_field",
     "interface_contract.calibration_record_blank",
@@ -4229,6 +4237,14 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("initial_state_posterior.external_power_prior", &["route_not_supported"]),
     ("initial_state_posterior.mapped_prior", &["route_not_supported"]),
     ("initial_state_posterior.non_positive_scale", &["invalid_argument"]),
+    ("integrated_schedule.artifact_refused", &["invalid_argument"]),
+    ("integrated_schedule.cancelled", &["cancelled_no_claim"]),
+    ("integrated_schedule.changed_program", &["invalid_argument"]),
+    ("integrated_schedule.inadequate_overlap", &["route_not_supported"]),
+    ("integrated_schedule.invalid_declaration", &["invalid_argument"]),
+    ("integrated_schedule.missing_joint_evidence", &["route_not_supported"]),
+    ("integrated_schedule.resource_refused", &["route_not_supported"]),
+    ("integrated_schedule.unsupported", &["route_not_supported"]),
     ("interface_contract.artifact_invalid", &["invalid_argument"]),
     ("interface_contract.blank_field", &["interface_contract_invalid"]),
     ("interface_contract.calibration_record_blank", &["interface_contract_invalid"]),
@@ -8801,6 +8817,26 @@ pub mod initial_state_posterior {
     pub const MAPPED_PRIOR: &str = "initial_state_posterior.mapped_prior";
     /// Detail `initial_state_posterior.non_positive_scale`.
     pub const NON_POSITIVE_SCALE: &str = "initial_state_posterior.non_positive_scale";
+}
+
+/// Details in the `integrated_schedule` family.
+pub mod integrated_schedule {
+    /// Detail `integrated_schedule.artifact_refused`.
+    pub const ARTIFACT_REFUSED: &str = "integrated_schedule.artifact_refused";
+    /// Detail `integrated_schedule.cancelled`.
+    pub const CANCELLED: &str = "integrated_schedule.cancelled";
+    /// Detail `integrated_schedule.changed_program`.
+    pub const CHANGED_PROGRAM: &str = "integrated_schedule.changed_program";
+    /// Detail `integrated_schedule.inadequate_overlap`.
+    pub const INADEQUATE_OVERLAP: &str = "integrated_schedule.inadequate_overlap";
+    /// Detail `integrated_schedule.invalid_declaration`.
+    pub const INVALID_DECLARATION: &str = "integrated_schedule.invalid_declaration";
+    /// Detail `integrated_schedule.missing_joint_evidence`.
+    pub const MISSING_JOINT_EVIDENCE: &str = "integrated_schedule.missing_joint_evidence";
+    /// Detail `integrated_schedule.resource_refused`.
+    pub const RESOURCE_REFUSED: &str = "integrated_schedule.resource_refused";
+    /// Detail `integrated_schedule.unsupported`.
+    pub const UNSUPPORTED: &str = "integrated_schedule.unsupported";
 }
 
 /// Details in the `interface_contract` family.

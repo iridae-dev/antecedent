@@ -27707,3 +27707,10 @@ crate = "antecedent"
 cargo_target = "longitudinal_joint_sensitivity_calibration"
 path = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
 gates = ["inventory"]
+
+[[test]]
+id = "integrated-schedule-decision"
+crate = "antecedent"
+cargo_target = "integrated_schedule_decision"
+path = "crates/antecedent/tests/integrated_schedule_decision.rs"
+gates = ["inventory"]

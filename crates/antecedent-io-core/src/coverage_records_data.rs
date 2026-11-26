@@ -385,6 +385,7 @@ fn interval_method(name: &str) -> IntervalMethod {
         "IdentifiedSet" => IntervalMethod::IdentifiedSet,
         "CircularBlockSe" => IntervalMethod::CircularBlockSe,
         "SimultaneousBand" => IntervalMethod::SimultaneousBand,
+        "HoeffdingOptimumSet" => IntervalMethod::HoeffdingOptimumSet,
         "AndersonRubin" => IntervalMethod::AndersonRubin,
         "None" => IntervalMethod::None,
         other => panic!("coverage snapshot: unknown interval method {other}"),

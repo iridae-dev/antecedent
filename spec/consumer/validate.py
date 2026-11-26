@@ -949,6 +949,8 @@ KIND_STAGE = {
     "sequential_policy_reliability_fit": "distribution_artifact",
     "sequential_decision_draws": "distribution_artifact",
     "distribution": "distribution_artifact",
+    "integrated_schedule_evidence": "evidence",
+    "integrated_schedule_decision": "claim",
     "delayed_entry_incidence_result": "distribution_artifact",
     "delayed_entry_survival_band_result": "distribution_artifact",
     "patient_surrogate_identification": "distribution_artifact",

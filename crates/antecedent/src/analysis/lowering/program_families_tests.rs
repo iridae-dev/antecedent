@@ -247,6 +247,12 @@ const PINNED: &[(C, R, &str, F)] = &[
         F::PropagationChain,
     ),
     (
+        C::IntegratedScheduleDecision,
+        R::IntegratedScheduleDecision,
+        "IntegratedScheduleDecision",
+        F::PropagationChain,
+    ),
+    (
         C::CohortDecisionBundleRecomputation,
         R::CohortDecisionBundleRecomputation,
         "CohortDecisionBundleRecomputation",

@@ -157,6 +157,7 @@ pub mod composition;
 pub mod composition_cohort_decision;
 mod composition_counterfactual_transport;
 pub mod composition_decision_terminal;
+pub mod composition_integrated_schedule;
 pub mod composition_ledger_decision;
 pub mod composition_verification;
 mod conditional_admg;

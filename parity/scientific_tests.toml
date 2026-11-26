@@ -3647,3 +3647,10 @@ evidence_assertion = "sampling_bridge_bundle_recomputes_a_live_terminal"
 kind = "reference"
 fixtures = []
 why = "The compiled bundle recomputes the affine terminal from retained sampling or bootstrap draws and reproduces the live receipt under independent bundle and program expectations."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs"
+evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal"
+kind = "reference"
+fixtures = []
+why = "An eight-cell rational oracle checks the target utility of each schedule under each structural/preference state, including an exact tie. The compiled route reproduces the final joint optimum set and rejects replaced or disconnected target evidence."

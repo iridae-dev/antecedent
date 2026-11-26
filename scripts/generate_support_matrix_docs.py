@@ -685,6 +685,7 @@ def _interval_method_reasons(records: list[dict]) -> list[dict]:
         ("IdentifiedSet", "identified_set"),
         ("CircularBlockSe", "circular_block_se"),
         ("SimultaneousBand", "simultaneous_band"),
+        ("HoeffdingOptimumSet", "hoeffding_optimum_set"),
         ("AndersonRubin", "anderson_rubin"),
         ("None", "none"),
     ]

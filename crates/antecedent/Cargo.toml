@@ -1734,3 +1734,7 @@ path = "tests/longitudinal_schedule_route.rs"
 [[test]]
 name = "longitudinal_schedule_calibration"
 path = "tests/longitudinal_schedule_calibration.rs"
+
+[[test]]
+name = "integrated_schedule_decision"
+path = "tests/integrated_schedule_decision.rs"

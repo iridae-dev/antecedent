@@ -27040,3 +27040,39 @@ activation_disposition = "runtime_scope_checked_against_current_covering_record"
 allocation_status = "source_fixed_new_coverage_record"
 measurement_design_status = "complete_measurement_pending"
 truth_grid_allocation = "800, 1600, and 3200 independent subjects at nominal 0.95, with 199 refits."
+
+[[record]]
+id = "design.integrated_schedule_decision"
+capability = "design.integrated_schedule_decision"
+status = "supported"
+consumer_question = "Which prespecified two-action schedules remain compatible with an optimal choice across structural and preference alternatives after transport?"
+theorem = "Under independent source trajectories and target rows, sequential exchangeability as required by each structural alternative, conditional outcome observation exchangeability, positivity, consistency and conditional transportability, a Bonferroni Hoeffding region for eight conditional endpoint means, four natural second-action probabilities and one target prevalence covers the primitive vector simultaneously. Eliminating a schedule only when a simultaneous contrast upper bound is negative preserves all true maximizers across every declared world whenever the region covers."
+reference = "provenance/design.integrated_schedule_decision.toml"
+guarantee = "simultaneous_coverage_of_every_optimal_schedule_in_every_declared_world_on_publication"
+graph_class = "Finite unweighted alternatives for whether the second action has a causal effect."
+population_semantics = "Independent source trajectories with a binary predecision history and a separate target sample of that history."
+evidence_family = "An exact eight-cell oracle and repeated production-route studies covering the final union of maximizing schedules, including ties."
+estimand = "The union of all true optimal schedules under the declared structural and preference worlds after standardization to the target population."
+provider = "Compiler-owned joint source fit, independent target prevalence fit and prespecified finite structural/preference world declaration."
+inference_claim = "interval"
+inference_notes = "The route reports a confidence set for the final optimum set, with a finite-sample false-publication guarantee under its premises and a separately resolved empirical calibration scope."
+owners = ["antecedent-design", "antecedent", "python/antecedent"]
+identity_inputs = ["source trajectory rows and censoring indications", "independent target rows", "fixed finite schedule, structure and preference worlds", "each compiled child's premises and program identity", "explicit source-fixed calibration design where declared"]
+wire_changes = ["Source, target and declaration children bind a compiled-program identity to their replayed products, and the terminal binds all three child products to the outer program."]
+compatibility = "Additive composition route. Other schedule and decision artifacts retain their existing readers."
+search = false
+bounds = { cancellation = true, memory_limit = "ExecutionContext.admission", max_artifact_bytes = 33554432 }
+surface = ["crates/antecedent/src/analysis/composition_integrated_schedule.rs", "python/antecedent/intervention_schedule_decision.py"]
+surface_pyo3 = ["python/src/bundle_recomputation_api.rs"]
+surface_rust = ["crates/antecedent-design/src/intervention_schedule_decision.rs", "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs"]
+surface_values = ["CompiledIntegratedScheduleDecision", "IntegratedScheduleBundle", "IntegratedScheduleDecision", "ScheduleDecisionDeclaration", "ScheduleCalibrationDesign"]
+routes = [
+  { name = "antecedent.design.compile_integrated_schedule_decision", stage = "prepare", status = "supported", claim = "interval", covers = ["compile_schedule_decision_bundle", "CompiledIntegratedScheduleDecision.execute"] },
+  { name = "antecedent.design.consume_schedule_decision_bundle", stage = "consume", status = "supported", claim = "interval", covers = ["consume_schedule_decision_bundle_with_context"] },
+]
+fixtures = [
+  { id = "design.integrated_schedule_decision.oracle.positive", role = "positive", intent = "The compiled children agree with a rational eight-cell oracle under both structures and preference states. The tied optimum is present and revisions recompile only the affected evidence child.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal", shared_evidence = true },
+  { id = "design.integrated_schedule_decision.oracle.truth", role = "truth", intent = "The independent rational utilities reproduce all candidate values and every maximizing schedule in the tied world.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal", shared_evidence = true },
+  { id = "design.integrated_schedule_decision.scope.negative", role = "negative", intent = "An incomplete structure declaration, thin support and an inadequate resource budget produce actionable refusals.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "insufficient_scope_and_budget_are_refused" },
+  { id = "design.integrated_schedule_decision.bundle.artifact", role = "artifact", intent = "A verified bundle independently executes its source, target and declaration children and recomputes its confidence set. Substituted and disconnected targets refuse.", evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs", evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal", shared_evidence = true },
+]

@@ -24,6 +24,8 @@ pub enum IntervalMethod {
     CircularBlockSe,
     /// Simultaneous band.
     SimultaneousBand,
+    /// Set of all schedules not eliminated by a joint Hoeffding confidence region.
+    HoeffdingOptimumSet,
     /// Anderson–Rubin confidence set. Endpoints are not a standard error:
     /// they may be infinite, and the set is not `estimate ± z·SE`.
     AndersonRubin,
@@ -35,7 +37,7 @@ pub enum IntervalMethod {
 
 impl IntervalMethod {
     /// Closed set of methods. A new variant fails calibration tests until listed.
-    pub const ALL: [IntervalMethod; 11] = [
+    pub const ALL: [IntervalMethod; 12] = [
         Self::AnalyticSe,
         Self::BootstrapSe,
         Self::PercentileBootstrap,
@@ -44,6 +46,7 @@ impl IntervalMethod {
         Self::IdentifiedSet,
         Self::CircularBlockSe,
         Self::SimultaneousBand,
+        Self::HoeffdingOptimumSet,
         Self::AndersonRubin,
         Self::None,
         Self::PosteriorAbsoluteDeviation,
@@ -62,6 +65,7 @@ impl IntervalMethod {
             Self::IdentifiedSet => "identified_set",
             Self::CircularBlockSe => "circular_block_se",
             Self::SimultaneousBand => "simultaneous_band",
+            Self::HoeffdingOptimumSet => "hoeffding_optimum_set",
             Self::AndersonRubin => "anderson_rubin",
             Self::None => "none",
         }

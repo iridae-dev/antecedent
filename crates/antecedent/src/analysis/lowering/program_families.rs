@@ -112,6 +112,8 @@ macro_rules! program_families {
             BoundedComponentPosteriorDecision => PropagationChain, unit "cyclic.component_posterior_decisions";
             /// Bundle replay with a parameter-posterior decision terminal.
             PosteriorDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
+            /// Joint optimum set across declared structural and preference states.
+            IntegratedScheduleDecision => PropagationChain, unit "design.integrated_schedule_decision";
             /// Bundle replay with a retained cohort and affine decision terminal.
             CohortDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Sharp binary principal-surrogate bounds from jointly observed randomized endpoints.

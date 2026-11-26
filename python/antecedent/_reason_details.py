@@ -1394,6 +1394,17 @@ class initial_state_posterior:  # noqa: N801
     NON_POSITIVE_SCALE: Final = "initial_state_posterior.non_positive_scale"
 
 
+class integrated_schedule:  # noqa: N801
+    ARTIFACT_REFUSED: Final = "integrated_schedule.artifact_refused"
+    CANCELLED: Final = "integrated_schedule.cancelled"
+    CHANGED_PROGRAM: Final = "integrated_schedule.changed_program"
+    INADEQUATE_OVERLAP: Final = "integrated_schedule.inadequate_overlap"
+    INVALID_DECLARATION: Final = "integrated_schedule.invalid_declaration"
+    MISSING_JOINT_EVIDENCE: Final = "integrated_schedule.missing_joint_evidence"
+    RESOURCE_REFUSED: Final = "integrated_schedule.resource_refused"
+    UNSUPPORTED: Final = "integrated_schedule.unsupported"
+
+
 class interface_contract:  # noqa: N801
     ARTIFACT_INVALID: Final = "interface_contract.artifact_invalid"
     BLANK_FIELD: Final = "interface_contract.blank_field"
@@ -5068,6 +5079,14 @@ ALL: Final[tuple[str, ...]] = (
     "initial_state_posterior.external_power_prior",
     "initial_state_posterior.mapped_prior",
     "initial_state_posterior.non_positive_scale",
+    "integrated_schedule.artifact_refused",
+    "integrated_schedule.cancelled",
+    "integrated_schedule.changed_program",
+    "integrated_schedule.inadequate_overlap",
+    "integrated_schedule.invalid_declaration",
+    "integrated_schedule.missing_joint_evidence",
+    "integrated_schedule.resource_refused",
+    "integrated_schedule.unsupported",
     "interface_contract.artifact_invalid",
     "interface_contract.blank_field",
     "interface_contract.calibration_record_blank",
@@ -8204,6 +8223,14 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "initial_state_posterior.external_power_prior": ("route_not_supported",),
     "initial_state_posterior.mapped_prior": ("route_not_supported",),
     "initial_state_posterior.non_positive_scale": ("invalid_argument",),
+    "integrated_schedule.artifact_refused": ("invalid_argument",),
+    "integrated_schedule.cancelled": ("cancelled_no_claim",),
+    "integrated_schedule.changed_program": ("invalid_argument",),
+    "integrated_schedule.inadequate_overlap": ("route_not_supported",),
+    "integrated_schedule.invalid_declaration": ("invalid_argument",),
+    "integrated_schedule.missing_joint_evidence": ("route_not_supported",),
+    "integrated_schedule.resource_refused": ("route_not_supported",),
+    "integrated_schedule.unsupported": ("route_not_supported",),
     "interface_contract.artifact_invalid": ("invalid_argument",),
     "interface_contract.blank_field": ("interface_contract_invalid",),
     "interface_contract.calibration_record_blank": ("interface_contract_invalid",),

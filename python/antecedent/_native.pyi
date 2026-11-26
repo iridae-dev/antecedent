@@ -14580,3 +14580,35 @@ def longitudinal_joint_sensitivity_consume(
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
 ) -> tuple[LongitudinalJointSensitivityResultHandle | None, str | None]: ...
+
+class IntegratedSchedulePlanHandle:
+    @property
+    def program_identity(self) -> str: ...
+    @property
+    def child_program_identities(self) -> list[str]: ...
+    def plan_view_json(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self, *, seed: int = 1, threads: int | None = None,
+        cancel: CancellationToken | None = None, memory_bytes: int | None = None,
+    ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+
+def integrated_schedule_decision_compile(
+    source_json: str,
+    target: list[bool],
+    declaration_json: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[IntegratedSchedulePlanHandle | None, str | None]: ...
+def integrated_schedule_decision_consume(
+    data: bytes,
+    expected_identity: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[str | None, str | None]: ...

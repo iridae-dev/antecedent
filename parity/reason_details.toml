@@ -18933,3 +18933,51 @@ id = "longitudinal_joint_sensitivity.identity"
 family = "longitudinal_joint_sensitivity"
 codes = ["invalid_argument"]
 meaning = "The portable program, source or replayed result differs from the expected identities."
+
+[[detail]]
+id = "integrated_schedule.missing_joint_evidence"
+family = "integrated_schedule"
+codes = ["route_not_supported"]
+meaning = "The schedule decision requires source trajectories, independent target rows and both declared structural and preference alternatives."
+
+[[detail]]
+id = "integrated_schedule.inadequate_overlap"
+family = "integrated_schedule"
+codes = ["route_not_supported"]
+meaning = "Source observation counts or the independent target count fall below the identified overlap floor."
+
+[[detail]]
+id = "integrated_schedule.invalid_declaration"
+family = "integrated_schedule"
+codes = ["invalid_argument"]
+meaning = "The schedule, bounded endpoint, structural or utility coordinate is invalid."
+
+[[detail]]
+id = "integrated_schedule.cancelled"
+family = "integrated_schedule"
+codes = ["cancelled_no_claim"]
+meaning = "The caller cancelled the integrated decision."
+
+[[detail]]
+id = "integrated_schedule.resource_refused"
+family = "integrated_schedule"
+codes = ["route_not_supported"]
+meaning = "The execution context could not admit the integrated decision workload."
+
+[[detail]]
+id = "integrated_schedule.unsupported"
+family = "integrated_schedule"
+codes = ["route_not_supported"]
+meaning = "The independent integrated decision has not passed its release support gate."
+
+[[detail]]
+id = "integrated_schedule.changed_program"
+family = "integrated_schedule"
+codes = ["invalid_argument"]
+meaning = "The retained outer program differs from independent compilation of the three raw evidence children."
+
+[[detail]]
+id = "integrated_schedule.artifact_refused"
+family = "integrated_schedule"
+codes = ["invalid_argument"]
+meaning = "The retained bundle did not satisfy the expected identity or did not verify its children and terminal."

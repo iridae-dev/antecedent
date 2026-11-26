@@ -38,6 +38,17 @@ pub use antecedent_design::adaptive_policy_search::{
     PolicyRolloutSource, PolicySearchOptions, PolicyStanding, PreparedAdaptivePolicySearch,
     ResponseStanding, SearchStop, StandingRequest,
 };
+/// End-to-end finite schedule decision with joint source, transport, structural and preference uncertainty.
+pub use antecedent_design::intervention_schedule_decision::{
+    IntegratedScheduleBundle, IntegratedScheduleDecision, PreparedIntegratedScheduleDecision,
+    ScheduleBundleError, ScheduleCalibrationDesign, ScheduleDecisionDeclaration, ScheduleDecisionError, ScheduleScenarioResult,
+    ScheduleSourceFit, ScheduleSourceSubject, ScheduleStructure, ScheduleTargetCohort,
+    ScheduleUtilityDifference,
+};
+pub use crate::analysis::composition_integrated_schedule::{
+    CompiledIntegratedScheduleDecision, compile_integrated_schedule_decision, compile_schedule_decision_bundle,
+    consume_schedule_decision_bundle, consume_schedule_decision_bundle_with_context,
+};
 pub use antecedent_design::planning::{
     AnalyticCharacteristics, ArmComparison, FactorialContrast, FamilyCharacteristics, FamilyPower,
     FamilySimulation, InterferenceExposure, Multiplicity, NormalPrior, OutcomeModel,

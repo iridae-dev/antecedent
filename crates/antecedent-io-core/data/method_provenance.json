@@ -391,6 +391,9 @@
   "design.identification_repair": [
    "design.identification_repair"
   ],
+  "design.integrated_schedule_decision": [
+   "design.integrated_schedule_decision"
+  ],
   "design.prior_signal_planning": [
    "design.prior_signal_planning"
   ],
@@ -4132,6 +4135,28 @@
    "review": "none",
    "scope_limits": [],
    "sources": []
+  },
+  {
+   "deviations": [
+    "The calculation uses a union bound over thirteen primitives from shared source trajectories and an independently sampled target baseline.",
+    "Schedule contrasts reuse the common target weights. Under the first-action-only structure, shared terms cancel before uncertainty projection. Candidates are removed only when the upper contrast bound is negative. Equality retains tied candidates.",
+    "The independently replayable compiler children bind joint assignment and observation fitting, independent target standardization weights and the declared finite structural/preference worlds. The final optimum set has separate source-fixed empirical coverage designs for unique and tied optima."
+   ],
+   "digest": "f741a062df90f846d51fadc96ea21bf8fcd0037cc255355124f5bbfb2b0a8697",
+   "id": "design.integrated_schedule_decision",
+   "review": "none",
+   "scope_limits": [],
+   "sources": [
+    {
+     "doi": "10.1080/01621459.1963.10500830",
+     "doi_verified": false,
+     "sections": [
+      "Section 2, Theorem 2 and inequality (2.6), applied to each tail"
+     ],
+     "title": "Probability Inequalities for Sums of Bounded Random Variables",
+     "url": "https://www.cs.rpi.edu/academics/courses/spring06/random/hoefding.pdf"
+    }
+   ]
   },
   {
    "covered_by": [

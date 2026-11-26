@@ -2945,3 +2945,29 @@ status = "REFUSED"
 detail = "Changed retained endpoints under the same patient claim identity invalidate the bridge edge."
 evidence_test = "crates/antecedent/tests/patient_surrogate.rs"
 evidence_assertion = "identified_set_bridge_requires_the_replayed_patient_bounds"
+
+[[rust_producer]]
+key = "integrated_schedule_optimum"
+object = "joint confidence set of the target-optimal two-decision schedules across structural and preference states"
+built_from = "`antecedent::design::compile_integrated_schedule_decision`, `CompiledIntegratedScheduleDecision::execute`, and `CompositionBundle::to_bytes`"
+
+[[rust_consumer]]
+key = "integrated_schedule_optimum_bundle"
+entry = "`antecedent::design::consume_schedule_decision_bundle` and `antecedent.intervention_schedule_decision.consume_schedule_decision_bundle`"
+note = "Requires a retained bundle identity and all embedded source, target and declaration children. It recompiles their semantic program, replays each child and checks every final optimum and utility bound."
+
+[[rust_cell]]
+producer = "integrated_schedule_optimum"
+consumer = "integrated_schedule_optimum_bundle"
+status = "DIRECT"
+detail = "Independent compilation and topological replay reproduce the source assignment and censoring fit, target standardization, all structure/preference states and the final joint optimum set."
+evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs"
+evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal"
+
+[[rust_cell]]
+producer = "integrated_schedule_optimum"
+consumer = "integrated_schedule_optimum_bundle"
+status = "REFUSED"
+detail = "Replacing target evidence invalidates the retained program and stale terminal. Missing an edge to the target sample gives a remedy."
+evidence_test = "crates/antecedent/tests/integrated_schedule_decision.rs"
+evidence_assertion = "point_oracle_replays_and_changed_parent_invalidates_terminal"

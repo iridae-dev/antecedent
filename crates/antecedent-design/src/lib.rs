@@ -43,6 +43,7 @@ pub mod failure_routes;
 pub mod functional_source;
 pub mod gaussian_forward_law;
 pub mod identification_repair;
+pub mod intervention_schedule_decision;
 pub mod inverse_query;
 pub mod inverse_query_artifact;
 pub mod joint_coupling;
