@@ -564,6 +564,10 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
     "predictive_assessment_v1": ("predictive_assessment", "consume_predictive_assessment_artifact"),
     "scientific_bridge_exact_image_v1": ("scientific_bridge", "consume_bridge_image"),
     "scientific_bridge_v1": ("scientific_bridge", "consume_scientific_bridge_artifact"),
+    "longitudinal_joint_sensitivity": (
+        "longitudinal_joint_sensitivity",
+        "consume_longitudinal_joint_sensitivity",
+    ),
     "selective_discovery_v1": ("selective_discovery", "consume_selective_discovery_artifact"),
     "sequential_evaluation_v1": ("sequential_evaluation", "consume_artifact"),
     "transported_counterfactual_v1": (
@@ -586,6 +590,7 @@ _CONSUMERS: dict[str, tuple[str, str]] = {
 # encoding digest and are handled separately.
 _IDENTITY_PARAMETERS: dict[str, frozenset[str]] = {
     "scientific_bridge_exact_image_v1": frozenset({"expected_program", "expected_result"}),
+    "longitudinal_joint_sensitivity": frozenset({"expected", "expected_program"}),
     "causal_posterior": frozenset({"expected_encoding_sha256"}),
     "compiled_robust_decision_v1": frozenset({"expected_program_identity"}),
     "joint_sensitivity_interval_v1": frozenset(),

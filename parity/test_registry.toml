@@ -27686,3 +27686,24 @@ crate = "python"
 cargo_target = "script"
 path = "python/tests/test_rpcmci_regime_learning.py"
 gates = ["inventory"]
+
+[[test]]
+id = "longitudinal-joint-sensitivity"
+crate = "antecedent"
+cargo_target = "longitudinal_joint_sensitivity"
+path = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
+gates = ["inventory"]
+
+[[test]]
+id = "longitudinal-joint-sensitivity-python"
+crate = "python"
+cargo_target = "script"
+path = "python/tests/test_longitudinal_joint_sensitivity.py"
+gates = ["inventory"]
+
+[[test]]
+id = "longitudinal-joint-sensitivity-calibration"
+crate = "antecedent"
+cargo_target = "longitudinal_joint_sensitivity_calibration"
+path = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
+gates = ["inventory"]

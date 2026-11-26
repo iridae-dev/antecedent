@@ -1708,6 +1708,14 @@ name = "standing_route_calibration"
 path = "tests/standing_route_calibration.rs"
 
 [[test]]
+name = "longitudinal_joint_sensitivity"
+path = "tests/longitudinal_joint_sensitivity.rs"
+
+[[test]]
+name = "longitudinal_joint_sensitivity_calibration"
+path = "tests/longitudinal_joint_sensitivity_calibration.rs"
+
+[[test]]
 name = "standing_support_transport"
 path = "tests/standing_support_transport.rs"
 

@@ -960,6 +960,7 @@ KIND_STAGE = {
     "learned_rpcmci": "evidence",
     "pag_identification": "evidence",
     "scientific_bridge_image": "claim",
+    "longitudinal_joint_sensitivity": "sensitivity_input",
     "frozen_scores": "distribution_artifact",
     "external_claim": "external_provider",
     "attestation": "external_provider",

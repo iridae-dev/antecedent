@@ -6054,3 +6054,15 @@ rust = "antecedent::analysis::kernel_programs::sampling_bridge::CompiledSampling
 kind = "type"
 status = "bound"
 python = "antecedent.scientific_bridge.CompiledSamplingBridge"
+
+[[entry]]
+rust = "antecedent::analysis::longitudinal_joint_sensitivity::compile_longitudinal_joint_sensitivity"
+kind = "fn"
+status = "bound"
+python = "antecedent.longitudinal_joint_sensitivity.compile_longitudinal_joint_sensitivity"
+
+[[entry]]
+rust = "antecedent::analysis::longitudinal_joint_sensitivity::consume_longitudinal_joint_sensitivity"
+kind = "fn"
+status = "bound"
+python = "antecedent.longitudinal_joint_sensitivity.consume_longitudinal_joint_sensitivity"

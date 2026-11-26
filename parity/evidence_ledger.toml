@@ -13364,3 +13364,33 @@ calibration = "point_only_no_interval"
 artifact_consumer_fixture = "composition.bundle.ledger_pool_decision.artifact"
 provider_trust = "The ledger validates the retained calculations and standings; the scientific coordinate remains caller-declared."
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sensitivity.longitudinal_joint.compile"
+route = "antecedent.sensitivity.compile_longitudinal_joint_sensitivity"
+algorithm_provenance = ["provenance/sensitivity.longitudinal_joint.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sensitivity.longitudinal_joint.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Independent complete-data potential outcomes at every box corner share the same observed subject histories. The repeated-data fixture generates 64 independent studies with a known affine truth."
+expected_values = "The extrema are 0.04 and 0.20 and the box crosses 0.075. The two single-mechanism minima of 0.09 and 0.15 retain the active decision. Replay preserves all simultaneous intervals and the decision."
+tolerance = "1e-12 absolute for exact corners; identical numerical output on replay."
+calibration = "nominal joint bootstrap; scoped simulation fixture without a published coverage record"
+artifact_consumer_fixture = "sensitivity.longitudinal_joint.replay"
+provider_trust = "Native completed conditional-mean calculation under caller-declared assumptions; no external provider."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "sensitivity.longitudinal_joint.consume"
+route = "antecedent.sensitivity.consume_longitudinal_joint_sensitivity"
+algorithm_provenance = ["provenance/sensitivity.longitudinal_joint.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "sensitivity.longitudinal_joint.positive"
+oracle_kind = "enumerated_finite_law"
+oracle_inputs = "Independent complete-data potential outcomes at every box corner share the same observed subject histories. The repeated-data fixture generates 64 independent studies with a known affine truth."
+expected_values = "The extrema are 0.04 and 0.20 and the box crosses 0.075. The two single-mechanism minima of 0.09 and 0.15 retain the active decision. Replay preserves all simultaneous intervals and the decision."
+tolerance = "1e-12 absolute for exact corners; identical numerical output on replay."
+calibration = "nominal joint bootstrap; scoped simulation fixture without a published coverage record"
+artifact_consumer_fixture = "sensitivity.longitudinal_joint.replay"
+provider_trust = "Native completed conditional-mean calculation under caller-declared assumptions; no external provider."
+exact_request_verification = "not_applicable_no_external_provider"

@@ -270,6 +270,12 @@ const PINNED: &[(C, R, &str, F)] = &[
         "DirectPagIdentification",
         F::Structural,
     ),
+    (
+        C::LongitudinalJointSensitivity,
+        R::LongitudinalJointSensitivity,
+        "LongitudinalJointSensitivity",
+        F::PropagationChain,
+    ),
     (C::GraphImputation, R::GraphImputation, "GraphImputation", F::GraphImputation),
     (
         C::GraphImputationEffectDecision,

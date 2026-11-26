@@ -1233,3 +1233,9 @@ lowering = "BridgeIntervalThreshold"
 unit_kind = "capability"
 unit = "scientific_bridge.distribution_bridges"
 entry = { rust = "crates/antecedent/src/analysis/kernel_programs/bridge_images.rs", python = "python/antecedent/scientific_bridge.py" }
+
+[[route]]
+lowering = "LongitudinalJointSensitivity"
+unit_kind = "capability"
+unit = "sensitivity.longitudinal_joint"
+entry = { rust = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", python = "python/antecedent/longitudinal_joint_sensitivity.py" }

@@ -18897,3 +18897,39 @@ id = "rpcmci_learned.portable_refusal"
 family = "rpcmci_learned"
 codes = ["invalid_argument", "execution_resource_limit", "cancelled_no_claim"]
 meaning = "The learned-regime payload, replay resources or selected-regime review could not be admitted."
+
+[[detail]]
+id = "longitudinal_joint_sensitivity.invalid_declaration"
+family = "longitudinal_joint_sensitivity"
+codes = ["invalid_argument"]
+meaning = "Subject trajectories or the box, sampling design, outcome or decision declarations are invalid."
+
+[[detail]]
+id = "longitudinal_joint_sensitivity.positivity"
+family = "longitudinal_joint_sensitivity"
+codes = ["positivity_violated"]
+meaning = "The original data or a whole-subject resample lacks a required treatment-history or observed-outcome cell."
+
+[[detail]]
+id = "longitudinal_joint_sensitivity.incoherent_box"
+family = "longitudinal_joint_sensitivity"
+codes = ["invalid_argument"]
+meaning = "A box corner implies a conditional potential-outcome mean outside the declared support."
+
+[[detail]]
+id = "longitudinal_joint_sensitivity.cancelled"
+family = "longitudinal_joint_sensitivity"
+codes = ["cancelled_no_claim"]
+meaning = "The joint procedure or replay was cancelled."
+
+[[detail]]
+id = "longitudinal_joint_sensitivity.resources"
+family = "longitudinal_joint_sensitivity"
+codes = ["route_not_supported"]
+meaning = "The caller resource budget or portable byte bound refused the joint procedure."
+
+[[detail]]
+id = "longitudinal_joint_sensitivity.identity"
+family = "longitudinal_joint_sensitivity"
+codes = ["invalid_argument"]
+meaning = "The portable program, source or replayed result differs from the expected identities."

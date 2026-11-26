@@ -70,6 +70,9 @@ use antecedent_io::quantity_wire::{DistributionMeaningWire, ScientificQuantityWi
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+#[path = "composition_longitudinal_joint_sensitivity.rs"]
+mod longitudinal_joint_sensitivity;
+
 fn refused(stage: BundleStage, reason: &str, offending: Option<&str>) -> BundleError {
     BundleError::Refused {
         stage,
@@ -109,6 +112,8 @@ impl Default for BundleBuilder {
 pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
     if super::rpcmci_portable::recognizes(bytes) {
         Some(NodeKind::LearnedRpcmci)
+    } else if super::longitudinal_joint_sensitivity::recognizes(bytes) {
+        Some(NodeKind::LongitudinalJointSensitivity)
     } else if counterfactual_bundle::detects(bytes) {
         Some(NodeKind::CounterfactualTransportResult)
     } else {
@@ -123,6 +128,8 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
 pub fn describe_artifact(kind: NodeKind, bytes: &[u8]) -> Result<ArtifactDescription, NodeFailure> {
     if kind == NodeKind::LearnedRpcmci {
         super::rpcmci_portable::describe(bytes, &ExecutionContext::production_default(0))
+    } else if kind == NodeKind::LongitudinalJointSensitivity {
+        longitudinal_joint_sensitivity::describe(bytes, &ExecutionContext::production_default(0))
     } else if kind == NodeKind::ScientificBridgeImage {
         bridge_image::describe(bytes, &ExecutionContext::production_default(0), &[])
     } else if kind == NodeKind::CounterfactualTransportResult {
@@ -165,6 +172,7 @@ fn standard_consumer_with_context(ctx: &ExecutionContext) -> BundleConsumer {
     antecedent_design::composition_verifiers::standard_consumer()
         .register(Box::new(counterfactual_bundle::CounterfactualTransportVerifier(ctx.clone())))
         .register(Box::new(bridge_image::BridgeImageVerifier(ctx.clone())))
+        .register(Box::new(longitudinal_joint_sensitivity::Verifier(ctx.clone())))
         .register(Box::new(patient_surrogate::PatientSurrogateVerifier(ctx.clone())))
         .register(Box::new(super::rpcmci_portable::Verifier(ctx.clone())))
 }

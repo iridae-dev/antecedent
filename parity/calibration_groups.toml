@@ -15461,3 +15461,11 @@ target = "scientific_bridge_interval_calibration"
 tests = ["independent_studies_trial_bridge_percentile_interval_l95"]
 ignored = true
 grid = true
+
+[[group]]
+label = "longitudinal_joint_sensitivity_calibration: longitudinal_two_decision_joint_box_and_extrema_l95"
+package = "antecedent"
+target = "longitudinal_joint_sensitivity_calibration"
+tests = ["longitudinal_two_decision_joint_box_and_extrema_l95"]
+ignored = true
+grid = true

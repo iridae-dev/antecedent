@@ -14544,3 +14544,39 @@ def learned_rpcmci_consume(
     data: bytes, expected_identity: str, *, threads: int | None = None,
     cancel: CancellationToken | None = None, memory_bytes: int | None = None,
 ) -> tuple[LearnedRpcmciHandle | None, str | None]: ...
+
+class LongitudinalJointSensitivityPlanHandle:
+    identity: str
+    def plan_view_json(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self,
+        *,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[LongitudinalJointSensitivityResultHandle | None, str | None]: ...
+
+class LongitudinalJointSensitivityResultHandle:
+    identity: str
+    program_identity: str
+    calibration_status: str
+    def calibration_json(self) -> str: ...
+    def report_json(self) -> str: ...
+    def export(self) -> bytes: ...
+
+def longitudinal_joint_sensitivity_compile(
+    declaration: str,
+    rows: list[tuple[int, int, tuple[int, int], int, float | None]],
+) -> tuple[LongitudinalJointSensitivityPlanHandle | None, str | None]: ...
+def longitudinal_joint_sensitivity_consume(
+    data: bytes,
+    expected: str,
+    expected_program: str,
+    *,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[LongitudinalJointSensitivityResultHandle | None, str | None]: ...

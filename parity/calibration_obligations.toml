@@ -175,6 +175,9 @@ prospective = [
 "scientific_bridge.distribution_bridges / independent_shifted_uniform_v1 / trial_pairs_percentile_type7" = [
   "scientific_bridge_interval_calibration: independent_studies_trial_bridge_percentile_interval_l95",
 ]
+"sensitivity.longitudinal_joint / balanced_binary_bernoulli_v1 / shared_subject_refits / simultaneous_box_and_joint_decision_extrema_l95" = [
+  "longitudinal_joint_sensitivity_calibration: longitudinal_two_decision_joint_box_and_extrema_l95",
+]
 "association / cross_section_linear_slope / bootstrap_row" = [
   "graphless_wider_range_calibration: association_static_bootstrap_spread_slope_interval_upper_rows",
 ]

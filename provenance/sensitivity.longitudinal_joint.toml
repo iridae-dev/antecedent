@@ -1,0 +1,73 @@
+feature_id = "sensitivity.longitudinal_joint"
+implementation_crate = "antecedent"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "A Selection Bias Approach to Sensitivity Analysis for Causal Effects", authors = ["Matthew Blackwell"], year = 2014, url = "https://www.mattblackwell.org/files/papers/sens.pdf", sections = ["Selection bias and sensitivity", "Extension to dynamic treatment regimes"] },
+  { title = "Sensitivity Analyses for Means or Proportions with Missing Outcome Data", year = 2023, doi = "10.1097/EDE.0000000000001627", url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/" },
+]
+
+implementation_deviations = [
+  "For schedule aa and treatment stage k the declared difference in the mean of that schedule's potential outcome between off-schedule and on-schedule subjects, given stage history and earlier adherence, is -(2a-1) times the stage departure. Final missing-minus-recorded conditional means use the analogous signed shift. These are additive mean restrictions, independent of marginal propensity-odds sensitivity models.",
+  "With outcome support, the fitted box is admitted only if each corner implies feasible conditional means. Affinity then guarantees feasibility throughout the box. The original fit is checked, and the sampling law uses untruncated refits.",
+  "A bootstrap replicate estimates treatment probabilities, the intermediate history distribution, response fractions and recorded-outcome means from the same resampled subjects. The supremum of the absolute affine error surface is attained at a corner. Project the common radius onto both extrema and compare the resulting interval to the prespecified threshold.",
+  "The advertised simultaneous level is nominal. The independently simulated experiment scores both the joint extrema and the entire region in one design. Broader calibration is unmeasured.",
+]
+
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/longitudinal_joint_sensitivity.rs",
+  "python/tests/test_longitudinal_joint_sensitivity.py",
+  "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs",
+]
+
+[method_review]
+status = "reviewed_with_limits"
+scope = "Conditional total expectation for the 11 versus 00 schedule contrast, feasibility over a rectangular departure region, simultaneous bootstrap band, joint threshold comparison, and portable replay from retained source trajectories."
+assumptions = [
+  "The two histories and treatment decisions are binary and completely recorded. Only the final outcome may be missing. Subjects are independent, each required treatment and recorded-outcome cell has support, and consistency connects recorded outcomes to their realized schedule.",
+  "The two additive treatment-selection departures are defined within observed history and earlier schedule adherence. The final additive pattern-mixture departure compares the missing and observed conditional means within the two realized schedule cells. A named release design adds a caller declaration about the sampling law.",
+]
+historical_exposure = "Review followed the nested conditional expectations and source-fixed experiment directly from the implementation and the named methodological papers. Historical author exposure is not established."
+redistribution = "Repository-authored implementation and fixtures. Linked literature is not redistributed."
+limitations = "The scientific target is the named two-decision mean contrast under a rectangular region of three common additive departures. The admissibility check constrains implied conditional means only within the bounded outcome model. The subject bootstrap requires every sampled fit to retain observed support. Its nominal simultaneous level does not establish coverage beyond a matching current repeated-experiment receipt. The comparison addresses only the predeclared scalar threshold."
+sources = ["https://www.mattblackwell.org/files/papers/sens.pdf", "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/"]
+findings_resolved = [
+  "The conditional completion yields an affine contrast, so an independent enumerated full-data reference checks the extreme corners and two off-axis departures. Two distinct complete-data laws yield the same observed trajectory distribution but contrasts on opposite sides of the declared action threshold.",
+  "A shared whole-subject bootstrap estimates every mechanism exactly once per resample. The maximum absolute error over the box is the maximum over its vertices, and one radius covers both extrema jointly.",
+  "The standalone consumer, generic Python carrier and standard composition verifier replay from the same retained plan, seed and raw trajectories. Published sampling bounds and their current calibration reading are computed live.",
+]
+record_sha256 = "68ead956188cd59e532647812059b021d16f4b48d4447976f0530396a4920041"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs"
+items = ["impl LongitudinalSensitivitySpec", "fn compile_longitudinal_joint_sensitivity", "impl CompiledLongitudinalJointSensitivity", "impl LongitudinalSensitivityArtifact", "fn consume_artifact"]
+sha256 = "d1eef7bc2fdc1a5802df93337ede0cd5809e47f01001cafe0b926b91019ef6fd"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity/kernel.rs"
+items = ["impl Fit", "fn check_mean", "fn execute", "fn coordinates"]
+sha256 = "24a5f028e23abdb7ace00c3e7b351fdf06f2afe5a3409ad888280d86461ac71c"
+
+[[method_review.artifacts]]
+role = "implementation"
+path = "crates/antecedent/src/analysis/composition_longitudinal_joint_sensitivity.rs"
+items = ["fn describe"]
+sha256 = "d3c0c17af31997b988b7a82800684e27d4704ed6ddcce3c7dbf920bc87b0f2cb"
+
+[[method_review.artifacts]]
+role = "test"
+path = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
+items = ["fn complete_world", "fn two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision", "fn repeated_studies_cover_the_entire_surface_and_both_decision_extrema_jointly"]
+sha256 = "9e2e0ee02f52db7a89d36cabd0c348d1f9069dda72b7f6bff201f914b9c707f8"
+
+[[method_review.artifacts]]
+role = "test"
+path = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
+items = ["fn measure", "fn bind", "fn longitudinal_two_decision_joint_box_and_extrema_l95"]
+sha256 = "6c3b151cf156db3ec835e12aa23c26853d96e8ee7374431866d2193fde146441"

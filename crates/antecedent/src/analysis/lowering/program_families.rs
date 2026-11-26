@@ -120,6 +120,8 @@ macro_rules! program_families {
             LedgerPooledDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
             /// Complete marginal and conditional PAG identification.
             DirectPagIdentification => Structural, unit "identify.pag_direct";
+            /// Paired subject inference across a joint longitudinal selection and MNAR box.
+            LongitudinalJointSensitivity => PropagationChain, unit "sensitivity.longitudinal_joint";
             /// A graph-selection imputation composite.
             GraphImputation => GraphImputation, unit "graph_imputation.compiled_candidate";
             /// Graph-imputation effect posterior and downstream utility.

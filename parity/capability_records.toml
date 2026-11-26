@@ -26947,3 +26947,96 @@ fixtures = [
   { id = "identify.pag_direct.nonnull_completion_parity", role = "parity", intent = "A common oracle PAG with a compelled visible edge compares both concrete nonzero effects against exact truth and the existing completion estimator.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "visible_nonnull_effect_matches_the_completion_route_and_shared_oracle" },
   { id = "identify.pag_direct.retained_stop", role = "artifact", intent = "A deterministic exhausted-work trace retains the original budget, replays through the bundle, and refuses a consumer's lower work limit.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "retained_search_stop_replays_under_its_original_budget" },
 ]
+
+[[record]]
+id = "sensitivity.longitudinal_joint"
+capability = "sensitivity.longitudinal_joint"
+status = "supported"
+consumer_question = "How does the 11 versus 00 schedule contrast and threshold decision change over a joint region of longitudinal treatment selection and final-outcome MNAR departures under common subject sampling?"
+theorem = "A sequential additive conditional potential-outcome selection contrast at each treatment decision and a final additive conditional pattern-mixture mean shift identify an affine schedule contrast by nested conditional total expectation. A rectangular region has exact extrema at its corners, and the absolute bootstrap difference of two affine fits has its supremum at a corner."
+reference = "provenance/sensitivity.longitudinal_joint.toml"
+guarantee = "exact_region_under_declared_departures_nominal_joint_sampling"
+graph_class = "Two binary treatments with recorded binary baseline and intermediate histories and one scalar final outcome."
+population_semantics = "One named independent-subject population, with the 11 versus 00 treatment schedule contrast in the final outcome's declared unit."
+evidence_family = "Saturated observed trajectory cells, a jointly declared departure box and paired subject resamples."
+estimand = "Assumption range and paired simultaneous sampling band of the schedule mean contrast; optional threshold decision on both."
+provider = "Observed whole-subject trajectories with unique IDs, and finite positively supported on-schedule observed outcomes."
+inference_claim = "interval"
+inference_notes = "Sampling coverage is nominal and calibration uses only current records for the source-fixed design declaration and exact registered method and level. The threshold is compared jointly after projecting the band onto both endpoints. The assumption range itself has no probability."
+owners = ["antecedent", "antecedent-stats", "python/antecedent"]
+identity_inputs = ["model version, subject sampling unit and indexed bootstrap design, result seed", "named population, outcome, units, support, threshold, treatment and MNAR ranges, nominal level and replicate count", "ordered complete source trajectories and observed-outcome indicators"]
+wire_changes = ["Versioned longitudinal_joint_sensitivity result container carries original declarations, seed, subject rows, result and program identity.", "The same artifact is admitted as a longitudinal_joint_sensitivity node by the standard composition consumer and decoded by generic Python load."]
+compatibility = "Additive bounded scientific route."
+coverage_records = ["cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners", "cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema"]
+search = false
+bounds = { cancellation = true, max_rows = 100000, max_refits = 2000, max_artifact_bytes = 16777216 }
+surface = ["crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", "python/antecedent/longitudinal_joint_sensitivity.py"]
+surface_pyo3 = ["python/src/longitudinal_joint_sensitivity_api.rs"]
+surface_rust = ["crates/antecedent/src/analysis/longitudinal_joint_sensitivity/kernel.rs", "crates/antecedent/src/analysis/composition_longitudinal_joint_sensitivity.rs"]
+surface_values = ["CompiledLongitudinalJointSensitivity", "JointSensitivityError", "LongitudinalSensitivityArtifact", "LongitudinalSensitivityCoverageDesign", "LongitudinalSensitivityChoice", "LongitudinalSensitivityCorner", "LongitudinalSensitivityDecision", "LongitudinalSensitivityPoint", "LongitudinalSensitivityReport", "LongitudinalSensitivityRefusal", "LongitudinalSensitivityResult", "LongitudinalSensitivitySpec", "LongitudinalSubject"]
+refusals = [
+  { detail = "longitudinal_joint_sensitivity.invalid_declaration" },
+  { detail = "longitudinal_joint_sensitivity.positivity" },
+  { detail = "longitudinal_joint_sensitivity.incoherent_box" },
+  { detail = "longitudinal_joint_sensitivity.cancelled" },
+  { detail = "longitudinal_joint_sensitivity.resources" },
+  { detail = "longitudinal_joint_sensitivity.identity" },
+]
+routes = [
+  { name = "antecedent.sensitivity.compile_longitudinal_joint_sensitivity", stage = "evaluate", status = "supported", claim = "interval", covers = ["longitudinal_joint_sensitivity_compile", "CompiledLongitudinalJointSensitivity.execute", "LongitudinalSensitivityArtifact.to_bytes"] },
+  { name = "antecedent.sensitivity.consume_longitudinal_joint_sensitivity", stage = "consume", status = "supported", claim = "interval", covers = ["longitudinal_joint_sensitivity_consume", "LongitudinalSensitivityResult.export"] },
+]
+fixtures = [
+  { id = "sensitivity.longitudinal_joint.positive", role = "positive", intent = "Both zero-axis limits recover the stand-alone references, the full box flips the threshold decision, and incompatible support refuses.", evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision", shared_evidence = true },
+  { id = "sensitivity.longitudinal_joint.truth", role = "truth", intent = "Separate complete-data mechanisms for each corner share their observed data; enumerating both potential means reproduces every fitted corner and the two jointly optimized extrema.", evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision", shared_evidence = true },
+  { id = "sensitivity.longitudinal_joint.coverage", role = "calibration", intent = "Independently generated studies score simultaneous coverage of the whole affine response surface and the two decision extrema together.", evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs", evidence_assertion = "longitudinal_two_decision_joint_box_and_extrema_l95" },
+  { id = "sensitivity.longitudinal_joint.replay", role = "artifact", intent = "Typed Python executes the same model on the Rust fixture, replays the full artifact and refuses inconsistent identity or outcome support.", evidence_test = "python/tests/test_longitudinal_joint_sensitivity.py", evidence_assertion = "test_typed_joint_sensitivity_executes_and_replays_with_bound_decision" },
+]
+
+[[record.inference_outputs]]
+id = "sensitivity.longitudinal_joint.full_box"
+fields = ["LongitudinalSensitivityReport.corners", "LongitudinalSensitivityReport.sampling_radius"]
+method = "Simultaneous 0.95 sup-norm band over the full three-coordinate affine box using 199 whole-subject bootstrap refits."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "LongitudinalSensitivityArtifact::calibration_bases"
+public_producers = ["antecedent.sensitivity.compile_longitudinal_joint_sensitivity"]
+closed_producers = []
+independent_consumers = ["antecedent.sensitivity.consume_longitudinal_joint_sensitivity"]
+method_source = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs; crates/antecedent/src/analysis/longitudinal_joint_sensitivity/kernel.rs"
+truth_design = "The fixed observed source law has independent fair-coin baseline, treatments and intermediate history, independent recording with probability 0.75, and Bernoulli outcome mean 0.30 + 0.20*A0 + 0.04*L1 + 0.02*W. The population contrast is 0.20 minus both assignment departures and one half of the MNAR departure."
+truth_fixtures = ["crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs::longitudinal_two_decision_joint_box_and_extrema_l95"]
+nominal_level = "0.95"
+acceptance_threshold = "The registered two-sided simultaneous coverage tally counts all corners within one band as a single event. Missing publication is recorded."
+measurement_suite = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
+allocated_coverage_records = ["cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.all_corners"]
+inherited_coverage_records = []
+boundary = "Fixed binary design only. Outside the prespecified 199-refit design, outcome/box declaration, release scope and registered sample-size range, the interval has no earned coverage label."
+activation_disposition = "runtime_scope_checked_against_current_covering_record"
+allocation_status = "source_fixed_new_coverage_record"
+measurement_design_status = "complete_measurement_pending"
+truth_grid_allocation = "800, 1600, and 3200 independent subjects at nominal 0.95, with 199 refits."
+
+[[record.inference_outputs]]
+id = "sensitivity.longitudinal_joint.decision_extrema"
+fields = ["LongitudinalSensitivityReport.extrema_intervals", "LongitudinalSensitivityDecision.sampling_choice"]
+method = "Project the same sup-norm band onto both decision extrema and measure their simultaneous coverage as one event."
+implementation_status = "implemented_not_measured"
+owner = "antecedent"
+operation_or_object = "LongitudinalSensitivityArtifact::calibration_bases"
+public_producers = ["antecedent.sensitivity.compile_longitudinal_joint_sensitivity"]
+closed_producers = []
+independent_consumers = ["antecedent.sensitivity.consume_longitudinal_joint_sensitivity"]
+method_source = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs; crates/antecedent/src/analysis/longitudinal_joint_sensitivity/kernel.rs"
+truth_design = "Same fixed binary observation law, with joint decision extrema 0.04 and 0.20 across the prespecified box and threshold 0.075."
+truth_fixtures = ["crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs::longitudinal_two_decision_joint_box_and_extrema_l95"]
+nominal_level = "0.95"
+acceptance_threshold = "The registered two-sided simultaneous coverage tally counts both extrema within their reported intervals as a single event. Missing publication is recorded."
+measurement_suite = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
+allocated_coverage_records = ["cov.longitudinal_regime.none.frequentist.simultaneous_band.l95.longitudinal_two_decision_joint_box_and_extrema_l95.v2_validation_not_applicable.joint_extrema"]
+inherited_coverage_records = []
+boundary = "Coverage of the pair of estimand endpoints under one fixed study law. The decision reports indeterminacy where the band crosses the threshold."
+activation_disposition = "runtime_scope_checked_against_current_covering_record"
+allocation_status = "source_fixed_new_coverage_record"
+measurement_design_status = "complete_measurement_pending"
+truth_grid_allocation = "800, 1600, and 3200 independent subjects at nominal 0.95, with 199 refits."

@@ -238,6 +238,7 @@ pub mod joint_law_composed_basis;
 pub mod joint_law_propagation;
 mod joint_sensitivity;
 mod joint_sensitivity_uncertainty;
+pub mod longitudinal_joint_sensitivity;
 pub mod joint_transport_effect_decision;
 pub mod joint_transport_predictive_decision;
 pub mod kernel_programs;

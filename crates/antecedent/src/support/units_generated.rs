@@ -148,6 +148,8 @@ pub(crate) const SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES: UnitId =
 pub(crate) const SCIENTIFIC_BRIDGE_TYPED_BRIDGES: UnitId =
     UnitId::new("scientific_bridge.typed_bridges");
 pub(crate) const SENSITIVITY_JOINT_MECHANISM: UnitId = UnitId::new("sensitivity.joint_mechanism");
+pub(crate) const SENSITIVITY_LONGITUDINAL_JOINT: UnitId =
+    UnitId::new("sensitivity.longitudinal_joint");
 pub(crate) const SENSITIVITY_MATCHED_HIDDEN_BIAS: UnitId =
     UnitId::new("sensitivity.matched_hidden_bias");
 pub(crate) const SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE: UnitId =
@@ -357,6 +359,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "TrialBridgePercentileInterval" => Some(SCIENTIFIC_BRIDGE_DISTRIBUTION_BRIDGES),
         "IdentifiedSetBridge" => Some(SCIENTIFIC_BRIDGE_TYPED_BRIDGES),
         "ZTransportMechanismSensitivity" => Some(SENSITIVITY_JOINT_MECHANISM),
+        "LongitudinalJointSensitivity" => Some(SENSITIVITY_LONGITUDINAL_JOINT),
         "MatchedDesignSensitivity" => Some(SENSITIVITY_MATCHED_HIDDEN_BIAS),
         "SuppliedEstimateEValue" => Some(SENSITIVITY_SUPPLIED_ESTIMATE_EVALUE),
         "SequentialPolicyEvaluation" => Some(SEQUENTIAL_EVALUATION_POLICY_EVALUATION),

@@ -2906,3 +2906,21 @@ status = "REFUSED"
 detail = "Changed raw rows refuse the retained identity. Unavailable regime IDs and inadequate admission refuse."
 evidence_test = "crates/antecedent/tests/rpcmci_regime_learning.rs"
 evidence_assertion = "portable_shared_series_replays_and_accepts_explicit_regimes"
+
+[[rust_producer]]
+key = "two_decision_treatment_mnar_surface"
+object = "Two-decision sensitivity box with a simultaneous subject-bootstrap band."
+built_from = "The compiled longitudinal joint sensitivity program on unique and independent subject trajectories."
+
+[[rust_consumer]]
+key = "two_decision_treatment_mnar_replay"
+entry = "`consume_longitudinal_joint_sensitivity` or `BundleBuilder::add_detected_artifact` and `antecedent::analysis::composition::consume`"
+note = "Rebuilds both mechanisms and the threshold decision by the same subject refits. The Python artifact works with `antecedent.load` and a standard composition bundle."
+
+[[rust_cell]]
+producer = "two_decision_treatment_mnar_surface"
+consumer = "two_decision_treatment_mnar_replay"
+status = "DIRECT"
+detail = "Both assumption extrema and the jointly covered threshold comparison are recovered from source observations and the retained seed."
+evidence_test = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs"
+evidence_assertion = "two_complete_mechanisms_agree_observationally_and_exact_corners_change_the_decision"

@@ -79,6 +79,8 @@ pub enum NodeKind {
     LearnedRpcmci,
     /// Replayable image of a declared scientific bridge.
     ScientificBridgeImage,
+    /// Joint longitudinal treatment, MNAR and sampling sensitivity.
+    LongitudinalJointSensitivity,
     /// A named transformation.
     Transformation,
     /// A decision contract.
@@ -145,6 +147,7 @@ named_variants! {
         PagIdentification => "pag_identification",
         LearnedRpcmci => "learned_rpcmci",
         ScientificBridgeImage => "scientific_bridge_image",
+        LongitudinalJointSensitivity => "longitudinal_joint_sensitivity",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
         DecisionResult => "decision_result",
@@ -208,7 +211,9 @@ impl NodeKind {
             | Self::ScientificBridge
             | Self::ScientificBridgeImage
             | Self::PropagationChain => CompositionStage::Claim,
-            Self::Sensitivity => CompositionStage::SensitivityInput,
+            Self::Sensitivity | Self::LongitudinalJointSensitivity => {
+                CompositionStage::SensitivityInput
+            }
             Self::StudyRanking => CompositionStage::StudyRankingProvider,
         }
     }
@@ -226,6 +231,7 @@ impl NodeKind {
             | Self::LongitudinalRegimeResult
             | Self::DecisionResult
             | Self::Sensitivity
+            | Self::LongitudinalJointSensitivity
             | Self::StudyRanking
             | Self::Rollout
             | Self::InverseQuery

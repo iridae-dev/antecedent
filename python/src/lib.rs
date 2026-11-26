@@ -184,6 +184,7 @@ mod pag_completion_api;
 mod patient_surrogate_api;
 mod rpcmci_portable_api;
 mod pag_identification_api;
+mod longitudinal_joint_sensitivity_api;
 mod planning_api;
 mod policy_api;
 mod policy_reliability_api;
