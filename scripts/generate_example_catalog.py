@@ -5,7 +5,8 @@ import argparse
 import html
 from pathlib import Path
 
-from _repo import load_toml
+from _repo import load_toml, workspace_package_version
+from set_version import examples_install
 
 ROOT = Path(__file__).resolve().parents[1]
 BEGIN = "<!-- generated:example-catalog:begin -->"
@@ -110,12 +111,13 @@ def render(site):
 
 def expected_page(site):
     release = version()
-    major, minor, _ = map(int, release.split("."))
-    next_minor = f"{major}.{minor + 1}"
+    packaged = workspace_package_version(ROOT)
+    install = examples_install(packaged)
+    source_intro = f"To run examples introduced in {release}" if release != packaged else "For a source build"
     prefix = (
         f"# Choose an example\n\nEach example asks one question and checks one property of the answer. Start with the tutorials: each pairs with a page that explains the science step by step. Install [the matching package](start/installation.md), then run an example from a repository checkout.\n\n```bash\npython examples/python/<name>.py\ncargo run -p antecedent --example <name>\n```\n\nNotebook previews show executed outputs; source downloads and Colab links are beside each notebook. See [the repository setup](https://github.com/iridae-dev/antecedent/blob/v{release}/examples/README.md#python-environment) for the local environment. For your own data, see [your first analysis](start/first-analysis.md); for a graph handoff to another library, see [DoWhy interoperability](interop_dowhy.md).\n\n"
         if site
-        else f'# Examples\n\n## Python environment\n\nUse Python 3.11 or later. Released-package setup:\n\n<!-- generated:release:python-pin:begin -->\n```bash\npython -m pip install "antecedent>={release},<{next_minor}" pandas matplotlib ipykernel jupyterlab\n```\n<!-- generated:release:python-pin:end -->\n\nFor a source build, follow [installation](../docs/start/installation.md#build-from-source). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.\n\n## Run an example\n\n```bash\npython examples/python/feedback_three_questions.py\ncargo run -p antecedent --example feedback_three_questions\njupyter lab examples/notebooks\n```\n\nThe tutorials are the front door. Each follows one scientific task and pairs with an example in the Tutorials table below; the [documentation home](../docs/index.md#tutorials) lists them by task. Start with [an observational study](../docs/tutorials/observational-study.md) or [one feedback system and three questions](../docs/tutorials/feedback-three-questions.md).\n\n## Datasets\n\nMost examples simulate their data from a declared mechanism so the known answer can be checked. Examples that read a real public dataset describe its origin, licence, version and checksums in [`data/`](data/README.md), and run offline on a labelled synthetic stand-in. The published site includes executed notebook previews; the source notebooks remain free of saved outputs.\n\n'
+        else f'# Examples\n\n## Python environment\n\nUse Python 3.11 or later. Released-package setup:\n\n<!-- generated:release:python-pin:begin -->\n{install}\n<!-- generated:release:python-pin:end -->\n\n{source_intro}, follow [installation](../docs/start/installation.md#build-from-source). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.\n\n## Run an example\n\n```bash\npython examples/python/feedback_three_questions.py\ncargo run -p antecedent --example feedback_three_questions\njupyter lab examples/notebooks\n```\n\nThe tutorials are the front door. Each follows one scientific task and pairs with an example in the Tutorials table below; the [documentation home](../docs/index.md#tutorials) lists them by task. Start with [an observational study](../docs/tutorials/observational-study.md) or [one feedback system and three questions](../docs/tutorials/feedback-three-questions.md).\n\n## Datasets\n\nMost examples simulate their data from a declared mechanism so the known answer can be checked. Examples that read a real public dataset describe its origin, licence, version and checksums in [`data/`](data/README.md), and run offline on a labelled synthetic stand-in. The published site includes executed notebook previews; the source notebooks remain free of saved outputs.\n\n'
     )
     return prefix + render(site)
 

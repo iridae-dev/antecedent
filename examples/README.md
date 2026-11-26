@@ -6,11 +6,11 @@ Use Python 3.11 or later. Released-package setup:
 
 <!-- generated:release:python-pin:begin -->
 ```bash
-python -m pip install "antecedent>=3.1.0,<3.2" pandas matplotlib ipykernel jupyterlab
+python -m pip install "antecedent>=3.0.0,<3.1" pandas matplotlib ipykernel jupyterlab
 ```
 <!-- generated:release:python-pin:end -->
 
-For a source build, follow [installation](../docs/start/installation.md#build-from-source). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.
+To run examples introduced in 3.1.0, follow [installation](../docs/start/installation.md#build-from-source). Select the notebook kernel for your installed environment and restart after upgrading an imported native extension.
 
 ## Run an example
 
