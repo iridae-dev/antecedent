@@ -7465,6 +7465,16 @@ recorded_at = "2026-11-21T08:46:07Z"
 dependency_manifest = "d9760a5ee7c4d49092d1e1129d05948b6ee42cca1514d12f425cca2037f8deaf"
 
 [[record]]
+test = "antecedent::lib::analysis::scientific_bridge_distribution_tests::sampling_bridge_bundle_recomputes_a_live_terminal"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "b230923e2c53f05bd1ca2cac23069b99591c07c5fdce1878bad92c3285999b1f"
+recorded_at = "2026-11-26T05:01:10Z"
+dependency_manifest = "783a250f2ddbeda15da91548c5c992f7283a9ef06b06bbf910a2e6e443fa0881"
+
+[[record]]
 test = "antecedent::lib::analysis::scientific_bridge_propagation_tests::an_affine_map_publishes_the_hand_delta_variance_beside_the_plug_in_value"
 roles = ["scientific"]
 passed = true
