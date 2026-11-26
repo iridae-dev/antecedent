@@ -194,7 +194,8 @@ nav:
   - Producer and consumer matrix: producer-consumer-matrix.md
 - Migrate to 3.0: migration.md
 - Migrate to 3.1: migration-3.1.md
-- Release notes: release-notes/v3.0.0.md
+- Release notes for 3.1: release-notes/v3.1.0.md
+- Release notes for 3.0: release-notes/v3.0.0.md
 - Development:
   - Development: development.md
   - Architecture overview: architecture/overview.md

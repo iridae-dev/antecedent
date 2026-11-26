@@ -120,7 +120,7 @@ Read a result's identification, support, uncertainty and calibration separately.
 
 ## Release, migration and contribution
 
-- [Release notes for 3.0.0](docs/release-notes/v3.0.0.md) describe what is new and what changed in the claims.
+- [Release notes for 3.1.0](docs/release-notes/v3.1.0.md) describe what is new. [Release notes for 3.0.0](docs/release-notes/v3.0.0.md) describe what changed in the 3.0 claims.
 - The [migration guide](docs/migration.md) gives the exact old and new forms from 2.4 to 3.0.
 - [Migrate from 3.0 to 3.1](docs/migration-3.1.md) covers compiled declarations, study resume, and the refusals a 3.1 caller reads.
 - The [documentation home](docs/index.md) covers tutorials, guides, concepts and reference. The [roadmap](ROADMAP.md) describes future work.
