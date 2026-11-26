@@ -7,6 +7,7 @@ use antecedent::analysis::pag_identification::{
 use antecedent::estimate::{
     Assignment, DiscreteAxis, ExactDiscreteLaw, ExactEvaluationLimits, LawTolerance,
 };
+use antecedent::graph::{DenseNodeId, MiddleMark};
 use antecedent::prelude::{Value, VariableId};
 use antecedent::reason::reason_code;
 use antecedent::schema::RegimeId;
@@ -224,6 +225,24 @@ fn direct_pag_compile(
     given: Vec<String>,
     population: String,
 ) -> PyResult<Refused<PyDirectPagPlan>> {
+    // PagWire carries endpoint marks only. Check the source before encoding it.
+    for index in 0..pag.pag.node_count() {
+        let node = DenseNodeId::from_raw(u32::try_from(index).map_err(crate::value_err_display)?);
+        if pag.pag.neighbors(node).any(|(neighbor, _, _)| {
+            node < neighbor
+                && pag
+                    .pag
+                    .edge_between(node, neighbor)
+                    .is_some_and(|edge| edge.middle != MiddleMark::Empty)
+        }) {
+            return Ok((
+                None,
+                Some(fail(&PagReplayError::Invalid(
+                    "the oracle PAG contains unfinished middle marks",
+                ))),
+            ));
+        }
+    }
     let ids = |values: Vec<String>| {
         let mut ids = values
             .iter()

@@ -14,6 +14,7 @@ implementation_deviations = [
   "The symbolic result binds the caller-declared valid oracle PAG, the disjoint query sets and population. Static graphs with selection edges, conflicts and unfinished middle marks fall outside the theorem domain.",
   "Resource exhaustion and cancellation are operational stops. Only a completed IDP/CIDP obstruction gives nonidentification evidence under the declared graph.",
   "When requested, deterministic work and depth stops retain their active work budget and independently replay through the same algorithm. Explicit traversal stacks preserve visit order and metering without consuming native call-stack depth.",
+  "Portable graph intake and retained proof decoding use the caller's resource admission. The logical work budget counts symbolic visits and calls. Exact evaluation has separate operation and depth limits.",
   "Numerical evaluation reuses the existing exact evaluator and a strictly positive finite joint law compatible with the PAG. Caller-supplied integer levels are exposed in Python. The symbolic derivation is separate from finite-sample estimation.",
 ]
 upstream_implementations_observed = []

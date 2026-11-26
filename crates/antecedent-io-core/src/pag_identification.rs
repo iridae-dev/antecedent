@@ -3,6 +3,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use antecedent_core::execution::{AdmissionError, AdmissionLease};
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest, VariableId};
 use antecedent_expr::{
     Assignment, ExactDiscreteLaw, ExactDistribution, ExactEvaluationLimits, ExactEvaluationPlan,
@@ -169,6 +170,13 @@ fn raw(ids: Vec<VariableId>) -> Vec<u32> {
     ids.into_iter().map(VariableId::raw).collect()
 }
 
+fn admit_intake(bytes: u64, ctx: &ExecutionContext) -> Result<AdmissionLease, PagIdError> {
+    ctx.acquire_admission(0, bytes).map_err(|error| match error {
+        AdmissionError::Cancelled => PagIdError::Cancelled,
+        other => PagIdError::Admission(other),
+    })
+}
+
 impl PagIdentificationArtifact {
     /// Run the direct identification algorithm with the caller's resources.
     ///
@@ -197,6 +205,15 @@ impl PagIdentificationArtifact {
         ctx: &ExecutionContext,
         retain_stop: bool,
     ) -> Result<Self, PagReplayError> {
+        // Hold graph and declaration intake apart from the symbolic kernel's own lease.
+        let graph_bytes = u64::from(problem.graph.node_count)
+            .saturating_mul(64)
+            .saturating_add((problem.graph.edges.len() as u64).saturating_mul(32));
+        let label_bytes =
+            problem.names.iter().fold(problem.population.len() as u64, |sum, name| {
+                sum.saturating_add(name.len() as u64)
+            });
+        let _graph_lease = admit_intake(graph_bytes.saturating_add(label_bytes), ctx)?;
         let problem_identity = problem.identity()?;
         let graph = pag_from_wire(&problem.graph)?;
         let to_ids =
@@ -344,6 +361,8 @@ impl PagIdentificationArtifact {
         let body = bytes
             .strip_prefix(MAGIC)
             .ok_or(PagReplayError::Invalid("unknown PAG artifact version"))?;
+        // Keep the decoded proof alive until it has been compared with the fresh result.
+        let _wire_lease = admit_intake((body.len() as u64).saturating_mul(8), ctx)?;
         let wire: Wire = from_cbor(body)?;
         if expected.is_some_and(|id| id != wire.identity) {
             return Err(PagReplayError::Invalid("unexpected retained PAG result"));

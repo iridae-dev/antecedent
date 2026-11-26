@@ -533,6 +533,39 @@ fn observationally_equal_two_vertex_models_have_different_do_laws() {
 }
 
 #[test]
+fn portable_intake_honors_cancellation_and_memory_before_symbolic_search() {
+    let plan = compile_pag_identification(fixture("marginal_beyond_adjustment")).unwrap();
+    let ctx = ExecutionContext::for_tests(8);
+    let result = plan.execute(&ctx).unwrap();
+    let bytes = result.to_bytes().unwrap();
+    let replay = |ctx: &ExecutionContext| {
+        consume_pag_identification(&bytes, result.identity(), plan.lowered().identity(), ctx)
+    };
+
+    // Zero symbolic work would normally produce a retained budget stop.
+    let tight = ExecutionContext::for_tests(8).with_memory_limit(Some(1)).with_id_work_limit(0);
+    assert!(matches!(
+        plan.execute_retaining_stop(&tight),
+        Err(PagReplayError::Identification(PagIdError::Admission(_)))
+    ));
+    assert!(matches!(
+        replay(&tight),
+        Err(PagReplayError::Identification(PagIdError::Admission(_)))
+    ));
+
+    let cancelled = ExecutionContext::for_tests(8);
+    cancelled.cancellation.cancel();
+    assert!(matches!(
+        plan.execute_retaining_stop(&cancelled),
+        Err(PagReplayError::Identification(PagIdError::Cancelled))
+    ));
+    assert!(matches!(
+        replay(&cancelled),
+        Err(PagReplayError::Identification(PagIdError::Cancelled))
+    ));
+}
+
+#[test]
 fn retained_depth_stop_is_distinct_from_the_work_budget_and_replays() {
     use antecedent::analysis::pag_identification::PagResourceStop;
     use antecedent_expr::ProgramLimits;
