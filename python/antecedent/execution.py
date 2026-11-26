@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
+from copy import copy
 from dataclasses import dataclass, field
 from typing import Any, Literal, ParamSpec, TypeVar
 
@@ -308,6 +309,22 @@ class Execution:
                 ),
             ),
         )
+
+    def _with_async_controls(
+        self,
+        cancel: _native.CancellationToken,
+        on_progress: Callable[[float, str], None] | None,
+        on_stage: Callable[..., None] | None,
+    ) -> Execution:
+        # Reconstructing this dataclass would allocate a fresh native admission pool.
+        execution = copy(self)
+        object.__setattr__(execution, "cancel", cancel)
+        object.__setattr__(execution, "on_progress", on_progress)
+        object.__setattr__(execution, "on_stage", on_stage)
+        object.__setattr__(
+            execution, "_handle", self._handle._with_async_controls(cancel, on_progress)
+        )
+        return execution
 
     def _call(self, operation: Callable[P, T], /, *args: P.args, **kwargs: P.kwargs) -> T:
         return self._handle.call(operation, *args, **kwargs)

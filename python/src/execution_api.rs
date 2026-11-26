@@ -10,6 +10,7 @@ use antecedent::query::TemporalMaterializationLimits;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 
+#[derive(Clone)]
 pub(crate) struct Policy {
     context: ExecutionContext,
     progress: Option<Arc<dyn antecedent::execution::ProgressSink>>,
@@ -186,6 +187,20 @@ impl PythonExecution {
     #[getter]
     fn available_memory_bytes(&self) -> u64 {
         self.policy.context.admission().available().bytes()
+    }
+
+    /// Derive worker controls while keeping the original admission pool.
+    #[pyo3(signature = (cancel, on_progress))]
+    fn _with_async_controls(
+        &self,
+        cancel: crate::PyCancellationToken,
+        on_progress: Option<Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+        let mut policy = (*self.policy).clone();
+        policy.context.cancellation = cancel.inner.clone();
+        policy.cancel = Some(cancel.inner);
+        policy.progress = crate::callbacks::progress_sink_from_py(on_progress.as_ref())?;
+        Ok(Self { policy: Arc::new(policy) })
     }
 
     /// Invoke one explicitly configured operation. Nested calls restore the

@@ -26,6 +26,7 @@ python -m pdoc antecedent -o site/python
 
 | Task | Reference |
 | --- | --- |
+| Run in an asyncio application | [Async analysis and streaming](#async-analysis-and-streaming) |
 | Analyze or prepare | <a href="../python/antecedent.html#analyze">analyze</a>, <a href="../python/antecedent.html#prepare">prepare</a> |
 | Persist and consume | <a href="../python/antecedent.html#load">load</a>, <a href="../python/antecedent/artifacts.html">artifacts</a> |
 | Interpret a result | <a href="../python/antecedent/results.html">results</a> |
@@ -57,6 +58,64 @@ The Python surface is documented by task in these guides:
 - [Refusals](reference/refusal-codes.md#structured-refusals-and-their-remedies): the shared `StructuredRefusal` base with `.code`, `.detail`, `.offending` and `.remedy`.
 - [Composition and bundles](composition.md): `composition_bundle.Bundle`, `add_artifact` and `consume_bundle`.
 
+## Async analysis and streaming
+
+Use `antecedent.aio` from an async application. The facade runs the existing
+Python entry points in the event loop's default thread executor and returns the same
+outcomes and scientific refusals.
+
+```python
+import asyncio
+
+from antecedent import AverageEffect, Execution, aio
+
+
+async def investigate(data, graph):
+    execution = Execution(threads=2)
+    async with asyncio.timeout(30):
+        return await aio.analyze(
+            data, graph=graph, query=AverageEffect("t", "y"), execution=execution
+        )
+```
+
+Use `await aio.prepare(data, graph=graph, query=query)` to prepare without fitting.
+Pass the returned study to `await aio.estimate(study)` to run it. Async estimation
+also accepts prepared batches and measured-exposure studies. Each call has its own
+cancellation token and shares the memory admission pool of the supplied or retained
+`Execution`. Cancelling an explicitly supplied token cancels all calls linked to it.
+Cancelling an asyncio task signals its own token and waits for the worker to exit
+before propagating cancellation. This also applies to `asyncio.timeout()`. The
+total wait depends on when the route reaches a cancellation check and how long
+synchronous user callbacks take to return.
+
+Use `aio.stream` to receive progress and optionally scientific stage events from a
+prepared study. Progress updates may be coalesced when the consumer is busy.
+The final `aio.Result` contains the outcome. Operational errors are raised during
+iteration. Stage streaming follows the route's usual support rules. Observers
+already configured on the study's `Execution` still run synchronously on worker
+threads.
+
+```python
+from contextlib import aclosing
+
+from antecedent import aio
+
+
+async def report(study):
+    async with aclosing(aio.stream(study, stages=True)) as events:
+        async for event in events:
+            if isinstance(event, aio.Progress):
+                print(event.stage, event.fraction)
+            elif isinstance(event, aio.Stage):
+                print(event.name, event.payload)
+            else:
+                return event.outcome
+```
+
+`aclosing` also signals cancellation and drains the worker if you leave the loop
+early. To limit concurrent investigations, wrap calls in an `asyncio.Semaphore`.
+The `Execution.threads` setting controls parallelism inside each call.
+
 ## Every public module
 
 Each module below is reachable as `antecedent.<name>` after `import antecedent`, except `cohort_pushdown`, `finite_discrete`, `horizon_composition`, `host`, `mixed_decision`, `mnar_fixed_shift`, `recipe_glm` and `temporal_model`, which need `import antecedent.<name>`. The last column is the page that covers it by task.
@@ -66,6 +125,7 @@ Each module below is reachable as `antecedent.<name>` after `import antecedent`,
 | `accepted_graph` | Versioned accepted-graph session handle for artifact-first interactive UX | [selective-discovery.md](selective-discovery.md) |
 | `adaptive_inference` | Inference from adaptive experiments | [adaptive-inference.md](adaptive-inference.md) |
 | `adaptive_policy` | Optimise bounded history-dependent intervention policies | [adaptive-policies.md](adaptive-policies.md) |
+| `aio` | Awaitable analysis, preparation, estimation and event streaming | [Async analysis and streaming](#async-analysis-and-streaming) |
 | `artifacts` | Durable format-0.5 artifacts for causal queries and results | [artifacts.md](artifacts.md) |
 | `attribution` | Attribution helpers | [guides/intrinsic-influence.md](guides/intrinsic-influence.md) |
 | `categorical_treatment` | Categorical treatments: ordered and unordered regimes with a declared reference | [guides/treatment-levels.md](guides/treatment-levels.md) |

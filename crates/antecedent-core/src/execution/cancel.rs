@@ -10,10 +10,11 @@ use core::sync::atomic::{AtomicBool, Ordering};
 use std::fmt;
 use std::sync::{Arc, Mutex, Weak};
 
-/// Shared wait state. A production token is this and nothing else.
+/// Shared cancellation and admission wait state.
 pub(super) struct CancelWait {
     pub(super) cancelled: Arc<AtomicBool>,
     pub(super) waiters: Mutex<Vec<Weak<SharedAdmission>>>,
+    children: Mutex<Vec<Weak<CancelFlag>>>,
 }
 
 impl CancelWait {
@@ -42,6 +43,10 @@ impl CancelWait {
     /// read, miss the notify, and sleep until its bound.
     pub(super) fn wake(&self) {
         let waiters = self.publish_and_snapshot();
+        let children = std::mem::take(&mut *lock_mutex(&self.children));
+        for child in children.into_iter().filter_map(|child| child.upgrade()) {
+            child.wake();
+        }
         for waiter in waiters {
             let Some(shared) = waiter.upgrade() else {
                 continue;
@@ -72,6 +77,7 @@ impl Default for CancelFlag {
         Self::Production(CancelWait {
             cancelled: Arc::new(AtomicBool::new(false)),
             waiters: Mutex::new(Vec::new()),
+            children: Mutex::new(Vec::new()),
         })
     }
 }
@@ -156,10 +162,28 @@ impl CancellationToken {
                 wait: CancelWait {
                     cancelled: Arc::new(AtomicBool::new(false)),
                     waiters: Mutex::new(Vec::new()),
+                    children: Mutex::new(Vec::new()),
                 },
                 left: AtomicUsize::new(checks),
             })),
         }
+    }
+
+    /// Create an independent token that also cancels when this token cancels.
+    ///
+    /// Cancelling the child leaves the parent and its other children alone.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn child(&self) -> Self {
+        let child = Self::new();
+        let mut children = lock_mutex(&self.flag.wait().children);
+        if self.is_requested() {
+            child.cancel();
+        } else {
+            children.retain(|child| child.strong_count() > 0);
+            children.push(Arc::downgrade(&child.flag));
+        }
+        child
     }
 
     /// A non-owning handle that does not keep this token alive.
@@ -236,6 +260,21 @@ mod cancellation_race_tests {
     use super::*;
     use crate::execution::{AdmissionError, AdmissionPool, ExecutionContext};
     use std::time::Duration;
+
+    #[test]
+    fn cancellation_only_propagates_from_parent_to_child() {
+        let parent = CancellationToken::new();
+        let first = parent.child();
+        let second = parent.child();
+        let grandchild = second.child();
+        first.cancel();
+        assert!(!parent.is_cancelled());
+        assert!(!second.is_cancelled());
+        parent.cancel();
+        assert!(second.is_cancelled());
+        assert!(grandchild.is_cancelled());
+        assert!(parent.child().is_cancelled());
+    }
 
     #[test]
     fn late_registration_after_snapshot_observes_cancellation() {

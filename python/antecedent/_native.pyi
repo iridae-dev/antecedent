@@ -218,6 +218,7 @@ class CancellationToken:
         """Request cancellation of every operation running under this token."""
     def is_cancelled(self) -> bool:
         """Return whether :meth:`cancel` has been called."""
+    def _child(self) -> CancellationToken: ...
 
 class ArrowLoadInfo:
     row_count: int
@@ -13077,6 +13078,9 @@ class _Execution:
     ) -> None: ...
     @property
     def available_memory_bytes(self) -> int: ...
+    def _with_async_controls(
+        self, cancel: CancellationToken, on_progress: Callable[[float, str], None] | None
+    ) -> _Execution: ...
     def call(self, callable: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any: ...
 
 class _TableSnapshot:
