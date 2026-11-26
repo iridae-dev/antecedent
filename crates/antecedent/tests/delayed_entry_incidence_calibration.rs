@@ -124,11 +124,39 @@ fn published_construction(
     method: &str,
 ) -> (Construction, ScopeFacts) {
     let contract = prepared.contract_for_result(result).expect("published result has a contract");
-    let (construction, scope, validation) = constructions(&contract, result)
-        .into_iter()
-        .find(|(construction, _, _)| construction.interval_method == method)
-        .expect("published interval has a calibration basis");
-    assert_eq!(validation, "not_applicable");
+    let mut published = constructions(&contract, result);
+    assert_eq!(published.len(), 1, "a band and scalar interval cannot share the calibration slot");
+    let (construction, scope, validation) = published.pop().unwrap();
+    assert_eq!(construction.interval_method, method);
+    assert_eq!(
+        [
+            construction.query.as_str(),
+            construction.graph_class.as_str(),
+            construction.structure.as_str(),
+            construction.modality.as_str(),
+            construction.inference.as_str(),
+            construction.estimator.as_str(),
+            construction.se_kind.as_str(),
+            construction.dependence.as_str(),
+            construction.posterior.as_str(),
+            construction.identification.as_str(),
+            validation,
+        ],
+        [
+            "Survival",
+            "RandomizedTrial",
+            "design",
+            "tabular",
+            "Frequentist",
+            "randomized.survival_product_limit",
+            "",
+            "iid",
+            "",
+            "point",
+            "not_applicable",
+        ]
+    );
+    assert_eq!(construction.reported_level.to_bits(), REPORTED_LEVEL.to_bits());
     (construction, scope)
 }
 

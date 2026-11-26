@@ -439,3 +439,24 @@ prospective = [
 "scientific_bridge_interval_calibration: independent_studies_trial_bridge_percentile_interval_l95" = [
   "cov.trial_bridge_percentile_interval.not_applicable.frequentist.trial_pairs_percentile_type7.l95.independent_studies_trial_bridge_percentile_interval_l95.v2_validation_not_applicable",
 ]
+"delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_percentile_coverage" = [
+  "cov.survival.randomized_trial.frequentist.percentile_bootstrap.l95.delayed_entry_unweighted_incidence_percentile_coverage.v2_validation_not_applicable",
+]
+"delayed_entry_incidence_calibration: delayed_entry_fixed_known_incidence_percentile_coverage" = [
+  "cov.survival.randomized_trial.frequentist.percentile_bootstrap.l95.delayed_entry_fixed_known_incidence_percentile_coverage.v2_validation_not_applicable",
+]
+"delayed_entry_incidence_calibration: delayed_entry_unweighted_survival_band_coverage" = [
+  "cov.survival.randomized_trial.frequentist.simultaneous_band.l95.delayed_entry_unweighted_survival_band_coverage.v2_validation_not_applicable",
+]
+"delayed_entry_incidence_calibration: delayed_entry_unweighted_incidence_band_coverage" = [
+  "cov.survival.randomized_trial.frequentist.simultaneous_band.l95.delayed_entry_unweighted_incidence_band_coverage.v2_validation_not_applicable",
+]
+"delayed_entry_incidence_calibration: delayed_entry_fixed_known_survival_band_coverage" = [
+  "cov.survival.randomized_trial.frequentist.simultaneous_band.l95.delayed_entry_fixed_known_survival_band_coverage.v2_validation_not_applicable",
+]
+"delayed_entry_incidence_calibration: delayed_entry_fixed_known_incidence_band_coverage" = [
+  "cov.survival.randomized_trial.frequentist.simultaneous_band.l95.delayed_entry_fixed_known_incidence_band_coverage.v2_validation_not_applicable",
+]
+"delayed_entry_incidence_calibration: jointly_conditional_entry_and_censoring_survival_band_coverage" = [
+  "cov.survival.randomized_trial.frequentist.simultaneous_band.l95.jointly_conditional_entry_and_censoring_survival_band_coverage.v2_validation_not_applicable",
+]

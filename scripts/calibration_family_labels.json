@@ -1288,21 +1288,21 @@
     },
     {
       "path": "crates/antecedent/tests/delayed_entry_incidence_calibration.rs",
-      "sha256": "ed7f43ef9f48d65c600d255c50a137d1ef628871e7185667d6b74aa5c604114b",
+      "sha256": "7d0dd7209d0e7736368a20bc9766b19a7e5d7d337c139342b4744a3288893f68",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 164,
+          "line": 192,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"percentile_bootstrap\" },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 247,
+          "line": 275,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test,\n            dgp: \"independent_delayed_entry_two_cause_complete_analysis_grid\",\n            interval: \"simultaneous_band\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 298,
+          "line": 326,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"jointly_conditional_entry_and_censoring_survival_band_coverage\",\n            dgp: \"binary_baseline_entry_and_conditional_loss_pre_entry_survival_source\",\n            interval: \"simultaneous_band\",\n        },\n        REPORTED_LEVEL,"
         }
