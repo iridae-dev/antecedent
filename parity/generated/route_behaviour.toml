@@ -4959,6 +4959,7 @@ refusals = [
   { code = "joint_law_required", detail = "cohort_decision.joint_law_required" },
 ]
 routes = [
+  { route = "antecedent.cohort_decision.compile_native_cohort_fit", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.cohort_decision.FittedEffectModel.decision_source", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.cohort_decision.decision_source_from_model", stage = "evaluate", status = "supported", claim = "point_only" },
   { route = "antecedent.cohort_decision.decision_source_from_compact_export", stage = "evaluate", status = "supported", claim = "point_only" },

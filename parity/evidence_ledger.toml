@@ -4571,6 +4571,21 @@ exact_request_verification = "not_applicable_no_external_provider"
 
 [[cell]]
 id = "cohort_decision.mean_contrast"
+route = "antecedent.cohort_decision.compile_native_cohort_fit"
+algorithm_provenance = ["provenance/cohort_decision.mean_contrast.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "cohort_decision.mean_contrast.compiled_fit.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "The shared Rust and Python native_cohort_fit_program.json fixture declares twelve ordered rows, a binary treatment, one effect modifier and the target quantity."
+expected_values = "Borrowed and owned Rust inputs and the Python compiler reproduce the retained program digest. The fitted treatment contrast at z = 0.5 is 2.75, including after compact model refitting."
+tolerance = "Exact program and model identity equality. Floating point predictions use the Python fixture's approximate comparison."
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "cohort_decision.mean_contrast.compact_fit_replay.artifact"
+provider_trust = "The native OLS fit executes on the supplied ordered training columns."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "cohort_decision.mean_contrast"
 route = "antecedent.cohort_decision.FittedEffectModel.decision_source"
 algorithm_provenance = ["provenance/cohort_decision.mean_contrast.toml"]
 parity_registry = "parity/capability_records.toml"
