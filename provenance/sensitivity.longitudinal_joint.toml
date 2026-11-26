@@ -70,4 +70,4 @@ sha256 = "9e2e0ee02f52db7a89d36cabd0c348d1f9069dda72b7f6bff201f914b9c707f8"
 role = "test"
 path = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
 items = ["fn measure", "fn bind", "fn longitudinal_two_decision_joint_box_and_extrema_l95"]
-sha256 = "6c3b151cf156db3ec835e12aa23c26853d96e8ee7374431866d2193fde146441"
+sha256 = "93ee0814661f01593a1ee5bb6b7cf9f9144815740d0926670e7bd57b150633a5"

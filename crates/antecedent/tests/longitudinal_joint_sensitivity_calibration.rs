@@ -4,12 +4,12 @@
 mod common;
 
 use antecedent::analysis::longitudinal_joint_sensitivity::{
-    LongitudinalSensitivityCoverageDesign, LongitudinalSensitivitySpec, LongitudinalSubject,
+    JointSensitivityError, LongitudinalSensitivityCoverageDesign, LongitudinalSensitivitySpec, LongitudinalSubject,
     compile_longitudinal_joint_sensitivity,
 };
 use antecedent_core::{CalibrationBasis, ExecutionContext};
 use common::calibration::{
-    Construction, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
+    Construction, CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts, grid_n, grid_seed,
     map_replicates, n_sim, uniform,
 };
 
@@ -17,7 +17,7 @@ const TEST: &str = "longitudinal_two_decision_joint_box_and_extrema_l95";
 const DGP: &str = "balanced_binary_bernoulli_two_decision_selection_mnar_v1";
 const INTERVAL: &str = "simultaneous_band";
 
-fn measure(seed: u64, n: usize) -> Option<(f64, f64, f64, Vec<CalibrationBasis>)> {
+fn measure(seed: u64, n: usize) -> Option<(f64, f64, Vec<CalibrationBasis>)> {
     let spec = LongitudinalSensitivitySpec {
         population: "balanced-independent-subject-population".into(),
         outcome: "binary-outcome".into(),
@@ -48,9 +48,18 @@ fn measure(seed: u64, n: usize) -> Option<(f64, f64, f64, Vec<CalibrationBasis>)
         })
         .collect::<Vec<_>>();
     let ctx = ExecutionContext::for_tests(grid_seed(seed ^ 0x754));
-    let result =
-        compile_longitudinal_joint_sensitivity(spec, data, &ctx).ok()?.execute(&ctx).ok()?;
+    let prepared = compile_longitudinal_joint_sensitivity(spec, data, &ctx).unwrap();
+    let result = match prepared.execute(&ctx) {
+        Ok(result) => result,
+        Err(JointSensitivityError::Positivity | JointSensitivityError::RefitPositivity(_)
+            | JointSensitivityError::IncoherentBox) => return None,
+        Err(error) => panic!("unexpected joint sensitivity calibration failure: {error}"),
+    };
     let report = result.report();
+    let miss = |[lower, upper]: [f64; 2], truth: f64| {
+        assert!(lower.is_finite() && upper.is_finite() && lower <= upper);
+        (lower - truth).max(truth - upper).max(0.0)
+    };
     let whole_surface = report
         .corners
         .iter()
@@ -59,14 +68,14 @@ fn measure(seed: u64, n: usize) -> Option<(f64, f64, f64, Vec<CalibrationBasis>)
             let truth = 0.20
                 - corner.departures.assignment.iter().sum::<f64>()
                 - 0.5 * corner.departures.missingness;
-            (corner.contrast - truth).abs()
+            miss(corner.sampling_interval, truth)
         })
         .fold(0.0_f64, f64::max);
     let joint_endpoints =
-        (report.assumption_range[0] - 0.04).abs().max((report.assumption_range[1] - 0.20).abs());
+        miss(report.extrema_intervals[0], 0.04).max(miss(report.extrema_intervals[1], 0.20));
     assert_eq!(report.corners.len(), 8);
     assert!(report.decision.is_some());
-    Some((report.sampling_radius, whole_surface, joint_endpoints, result.calibration_bases()))
+    Some((whole_surface, joint_endpoints, result.calibration_bases()))
 }
 
 fn bind(tally: &mut CoverageTally, basis: &CalibrationBasis) {
@@ -112,19 +121,19 @@ fn longitudinal_two_decision_joint_box_and_extrema_l95() {
     )
     .labelled("joint_extrema");
     for measurement in map_replicates(n_sim(), |seed| measure(0x6A0D_8401 + seed, n)) {
-        if let Some((radius, corner_error, extrema_error, bases)) = measurement {
+        if let Some((corner_error, extrema_error, bases)) = measurement {
             let [surface_basis, decision_basis] = bases.as_slice() else {
                 panic!("scope did not bind the two simultaneous readings")
             };
             bind(&mut surface, surface_basis);
             bind(&mut extrema, decision_basis);
-            surface.record(Some((0.0, radius)), corner_error);
-            extrema.record(Some((0.0, radius)), extrema_error);
+            surface.record(Some((0.0, 0.0)), corner_error);
+            extrema.record(Some((0.0, 0.0)), extrema_error);
         } else {
             surface.skip();
             extrema.skip();
         }
     }
     surface.assert();
-    extrema.assert();
+    extrema.assert_one_sided(CoverageSide::Upper, "simultaneous containment of both projected decision extrema");
 }
