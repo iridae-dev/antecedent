@@ -368,7 +368,7 @@ fn all_three_vertex_pag_classes_match_the_path_and_collider_reference() {
                                 },
                             );
                             let other =
-                                antecedent_identify::response_id::identify_pag_response_general(
+                                antecedent_identify::identify_pag_response_general(
                                     &graph, &query,
                                 )
                                 .unwrap();

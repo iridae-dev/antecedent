@@ -101,16 +101,16 @@ fn compact_prediction_replays_into_a_supported_cohort_and_names_missing_refit_in
             transform_id: "identity".into(),
         };
     let spec = ExportSpec {
-        response: quantity(
+        response: (&quantity(
             "y",
             "mmHg",
             QuantityRole::Outcome,
             "contrast:do(t=1)-do(t=0)",
             "conditional_mean_difference",
-        )
+        ))
         .into(),
         inputs: vec![ExportInput {
-            quantity: quantity("z", "1", QuantityRole::Covariate, "observational", "feature")
+            quantity: (&quantity("z", "1", QuantityRole::Covariate, "observational", "feature"))
                 .into(),
             support: InputSupport::Range { lo: -1.0, hi: 1.0 },
         }],

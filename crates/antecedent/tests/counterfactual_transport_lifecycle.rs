@@ -245,7 +245,8 @@ fn counterfactual_bundle_replays_exact_and_sampled_affine_decisions() {
     let target = &case.targets[0];
     let truth = target.expected_value.unwrap();
     let context = ctx();
-    let fit = identified(&case, target).estimate(&context).unwrap();
+    let identified_target = identified(&case, target);
+    let fit = identified_target.estimate(&context).unwrap();
     let derivation = fit.derivation();
     let tables = fit
         .data()
