@@ -458,6 +458,114 @@ def _rpcmci_replay_codes(path: Path, code: str, skel: str, items) -> dict[int, l
     return {at: re.findall(r'\breason_code\s*!\s*\(\s*"([a-z][a-z0-9_]*)"\s*\)', body)}
 
 
+def _macro_argument_ranges(skel: str) -> list[tuple[int, int]]:
+    macro_ranges = []
+    for macro in re.finditer(r"\b\w+(?:::\w+)*\s*!\s*([({\[])", skel):
+        opening = macro.end() - 1
+        macro_ranges.append((opening, _match_bracket(skel, opening)))
+    return macro_ranges
+
+
+def _exact_point_evaluator_labels(code: str, skel: str) -> set[int]:
+    """Locate literal match results used exclusively to name an exact-point evaluator."""
+    if "Realization::ExactPoint" not in skel or re.search(
+        r"\bmod\s+\w+\s*[;{]|\b(?:include|macro_rules)\s*!", skel
+    ):
+        return set()
+    if ("use std::sync::Arc;" not in skel or not re.search(
+        r"\buse\s+crate::planner::statistical::(?:Realization|\{[^}]*\bRealization\b[^}]*\})\s*;", skel
+    )):
+        return set()
+    # A closed helper may sit alongside other label-returning methods.
+    for sink in re.finditer(
+        r"\bRealization::ExactPoint\s*\{\s*evaluator\s*:\s*Arc::from\(\w+\.(\w+)\(\)\)\s*,?\s*\}",
+        skel,
+    ):
+        name = sink[1]
+        declarations = list(re.finditer(
+            rf"(?m)^[ \t]*const fn ({name})\(self\) -> &'static str \{{\s*match self \{{",
+            skel,
+        ))
+        if len(declarations) != 1:
+            continue
+        method = declarations[0]
+        if (not skel[:method.start()].rstrip().endswith(("{", "}"))
+                or any(lo <= sink.start() < hi or lo <= method.start() < hi
+                       for lo, hi in _macro_argument_ranges(skel))):
+            continue
+        # Trait methods can escape through the trait even without a pub modifier.
+        if not any(
+            item.end() <= method.start() < _match_bracket(skel, item.end() - 1)
+            for item in re.finditer(r"(?m)^impl \w+ \{", skel)
+        ):
+            continue
+        # Account for every occurrence, including the field name if it matches.
+        uses = {m.start() for m in re.finditer(rf"\b{name}\b", skel)}
+        accounted = {method.start(1), sink.start(1)}
+        if name == "evaluator":
+            accounted.add(skel.index("evaluator", sink.start(), sink.start(1)))
+        if uses != accounted:
+            continue
+        opening = method.end() - 1
+        closing = _match_bracket(skel, opening)
+        body = code[opening + 1:closing]
+        arm = r'Self::\w+\s*=>\s*("[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*")\s*,'
+        if (re.fullmatch(rf"(?:\s*{arm})+\s*", body)
+                and re.match(r"\s*\}", skel[closing + 1:])):
+            return {opening + 1 + m.start(1) for m in re.finditer(arm, body)}
+    return set()
+
+
+def _artifact_section_label(path: Path, code: str, skel: str) -> set[int]:
+    """A private wire key used only in the metadata-section slots of both codecs."""
+    if "encode_sectioned_io" not in skel or "decode_sectioned_io_versioned" not in skel:
+        return set()
+    declaration = re.search(r'(?m)^const (\w+): &str = ("[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*");', code)
+    if not declaration or not skel.startswith("const ", declaration.start()):
+        return set()
+    name = declaration[1]
+    if not skel[:declaration.start()].rstrip().endswith((";", "}", "{")):
+        return set()
+    # Descendants can read a parent's private constant. Only follow ordinary,
+    # file-level mod declarations whose source can be positively located.
+    for child, _ in target_modules(path.resolve(), boundary=path.parent.resolve()).items():
+        _, child_skel = nontest_pair(child, in_crate=False)
+        if (re.search(r"\b(?:include|macro_rules)\s*!|#\[\s*path\b|\bmod\s+\w+\s*\{", child_skel)
+                or child != path.resolve() and re.search(rf"\b{name}\b", child_skel)):
+            return set()
+        if any(not (child.with_suffix("") / (m[1] + ".rs")).is_file()
+               for m in re.finditer(r"\bmod\s+(\w+)\s*;", child_skel)):
+            return set()
+    uses = {m.start() for m in re.finditer(rf"\b{name}\b", skel)}
+    proven = {declaration.start(1)}
+    # The encoder takes the key immediately after its header. The decoder
+    # takes it after the artifact kind and byte limit. Fail closed on other forms.
+    header = r"&(?:\w+|antecedent_io::ArtifactContainer\s*\{[^{}]*\})"
+    for function, before_key in (
+        ("encode_sectioned_io", header),
+        ("decode_sectioned_io_versioned", r"\w+\s*,\s*\w+"),
+    ):
+        imported = re.search(
+            rf"\buse\s+antecedent_io(?:_core)?::artifact_codec::\{{[^}}]*\b{function}\b[^}}]*\}};", skel
+        )
+        prefix = r"antecedent_io(?:_core)?::artifact_codec::"
+        if imported:
+            prefix = f"(?:{prefix})?"
+        pattern = rf"(?<![\w.:]){prefix}({function})\s*\(\s*{before_key}\s*,\s*({name})\s*,"
+        sites = set()
+        uses_of_function = {m.start() for m in re.finditer(rf"\b{function}\b", skel)}
+        bindings = {skel.index(function, imported.start(), imported.end())} if imported else set()
+        for call in re.finditer(pattern, skel):
+            if any(lo <= call.start() < hi for lo, hi in _macro_argument_ranges(skel)):
+                continue
+            bindings.add(call.start(1))
+            sites.add(call.start(2))
+        if not sites or bindings != uses_of_function:
+            return set()
+        proven.update(sites)
+    return {declaration.start(2)} if uses == proven else set()
+
+
 def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     """Every string literal in non-test Rust source, with the const it initialises."""
     code, skel = nontest_pair(path, in_crate=in_crate)
@@ -466,7 +574,7 @@ def rust_literals(path: Path, *, in_crate: bool = True) -> list[Lit]:
     _, items = rust_items(path.resolve())
     consts = [it for it in items if it.kind == "const"]
     out: list[Lit] = []
-    metadata_literals: set[int] = set()
+    metadata_literals = _exact_point_evaluator_labels(code, skel) | _artifact_section_label(path, code, skel)
     imported = _imported_core_refusal_helpers(skel)
     core_helpers = _core_refusal_helpers() if imported else {}
     horizon_proven = _horizon_refusal_is_proven(path, code, skel) if path.name == "horizon_composition.rs" else False
@@ -696,10 +804,7 @@ def finite_refusal_helpers(path: Path, *, in_crate: bool = True) -> tuple[list[L
     output: list[Lit] = []
     proven_lines: set[int] = set()
     literals = rust_literals(path, in_crate=in_crate)
-    macro_ranges = []
-    for macro in re.finditer(r"\b\w+(?:::\w+)*\s*!\s*([({\[])", skel):
-        opening = macro.end() - 1
-        macro_ranges.append((opening, _match_bracket(skel, opening)))
+    macro_ranges = _macro_argument_ranges(skel)
     body_pattern = re.compile(
         r"\s*EstimationError::(?P<constructor>refused|refused_with_fields)\s*\(\s*"
         r'(?:antecedent_core::|antecedent::reason::)reason_code!\(\s*"(?P<code>[a-z][a-z0-9_]+)"\s*\)\s*,\s*'

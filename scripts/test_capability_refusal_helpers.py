@@ -352,6 +352,66 @@ class CrossFileHelperTests(unittest.TestCase):
             entries = [(lit.value, lit.reason_code) for lit in rust_literals(path, in_crate=False)]
             self.assertNotIn(("example.identity", "route_not_supported"), entries)
 
+    def test_exact_point_evaluator_names_are_metadata_only_under_closed_use(self):
+        source = REPO_ROOT / "crates/antecedent/src/analysis/composition_cohort_decision.rs"
+        original = source.read_text(encoding="utf-8")
+        label = '"cohort_decision.affine"'
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "decision.rs"
+            for change, expected in [
+                (original, 0),
+                (original + f"\nfn fail() {{ refused({label}); }}", 1),
+                (original + "\nfn fail(source: AffineDecisionSource) { refused(source.evaluator()); }", 1),
+                (original.replace("const fn evaluator", "pub const fn evaluator"), 1),
+                (original.replace("impl AffineDecisionSource {", "impl Labels for AffineDecisionSource {"), 1),
+                (original.replace("const fn evaluator", "pub\n    const fn evaluator"), 1),
+                (original.replace("crate::planner::statistical::", "some_other_crate::"), 1),
+                (original.replace("realization: Realization::ExactPoint { evaluator: Arc::from(carrier.evaluator()) }",
+                                  "realization: other!(Realization::ExactPoint { evaluator: Arc::from(carrier.evaluator()) })"), 1),
+                (original.replace("Realization::ExactPoint", "Unrelated::ExactPoint"), 1),
+                (original.replace(label, f"refused({label})"), 1),
+                (original + "\nmod nested;", 1),
+            ]:
+                with self.subTest(expected=expected, mutation=change[-70:]):
+                    path.write_text(change, encoding="utf-8")
+                    found = [lit.value for lit in rust_literals(path, in_crate=False)]
+                    self.assertEqual(found.count("cohort_decision.affine"), expected)
+
+    def test_only_metadata_section_arguments_account_for_a_private_wire_key(self):
+        paths = [
+            ("crates/antecedent-design/src/intervention_schedule_decision/artifact.rs",
+             "integrated_schedule.body"),
+            ("crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs",
+             "longitudinal_joint_sensitivity.result"),
+        ]
+        for filename, label in paths:
+            source = REPO_ROOT / filename
+            original = source.read_text(encoding="utf-8")
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / source.name
+                kernel = path.with_suffix("") / "kernel.rs"
+                if "mod kernel;" in original:
+                    kernel.parent.mkdir()
+                    kernel.write_text("", encoding="utf-8")
+                for changed, expected in [
+                    (original, 0),
+                    (original + "\nfn reject() { refuse(SECTION); }", 1),
+                    (original.replace("const SECTION:", "pub(crate) const SECTION:"), 1),
+                    (original.replace("decode_sectioned_io_versioned(", "foreign_decode("), 1),
+                    (original.replace("encode_sectioned_io(", "foreign_encode("), 1),
+                    (original.replace("SECTION,", "refuse(SECTION),"), 1),
+                    (original.replace("SECTION,", "LAYOUT,").replace("LAYOUT, VERSION", "SECTION, VERSION"), 1),
+                    (original + f'\nfn reject() {{ refuse("{label}"); }}', 1),
+                ]:
+                    with self.subTest(source=source.name, expected=expected):
+                        path.write_text(changed, encoding="utf-8")
+                        values = [lit.value for lit in rust_literals(path, in_crate=False)]
+                        self.assertEqual(values.count(label), expected)
+                if kernel.exists():
+                    path.write_text(original, encoding="utf-8")
+                    kernel.write_text("fn reject() { refuse(super::SECTION); }", encoding="utf-8")
+                    self.assertIn(label, [lit.value for lit in rust_literals(path, in_crate=False)])
+
     def test_enum_metadata_does_not_mask_an_unproven_call_on_the_same_line(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "artifact.rs"
