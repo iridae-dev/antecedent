@@ -16,32 +16,45 @@
   "sources": [
     {
       "path": "crates/antecedent-design/tests/decision_reliability_interval_calibration.rs",
-      "sha256": "3c25d8bcb2bf2458264ce640bd17f8af4be038e4bcbfe8a2e2cdd2062f4bf4a3",
+      "sha256": "76619fc20691da725bef48d3b36dd0c7b149ceb925d4ac7f500939608ded04a7",
       "labelled_calls": [
         {
-          "line": 301,
+          "line": 305,
           "call": ".labelled(",
           "argument": "label"
         },
         {
-          "line": 339,
+          "line": 343,
           "call": ".labelled(",
           "argument": "\"shared_rho_0.5\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 300,
+          "line": 304,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_method }, LEVEL"
         },
         {
-          "line": 338,
+          "line": 342,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: interval_method }, LEVEL"
         }
       ],
       "review": "Finite declared coupling labels and literal shared-rho construction; selected action remains one fixed procedure target."
+    },
+    {
+      "path": "crates/antecedent-design/tests/preference_choice_model_calibration.rs",
+      "sha256": "37807d8cb07d54bc045eefcea2e77bc6a83321641d8d6f67b523907ddc4dbf99",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 119,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp: DGP, interval: CALIBRATION_INTERVAL_METHOD },\n        LEVEL,"
+        }
+      ],
+      "review": "One prespecified three-option logit choice experiment draws independent uniform attributes and Gumbel errors for a single decider. The model-covariance Wald interval targets the fixed trade-off of 1.5 at level 0.95. Grid sizes derive from 200 choice records, the label is literal, and failed fits count as missed publications."
     },
     {
       "path": "crates/antecedent-design/tests/sequential_off_policy_interval_calibration.rs",
@@ -553,7 +566,7 @@
     },
     {
       "path": "crates/antecedent-io-core/src/coverage_records_data.rs",
-      "sha256": "a891a454c4cdc56a309134d052cea8d259ded5e5d862255e6a6336487ed2876d",
+      "sha256": "d6ff8ceaf3f688d0f4de4c86478abe83f56465dba6141166c10f3e8af8bdb2f0",
       "labelled_calls": [],
       "constructor_calls": [],
       "review": "Embedded registry consumer/tests only; no calibration hypothesis constructor."
@@ -592,7 +605,7 @@
     },
     {
       "path": "crates/antecedent/tests/bayesian_randomized_calibration.rs",
-      "sha256": "3b16233844c37270635c743392c1b73b2d44d40aca963fcba288bff09e8628f4",
+      "sha256": "9a1950900dd363db7438d3769ff8a1f232e1d3e0d20cba7ddca361874461ddf7",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1200,16 +1213,16 @@
     },
     {
       "path": "crates/antecedent/tests/conjugate_routes_calibration.rs",
-      "sha256": "d0fa4623dee82a4304637920b16c82322fe17493de9e19be19a08e670465b6fa",
+      "sha256": "0767f9834661dca88316ab561fb3c032f339de0018e0fb2a10404ee516bd568d",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 161,
+          "line": 162,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: POSTERIOR_INTERVAL },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 271,
+          "line": 272,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: construction.0 },\n        REPORTED_LEVEL,"
         }
@@ -1249,7 +1262,7 @@
     },
     {
       "path": "crates/antecedent/tests/cross_world_interval_calibration.rs",
-      "sha256": "4f011cc0f1a2efe7e3cf893b8e08e7019ef0133966e6da2a6c898691109e4725",
+      "sha256": "5cd5829e21cb0d42fb31915768e44cde7ed8dfc70765f51efd8e58ec94f4755b",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -1272,6 +1285,29 @@
         }
       ],
       "review": "One source-fixed two-equation Gaussian feedback system with known covariance, one fitted cyclic weight and two hard-clamp worlds. The 120/240/480 training-row grid refits the joint MCMC posterior, draws population disturbances, solves both worlds and compiles utility each replicate; the ordinary-world 0.95 outcome interval is scored against an independent future equilibrium under the same model. Diagnostics and runtime basis are checked before coverage is seen. The warmup-tuned random walk with dispersed chain starts replaced a fixed-step walk from one start after 9 of 400 replicates at the largest grid point failed the convergence gate."
+    },
+    {
+      "path": "crates/antecedent/tests/delayed_entry_incidence_calibration.rs",
+      "sha256": "ed7f43ef9f48d65c600d255c50a137d1ef628871e7185667d6b74aa5c604114b",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 164,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: \"percentile_bootstrap\" },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 247,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test,\n            dgp: \"independent_delayed_entry_two_cause_complete_analysis_grid\",\n            interval: \"simultaneous_band\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 298,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"jointly_conditional_entry_and_censoring_survival_band_coverage\",\n            dgp: \"binary_baseline_entry_and_conditional_loss_pre_entry_survival_source\",\n            interval: \"simultaneous_band\",\n        },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Six source-fixed two-cause randomized designs with independent delayed entry and either unweighted or fixed known censoring survival. Two score the pointwise 0.95 target-cause interval at horizon three, and four score the simultaneous 0.95 whole-grid bands for survival and incidence. A seventh source-fixed design scores the whole pre-entry standardized survival contrast under baseline-dependent entry and censoring at 1000, 2000 and 4000 observed subjects per arm, with exact source mixture weights and one censoring refit per same-subject bootstrap draw. The seven gates count every attempted study and treat absence of a supported publication as a miss. A prespecified closed-form curve at all observed grid points defines each binary whole-grid coverage event; no outcome selects a cause, horizon, method or record."
     },
     {
       "path": "crates/antecedent/tests/derivative_calibration.rs",
@@ -1339,37 +1375,37 @@
     },
     {
       "path": "crates/antecedent/tests/discovered_transport_calibration.rs",
-      "sha256": "991c401a01562d418965bb929b65eaca522209e0a42b7b330edaa285f6641576",
+      "sha256": "45e089519d34e965e3f43c58ae948077458709075064f919c9d6f5ffe33b6490",
       "labelled_calls": [
         {
-          "line": 344,
+          "line": 346,
           "call": ".labelled(",
           "argument": "\"fci_cutoff_0_05_sparse_1023_trial_compatibility_fisher_exact_alpha_0_01_declared_selection_joint_pretreatment_standardization_bounded_outcome_confidence_set\","
         },
         {
-          "line": 501,
+          "line": 503,
           "call": ".labelled(",
           "argument": "\"full_allowed_edge_holm_including_contemporaneous_v1\""
         },
         {
-          "line": 599,
+          "line": 601,
           "call": ".labelled(",
           "argument": "\"full_allowed_edge_holm_including_contemporaneous_v1\""
         }
       ],
       "constructor_calls": [
         {
-          "line": 336,
+          "line": 338,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"discovered_pag_transport_contrast_complete_procedure_coverage\",\n            dgp: \"latent_confounded_selection_on_z\",\n            interval: INTERVAL,\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 493,
+          "line": 495,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"discovered_temporal_transport_contrast_complete_procedure_coverage\",\n            dgp: \"lagged_selection_on_autoregressive_z\",\n            interval: \"block_percentile_bootstrap\",\n        },\n        REPORTED_LEVEL,"
         },
         {
-          "line": 591,
+          "line": 593,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey {\n            test: \"discovered_temporal_transport_two_lag_six_variable_complete_procedure_coverage\",\n            dgp: \"lag_two_selection_on_autoregressive_z_six_variables\",\n            interval: \"block_percentile_bootstrap\",\n        },\n        REPORTED_LEVEL,"
         }
@@ -1688,11 +1724,11 @@
     },
     {
       "path": "crates/antecedent/tests/graph_narrow_cross_fitted_subsampling_policy_calibration.rs",
-      "sha256": "08449f76f3cb7e99fcbad5c2a1f062107d82a8ed5b99a2423cbaf4e750eb4c85",
+      "sha256": "f1545b5b0db29a07e5e5f2e1fe8cafefa0d6e32e404fb1f42c0f77ee77574ca0",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 155,
+          "line": 158,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
         }
@@ -1812,6 +1848,19 @@
         }
       ],
       "review": "One source-fixed IID Gaussian mean and fixed assumption range [0,1]. The 60/120/240 raw-unit grid reruns compiler-generated joint-row resampling and every chain for 200 bootstrap replicates per outer sample. The event is simultaneous coverage of the known identified-set endpoints [1,2], scored at 0.95 through a scalar-equivalent transform; the route's exact basis is bound before coverage is seen."
+    },
+    {
+      "path": "crates/antecedent/tests/integrated_schedule_decision.rs",
+      "sha256": "16744fef7eb007ddc6c49331eed9187ce9b31207b0aa552355eb2dd18b6e5abe",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 309,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test: name, dgp, interval: \"hoeffding_optimum_set\" },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Two source-fixed studies share the same eight-cell bounded-outcome, sequential assignment, censoring and independent target baseline laws. Each fixes the candidate schedules, structural alternatives, utility cost worlds and sample-size ratio before sampling. The final optimum set is a hit only if it covers every true maximizing schedule in every world and in their union. Refused overlap replicates remain in the denominator. One design includes ties. Neither the label nor the known truth is selected from fitted outcomes."
     },
     {
       "path": "crates/antecedent/tests/joint_law_composed_interval_calibration.rs",
@@ -1991,6 +2040,87 @@
       "review": "Seven source-fixed local-ratio designs (declared-bandwidth kink with diagnostics, temporal fuzzy jump, kink and step at the selected bandwidth, and their Bayesian counterparts) with a closed-form ratio truth and one declared 0.95 level; the design axes and test names are literal."
     },
     {
+      "path": "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs",
+      "sha256": "b5692cb44dea85e40fd21f41e6b5c53d1cbf7af99888f31618c9a33ed4530565",
+      "labelled_calls": [
+        {
+          "line": 108,
+          "call": ".labelled(",
+          "argument": "\"all_corners\""
+        },
+        {
+          "line": 113,
+          "call": ".labelled(",
+          "argument": "\"joint_extrema\""
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 104,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 109,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test: TEST, dgp: DGP, interval: INTERVAL },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Two literal score labels fixed before measurement: full sensitivity box and both decision extrema jointly."
+    },
+    {
+      "path": "crates/antecedent/tests/longitudinal_regime_calibration.rs",
+      "sha256": "84f4ca47165afafa5bd26df68dcc65b729ddb358ce8305a4a80cfe7031b6d105",
+      "labelled_calls": [],
+      "constructor_calls": [
+        {
+          "line": 113,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"four_period_sequential_dr_coverage\",\n            dgp: \"four_randomized_fair_coin_decisions_monotone_censoring_additive_gaussian_value\",\n            interval: \"analytic_se\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 240,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test,\n            dgp: \"two_fair_coin_decisions_binary_baseline_additive_normal_terminal_reward\",\n            interval: \"percentile_bootstrap\",\n        },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Source-fixed fair-coin always-treat designs. The four-decision study holds conditional censoring survival at 0.95, freezes external fold-indexed Q predictions, and scores the compiled 0.95 normal interval against the additive Gaussian outcome's value of six over 2400/4800/9600 subjects. The two uncensored two-decision studies use a binary baseline and additive Gaussian terminal outcome with population value 3.75 over 400/800/1600 subjects. Each scores the compiled 0.95 percentile interval of 199 whole-subject refits, with fixed internal fold exclusion or a separate external training fold. The targets, labels, interval levels and hypotheses are fixed before any measurement."
+    },
+    {
+      "path": "crates/antecedent/tests/longitudinal_schedule_calibration.rs",
+      "sha256": "75eece6a726cbac16a901c32db99d375d82cff8f8090cf3a8592280308e6cb9a",
+      "labelled_calls": [
+        {
+          "line": 153,
+          "call": ".labelled(",
+          "argument": "\"selected_value\""
+        },
+        {
+          "line": 158,
+          "call": ".labelled(",
+          "argument": "\"all_true_optima\""
+        }
+      ],
+      "constructor_calls": [
+        {
+          "line": 101,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey {\n            test: \"fixed_longitudinal_schedule_family_joint_coverage\",\n            dgp: \"independent_fair_coin_decisions_four_known_gaussian_schedule_values\",\n            interval: \"simultaneous_band\",\n        },\n        REPORTED_LEVEL,"
+        },
+        {
+          "line": 152,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: \"analytic_se\" }, REPORTED_LEVEL"
+        },
+        {
+          "line": 154,
+          "call": "CoverageTally::for_record(",
+          "argument": "RecordKey { test, dgp, interval: \"simultaneous_band\" },\n        REPORTED_LEVEL,"
+        }
+      ],
+      "review": "Three source-fixed two-decision fair-coin laws, four binary schedules, two fixed candidates for the optimum multiplicity, and 199 subject-level draws. The fixed family scores coverage of all three contrasts to never-treat over the 400/800/1600 source grid. The other laws train on alternating rows and independently evaluate the chosen schedule and all six class contrasts. The selected-value target is the known population value of the realized trained schedule, paired with a separately predeclared nominal lower bound on inclusion of every true optimum. Neither the family, labels nor score construction is chosen from outcomes."
+    },
+    {
       "path": "crates/antecedent/tests/measured_exposure_calibration.rs",
       "sha256": "f3835e41af2d6dc364c0f68073b5cbd6010374bc45eafe59616f314f6ebbf058",
       "labelled_calls": [],
@@ -2067,11 +2197,11 @@
     },
     {
       "path": "crates/antecedent/tests/mechanism_composition_interval_calibration.rs",
-      "sha256": "86bf2c7fd2d2fb325c7ebedf0d384af63421a51808dcf3e5d04b4ccba334a2db",
+      "sha256": "a75ee0b7f347af5e9b5eb378825ed0079b7052665e2f5994af40e595d607aa99",
       "labelled_calls": [],
       "constructor_calls": [
         {
-          "line": 358,
+          "line": 359,
           "call": "CoverageTally::for_record(",
           "argument": "RecordKey { test, dgp, interval: \"delta_method_wald\" },\n        REPORTED_LEVEL,"
         }
@@ -2700,7 +2830,7 @@
     },
     {
       "path": "crates/antecedent/tests/scientific_bridge_interval_calibration.rs",
-      "sha256": "355b81371f78855ef4d48eab4da11035a46ffc26df8bc8996cc932c19bcc56b2",
+      "sha256": "c9d63cf762edb531a29e639eb4553fcece7bc127ed1cbf2ecff643dd6c217d5e",
       "labelled_calls": [],
       "constructor_calls": [
         {
@@ -2709,7 +2839,7 @@
           "argument": "RecordKey { test, dgp, interval: interval_method }, LEVEL"
         }
       ],
-      "review": "Finite prespecified scientific bridge queries, models and confidence."
+      "review": "Finite prespecified scientific bridge queries, models and confidence. The two trial-pairs additions fix shared vs independent source law, equal sample counts, 399 refits and nominal 0.95 on the 40/80/160 grid. They use two literal hypotheses and do not choose them from outcomes."
     },
     {
       "path": "crates/antecedent/tests/smoothed_dose_calibration.rs",
