@@ -12,22 +12,23 @@ keeps the provider's receipt on every result.
 | Held-out nuisance propensities on the study's fold plan | `propensity` and `fold_ids` of the `analyze_ate` result |
 | Rolling-origin forecasts to assess | `antecedent.forecasting.rolling`, then [`predictive_assessment.assess`](../predictive-assessment.md) |
 
-`dml_ate`, `aipw_ate`, `dr_learner_ate`, and `causal_forest_ate` use the compiled
-`analyze_ate` fit. `cross_fit_aipw` returns nuisance predictions for a caller-supplied fold
-assignment. All five entries warn with `AntecedentDeprecationWarning` and are scheduled
-for removal in 4.0.
+If your code still calls `dml_ate`, `aipw_ate`, `dr_learner_ate`, `causal_forest_ate`, or
+`cross_fit_aipw`, switch to `analyze_ate`. Those five names still run, and they warn.
+They will be removed in 4.0. `cross_fit_aipw` is the one that only returns the nuisance
+predictions, for a fold assignment you supply.
 
 ## What a provider result establishes
 
-A provider remains externally attested unless independent fixtures verify the exact request.
-Verification of one fold, prediction, or forecast origin does not verify a different request.
+A result that used your model stays externally attested. Antecedent does not treat your
+model as checked unless a fixture verified that exact request. A check of one fold, one
+prediction, or one forecast origin does not cover a different request.
 
-A provider's declared prior training data is not independently authenticated. For pretrained
-models, leave prior training lineage unknown unless you can supply its complete observation
-identities. Ordinary shuffled cross-fitting is not appropriate for time-dependent rows: the
-external nuisance entry points raise `CausalValueError` for
-`FoldPolicy.ORIGIN_SCOPED` (the legacy word `temporal` decodes to it), because
-they have no forward-only fitting contract.
+If the model was already trained, say the training history is unknown unless you can name
+every observation it was trained on. Antecedent does not check that history for you.
+
+Do not shuffle rows that depend on time. These calls raise `CausalValueError` for
+`FoldPolicy.ORIGIN_SCOPED` (the older name `temporal` means the same thing). They have no
+contract for fitting only on the past.
 
 ## Resources and cancellation
 
@@ -121,25 +122,28 @@ calibration status.
 
 ### Estimators and settings
 
-`analyze_ate` supports AIPW and partially linear DML scores (`score="aipw"`, the default, or
-`score="partially_linear"`), with `folds=5` by default. `estimator="aipw"` is the five-fold,
-untrimmed all-observed AIPW route with IID analytic inference and no bootstrap.
-`estimator="dr_learner"` uses the external first-stage models with a built-in linear CATE final
-stage. `estimator="causal_forest"` uses them for the forest's marginal ATE; its CATE trees
-remain native. A score other than `"aipw"` is accepted only with
-`estimator="dml"`. Unsupported settings are refused rather than silently substituted. Sampling weights require both nuisance providers to declare weight support; the
-forest route does not support weights. The result's `propensity` holds the held-out
-propensities of an AIPW score fit on the fold plan in `fold_ids`.
+`analyze_ate` fits one of three estimators. Five folds is the default.
 
-Caller learners for the certified trial-to-target AIPW point are declared on the study and
-fit through `analyze_trial_aipw` (Rust `Study::compile_trial_aipw_learners`). That route
-requires zero bootstrap replicates and marks its external nuisances unverified. Smoothed-dose
-transport accepts factories only when both export portable predictors; it refuses serial
-folds and bootstrap refits. The Python callback adapter does not export a portable predictor
-and is not accepted by that route. Joint-cell scores with caller learners go through
-`analyze_joint_cells` (Rust `Study::compile_joint_cells_learners`); that path marks caller
-factories unverified and is point-only. `estimate_trial_aipw_with_factories` and
-`fit_factorized_joint_cells_with_factories` are the deprecated direct forms.
+- `estimator="aipw"` with `score="aipw"` is the default. It is AIPW on every observed row, with no propensity trimming and no bootstrap. The standard error is the analytic standard error of the scores, treating rows as independent.
+- `score="partially_linear"` is the partially linear DML score. It is accepted only with `estimator="dml"`.
+- `estimator="dr_learner"` uses your models for the first stage and a linear model for how the effect varies across rows.
+- `estimator="causal_forest"` uses your models for the forest's average effect. The trees that estimate how the effect varies stay Antecedent's.
+
+Any other combination is refused. The call does not substitute a nearby setting.
+
+Sampling weights are used only when both of your models declare that they accept weights. The forest does not take weights.
+
+On an AIPW result, `propensity` is the held-out chance of treatment for each row, and `fold_ids` says which fold that row was held out of.
+
+### When the question is not an average effect on one table
+
+**Carry a trial to another population.** Call `analyze_trial_aipw` with your outcome model and your model of who was in the trial. There is no bootstrap. You get a point, and the result says Antecedent did not verify your models. In Rust, declare the learners on the study and call `Study::compile_trial_aipw_learners`.
+
+**A smooth curve of dose against outcome.** Both models must be predictors Antecedent can run again later, without calling back into your process. A model that only exists as a live Python callback is refused. The folds have to be able to run together, and there is no bootstrap.
+
+**Several binary treatments at once.** Call `analyze_joint_cells`. You get a point for each joint setting, and no interval. The result says your models were not verified. In Rust, call `Study::compile_joint_cells_learners`.
+
+If your code still calls `estimate_trial_aipw_with_factories` or `fit_factorized_joint_cells_with_factories`, switch to the calls above. The old calls warn.
 
 Separately installed packages can register a zero-argument factory under the
 `antecedent.providers` entry-point group. Call `registry.load_entry_point(name)` explicitly.

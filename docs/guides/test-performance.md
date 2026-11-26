@@ -14,7 +14,7 @@ scientific and calibration records your change owes.
 
 ## Selections
 
-`scripts/test.sh` names each selection explicitly; none silently substitutes
+`scripts/test.sh` names each selection explicitly. None silently substitutes
 for another, and an empty selection fails.
 
 | Mode | Selects |
@@ -35,15 +35,15 @@ The pytest modes first check the native extension identity
 (`scripts/native_build_identity.py check`). CI's coverage-floor and wheel tests
 exclude the measured-record acceptance marker. The explicit acceptance lane
 retains those tests for use after calibration. Plain pytest uses the same
-default; `-m requires_calibration` selects the acceptance tests explicitly.
+default. `-m requires_calibration` selects the acceptance tests explicitly.
 For Rust, the default nextest filter is
 `python3 scripts/evidence_audit.py rust-engineering-filter`, which is derived
 from `parity/test_registry.toml`. After registering a scientific or
-measured-record assertion, regenerate it with `--write`; the static gate runs
+measured-record assertion, regenerate it with `--write`. The static gate runs
 `--check` and fails while `.config/nextest.toml` is stale.
 
 Most integration files are compiled into a few consolidated `suite_NN` targets
-per crate (`scripts/consolidate_tests.py`); the files stay where they are, are
+per crate (`scripts/consolidate_tests.py`). The files stay where they are, are
 included with `#[path]`, and are listed in the crate's `tests/suite_map.txt`.
 Calibration harnesses and any target a script names with `--test` stay
 separate. `scripts/check_test_targets.py` fails when a test file is not
@@ -53,7 +53,7 @@ names a missing file or a stale suite-map line.
 ## Lanes
 
 Software, scientific-evidence and calibration-acceptance assertions run
-separately. A test may be in the software and scientific lanes at once; every
+separately. A test may be in the software and scientific lanes at once. Every
 ordinary test is in the software lane, so none falls between lanes.
 
 | Lane | Command | Contents |
@@ -70,10 +70,10 @@ Every `#[ignore]`d Rust test is in exactly one class, and
 otherwise: calibration or measurement (the calibration scripts own them), fixture
 writers (`writes ...`), timing probes (`timing harness ...`), the slow correctness
 lane above, or an explicit `[[other]]` exemption in `parity/slow_correctness_tests.toml`.
-An ignored test needs a written reason; a new one that fits no class, or a registry row whose
+An ignored test needs a written reason. A new one that fits no class, or a registry row whose
 test is gone or no longer ignored, is a failure, so nothing falls out of every lane.
 `bash scripts/test.sh slow` repeats that check against a nextest listing before it
-runs the selection with `--run-ignored only`; run it before a release or nightly.
+runs the selection with `--run-ignored only`. Run it before a release or nightly.
 
 The scientific lane builds with the workspace feature set, so it shares its
 build with `rust`. Doctests (`docs`) and the optional learner and
@@ -84,11 +84,11 @@ Gaussian-process feature suites run in `engineering`.
 A handful of long tests bound the wall time of the Rust suite, so shortening it
 means shortening or overlapping those tests, not tuning the many short ones.
 `.config/nextest.toml` gives the longest tests a scheduling `priority`, so they
-start first instead of after the pool has drained. Priority changes order only;
-every test still runs once with its assertions.
+start first instead of after the pool has drained. Priority changes order only.
+Every test still runs once with its assertions.
 
 Nextest runs one test per core, so a test that spreads independent cases over
-scoped threads uses idle cores at the tail of the run; it costs about the same
+scoped threads uses idle cores at the tail of the run. It costs about the same
 CPU time (somewhat more through cache contention) and shortens the wall time.
 Read outcomes back in a fixed order so the assertions do not depend on thread
 timing. A shared fixture across tests (`OnceLock`) does not help under nextest,
@@ -137,10 +137,10 @@ ANTECEDENT_SKIP_NATIVE_BUILD=1 bash scripts/test.sh python -q --durations=30
 ```
 
 With no Rust selection arguments, the runner uses the whole workspace and the
-calibration feature set. With arguments, it forwards your exact selection;
-include required features for the target you are changing. `engineering` also
+calibration feature set. With arguments, it forwards your exact selection.
+Include required features for the target you are changing. `engineering` also
 executes the separate learner and Gaussian-process feature configurations. The
-runner is the test suite, not the release gate: run `scripts/gate_release.sh` and
+runner is the test suite, not the release gate. Run `scripts/gate_release.sh` and
 the [release procedure](../development.md#releases) when those checks are required.
 
 The runner sets `CARGO_PROFILE_TEST_OPT_LEVEL=2` and line-table debug information
@@ -155,7 +155,7 @@ CARGO_PROFILE_TEST_OPT_LEVEL=0 bash scripts/test.sh rust -p antecedent-core --li
 Switching optimization, features, toolchain, RUSTFLAGS or target changes Cargo
 fingerprints and can trigger recompilation. Keep settings stable while
 measuring repeated runs. Release LTO remains reserved for release builds and
-statistical calibration; the ordinary optimized test loop does not enable it.
+statistical calibration. The ordinary optimized test loop does not enable it.
 
 Python runs synchronize the locked dev environment, use explicit release
 `maturin develop`, then run pytest with synchronization disabled. Editable
@@ -190,7 +190,7 @@ bash scripts/test.sh python-test tests/test_response_api.py -q
 
 `dev` defaults to test opt-level 0 and requires an explicit selection. Caller
 optimization overrides still apply. The optimized `rust` mode is appropriate
-for larger numerical runs; it can cost more compilation during active editing.
+for larger numerical runs. It can cost more compilation during active editing.
 `python-test` skips both environment synchronization and native compilation.
 After changing Rust, rebuild the extension explicitly before using that mode.
 
@@ -222,11 +222,11 @@ directories. Python source coverage still covers the checkout package.
 CI runs in four tiers: `static` (source
 reading only, seconds), the build jobs (`public-api`, `cited-tests`, `benches`, `features`,
 `python-native`, `deny`), the engineering tests (`rust`, `development`, `python-lint`,
-`python-wheels`) and one `scientific` job; see [CI vs local gates](../development.md#ci-vs-local-gates).
+`python-wheels`) and one `scientific` job. See [CI vs local gates](../development.md#ci-vs-local-gates).
 CI executes no scientific assertion and no calibration
-measurement: the `scientific` job builds nothing and only checks that every record in
+measurement. The `scientific` job builds nothing and only checks that every record in
 `parity/scientific_records.toml` and `parity/coverage_records.toml` is current. Those records are
-earned on development machines ([Earning and checking the records](scientific-verification.md#earning-and-checking-the-records)); the engineering jobs deselect the scientific tests. The
+earned on development machines ([Earning and checking the records](scientific-verification.md#earning-and-checking-the-records)). The engineering jobs deselect the scientific tests. The
 16 platform/interpreter wheel combinations still build and test
 their own installed wheels. Sharing the Linux source-tree extension does not
 replace packaged-wheel testing. Wheel test environments and the local release
@@ -234,7 +234,7 @@ candidate environment also install mypy, which the two typing tests require.
 
 The cited-tests job uses the same test optimization and debug-info settings
 as the main Rust jobs. Compiler caches remain enabled on
-the jobs that already use them; cache hits do not replace same-run artifact
+the jobs that already use them. Cache hits do not replace same-run artifact
 reuse.
 
 ## Timing reports and verification
@@ -286,9 +286,9 @@ command, settings, platform and CPU count; the same commit with no uncommitted
 inputs and no change during either run; both runs exited 0; JUnit reports for
 both with equal selected-case counts and no skipped or failed cases. Otherwise
 it lists the reasons and states that the differences establish neither an
-improvement nor a regression. Values that were not recorded are `null`; none is
-estimated. A receipt's wall time includes discovery, compilation and lock waits;
-only the JUnit case durations isolate execution, and build time must be taken
+improvement nor a regression. Values that were not recorded are `null`. None is
+estimated. A receipt's wall time includes discovery, compilation and lock waits.
+Only the JUnit case durations isolate execution, and build time must be taken
 from Cargo timings under matching cache conditions. A single cold run per
 revision gives no variance estimate, so treat one paired comparison as
 indicative only.

@@ -1,15 +1,22 @@
 # Give discovery background knowledge
 
-Use this page when you run a discovery search and already know part of the graph: a link
-that must be there, a link that cannot be, an ordering of the variables (dose precedes
-response), or a limit on how many parents a variable may have. You state it once as a
-`BackgroundKnowledge` and pass it as `knowledge=`. The ordinary discovery classes (`PC`,
-`FCI`, `RFCI`, `GES`, `PCMCI`, `PCMCIPlus`) and the
-[selective-discovery contracts](../selective-discovery.md) read the same statement through
-one parser and give it one digest.
+Use this page when you run a discovery search and already know part of the graph. You may
+know a link that must be there. You may know a link that cannot be. You may know an ordering
+of the variables (dose precedes response). You may know a limit on how many parents a
+variable may have. State it once as a `BackgroundKnowledge`. Pass it as `knowledge=`. The
+ordinary discovery classes and the
+[selective-discovery contracts](../selective-discovery.md) read the same statement. They use
+one parser. They give it one digest. The classes are:
 
-Background knowledge is an assertion, not evidence: the search honours it and never tests it.
-A result discovered under knowledge is conditional on that knowledge being true.
+- `PC`
+- `FCI`
+- `RFCI`
+- `GES`
+- `PCMCI`
+- `PCMCIPlus`
+
+Background knowledge is an assertion, not evidence. The search honours it. The search never
+tests it. A result discovered under knowledge is conditional on that knowledge being true.
 
 ```python
 from antecedent.discovery import PC, BackgroundKnowledge, Link
@@ -25,29 +32,29 @@ result.background_knowledge        # hex digest; None when no knowledge was give
 ```
 
 `data` is a table whose columns include every variable the statements name. A `Link` is
-`source[t - source_lag] -> target[t - target_lag]` by variable name, with both lags 0 in a
+`source[t - source_lag] -> target[t - target_lag]` by variable name. Both lags are 0 in a
 static search. A variable that appears in no tier is unconstrained by the tiers.
 
 ## Reading the result
 
-The search returns the same kind of object it returns without knowledge (a CPDAG from PC and
-GES, a PAG from FCI and RFCI, a lagged graph from the PCMCI family), with your statements
-applied as the table below describes. Three things tell you what the knowledge did:
+The search returns the same kind of object it returns without knowledge. PC and GES return a
+CPDAG. FCI and RFCI return a PAG. The PCMCI family returns a lagged graph. Your statements
+are applied as the table below describes. Three things tell you what the knowledge did:
 
 - `result.background_knowledge` is the digest of the statements. Two results with different
-  digests were discovered under different assertions and are different artifacts (see
+  digests were discovered under different assertions. They are different artifacts (see
   [Identity](#identity)).
 - An `*.orientation_conflict` diagnostic means the data compelled a direction your statements
-  exclude; the edge is marked as a conflict instead of being oriented either way.
+  exclude. The result records the edge as a conflict. It does not orient the edge either way.
 - A `*.parent_limit_removed_adjacencies` diagnostic means `max_parents` removed an adjacency
-  that no test found independent; the output then no longer follows from the
+  that no test found independent. The output then no longer follows from the
   conditional-independence decisions alone (see the parent-limit paragraph below).
 
 ## Refusals
 
-A statement an algorithm cannot honour is **refused**, never ignored. The refusal is a
-`CausalUnsupportedError` whose `reason_code` is one of the following, and whose message names
-the statement by the variable names you wrote:
+A statement an algorithm cannot honour is **refused**. It is never ignored. The refusal is a
+`CausalUnsupportedError`. Its `reason_code` is one of the following. Its message names the
+statement by the variable names you wrote:
 
 | `reason_code` | Raised when | What to change |
 | --- | --- | --- |
@@ -55,10 +62,10 @@ the statement by the variable names you wrote:
 | `unknown_variable` | a statement names a variable the search does not cover | name only searched variables |
 | `option_not_applicable` | the statement has no meaning for the algorithm: a lagged link in a search over a table, a required link outside the lag window | drop the statement or use an algorithm that enforces it |
 
-A selective-discovery contract raises the same three codes with a
-`selective_discovery.background_knowledge_*` detail; see
+A selective-discovery contract raises the same three codes. The detail is
+`selective_discovery.background_knowledge_*`. See
 [Discovered structure and per-population discovery](../reference/refusal-codes.md#discovered-structure-and-per-population-discovery)
-in the refusal reference, and
+in the refusal reference. See
 [Structured refusals and their remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies)
 for how to branch on the fields.
 
@@ -76,83 +83,89 @@ for how to branch on the fields.
 | a required link outside the lag window (or not at the target's own time) | n/a | n/a | n/a | refused | refused |
 
 **The parent limit in PC, FCI and RFCI.** An equivalence class leaves the direction of most
-edges open, so the only bound that holds for every graph in the class is on the adjacencies
-that could be parents: those not fixed as children by knowledge (`v -> m` required, or the
-reverse forbidden). After the adjacency search, while a variable exceeds the limit, its
-removable adjacency with the weakest dependence evidence (largest retained p-value) is dropped;
-required adjacencies are never dropped, and more required parent adjacencies than the limit is a
-contradiction. *What this changes in the guarantees:* a dropped adjacency was not found
-independent, so the output no longer follows from the CI decisions alone. Where the limit binds
-the skeleton can lose true edges, the usual soundness of the orientations does not extend to the
-triples around the dropped pairs (they carry no separating set, so the collider rule treats them
-as undecided), and every removal is reported in a `*.parent_limit_removed_adjacencies`
-diagnostic. Where the limit never binds nothing changes. The bound is a degree bound on possible
-parents, so it can be stricter than a bound on the parents of the true DAG; the guarantee it gives
-is that every DAG in the returned class respects the limit.
+edges open. The only bound that holds for every graph in the class is on the adjacencies that
+could be parents. Those are the adjacencies not fixed as children by knowledge (`v -> m`
+required, or the reverse forbidden). After the adjacency search, while a variable exceeds the
+limit, its removable adjacency with the weakest dependence evidence is dropped. That evidence
+is the largest retained p-value. Required adjacencies are never dropped. More required parent
+adjacencies than the limit is a contradiction. *What this changes in the guarantees:* a dropped
+adjacency was not found independent. The output no longer follows from the CI decisions alone.
+Where the limit binds, the skeleton can lose true edges. The usual soundness of the
+orientations does not extend to the triples around the dropped pairs. They carry no separating
+set. The collider rule treats them as undecided. Every removal is reported in a
+`*.parent_limit_removed_adjacencies` diagnostic. Where the limit never binds nothing changes.
+The bound is a degree bound on possible parents. It can be stricter than a bound on the
+parents of the true DAG. The guarantee it gives is that every DAG in the returned class
+respects the limit.
 
 Notes on reading the table.
 
 * **Direction knowledge and the data can disagree.** Knowledge orients the edges the
-  data leave undirected. When the data compel the opposite direction (a collider, or an
-  orientation that would close a cycle with the knowledge), PC, GES and FCI do not choose
-  silently: the edge is marked as a conflict and the result carries the diagnostic
-  `pc.orientation_conflict`, `ges.orientation_conflict` or `fci.orientation_conflict`.
+  data leave undirected. When the data compel the opposite direction, PC, GES, and FCI do not
+  choose silently. The opposite direction is a collider, or an orientation that would close a
+  cycle with the knowledge. The result records the edge as a conflict. The diagnostic is one of these:
+
+  - `pc.orientation_conflict`
+  - `ges.orientation_conflict`
+  - `fci.orientation_conflict`
+
 * **PCMCI+ orients by knowledge as PC does.** Fixed contemporaneous directions are applied
-  before the majority collider rule, so a collider that disagrees is reported as an orientation
-  conflict instead of overriding them. A pair with only one direction forbidden is kept as an
-  edge (the usual both-directions-must-survive rule would otherwise discard it).
-* **LiNGAM and NOTEARS (Rust only; the Python classes take no `knowledge=`).** Both return a DAG and enforce
-  every statement exactly: a forbidden direction (or a later tier) is excluded from the
-  candidate edges, a required link is kept, and `max_parents` caps each variable's parents
-  (required links exempt in LiNGAM, re-added in NOTEARS). They run the same checks as GES and
-  record the digest in their algorithm configuration.
+  before the majority collider rule. A collider that disagrees is reported as an orientation
+  conflict. It does not override them. A pair with only one direction forbidden is kept as an
+  edge. The usual both-directions-must-survive rule would otherwise discard it.
+* **LiNGAM and NOTEARS.** These two are Rust only. The Python classes take no `knowledge=`.
+  Both return a DAG. Both enforce every statement exactly. A forbidden direction is excluded
+  from the candidate edges. A later tier is excluded from the candidate edges. A required link
+  is kept. `max_parents` caps each variable's parents. Required links are exempt in LiNGAM.
+  They are re-added in NOTEARS. They run the same checks as GES. They record the digest in
+  their algorithm configuration.
 * **A forbidden link is a statement about the output graph.** In FCI, "no `a -> b`"
-  removes only that tail; it does not claim that `a` has no causal path to `b` through
+  removes only that tail. It does not claim that `a` has no causal path to `b` through
   latent variables. Only a required link, which states a direct cause, puts a tail in the
   PAG.
 
 ## Identity
 
-The digest of the statements (`DiscoveryResult.background_knowledge`,
-`AcceptedGraph.background_knowledge`, and the `background_knowledge` input of a selective
-contract, which declares the parent limit under its search limits) is a function of the required and forbidden links as sets, the tiers, the vector
-groups and the parent limit. Reordering the links leaves it unchanged; any other change
-alters it. A result that was given knowledge also records the digest in its algorithm
-configuration, and an accepted graph serializes it in `to_json`, so a graph discovered under
-different knowledge is a different artifact. `AcceptedGraph.rediscover` and `accept()` run
-the configuration they are handed, knowledge included. A study prepared on a discovery that ran under knowledge states it in its contract:
-`discovery_algorithm` reads `pc+knowledge:<digest>` (the bare algorithm id without knowledge), and a
-refresh or a replayed preparation keeps it. A refusal that names a statement names its variables
-by the names you wrote, not by position.
+The digest of the statements is a function of the required and forbidden links as sets, the
+tiers, the vector groups, and the parent limit. You read it on `DiscoveryResult.background_knowledge`.
+You read it on `AcceptedGraph.background_knowledge`. A selective contract takes it as the
+`background_knowledge` input, which declares the parent limit under its search limits.
+Reordering the links leaves the digest unchanged. Any other change alters it. A result that
+was given knowledge also records the digest in its algorithm configuration. An accepted graph
+serializes it in `to_json`. A graph discovered under different knowledge is a different
+artifact. `AcceptedGraph.rediscover` runs the configuration it is handed, knowledge included.
+`accept()` does the same. A study prepared on a discovery that ran under knowledge states it
+in its contract. `discovery_algorithm` reads `pc+knowledge:<digest>`. Without knowledge it
+reads the bare algorithm id. A refresh keeps it. A replayed preparation keeps it. A refusal
+that names a statement names its variables by the names you wrote, not by position.
 
 ## Splitting rows for discovery and analysis
 
-`selective_discovery.discover_on_split` filters first and splits second. The order is part
-of the method:
+Call `selective_discovery.discover_on_split`. It filters first and splits second. The order is
+part of the method:
 
 1. rows outside the analysis mask (`mask=`) are excluded;
 2. of the rest, rows with a missing value in a searched variable are excluded;
 3. the excluded rows are recorded in the receipt by original index and belong to neither
    part;
 4. a seeded permutation of the *eligible* rows assigns `round(fraction * n_eligible)` of
-   them to discovery. An explicit rule names original row indices and is refused if it names
+   them to discovery. An explicit rule names original row indices. It is refused if it names
    an excluded row.
 
 Weights (`weights=`) travel with their rows, unchanged and unnormalized. Discovery on a
-weighted table needs the weighted partial-correlation test (`ci_test="weighted_parcorr"`),
-which reads the discovery part's weights; weights under any other test, or that test without
-weights, are refused. The analysis part's weights, its original row ids and the Kish
-effective sample size `(sum w)^2 / sum w^2` are on the `SampleSplit`
-(`analysis_weights`, `analysis_row_ids`, `analysis_effective_sample_size`) and in the
-receipt. See [Selective discovery](../selective-discovery.md#splitting-rows-filter-then-split)
-for the estimands, normalization and what the receipt verifies.
+weighted table needs the weighted partial-correlation test (`ci_test="weighted_parcorr"`).
+That test reads the discovery part's weights. Weights under any other test are refused. That
+test without weights is refused. The analysis part's weights, its original row ids, and the
+Kish effective sample size `(sum w)^2 / sum w^2` are on the `SampleSplit` and in the receipt.
+Read `analysis_weights`. Read `analysis_row_ids`. Read `analysis_effective_sample_size`. See [Selective discovery](../selective-discovery.md#splitting-rows-filter-then-split)
+for the estimands, normalization, and what the receipt verifies.
 
 ## Example
 
 [`examples/python/discovery_methods.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/discovery_methods.py)
-runs GES on five variables whose equivalence class leaves the chain `u - y - z` undirected:
-tiers orient the chain, one forbidden link orients the pair it names, and a required link
-that contradicts a tier is refused with `invalid_argument`.
+runs GES on five variables whose equivalence class leaves the chain `u - y - z` undirected.
+Tiers orient the chain. One forbidden link orients the pair it names. A required link that
+contradicts a tier is refused with `invalid_argument`.
 
 ## Related
 

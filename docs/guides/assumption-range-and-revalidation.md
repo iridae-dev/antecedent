@@ -1,19 +1,19 @@
 # Assumption ranges and revalidation
 
-You can ask how far a transported value moves if its shared-mechanism premise is wrong, and whether a held transported claim is still valid after the target, the evidence, the diagram or the support changes. Every transported value rests on a premise the data cannot test. These two routes say what follows when the premise fails or the situation changes; neither measures anything.
+You can ask how far a transported value moves if its shared-mechanism premise is wrong. You can ask whether a held transported claim is still valid after the target, the evidence, the diagram or the support changes. Every transported value rests on a premise the data cannot test. These two calls say what follows when the premise fails or the situation changes. Neither measures anything.
 
 | Route | Rust surface | Label |
 | --- | --- | --- |
 | Assumption range for a violated premise | `antecedent_design::transport_sensitivity::transport_assumption_range` | assumption range at declared grid points |
 | Revalidation after a change of target, evidence, diagram or support | `antecedent_contract::transport_revalidation::revalidate_transport` | `recompute`, `withdrawn`, `still_valid` |
 
-Python entries: `antecedent.transport.sensitivity.transport_sensitivity`
-(a `TransportSensitivity` whose `.decision_source` is a `SensitivityArtifact`),
-`antecedent.transport.revalidation` (`TransportScene.builder`, `revalidate`,
-`TransportClaimState.observe`, `Calibration`, `ObservedEffect`); the range's
-artifact is decided and exported through `antecedent.sensitivity_decision`.
-Both start from a `TransportedResponse` (`antecedent.transported_response`),
-which every transport route that reaches a decision produces. For the other
+In Python, the range call is `antecedent.transport.sensitivity.transport_sensitivity`.
+You get a `TransportSensitivity`. Its `.decision_source` is a `SensitivityArtifact`.
+Revalidation is `antecedent.transport.revalidation`. The names there are
+`TransportScene.builder`, `revalidate`, `TransportClaimState.observe`, `Calibration` and `ObservedEffect`.
+The range's artifact is decided and exported through `antecedent.sensitivity_decision`.
+Both start from a `TransportedResponse` (`antecedent.transported_response`).
+Every transport call that reaches a decision produces one. For the other
 transport questions, see [which transport page answers your question](transport/carry-an-effect.md#which-transport-page-answers-your-question).
 
 ## Assumption range
@@ -40,22 +40,22 @@ result.statement                   # the wording that must accompany the range
 result.decision_source             # decide through antecedent.sensitivity_decision
 ```
 
-The violation family has one parameter: the transported quantity differs from
+The violation family has one parameter. The transported quantity differs from
 the point value by a shift `s` with `0 <= s <= bound`, additive (in the
 quantity's units) or proportional (a fraction of the point value). At shift `s`
 the range is `[v - s, v + s]` or `[v - s|v|, v + s|v|]`, evaluated at the
-declared grid. It is built into the sensitivity artifact, so tipping
+declared grid. It is built into the sensitivity artifact. Tipping
 and decision consumption apply to it directly. `reference_reached_at` reports the
 shift at which a reference value is reached. The range is built from a
-transported response's own point value, coordinate and receipt, so the sealed
-artifact is bound to that target and quantity; a response whose value is a law
+transported response's own point value, coordinate and receipt. The sealed
+artifact is bound to that target and quantity. A response whose value is a law
 has no single point to shift and is refused
 (`transport_sensitivity.law_response_not_scalar`).
 
-It is an assumption range. It is not a confidence or credible interval, no
-probability attaches to a shift, the `bound` is your declaration and the data do
-not support it, and a sampling interval is not composed into it. The route set
-covers cohort decisions, statistical and z-transport, path-specific effects,
+It is an assumption range. It is not a confidence or credible interval. No
+probability attaches to a shift. The `bound` is your declaration. The data do
+not support it. A sampling interval is not composed into it. The calls
+cover cohort decisions, statistical and z-transport, path-specific effects,
 measurement, mechanism, synthesis, bridge, policy, temporal policy, adaptive
 trial source and provider handoff.
 
@@ -83,7 +83,7 @@ report.require_valid("effect")          # raises with a stated remedy otherwise
 
 A `TransportScene` declares the target population, sources, selection diagram,
 claims (with their calibration standing) and decisions. `revalidate_transport`
-compares two scenes through the claim-level graph:
+compares two scenes through the claim-level graph. The classifications are:
 
 - `recompute`: the target, a source's evidence, the diagram or the claim's own
   derivation changed;
@@ -93,28 +93,26 @@ compares two scenes through the claim-level graph:
 - `still_valid`: nothing it rests on changed.
 
 `TransportRevalidation.export` writes the claim-level verification
-(`composition_verification_v1`), which
+(`composition_verification_v1`).
 `antecedent.composition_verification.consume_composition_verification_artifact`
-replays. In Rust,
+replays it. In Rust,
 `antecedent_io::transport_revalidation_artifact` also defines
-`transport_revalidation_v1`, which carries both scenes, the effects and the
-classification and re-derives the whole report on consume, keeping the
+`transport_revalidation_v1`. That artifact carries both scenes, the effects and the
+classification. On consume it derives the whole report again, keeping the
 transport reasons.
 
-A change of standing is itself a change: a provider's trust moving between
-snapshots, a calibration record replaced, or support restored recomputes the
-claim, and a provider trust the scene leaves undeclared withdraws it. A refused
+A change of standing is itself a change. A provider's trust moving between
+snapshots recomputes the claim. A calibration record replaced recomputes the claim. Support restored recomputes the claim. A provider trust the scene leaves undeclared withdraws it. A refused
 refresh leaves the held scene as it was (`TransportClaimState.observe`).
 
-A record held at one target is never read as holding at another: the claim is
-withdrawn for calibration (reason `calibration_from_another_target`; Rust
-`CalibrationFromAnotherTarget`), and its point value is left as it was.
+A record held at one target is never read as holding at another. The claim is
+withdrawn for calibration. The reason is `calibration_from_another_target`. In Rust, that reason is `CalibrationFromAnotherTarget`. Its point value is left as it was.
 
 ## What is refused, and what to do
 
 Refusals raise `TransportedResponseRefusal` with a registered `reason_code`, a
-`transport_sensitivity.*` or `transport_revalidation.*` detail and a remedy;
-the full list is in [refusal codes: assumption range and revalidation](../reference/refusal-codes.md#assumption-range-and-revalidation).
+`transport_sensitivity.*` or `transport_revalidation.*` detail and a remedy.
+The full list is in [refusal codes: assumption range and revalidation](../reference/refusal-codes.md#assumption-range-and-revalidation).
 
 | Refused request | Next step |
 | --- | --- |

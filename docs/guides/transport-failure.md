@@ -1,8 +1,8 @@
 # When transport fails
 
-A transport question can fail to produce a number for six different reasons, and each has a different remedy. Antecedent keeps them apart so you can tell whether to collect evidence, change the diagram, accept a weaker claim or give the search more room. A not-certified outcome is a conservative refusal, not a proof that transport is impossible.
+A transport question can fail to produce a number for six different reasons. Each has a different remedy. Antecedent keeps them apart so you can tell whether to collect evidence, change the diagram, accept a weaker claim or give the search more room. A not-certified outcome is a conservative refusal, not a proof that transport is impossible.
 
-This page covers the declared-graph transport question of [Carry an effect to another population](transport/carry-an-effect.md); the other transport pages, listed under [which transport page answers your question](transport/carry-an-effect.md#which-transport-page-answers-your-question), each end with the refusals of their own routes. Every reason code and its remedy is in [refusal codes](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
+This page covers the declared-graph transport question of [Carry an effect to another population](transport/carry-an-effect.md). The other transport pages, listed under [which transport page answers your question](transport/carry-an-effect.md#which-transport-page-answers-your-question), each end with the refusals of their own calls. Every reason code and its remedy is in [refusal codes](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
 
 | Outcome | Where to read it | A neighbouring success |
 | --- | --- | --- |
@@ -15,7 +15,7 @@ This page covers the declared-graph transport question of [Carry an effect to an
 
 ## One identification-status vocabulary
 
-Every transport binding reports `identification_status` with one of five values: `identified`, `proven_non_transportable`, `missing_evidence`, `not_certified` and `budget_cancel`. In Python it is a property of each stage and identification, a key of each `decision()` and scenario row, and `certificate["identification_status"]` on `ant.identify`. In Rust it is `identification_status()` on each decision type. `ident.status` is the general identification status (`NotIdentified` for every refusal here); the transport kind is `identification_status`.
+Every transport binding reports `identification_status` with one of five values: `identified`, `proven_non_transportable`, `missing_evidence`, `not_certified` and `budget_cancel`. In Python it is a property of each stage and identification. It is a key of each `decision()` and scenario row. It is `certificate["identification_status"]` on `ant.identify`. In Rust, call `identification_status()` on each decision type. `ident.status` is the general identification status (`NotIdentified` for every refusal here). The transport kind is `identification_status`.
 
 Some serialized and public fields carry a narrower spelling. Each maps to one canonical value:
 
@@ -32,38 +32,38 @@ Some serialized and public fields carry a narrower spelling. Each maps to one ca
 
 ## Not certified
 
-`identify` returns `not_certified` when the implemented search does not decide the query. That is not an s-hedge, and the effect may well be transportable by a formula the search does not cover. The neighbouring success is the same `X -> Y` question in `transport_exact.py`, which identifies and evaluates.
+`identify` returns `not_certified` when the implemented search does not decide the query. That is not an s-hedge. The effect may well be transportable by a formula the search does not cover. The neighbouring success is the same `X -> Y` question in `transport_exact.py`, which identifies and evaluates.
 
 ```python
 ident = ant.identify(graph=graph, query=query)
 print(ident.certificate["identification_status"], ident.inspect().identification.summary)
 ```
 
-To go further, declare more structure (a smaller selection set, a source that can experiment on more variables) or use a route whose theorem family covers your question; [Transport limits by route](transport-scope.md) lists what each route decides and where it is incomplete.
+To go further, declare more structure. A smaller selection set is one such declaration. A source that can experiment on more variables is another. Or use a call whose theorem family covers your question. [Transport limits by route](transport-scope.md) lists what each call decides and where it is incomplete.
 
 ## Theorem-scoped impossibility
 
-A checked s-hedge makes the outcome `proven_non_transportable`: no formula exists from the declared evidence. The result is scoped to the declared experimental information, so adding evidence can change it. In the two-source setting of `transport_meta_grid.py`, either source alone is a scoped obstruction (`proven_non_transportable`), while both sources together identify the effect.
+A checked s-hedge makes the outcome `proven_non_transportable`. No formula exists from the declared evidence. The result is scoped to the declared experimental information. Adding evidence can change it. In the two-source setting of `transport_meta_grid.py`, either source alone is a scoped obstruction (`proven_non_transportable`). Both sources together identify the effect.
 
 ## Missing evidence
 
-The formula can be identified while a required joint law is unbound. The answer is then `answer.kind == "unavailable"`, and the support slot names the population. The meta-grid script's partial catalog sits next to its full-law success.
+The formula can be identified while a required joint law is unbound. The answer is then `answer.kind == "unavailable"`. The support slot names the population. The meta-grid script's partial catalog sits next to its full-law success.
 
-For a checked classical identification, `antecedent.transport.advanced.inspect_proof_graph(identification, catalog)` lists the checked rule steps and, for each factor, the population, variables, conditioning, exact intervention set and the regime that supplies it or the binding failure. It verifies the stored proof against the diagram and query before reporting leaves.
+For a checked classical identification, call `antecedent.transport.advanced.inspect_proof_graph(identification, catalog)`. It lists the checked rule steps. For each factor it lists the population, the variables, the conditioning, the exact intervention set, and the regime that supplies it or the binding failure. It verifies the stored proof against the diagram and query before reporting leaves.
 
-`EvidenceCatalogDelta` holds proposed regimes apart from the supplied catalog. `delta.preview(catalog)` makes a temporary structural preview so you can ask whether a study you have not run would identify the query. A preview has no data snapshot: results must enter through the ordinary prepare and rebind path.
+`EvidenceCatalogDelta` holds proposed regimes apart from the supplied catalog. `delta.preview(catalog)` makes a temporary structural preview so you can ask whether a study you have not run would identify the query. A preview has no data snapshot. Results must enter through the ordinary prepare and rebind calls.
 
 ## Local support and positivity
 
-A grid keeps unsupported coordinates. `result.support` locates the empty cell and does not delete the point. Each point's `support_status` keeps two failures apart: a coordinate with no supplied law, provider or declared domain is `missing_evidence`; an empty stratum or zero denominator in supplied evidence is `outside_empirical_support`. The surface `support.status` is the weakest label over the points, with `missing_evidence` weakest, and the grid's support slot counts them separately (for example `1 unavailable (1 missing evidence, 0 support failure)`). The remedy is evidence at the missing coordinate or a narrower target.
+A grid keeps unsupported coordinates. `result.support` locates the empty cell and does not delete the point. Each point's `support_status` keeps two failures apart. A coordinate with no supplied law, provider or declared domain is `missing_evidence`. An empty stratum or zero denominator in supplied evidence is `outside_empirical_support`. The surface `support.status` is the weakest label over the points, with `missing_evidence` weakest. The grid's support slot counts them separately (for example `1 unavailable (1 missing evidence, 0 support failure)`). The remedy is evidence at the missing coordinate or a narrower target.
 
 ## Uncalibrated or unavailable interval
 
-Exact supplied laws report no sampling interval. The empirical-table path publishes a pointwise percentile bootstrap that is nominal unless a coverage record is bound to that construction. Read `result.inspect().calibration` and `result.inspect().uncertainty`.
+Exact supplied laws report no sampling interval. An empirical table publishes a pointwise percentile bootstrap. That bootstrap is nominal unless a coverage record is bound to that construction. Read `result.inspect().calibration`. Read `result.inspect().uncertainty`.
 
 ## Budget exhaustion
 
-An exhausted identification step or depth budget raises `transport.identification_budget`. It is never a negative witness. Re-run the same query under larger limits or a simpler diagram; the outcome says the search stopped, not that the query cannot be answered.
+An exhausted identification step or depth budget raises `transport.identification_budget`. It is never a negative witness. Re-run the same query under larger limits or a simpler diagram. The outcome says the search stopped, not that the query cannot be answered.
 
 ## Related
 

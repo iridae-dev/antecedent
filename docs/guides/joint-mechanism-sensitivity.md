@@ -4,7 +4,7 @@ This note derives the exact joint assumption range that
 `antecedent_validate::z_transport_joint_mechanism_sensitivity` computes and
 states what it claims and what it does not. It also derives the sampling
 interval for the range, whose zero-box two-sided and positive-box one-sided
-targets have coverage records. The range artifact carries the range only; the
+targets have coverage records. The range artifact carries the range only. The
 interval has its own [replayable artifact](joint-sensitivity-interval-artifact.md).
 
 Two records in `parity/capability_records.toml` cover this page:
@@ -16,7 +16,7 @@ Two records in `parity/capability_records.toml` cover this page:
   record ids. Each interval reports its calibration status, which says whether
   a current record matches its construction.
 
-The derivation is our own; it is not taken from a source.
+The derivation is our own. It is not taken from a source.
 
 ## Scope
 
@@ -34,20 +34,20 @@ Refused by design, each with a `joint_sensitivity.*` detail:
 
 - a total budget coupling the fractions (`sum eps <= B`): `budget_coupling`;
 - a fixed-graph parent-mechanism perturbation: `fixed_graph_parent`. The one-factor
-  fixed-graph route requires the supplied target parent law, so perturbing it
-  would contradict supplied target evidence;
+  fixed-graph call requires the supplied target parent law. Perturbing it
+  would contradict supplied target evidence.
 - the fixed-graph conditional-mechanism joint problem: `fixed_graph_conditional`;
 - source-target discrepancy diagnostics: `source_target_discrepancy`;
 - no factor or more than two factors: `factor_count`. The formula has two
   factors, so a third declaration is always a duplicate or an out-of-scope
-  factor; it refuses by count before its kind is examined.
+  factor. It refuses by count before its kind is examined.
 
 ## Declared bounds
 
 At most {{bound:sensitivity.joint_mechanism.max_factors}} factors declared (the outcome kernel and the shared parent marginal), {{bound:sensitivity.joint_mechanism.runtime_max_parent_levels}} parent levels, {{bound:sensitivity.joint_mechanism.runtime_max_outcome_categories}} outcome categories,
 a frontier grid of 1 to {{bound:sensitivity.joint_mechanism.runtime_max_frontier_points}} points, at most {{bound:sensitivity.joint_mechanism.max_operations}} search operations, a bisection depth of
 {{bound:sensitivity.joint_mechanism.max_bisection_iterations}} iterations per frontier line, and a declared memory cap of at most 512 MiB (default
-64 MiB). The public interval admits 2 to {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} bootstrap replicates and any level strictly inside (0, 1); the measured setting (level 0.95, at least 199 replicates) decides only the interval's calibration status, never whether it is reported. A request outside the public bounds refuses as
+64 MiB). The public interval admits 2 to {{bound:sensitivity.joint_uncertainty.max_bootstrap_internal}} bootstrap replicates and any level strictly inside (0, 1). The measured setting (level 0.95, at least 199 replicates) decides only the interval's calibration status, never whether it is reported. A request outside the public bounds refuses as
 `joint_sensitivity.bounds_exceeded`.
 
 The runtime ceilings bound what is admitted and do not establish numerical verification or calibration up to those ceilings.
@@ -68,10 +68,10 @@ and `R_Y` is free separately in each `(w, x)` stratum.
 distributions. Each kernel row is a conditional of the law, normalized by its
 stratum mass and re-checked by the one-factor evaluator (`|sum - 1| <= 1e-10`). The
 shared parent marginal is the law's own mass, which a caller's loose
-`LawTolerance` can leave far from one; it must have unit mass within `1e-10`, or
-the route refuses (`transport_support_failure` /
+`LawTolerance` can leave far from one. It must have unit mass within `1e-10`, or
+the call refuses (`transport_support_failure` /
 `joint_sensitivity.incomplete_kernel`). It is then used as read, not
-renormalized, so the range, the frontier and both axis values share one scale.
+renormalized. The range, the frontier and both axis values share one scale.
 Replacements are simplex vertices, so every `Q_i` is a distribution
 (`factor_normalization_is_enforced_and_every_stage_reads_one_scale`).
 
@@ -85,7 +85,7 @@ source still counts if the law lists it.
 
 **Containment.** For `e > 0`, the set `{(1 - eps) P + eps R : eps <= e}` equals
 the set at `eps = e`. Write
-`(1 - eps) P + eps R = (1 - e) P + e [((e - eps) P + eps R) / e]`; the bracket is
+`(1 - eps) P + eps R = (1 - e) P + e [((e - eps) P + eps R) / e]`. The bracket is
 a distribution. So the extremal range over the box is attained at the corner
 `eps = e`, and there is no continuous fraction optimization.
 
@@ -151,7 +151,7 @@ On the axes the one-factor analytic values are reported:
 
 Tests check that each value lies in its bracket, and that each frontier bracket
 is certified by brute-force vertex enumeration as well as by the closed form
-(some admissible joint deviation reaches the threshold at `upper`; none does
+(some admissible joint deviation reaches the threshold at `upper`. None does
 below `lower`). A threshold below the baseline is symmetric, using `L`.
 
 **Budget.** All charges go to one `antecedent_core::SearchBudget`. It carries
@@ -194,7 +194,7 @@ cancelled frontier is not exported, because it does not replay.
 
 Record `sensitivity.joint_uncertainty` covers the Rust and Python functions that
 return the endpoint interval. Its coverage records are measured by
-the calibration gate (`parity/calibration_groups.toml`, over the sample-size grid); the
+the calibration gate (`parity/calibration_groups.toml`, over the sample-size grid). The
 interval's calibration status reports whether a record matches the current
 construction. This section states the composition and its measured scope.
 
@@ -207,14 +207,14 @@ same stream as the one-factor nominal z interval, and gets its own exact range.
 
 Fix any true deviation `delta0` in the box. On every replicate,
 `L*_b <= psi*_b(delta0) <= U*_b`. So the interval contains the pointwise
-percentile interval of `psi(delta0)`, and its coverage of `psi(delta0)` is at
+percentile interval of `psi(delta0)`. Its coverage of `psi(delta0)` is at
 least that interval's coverage.
 
 The mathematical containment argument gives a one-sided at-least-nominal target
 for a fixed interior deviation if the pointwise percentile bootstrap is
 consistent. That consistency is **paper-inherited** and unverified here. The
-measured scope is narrower: the zero box is an ordinary two-sided percentile
-record, while the positive box measures only the upper extremal truth with a
+measured scope is narrower. The zero box is an ordinary two-sided percentile
+record. The positive box measures only the upper extremal truth with a
 one-sided upper target. No positive-box two-sided claim or empirical coverage
 claim for arbitrary interior deviations follows from these records.
 
@@ -226,11 +226,11 @@ References, from abstracts only (the theorem statements were not verified):
   fully differentiable, such as a tied max over `w`. The dominance argument
   above does not need the endpoints themselves to be consistent.
 
-The public interval route is `PreparedZTransport::joint_mechanism_sensitivity_interval`
-and the Python `antecedent.transport.advanced.joint_mechanism_sensitivity_interval`;
-both return a `JointSensitivityInterval` with its calibration status (iterating
+In Rust, call `PreparedZTransport::joint_mechanism_sensitivity_interval`.
+In Python, call `antecedent.transport.advanced.joint_mechanism_sensitivity_interval`.
+Both return a `JointSensitivityInterval` with its calibration status (iterating
 the Python object yields `(lower, upper, coverage_target)`). The range artifact does not carry this
-interval, and its consumer refuses an interval added to it; export the interval
+interval. Its consumer refuses an interval added to it. Export the interval
 as its own [replayable artifact](joint-sensitivity-interval-artifact.md). No
 external truth or arbitrary interior two-sided coverage is claimed.
 
@@ -269,7 +269,7 @@ acceptance rule.
 ## Artifact (version 3)
 
 The artifact is a separate wire from the v2 one-factor artifact. The v2 artifact
-is unchanged and refuses version 3; the v3 reader refuses version 2.
+is unchanged and refuses version 3. The v3 reader refuses version 2.
 
 **Contents:**
 

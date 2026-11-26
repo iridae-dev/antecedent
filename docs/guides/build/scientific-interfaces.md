@@ -1,20 +1,20 @@
 # Connect scientific components and bring in outside results
 
-Two components can agree on array shape, dtype and a variable name and still disagree on units, population, intervention regime, support, whether a value is a mean or a law, or what its interval means. This guide covers the declarations that make those things explicit, so a connection is accepted or refused before anything runs, and the routes by which a number computed outside Antecedent can reach a result.
+Two components can agree on array shape, dtype and a variable name and still disagree on units, population, intervention regime, support, whether a value is a mean or a law, or what its interval means. This guide covers the declarations that make those things explicit. A connection is accepted or refused before anything runs. It also covers how a number computed outside Antecedent can reach a result.
 
 Antecedent checks declarations against each other. It does not check that a declared population is the one the data came from, that a declared calibration record exists, or that a declared evidence set is complete. Those are claims of the artifacts the declarations describe.
 
 ## Name the quantity
 
-A `ScientificQuantity` names one scalar coordinate by its stable variable ID, display name, role, units, population, intervention regime, horizon, functional, conditioning and scale or transform. Identity never relies on position or display label. Two coordinates are the same only when variable ID, population, regime, horizon, functional, conditioning and transform all match, and units are declared, never converted.
+A `ScientificQuantity` names one scalar coordinate by its stable variable ID, display name, role, units, population, intervention regime, horizon, functional, conditioning and scale or transform. Identity never relies on position or display label. Two coordinates are the same only when variable ID, population, regime, horizon, functional, conditioning and transform all match. Units are declared, never converted.
 
-Quantities appear wherever a value changes hands: each coordinate of a joint distribution artifact, each requested and returned value of an external result, the utilities and outcomes of a decision contract, and optionally each value of a response artifact. When a failed identification needs more evidence, `repair.obligations(contract)` names it in the same coordinates, so a study must cover the required joint factor in the named regime. Separate marginal observations cannot replace it. See [decisions, design and repair](../../decisions.md#repair).
+Quantities appear wherever a value changes hands: each coordinate of a joint distribution artifact, each requested and returned value of an external result, the utilities and outcomes of a decision contract, and optionally each value of a response artifact. When a failed identification needs more evidence, `repair.obligations(contract)` names it in the same coordinates. A study must cover the required joint factor in the named regime. Separate marginal observations cannot replace it. See [decisions, design and repair](../../decisions.md#repair).
 
 ## Declare what a component produces and consumes
 
 An interface contract declares a component and its ports. Each port states a quantity, the estimand it answers, its support, the operations on offer or required (`point`, `mean`, `law`, `draws`, `joint_draws`, `covariance`, `interval`, `posterior`; none implies another), what its uncertainty means, its calibration label, the measurement models it is established under and the evidence it rests on.
 
-`check_connection` accepts a producer and a consumer only when every declaration is compatible, and otherwise returns every defect with its registered reason code and the declaration that would support the connection. This pair matches on name and units and fails scientifically: the producer's population is a trial cohort, and the consumer needs a law where the producer offers a mean.
+`check_connection` accepts a producer and a consumer only when every declaration is compatible. Otherwise it returns every defect with its registered reason code and the declaration that would support the connection. This pair matches on name and units and fails scientifically. The producer's population is a trial cohort. The consumer needs a law where the producer offers a mean.
 
 ```python
 from antecedent import interface_contract as ic
@@ -74,17 +74,17 @@ Read these refusals by family:
 | `interface_contract_uncertainty_mismatch` | The required uncertainty meaning is missing, of another paradigm or another object, such as a sampling interval where a posterior is needed. |
 | `interface_contract_invalid` | The declaration is malformed. |
 
-An accepted connection carries the producer's label and evidence unchanged. **A connection never raises a label**: a point-only producer stays point-only, a not_measured interval stays not_measured, and a consumer that relies on measured calibration is served all the same, with the connection stating that the interval is not_measured.
+An accepted connection carries the producer's label and evidence unchanged. **A connection never raises a label.** A point-only producer stays point-only. A not_measured interval stays not_measured. A consumer that relies on measured calibration is served all the same, with the connection stating that the interval is not_measured.
 
-`check_composition(components, connections)` checks a whole set before any execution. It refuses unknown or duplicated components and ports, a consumed port fed twice, a feedback cycle (reported with its path, as `interface_contract_cyclic_composition`) and two inputs required to be disjoint that share an evidence source. Calibration declared `inherited` is resolved against its upstream producer and carried as not_measured when the upstream does not hold a measured record. Cyclic scientific composition is not supported, and a loop is never unrolled or iterated. The check is bounded at 1024 components and 8192 connections.
+`check_composition(components, connections)` checks a whole set before any execution. It refuses unknown or duplicated components and ports, a consumed port fed twice, a feedback cycle (reported with its path, as `interface_contract_cyclic_composition`) and two inputs required to be disjoint that share an evidence source. Calibration declared `inherited` is resolved against its upstream producer and carried as not_measured when the upstream does not hold a measured record. Cyclic scientific composition is not supported. A loop is never unrolled or iterated. The check is bounded at 1024 components and 8192 connections.
 
-A contract has one canonical, versioned identity independent of port declaration order, and it exports as a checksummed artifact that a consumer re-validates and checks against an identity it retained independently. The full field-by-field reference, the specification and its second reference consumer are in [scientific interface contracts](../../interface-contracts.md).
+A contract has one canonical, versioned identity independent of port declaration order. It exports as a checksummed artifact that a consumer re-validates and checks against an identity it retained independently. The full field-by-field reference, the specification and its second reference consumer are in [scientific interface contracts](../../interface-contracts.md).
 
 ## Adapt declarations you already have
 
-Bridge, measurement-model and mechanism-composition declarations are instances of the one interface-contract schema and are decided by the same connection check. An adapter takes its port facts explicitly: support, estimand identity, uncertainty meaning and measurement models. Nothing is inferred. An unstated support is real-valued, no uncertainty meaning is stated, and no measurement model is claimed. The produced calibration is `not_measured` when a value carries uncertainty and `point_only` otherwise; it is never measured by default, and a bridge never raises a calibration its source did not hold.
+Bridge, measurement-model and mechanism-composition declarations are instances of the one interface-contract schema and are decided by the same connection check. An adapter takes its port facts explicitly: support, estimand identity, uncertainty meaning and measurement models. Nothing is inferred. An unstated support is real-valued. No uncertainty meaning is stated. No measurement model is claimed. The produced calibration is `not_measured` when a value carries uncertainty and `point_only` otherwise. It is never measured by default. A bridge never raises a calibration its source did not hold.
 
-Whether two components share evidence is decided by the evidence ledger's row-level overlap, not by comparing identity strings. The same source, or distinct sources that share observations (a subset, a resample, a derived source), are refused as `interface_contract.shared_evidence` where disjoint evidence is required. A source the ledger does not hold, or whose observations cannot be computed, is `dependence_unknown`: unknown is never read as disjoint. Without a ledger, a disjointness requirement refuses instead of being skipped. Rows of several inputs may be paired only when they share an alignment identity, and a covariance or declared independence is never a route to row pairing.
+Whether two components share evidence is decided by the evidence ledger's row-level overlap, not by comparing identity strings. The same source, or distinct sources that share observations (a subset, a resample, a derived source), are refused as `interface_contract.shared_evidence` where disjoint evidence is required. A source the ledger does not hold, or whose observations cannot be computed, is `dependence_unknown`. Unknown is never read as disjoint. Without a ledger, a disjointness requirement refuses instead of being skipped. Rows of several inputs may be paired only when they share an alignment identity. A covariance or declared independence is never a way to pair rows.
 
 | Refused request | Detail | What to do |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ Whether two components share evidence is decided by the evidence ledger's row-le
 
 ## Bring in a number computed elsewhere
 
-A number computed outside Antecedent reaches a result through one of four routes. All four share the provider-trust vocabulary, the verification receipt, the provider identity and the shared artifact container. They differ in what is being brought in and what you already hold.
+A number computed outside Antecedent reaches a result through one of four calls. All four share the provider-trust vocabulary, the verification receipt, the provider identity and the shared artifact container. They differ in what is being brought in and what you already hold.
 
 | | Registry and handoff | `external.bind` | Recalculation callbacks | Distribution artifacts and priors |
 | --- | --- | --- | --- | --- |
@@ -105,11 +105,11 @@ A number computed outside Antecedent reaches a result through one of four routes
 | Verification | `providers.verify(name, fixtures, evidence_origin=)` issues a receipt, and a request outside the receipt stays attested. | `Response(probes=...)` verifies the exact provider object; `attested_by=` attests. | Always attested. A stateful or side-effecting policy is not replayable. | Trust comes from recorded evidence matched on provider and snapshot, never from a claimed label. |
 | What you get | `ProviderResult` and, for a labelled effect, `ExternalEstimate` with `.claim`. | `BoundExternalClaim` (grid) or `BoundExternalColumn` (per row), with lineage and support labels. | A bound claim and an artifact that replays. | A distribution artifact and its trust label, consumed by composition. |
 
-Choose by what you hold. If you have the numbers already, bind them. If something must run Python to produce them and you want that run recorded and optionally verified, use the registry; `handoff.attach` is the bring-your-own-fit form of it. If the number has to follow a changing dependency, use a callback. If it is a law or a prior rather than an effect, use a distribution artifact. Results from every route load through `antecedent.artifacts.loads` as their declared header, and a decoded header never raises trust: the `trust` there is the producer's claim.
+Choose by what you hold. If you have the numbers already, bind them. If something must run Python to produce them and you want that run recorded and optionally verified, use the registry. `handoff.attach` is the bring-your-own-fit form of it. If the number has to follow a changing dependency, use a callback. If it is a law or a prior rather than an effect, use a distribution artifact. Results from every call load through `antecedent.artifacts.loads` as their declared header. A decoded header never raises trust. The `trust` there is the producer's claim.
 
 ### Bind a response grid
 
-`external.response(identification, outcome_units=...)` derives the required coordinates from the identified query, so the units you give are the units the bound claim carries. This example binds a response grid with the closed form E[Y | do(a)] = 1 + 2a:
+`external.response(identification, outcome_units=...)` derives the required coordinates from the identified query. The units you give are the units the bound claim carries. This example binds a response grid with the closed form E[Y | do(a)] = 1 + 2a:
 
 ```python
 import antecedent as ant
@@ -148,15 +148,15 @@ claim = spec.bind(
 print(claim.trust, claim.native, claim.support_status)
 ```
 
-The claim's `trust` is `externally_attested`, `native` is `False` and the support status is `missing_evidence`, because the provider declared no support. Its lineage runs from the causal contract through each evidence factor and the exact provider execution to the claim, so an independent consumer can answer where the numbers came from. External trust stays external: the bound claim supplies no interval, calibration or native support, and provider-declared uncertainty stays a provider declaration.
+The claim's `trust` is `externally_attested`. `native` is `False`. The support status is `missing_evidence`, because the provider declared no support. Its lineage runs from the causal contract through each evidence factor and the exact provider execution to the claim. An independent consumer can answer where the numbers came from. External trust stays external. The bound claim supplies no interval, calibration or native support. Provider-declared uncertainty stays a provider declaration.
 
-The binding refuses an unidentified contract, a provider of the wrong kind, a different graph, a different coordinate (population, regime, horizon, conditioning, transform or units), a different distribution meaning, non-finite values, missing evidence or assumptions, and a provider claiming native support. An observational law offered for an interventional coordinate is accepted only with a checked equivalence for the same graph and regime. `P(Y | T = v)` can stand for `P(Y | do(T = v))` over a grid only when the conditioning maps to exactly one interventional regime and every other field agrees; asserting the justification is yours.
+The binding refuses an unidentified contract, a provider of the wrong kind, a different graph, a different coordinate (population, regime, horizon, conditioning, transform or units), a different distribution meaning, non-finite values, missing evidence or assumptions, and a provider claiming native support. An observational law offered for an interventional coordinate is accepted only with a checked equivalence for the same graph and regime. `P(Y | T = v)` can stand for `P(Y | do(T = v))` over a grid only when the conditioning maps to exactly one interventional regime and every other field agrees. Asserting the justification is yours.
 
-A per-unit effect is not a grid: one coordinate per row would put thousands of full quantities in the identity. A `ColumnResponse` binds one quantity and the digest of the ordered values, with a provider-declared support per row or for all rows. The artifact carries no rows, so a consumer that holds the column checks it against the digest and one changed row is a different claim.
+A per-unit effect is not a grid. One coordinate per row would put thousands of full quantities in the identity. A `ColumnResponse` binds one quantity and the digest of the ordered values, with a provider-declared support per row or for all rows. The artifact carries no rows. A consumer that holds the column checks it against the digest. One changed row is a different claim.
 
 ### Handle refusals
 
-Every refusal on these routes carries a registered `reason_code` and, where one is known, a `remedy`. Binding and verification raise `ExternalRefusal`, and the registry and adjustment handoff raise `ProviderRefusal`, both a `CausalUnsupportedError`. Branch on `reason_code` and read `remedy` for what to change:
+Every refusal on these calls carries a registered `reason_code` and, where one is known, a `remedy`. Binding and verification raise `ExternalRefusal`. The registry and adjustment handoff raise `ProviderRefusal`. Both are a `CausalUnsupportedError`. Branch on `reason_code` and read `remedy` for what to change:
 
 | Code | The outside result was refused because |
 | --- | --- |
@@ -170,28 +170,28 @@ Every refusal on these routes carries a registered `reason_code` and, where one 
 
 ### Verification and trust
 
-Trust states stay apart: `externally_attested`, `verified_extension` and, for Antecedent's own routes, native support. A verified extension is never native, and metadata or a stored artifact cannot mint native trust. Verification takes independent probe values (shape, normalization, moments, known truth, seeded behaviour, support, update coherence, monotonicity, uncertainty), and each required probe must be present once and within its predeclared tolerance. You compute the probe values independently; verification does not invoke providers. A receipt covers only the exact contract it digested, so a different request, snapshot, version or capability set needs its own check. Neither check supplies an interval or sampling calibration for a CDF or quantile.
+Trust states stay apart: `externally_attested`, `verified_extension` and, for Antecedent's own calls, native support. A verified extension is never native. Metadata or a stored artifact cannot mint native trust. Verification takes independent probe values (shape, normalization, moments, known truth, seeded behaviour, support, update coherence, monotonicity, uncertainty). Each required probe must be present once and within its predeclared tolerance. You compute the probe values independently. Verification does not invoke providers. A receipt covers only the exact contract it digested. A different request, snapshot, version or capability set needs its own check. Neither check supplies an interval or sampling calibration for a CDF or quantile.
 
 ## Callbacks: a function Antecedent does not own
 
-A callback is a law, a posterior or a composition of them that the library can ask questions of but cannot inspect. The declaration is an instance of the same interface-contract schema and the same provider contract. There is no separate callback format and no second registry. Each operation (`mean`, `sample`, `cdf`, `quantile`, `posterior_update`) is negotiated on its own: a mean does not supply a law, and draws do not supply a distribution function or an update.
+A callback is a law, a posterior or a composition of them that the library can ask questions of but cannot inspect. The declaration is an instance of the same interface-contract schema and the same provider contract. There is no separate callback format and no second registry. Each operation (`mean`, `sample`, `cdf`, `quantile`, `posterior_update`) is negotiated on its own. A mean does not supply a law. Draws do not supply a distribution function or an update.
 
 What matters to a host:
 
-* A stored answer is reused only when identities prove it is the same question of the same declared callback. A callback with opaque or undeclared dependencies is never reused, and a side-effecting callback is refused rather than run to find out.
+* A stored answer is reused only when identities prove it is the same question of the same declared callback. A callback with opaque or undeclared dependencies is never reused. A side-effecting callback is refused rather than run to find out.
 * Planning and verification never invoke a side-effecting or stateful callback. A side-effecting callback runs only with an explicit opt-in and is retried only under a declared idempotent contract.
-* Output is data. It is accepted only after validation (shape and count, finiteness, support, a distribution function within [0, 1] and non-decreasing, a non-decreasing quantile function), and a malformed law is refused whole. Nothing is repaired, sorted or clipped.
-* Invocation counts are exact. The wall-clock bound is enforced after the call returns, because an in-process closure cannot be preempted, so a late result is discarded. A host that must survive a hung callback runs it in a process it can terminate.
+* Output is data. It is accepted only after validation (shape and count, finiteness, support, a distribution function within [0, 1] and non-decreasing, a non-decreasing quantile function). A malformed law is refused whole. Nothing is repaired, sorted or clipped.
+* Invocation counts are exact. The wall-clock bound is enforced after the call returns, because an in-process closure cannot be preempted. A late result is discarded. A host that must survive a hung callback runs it in a process it can terminate.
 * A result is **diagnostic** unless its contract is replayable, its dependencies complete and its provider attested or verified against its receipt. A diagnostic result is inspectable and no claim is built on it.
-* A callback supplies values, not coverage. An interval from a callback law, and a posterior or probability guarantee, are not supported.
+* A callback supplies values, not coverage. An interval from a callback law is not supported. A posterior or probability guarantee is not supported.
 
-A transported claim can be offered to a callback input that is declared to accept transported claims, through `transport_handoff.hand_to_callback`; the claim is never native target data and its calibration label is never raised (see [provider-sourced transport](../transported-decisions-and-measurement.md)). A callback result exports as a portable artifact holding the declaration, the request and the recorded output. It is a declaration and a portable output, not a promise that a closure runs elsewhere, and a loaded artifact's stored trust is the producer's claim that you recompute against the declaration you hold. The full protocol, reuse table and bounds are in [arbitrary law, posterior and nested callbacks](../../provider-callbacks.md). Because a closure runs with your authority, read [callback security](../../callback-security.md) before supplying one, and never construct a provider from text a user or a model produced.
+A transported claim can be offered to a callback input that is declared to accept transported claims, through `transport_handoff.hand_to_callback`. The claim is never native target data. Its calibration label is never raised (see [provider-sourced transport](../transported-decisions-and-measurement.md)). A callback result exports as a portable artifact holding the declaration, the request and the recorded output. It is a declaration and a portable output, not a promise that a closure runs elsewhere. A loaded artifact's stored trust is the producer's claim that you recompute against the declaration you hold. The full protocol, reuse table and bounds are in [arbitrary law, posterior and nested callbacks](../../provider-callbacks.md). Because a closure runs with your authority, read [callback security](../../callback-security.md) before supplying one. Never construct a provider from text a user or a model produced.
 
 ## Run an admitted recipe directly
 
-Two small routes expose a whole recipe with its numerical work and its refusals, for a host that wants the fit and the plug-in contrast without a prepared study. Neither produces a calibrated interval or a supported claim; read each as the stated model's computation.
+Two small calls expose a whole recipe with its numerical work and its refusals, for a host that wants the fit and the plug-in contrast without a prepared study. Neither produces a calibrated interval or a supported claim. Read each as the stated model's computation.
 
-**Logistic g-computation.** `antecedent.recipe_glm` fits a logistic outcome model on `[1 | T | Z...]` through the generalized-linear recipe and averages its predictions at `T = 1` and `T = 0`. The provider must declare a differentiable log density and estimating equations, and its score is checked against the gradient of its log density; a provider that lacks a capability is refused before any row is read.
+**Logistic g-computation.** `antecedent.recipe_glm` fits a logistic outcome model on `[1 | T | Z...]` through the generalized-linear recipe and averages its predictions at `T = 1` and `T = 0`. The provider must declare a differentiable log density and estimating equations. Its score is checked against the gradient of its log density. A provider that lacks a capability is refused before any row is read.
 
 ```python
 import numpy as np
@@ -209,9 +209,9 @@ fit.control_mean, fit.treated_mean, fit.effect   # 0.3, 0.6, 0.3
 fit.coefficients, fit.covariance
 ```
 
-With no adjuster the model is saturated, so the coefficients are the log odds of the two arms and the means are the arm proportions. `adjustment=["z"]` widens the design; `fit.covariance` is the sandwich covariance of the coefficients, not an interval on the effect. `data` must be complete numeric columns and the outcome coded 0/1; a missing value, a non-binary response, a score that disagrees with the gradient or a solve that does not converge is refused before any fit is returned.
+With no adjuster the model is saturated, so the coefficients are the log odds of the two arms and the means are the arm proportions. `adjustment=["z"]` widens the design. `fit.covariance` is the sandwich covariance of the coefficients, not an interval on the effect. `data` must be complete numeric columns and the outcome coded 0/1. A missing value, a non-binary response, a score that disagrees with the gradient or a solve that does not converge is refused before any fit is returned.
 
-**Finite-discrete adjustment contrast.** `antecedent.finite_discrete` takes a binary treatment `t`, a binary adjuster `z` and a binary outcome `y` as an eight-cell frequency table, where cell `4*t + 2*z + y` counts the rows with that combination. It plans `sum_z P(z) * P(y | t, z)` exactly over the table and evaluates the same plan at weighted posterior draws of the joint, so the plug-in contrast and the posterior mean and equal-tailed interval come from one plan.
+**Finite-discrete adjustment contrast.** `antecedent.finite_discrete` takes a binary treatment `t`, a binary adjuster `z` and a binary outcome `y` as an eight-cell frequency table, where cell `4*t + 2*z + y` counts the rows with that combination. It plans `sum_z P(z) * P(y | t, z)` exactly over the table and evaluates the same plan at weighted posterior draws of the joint. The plug-in contrast and the posterior mean and equal-tailed interval come from one plan.
 
 ```python
 from antecedent import finite_discrete as fd
@@ -223,11 +223,11 @@ result.plug_in_effect      # 0.225
 result.posterior_mean, result.posterior_lower, result.posterior_upper
 ```
 
-The plug-in contrast of `counts` is 0.225 by hand. `draws` is a list of `(counts, weight)` pairs whose weights sum to one; the posterior summaries are weighted over them, and where the draws come from is your declaration. A table with no mass, a negative or non-finite weight, weights that do not sum to one, an empty draw list and a table that does not have exactly eight cells are refused.
+The plug-in contrast of `counts` is 0.225 by hand. `draws` is a list of `(counts, weight)` pairs whose weights sum to one. The posterior summaries are weighted over them. Where the draws come from is your declaration. A table with no mass, a negative or non-finite weight, weights that do not sum to one, an empty draw list and a table that does not have exactly eight cells are refused.
 
 ### Shapes of plain Python callbacks
 
-`antecedent.extensibility` holds the typing `Protocol`s that describe the plain callables some routes accept, with no registration. They are type-checking aids: a native bridge accepts any callable of the matching shape, and each call re-enters Python and runs serially, so expect non-native speed.
+`antecedent.extensibility` holds the typing `Protocol`s that describe the plain callables some calls accept, with no registration. They are type-checking aids. A native bridge accepts any callable of the matching shape. Each call re-enters Python and runs serially. Expect non-native speed.
 
 | Protocol | Shape | Used for |
 | --- | --- | --- |
@@ -236,7 +236,7 @@ The plug-in contrast of `counts` is 0.225 by hand. `draws` is a list of `(counts
 | `UtilityFn` | `(actions, outcomes) -> flat utilities` of length `len(actions) * len(outcomes)` | A batch utility for decision evaluation |
 | `EffectValidator` | keyword call `(*, ate, se_analytic, method, adjustment_set) -> dict` containing `passed: bool` | A custom refuter |
 
-A `MechanismWrapper` whose noise cannot be recovered from an observation declares `supports_noise_inference = False`; counterfactual abduction is then refused naming the mechanism, while sampling and likelihood stay available. Declare a second parameter named `rng` on `sample_noise` to receive a NumPy `Generator` seeded from the run's seed; otherwise your own draws are not governed by `seed`. Every callback must return exactly one value per row. These callables are not provider registrations: a function that supplies a number to a claim goes through the provider and callback routes above, with their trust vocabulary.
+A `MechanismWrapper` whose noise cannot be recovered from an observation declares `supports_noise_inference = False`. Counterfactual abduction is then refused naming the mechanism. Sampling and likelihood stay available. Declare a second parameter named `rng` on `sample_noise` to receive a NumPy `Generator` seeded from the run's seed. Otherwise your own draws are not governed by `seed`. Every callback must return exactly one value per row. These callables are not provider registrations. A function that supplies a number to a claim goes through the provider and callback calls above, with their trust vocabulary.
 
 ## What stays closed
 

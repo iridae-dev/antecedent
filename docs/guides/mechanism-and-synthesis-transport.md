@@ -1,6 +1,6 @@
 # Transport mechanisms and synthesize evidence
 
-You can carry a fitted mechanism from a source population into a target population's composed model, pool transported summaries with native evidence, or carry a surrogate relation to another population. Three routes decide what a source-population fit may contribute. Each states which estimates may be used and under which selection premise; none turns that statement into a calibrated claim about the target.
+You can carry a fitted mechanism from a source population into a target population's composed model, pool transported summaries with native evidence, or carry a surrogate relation to another population. Three calls decide what a source-population fit may contribute. Each states which estimates may be used and under which selection premise. None turns that statement into a calibrated claim about the target.
 
 | Route | Rust entry point | Result |
 | --- | --- | --- |
@@ -11,11 +11,11 @@ You can carry a fitted mechanism from a source population into a target populati
 
 Use this page when what you carry is a fitted mechanism, a summary or a surrogate relation, not a response identified from source experiments. For that question, and for the list of all transport pages, see [Carry an effect to another population](transport/carry-an-effect.md#which-transport-page-answers-your-question).
 
-Python entries: `antecedent.typed_mechanism_transport` for the typed route (below), and `antecedent.mechanism_composition` for the linear-Gaussian carry. A transported mechanism composition reaches an inverse query as a carried, extrapolative claim (see [inverse queries and decisions](inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources)); a transported response reaches a decision through `antecedent.transported_response`.
+In Python, the typed call is `antecedent.typed_mechanism_transport` (below). The linear-Gaussian carry is `antecedent.mechanism_composition`. A transported mechanism composition reaches an inverse query as a carried, extrapolative claim (see [inverse queries and decisions](inverse-outcome.md#inverse-queries-on-composed-cohort-and-transported-sources)). A transported response reaches a decision through `antecedent.transported_response`.
 
 ## Carry typed mechanisms into a target model
 
-Fit each mechanism in the source, refit in the target the ones a selection node points into, and ask the transported composition for a contrast. In this sketch `source_data` and `target_data` are column mappings, and `source_income` is a source fit made the same way as `source_demand`:
+Fit each mechanism in the source. Refit in the target the ones a selection node points into. Ask the transported composition for a contrast. In this sketch `source_data` and `target_data` are column mappings. `source_income` is a source fit made the same way as `source_demand`:
 
 ```python
 from antecedent import typed_mechanism_transport as tmt
@@ -39,100 +39,99 @@ estimate = transported.mean_contrast(tmt.MeanContrast.mean_at("demand", {"price"
 transported.receipt             # which mechanisms were carried and which refitted
 ```
 
-The contrast is `sum_k w_k E[outcome | do(arm_k)]` in the target composition, here the single mean `E[demand | do(price = 2)]`, computed by Monte Carlo over the structural model. `transported.receipt` lists the carried and the refitted variables; support is `extrapolative` and inference `point_only`. `transported.interval(contrast)` returns the first-order interval with calibration `not_measured`. The rules behind each step are in [nonlinear and non-Gaussian mechanism transport](#nonlinear-and-non-gaussian-mechanism-transport). A runnable use of this route, including the refusal of a shifted mechanism with no target fit, is [`synthetic_users_launch.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/synthetic_users_launch.py).
+The contrast is `sum_k w_k E[outcome | do(arm_k)]` in the target composition, here the single mean `E[demand | do(price = 2)]`, computed by Monte Carlo over the structural model. `transported.receipt` lists the carried and the refitted variables. Support is `extrapolative`. Inference is `point_only`. `transported.interval(contrast)` returns the first-order interval with calibration `not_measured`. The rules behind each step are in [nonlinear and non-Gaussian mechanism transport](#nonlinear-and-non-gaussian-mechanism-transport). A runnable use of this call, including the refusal of a shifted mechanism with no target fit, is [`synthetic_users_launch.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/synthetic_users_launch.py).
 
 ## Mechanism transport
 
 A fitted additive-noise linear-Gaussian mechanism is carried only when the
 declared selection diagram has no selection node pointing into its variable or
-into a latent cause it loads on. The diagram dominates: a selection arrow into
-a mechanism's variable is the statement that the mechanism differs, so an
-invariance declaration for the same variable cannot override it, in the
-composition checker and in the transport route alike. An invariance
-declaration admits what the diagram is silent about: with no diagram, or a
+into a latent cause it loads on. The diagram dominates. A selection arrow into
+a mechanism's variable is the statement that the mechanism differs. An
+invariance declaration for the same variable cannot override it. That holds in
+the composition checker and in this transport call. An invariance
+declaration admits what the diagram is silent about. With no diagram, or a
 shared latent the diagram does not mention, a mechanism that loads on a shared
-latent cause needs the analyst's explicit population-invariance declaration. A
+latent cause needs your explicit population-invariance declaration. A
 natively refitted target mechanism always replaces a carried one for the same
-variable; the two are never averaged, and a natively refitted non-Gaussian
+variable. The two are never averaged. A natively refitted non-Gaussian
 target mechanism is reported as an unsupported family rather than carried.
 The identity of a transport result covers each mechanism's uncertainty
-description, output support, parent domains and conditioning set, so a change
+description, output support, parent domains and conditioning set. A change
 of any of them at an unchanged shape is a different transport. Every component of the result records whether it was
-carried or refitted. The carried parameter covariance is the source fit's; the
-selection assumption adds no variance and the result says so.
+carried or refitted. The carried parameter covariance is the source fit's.
+The selection assumption adds no variance. The result says so.
 
-Finite tables are decided by the finite counterfactual transport derivation,
-which gives an exact obstruction witness; a table here is refused with a pointer
-to it. The tests check this route, the composition checker and the finite
+Finite tables are decided by the finite counterfactual transport derivation.
+That derivation gives an exact obstruction witness. A table here is refused with a pointer
+to it. The tests check this call, the composition checker and the finite
 derivation against one shared fixture, including a selection into a shared
-latent cause, and pin the mapping between their reason codes
+latent cause. They pin the mapping between their reason codes
 (`quantity_semantics_mismatch` for the composition checks,
 `transport_proven_non_transportable` for the finite witness).
 
 ## Nonlinear and non-Gaussian mechanism transport
 
-`antecedent_model::typed_mechanism_transport` (Python:
-`antecedent.typed_mechanism_transport`) carries typed families under the same
+In Rust, call `antecedent_model::typed_mechanism_transport`. In Python,
+call `antecedent.typed_mechanism_transport`. Both carry typed families under the same
 selection-diagram rule. A mechanism has a conditional mean that is a polynomial
-(optionally with pairwise products) of the standardized parents or a compiled
-mechanism expression, and a response family: Gaussian, heteroscedastic Gaussian
+of the standardized parents, optionally with pairwise products, or a mechanism
+expression you supply. It also has a response family: Gaussian, heteroscedastic Gaussian
 (log variance linear in the parents), log-normal, Bernoulli (logit), Poisson
 (log link) or gamma (log link, estimated dispersion). A fit returns the
 parameter covariance.
 
 The diagram decides each variable separately. A mechanism no selection node
 points into is declared invariant and carried from the source fit. A mechanism a
-selection node points into is shifted and used only from a target fit,
+selection node points into is shifted. It is used only from a target fit,
 refitted on the source mechanism's design so the two parameter vectors are
 comparable. A shifted mechanism with no target fit is refused with
 `typed_mechanism_transport.shifted_without_target_evidence`
-(`transport_missing_evidence`): missing evidence never makes a mechanism
+(`transport_missing_evidence`). Missing evidence never makes a mechanism
 invariant.
 
-Where target data exist for a mechanism declared invariant, the route tests the
-declaration: a Wald statistic on the full parameter vectors with the summed fit
+Where target data exist for a mechanism declared invariant, the call tests the
+declaration. The test is a Wald statistic on the full parameter vectors with the summed fit
 covariances, against a chi-square law, at the request's level. A rejection
 refuses the transport (`typed_mechanism_transport.invariance_contradicted`). A
-non-rejection is not evidence of invariance, and an invariance with no target
-data is an untested premise that the receipt records.
+non-rejection is not evidence of invariance. An invariance with no target
+data is an untested premise. The receipt records that premise.
 
 Interventional means are Monte Carlo over the structural model with paired
-draws across the arms of a contrast; the outcome enters through its exact
+draws across the arms of a contrast. The outcome enters through its exact
 conditional mean. The Monte Carlo standard error is numerical-approximation
-uncertainty. The parameter variance of a contrast is first order, `g' Sigma g`,
-with the score-function gradient `g` over every involved mechanism's parameters
-and `Sigma` the source covariance for a carried mechanism and the target
-covariance for a refit one, joined by the declared dependence: independence by
+uncertainty. The parameter variance of a contrast is first order, `g' Sigma g`.
+`g` is the score-function gradient over every involved mechanism's parameters.
+`Sigma` is the source covariance for a carried mechanism and the target
+covariance for a refit one. They are joined by the declared dependence: independence by
 design, an aligned joint covariance, or cross-covariance blocks. Unknown
 dependence between more than one involved mechanism is refused. The transport
-assumption adds no variance and support is `extrapolative`; `interval` reports
+assumption adds no variance. Support is `extrapolative`. `interval` reports
 the first-order interval of a contrast with calibration `not_measured`.
 
 The conformance fixture `conformance/transport/typed_mechanism_shift` holds a
 source and a target sample in which income and price are invariant and six
 outcome mechanisms (one per family) shift to a quadratic price effect. Its
-reference script fits the target sample with numpy and scipy and evaluates the
-target response by quadrature; the tests compare the transported response and
-its delta-method standard error with that reference, and the response with the
+reference script fits the target sample with numpy and scipy. It evaluates the
+target response by quadrature. The tests compare the transported response and
+its delta-method standard error with that reference. They compare the response with the
 closed-form truth.
 
 ## Transported synthesis
 
 A transported summary is `y = theta + b_t + e`, with a transport error `b_t` of
 declared variance `tau_t^2` shared by every summary carried through the same
-transport `t`. The three routes are generalized least squares under that
+transport `t`. The three calls are generalized least squares under that
 covariance, hierarchical normal borrowing across exchangeable studies, and a
 transported claim used as the prior of a native likelihood. The evidence ledger
-decides overlap before any number is combined, and the route is atomic: the
-ledger is changed only when the numbers were computed. Every transported
-contribution must be carried to one target population;
+decides overlap before any number is combined. The call is atomic.
+The ledger is changed only when the numbers were computed. Every transported
+contribution must be carried to one target population.
 `synthesize_transported_in_population` also checks the native estimate's
-population against that target, and the result records the target, the source
+population against that target. The result records the target, the source
 populations and the native population. A transported source with no source
-population, with blank assumptions or with its target among its own sources is
-refused as an incomplete transport identity. The result is a point and
-a model variance; no interval, posterior coverage or calibration is claimed, and
-the dependence between source and native estimates is your declaration.
+population is refused as an incomplete transport identity. Blank assumptions are refused the same way. A source with its target among its own sources is refused the same way. The result is a point and
+a model variance. No interval, posterior coverage or calibration is claimed.
+The dependence between source and native estimates is your declaration.
 
 ## Surrogate bridge premise
 
@@ -140,8 +139,8 @@ The premise is that the relation between the effect on the surrogate and on the
 terminal outcome, validated across trials in population `P`, is the same in `Q`.
 It holds only when no selection node points into the terminal outcome or into a
 declared modifier of the relation. A node into the surrogate does not contradict
-it. The module checks the premise against the diagram; it does not discharge it,
-and it stays an unresolved obligation of the derived claim. The bridge remains
+it. The call checks the premise against the diagram. It does not discharge it.
+The premise stays an unresolved obligation of the derived claim. The bridge remains
 point-only.
 
 ## What is refused, and what to do

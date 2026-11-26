@@ -1,9 +1,9 @@
 # Keep results current: retained refresh and state publication
 
 Two pieces keep a long-lived analysis current as data change. A **retained refresh** keeps the
-least-squares, scatter or conjugate summary a prepared study's estimator rests on, and updates it
-as rows arrive, leave or change weight, checking every change against a fresh reconstruction.
-**State publication** records which results a data or premise event made stale and accepts a
+least-squares, scatter or conjugate summary a prepared study's estimator rests on. It updates that summary
+as rows arrive, leave or change weight. It checks every change against a fresh reconstruction.
+**State publication** records which results a data or premise event made stale. It accepts a
 recomputed result only through the identities of the prepared study that recomputed it. Neither
 re-identifies or re-estimates anything on its own. To decide whether new data calls for a
 refresh at all, or for preparing again, run the [staleness diagnostic](staleness.md) first.
@@ -12,8 +12,8 @@ refresh at all, or for preparing again, run the [staleness diagnostic](staleness
 
 Runnable example: [`examples/python/retained_refresh.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/retained_refresh.py).
 
-Start a refresh from a prepared study. The study's estimator decides the summary family:
-`linear.adjustment.ate` keeps `ols`, `aipw` keeps `weighted_ols` and `bayesian.gcomp` under a
+Start a refresh from a prepared study. The study's estimator decides the summary family.
+`linear.adjustment.ate` keeps `ols`. `aipw` keeps `weighted_ols`. `bayesian.gcomp` under a
 conjugate backend keeps `conjugate_blocks`.
 
 ```python
@@ -47,16 +47,16 @@ print(refresh.apply(RefreshMutation.evict(20)))                                 
 refresh.verify()                           # cached result equals a fresh rebuild from the rows
 ```
 
-An append updates the summary in place; a window, eviction, weight, mask or replacement
+An append updates the summary in place. A window, eviction, weight, mask or replacement
 recomputes it from the retained rows. A refused change (an unknown source, a duplicate row id, a
 wrong width, an unknown row) raises and leaves the summary exactly as it was.
-`refresh.fresh_result()` rebuilds the result from the retained rows alone, which is what `verify()`
+`refresh.fresh_result()` rebuilds the result from the retained rows alone. That is what `verify()`
 compares against.
 
 ## Say what you retain
 
-A refresh that keeps every row can refit from them; one that keeps only the summary cannot, and
-names what it no longer serves.
+A refresh that keeps every row can refit from them. One that keeps only the summary cannot.
+It names what it no longer serves.
 
 ```python
 from antecedent.errors import CausalStateError
@@ -73,7 +73,7 @@ summary = refresh.with_retention(policy)           # or refresh.summary_only()
 print(summary.result()["beta"] == refresh.result()["beta"])
 ```
 
-`RetentionPolicy.raw_history()` keeps every row and `RetentionPolicy.bounded_window(n)` keeps the
+`RetentionPolicy.raw_history()` keeps every row. `RetentionPolicy.bounded_window(n)` keeps the
 trailing `n`. A summary-only refresh refuses every change that needs rows, `verify()` included.
 
 ## Spill under the admission budget
@@ -91,7 +91,7 @@ with tempfile.TemporaryDirectory() as directory:
 ```
 
 A spilled result serves a read of its disk artifact and refuses everything else until it is
-reloaded. `RetainedBootstrap` keeps bootstrap replicate estimates the same way and serves
+reloaded. `RetainedBootstrap` keeps bootstrap replicate estimates the same way. It serves
 `percentile_interval(level)` from the retained estimates.
 
 ## Publish a recomputed result into a `CausalState`
@@ -117,12 +117,12 @@ fresh = dict(ant.estimate(branch).identities)
 publish_recomputed_results(state, state.version, [(query, fresh, 32)])
 ```
 
-Publication refuses, and leaves every freshness stamp as it was, a version that advanced during the
+Publication refuses, and leaves every freshness stamp as it was, in these cases: a version that advanced during the
 recompute, a data snapshot recorded before the latest data event, a premise event answered by the
 identical lineage, an unknown query and a cache-budget overrun. A query published this way is
-lineage-bound, so the unchecked `CausalState.refresh_results` refuses to restamp it.
+lineage-bound. The unchecked `CausalState.refresh_results` refuses to restamp it.
 `antecedent.state.result_lineage_fingerprint(identities)` gives the 64-hex fingerprint of an outcome's
 identity layers if you need to compare lineages yourself.
 
-Transported claims that rest on state queries recompute or withdraw from the same log; see
+Transported claims that rest on state queries recompute or withdraw from the same log. See
 [assumption range and revalidation](assumption-range-and-revalidation.md).

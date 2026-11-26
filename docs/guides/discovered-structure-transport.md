@@ -8,7 +8,11 @@ Use this page when discovery produced the structure. With a graph you declare yo
 
 ## Ask what every member of the class says
 
-`analyze_discovered_transport` runs discovery under a declared contract and returns the transport verdict of every member of the discovered class, through the compiled `DiscoveredClassTransport` program. `discover_and_transport` is the deprecated direct form and returns the same envelope. Here `x`, `m` and `y` are columns of one table, and `m` is the variable whose mechanism may differ between the trial and the clinic:
+You already have a contract for the search. `analyze_discovered_transport` runs that search, then reports what every member of the discovered class says about the transport. It does not pick a member for you.
+
+Here `x`, `m` and `y` are columns of one table. `m` is the variable whose mechanism may differ between the trial and the clinic.
+
+If your code still calls `discover_and_transport`, switch to `analyze_discovered_transport`. The old call warns and returns the same answer.
 
 ```python
 from antecedent import selective_discovery as sd
@@ -33,7 +37,13 @@ for member in result.envelope.members:
     print(member.directed_edges, member.verdict, member.formula or member.reason)
 ```
 
-The query is the target mean of `outcome` under `do(treatment = a)` at each grid value `a`. The envelope computes no number: it says which members certify that query and with which formula. It holds under the assumptions listed on `result.envelope.assumptions` (causal sufficiency, faithfulness, correct conditional-independence tests within the search bounds, and the selection targets you declared), none of which this route can check. A refused request raises `DiscoveredTransportRefusal`, which names every unresolved pair. To get a number, use the [estimate route](#estimates-a-point-a-structural-range-or-a-refusal).
+The question is the target mean of `outcome` under `do(treatment = a)`, at each value `a` on `grid`.
+
+The envelope is not a number. It says which members certify that question, and with which formula.
+
+Read the assumptions on `result.envelope.assumptions`. They are causal sufficiency, faithfulness, conditional-independence tests that are correct inside the search bounds, and the selection targets you declared. This call cannot check them.
+
+A refused request raises `DiscoveredTransportRefusal` and names every pair it could not resolve. To get a number, use the [estimate](#estimates-a-point-a-structural-range-or-a-refusal).
 
 ## Routes
 
@@ -46,7 +56,7 @@ The query is the target mean of `outcome` under `do(treatment = a)` at each grid
 | Rows from several populations | `antecedent.selective_discovery.PerPopulationReport` | One structure per population and an edge-by-edge comparison |
 | One table you want to discover on and analyse | `antecedent.selective_discovery.{discover_on_split, sample_split_effect, sample_split_parent_set_effect}` | Disjoint discovery and analysis tables with a receipt |
 
-Tests that exercise these paths: `python/tests/test_discovered_transport.py`, `test_per_population_discovery.py` and `test_sample_split_analysis.py`. Rust entry points live in `antecedent_identify::discovered_transport` (`transport_across_class`, `transport_across_pag`), `discovered_transport_temporal`, and the facade modules `analysis::discovered_transport*`, `analysis::per_population_discovery` and `analysis::sample_split_analysis`.
+In Rust, the same questions are `transport_across_class` and `transport_across_pag` in `antecedent_identify::discovered_transport`, the temporal counterparts in `discovered_transport_temporal`, and the facade modules `analysis::discovered_transport*`, `analysis::per_population_discovery` and `analysis::sample_split_analysis`.
 
 ## Structural envelope
 

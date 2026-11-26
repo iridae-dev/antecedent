@@ -7,15 +7,15 @@ combine uncertain quantities and need to know what spread the combination has,
 what dependence information that requires, and when an interval at the composed
 quantity is available. It assumes inputs that already carry uncertainty: aligned
 draws from a `JointDistributionArtifact`, a covariance, or a cross-world
-execution. Two routes read the spread at the composed coordinate. The
-composed-spread route (`antecedent.joint_law_propagation`) reports an interval
-with its calibration status; the whole-path route reports a spread only.
+execution. Two calls read the spread at the composed coordinate. The
+composed-spread call (`antecedent.joint_law_propagation`) reports an interval
+with its calibration status. The whole-path call reports a spread only.
 
 ## Run a small example
 
-Compute the product of two columns from one aligned synthetic law; check the
+Compute the product of two columns from one aligned synthetic law. Check the
 hand-derived mean (0.4) and variance (6.4/9) before requesting an interval. The
-spread is labelled `uncalibrated_spread`, and an interval request with no
+spread is labelled `uncalibrated_spread`. An interval request with no
 construction named is refused.
 
 <!-- example: examples/python/composed_uncertainty.py -->
@@ -28,31 +28,32 @@ are refused.
 | Composed spread, interval candidate and exceedance decision | `uncalibrated_spread`; candidates `not_measured` |
 | Whole path of the finite Markovian cross-world row | `uncalibrated_spread` |
 
-The whole-path account is a sealed sibling of the cross-world execution:
-`CrossWorldExecution.whole_path_uncertainty("fixed_units" | "independent_sample")`
-in Python (`CrossWorldExecution::whole_path_uncertainty(UnitSampling, ctx)` in Rust)
-returns a `WholePathAccount` with `inspect()` and `verify_against(execution)`.
+The whole-path account is a sealed sibling of the cross-world execution.
+In Python, call
+`CrossWorldExecution.whole_path_uncertainty("fixed_units" | "independent_sample")`.
+In Rust, call `CrossWorldExecution::whole_path_uncertainty(UnitSampling, ctx)`.
+You get a `WholePathAccount` with `inspect()` and `verify_against(execution)`.
 
 ## What each kind of dependence information supports
 
 - A joint moment (a covariance matrix) gives the exact variance of a linear
-  combination, and a mixture with known weights gives its mean and variance.
+  combination. A mixture with known weights gives its mean and variance.
 - An aligned joint law (rows that are realizations of one joint law, proven by a
   shared alignment identity) supports nonlinear functionals by row pairing.
-- Only the marginals give a structural envelope (Frechet/Hoeffding, Makarov): an
+- Only the marginals give a structural envelope (Frechet/Hoeffding, Makarov). An
   envelope is neither a point nor an interval and does not substitute for a
   joint law. A declared correlation range is an assumption range, labelled so.
 
 Pairing the rows of unrelated marginal draws by index silently assumes
 independence and is refused. A transported claim's uncertainty is three
-pieces: source sampling, target sampling and the transport functional; naming
+pieces: source sampling, target sampling and the transport functional. Naming
 some and omitting others is refused with the missing pieces listed.
 
 ## Composed interval and exceedance
 
 An interval construction at the composed coordinate (normal, draw percentile or
 marginal) is a candidate with calibration status `not_measured`. The interval
-is reported with that status; it becomes `calibrated` only when a `CoverageRecord` measured at exactly that
+is reported with that status. It becomes `calibrated` only when a `CoverageRecord` measured at exactly that
 `ComposedCoordinate` (operation, route, transported or not, input roles) and
 construction covers it, and then only at its recorded nominal level. A
 component's record is never a composed coordinate's. An exceedance decision
@@ -60,7 +61,7 @@ carries a Monte Carlo band, which is numerical error and not coverage.
 
 ## Whole path
 
-The path is abduction, action, per-world prediction and summary. The route
+The path is abduction, action, per-world prediction and summary. The call
 accounts for four sources: structural (declared, not propagated), posterior (the
 exact predictive variance of the unit's counterfactual quantity under its
 exogenous posterior, all worlds reading one state), sampling (fixed units or an
@@ -69,10 +70,10 @@ draws). The two spreads, `realized_mean_predictive_variance` and
 `unit_mean_sampling_variance`, are for different estimands and are never added.
 The derivation re-abduces every unit and refuses a result computed from other
 mechanisms, evidence, worlds or quantity. The account is not a field of the
-execution's wire: a consumer derives it again from the consumed execution and
-the declared unit sampling, and `verify_against` refuses an account that does
-not re-derive from that execution (`cross_world_uncertainty.account_mismatch`).
-Units times joint exogenous states are bounded; sampled-path and transported
+execution's wire. A consumer derives it again from the consumed execution and
+the declared unit sampling. `verify_against` refuses an account that does
+not derive again from that execution (`cross_world_uncertainty.account_mismatch`).
+Units times joint exogenous states are bounded. Sampled-path and transported
 cross-world executions have no whole-path derivation and are refused.
 
 ## What is refused, and the remedy
@@ -96,7 +97,7 @@ also listed in [refusal codes and remedies](../reference/refusal-codes.md#compos
 
 If a store supplies two rows, the rows can share a store-level shock. Drawing panel rows independently would let a resample include one member of a pair without the other. The example gives each row a unit, cluster, and stratum identity. Antecedent draws the two rows together and keeps the draw within the original stratum.
 
-Each draw reruns the full calculation with the same allowed range for bias. Read the original range alongside the two final endpoints after resampling. The latter are a candidate uncertainty construction for this sampling design. The example shows its `not_measured` status and checks that replay gives the same endpoints. For time series, a block-based design instead preserves consecutive observations inside each series.
+Each draw reruns the full calculation with the same allowed range for bias. Read the original range alongside the two final endpoints after resampling. The latter are a candidate uncertainty construction for this sampling design. The example shows its `not_measured` status. It checks that replay gives the same endpoints. For time series, a block-based design instead preserves consecutive observations inside each series.
 
 Run `cargo run -p antecedent --example whole_cluster_uncertainty`.
 
@@ -110,9 +111,9 @@ Enumerate the declared two-unit procedure, preserving its undefined contrast mas
 
 An adaptive experiment's data are shaped by the assignment policy, outcome delay
 and loss, exposure failure, the stopping rule and the final selection. This
-route derives the uncertainty of the complete declared procedure and keeps
-inferential paradigms apart: a report of one paradigm is never a statement of
-another. Every result is labelled derived and not_measured: the law is exact under the
+call derives the uncertainty of the complete declared procedure and keeps
+inferential paradigms apart. A report of one paradigm is never a statement of
+another. Every result is labelled derived and not_measured. The law is exact under the
 stated model and carries no coverage claim for any method.
 
 In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `AdaptiveProcedure` whose `report` derives the uncertainty (`antecedent.adaptive_inference`). A paradigm whose premise the procedure does not meet is refused with the registered code `adaptive_assumption_violated` and an `adaptive_inference.*` detail naming the premise.
@@ -121,21 +122,21 @@ In Python, `AdaptiveInferenceSession.derive_procedure(elements)` returns the `Ad
 
 A `ProcedureDeclaration` holds the assignment rule, enrolment schedule,
 outcome observation (lag and loss), exposure model, stopping rule and final
-selection. Nothing is defaulted; a missing element is refused with its own
-detail. The validated `ProcedureSpec` is the only input of the routes. The
+selection. Nothing is defaulted. A missing element is refused with its own
+detail. The validated `ProcedureSpec` is the only input of these calls. The
 design is batched sequential with Bernoulli outcomes, at most 4 arms, 4
 contexts, 8 cells, 24 looks and 65,535 units. Declaration capacity is separate
-from the cost of deriving the uncertainty: the exact law is bounded by its live
-states (1,000,000) and unit expansions (60,000,000), so a procedure of a few
+from the cost of deriving the uncertainty. The exact law is bounded by its live
+states (1,000,000) and unit expansions (60,000,000). A procedure of a few
 hundred units or more is refused there with `exact_law_states_exceeded` or
-`exact_law_work_exceeded` and is derived by the whole-procedure simulation
-instead, which is admitted against a work budget (replications x units x
+`exact_law_work_exceeded`. It is derived by the whole-procedure simulation
+instead. That simulation is admitted against a work budget (replications x units x
 measurements, 4,000,000,000) and the memory budget of the execution context
-(`simulation_work_exceeded`, `simulation_memory_exceeded`) and returns a receipt of
+(`simulation_work_exceeded`, `simulation_memory_exceeded`). It returns a receipt of
 the work done. Only an empty or unordered schedule is `looks_not_ordered`.
 
 A Thompson rule may carry a minimum exploration probability
-(`AssignmentRule.thompson_beta_floored`), and a stopping rule may stop for
+(`AssignmentRule.thompson_beta_floored`). A stopping rule may stop for
 futility (`ProcedureStopping.posterior_futility`): when every other arm has
 posterior probability below a threshold of exceeding the control (arm 0) by a
 margin, deciding for the control. The participant-level family, with
@@ -157,7 +158,7 @@ decisions at completed-participant batch boundaries, is declared with
 | Whole-procedure inversion | Confidence set by inverting the stagewise-ordered test | Declared contrast grid |
 
 The exact law is of the declared procedure under a hypothesized truth, nothing
-more: it is not an interval and not a calibration.
+more. It is not an interval and not a calibration.
 
 ### What is refused, and the remedy
 

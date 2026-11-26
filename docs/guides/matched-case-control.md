@@ -1,15 +1,14 @@
 # Estimate a conditional odds ratio from matched case-control sets
 
-Use this route when your rows are matched sets sampled on the outcome (each case matched
-to one or more controls) and you want the association of a binary exposure with case
-status within sets. `antecedent.matched.matched_case_control_odds_ratio` (Rust:
-`antecedent_estimate::conditional_odds_ratio`) estimates one quantity: the
-**conditional odds ratio**, by exact conditional likelihood (conditional logistic
-regression). It is a separate design, not a conversion of the AIPW result. It takes no
-graph, and its claim is `point_only`.
+Use this call when your rows are matched sets sampled on the outcome. Each case is matched
+to one or more controls. You want the association of a binary exposure with case status
+within sets. Call `antecedent.matched.matched_case_control_odds_ratio`. In Rust, call
+`antecedent_estimate::conditional_odds_ratio`. You get one quantity: the **conditional odds
+ratio**, by exact conditional likelihood (conditional logistic regression). This call is
+separate from an AIPW result. It takes no graph. The claim is `point_only`.
 
-You need three parallel row sequences (the matched-set label, the case indicator and the
-exposure indicator) and an explicit declaration of the sampling design.
+You need three parallel row sequences: the matched-set label, the case indicator and the
+exposure indicator. You also declare the sampling design.
 
 ```python
 from antecedent.matched import matched_case_control_odds_ratio
@@ -37,8 +36,8 @@ control in one, so `result.odds_ratio` is `2 / 1 = 2.0` (the closed form in
 | `claim` | `point_only` |
 | `interval`, `interval_level`, `interval_calibration` | present only when you pass `level=`; see [The Wald interval](#the-wald-interval) |
 
-`result.export()` writes the point, the counts and `set_types`;
-`antecedent.matched.replay_matched_case_control(artifact)` rebuilds the sets from
+`result.export()` writes the point, the counts and `set_types`. Call
+`antecedent.matched.replay_matched_case_control(artifact)`. It rebuilds the sets from
 `set_types`, recomputes the odds ratio and every count, and refuses an artifact that does
 not reproduce them with `CausalSerializationError`.
 
@@ -49,12 +48,11 @@ most {{bound:estimate.matched_case_control_odds_ratio.replay_max_rows}} reconstr
 
 Within matched set `i`, `logit P(case | x) = alpha_i + beta x` with an unrestricted
 `alpha_i`. The conditional odds ratio is `theta = exp(beta)`. Sampling on the outcome
-changes only the `alpha_i`, so `theta` is the same in the sampled sets and in the
-population they were drawn from, **provided** the sets are matched on the declared
-stratum and the odds ratio is common to every set. The route checks neither assumption.
-It takes no graph, so it makes no identification claim about confounders beyond the
-matching you declare: `theta` is a causal odds ratio only if exposure is unconfounded
-within matched sets.
+changes only the `alpha_i`. `theta` is the same in the sampled sets and in the population
+they were drawn from, **provided** the sets are matched on the declared stratum and the odds
+ratio is common to every set. The call checks neither assumption. It takes no graph. It
+makes no identification claim about confounders beyond the matching you declare. `theta` is
+a causal odds ratio only if exposure is unconfounded within matched sets.
 
 ## Derivation
 
@@ -70,10 +68,10 @@ Condition set `i` of `n` members, `k` cases and `t` exposed on `(n, k, t)`. The 
     U(beta) = l'(beta)  = sum_i (a_i - E_i(beta))        (score)
     I(beta) = -l''(beta) = sum_i V_i(beta)               (information)
 
-`l` is strictly concave (an exponential family in `a`), so the maximizer is unique
-when it exists. A single case per set (1:M matching) is the usual
-`e^{beta x_case} / sum_m e^{beta x_m}` form; the code enumerates the equivalent
-hypergeometric weights, and the tests check both against each other.
+`l` is strictly concave (an exponential family in `a`). The maximizer is unique when it
+exists. A single case per set (1:M matching) is the usual
+`e^{beta x_case} / sum_m e^{beta x_m}` form. The call enumerates the equivalent
+hypergeometric weights. The tests check both against each other.
 
 With 1:1 matching the informative sets are the discordant pairs and
 `U(beta) = b - (b + c) e^beta / (1 + e^beta)`, hence the closed form `theta = b / c`
@@ -81,10 +79,11 @@ With 1:1 matching the informative sets are the discordant pairs and
 set (`n = 3`, `k = 1`, `t = 1`) with `a` of `m` sets having the case exposed,
 `theta = 2a / (m - a)`.
 
-The estimate is found by bracketing the monotone score and a safeguarded Newton
-iteration (the information gives the step, bisection the guarantee); the solve observes
-a cancellation token on entry (before the set tally) and each iteration. It is finite iff the observed exposed-case total
-lies strictly between the smallest and largest totals the informative sets allow.
+The estimate is found by bracketing the monotone score and a safeguarded Newton iteration.
+The information gives the step. Bisection gives the guarantee. The solve observes a
+cancellation token on entry, before the set tally, and on each iteration. It is finite iff
+the observed exposed-case total lies strictly between the smallest and largest totals the
+informative sets allow.
 
 ## Strata that carry no information
 
@@ -113,16 +112,16 @@ Adding any number of the first two classes leaves the estimate bit-for-bit uncha
 | cancelled solve (a stop, never a verdict) | `transport_budget_cancel` | `matched_case_control.budget` |
 
 Risk-scale quantities are refused because the case fraction is fixed by the sampling
-design: an absolute risk needs the outcome prevalence or the selection fractions, and
-this route takes neither. Each refusal carries the fields described in
+design. An absolute risk needs the outcome prevalence or the selection fractions. This call
+takes neither. Each refusal carries the fields described in
 [refusal codes and remedies](../reference/refusal-codes.md#structured-refusals-and-their-remedies).
 
 ## The Wald interval
 
 `level=` adds the Wald interval `beta_hat +- z / sqrt(I(beta_hat))` on the log scale,
-exponentiated for the odds ratio, with its calibration status. It rests on asymptotics (many
-informative sets, bounded set size, a fixed `beta`, independent sets), and its status
+exponentiated for the odds ratio, with its calibration status. It rests on asymptotics: many
+informative sets, bounded set size, a fixed `beta` and independent sets. Its status
 (`result.interval_calibration`) is `not_measured` unless a coverage record measures the
-construction. The interval is reported either way and is not part of the exported artifact.
+construction. The interval is reported either way. It is not part of the exported artifact.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).

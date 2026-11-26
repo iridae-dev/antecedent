@@ -1,8 +1,8 @@
 # Bring your own table
 
-Use this guide to run a first analysis on a table of your own: a CSV, a pandas frame, a mapping of column name to NumPy array, or an Arrow table. You need Antecedent installed ([installation](../start/installation.md)), a causal graph you can defend for the treatment and outcome, and a table whose analysis columns are numeric. If you have not run an analysis before, read [your first analysis](../start/first-analysis.md) first.
+Use this guide to run a first analysis on a table of your own: a CSV, a pandas frame, a mapping of column name to NumPy array, or an Arrow table. You need Antecedent installed ([installation](../start/installation.md)). You need a causal graph you can defend for the treatment and outcome. You need a table whose analysis columns are numeric. If you have not run an analysis before, read [your first analysis](../start/first-analysis.md) first.
 
-The recipe below writes a temporary CSV so that it runs without a shipped dataset; replace that path with your own file. Source: [`examples/python/your_data.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/your_data.py).
+The recipe below writes a temporary CSV so that it runs without a shipped dataset. Replace that path with your own file. Source: [`examples/python/your_data.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/your_data.py).
 
 ## Declare the meaning before estimating
 
@@ -17,13 +17,13 @@ The recipe below writes a temporary CSV so that it runs without a shipped datase
 
 <!-- example: examples/python/your_data.py -->
 
-The simulated effect is 2 and the script checks that the estimate lies within 0.3 of it. `study.inspect()` reports what preparation established before any fit; `result.answer.value` is the estimate and `result.value.calibration.status` says whether a measured coverage record supports its interval (see [read a result](../start/reading-a-result.md)). On your table the estimate is an effect only under the graph you declare; nothing in the recipe tests that graph. The recipe stops at a missing required value rather than silently filling or dropping it. For your data, choose and document an observation policy before preparing the analysis; see [the observation contract](../observation-contract.md).
+The simulated effect is 2. The script checks that the estimate lies within 0.3 of it. `study.inspect()` reports what preparation established before any fit. `result.answer.value` is the estimate. `result.value.calibration.status` says whether a measured coverage record supports its interval (see [read a result](../start/reading-a-result.md)). On your table the estimate is an effect only under the graph you declare. Nothing in the recipe tests that graph. The recipe stops at a missing required value. It does not fill or drop that value. For your data, choose and document an observation policy before preparing the analysis. See [the observation contract](../observation-contract.md).
 
-Use numeric columns for this recipe and inspect categorical encodings before generalizing it. See [Python workflow options](../python-options.md) for populations and data settings, and [preflight diagnostics](preflight-diagnostics.md) for fit-free checks.
+Use numeric columns for this recipe. Inspect categorical encodings before generalizing it. See [Python workflow options](../python-options.md) for populations and data settings, and [preflight diagnostics](preflight-diagnostics.md) for fit-free checks.
 
 ## Columns the analysis reads
 
-The table may hold more than the analysis uses. Strings, dates and identifier columns that the query, the graph and the estimator configuration do not name are never converted, so they cannot refuse the numeric ingest. Columns are chosen by name, never by position, and a pandas index is not exported as a column; a filtered frame with a non-default index analyses the same rows as a reset one.
+The table may hold more than the analysis uses. Strings, dates and identifier columns that the query, the graph and the estimator configuration do not name are never converted. They cannot refuse the numeric ingest. Columns are chosen by name. They are never chosen by position. A pandas index is not exported as a column. A filtered frame with a non-default index analyses the same rows as a reset one.
 
 - A `Dag` or an edge list binds columns by name: the analysis reads the graph's nodes and every column the query or estimator configuration names, in the table's order.
 - An `Admg`, `Pag` or `Cpdag` binds columns by name and order: the analysis reads exactly its nodes, in the graph's order, wherever they sit in the table.
@@ -31,23 +31,35 @@ The table may hold more than the analysis uses. Strings, dates and identifier co
 - Design queries (panel, staggered, synthetic-control and similar) read only the columns they name; their identifier columns keep their labels.
 - `ant.rebind(study, data=new_data)` reduces a new table to the prepared columns by name, so extra columns and a different column order are accepted.
 
-A required column that is missing, and a selected column name that occurs twice (in a pandas frame or an Arrow table), are refused with the column names. A duplicated name among columns the analysis does not read is ignored.
+A required column that is missing is refused with the column names. A selected column name that occurs twice, in a pandas frame or an Arrow table, is refused with the column names. A duplicated name among columns the analysis does not read is ignored.
 
 ## Files and large tables
 
-`analyze`, `prepare` and `ant.rebind(study, data=...)` also take a Parquet file, a directory of Parquet files, or an Arrow IPC file or stream, by path or as a handle from `antecedent.data.from_parquet` / `from_arrow_ipc`. Only the columns above are decoded, in bounded chunks charged to the admission pool; see [Parquet, Arrow IPC and large tables](large-tables.md). A path with an unrecognized extension that is not a directory is refused with `reason_code="invalid_argument"`.
+`analyze`, `prepare` and `ant.rebind(study, data=...)` also take a Parquet file, a directory of Parquet files, or an Arrow IPC file or stream. Pass a path, or a handle from `antecedent.data.from_parquet` or `from_arrow_ipc`. Only the columns above are decoded, in bounded chunks charged to the admission pool. See [Parquet, Arrow IPC and large tables](large-tables.md). A path with an unrecognized extension that is not a directory is refused with `reason_code="invalid_argument"`.
 
 ## Cluster identifiers
 
-`LinearAdjustment(se="cluster", cluster="site")` and `GlmAdjustment(se="cluster", cluster="site")` name the column of cluster labels instead of passing `cluster_ids`. The column may hold strings or whole numbers; a missing or empty label is refused. Labels are encoded in first-seen order over the rows of the table you pass, and the estimator keeps each label with its row: a row dropped for a missing treatment, outcome or adjustment value, or by a target-population predicate, takes its label with it. `cluster_ids`, by contrast, must already be aligned to the rows the estimator uses.
+Call `LinearAdjustment(se="cluster", cluster="site")` or `GlmAdjustment(se="cluster", cluster="site")`. That names the column of cluster labels. You do not pass `cluster_ids`. The column may hold strings or whole numbers. A missing or empty label is refused. Labels are encoded in first-seen order over the rows of the table you pass. The estimator keeps each label with its row. A row dropped for a missing treatment, outcome or adjustment value takes its label with it. A row dropped by a target-population predicate takes its label with it. `cluster_ids` must already be aligned to the rows the estimator uses.
 
-The prepared study freezes the labels and a digest of their row assignment, and the estimator identity digests them. `ant.rebind` refuses a table whose `site` column holds other labels or the same labels on other rows, before anything runs and with the previous result intact; call `ant.prepare(new_data, ...)` to declare new identifiers. The refusal carries a `receipt`: every row whose label moved (row, frozen label, supplied label), the labels a column of unique participants now repeats (a duplicate identifier on rebind), and the standing `recompute` of any claim computed under the frozen identifiers. `Aipw`, `FrontdoorLinearTwoStage` and, through `ClusterDml(cluster=...)`, `Aipw`, `DML` and `DRLearner` with `cluster_dml=` take named clusters the same way; other estimators take `cluster_ids` aligned to their analysis rows, or refuse a named cluster with the reason their variance does not read cluster labels.
+The prepared study freezes the labels and a digest of their row assignment. The estimator identity digests them. `ant.rebind` refuses a table whose `site` column holds other labels or the same labels on other rows. The refusal happens before anything runs. The previous result stays intact. Call `ant.prepare(new_data, ...)` to declare new identifiers. The refusal carries a `receipt`:
 
-`participant="pid"` on `prepare` / `analyze` names a column of participant labels (strings or whole numbers). `study.participants` returns the original label of every row of the prepared table; the labels are frozen with the study and `ant.rebind` refuses a table with other labels or another row count. `SampleSplit.participants(data, column)` returns the labels of the discovery and analysis rows by their original row ids and refuses a participant on both sides. Transport studies have no table rows and refuse `participant=`.
+- every row whose label moved (row, frozen label, supplied label)
+- the labels a column of unique participants now repeats (a duplicate identifier on rebind)
+- the standing `recompute` of any claim computed under the frozen identifiers
+
+These estimators take named clusters the same way:
+
+- `Aipw`
+- `FrontdoorLinearTwoStage`
+- `Aipw`, `DML` and `DRLearner` with `cluster_dml=`, through `ClusterDml(cluster=...)`
+
+Other estimators take `cluster_ids` aligned to their analysis rows. Or they refuse a named cluster with the reason their variance does not read cluster labels.
+
+`participant="pid"` on `prepare` or `analyze` names a column of participant labels (strings or whole numbers). `study.participants` returns the original label of every row of the prepared table. The labels are frozen with the study. `ant.rebind` refuses a table with other labels or another row count. `SampleSplit.participants(data, column)` returns the labels of the discovery and analysis rows by their original row ids. It refuses a participant on both sides. Transport studies have no table rows. They refuse `participant=`.
 
 ## Rebind or prepare again?
 
-`ant.rebind` keeps the prepared scientific question and retained design. For named experimental assignments and IDs, supply outcome-only updates when the design is unchanged. Changed assignments, IDs, row order, graph or query require the corresponding explicit new preparation. [Notebook to system](notebook-to-system.md) demonstrates both operations and a refused design change.
+`ant.rebind` keeps the prepared scientific question and retained design. For named experimental assignments and IDs, supply outcome-only updates when the design is unchanged. Changed assignments, IDs, row order, graph or query require a new preparation for that change. [Notebook to system](notebook-to-system.md) demonstrates both operations and a refused design change.
 
 ## Where next
 

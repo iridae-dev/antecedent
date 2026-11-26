@@ -1,16 +1,16 @@
 # Ask which actions reach a target
 
 `antecedent.inverse.inverse_outcome` asks the forward question backwards over a list
-you enumerate: *which of these interventions reach a target mean?* The answer is a point classification of each action you list; nothing outside the list is excluded. The goal is
+you enumerate: *which of these interventions reach a target mean?* The answer is a point classification of each action you list. Nothing outside the list is excluded. The goal is
 `E[Y^do(a)] >= threshold` (or `<=`) for the outcome, population and horizon of an
-existing, supported forward response route. The claim is `point_only`.
+existing, supported forward response. The claim is `point_only`.
 
 Use it when you already have a forward response curve (a `ResponseCurve` or a temporal
 dose-by-horizon surface) and want to know which of a finite list of candidate doses meets a
 target mean within a budget and your own constraints. For a probability or quantile target,
-use a source that supplies an outcome law ([below](#ask-a-probability-or-quantile-question-of-a-composed-model));
-for choosing among actions under a utility, use a [decision contract](../decisions.md). In the
-snippet, `data` holds the treatment `t` and outcome `y` and `edges` is the declared graph.
+use a source that supplies an outcome law ([below](#ask-a-probability-or-quantile-question-of-a-composed-model)).
+For choosing among actions under a utility, use a [decision contract](../decisions.md). In the
+snippet, `data` holds the treatment `t` and outcome `y`. `edges` is the declared graph.
 
 ```python
 import antecedent as ant
@@ -34,9 +34,9 @@ report.feasible, report.cheapest_feasible, report.enumerated
 report.action("dose_1.0").status, report.action("dose_1.0").margin
 ```
 
-The forward response is never re-estimated here. Run the existing route on a grid that
-contains every action's point; the inverse query classifies each action against what that
-route published. A forward result whose support status is `not_supported` cannot support
+The forward response is never re-estimated here. Run the existing call on a grid that
+contains every action's point. The inverse query classifies each action against what that
+call published. A forward result whose support status is `not_supported` cannot support
 this inverse claim and is refused.
 
 ## Three kinds of answer
@@ -45,12 +45,12 @@ this inverse claim and is refused.
    `feasible`, `infeasible`, `unsupported` or `unevaluated`, with its cost, constraints,
    forward estimate, margin to the threshold, support label and the forward response's
    assumptions.
-2. **Observational scenarios compatible with an outcome**. Closed:
+2. **Observational scenarios compatible with an outcome**. Closed.
    `ObservationalScenarios()` refuses with `inverse_functional_unsupported`
    (`inverse.observational_scenarios`). `P(X | Y)` or a nearest-feature change is not an
-   action, and nothing here recommends one.
+   action. Nothing here recommends one.
 3. **Missing evidence and study options**. Not computed here. Pass the study planner's plan
-   as `study_options=` and a sensitivity result as `sensitivity=`; they are attached as
+   as `study_options=`. Pass a sensitivity result as `sensitivity=`. They are attached as
    `report.missing_evidence` and `report.sensitivity`, separate views that never change
    the classification or the report identity. A study option is a hypothetical catalog delta
    (`evidence_status="hypothetical_catalog_delta"`), not observed evidence and not an
@@ -72,19 +72,19 @@ In order:
 | `feasible` / `infeasible` | `meets_target` / `misses_target` | `margin >= -tolerance` |
 
 `margin` is the signed distance to the goal side of the threshold (positive meets it).
-`tolerance` (default `1e-9`) is purely numerical: it makes an action exactly on the
+`tolerance` (default `1e-9`) is purely numerical. It makes an action exactly on the
 threshold feasible and flags it `within_tolerance`. It is not a statistical margin.
 `extrapolative` and `weak_overlap` support are reported on the action, not hidden and not
 blocking.
 
-On a static curve the forward route publishes one support label for the whole surface (the
-worst over the grid), so the report copies it to every point and says so
+On a static curve the forward call publishes one support label for the whole surface (the
+worst over the grid). The report copies it to every point and says so
 (`support_basis="surface_worst_case"`). One out-of-support dose then marks every action
-unsupported; split the grid and run the forward route per sub-grid to separate them. A
-temporal dose-by-horizon surface has a label per point (`support_basis="per_point"`), and
-actions on it are `(dose, horizon)` pairs.
-One inverse report uses a single horizon declared by the forward temporal query;
-split actions at different horizons into separate reports so their target means
+unsupported. Split the grid and run the forward call per sub-grid to separate them. A
+temporal dose-by-horizon surface has a label per point (`support_basis="per_point"`).
+Actions on it are `(dose, horizon)` pairs.
+One inverse report uses a single horizon declared by the forward temporal query.
+Split actions at different horizons into separate reports so their target means
 retain one time coordinate.
 
 ## What "feasible" means
@@ -95,23 +95,23 @@ retain one time coordinate.
   list is unresolved, never excluded. "Necessary" and "sufficient" claims about actions
   hold only for this list and the forward response's declared assumptions
   (`report.assumptions`).
-* **Point-based.** Classification uses the forward point estimate. If the forward route
+* **Point-based.** Classification uses the forward point estimate. If the forward call
   published a pointwise or simultaneous interval, each feasible action also carries
-  `robustly_feasible`: `True` when that interval, used exactly as published, lies on the
-  feasible side. It adds no coverage claim: the interval keeps its own level and
-  `confidence`/`credible` reading (`report.interval`), a pointwise band gives no joint
-  statement over the grid, and picking an action by its estimate is not adjusted for.
+  `robustly_feasible`. It is `True` when that interval, used exactly as published, lies on the
+  feasible side. It adds no coverage claim. The interval keeps its own level and
+  `confidence`/`credible` reading (`report.interval`). A pointwise band gives no joint
+  statement over the grid. Picking an action by its estimate is not adjusted for.
   `None` means no interval, or an action that is not point-feasible. There is no flag for
-  an interval-free route, never a `False`.
+  an interval-free call, never a `False`.
   When a temporal result publishes both pointwise intervals and a separate simultaneous
   band, the inverse report uses the simultaneous band and labels its scope accordingly.
 * **Identity.** `report.identity` is an order-invariant digest of the forward response as
   published (including its claim, program and data-snapshot IDs when present), the action grid,
   the target, budget and tolerance. `report.verify()` recomputes and compares the
-  public classification against those stored inputs; it does not authenticate the
+  public classification against those stored inputs. It does not authenticate the
   forward model or protect against replacement of all stored inputs. Reordering
   actions or forward rows changes neither
-  results nor identity; changing an assumption, a cost, a constraint or a support label does.
+  results nor identity. Changing an assumption, a cost, a constraint or a support label does.
 
 ## Typed refusals
 
@@ -134,7 +134,7 @@ The codes and their general remedies are in [refusal codes](../reference/refusal
 
 Inverse queries and decisions can also consume a composed mechanism, a cohort-mean
 contrast and a transported response. Each source states what it cannot supply
-before the engine runs, and its identity travels into the result.
+before the call runs. Its identity travels into the result.
 
 | Source | Rust entry | Supplies |
 | --- | --- | --- |
@@ -143,56 +143,61 @@ before the engine runs, and its identity travels into the result.
 | Transported response | `transported_forward_source`, `decision_transported_source::evaluate_transported_decision` | A point, or a transported law |
 | Observational scenarios | `inverse_observational_scenarios::evaluate_observational_scenarios` | `P(S)`, `P(S and E)`, `P(E | S)`, `P(S | E)`, lift |
 
-Python entries: `antecedent.inverse_sources` (`derive_composed_source`,
-`cohort_forward_source`, `transported_forward_source`, `ForwardSource.evaluate`,
-`.seal`, `.seal_per_action`, `observational_scenarios`),
-`antecedent.transported_response` (`TransportedResponse`,
-`TransportDeclaration`, `evaluate_transported`) and
-`Contract.evaluate_transported`.
+In Python, the source calls are in `antecedent.inverse_sources`:
+
+- `derive_composed_source`
+- `cohort_forward_source`
+- `transported_forward_source`
+- `ForwardSource.evaluate`
+- `.seal`
+- `.seal_per_action`
+- `observational_scenarios`
+
+`antecedent.transported_response` holds `TransportedResponse` and `TransportDeclaration`. Call `evaluate_transported`. Call `Contract.evaluate_transported` to decide.
 
 ### Point-only means point-only
 
 A mean supplies the expectation of an affine utility and nothing else. A
 quantile, a probability, a nonlinear utility, a hard constraint, regret or an
 outcome-law input needs a law and is refused. No source supplies an interval
-region: composition variance, a cohort model's standard error and the transport
-step do not supply an interval-region claim. Parameter variance stays diagnostic.
-A Gaussian intervention outcome law retains residual outcome variance and can
+region. Composition variance does not supply an interval-region claim. A cohort model's standard error does not. The transport
+step does not. Parameter variance stays diagnostic.
+A Gaussian intervention outcome law retains residual outcome variance. It can
 answer compatible probability, quantile and nonlinear expectation requests.
 
 ### Transported acceptance
 
 A transported response is labelled at best extrapolative. A consumer that does
 not accept a transported input refuses it with one code, `decision_contract_unsatisfied`,
-whichever source carried it: an inverse query reading a cohort, composed or
-response source under the native-target-only policy
-(`inverse_forward_source.transported_not_accepted`), and a decision under the
-default support policy, which admits only supported coordinates
-(`transported_decision.transported_not_accepted`). Accepting is explicit: the
+whichever source carried it. An inverse query reading a cohort, composed or
+response source under the native-target-only policy refuses with
+`inverse_forward_source.transported_not_accepted`. A decision under the
+default support policy, which admits only supported coordinates, refuses with
+`transported_decision.transported_not_accepted`. Accepting is explicit. The
 inverse query is told to accept transported inputs
-(`accepts_transported=True` in Python), and a decision uses a policy that names
+(`accepts_transported=True` in Python). A decision uses a policy that names
 the weaker status. The receipt (source populations, target, diagram identities,
 assumptions) travels into the result and the sealed artifact. A support rule of
 the contract stronger than the label refuses `transport_support_failure`
-(`transported_decision.support_rule_unmet`); declared exclusions remove actions
+(`transported_decision.support_rule_unmet`). Declared exclusions remove actions
 before the comparison and are part of the bound decision's identity.
 
 A carried composition is a transported claim. A composed model whose
 mechanisms were admitted into the target (carried from another population)
 reaches an inverse query only with the receipt that carried it and an explicit
-accept: its origin is labelled extrapolative with the receipt's support, never
-supported. A composition with no such receipt, or a receipt of another route,
+accept. Its origin is labelled extrapolative with the receipt's support, never
+supported. A composition with no such receipt is refused. A receipt of another call
 is refused.
 
 ### Typed sources and exported decisions
 
 A transported point enters a decision through the typed constructors, which
 take populations and identities from the producing result. The generic
-`declared_point` / `declared_law` constructors are for a declared transport and
-refuse the typed routes (policy, shifted cohort, synthesis); every typed route
-requires digest transport identities, so a label typed by hand cannot stand in
+`declared_point` and `declared_law` constructors are for a declared transport.
+They refuse the typed calls (policy, shifted cohort, synthesis). Every typed call
+requires digest transport identities. A label typed by hand cannot stand in
 for one. A decision on a transported point can be exported and consumed
-(`transported_decision_v1`): the consumer rebuilds the contract, validates the
+(`transported_decision_v1`). The consumer rebuilds the contract, validates the
 receipt, re-evaluates, and requires the identity and the action values to
 match. A law is not exportable (`law_not_exportable`).
 
@@ -200,15 +205,15 @@ match. A law is not exportable (`law_not_exportable`).
 
 `ForwardOrigin` records the source kind, identity, representation, support
 label, assumed mechanisms or the whole receipt, and a digest of the claim handed
-to the engine. `seal_on_source` binds it into the inverse-query artifact, and a
-consumer re-derives the digest and refuses an origin that does not describe the
-embedded claim. Replay checks the numbers against the origin; it does not
-re-execute the producing route.
+to the call. `seal_on_source` binds it into the inverse-query artifact. A
+consumer derives the digest again and refuses an origin that does not describe the
+embedded claim. Replay checks the numbers against the origin. It does not
+run the producing call again.
 
 ### Observational scenarios
 
 `P(X in scenario | Y event)` from an aligned observational law over declared
-scenario cells. It is associational: it ranks no action and recommends none.
+scenario cells. It is associational. It ranks no action and recommends none.
 The mass of the event no scenario explains is reported, not renormalized away.
 
 ### What is refused, and the remedy
@@ -230,7 +235,7 @@ Implementation limits are listed in [supported input bounds](../supported-bounds
 ### Ask a probability or quantile question of a composed model
 
 Use this when you have a composed linear-Gaussian model and the question is about
-the spread of the outcome, not only its mean: which actions give an outcome of at
+the spread of the outcome, not only its mean. Which actions give an outcome of at
 least 9 with probability at least one half, or keep the 10th percentile of the
 outcome above a floor? An expected value cannot answer either one.
 
@@ -251,23 +256,23 @@ In Python:
 What the result claims: for each action, the probability or quantile of the
 outcome under the intervention, given the mechanisms you wrote down. An outcome law
 also answers affine and quadratic expected utilities and variances in closed form.
-Sealed artifacts store the Gaussian parameters and the origin of the claim, so a
+Sealed artifacts store the Gaussian parameters and the origin of the claim. A
 replay recomputes the same numbers and the same identity. Refitting a mechanism
-makes a new source with a new claim digest; a sealed answer is never refreshed in
+makes a new source with a new claim digest. A sealed answer is never refreshed in
 place.
 
-What it does not claim: the mechanisms are assumptions you declared, and the answer
+What it does not claim: the mechanisms are assumptions you declared. The answer
 and its replay are conditional on them. The outcome law has noise but no parameter
-uncertainty, so its standard error is unavailable and it supplies no interval
-region. Other utility forms, and joint outcome inputs across actions, are refused;
-no coupling between interventions is invented. A mean coordinate stays a point
-estimate, and a mean contrast (`MeanContrast`) needs a declared joint law of the
+uncertainty. Its standard error is unavailable. It supplies no interval
+region. Other utility forms are refused. Joint outcome inputs across actions are refused.
+No coupling between interventions is invented. A mean coordinate stays a point
+estimate. A mean contrast (`MeanContrast`) needs a declared joint law of the
 parameters. A composition carried from another population still needs its transport
 receipt and an explicit accept.
 
-From Rust, the entry is `composed_forward_source`.
+In Rust, call `composed_forward_source`.
 
-Refusals for this route are in the table above: a quantile or probability on a mean
+Refusals for this call are in the table above. A quantile or probability on a mean
 coordinate is refused with `decision_contract_unsatisfied`
-(`inverse_forward_source.composed_law_not_materialized`), and the remedy is to ask
+(`inverse_forward_source.composed_law_not_materialized`). The remedy is to ask
 for the `outcome` coordinate.

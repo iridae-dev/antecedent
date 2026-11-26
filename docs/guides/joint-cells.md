@@ -1,8 +1,20 @@
 # Estimate joint binary interventions on cross-sectional data
 
-Estimate the outcome under each joint setting of several binary treatments, such as `do(T_1 = a_1, .., T_k = a_k)` for up to {{bound:estimate.factorized_joint_cells.max_components}} components, and contrast the settings (for example the interaction of two treatments). You declare how a derived treatment is built from its source columns (`antecedent.derived.DerivedTreatment`, Rust `DerivedTreatmentDeclaration`), and a factorized-propensity doubly robust estimator evaluates the cells (`factorized_joint_cells`, Rust `fit_factorized_joint_cells`). The claim is `point_only`: you get point estimates for the cells and contrasts, with no interval. Caller-supplied learners for the same cells go through `analyze_joint_cells` (the compiled `JointCellsLearnerFit` program). `fit_factorized_joint_cells_with_factories` is the deprecated direct form of that route. For coordinated programs over time, see [fit and compare coordinated intervention programs](joint-intervention-responses.md).
+You have several binary treatments. You want the mean outcome under each joint setting of them, and a contrast between settings, such as their interaction. A joint setting can use up to {{bound:estimate.factorized_joint_cells.max_components}} treatments.
 
-The route limits bound what is admitted and do not imply measured coverage for every admitted configuration. The fit requires at least {{bound:estimate.factorized_joint_cells.runtime_min_folds}} folds; its fold plan separately limits folds by the row count and its {{bound:estimate.factorized_joint_cells.runtime_fold_index_capacity}}-value index representation. It accepts at most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings.
+Declare how the joint treatment is built from its columns with `DerivedTreatment`. Then call `factorized_joint_cells`. You get a point for each cell and each contrast. There is no interval. The result's claim is `point_only`.
+
+In Rust, the declaration is `DerivedTreatmentDeclaration` and the fit is `fit_factorized_joint_cells`.
+
+If the models of the outcome and the propensities are yours, call `analyze_joint_cells` instead. In Rust, that fit is `Study::compile_joint_cells_learners`.
+
+If your code still calls `fit_factorized_joint_cells_with_factories`, switch to `analyze_joint_cells`. The old call warns.
+
+A coordinated program of treatments over time is a different question. See [fit and compare coordinated intervention programs](joint-intervention-responses.md).
+
+The limits below are what the call accepts. They are not a statement that every accepted call has a measured interval.
+
+The fit needs at least {{bound:estimate.factorized_joint_cells.runtime_min_folds}} folds. How many folds you may use also depends on the number of rows, and on an index that holds {{bound:estimate.factorized_joint_cells.runtime_fold_index_capacity}} values. At most {{bound:estimate.factorized_joint_cells.max_orderings}} orderings are accepted.
 
 ```python
 from antecedent.derived import DerivedTreatment, SourceColumn, factorized_joint_cells
@@ -24,7 +36,13 @@ for cell in result.cells:           # one entry per cell; an unsupported cell sa
     print(cell.levels, cell.status, cell.estimate)
 ```
 
-Each cell estimate is the mean potential outcome `mu_c = E[Y(do(T = c))]` over the rows, where `c` is a cell code (here bit 0 is `a` and bit 1 is `b`, so cell 3 is `a = 1, b = 1`), identified by adjustment for the declared set `Z` (here `age`). The identifying premises are yours: `Z` blocks every back-door path from the components to `Y`, and every cell has positive probability given `Z`. `cell_minus_control:3` is `mu_3 - mu_0`, and `interaction` is `mu_3 - mu_1 - mu_2 + mu_0`, the change in the effect of `a` when `b` is set to 1. `result.contrasts` holds the contrasts, `result.sensitivity` the [ordering sensitivity](#checks) and `result.claim` is `"point_only"`. A cell that cannot be estimated keeps a `refusal` naming why ([per-cell support](#read-per-cell-support-and-refusals)).
+Each cell estimate is the mean potential outcome `mu_c = E[Y(do(T = c))]` over the rows. `c` is a cell code. In the example, bit 0 is `a` and bit 1 is `b`, so cell 3 is `a = 1, b = 1`. The estimate is identified by adjusting for the set you declared, `Z`. Here that set is `age`.
+
+Those premises are yours. `Z` has to block every back-door path from the treatments to `Y`, and every cell has to have positive probability given `Z`. The call does not check either one.
+
+`cell_minus_control:3` is `mu_3 - mu_0`. `interaction` is `mu_3 - mu_1 - mu_2 + mu_0`: how the effect of `a` changes when `b` is set to 1.
+
+Read the contrasts on `result.contrasts` and the ordering check on `result.sensitivity` ([ordering sensitivity](#checks)). `result.claim` is `"point_only"`. A cell that cannot be estimated keeps a `refusal` that says why ([per-cell support](#read-per-cell-support-and-refusals)).
 
 ## The derived-treatment declaration
 

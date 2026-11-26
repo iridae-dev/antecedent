@@ -3,13 +3,14 @@
 Use this page to read what a table looks like before you fit anything: missing or
 non-finite cells, constant and near-constant columns, heavy tails, low numeric resolution,
 duplicate rows and a nearly empty treatment arm. `ant.prepare(...)` collects a bounded,
-fit-free `DataDiagnosticsReport` automatically and keeps it on `study.data_diagnostics`;
-`ant.diagnose_data(...)` produces the same report for a table with no prepared study.
+fit-free `DataDiagnosticsReport` automatically. It keeps the report on
+`study.data_diagnostics`. Call `ant.diagnose_data(...)` for the same report on a table with
+no prepared study.
 
 The report describes suspicious measurements under the prepared question's roles
-(treatment, outcome, adjustment). It never drops rows, changes an adjustment set, chooses
-an estimator, or changes identification or support. A finding needs human interpretation:
-there is no p-value and no automatic rejection of a scientific model.
+(treatment, outcome, adjustment). It never drops rows. It never changes an adjustment set,
+chooses an estimator, or changes identification or support. A finding needs human
+interpretation. There is no p-value. There is no automatic rejection of a scientific model.
 
 ```python
 import numpy as np
@@ -34,7 +35,7 @@ the measurement came from a row sample rather than the full table.
 a `status` of `evaluated`, `not_evaluated` (with a `reason`, such as a disabled suite or too
 few observed values) or `not_applicable`. Missing values and infinities count
 as non-finite. Undefined moments stay absent (`None`). Severities are `review`,
-`informational` and `blocking`; `blocking` is reserved
+`informational` and `blocking`. `blocking` is reserved
 for preflight execution requirements, such as a rank-deficient
 regression design. Collecting that finding never itself refuses preparation.
 
@@ -66,10 +67,10 @@ standalone = ant.diagnose_data(rows, roles={"t": "treatment", "y": "outcome"},
 
 Standalone calls return a report. Prepared calls return an `Outcome`, following
 `diagnose()` and `diagnose_fit()`. `suite=` accepts a `DataDiagnostics` declaration.
-`prepare_many(..., data_diagnostics=...)` accepts the same setting and exposes a
-tuple of retained member reports; shared table profiles are computed once per
-compatible policy during batch preparation. Explicit batch diagnostics return an
-`Outcome` containing a tuple of reports.
+`prepare_many(..., data_diagnostics=...)` accepts the same setting. It exposes a tuple of
+retained member reports. Shared table profiles are computed once per compatible policy
+during batch preparation. Explicit batch diagnostics return an `Outcome` containing a tuple
+of reports.
 
 | Check | Default review rule |
 | --- | --- |
@@ -95,47 +96,46 @@ normality test is implied.
 
 Basic counts scan all rows. Shape, sample distinctness, missingness patterns and
 duplicate rows inspect at most 4,096 evenly spaced row indices by default. This
-selection is deterministic across seeds and threads and makes no random-sampling
+selection is deterministic across seeds and threads. It makes no random-sampling
 or representativeness guarantee. Every relevant check and finding records whether
 it used a sample. Sample duplicate counts and cardinality are never extrapolated
 to the full table. Duplicate equality normalizes signed zero and uses one missing
-token for missing or non-finite cells, preserving typed integer and categorical
-equality. It covers all retained inspected columns; it
-does not establish that two records represent the same real-world observation.
+token for missing or non-finite cells. It preserves typed integer and categorical
+equality. It covers all retained inspected columns. It does not establish that two
+records represent the same real-world observation.
 
 Preflight relationship checks run automatically only on complete designs with
 at most 4,096 rows and 64 adjustment-design columns. A wider or taller design is
-explicitly not evaluated; a sample rank is never passed off as full-table rank.
+explicitly not evaluated. A sample rank is never passed off as full-table rank.
 Use `DataDiagnostics(max_sample_rows=None)` in an explicit call to request
-full-table profiling and remove these bounded preflight limits. Memory admission
+full-table profiling. That also removes these bounded preflight limits. Memory admission
 and cancellation still apply. Explicit calls raise operational errors when the
 requested work cannot be admitted. Automatic diagnostic resource admission
-failures produce unavailable coverage instead of refusing the causal analysis.
+failures produce unavailable coverage. They do not refuse the causal analysis.
 
-Temporal/event inputs are profiled as retained table values, with no assertion
+Temporal and event inputs are profiled as retained table values. The report asserts nothing
 about timestamp regularity, independent observations, or temporal model validity.
-Panel and multi-environment preparations retain an explicit not-evaluated report;
-individual tables can be inspected with the standalone API.
+Panel and multi-environment preparations retain an explicit not-evaluated report.
+Inspect individual tables with the standalone call.
 
 ## Evidence and lifecycle
 
-`report.to_json()` exports the native report, including its version, content
-snapshot identity, diagnostic context, policy, measurements and coverage. Its
-canonical identity binds these values. No wall-clock timestamp or execution seed
-enters the report identity. Diagnostic settings do not enter scientific program
-or claim identities.
+`report.to_json()` exports the report, including its version, content snapshot identity,
+diagnostic context, policy, measurements and coverage. Its canonical identity binds these
+values. No wall-clock timestamp or execution seed enters the report identity. Diagnostic
+settings do not enter the analysis identity or the claim identity.
 
 Rebinding data and refreshing a prepared study rebuild diagnostic evidence for the
 new retained snapshot. Reports already read from the original study remain
 unchanged. A failed refresh publishes neither new data nor a replacement report.
-The standalone Rust API is `antecedent::diagnose_data`; prepared Rust handles expose
+In Rust, the standalone call is `antecedent::diagnose_data`. Prepared Rust handles expose
 `data_diagnostics()` and `diagnose_data(&policy, &ctx)`. Configure collection with
-`StudyBuilder::data_diagnostics(Some(policy))` or disable it with `None`; batch
-builders expose the same setting.
+`StudyBuilder::data_diagnostics(Some(policy))`. Disable it with `None`. Batch builders
+expose the same setting.
 
 ## Related checks
 
 [Preflight diagnostics](preflight-diagnostics.md) keep their own execution
 requirements and relationship checks. [Staleness](staleness.md) compares snapshots
-under its own policy. Fitted diagnostics and scientific refuters remain explicit;
-this suite fits no model and runs neither of them.
+under its own policy. Fitted diagnostics and scientific refuters remain explicit.
+This suite fits no model. It runs neither of them.

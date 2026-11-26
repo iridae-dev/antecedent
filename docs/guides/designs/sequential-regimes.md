@@ -1,12 +1,12 @@
 # Evaluate a treatment regime over several periods
 
-Estimate the mean reward you would get if every subject followed a treatment regime over several periods: a fixed schedule ("treat in period 2 only") or a history-adaptive rule ("treat if the last reward was low"). You supply the conditional predictions and the assignment and censoring probabilities from your own models; Antecedent combines them into a regime value and reports the positivity diagnostics.
+Estimate the mean reward you would get if every subject followed a treatment regime over several periods. A regime can be a fixed schedule ("treat in period 2 only"). It can be a history-adaptive rule ("treat if the last reward was low"). You supply the conditional predictions from your own models. You supply the assignment and censoring probabilities from your own models. Antecedent combines them into a regime value. It reports the positivity diagnostics.
 
-The target is the value of regime `g`: the mean outcome had every subject followed it. For the g-formula that is the expected total reward `E[sum_t Y_t(g)]`, where `Y_t(g)` is the period-`t` reward under the regime; for the doubly robust estimator it is the expected terminal outcome `E[Y(g)]`. The value is identified when, at every period, the regime's action is unconfounded given the observed history (sequential exchangeability), has positive probability given that history (sequential positivity), and each subject's observed reward equals the potential reward under the actions it actually received (consistency).
+The target is the value of regime `g`: the mean outcome had every subject followed it. For the g-formula that is the expected total reward `E[sum_t Y_t(g)]`, where `Y_t(g)` is the period-`t` reward under the regime. For the doubly robust estimator it is the expected terminal outcome `E[Y(g)]`. The value is identified when, at every period, three conditions hold. The regime's action is unconfounded given the observed history (sequential exchangeability). The action has positive probability given that history (sequential positivity). Each subject's observed reward equals the potential reward under the actions it actually received (consistency).
 
-Two estimators are available in `antecedent.regimes`. The sequential g-formula sums period-specific conditional reward predictions. The sequential doubly robust estimator adds a backward-recursive correction that uses assignment and censoring probabilities as well. Both read subject-level matrices with one row per unique subject and one column per period.
+Two estimators are available in `antecedent.regimes`. The sequential g-formula sums period-specific conditional reward predictions. The sequential doubly robust estimator adds a backward-recursive correction. That correction uses assignment and censoring probabilities as well. Both read subject-level matrices with one row per unique subject and one column per period.
 
-If you want Antecedent to fit the treatment and outcome models, see [Sequentially randomized designs and regime survival](../temporal-designs.md): its observational regime contrast fits them and puts the fits inside the interval.
+If you want Antecedent to fit the treatment and outcome models, see [Sequentially randomized designs and regime survival](../temporal-designs.md). Its observational regime contrast fits them. It puts the fits inside the interval.
 
 Runnable example: [`examples/python/sequential_regimes.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/sequential_regimes.py).
 
@@ -26,9 +26,9 @@ value = evaluate_sequential_gformula(
 )
 ```
 
-Each prediction must already be the conditional mean reward under the regime's action for that history, including the continuation you want counted downstream. The estimate sums each subject's period predictions and averages those sums.
+Each prediction must already be the conditional mean reward under the regime's action for that history. Include the continuation you want counted downstream. The estimate sums each subject's period predictions. It averages those sums.
 
-Treatment probabilities and censoring survival are checked against the positivity floor (`minimum_probability`, default 0.01), and the minimum regime-action and censoring probabilities are returned as diagnostics. They are not multiplied into the plug-in value. You are responsible for predictions that handle the censoring or dropout model.
+Treatment probabilities and censoring survival are checked against the positivity floor (`minimum_probability`, default 0.01). The minimum regime-action and censoring probabilities are returned as diagnostics. They are not multiplied into the plug-in value. You are responsible for predictions that handle the censoring or dropout model.
 
 ## Sequential doubly robust value
 
@@ -50,14 +50,14 @@ value = evaluate_sequential_doubly_robust(
 )
 ```
 
-You supply terminal outcomes, observation history, sequential treatment and censoring probabilities, and one cross-fitted conditional prediction `Q` per subject and period. For each subject the recursion starts at the terminal outcome and runs backward:
+You supply terminal outcomes. You supply the observation history. You supply sequential treatment and censoring probabilities. You supply one cross-fitted conditional prediction `Q` per subject and period. For each subject the recursion starts at the terminal outcome and runs backward:
 
 ```text
 V[t] = Q[t] + I(observed through t and A[t] == regime[t])
                  * (V[t+1] - Q[t]) / (P(A[t] == regime[t]) * G[t])
 ```
 
-The reported value is the subject mean of `V[0]`. `G[t]` is the conditional probability of remaining observed from the previous period through period `t`, not cumulative survival. Once a subject is censored, `observation_history` stays false at later periods, and a missing terminal outcome is ignored when the final observation flag is false. The augmentation divides by the assignment and censoring probabilities, so probabilities near zero inflate variance.
+The reported value is the subject mean of `V[0]`. `G[t]` is the conditional probability of remaining observed from the previous period through period `t`. It is not cumulative survival. Once a subject is censored, `observation_history` stays false at later periods. A missing terminal outcome is ignored when the final observation flag is false. The augmentation divides by the assignment and censoring probabilities. Probabilities near zero inflate variance.
 
 ## What is checked and what you own
 
@@ -67,13 +67,13 @@ The reported value is the subject mean of `V[0]`. `G[t]` is the conditional prob
 | Each prediction's fold matches its subject's fold | Sequential exchangeability, sequential positivity and consistency |
 | Treatment and censoring probabilities meet the positivity floor | That the supplied predictions and probabilities are valid for the regime and the censoring model |
 
-Both results are point-only: they carry no standard error or interval, have no row in the support matrix, and train no nuisance model.
+Both results are point-only. They carry no standard error or interval. They have no row in the support matrix. They train no nuisance model.
 
-Malformed or inconsistent inputs (a probability under the floor, a prediction fold that does not match its subject's fold, a non-monotone observation history, misaligned shapes) raise `CausalValueError` naming the input; the runnable example shows two of them.
+Malformed or inconsistent inputs raise `CausalValueError` naming the input. A probability under the floor does. A prediction fold that does not match its subject's fold does. A non-monotone observation history does. Misaligned shapes do. The runnable example shows two of them.
 
 ## Next step
 
-If you need an interval, move to the observational regime contrast in [temporal designs](../temporal-designs.md), whose unit bootstrap refits the nuisance models in every replicate. See [Uncertainty](../../concepts/uncertainty.md) for how to read the calibration status on that interval.
+If you need an interval, move to the observational regime contrast in [temporal designs](../temporal-designs.md). Its unit bootstrap refits the nuisance models in every replicate. See [Uncertainty](../../concepts/uncertainty.md) for how to read the calibration status on that interval.
 
 ## Related
 
@@ -82,18 +82,22 @@ If you need an interval, move to the observational regime contrast in [temporal 
 
 ### Empirical calibration of longitudinal intervals
 
-The nominal interval and its measured status are separate. In Rust use
+The nominal interval and its measured status are separate. In Rust, call
 `LongitudinalRegimeQuery.calibration_design` with `LongitudinalCalibrationDesign`.
-In Python use the corresponding `calibration_design` keyword on
-`LongitudinalRegime`. Leave it unset for other data-generating laws. A named
-design states an assumption about the study's law. The compiler checks the
-execution settings, including folds, draw count and schedule coordinates. It
-cannot prove a population's outcome distribution from a finite sample.
+In Python, pass `calibration_design` on `LongitudinalRegime`. Leave it unset for
+other data-generating laws. A named design states an assumption about the study's
+law. The call checks the execution settings. Those settings include folds, draw
+count, and schedule coordinates. It cannot prove a population's outcome
+distribution from a finite sample.
 
-- `four_period_sequential_dr` measures four fair-coin decisions, conditional retention 0.95, the fixed excluded-fold Q vector in the calibration fixture, and an endpoint of two plus the number of realized treatments plus independent standard Gaussian noise.
-- `fitted_q_internal_crossfit` and `fitted_q_external_split` measure the two-decision fair-coin regression with an independent fair-coin baseline, terminal mean (2+0.5A_0+0.75A_1+X), and standard Gaussian noise. The first refits within its internal folds. The second uses an independent training fold and averages predictions over the evaluation fold.
-- `fixed_schedule_family` measures the three contrasts to never treat under two fair-coin decisions and conditional Gaussian endpoint means ((1,2,3,4)) with standard deviation one.
-- `learned_schedule_unique_optimum` and `learned_schedule_tied_optima` measure the held-out procedure under the same fair-coin design with respective means ((1,2,3,5)) and ((1,2,5,5)). Each outcome law has its own selected-value and all-optima receipt.
+- `four_period_sequential_dr` measures four fair-coin decisions and conditional retention 0.95. It measures the fixed excluded-fold Q vector in the calibration fixture. The endpoint is two plus the number of realized treatments plus independent standard Gaussian noise.
+- `fitted_q_internal_crossfit` measures the two-decision fair-coin regression with an independent fair-coin baseline. The terminal mean is (2+0.5A_0+0.75A_1+X), with standard Gaussian noise. It refits within its internal folds.
+- `fitted_q_external_split` measures the same regression. It uses an independent training fold. It averages predictions over the evaluation fold.
+- `fixed_schedule_family` measures the three contrasts to never treat under two fair-coin decisions. The conditional Gaussian endpoint means are ((1,2,3,4)), with standard deviation one.
+- `learned_schedule_unique_optimum` measures the held-out procedure under the same fair-coin design. The means are ((1,2,3,5)).
+- `learned_schedule_tied_optima` measures that procedure with means ((1,2,5,5)).
+
+Each of those outcome laws has its own selected-value receipt and its own all-optima receipt.
 
 A matching current receipt applies only within its measured sample scope.
 Existing query artifacts without a named law remain readable with nominal

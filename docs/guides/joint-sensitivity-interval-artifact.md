@@ -10,47 +10,47 @@ seal it as bytes, and have someone else check it without trusting you.
 
 Use it when you report a sensitivity range from counted data and a reader, a reviewer or a later
 job needs to confirm the interval. The artifact holds the declared box, the seed, the replicate
-count and the level. A second party replays all of it from the bytes and gets either the same
+count and the level. A second party replays all of it from the bytes. They get either the same
 numbers or a refusal.
 
-If your source law is an exact supplied law with no counts, there is no sampling uncertainty and
-the interval refuses with `exact_supplied_law_no_sampling_uncertainty`.
+If your source law is an exact supplied law with no counts, there is no sampling uncertainty.
+The interval refuses with `exact_supplied_law_no_sampling_uncertainty`.
 
 ## Walk-through
 
-The example below builds a small counted transport problem, runs the baseline, declares a
+The example below builds a small counted transport problem. It runs the baseline, declares a
 deviation box, exports the interval, and replays it with nothing but the bytes.
 
 <!-- example: examples/python/joint_sensitivity_interval.py -->
 
 The steps are:
 
-1. Prepare the stage and run `prepared.estimate()`. Export needs an executed baseline and
-   refuses without one.
+1. Prepare the stage and run `prepared.estimate()`. Export needs an executed baseline.
+   It refuses without one.
 2. Declare the box with `JointDeviation`, for example `{"outcome_kernel": 0.2,
    "shared_parent_marginal": 0.3}`.
 3. Call `export_joint_sensitivity_interval(prepared, box, seed=..., replicates=..., level=...)`.
    It runs the endpoint bootstrap once with that seed and returns a
    `JointSensitivityIntervalArtifact`. The same inputs and seed give the same bytes.
 4. Call `artifact.replay()`, or `consume_joint_sensitivity_interval(bytes)`. Replay reruns the
-   baseline, the exact range and the seeded bootstrap, and compares every number and count with
+   baseline, the exact range and the seeded bootstrap. It compares every number and count with
    the stored ones. It returns the result only when they agree. `ant.load(artifact)` reads the
    same bytes through the same check.
 
-From Rust, `JointSensitivityIntervalArtifact::checked` builds the artifact from a checked
-baseline and `consume` replays it into a `JointIntervalConsumption`.
+In Rust, `JointSensitivityIntervalArtifact::checked` builds the artifact from a checked
+baseline. `consume` replays it into a `JointIntervalConsumption`.
 
 ## What the replayed result holds
 
 - The declared box, the seed and the stream version, and the kernel policy used.
 - The level, the endpoint interval and the zero-deviation percentile interval.
 - The requested, successful and failed replicate counts, with each replicate's baseline and range
-  endpoints. A replicate that failed stays visible as a failure; it is never replaced.
+  endpoints. A replicate that failed stays visible as a failure. It is never replaced.
 - Two calibration fields. `recorded_calibration` is what the producer saw when it exported, kept
   as history. `calibration` is derived during the replay from the replayed construction and the
   coverage records that exist now. Its `status` is one of `calibrated`, `outside_measured_scope`,
   `measured_below_nominal` or `not_measured`. Editing the recorded status cannot raise the
-  current one, and fewer than 199 replicates or another level is computed and annotated, not
+  current one. Fewer than 199 replicates or another level is computed and annotated, not
   refused.
 
 ## What it claims
@@ -62,8 +62,8 @@ It does not claim:
 
 - a confidence interval for the whole sensitivity set;
 - that the declared box contains the true deviation;
-- that the baseline laws are right. The content digest binds the premises and numbers, and
-  replay shows they follow from those premises. Neither authenticates the supplied laws, and a
+- that the baseline laws are right. The content digest binds the premises and numbers.
+  Replay shows they follow from those premises. Neither authenticates the supplied laws. A
   producer who changes the laws consistently produces bytes that replay.
 
 Coverage records measure only the named zero-box and positive-box designs. Outside those, the
@@ -85,6 +85,6 @@ sensitivity models is not covered.
   refuses with `route_not_supported` and `joint_sensitivity.consumer_limits`. Raise a ceiling
   only if you accept the cost of that replay.
 
-The assumption range itself keeps its own [range artifact](joint-mechanism-sensitivity.md#artifact-version-3),
-which carries no sampling interval and refuses an interval in that format. This interval
+The assumption range itself keeps its own [range artifact](joint-mechanism-sensitivity.md#artifact-version-3).
+That artifact carries no sampling interval and refuses an interval in that format. This interval
 artifact is a separate wire frame, `joint_sensitivity_interval_v1`.

@@ -1,8 +1,8 @@
 # Check a table before estimating: preflight, rank drops and cost counts
 
-Use this page when a table might make a nuisance fit refuse (duplicate or linearly
-dependent adjustment columns, an empty treatment arm, a propensity model that separates) and
-you want to know what is wrong before you estimate, or how much work a prepared plan will
+Use this page when a table might make a nuisance fit refuse. That covers duplicate or linearly
+dependent adjustment columns, an empty treatment arm, or a propensity model that separates.
+You want to know what is wrong before you estimate, or how much work a prepared plan will
 do. You need either a prepared study (`ant.prepare(...)`) or, for a table that cannot be
 prepared, the treatment, outcome and adjustment column names of a binary contrast.
 
@@ -25,11 +25,11 @@ study.diagnose_fit()                         # an Outcome holding propensity-fit
 study.estimate_cost()                        # counts of fits, folds, replicates and bytes
 ```
 
-The diagnostics and the cost counts add no inferential claim; they are a diagnostic and
-planning layer over existing estimators. The one entry point that estimates after a rank
-drop (`estimate_with_rank_drop`) does change what is computed, so its claim is stated
-separately and is `point_only`. Fit-free and fit-requiring checks are kept in separate
-types so one is never read as the other.
+The diagnostics and the cost counts add no inferential claim. They describe a prepared
+estimator and the work it will do. The one entry point that estimates after a rank drop
+(`estimate_with_rank_drop`) does change what is computed. Its claim is stated separately and
+is `point_only`. Fit-free and fit-requiring checks are kept in separate types. One is never
+read as the other.
 
 | Check | Rust | Python | Fits a model? |
 | --- | --- | --- | --- |
@@ -39,7 +39,7 @@ types so one is never read as the other.
 | Estimate after a rank drop | `estimate_with_rank_drop` | `antecedent.preflight.estimate_with_rank_drop(...)` | Yes (the estimator) |
 | Cost counts and, with a benchmark file, seconds | `estimate_cost` | `prepared.estimate_cost()` | No |
 
-`prepared.preflight()` (Python) inspects the structure of the plan only; `diagnose` reads the data.
+`prepared.preflight()` (Python) inspects the structure of the plan only. `diagnose` reads the data.
 
 For automatic bounded quality profiling and structured advisory findings, see
 [data quality diagnostics](data-diagnostics.md). The preflight calls below keep their own
@@ -60,15 +60,15 @@ execution-specific interpretation.
 
 Only a numerically rank-deficient design (`design_rank_deficient`) and an unpopulated arm
 (`arm_not_populated`) are **blocking**, because regression-based nuisance fits refuse them.
-In Rust, `report.refusal()` turns the first blocking finding into the typed refusal below.
-In Python, read `report.is_blocked` and `report.blocking`; the refusal itself is raised when
-you prepare or estimate. Both codes are listed in the
+In Rust, call `report.refusal()`. It turns the first blocking finding into the typed refusal
+below. In Python, read `report.is_blocked` and `report.blocking`. The refusal itself is
+raised when you prepare or estimate. Both codes are listed in the
 [refusal code reference](../reference/refusal-codes.md#other-registered-refusal-codes).
 
 ### Review flags
 
 Raised for human review, with the measure and threshold they were compared with. They are
-predictive facts about this table, not causal statements, and **never change the
+predictive facts about this table. They are not causal statements. They **never change the
 adjustment set or the identification verdict**:
 
 | Code | Meaning |
@@ -80,36 +80,37 @@ adjustment set or the identification verdict**:
 | `adjustment_duplicates_query_variable`, `duplicate_adjustment_columns`, `duplicate_query_columns` | exact aliases, by role |
 
 Exact duplicates and deterministic dependencies (rank) are deliberately separate from
-high correlation (review flags): the first is blocking arithmetic, the second is a
+high correlation (review flags). The first is blocking arithmetic. The second is a
 judgement for a person.
 
 ## Fit-requiring diagnostics
 
-`diagnose_fit` fits a diagnostic propensity model (arm membership on `[1 | Z]`, **no**
-separation ridge, so saturation is reported rather than hidden) and returns the score
-min/max, nearest-rank quantiles (0.01 ... 0.99) and the Kish effective sample size of the
+`diagnose_fit` fits a diagnostic propensity model. That is arm membership on `[1 | Z]`. There
+is **no** separation ridge, so saturation is reported rather than hidden. You get the score
+min and max, nearest-rank quantiles (0.01 ... 0.99) and the Kish effective sample size of the
 inverse-propensity weights in each arm. A fit that fails before any score exists comes
-back as `status == "absent"` with the reason (and the numerical rank when that was the
-cause); no fitted quantity is reconstructed. A fit that produced scores but is separated,
+back as `status == "absent"` with the reason, and the numerical rank when that was the
+cause. No fitted quantity is reconstructed. A fit that produced scores but is separated,
 unconverged or saturated is returned with those flags set (`fit.separated`,
 `fit.converged`, `fit.boundary_saturated`). On a prepared study, `diagnose_fit()` returns an
-`Outcome`: a scientific refusal is held on `outcome.refusal`, and the diagnostics are
-`outcome.value`. The scores describe this diagnostic model on this table; they are not the
+`Outcome`. A scientific refusal is held on `outcome.refusal`. The diagnostics are
+`outcome.value`. The scores describe this diagnostic model on this table. They are not the
 cross-fitted scores an estimator uses.
 
 ## Structured refusal fields
 
-`RefusalFields` (Rust `CausalError::refusal_fields()`, Python `error.refusal_fields`, `None`
-on errors that carry none) holds the failing treatment, cell or claim (`subject`), `stage`,
-`reason`, per-arm ESS, propensity extrema and quantiles, cluster count and minimum, numerical
-rank and design column count, implicated columns, a `remedy`, and, for a refused GLM fit, its
+Read `RefusalFields` on the error. In Rust, call `CausalError::refusal_fields()`. In Python,
+read `error.refusal_fields`. It is `None` on errors that carry none. The fields hold the
+failing treatment, cell or claim (`subject`), `stage` and `reason`. They hold per-arm ESS,
+propensity extrema and quantiles, cluster count and minimum, numerical rank and design
+column count, implicated columns and a `remedy`. For a refused GLM fit they hold its
 iterations, nearest fitted-probability margin and the count of rows within `1e-8` of 0 or 1.
-Every entry is absent (`None`, or an empty list) unless the failing step measured it; a fit
+Every entry is absent (`None`, or an empty list) unless the failing step measured it. A fit
 that failed before it produced scores never has a propensity range reconstructed for it.
 
-Fields ride beside the refusal and never change it: the reason code, message and exception
-class stay those of the refusal. The rendered text of a
-refusal never includes the fields.
+The fields sit beside the refusal. They never change it. The reason code, message and
+exception class stay those of the refusal. The rendered text of a refusal never includes the
+fields.
 
 Sites that populate the fields:
 
@@ -127,72 +128,64 @@ Sites that populate the fields:
 | Penalized-propensity fallback refusal | that of the failed fit | that of the failed fit | those of the failed fit |
 | Builder: configured estimator plus an explicit `bootstrap_replicates` or `overlap_policy` (also reached through batch entry points) | `study_build` | `set_on_builder_and_configured_estimator` | none; the setting is the `subject` |
 
-How they are attached, so a caller reads the right thing: a stats-layer refusal stays an
-`EstimationError::Stats` (its text, reason-code absence and Python class
-`CausalEstimateError` are unchanged) and its fields are derived from the record it carries;
-an estimator refusal that must keep its variant is `EstimationError::UnsupportedWithFields` or
-`OverlapWithFields`; a facade refusal that must keep its variant (the retarget support refusal,
-the builder conflict, and a stats refusal that crossed `prepare`) is wrapped in
-`CausalError::Diagnosed`, which renders and classifies as the refusal it wraps (match it
-through `CausalError::peeled()`). A batch member reports its fields as
-`MemberFailure::fields` (Python `RetargetMember.refusal_fields`).
+Read the variant that carries the fields:
 
-The stats layer knows neither the treatment nor column names, so the facade adds them, with
-the plan label preflight uses as `subject` (`effect(t -> y)`, `cell(a, b -> y)`). Where each
-refusal crosses into the facade:
+- A numeric refusal stays an `EstimationError::Stats`. Its text, reason-code absence and Python class `CausalEstimateError` are unchanged. Its fields are derived from the record it carries.
+- An estimator refusal that must keep its variant is `EstimationError::UnsupportedWithFields` or `OverlapWithFields`.
+- A refusal that must keep its variant is wrapped in `CausalError::Diagnosed`. That covers the retarget support refusal, the builder conflict, and an `EstimationError::Stats` refusal that crossed `prepare`. It renders and classifies as the refusal it wraps. Match it through `CausalError::peeled()`.
+- A batch member reports its fields as `MemberFailure::fields`. In Python, read `RetargetMember.refusal_fields`.
 
-- the prepare-time score-table fit of a cross-fitted AIPW or cell-AIPW plan;
-- every estimate of a prepared plan (`PreparedStudy::estimate`, which is where regression,
-  GLM, IV and matching design fits run), against the table that estimate read;
-- a one-shot `Study::run`, which has no frozen plan: after a stats refusal it prepares the
-  study to obtain the identification, and names the refusal against that plan (the label
-  alone when preparation cannot supply one);
-- the retarget refusals (weighted overlap and the `depends_on` refusals), which take the plan
-  label as `subject`; a batch member's subject stays the claim or contrast name.
+The numbers arrive without the treatment or the column names. The refusal you catch adds them, with the plan label as `subject` (`effect(t -> y)`, `cell(a, b -> y)`). The fields are attached on these calls:
+
+- the prepare-time score-table fit of a cross-fitted AIPW or cell-AIPW plan
+- every estimate of a prepared plan (`PreparedStudy::estimate`), which is where regression, GLM, IV and matching design fits run, against the table that estimate read
+- a one-shot `Study::run`, which has no frozen plan. After an `EstimationError::Stats` refusal it prepares the study to obtain the identification, and names the refusal against that plan. You get the label alone when preparation cannot supply one.
+- the retarget refusals (weighted overlap and the `depends_on` refusals), which take the plan label as `subject`. A batch member's subject stays the claim or contrast name.
 
 For a rank refusal, `implicated_columns` is the columns the fit-free preflight scan names as
 dependent on that table's `[1 | Z]` design. A refusal on a fold's subset may be a smaller rank
-than the table's, and which of two identical columns is named depends on the scan
+than the table's. Which of two identical columns is named depends on the scan
 (adjustment-set) order. If the scan finds none, preflight cannot run, or the plan is outside
-preflight's cells (static tabular average effects and discrete joint cells), the entries stay
-absent. Stats refusals raised on routes the facade does not reach through those entry points
-(for example temporal or transport estimators) carry the stage and numbers but no subject.
+preflight's analyses (static tabular average effects and discrete joint cells), the entries stay
+absent. `EstimationError::Stats` refusals on analyses those calls do not reach, for example
+temporal or transport estimators, carry the stage and numbers but no subject.
 
 What the fields do not claim: the arm sizes and quantiles of a refused retarget are those the
-overlap gate compared (Kish sizes under the target weights, raw held-out propensities of rows
-the target weights), not a verdict on identification. A refusal raised before any score exists
-has them absent.
+overlap gate compared. Those are Kish sizes under the target weights, and raw held-out
+propensities of rows the target weights. They are not a verdict on identification. A refusal
+raised before any score exists has them absent.
 
 ## Opt-in rank-deficiency drop
 
-`plan_rank_drop` declares a deterministic column priority first (`ColumnPriority::AdjustmentOrder`, Python `priority=None`, or an
-explicit list covering every adjustment column once, highest priority first) and returns a
-plan: the dropped columns, the exact relation that makes each redundant, the kept
-adjustment set, and a canonical design identity (`adjustment=[a,c];dropped=[b];priority=[a,b,c]`).
-A dropped column is a numerically exact linear function of the kept ones on this table, so
-it carries no information they do not.
+`plan_rank_drop` declares a deterministic column priority first. In Rust, that is
+`ColumnPriority::AdjustmentOrder`. In Python, `priority=None`, or an explicit list covering
+every adjustment column once, highest priority first. You get a plan: the dropped columns,
+the exact relation that makes each redundant, the kept adjustment set, and a canonical design
+identity (`adjustment=[a,c];dropped=[b];priority=[a,b,c]`). A dropped column is a numerically
+exact linear function of the kept ones on this table. It carries no information they do not.
 
 It refuses with `rank_drop_not_supported` (nothing dropped) when the priority does not cover
 the adjustment set, when a dependent column is a treatment, outcome or effect modifier the
 query needs, or when an adjustment column is an exact copy of a treatment or the outcome.
 
-**The plan is a record, not an execution.** No estimator is re-run on the reduced design,
-and a study prepared with the original adjustment set keeps it. Executing a plan is the
+**The plan is a record, not an execution.** No estimator is re-run on the reduced design.
+A study prepared with the original adjustment set keeps it. Executing a plan is the
 separate, explicit entry point below.
 
 ## Estimating after a rank drop
 
-`estimate_with_rank_drop(input, policy, estimator, ctx)` (Rust) and
-`antecedent.preflight.estimate_with_rank_drop(data, treatment=, outcome=, adjustment=,
-estimator=, priority=)` (Python) re-run a supported estimator on the design with the plan's
-dependent columns removed. It works on a declared binary-contrast design, the same input
-as `preflight_design`, because a rank-deficient table cannot be prepared (the cross-fitted
-AIPW fits its scores at prepare time, and a prepared handle with the original set keeps it).
+In Rust, call `estimate_with_rank_drop(input, policy, estimator, ctx)`. In Python, call
+`antecedent.preflight.estimate_with_rank_drop` with `data`, `treatment`, `outcome`,
+`adjustment`, `estimator` and `priority`. Either re-runs a supported estimator on the design
+with the plan's dependent columns removed. It works on a declared binary-contrast design, the
+same input as `preflight_design`. A rank-deficient table cannot be prepared. The cross-fitted
+AIPW fits its scores at prepare time. A prepared handle with the original set keeps it.
 
-It returns the **point estimate** together with the recorded drop (`plan`: dropped columns,
-the exact relation behind each, the declared priority, the original and reduced adjustment
-sets and the design identity), the numerical `span_check` and the estimator's invariance
-label. It never drops silently and it refuses, with nothing estimated, when:
+You get the **point estimate** together with the recorded drop. `plan` holds the dropped
+columns, the exact relation behind each, the declared priority, the original and reduced
+adjustment sets and the design identity. You also get the numerical `span_check` and the
+estimator's invariance label. It never drops silently. It refuses, with nothing estimated,
+when:
 
 - the plan refuses (`rank_drop_not_supported`: the priority does not cover the set, a
   dependent column is a protected effect modifier, or an adjustment column is an exact
@@ -208,17 +201,17 @@ label. It never drops silently and it refuses, with nothing estimated, when:
   `rank_drop_estimate.propensity_separates`).
 
 **Why a span-preserving drop cannot change the fitted nuisances.** A dropped column is an
-exact linear combination of the intercept and the retained columns, so the reduced and the
+exact linear combination of the intercept and the retained columns. The reduced and the
 original design have the same column space `V`. Ordinary least squares depends on the design
-only through `V`: the fitted values are the projection of the outcome onto `V`, and the
+only through `V`. The fitted values are the projection of the outcome onto `V`. The
 treatment coefficient is the same linear functional of them. An unpenalized logistic maximum
-likelihood depends on the design only through the set of linear predictors `{X b} = V`, so
-its fitted probabilities coincide. Only the coefficients of the original design are not
-identified, and the estimand never reads them. The reduced adjustment set is the original
-set's projections, so no new identification claim is made: the returned sets are the
-declared design's, not a graph search's. (The estimator itself is run through the ordinary
-study path on the reduced table with a declared confounder graph over the retained columns;
-that graph only carries the retained set into the estimator.)
+likelihood depends on the design only through the set of linear predictors `{X b} = V`. Its
+fitted probabilities coincide. Only the coefficients of the original design are not
+identified. The estimand never reads them. The reduced adjustment set is the original set's
+projections. No new identification claim is made. The returned sets are the declared
+design's. They are not a graph search's. The estimate runs on the reduced table. You declare
+a confounder graph over the retained columns. That graph only carries the retained set into
+the estimator.
 
 Supported estimators and their invariance label:
 
@@ -227,9 +220,9 @@ Supported estimators and their invariance label:
 | `linear.adjustment.ate` | `exact` | OLS; the reduced coefficient equals the OLS on the hand-built reduced design |
 | `aipw` (default, unpenalized logistic) | `unpenalized_logistic_no_separation` | conditional: a fold-level separation that a ridge would regularize is not detected, only the full reduced-design fit is checked |
 
-Penalized, lasso, matching and stratification nuisances are refused: a penalty depends on
-the parametrization, not only the column space. The result is point only: the bootstrap is
-forced to zero and no standard error or interval is returned or requestable.
+Penalized, lasso, matching and stratification nuisances are refused. A penalty depends on
+the parametrization, not only the column space. The result is point only. The bootstrap is
+forced to zero. No standard error or interval is returned or requestable.
 
 The repository tests check that the reduced estimate equals the estimate on a hand-built
 reduced design bit for bit, and a NumPy / normal-equations OLS to 1e-8; that a different

@@ -1,12 +1,12 @@
 # Save, hand off and accept results
 
-A result you export can be stored, sent to another service and read there without access to the data, the study or the process that produced it. The consumer gets the recorded claim with its identification, support and uncertainty statements. It does not get a live study: loading restores what was recorded and recomputes nothing, a replay recomputes the published numbers only when asked for, and a different answer means preparing a new study.
+A result you export can be stored, sent to another service and read there without access to the data, the study or the process that produced it. The consumer gets the recorded claim with its identification, support and uncertainty statements. It does not get a live study. Loading restores what was recorded and recomputes nothing. A replay recomputes the published numbers only when asked for. A different answer means preparing a new study.
 
 This guide follows one result through four steps: produce, store, consume and accept.
 
 ## What an artifact is
 
-An artifact is a checksummed container of bytes. Loading it never runs a callback, never imports anything the bytes name and never recreates the study that produced it. A consumer that needs a different answer prepares a new study on its own data; the loaded result stays fixed.
+An artifact is a checksummed container of bytes. Loading it never runs a callback, never imports anything the bytes name and never recreates the study that produced it. A consumer that needs a different answer prepares a new study on its own data. The loaded result stays fixed.
 
 An artifact has two parts that travel separately:
 
@@ -19,7 +19,7 @@ An expectation read out of the received container cannot independently bind that
 
 ## Produce and store
 
-`result.export()` returns an immutable `ExportedArtifact`. Its `bytes(artifact)` (or `.data`) are the container, `.kind` names the scientific family, `.expectation` is the identity to retain, and `.metadata` holds family-specific records.
+`result.export()` returns an immutable `ExportedArtifact`. `bytes(artifact)` (or `.data`) are the container. `.kind` names the scientific family. `.expectation` is the identity to retain. `.metadata` holds family-specific records.
 
 ```python
 artifact = result.export()
@@ -27,11 +27,11 @@ path.write_bytes(bytes(artifact))
 expected = artifact.expectation  # store this where the bytes cannot rewrite it
 ```
 
-Persistence does not take file paths implicitly: write the bytes yourself and read them back with `Path.read_bytes`. A result whose route cannot be reproduced from its recorded contract is not exported silently; the call refuses and names why. A refusal can also be exported, so a host can store "this question was declined, for this reason" under the same identity rules.
+Persistence does not take file paths implicitly. Write the bytes yourself and read them back with `Path.read_bytes`. A result whose call cannot be reproduced from its recorded contract is not exported silently. The call refuses and names why. A refusal can also be exported. A host can store "this question was declined, for this reason" under the same identity rules.
 
 ## Consume and accept
 
-`ant.load(bytes, expected=expected)` rebuilds the recorded result, checks that the artifact is intact and binds it to the identity you retained. It recomputes nothing. It returns an `Outcome` whose `value` is the loaded result.
+`ant.load(bytes, expected=expected)` rebuilds the recorded result. It checks that the artifact is intact and binds it to the identity you retained. It recomputes nothing. It returns an `Outcome` whose `value` is the loaded result.
 
 ```python
 loaded = ant.load(path.read_bytes(), expected=expected)
@@ -48,9 +48,9 @@ Read the acceptance, not only the absence of an error. It reports these separate
 | `answer_available` | The recorded answer is kept (the artifact is intact). |
 | `resumable` | A live session can be resumed from it. |
 
-The acceptance of other artifact families also reports `replayable`: whether the recorded program can be re-executed from what the artifact holds.
+The acceptance of other artifact families also reports `replayable`: whether the recorded plan can be re-executed from what the artifact holds.
 
-Receiving bytes, understanding their meaning, recomputing what they publish and being able to execute them are different states. A host that accepts a claim requires `identity_bound` and `answer_available`. An artifact whose family is recognised but not consumed can be inspected and forwarded with `export()`, and scientific consumption stays unavailable. A malformed or altered container raises `CausalSerializationError`, and a different expected identity raises as well: these are errors, not refusals returned in the `Outcome`.
+Receiving bytes, understanding their meaning, recomputing what they publish and being able to execute them are different states. A host that accepts a claim requires `identity_bound` and `answer_available`. An artifact whose family is recognised but not consumed can be inspected and forwarded with `export()`. Scientific consumption stays unavailable. A malformed or altered container raises `CausalSerializationError`. A different expected identity raises as well. These are errors, not refusals returned in the `Outcome`.
 
 `ant.artifacts.inspect(bytes)` reads the container's metadata. It is inspection, not acceptance of a scientific claim.
 
@@ -64,15 +64,15 @@ replayed = loaded.replay()  # the same, on an existing load
 replayed.acceptance.status  # "replayed" when every published part agrees
 ```
 
-A replay recomputes the published numbers from the evidence the artifact carries and never changes the recorded answer. When it does not reach `replayed`, two lists say why: `acceptance.not_replayable` names parts whose evidence the artifact does not carry, which describes the artifact's contents and does not restrict using the loaded answer, and `acceptance.mismatches` names parts that were recomputed and differ. Other artifact families recompute what they publish whenever they load, so `replay=` does not change them.
+A replay recomputes the published numbers from the evidence the artifact carries and never changes the recorded answer. When it does not reach `replayed`, two lists say why. `acceptance.not_replayable` names parts whose evidence the artifact does not carry. That list describes the artifact's contents and does not restrict using the loaded answer. `acceptance.mismatches` names parts that were recomputed and differ. Other artifact families recompute what they publish whenever they load. `replay=` does not change them.
 
 ### Method provenance travels with the bytes
 
-An exported `analysis_result` artifact also carries an `analysis_result.method_provenance` section: the provenance records behind the identifier and estimator the result executed, each with its sources, documented deviations from the published method, review scope limits, record id and digest. It is descriptive and takes no part in acceptance or replay. A Python consumer reads it from the loaded result with `loaded.method_provenance` or `loaded.citations()`; Rust consumers decode it with the functions [the artifact format](../../artifacts.md#method-provenance-section) names. The section is read only when it names the identifier and estimator the contract declares. See [cite the methods behind a study](../citing-a-study.md).
+An exported `analysis_result` artifact also carries an `analysis_result.method_provenance` section. That section holds the provenance records behind the identifier and estimator the result executed, each with its sources, documented deviations from the published method, review scope limits, record id and digest. It is descriptive and takes no part in acceptance or replay. A Python consumer reads it from the loaded result with `loaded.method_provenance` or `loaded.citations()`. In Rust, decode it with the functions [the artifact format](../../artifacts.md#method-provenance-section) names. The section is read only when it names the identifier and estimator the contract declares. See [cite the methods behind a study](../citing-a-study.md).
 
 ## Across a process boundary
 
-The producer writes the bytes and the identity it expects; the consumer reads both and also tries the two requests it must refuse. Run them as separate processes:
+The producer writes the bytes and the identity it expects. The consumer reads both and also tries the two requests it must refuse. Run them as separate processes:
 
 ```bash
 python examples/python/artifact_producer.py --output /tmp/antecedent-handoff
@@ -89,11 +89,11 @@ In production, place `expected.json` in your trusted job registry or another sep
 
 <!-- example: examples/python/artifact_consumer.py -->
 
-The consumer checks a valid load and deliberately tries a different expected identity and bytes that are not an artifact. Both must raise. Identity binding, replay and resumability are reported separately, because accepting a result does not recreate its live study.
+The consumer checks a valid load and deliberately tries a different expected identity and bytes that are not an artifact. Both must raise. Identity binding, replay and resumability are reported separately. Accepting a result does not recreate its live study.
 
 ## Ship a fitted effect model as a small runtime object
 
-When a service needs to evaluate a fitted effect model without the fitting code, export it with `antecedent.compact_export`. A `CompactExport` stores a coefficient vector, its full covariance, a finite basis (intercept, linear, power and one-hot terms of named quantities), the declared support of every input and a mask of query regions the model must refuse, all under one identity. It evaluates a point prediction `f(x) = b' phi(x)` inside the declared support and outside the mask, and nothing else.
+When a service needs to evaluate a fitted effect model without the fitting code, export it with `antecedent.compact_export`. A `CompactExport` stores a coefficient vector, its full covariance, a finite basis (intercept, linear, power and one-hot terms of named quantities), the declared support of every input and a mask of query regions the model must refuse, all under one identity. It evaluates a point prediction `f(x) = b' phi(x)` inside the declared support and outside the mask. It evaluates nothing else.
 
 ```python
 from antecedent.compact_export import CompactExport, Intercept, Linear, Numeric, Power, Quantity
@@ -113,15 +113,15 @@ consumer = CompactExport.consume(bytes(export.export()), expected_identity=kept)
 consumer.evaluate({"x": 2.0}) == at_two
 ```
 
-The only uncertainty it reports is the model-based `sqrt(phi' V phi)`, with calibration not_measured: it carries no extrapolation or misspecification uncertainty and is never an interval. A query outside the support, with a missing, unknown or non-finite quantity, or inside a mask region raises `CompactExportRefusal` with `invalid_argument` and a detail such as `compact_export.out_of_support` or `compact_export.masked_region`; `evaluate_many` returns refusals in place instead of raising. A consumer that passes a different `expected_identity` is refused with `compact_export.identity_unexpected`. Categorical inputs use `Categorical` and `OneHot` terms, and a `MaskRegion` names a region to refuse.
+The only uncertainty it reports is the model-based `sqrt(phi' V phi)`, with calibration not_measured. It carries no extrapolation or misspecification uncertainty and is never an interval. A query outside the support, with a missing, unknown or non-finite quantity, or inside a mask region raises `CompactExportRefusal` with `invalid_argument` and a detail such as `compact_export.out_of_support` or `compact_export.masked_region`. `evaluate_many` returns refusals in place instead of raising. A consumer that passes a different `expected_identity` is refused with `compact_export.identity_unexpected`. Categorical inputs use `Categorical` and `OneHot` terms. A `MaskRegion` names a region to refuse.
 
 ## Keep a result current
 
-A stored artifact describes the data it was computed on. Whether new data make it stale is a question your application asks, not a timer in the library. Compare the new data with the stored result using the [staleness diagnostics](../staleness.md) and act on the typed recommendation: reuse, refresh, re-identify or refuse. To produce a refreshed result, `ant.rebind(study, data=...)` and `ant.estimate` run the same program on the new data as a new branch, and the earlier artifact remains valid for the data it describes. [Retained refresh and state publication](../retained-refresh.md) covers the full cycle.
+A stored artifact describes the data it was computed on. Whether new data make it stale is a question your application asks, not a timer in the library. Compare the new data with the stored result using the [staleness diagnostics](../staleness.md) and act on the typed recommendation: reuse, refresh, re-identify or refuse. To produce a refreshed result, `ant.rebind(study, data=...)` and `ant.estimate` run the same plan on the new data as a new branch. The earlier artifact remains valid for the data it describes. [Retained refresh and state publication](../retained-refresh.md) covers the full cycle.
 
 ## Where the format is specified
 
-The container layout, section compression, the versioned durable format and the artifact kinds for each result family are in [artifact format and compatibility](../../artifacts.md). Artifacts written by an older supported format load and migrate; one that needs a newer reader than yours is refused rather than guessed. Record the library version a service was validated with, and treat a format change as a migration. [Embed Antecedent in an application or agent](embedding.md) lists the three version numbers a host should track.
+The container layout, section compression, the versioned durable format and the artifact kinds for each result family are in [artifact format and compatibility](../../artifacts.md). Artifacts written by an older supported format load and migrate. One that needs a newer reader than yours is refused rather than guessed. Record the library version a service was validated with. Treat a format change as a migration. [Embed Antecedent in an application or agent](embedding.md) lists the three version numbers a host should track.
 
 To carry a result into a decision or composition, an artifact is checked against the consumer's [interface contract](scientific-interfaces.md) before anything runs.
 
@@ -129,11 +129,11 @@ To carry a result into a decision or composition, an artifact is checked against
 
 A native OLS/HC3 compact effect model binds the ordered training columns, its feature
 declarations, and the learner used to fit it. In Python, pass the model and its retained
-semantic identity to `composition_bundle.refit_compact_model` along with the original
-`outcome`, `treatment`, and ordered `features`, and set `learner="ols_hc3_treatment_by_basis"`.
+semantic identity to `composition_bundle.refit_compact_model`. Also pass the original
+`outcome`, `treatment`, and ordered `features`. Set `learner="ols_hc3_treatment_by_basis"`.
 For a bundle, pass the bundle's independently retained identity and the embedded model's
-`model_node` instead. The consumer checks the supplied training snapshot and learner, reruns
-the fit, and verifies the entire compact model before returning it. The compact artifact
+`model_node` instead. The consumer checks the supplied training snapshot and learner. It reruns
+the fit. It verifies the entire compact model before returning it. The compact artifact
 contains a training digest and keeps the training rows outside the artifact.
 
 Older or caller-declared compact exports can still predict within their retained feature

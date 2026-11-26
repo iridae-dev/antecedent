@@ -1,24 +1,24 @@
 # Estimate with a penalized propensity (ridge or lasso AIPW)
 
 Use a penalized propensity when the plain logistic propensity of a cross-fitted AIPW
-average effect fails or is unstable (separation, near-collinear adjustment covariates, many
-covariates), and you want that choice declared in advance rather than applied as a rescue.
-`Aipw(propensity_penalty=PropensityPenalty(...))` (Rust:
-`AipwAte::with_propensity_nuisance(PropensityNuisance::ridge_logistic(..))` or
-`::lasso_with(..)`) fits the binary propensity with an explicit ridge-logistic or
-lasso-logistic penalty. It is a *declared nuisance choice*, distinct from
-`GlmOptions.ridge_on_separation` (a rescue that estimation paths refuse to keep because a
-rescued fit is not an MLE).
+average effect fails or is unstable. That covers separation, near-collinear adjustment
+covariates and many covariates. Declare the penalty before you estimate. Do not apply it as
+a rescue after a failure. Call `Aipw(propensity_penalty=PropensityPenalty(...))`. In Rust,
+call `AipwAte::with_propensity_nuisance` with `PropensityNuisance::ridge_logistic` or
+`PropensityNuisance::lasso_with`. The call fits the binary propensity with an explicit
+ridge-logistic or lasso-logistic penalty. It is a *declared nuisance choice*.
+`GlmOptions.ridge_on_separation` is a rescue. Estimation refuses to keep a rescued fit,
+because a rescued fit is not an MLE.
 
 The estimand is unchanged: the average treatment effect `E[Y(1) - Y(0)]` of a binary
 treatment over all observed rows, under the identification assumptions of the AIPW average
-effect for your graph. The route publishes the cross-fitted point estimate, the score
-table, and two interval constructions whose assumptions are stated below: the cross-fitted
-influence-function SE of the out-of-fold scores, and (with `bootstrap > 0`) a refit bootstrap
-that repeats penalty selection and every nuisance fit on each resample. A declared
-GLM-to-penalized fallback runs the same route when the plain GLM propensity fit fails. Each
-interval reports its calibration status: `calibrated` only at a coordinate a ridge or lasso
-coverage record measures (see [Calibration](#calibration)).
+effect for your graph. You get the cross-fitted point estimate and the score table. You also
+get two interval constructions whose assumptions are stated below. One is the cross-fitted
+influence-function SE of the out-of-fold scores. With `bootstrap > 0`, the other is a refit
+bootstrap that repeats penalty selection and every nuisance fit on each resample. A declared
+GLM-to-penalized fallback runs the same call when the plain GLM propensity fit fails. Each
+interval reports its calibration status. It is `calibrated` only at a coordinate a ridge or
+lasso coverage record measures (see [Calibration](#calibration)).
 
 The snippet assumes `data`, `graph` and an `ant.AverageEffect` `query` as in
 [your first analysis](../start/first-analysis.md).
@@ -46,49 +46,18 @@ result.value.estimate.penalized_bootstrap    # per-replicate penalties, replicat
 ```
 
 The shown grids are the configurations the 95% calibration design measures (see
-[Calibration](#calibration)). The default tuning grids are useful for estimation but are a
-different configuration, so their intervals report `outside_measured_scope`.
+[Calibration](#calibration)). The default tuning grids are useful for estimation. They are a
+different configuration. Their intervals report `outside_measured_scope`.
 
-The constructor limits bound what is admitted and do not imply measured coverage for every admitted configuration. The constructor requires a nonempty grid of finite positive penalties and at least {{bound:estimate.penalized_propensity_aipw.runtime_min_inner_folds}} folds. It accepts at most 65,536 input penalties per declaration, counting duplicates before deduplication. This is a conservative 256 MiB configuration policy (4,096 bytes per entry), not a shared reservation or an execution-context admission; it does not charge downstream copies or concurrent declarations. The fold plan separately limits folds by the training-row count and its {{bound:estimate.penalized_propensity_aipw.runtime_fold_index_capacity}}-value index representation. Calibrated intervals remain qualified by the exact recorded configuration.
+The constructor limits bound what is admitted. They do not imply measured coverage for every admitted configuration. The constructor requires a nonempty grid of finite positive penalties and at least {{bound:estimate.penalized_propensity_aipw.runtime_min_inner_folds}} folds. It accepts at most 65,536 input penalties per declaration, counting duplicates before deduplication. This is a conservative 256 MiB configuration policy (4,096 bytes per entry). It is not a shared reservation or an execution-context admission. It does not charge downstream copies or concurrent declarations. The fold plan separately limits folds by the training-row count and its {{bound:estimate.penalized_propensity_aipw.runtime_fold_index_capacity}}-value index representation. Calibrated intervals remain qualified by the exact recorded configuration.
 
 ## What is fixed
 
-- **Scope.** The untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other
-  functionals, other target populations and trimmed fits refit full-sample nuisances and
-  are refused: `route_not_supported` (`penalized_propensity.scope`) for ridge, and
-  `selection_inference_not_supported` (`penalized_propensity.selection_not_supported`) for a lasso,
-  because a full-sample lasso would select its support on the rows it scores.
-- **Folds.** Five folds from the established seeded, arm-stratified, unit-level plan
-  (`fold_seed` is the analysis seed); duplicated rows of one unit share a fold. Fold `k`'s
-  rows are scored by nuisances fit on the other folds only.
-- **Penalty rule (tuning on training rows only).** On fold `k`'s *training rows*, the
-  penalty is the member of a fixed grid with the smallest `inner_folds`-fold (default 5)
-  cross-validated log loss, using a seeded, arm-stratified, unit-level inner plan that
-  depends on the seed, the fold index and the training units. Defaults: ridge `0.01, 0.1, 1,
-  10, 100, 1000`; lasso `0.5, 1, 2, 5, 10, 20, 50, 100` (sum-scale). Ties go to the larger
-  penalty; a grid value whose inner fit fails is not a candidate, and if none is usable the
-  fold fails with the last failure recorded. The evaluation fold never informs its own
-  penalty, nor, for the lasso, its own selected support, so both replay bit for bit from the
-  seed and are recorded on the result (`learner_provenance`, one entry per fold) and on the
-  score table's provenance (`selected_lambda=`, and for a lasso `selected_support=`, per
-  fold).
-- **Scale.** The objective is `-loglik + (lambda / 2) * ||beta||^2` (ridge) or
-  `-loglik + lambda * ||beta||_1` (lasso) on a sum log likelihood, intercept unpenalized,
-  each non-intercept column standardized by the training rows' mean and standard deviation (a
-  column with no variance is zeroed). Ridge reuses `antecedent-learn`'s `RidgeLogisticLearner`;
-  the lasso is `antecedent-learn`'s `LassoLogisticLearner` (proximal Newton with coordinate
-  descent, accepted only when the KKT conditions of the exact objective hold). Both go through
-  the cross-fit driver; there is no second learner stack. Outcome models stay arm-wise OLS,
-  so a rank-deficient design is still refused by the outcome stage.
-- **Preserved.** The score table (scores, out-of-fold propensities, fold ids, row identity,
-  adjustment set), the overlap report and clip, and retargeting, including the retarget
-  covariance (a penalized table retargets exactly like an unpenalized one). The
-  configuration is part of the estimator identity (`canonical_key`, digested by
-  `identity_digest`) and of the score table's provenance, so a different grid, fold count or
-  fallback never shares a score-reuse identity or a batch nuisance fit; penalized fits are
-  never served from the shared nuisance cache. The calibration key's functional label carries
-  the nuisance (`...+propensity=ridge_logistic:k5:g...`), so an interval measured under one
-  configuration never binds to another.
+- **Scope.** The untrimmed `AllObserved` mean ATE with a binary treatment (two declared levels). Other functionals, other target populations and trimmed fits refit full-sample nuisances and are refused. Ridge refuses with `route_not_supported` (`penalized_propensity.scope`). A lasso refuses with `selection_inference_not_supported` (`penalized_propensity.selection_not_supported`). A full-sample lasso would select its support on the rows it scores.
+- **Folds.** Five folds from the established seeded, arm-stratified, unit-level plan. `fold_seed` is the analysis seed. Duplicated rows of one unit share a fold. Fold `k`'s rows are scored by nuisances fit on the other folds only.
+- **Penalty rule (tuning on training rows only).** On fold `k`'s *training rows*, the penalty is the member of a fixed grid with the smallest `inner_folds`-fold (default 5) cross-validated log loss. The inner plan is seeded, arm-stratified and unit-level. It depends on the seed, the fold index and the training units. Ridge defaults are `0.01, 0.1, 1, 10, 100, 1000`. Lasso defaults are `0.5, 1, 2, 5, 10, 20, 50, 100` (sum-scale). Ties go to the larger penalty. A grid value whose inner fit fails is not a candidate. If none is usable the fold fails with the last failure recorded. The evaluation fold never informs its own penalty. For the lasso, it never informs its own selected support. Both replay bit for bit from the seed. They are recorded on the result (`learner_provenance`, one entry per fold) and on the score table's provenance (`selected_lambda=` per fold, and for a lasso `selected_support=` per fold).
+- **Scale.** The ridge objective is `-loglik + (lambda / 2) * ||beta||^2`. The lasso objective is `-loglik + lambda * ||beta||_1`. Both use a sum log likelihood. The intercept is unpenalized. Each non-intercept column is standardized by the training rows' mean and standard deviation. A column with no variance is zeroed. Ridge uses `antecedent-learn`'s `RidgeLogisticLearner`. The lasso is `antecedent-learn`'s `LassoLogisticLearner`. That fit is proximal Newton with coordinate descent. It is accepted only when the KKT conditions of the exact objective hold. Both use the same cross-fit. There is no second learner stack. Outcome models stay arm-wise OLS. A rank-deficient design is still refused by the outcome stage.
+- **Preserved.** You still get the score table: scores, out-of-fold propensities, fold ids, row identity and the adjustment set. You still get the overlap report and clip, and retargeting, including the retarget covariance. A penalized table retargets exactly like an unpenalized one. The configuration is part of the estimator identity (`canonical_key`, digested by `identity_digest`) and of the score table's provenance. A different grid, fold count or fallback never shares a score-reuse identity or a batch nuisance fit. Penalized fits are never served from the shared nuisance cache. The calibration key's functional label carries the nuisance (`...+propensity=ridge_logistic:k5:g...`). An interval measured under one configuration never binds to another.
 
 ## The cross-fitted influence-function interval
 
@@ -172,75 +141,77 @@ interval is conditional on it. Sufficient regimes, stated as assumptions:
 
 ## The refit bootstrap
 
-With `bootstrap_replicates = B > 0` each replicate draws `n` rows with replacement (copies of
-one row keep that row's unit identity, so a unit is never in a training set and in its own
-validation fold) and re-runs the **whole pipeline** on the resample: the arm-stratified unit
-fold plan, each fold's inner-CV penalty selection (and a lasso's support selection) and every
-nuisance fit. Penalty selection therefore varies from replicate to replicate and its variability
-enters the SE. The replicate's contrast is the mean of its own out-of-fold scores; the published
-`se_bootstrap` is the sample standard deviation of the successful replicates, under the shared
-failure policy (at least two successes and at most half of the attempted replicates failing,
-otherwise no SE). A replicate that cannot be fit (a fold missing an arm, a failed fit, a
-boundary propensity) is counted as failed, never replaced; a cancelled run is reported as a
-stop (`bootstrap_cancelled`) and publishes no SE from the partial run.
+With `bootstrap_replicates = B > 0` each replicate draws `n` rows with replacement. Copies of
+one row keep that row's unit identity. A unit is never in a training set and in its own
+validation fold. Each replicate re-runs the whole fit on the resample: the arm-stratified unit
+fold plan, each fold's inner-CV penalty selection, a lasso's support selection, and every
+nuisance fit. Penalty selection therefore varies from replicate to replicate. Its variability
+enters the SE. The replicate's contrast is the mean of its own out-of-fold scores. The published
+`se_bootstrap` is the sample standard deviation of the successful replicates. The shared
+failure policy requires at least two successes and at most half of the attempted replicates
+failing. Otherwise no SE is published. A replicate that cannot be fit is counted as failed.
+That includes a fold missing an arm, a failed fit or a boundary propensity. It is never
+replaced. A cancelled run is reported as a stop (`bootstrap_cancelled`). It publishes no SE
+from the partial run.
 
-What is recorded beside the scalar (`EffectEstimate.diagnostics.penalized`, Python
-`estimate.penalized_bootstrap`): the replicates requested, successful and failed; the penalty
-every successful replicate selected on each of its folds, in replicate order (so the record
-replays from the seed under any thread count); and the cross-fitted influence-function SE for
-comparison. `bootstrap = 0` publishes the influence-function SE only.
+Read the record beside the scalar. In Rust, that is `EffectEstimate.diagnostics.penalized`.
+In Python, that is `estimate.penalized_bootstrap`. It holds the replicates requested,
+successful and failed. It holds the penalty every successful replicate selected on each of
+its folds, in replicate order. The record replays from the seed under any thread count. It
+also holds the cross-fitted influence-function SE for comparison. `bootstrap = 0` publishes
+the influence-function SE only.
 
-**Justification.** Under (RC) the estimator is asymptotically linear in the influence term,
-so the nonparametric bootstrap of the sample mean of that term is consistent and the refit
-resamples add the variability of the (cross-validated) nuisance fits, which is `o_p(n^-1/2)`
-under (RC) and finite-sample material otherwise. This is a statement conditional on (RC), not
-a proof: bootstrap validity for regularized, cross-fitted, selected nuisances is not
-established here, and a resample re-centers on the penalized pseudo-truth of the resample, so
-**it does not recover a penalty bias that violates (RC)**. When (RC) fails, neither interval
-is supported and the bootstrap offers no repair. The two SEs are reported together so a large
-disagreement is visible; it is a symptom, not a test.
+**Justification.** Under (RC) the estimator is asymptotically linear in the influence term.
+The nonparametric bootstrap of the sample mean of that term is consistent. The refit
+resamples add the variability of the cross-validated nuisance fits. That variability is
+`o_p(n^-1/2)` under (RC) and finite-sample material otherwise. This is a statement conditional
+on (RC). It is not a proof. Bootstrap validity for regularized, cross-fitted, selected
+nuisances is not established here. A resample re-centers on the penalized pseudo-truth of the
+resample. **It does not recover a penalty bias that violates (RC)**. When (RC) fails, neither
+interval is supported. The bootstrap offers no repair. The two SEs are reported together. A
+large disagreement is visible. It is a symptom. It is not a test.
 
 ## Lasso
 
-`PropensityPenalty(kind="lasso")` is a real route, cross-fitted: for each fold the penalty and
-the support (covariates with a nonzero coefficient) are chosen on the training rows by the
-same seeded inner CV as for ridge, the support is recorded per fold (names `V<id>` after the
-adjustment variable ids, and the count) in `penalized_support`, in the table's
-`selected_support=` provenance and in the estimate. The interval is the cross-fitted
-influence-function SE or the refit bootstrap above under (RC). A lasso outside the
-cross-fitted untrimmed `AllObserved` mean ATE is refused with
+Call `PropensityPenalty(kind="lasso")`. The fit is cross-fitted. For each fold the penalty and
+the support are chosen on the training rows by the same seeded inner CV as for ridge. The
+support is the covariates with a nonzero coefficient. It is recorded per fold, as names
+`V<id>` after the adjustment variable ids, and the count. Read it in `penalized_support`, in
+the table's `selected_support=` provenance and in the estimate. The interval is the
+cross-fitted influence-function SE or the refit bootstrap above under (RC). A lasso outside
+the cross-fitted untrimmed `AllObserved` mean ATE is refused with
 `selection_inference_not_supported`. Where the plain logistic has no maximizer (complete
-separation), the L1-penalized objective still has a finite minimizer, so the lasso fits.
+separation), the L1-penalized objective still has a finite minimizer. The lasso fits.
 
 ## GLM-to-penalized fallback
 
-`nuisance_fallback="ridge_logistic"` / `"lasso"` (default tuning) or
-`nuisance_fallback=PropensityPenalty(...)` (its kind and tuning) declares the destination of a
-failed GLM propensity fit. If every GLM fold fits, the result is the GLM result bit for bit
-and nothing is recorded. If any fold's GLM fit fails, the partial table is discarded and the
-**whole** cross-fitted route is rebuilt with the destination (no fold mixes the two
-nuisances), with the same estimand (`AllObserved` mean ATE), the same folds and the
-destination's claim and intervals. The result records both identities:
-`estimate.penalized_fallback` (Rust `PenalizedReport::fallback`) carries the failed fit
-(`stage="propensity_fit"`, the fold, the class `separated` / `non_converged` /
-`boundary_saturated` / `rank_deficient` / `fit_failed`, and the failure's message) and the
-destination's canonical key; the score table's provenance names the destination, the failure
-and the declared configuration (`;nuisance_fallback=glm_failed:<class>@fold<k>;declared=...`);
-the estimator-spec identity (`treatment_config`, `canonical_key`) includes the declared
-destination and tuning, so a different fallback is a different estimator. With
-`bootstrap > 0` after a fallback, the replicates run the destination (the claim is the
-destination's); after a GLM success they run the GLM with no fallback, so a failing replicate
-is counted rather than replaced. A fallback is refused beside a declared penalty
-(`invalid_argument`, `penalized_propensity.fallback_with_penalty`): it replaces a failed GLM
-fit, and a penalized primary is not one. On the full-sample routes (trimmed, ATT/ATC,
-predicate) there is no fallback; a failed fit there is recorded in the refusal
-(`nuisance_fallback_not_supported`).
+Pass `nuisance_fallback="ridge_logistic"` or `"lasso"` for default tuning. Or pass
+`nuisance_fallback=PropensityPenalty(...)` with its kind and tuning. That declares the
+destination of a failed GLM propensity fit. If every GLM fold fits, the result is the GLM
+result bit for bit. Nothing is recorded. If any fold's GLM fit fails, the partial table is
+discarded. The whole cross-fit is rebuilt with the destination. No fold mixes the two
+nuisances. The estimand stays the `AllObserved` mean ATE. The folds stay the same. The claim
+and intervals are the destination's. The result records both identities. Read
+`estimate.penalized_fallback`. In Rust, read `PenalizedReport::fallback`. It carries the
+failed fit: `stage="propensity_fit"`, the fold, the class (`separated`, `non_converged`,
+`boundary_saturated`, `rank_deficient` or `fit_failed`) and the failure's message. It also
+carries the destination's canonical key. The score table's provenance names the destination,
+the failure and the declared configuration
+(`;nuisance_fallback=glm_failed:<class>@fold<k>;declared=...`). The estimator-spec identity
+(`treatment_config`, `canonical_key`) includes the declared destination and tuning. A
+different fallback is a different estimator. With `bootstrap > 0` after a fallback, the
+replicates run the destination. The claim is the destination's. After a GLM success they run
+the GLM with no fallback. A failing replicate is counted. It is not replaced. A fallback is
+refused beside a declared penalty (`invalid_argument`,
+`penalized_propensity.fallback_with_penalty`). It replaces a failed GLM fit. A penalized
+primary is not one. On the full-sample analyses (trimmed, ATT/ATC, predicate) there is no
+fallback. A failed fit there is recorded in the refusal (`nuisance_fallback_not_supported`).
 
-`nuisance_fallback="ml"` (a flexible learner) is refused: its destination has no
-cross-fitted or uncertainty evidence, so a failed GLM fit is refused with
-`nuisance_fallback_not_supported` and the failed fit recorded, and nothing is silently
-substituted. The fallback is never chosen after seeing a favorable result: it is declared in
-advance and triggered only by a fit failure.
+`nuisance_fallback="ml"` (a flexible learner) is refused. Its destination has no cross-fitted
+or uncertainty evidence. A failed GLM fit is refused with `nuisance_fallback_not_supported`
+and the failed fit recorded. Nothing is silently substituted. The fallback is never chosen
+after seeing a favorable result. It is declared in advance. It is triggered only by a fit
+failure.
 
 ## Refusals
 
@@ -260,19 +231,19 @@ Each refusal carries the fields described in
 `execution_resource_limit` are listed under
 [other registered refusal codes](../reference/refusal-codes.md#other-registered-refusal-codes).
 
-Selection observes cancellation once per penalty of every outer fold, so a cancel is seen
-within one penalty's inner cross-fit; a cancelled call returns no estimate or score table. A
+Selection observes cancellation once per penalty of every outer fold. A cancel is seen
+within one penalty's inner cross-fit. A cancelled call returns no estimate or score table. A
 cancelled bootstrap reports the stop and publishes no SE.
 
 ## Calibration
 
 The calibration design measures the 95% ridge and lasso analytic and refit-bootstrap
-intervals at the coordinates below; an interval reports `calibrated` only when a current
-coverage record covers its exact coordinate (read `result.inspect().calibration`). The
+intervals at the coordinates below. An interval reports `calibrated` only when a current
+coverage record covers its exact coordinate. Read `result.inspect().calibration`. The
 coverage tests in
 `crates/antecedent-estimate/src/calibration_coverage.rs` and the binding check in
 `crates/antecedent/tests/calibration_binding.rs` confirm that each record's nuisance label
-and interval method match the public facade.
+and interval method match the call you make.
 
 | Propensity grid (3 inner folds) | Analytic interval rows | Refit bootstrap rows |
 | --- | ---: | ---: |
@@ -280,17 +251,16 @@ and interval method match the public facade.
 | Lasso: 2, 10, 40 | 150–600 | 600–2400; at least 40 replicates |
 
 A different penalty grid, sample-size range, level or bootstrap count is reported as
-`outside_measured_scope`, not covered by these records. The fallback
-route has no coverage test of its own: its destination's interval is the ridge or lasso
-interval, but its calibration key (`propensity=glm_fallback_...`) matches no record, so a
-fallback interval reports `not_measured`. An in-repo, fixed-seed repeated
-sampling test (`the_influence_interval_covers_the_known_effect_in_repeated_sampling`) is a
-guard, not a record.
+`outside_measured_scope`. It is not covered by these records. The fallback has no coverage
+test of its own. Its destination's interval is the ridge or lasso interval. Its calibration
+key (`propensity=glm_fallback_...`) matches no record. A fallback interval reports
+`not_measured`. An in-repo, fixed-seed repeated sampling test
+(`the_influence_interval_covers_the_known_effect_in_repeated_sampling`) is a guard. It is
+not a record.
 
 ## What these records do not measure
 
 No coverage record supports the fallback interval. The estimate is a point under the identification assumptions of the
-AIPW average effect plus consistency of the penalized and OLS nuisances; none of that, and not
-(RC), is checked by the library.
+AIPW average effect plus consistency of the penalized and OLS nuisances. None of that is checked by the library. (RC) is not checked either.
 
 Implementation limits are listed in [supported input bounds](../supported-bounds.md).

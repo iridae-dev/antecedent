@@ -15,14 +15,17 @@ Choose the declaration by estimator:
 | `PropensityWeighting`, `PropensityStratification` | `cluster="site"` | cluster sandwich and whole-cluster bootstrap ([below](#clusters-for-propensity-weighting-stratification-and-the-causal-forest)) |
 | `CausalForest` | `cluster="site"`, `min_clusters=20` | whole-cluster subsamples, honesty split and cross-fit ([below](#clusters-for-propensity-weighting-stratification-and-the-causal-forest)) |
 
-Most of this page is about the cross-fitted route.
-`Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))` (Rust:
-`AipwAte::with_cluster_ids(..).with_cluster_dml(ClusterDml::new(20)?)`) cross-fits the
-standard AIPW average effect with **whole clusters** owning folds. The route publishes the
-cross-fitted point estimate, the score table and the cluster-sandwich standard error of the
-scores (`se_analytic`, also the named receipt `ClusterDml::receipt`). The one-way interval
-reports its calibration status: `calibrated` only inside the measured coordinate of its coverage
-record (see [What is published](#what-is-published-and-what-is-not)).
+Most of this page is the cross-fitted route.
+
+```python
+Aipw(bootstrap=0, cluster_dml=ClusterDml(cluster_ids=..., min_clusters=20))
+```
+
+In Rust, `AipwAte::with_cluster_ids(..).with_cluster_dml(ClusterDml::new(20)?)`.
+
+A whole cluster stays in one fold. You get the usual cross-fitted AIPW point, the score table, and a cluster-sandwich standard error of the scores. That standard error is `se_analytic`, and the same number is on `ClusterDml::receipt`.
+
+The interval is `calibrated` only inside the measured coordinate of its coverage record. See [What is published](#what-is-published-and-what-is-not).
 
 ```python
 from antecedent.estimators import Aipw, ClusterDml

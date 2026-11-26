@@ -142,16 +142,28 @@ result = require_success(
 result.estimate.estimator_id, result.posterior.effect_mean, result.posterior.effect_sd
 ```
 
-The default estimator, `bayesian.randomized_finite_population`, answers the same target as the design-based row: the trial's own units. Select `estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION` to ask about the arm means of the sampled population instead; a unit shows only one potential outcome, so the finite-population contrast is published under additive unit effects, where it has the same posterior as the superpopulation contrast (Neyman's variance bound: the interval is conservative for the trial's own units when unit effects vary). The diagnostics name which one ran (`estimand=finite_population` or `estimand=superpopulation`). With more than two arms the result reports each action against the reference arm.
+The default estimator, `bayesian.randomized_finite_population`, answers the same question as the design-based estimate: the effect in this trial's own units.
 
-A `SwitchbackModel` must name its carryover (`"none"`, `"first_order"`) and its dependence (`"independent"`, `"compound_symmetric"` or `"autoregressive"`, the last two with `rho`). Unrestricted carryover and unspecified dependence are refused with `not_supported`, and the refusal names the next attempt. A Bayesian result executes without upgrading the claim: `result.evidence_status` is not `"supported"` and its calibration is read on `result.inspect().calibration`.
+To ask about the arm means in the population the units were drawn from, pass `estimator=ant.Estimator.BAYESIAN_RANDOMIZED_SUPERPOPULATION`.
+
+Each unit shows only one potential outcome. Under additive unit effects, the finite-population contrast and the superpopulation contrast have the same posterior. The interval is Neyman's variance bound: it is conservative for this trial's own units when the unit effects differ.
+
+The diagnostics name which question ran: `estimand=finite_population` or `estimand=superpopulation`. With more than two arms, the result reports each action against the reference arm.
+
+A `SwitchbackModel` has to name its carryover and its dependence.
+
+Carryover is `"none"` or `"first_order"`. Dependence is `"independent"`, `"compound_symmetric"`, or `"autoregressive"`. The last two also take `rho`.
+
+Unrestricted carryover, and dependence you leave unnamed, are refused with `not_supported`. The refusal says what to declare instead.
+
+A Bayesian result does not become a stronger claim by running. `result.evidence_status` is not `"supported"`. Read the calibration on `result.inspect().calibration`.
 
 ## Variants
 
 Runnable example: [`examples/python/experiment_designs.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/experiment_designs.py).
 
-- **Precision adjustment.** `RandomizedEffect(..., estimated_cuped=EstimatedCUPED("baseline"))` estimates the pooled slope of a pre-assignment covariate from this trial's rows (Bernoulli only) and publishes it as `adjustment_coefficient`. `cuped=FixedCUPED(...)` uses a coefficient fixed outside the trial, and `ancova_covariates=(...)` fits the covariates jointly. The covariates must be measured before assignment; they cannot be post-treatment variables. ANCOVA reports an independent-row HC0 variance. `CUPAC(covariate)` is the same residual when the column is a prediction you already aggregated to the randomization unit: a locked `coefficient` selects fixed CUPED, and an omitted coefficient estimates the slope (the Bernoulli same-sample slope, or the slope of cluster totals on a cluster design). The library does not fit the prediction model. `estimate_cuped_effect` is the deprecated direct form of the estimated-slope route. Multi-arm designs do not combine with these adjustments.
-- **Exact randomization test.** `exact_randomization_test=True` on a Bernoulli or complete `RandomizedEffect` (at most 20 units) tests the sharp null of no effect for any unit by enumerating assignments. The result's `randomization_p_value` and `randomization_allocations` are that test. It is a test, not a confidence interval. `experiment.exact_randomization_test` is the deprecated direct form.
+- **Precision adjustment.** You have a column measured before assignment, and it predicts the outcome. On a Bernoulli trial, `estimated_cuped=EstimatedCUPED("baseline")` estimates the pooled slope from these rows and reports it as `adjustment_coefficient`. `cuped=FixedCUPED(...)` uses a coefficient you fixed before seeing these outcomes. `ancova_covariates=(...)` fits the covariates in the same regression as the treatment, and reports an HC0 variance that treats rows as independent. The column cannot be measured after treatment. `CUPAC(covariate)` is the same adjustment when the column is a prediction you already aggregated to the randomization unit. A locked `coefficient` is the fixed-slope version. Leaving it out estimates the slope: the pooled slope on a Bernoulli trial, or the slope of the cluster totals on a cluster design. Antecedent does not fit that prediction model. If your code still calls `estimate_cuped_effect`, switch to `EstimatedCUPED`. The old call warns. Multi-arm designs do not take any of these adjustments.
+- **Exact randomization test.** Set `exact_randomization_test=True` on a Bernoulli or complete `RandomizedEffect` of at most 20 units. The call enumerates the assignments and tests the sharp null that no unit had an effect. Read `randomization_p_value` and `randomization_allocations`. This is a test, not a confidence interval. If your code still calls `experiment.exact_randomization_test`, set the flag on the query instead. The old call warns.
 - **Sampling weights.** `RandomizedEffect(..., weights="w")` targets the weighted population for an unadjusted Bernoulli or complete design. See [sampling weights](../sampling-weights.md).
 - **Noncompliance.** `experiment.ComplierEffect` takes observed treatment receipt under Bernoulli encouragement and reports the intention-to-treat effect, the first stage, and the Wald complier effect under exclusion and monotonicity, which you declare. `experiment.TreatmentOnTreated` is the recipient-target version under one-sided noncompliance. Both report an influence-function variance and no interval.
 

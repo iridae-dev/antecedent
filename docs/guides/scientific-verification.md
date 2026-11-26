@@ -4,11 +4,11 @@ You can follow a numerical claim in Antecedent from its source method to the cal
 
 Antecedent's development applies high-assurance engineering principles. The practical question behind that approach is: **what evidence supports this particular answer?** A published method, a passing test and a measured interval answer different parts of that question. The records keep those distinctions available for review.
 
-For the shorter introduction, read [Assurance](../concepts/assurance.md). For interpreting an analysis you have already run, start with [Results are claims](../concepts/results-are-claims.md). The first two sections define the evidence model and how its records are earned; the rest of the guide is the worked AIPW and arrow-strength example.
+For the shorter introduction, read [Assurance](../concepts/assurance.md). For interpreting an analysis you have already run, start with [Results are claims](../concepts/results-are-claims.md). The first two sections define the evidence model and how its records are earned. The rest of the guide is the worked AIPW and arrow-strength example.
 
 ## The evidence model
 
-Every reported answer rests on one small model. Five terms carry it; other pages link here rather than restate it.
+Every reported answer rests on one small model. Five terms carry it. Other pages link here rather than restate it.
 
 | Term | Meaning | Effect |
 | --- | --- | --- |
@@ -21,35 +21,35 @@ Every reported answer rests on one small model. Five terms carry it; other pages
 The machinery behind the model:
 
 - `antecedent_core::support_gate::require_supported` is the only place a `not_supported` refusal is built. `scripts/gate_not_supported_sites.py` enforces that.
-- `scripts/gate_support.py` applies the one support rule to every unit and prints the one support count: supported units, with the not-supported units split into those owed only scientific records and those missing other evidence. It reads the ledger through `scripts/scientific_records.py`; it does not fingerprint or record anything itself. Route counts are never a support count.
-- Estimator declarations (`crates/antecedent/src/strategy_table/targets.rs`) list the estimators valid for a cell. An explicit `estimator=` may choose any estimator listed for the cell, and the listed set equals the declared-valid set (the `parity/estimator_validity.toml` snapshot).
-- Calibration records (`parity/coverage_records.toml`) are measured by a separate calibration flow. A record is current while its dependency manifest matches. A changed input makes it owed, and a probe (`scripts/calibration_probe.py`) decides whether the measured numbers still reproduce. A calibration record never changes support and never refuses a route, but CI fails while one is owed (see [Earning and checking the records](#earning-and-checking-the-records)).
-- Scientific-test records (`parity/scientific_records.toml`, managed by `scripts/scientific_records.py`) record passes of the scientific assertions with their dependency manifests. Only owed tests rerun. A recorded pass is evidence for support; it is never a calibration measurement. A unit is supported only while every scientific check it cites has a current record. The embedded support data (`crates/antecedent/data/support_matrix.json`, `crates/antecedent-io-core/data/unit_support_status.json`) carries each unit's `status` and `missing_evidence`, derived from the evidence registries and the ledger by `scripts/generate_support_matrix_docs.py`, so the release build refuses an owed unit like any other `not_supported` route.
+- `scripts/gate_support.py` applies the one support rule to every unit and prints the one support count: supported units, with the not-supported units split into those owed only scientific records and those missing other evidence. It reads the ledger through `scripts/scientific_records.py`. It does not fingerprint or record anything itself. Route counts are never a support count.
+- Estimator declarations (`crates/antecedent/src/strategy_table/targets.rs`) list the estimators valid for a cell. An explicit `estimator=` may choose any estimator listed for the cell. The listed set equals the declared-valid set (the `parity/estimator_validity.toml` snapshot).
+- Calibration records (`parity/coverage_records.toml`) are measured by a separate calibration flow. A record is current while its dependency manifest matches. A changed input makes it owed. A probe (`scripts/calibration_probe.py`) decides whether the measured numbers still reproduce. A calibration record never changes support and never refuses a route. CI fails while one is owed (see [Earning and checking the records](#earning-and-checking-the-records)).
+- Scientific-test records (`parity/scientific_records.toml`, managed by `scripts/scientific_records.py`) record passes of the scientific assertions with their dependency manifests. Only owed tests rerun. A recorded pass is evidence for support. It is never a calibration measurement. A unit is supported only while every scientific check it cites has a current record. The embedded support data (`crates/antecedent/data/support_matrix.json`, `crates/antecedent-io-core/data/unit_support_status.json`) carries each unit's `status` and `missing_evidence`, derived from the evidence registries and the ledger by `scripts/generate_support_matrix_docs.py`. The release build refuses an owed unit like any other `not_supported` route.
 
 ## Earning and checking the records
 
-Supported means provenance plus an independent check with a current passing record. This section is the canonical description of how those records are earned and checked; other pages link here.
+Supported means provenance plus an independent check with a current passing record. This section is the canonical description of how those records are earned and checked. Other pages link here.
 
 ### What a record depends on
 
 Every scientific pass, calibration measurement and probe attestation references a content-addressed dependency manifest, `parity/evidence_manifests/<sha256>.json`, written when the evidence is earned (`scripts/evidence_earning.py`). A manifest binds the exact record (the assertion, or the measurement and its numbers) and lists everything it depended on:
 
-- The sources and manifests of every workspace crate in the test crate's dependency closure, plus the test file, its module directory and shared helpers. Scientific assertions are Rust tests; a Python test checks that the binding returns the Rust result and runs in the engineering lane.
+- The sources and manifests of every workspace crate in the test crate's dependency closure, plus the test file, its module directory and shared helpers. Scientific assertions are Rust tests. A Python test checks that the binding returns the Rust result and runs in the engineering lane.
 - The membership of each source and input directory (every file git does not ignore), so an added, removed or renamed file is a change. Ignored build products and host files are never inputs.
 - Embedded include files (`include_str!`, `include_bytes!`, `include!`) and the files and directories read at run time by literal path.
-- Inputs a site builds at run time, which cannot be followed statically, declared in `parity/fingerprint_inputs.toml`. A source with an undeclared dynamic input fails; it is never skipped. The same file declares fixtures and oracle files the citing claims name.
+- Inputs a site builds at run time, which cannot be followed statically, declared in `parity/fingerprint_inputs.toml`. A source with an undeclared dynamic input fails. It is never skipped. The same file declares fixtures and oracle files the citing claims name.
 - Build scripts and the paths they declare with `cargo:rerun-if-changed`.
 - `Cargo.lock`, the workspace manifest (version-only bumps change nothing), `rust-toolchain.toml`, `.cargo/config.toml`, the compiler pinned in `tools/evidence-analyzer/pin.toml`, the build configuration and every `ANTECEDENT_*` variable a source reads.
 
 Evidence is earned in the canonical environment only: the default build configuration (lint levels aside) and no `ANTECEDENT_*` variable a source reads set. Earning also refuses untracked files among its inputs. Together these make a manifest written on a development machine current in a clean checkout.
 
-Earning builds every owed test target in one audited Nix derivation from the committed source (`nix/README.md`), with coverage instrumentation and a compiler inventory of every workspace item (`tools/evidence-analyzer/driver.rs`). A Rust assertion's sources are then reduced to the items it depends on (`scripts/evidence_items.py`): the whole text of every function coverage shows it executed, the signature of every function those name, the whole text of every type, constant, static, trait, alias and macro they use (and what those use in turn), the header of each impl it runs in, and the `mod` declarations and crate attributes that compile each file. How names and methods resolve is guarded: the items and imports of a used name in its module, glob imports, same-named inherent methods of a receiver type, the impls of in-scope traits that an earlier method-probe step could find, and every `macro_rules!` of a used macro's name. An edit to anything else, such as an unexecuted body, a new file, estimator, variant, impl or import elsewhere, or a comment or layout change, leaves the record current; an edit to anything it depends on owes it. Items are hashed by their tokens, so comments and whitespace never count. Doc comments count only under a macro that may read them. Positions are not inputs unless the executed code reads them (`file!`, `line!`, `column!`, `Location`, panic hooks or backtraces): such an assertion keeps its files whole. So do files read as data, files the item parser cannot read, and compilations with unreviewed compile-time code. A data file is an input only when a selected item reads it. Each file's item table is stored once by content in `parity/evidence_items/`; a manifest entry names the table and selects items by index. A file whose bytes are unchanged is current without being parsed. A stored manifest lists its inputs as content-addressed groups, one per directory, in `parity/evidence_inputs/`, so inputs that many records share are stored once.
+Earning builds every owed test target in one audited Nix derivation from the committed source (`nix/README.md`), with coverage instrumentation and a compiler inventory of every workspace item (`tools/evidence-analyzer/driver.rs`). A Rust assertion's sources are then reduced to the items it depends on (`scripts/evidence_items.py`): the whole text of every function coverage shows it executed, the signature of every function those name, the whole text of every type, constant, static, trait, alias and macro they use (and what those use in turn), the header of each impl it runs in, and the `mod` declarations and crate attributes that compile each file. How names and methods resolve is guarded: the items and imports of a used name in its module, glob imports, same-named inherent methods of a receiver type, the impls of in-scope traits that an earlier method-probe step could find, and every `macro_rules!` of a used macro's name. An edit to anything else, such as an unexecuted body, a new file, estimator, variant, impl or import elsewhere, or a comment or layout change, leaves the record current. An edit to anything it depends on owes it. Items are hashed by their tokens, so comments and whitespace never count. Doc comments count only under a macro that may read them. Positions are not inputs unless the executed code reads them (`file!`, `line!`, `column!`, `Location`, panic hooks or backtraces). Such an assertion keeps its files whole. So do files read as data, files the item parser cannot read, and compilations with unreviewed compile-time code. A data file is an input only when a selected item reads it. Each file's item table is stored once by content in `parity/evidence_items/`. A manifest entry names the table and selects items by index. A file whose bytes are unchanged is current without being parsed. A stored manifest lists its inputs as content-addressed groups, one per directory, in `parity/evidence_inputs/`. Inputs that many records share are stored once.
 
-A calibration measurement runs its replicates on the uninstrumented build and a slice of them under coverage, so a function its executed code names may run in a replicate the slice did not. It is bound to the whole text of every such function, transitively, except what the measurement cannot enter (`scripts/evidence_reach.py`): a `match` arm, an `if let` block or the statements after a `let … else` whose pattern names an enum variant no code that can run builds, and a function with a parameter of a struct no code that can run builds. An enum or struct that anything but a constructor written in source could build (a derive that builds values, a `#[repr]`, a default variant) is never treated this way, and an executed position the analysis did not expect withdraws it for that record. A file compiled in place by `include!` is selected by item like any other.
+A calibration measurement runs its replicates on the uninstrumented build and a slice of them under coverage, so a function its executed code names may run in a replicate the slice did not. It is bound to the whole text of every such function, transitively, except what the measurement cannot enter (`scripts/evidence_reach.py`): a `match` arm, an `if let` block or the statements after a `let … else` whose pattern names an enum variant no code that can run builds, and a function with a parameter of a struct no code that can run builds. An enum or struct that anything but a constructor written in source could build (a derive that builds values, a `#[repr]`, a default variant) is never treated this way. An executed position the analysis did not expect withdraws it for that record. A file compiled in place by `include!` is selected by item like any other.
 
-The build's Nix recipes, the flake lock and the policy code are inputs by what they say (`scripts/evidence_recipes.py`): a Nix expression by its tokens, the lock by the locked entries the recipes read, Python by its syntax tree without docstrings. A comment or a layout change in one owes nothing; the contents of a string, a builder script included, count exactly.
+The build's Nix recipes, the flake lock and the policy code are inputs by what they say (`scripts/evidence_recipes.py`): a Nix expression by its tokens, the lock by the locked entries the recipes read, Python by its syntax tree without docstrings. A comment or a layout change in one owes nothing. The contents of a string, a builder script included, count exactly.
 
-`scripts/evidence_manifests.py` checks manifests: it hashes each input once per invocation and uses no compiler, Cargo metadata or network. The policy that writes manifests is named in the manifest (`compiler-items-v2`); changing the policy renames it, which owes every record of a policy the checker no longer lists. `compiler-items-v1` bound a superset of what the current policy binds and stays listed; `scripts/narrow_evidence_binding.py` rebinds a current record of it to the narrower selection without measuring again. Run it directly to see each record's reasons and which inputs each record depends on.
+`scripts/evidence_manifests.py` checks manifests. It hashes each input once per invocation and uses no compiler, Cargo metadata or network. The policy that writes manifests is named in the manifest (`compiler-items-v2`). Changing the policy renames it, which owes every record of a policy the checker no longer lists. `compiler-items-v1` bound a superset of what the current policy binds and stays listed. `scripts/narrow_evidence_binding.py` rebinds a current record of it to the narrower selection without measuring again. Run it directly to see each record's reasons and which inputs each record depends on.
 
 Derived status is not evidence. The status and `missing_evidence` fields of the embedded support data, the attesting record ids, and each ledger's own fingerprint, manifest, commit and time columns are removed before hashing, so re-deriving support from the ledgers never invalidates them.
 
@@ -62,9 +62,9 @@ A record is **current** while its manifest still matches the tree, and **owed** 
 | Scientific (`parity/scientific_records.toml`) | The assertion changed or something it depends on changed, or it was never recorded. | The unit that cites it is `not_supported` (`owed: <selector>`) until the assertion is rerun and its pass recorded. CI fails. |
 | Calibration (`parity/coverage_records.toml`) | An input of the measurement changed and no current probe covers it, or an interval route has no record. | No effect on support and no refusal. CI fails until it is measured. |
 
-`measured_below_nominal` is a calibration *status*, not an owed state. A record can be current and show that the measured coverage fell below nominal. The result carries that annotation; it changes neither support nor routing.
+`measured_below_nominal` is a calibration *status*, not an owed state. A record can be current and show that the measured coverage fell below nominal. The result carries that annotation. It changes neither support nor routing.
 
-A scientific assertion that no evidence claim cites is still scientific. Such tests are listed in `parity/scientific_tests.toml` with their fixtures; they are excluded from the engineering lane and recorded exactly like cited ones.
+A scientific assertion that no evidence claim cites is still scientific. Such tests are listed in `parity/scientific_tests.toml` with their fixtures. They are excluded from the engineering lane and recorded exactly like cited ones.
 
 ### Earning locally, checking in CI
 
@@ -80,7 +80,7 @@ Scientific tests and calibration are **earned on development machines**, rerunni
 | `bash scripts/test.sh calibration --only PATTERN` | Owed work whose group label, record id or test, or route matches `PATTERN`. |
 | `bash scripts/test.sh scientific --all`, `calibration --all` | Rerun everything. Manual; no CI job or release runs them. |
 
-After a run, commit `parity/scientific_records.toml` and the coverage records (and the files the collector regenerates). `python3 scripts/scientific_records.py status` and `python3 scripts/calibration_status.py status` list what is owed without running anything. A run deletes the stored evidence (manifests, input groups, item tables) that no record reaches any more as it finishes; `python3 scripts/scientific_records.py prune` does so on demand. Git history keeps every superseded file.
+After a run, commit `parity/scientific_records.toml` and the coverage records (and the files the collector regenerates). `python3 scripts/scientific_records.py status` and `python3 scripts/calibration_status.py status` list what is owed without running anything. A run deletes the stored evidence (manifests, input groups, item tables) that no record reaches any more as it finishes. `python3 scripts/scientific_records.py prune` does so on demand. Git history keeps every superseded file.
 
 CI and releases **never execute either lane and never record anything**. They only check that every record is current:
 
@@ -90,9 +90,9 @@ python3 scripts/scientific_records.py status --check   # exit 1 while any scient
 python3 scripts/calibration_status.py --check          # exit 1 while any calibration record is owed
 ```
 
-The `static` job runs both, and the `scientific` job runs the same pair alone. The release candidate requires them to pass; it re-runs nothing.
+The `static` job runs both, and the `scientific` job runs the same pair alone. The release candidate requires them to pass. It re-runs nothing.
 
-A supported route can report an interval whose calibration status is `not_measured`, and the result says so. A model-conditional response can be useful without a design that identifies the real-world effect; successful execution preserves that status.
+A supported route can report an interval whose calibration status is `not_measured`, and the result says so. A model-conditional response can be useful without a design that identifies the real-world effect. Successful execution preserves that status.
 
 ## Follow the claim, then its evidence
 
@@ -119,25 +119,25 @@ score = μ₁(X) − μ₀(X)
 
 Here, `e(X)` is the fitted treatment probability, and `μ₁(X)` and `μ₀(X)` are fitted outcome means under treatment and control. Identification still requires assumptions such as unconfoundedness given the adjustment variables and adequate treatment overlap. The score itself cannot establish those assumptions from observations.
 
-Open [estimate.aipw.toml](https://github.com/iridae-dev/antecedent/blob/v3.1.0/provenance/estimate.aipw.toml). Its paper entries name the source literature; its implementation deviations explain which parts of that literature apply to the actual routes.
+Open [estimate.aipw.toml](https://github.com/iridae-dev/antecedent/blob/v3.1.0/provenance/estimate.aipw.toml). Its paper entries name the source literature. Its implementation deviations explain which parts of that literature apply to the actual routes.
 
 The distinction matters here. The untrimmed, all-observed ATE route uses five-fold cross-fitting: nuisance models are fitted on other folds before scoring a held-out row. The treated-population, untreated-population, trimmed and predicate-target routes fit their nuisances on the full sample. The record explicitly withholds the cross-fitting guarantees for those full-sample routes. It also names the fixed logistic-propensity and linear-outcome families rather than implying support for arbitrary machine-learning nuisances.
 
 That is what provenance contributes beyond a citation: it connects a method's premises to specific implementation choices. The [provenance rules](https://github.com/iridae-dev/antecedent/blob/v3.1.0/provenance/README.md) also require disclosure of implementation exposure, source attribution and material deviations. A record's presence alone does not show that someone has checked every theorem against every code path.
 
-The AIPW record makes its own review boundary explicit. Its `method_review.status` is `reviewed_with_limits`; the review did not retrieve the cited publications. It compared the scoped implementation with standard definitions evaluated by separately written numerical references. This is a bounded implementation review, with that limitation recorded.
+The AIPW record makes its own review boundary explicit. Its `method_review.status` is `reviewed_with_limits`. The review did not retrieve the cited publications. It compared the scoped implementation with standard definitions evaluated by separately written numerical references. This is a bounded implementation review, with that limitation recorded.
 
 ## Reconstruct the numerical answer independently
 
 The AIPW review links a [reference generator](https://github.com/iridae-dev/antecedent/blob/v3.1.0/crates/antecedent-estimate/tests/oracle_data/aipw_reference.py), its [frozen numerical output](https://github.com/iridae-dev/antecedent/blob/v3.1.0/crates/antecedent-estimate/tests/oracle_data/aipw_reference.json), and the [Rust assertions that consume it](https://github.com/iridae-dev/antecedent/blob/v3.1.0/crates/antecedent-estimate/tests/aipw_reference.rs).
 
-The reference uses 60-digit arithmetic through mpmath. It fits its own logistic propensity model and arm-specific least-squares outcome models without importing Antecedent. Higher precision helps distinguish rounding from a formula discrepancy; the separate calculation provides the comparison.
+The reference uses 60-digit arithmetic through mpmath. It fits its own logistic propensity model and arm-specific least-squares outcome models without importing Antecedent. Higher precision helps distinguish rounding from a formula discrepancy. The separate calculation provides the comparison.
 
 For the trimmed ATE, the reference checks uncertainty by a different route from the implementation's influence formula. It perturbs each observation's case mass, refits the estimator and calculates how the final estimate changes. A case mass is the weight an observation receives in that refit. The derivative measures how much that observation contributes to local variation in the fitted answer.
 
 This exposes an important distinction between two sets of observations. Trimming removes rows from the outcome fits and the final average, but the propensity model is still fitted on every row. A trimmed-out observation can therefore affect the estimate through that model. The derivative must account for it.
 
-The reference holds membership of the retained set fixed while taking this derivative. It checks that local calculation; it does not establish behavior at a discontinuous trimming boundary.
+The reference holds membership of the retained set fixed while taking this derivative. It checks that local calculation. It does not establish behavior at a discontinuous trimming boundary.
 
 ### The assertions compare effects and standard errors
 
@@ -161,7 +161,7 @@ These are useful checks with different propositions. Combining their names into 
 
 The [arrow-strength reference](https://github.com/iridae-dev/antecedent/blob/v3.1.0/conformance/attribution/arrow_strength/reference.py) checks linear-Gaussian structural models. An edge's coefficient alone does not describe the variation it transmits: the parent's variance matters too.
 
-In the [fixture](https://github.com/iridae-dev/antecedent/blob/v3.1.0/conformance/attribution/arrow_strength/expected.json), one parent has variance 100 and coefficient 0.75; another has variance 0.001 and coefficient 2.5. Their variance contributions are respectively:
+In the [fixture](https://github.com/iridae-dev/antecedent/blob/v3.1.0/conformance/attribution/arrow_strength/expected.json), one parent has variance 100 and coefficient 0.75. Another has variance 0.001 and coefficient 2.5. Their variance contributions are respectively:
 
 ```text
 0.75² × 100   = 56.25
@@ -194,7 +194,7 @@ A numerical reference checks selected calculations. Calibration asks how an unce
 
 The measured procedure needs to include the operations that affect its answer, such as fitting, sample splitting, selection and resampling. Evidence for individual components does not establish coverage for their composition. Monte Carlo error also matters: an observed coverage fraction is itself an estimate.
 
-Antecedent retains measurement records with their settings and source revision. [Development's coverage documentation](../development.md#coverage-records) explains how code dependencies are assigned to facets and how attestation checks whether a measurement still applies. Relevant changes require affected measurements or the reviewed replay evidence permitted by that process. CI checks applicability; it does not rerun every simulation on every commit.
+Antecedent retains measurement records with their settings and source revision. [Development's coverage documentation](../development.md#coverage-records) explains how code dependencies are assigned to facets and how attestation checks whether a measurement still applies. Relevant changes require affected measurements or the reviewed replay evidence permitted by that process. CI checks applicability. It does not rerun every simulation on every commit.
 
 [Calibration runtime and evidence reuse](../calibration-runtime.md) explains the operational side: frozen measurement sources, seed domains, retained tallies, producer executables and partial-run recovery. Historical measurements and successful component checks do not automatically confer current calibration. Read the matching status for the procedure and build in use.
 
@@ -202,8 +202,8 @@ Antecedent retains measurement records with their settings and source revision. 
 
 A result reports identification, support, uncertainty, assumptions and calibration separately. [Results are claims](../concepts/results-are-claims.md) explains those fields, and [reading a result](../start/reading-a-result.md) shows how to inspect them.
 
-The result carries the pieces of the model above: whether its route is supported (and, in a development build, `would_refuse`), its identification, the calibration status of each interval, and the provenance records behind its route (`result.method_provenance`; see [citing a study](citing-a-study.md)).
+The result carries the pieces of the model above. It says whether its route is supported. In a development build, it also says `would_refuse`. It carries the identification, the calibration status of each interval, and the provenance records behind its route (`result.method_provenance`). See [citing a study](citing-a-study.md).
 
-Loading an exported result checks that the artifact is intact and recomputes nothing. Opt-in replay recomputes the published numbers and reports any part that is not intact, not replayable or a mismatch. Neither checks the scientific assumptions about the real system; those remain the researcher's responsibility.
+Loading an exported result checks that the artifact is intact and recomputes nothing. Opt-in replay recomputes the published numbers and reports any part that is not intact, not replayable or a mismatch. Neither checks the scientific assumptions about the real system. Those remain the researcher's responsibility.
 
 To assess a capability, follow the target through its method record, the independent calculation, the executing assertion and the applicable measurement. Each link should state what it establishes and leave its limits visible to the next person or program using the answer.

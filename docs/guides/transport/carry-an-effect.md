@@ -1,6 +1,6 @@
 # Carry an effect to another population
 
-You can ask what an effect measured, or a model fitted, in one population implies for another: a trial population and the people a clinic actually treats, last year's customers and this year's, one region and its neighbour. Antecedent answers this as a transport question. It decides from a declared diagram of what differs between the populations whether the target effect follows from the evidence you hold, and it computes the answer only when it does.
+You can ask what an effect measured, or a model fitted, in one population implies for another: a trial population and the people a clinic actually treats, last year's customers and this year's, one region and its neighbour. Antecedent answers this as a transport question. It decides, from a declared diagram of what differs between the populations, whether the target effect follows from the evidence you hold. It computes the answer only when it does.
 
 Use this page when you have a causal graph you are willing to declare, evidence from at least one source population, and a named target population whose outcomes under the intervention you have not observed. The terms are defined in the next section; for what an intervention is, see [interventions and worlds](../../concepts/interventions-and-worlds.md).
 
@@ -21,7 +21,7 @@ Ten pages cover transport. Each answers one kind of question; start from the row
 | You want the theorem scope and size limits of each route (limited experiments, several sources, conditional questions, dose-response) | [Transport limits by route](../transport-scope.md) |
 | You want a measured interval for a transported scalar, an effect over time, an uncertain initial state or a test of effect constancy | [Population, time and uncertainty routes](../../population-time-uncertainty.md) |
 
-The pages share one scope rule: a transported value is a claim about the target conditional on the declared diagram, and it is a point unless the page for its route names an interval construction and tells you where to read its calibration status.
+The pages share one scope rule. A transported value is a claim about the target conditional on the declared diagram. It is a point unless the page for that procedure names an interval construction and tells you where to read its calibration status.
 
 ## What a transport question needs
 
@@ -34,11 +34,11 @@ A transport question names four things. Antecedent does not infer any of them fr
 | What the source can experiment on | The variables with randomized or otherwise experimental evidence in the source |
 | The target evidence | Usually the target's observational law or covariates; never target outcomes under the intervention |
 
-Declaring which mechanisms differ is a scientific assumption. The data cannot test it. A mechanism with no selection node is assumed to be shared between the populations, and that sharing is the premise every transported value stands on.
+Declaring which mechanisms differ is a scientific assumption. The data cannot test it. A mechanism with no selection node is assumed to be shared between the populations. That sharing is the premise every transported value stands on.
 
 ## Run a transport question
 
-`antecedent.transport.Transport` wraps an ordinary question (a `ResponseCurve` or an `AverageEffect`) with the target population and the evidence you hold. It runs on the ordinary lifecycle: analyze, inspect, rebind to new data, export. The call below is the one in [`transport_exact.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_exact.py); `data` there is an `ExactTransportData` holding the source experiment's law of `y` under `do(x = 0)` and `do(x = 1)`.
+`antecedent.transport.Transport` wraps an ordinary question with the target population and the evidence you hold. The question is a `ResponseCurve` or an `AverageEffect`. It runs on the ordinary lifecycle. You analyze, then inspect. You rebind to new data, then export. The call below is the one in [`transport_exact.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_exact.py). `data` there is an `ExactTransportData` holding the source experiment's law of `y` under `do(x = 0)` and `do(x = 1)`.
 
 ```python
 import antecedent as ant
@@ -63,7 +63,7 @@ artifact = result.export()
 loaded = ant.load(artifact, expected=artifact.expectation)
 ```
 
-The quantity is the target population's mean response `E*[Y | do(X = x)]` at each grid value `x`, where `*` marks the target. Variables whose mechanisms differ are named in `Transport(selections=[...])`, or per source in `Source(selections=[...])`; with none declared, as here, every mechanism is assumed shared and the source experiment answers directly. With the example's laws (`P(y = 1)` of 0.5 and 0.8 under the two interventions) the transported curve is `[0.5, 0.8]`.
+The quantity is the target population's mean response `E*[Y | do(X = x)]` at each grid value `x`, where `*` marks the target. Name variables whose mechanisms differ in `Transport(selections=[...])`. Or name them per source in `Source(selections=[...])`. With none declared, as here, every mechanism is assumed shared. The source experiment then answers directly. With the example's laws (`P(y = 1)` of 0.5 and 0.8 under the two interventions) the transported curve is `[0.5, 0.8]`.
 
 Three runnable examples use this call on models with known answers:
 
@@ -73,11 +73,11 @@ Three runnable examples use this call on models with known answers:
 | [`transport_statistical.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_statistical.py) (Rust: [`transport_statistical.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/transport_statistical.rs)) | One counted source table | The empirical plug-in of the same formula |
 | [`transport_meta_grid.py`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/python/transport_meta_grid.py) (Rust: [`transport_meta_grid.rs`](https://github.com/iridae-dev/antecedent/blob/v3.1.0/examples/rust/transport_meta_grid.rs)) | Two complementary sources | A curve neither source identifies alone, and unsupported grid points under a partial catalog |
 
-Count-based estimation uses `EmpiricalTable` by default. `LearnedCategorical` and `TrialAipw` change the assumption set and are passed explicitly; see [estimation assumptions](../transport-scope.md#estimation-assumptions).
+Count-based estimation uses `EmpiricalTable` by default. `LearnedCategorical` and `TrialAipw` change the assumption set. Pass either one explicitly. See [estimation assumptions](../transport-scope.md#estimation-assumptions).
 
 ### Trial-to-target weighting on row data
 
-When the source is a randomized trial with a binary treatment and you hold one table of trial and target rows, `transport.advanced.TransportQuery` estimates the transported response by inverse-probability weighting. It is the transport cell listed in the [support matrix](../../support-matrix.md) and takes an explicit `Admg`. In this snippet `data` holds the trial and target rows and `admg` is an `Admg` over its columns.
+When the source is a randomized trial with a binary treatment and you hold one table of trial and target rows, call `transport.advanced.TransportQuery`. It estimates the transported response by inverse-probability weighting. It is the transport cell listed in the [support matrix](../../support-matrix.md). It takes an explicit `Admg`. In this snippet `data` holds the trial and target rows. `admg` is an `Admg` over its columns.
 
 ```python
 import antecedent as ant
@@ -100,22 +100,22 @@ report = result.inspect().to_dict()
 loaded = ant.load(result.export())
 ```
 
-`S` is trial membership, `A` the treatment and `X` the covariates the selection node points into. The estimand is the target mean response at each grid value, identified either directly or by standardizing over `X`, and `estimate.ate` is the contrast between the two grid values. The selection diagram and the trial column bindings freeze when the study is prepared; `ant.rebind` replaces the rows. The two overlap diagnostics, trial selection and within-trial treatment, are reported separately on `transport_overlap` because one combined number would hide which assumption is failing.
+`S` is trial membership. `A` is the treatment. `X` is the covariates the selection node points into. The estimand is the target mean response at each grid value, identified either directly or by standardizing over `X`. `estimate.ate` is the contrast between the two grid values. The selection diagram and the trial column bindings freeze when the study is prepared. `ant.rebind` replaces the rows. The two overlap diagnostics, trial selection and within-trial treatment, are reported separately on `transport_overlap` because one combined number would hide which assumption is failing.
 
 ## What the identifier does
 
-Identification runs before any number is computed. To run it on its own, call `ant.identify(graph=graph, query=query)` for a `Transport` query or `transport.advanced.identify(graph=admg, query=query)` for a `TransportQuery`. It adds the selection nodes to the graph and tests m-separation in the treatment-mutilated diagram. The checked subset covers direct transport, pre-treatment (S-admissible) standardization over up to 20 candidate covariates, and recursive factorization over singleton c-components. Where the subset ends, Antecedent stops and reports `not_certified`; it does not substitute a heuristic.
+Identification runs before any number is computed. To run it on its own, call `ant.identify(graph=graph, query=query)` for a `Transport` query. For a `TransportQuery`, call `transport.advanced.identify(graph=admg, query=query)`. It adds the selection nodes to the graph. It tests m-separation in the treatment-mutilated diagram. The checked subset covers direct transport. It covers pre-treatment (S-admissible) standardization over up to 20 candidate covariates. It covers recursive factorization over singleton c-components. Where the subset ends, Antecedent stops and reports `not_certified`. It does not substitute a heuristic.
 
-The result carries the formula and a certificate with one of five identification statuses: `identified`, `proven_non_transportable`, `missing_evidence`, `not_certified` and `budget_cancel`. They mean different things and call for different next steps; [when transport fails](../transport-failure.md) explains each.
+The result carries the formula and a certificate with one of five identification statuses: `identified`, `proven_non_transportable`, `missing_evidence`, `not_certified` and `budget_cancel`. They mean different things. They call for different next steps. [When transport fails](../transport-failure.md) explains each.
 
 ## Read a transported claim
 
 A transported value is a claim about the target conditional on the diagram you declared.
 
-- **Identification.** Check `ident.certificate["identification_status"]` and `ident.inspect().identification` (on a `transport.advanced.identify` result, `ident.identification_status`). `identified` means a checked formula exists from the supplied evidence; it says nothing about whether the selection diagram is right.
+- **Identification.** Check `ident.certificate["identification_status"]`. Also check `ident.inspect().identification`. On a `transport.advanced.identify` result, read `ident.identification_status`. `identified` means a checked formula exists from the supplied evidence. It says nothing about whether the selection diagram is right.
 - **Support.** `result.support` locates the coordinates where evidence is missing or the target has mass the source never saw. Unsupported coordinates are kept and labelled, not dropped.
-- **Uncertainty.** Exact supplied laws carry no sampling interval. Empirical-table routes publish a pointwise percentile bootstrap that is nominal unless a coverage record is bound to that exact construction. Read `result.inspect().calibration` and `result.inspect().uncertainty`; do not infer coverage from the name of the parent estimator.
-- **Point only.** Many transport routes return a point with the premises that produced it. A range from an assumption analysis or a structural envelope over scenarios is a different object from a confidence interval, and each result labels which one it is.
+- **Uncertainty.** Exact supplied laws carry no sampling interval. An empirical table publishes a pointwise percentile bootstrap. That bootstrap is nominal unless a coverage record is bound to that exact construction. Read `result.inspect().calibration`. Read `result.inspect().uncertainty`. Do not infer coverage from the name of the parent estimator.
+- **Point only.** Many transport procedures return a point with the premises that produced it. A range from an assumption analysis is a different object from a confidence interval. A structural envelope over scenarios is a different object from a confidence interval. Each result labels which one it is.
 
 Structural transport is separate from prior transfer. `antecedent.transport` asks whether source experiments and target observations identify a response in the target. `antecedent.priors` moves statistical evidence after the causal quantity is already defined.
 
@@ -137,7 +137,7 @@ The two last codes are described under [other registered refusal codes](../../re
 
 Two low-level functions sit outside the study lifecycle. Use them to inspect numbers, not to make a claim.
 
-`transport.advanced.estimate_trial_effect` computes the trial IPW point and, from supplied outcome regressions (`mu0`, `mu1`), the augmented IPW point, and returns them with the overlap report in a `TrialTransportEstimate`: no study, export or calibration slot, and no support. It agrees with the `analyze` path on the point value for the construction both support. `transport.advanced.estimate_augmented_response_grid` evaluates caller-supplied regressions and local response weights on a dose grid under a checked identification:
+Call `transport.advanced.estimate_trial_effect`. You get the trial IPW point. From supplied outcome regressions (`mu0`, `mu1`), you also get the augmented IPW point. Both come back with the overlap report in a `TrialTransportEstimate`. There is no study, no export and no calibration slot. There is no support. The point agrees with `analyze` for the construction both support. `transport.advanced.estimate_augmented_response_grid` evaluates caller-supplied regressions and local response weights on a dose grid under a checked identification:
 
 ```python
 from antecedent.transport import advanced as transport
@@ -154,13 +154,13 @@ reading.source_effective_sample_size
 reading.selection_overlap
 ```
 
-`identification` is the result of `transport.identify(graph=..., query=...)` for the `TransportQuery`. `target_regression` and `response_weight` have shape `(grid_size, row_count)`. Antecedent checks the numerical inputs and that the certificate authorizes this equation. The result is point-only; it adds no fitted estimator, interval or double-robustness claim.
+`identification` is the result of `transport.identify(graph=..., query=...)` for the `TransportQuery`. `target_regression` and `response_weight` have shape `(grid_size, row_count)`. Antecedent checks the numerical inputs. It checks that the certificate authorizes this equation. The result is point-only. It adds no fitted estimator, no interval and no double-robustness claim.
 
 ## Boundaries
 
 - The trial IPW algebra evaluates direct transport and standardization, not a product of population-labelled factors.
-- Multi-source and limited-experiment questions beyond the `Transport` form use the advanced identifiers and the routes in [Transport limits by route](../transport-scope.md).
-- Interference between units is a separate question from transport; see [saturation and interference designs](../designs/interference-and-network-exposure.md).
+- Multi-source and limited-experiment questions beyond the `Transport` form use the advanced identifiers. Their limits are in [Transport limits by route](../transport-scope.md).
+- Interference between units is a separate question from transport. See [saturation and interference designs](../designs/interference-and-network-exposure.md).
 
 ## Related
 
