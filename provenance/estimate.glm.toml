@@ -29,7 +29,7 @@ test_sources = [
 
 [method_review]
 status = "reviewed_with_limits"
-scope = "GlmAdjustmentAte::fit (no bootstrap) on a prepared main-effects design for the binomial-logit, binomial-probit and Poisson-log families: the IRLS maximum-likelihood fit, the observed-row g-computation contrast mean(m(x(active)'b) - m(x(control)'b)), and the delta-method standard error sqrt(g' I^-1 g) from the expected Fisher information at the estimate; and that the reported effect is the response-scale contrast, not the link-scale treatment coefficient. Not the separation ridge, negative-binomial dispersion, sampling-weighted fits, treated or untreated target populations, sandwich and cluster covariances, or the bootstrap."
+scope = "GlmAdjustmentAte::fit (no bootstrap) on a prepared main-effects design for the binomial-logit, binomial-probit and Poisson-log families: the IRLS maximum-likelihood fit, the observed-row g-computation contrast mean(m(x(active)'b) - m(x(control)'b)), and the delta-method standard error sqrt(g' I^-1 g) from the expected Fisher information at the estimate; and that the reported effect is the response-scale contrast, not the link-scale treatment coefficient. Not the separation ridge, negative-binomial dispersion, sampling-weighted fits, treated or untreated target populations, sandwich and cluster covariances, or the bootstrap. Treatment preparation now retains the declared level or dose classification, preserving default admission for the reviewed contrast. The direct arithmetic reference supplies no classification and continues to test the same design and numerical fit. The new classification chooses the admitted target; its downstream numerical guarantees are limited to this review’s original designs."
 assumptions = ["The outcome follows the declared GLM family with the declared link and the main-effects linear predictor; the contrast averages over the observed rows and treats them as fixed.", "The delta-method variance uses the expected information and the covariates' empirical distribution as fixed, so it is the model-based variance conditional on the covariates."]
 historical_exposure = "Historical author exposure to upstream implementations cannot be independently established from retained artifacts. This review read the product source named in its scope, including the numerical helpers it calls, and compared results with a 40-digit Fisher-scoring fit and delta-method variance written for this review; no upstream implementation or test source was consulted or copied. The cited publications were not retrieved in this review: the correspondence is between the product code and the standard definitions those works state, verified numerically, not a page-level reading of the papers."
 redistribution = "Primary works are cited, not redistributed. The reference script and its frozen output are repository-authored (MIT OR Apache-2.0); mpmath is used only to produce the frozen values and is not a product dependency. The script declares its inline script metadata but is not run in a locked, isolated environment and is not wired into any gate; its output is frozen in the JSON file and compared by the test."
@@ -41,8 +41,8 @@ record_sha256 = "78e9d54cda875d51a1a5874e22232b42d1fdc8083d2bd485f95a3c81f526bec
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-estimate/src/glm_adjustment.rs"
-items = ["fn attach_bootstrap", "fn bootstrap_se", "fn default", "fn fit", "fn fit_point", "fn new", "fn prepare", "fn with_sampling_weights", "struct GlmAdjustmentAte", "struct GlmAdjustmentWorkspace", "struct PreparedGlmProblem"]
-sha256 = "62960b9d399763d70df40d242748c2c15157b14e21cbab33c4590631006495a4"
+items = ["fn with_treatment_declaration", "fn attach_bootstrap", "fn bootstrap_se", "fn default", "fn fit", "fn fit_point", "fn new", "fn prepare", "fn with_sampling_weights", "struct GlmAdjustmentAte", "struct GlmAdjustmentWorkspace", "struct PreparedGlmProblem"]
+sha256 = "ce86f6e6ec8167d6af8a872dfb74d347104c11a7d5390f5123f2021be8bf4000"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -54,7 +54,7 @@ sha256 = "9b6d604377a97ccd888aad1772378bdb320abca1e7d18753861e63204fc0269f"
 role = "assertion"
 path = "crates/antecedent-estimate/tests/glm_adjustment_reference.rs"
 items = ["fn contrast_and_delta_method_standard_error_match_the_exact_reference", "fn floats"]
-sha256 = "62ab4b059addbe5d563d5c4763f84673cfc48a4bb6b05dfca0170d3d71393916"
+sha256 = "a53b887b1972121aa55f1da2a599431c053dd1b14c64b3b03a18c436e1f3e4a7"
 
 [[method_review.artifacts]]
 role = "reference"
