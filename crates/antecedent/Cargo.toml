@@ -1738,3 +1738,7 @@ path = "tests/longitudinal_schedule_calibration.rs"
 [[test]]
 name = "integrated_schedule_decision"
 path = "tests/integrated_schedule_decision.rs"
+
+[[example]]
+name = "compare_intervention_schedules"
+path = "../../examples/rust/compare_intervention_schedules.rs"

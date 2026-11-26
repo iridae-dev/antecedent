@@ -327,3 +327,12 @@ fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
         .join()
         .expect("example panicked");
 }
+
+#[allow(dead_code, reason = "the example suite calls run directly")]
+#[path = "../../../examples/rust/compare_intervention_schedules.rs"]
+mod compare_intervention_schedules;
+
+#[test]
+fn example_compare_intervention_schedules_runs() {
+    compare_intervention_schedules::run().unwrap();
+}

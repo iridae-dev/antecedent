@@ -1251,3 +1251,15 @@ level = "intermediate"
 dependencies = []
 runtime = "small synthetic example"
 claim = "The conditional point value matches the hand calculation and the fitted result replays. The posterior interval is unmeasured."
+
+[[example]]
+id = "compare_intervention_schedules"
+title = "Compare two-period schedules under uncertain preferences"
+summary = "Fit assignment and observation probabilities on source trajectories, transport the outcomes to a new baseline mix, and compare schedules under two graph structures and two sets of costs."
+python = "examples/python/compare_intervention_schedules.py"
+rust = "examples/rust/compare_intervention_schedules.rs"
+topic = "Tutorials"
+level = "advanced"
+dependencies = []
+runtime = "up to 1 min"
+claim = "On the synthetic cohort, schedules 00, 10 and 11 remain compatible optima. Replay recovers the final set. Removing the preference costs refuses the decision because the joint evidence is incomplete."
