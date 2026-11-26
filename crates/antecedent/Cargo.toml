@@ -1742,3 +1742,7 @@ path = "tests/integrated_schedule_decision.rs"
 [[example]]
 name = "compare_intervention_schedules"
 path = "../../examples/rust/compare_intervention_schedules.rs"
+
+[[example]]
+name = "delayed_entry_incidence"
+path = "../../examples/rust/delayed_entry_incidence.rs"

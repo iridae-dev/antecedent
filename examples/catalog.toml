@@ -1263,3 +1263,15 @@ level = "advanced"
 dependencies = []
 runtime = "up to 1 min"
 claim = "On the synthetic cohort, schedules 00, 10 and 11 remain compatible optima. Replay recovers the final set. Removing the preference costs refuses the decision because the joint evidence is incomplete."
+
+[[example]]
+id = "delayed_entry_incidence"
+title = "Compare competing incidence after delayed entry"
+summary = "Estimate the randomized treatment difference in cause-1 incidence at day three. Export the fitted result with its source cohort for replay, then check support after earlier censoring reduces the treated risk set."
+python = "examples/python/delayed_entry_incidence.py"
+rust = "examples/rust/delayed_entry_incidence.rs"
+topic = "Estimate effects"
+level = "advanced"
+dependencies = ["pandas"]
+runtime = "under 10 seconds"
+claim = "The incidence difference is 0.25. Both cohorts produce a pointwise bootstrap interval. With twenty treated subjects at risk at day three, the interval falls outside the supported row."
