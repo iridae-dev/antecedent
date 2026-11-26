@@ -174,8 +174,11 @@ def resolve_source(
     else:
         from .decision_evidence import JointEvidence
         from .propagation_chain import PropagationChain
+        from .scientific_bridge import JointOutcomeImage
 
-        if isinstance(source, JointEvidence):
+        if isinstance(source, JointOutcomeImage):
+            converted = source.distribution
+        elif isinstance(source, JointEvidence):
             converted = experiment_means(source, execution=execution)
         elif isinstance(source, PropagationChain):
             converted = chain_law(source)

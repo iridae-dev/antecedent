@@ -125,6 +125,7 @@ fn io_refusal(error: &IoError, stage: &str) -> PyResult<String> {
         IoError::Refused { code, message } => {
             Ok(RefusalJson::from_coded_message(code, stage, message).json())
         }
+        IoError::Admission(inner) => Err(crate::CausalResourceError::new_err(inner.to_string())),
         other => Err(crate::serialization_err(other.to_string())),
     }
 }

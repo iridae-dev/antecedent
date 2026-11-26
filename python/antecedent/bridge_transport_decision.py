@@ -159,7 +159,7 @@ def _bridge_contract(contract: object) -> BridgeContract:
 def _source(source: object) -> JointDistributionArtifact:
     source = require_success(source)
     if not isinstance(source, JointDistributionArtifact):
-        raise CausalTypeError("source must be a JointDistributionArtifact of predictive draws")
+        raise CausalTypeError("source must be a JointDistributionArtifact")
     return source
 
 
@@ -982,10 +982,10 @@ def compile_bridge_bundle_recomputation(
     *,
     stream: int,
 ) -> CompiledBridgeBundleRecomputation:
-    """Compile a bundle whose node ``terminal`` embeds a predictive scientific bridge.
+    """Compile a bundle whose node ``terminal`` embeds a predictive or sampling bridge.
 
     ``contract``, ``source`` and ``stream`` are the declaration that derived the embedded
-    bridge: the predictive contract, its source draws and the random stream of its mapping.
+    bridge: the law-preserving contract, its source draws and the random stream of its mapping.
     Every dependency is replayed by its own consumer when the program executes.
 
     Raises:

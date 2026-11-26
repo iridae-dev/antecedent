@@ -42,7 +42,10 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
+
+if TYPE_CHECKING:
+    from .scientific_bridge import IdentifiedSetImage
 
 from . import _deprecation, _retained
 from ._artifact_protocol import (
@@ -1055,7 +1058,7 @@ class IdentifiedUtility:
         cls,
         contract: AdmissibleContract,
         action_id: str,
-        inputs: Sequence[tuple[float, float]],
+        inputs: Sequence[tuple[float, float] | IdentifiedSetImage],
         *,
         hard_exclusions: Sequence[str] = (),
         support: Support | None = None,
@@ -1065,9 +1068,23 @@ class IdentifiedUtility:
         An outer enclosure by interval arithmetic: sharp when each input appears
         once in the utility, and possibly wider when one appears twice.
         """
-        bounds, refusal = _interval(
-            contract._declaration(), action_id, [(float(lo), float(hi)) for lo, hi in inputs]
-        )
+        from .scientific_bridge import IdentifiedSetImage
+
+        action = next((a for a in contract.contract.actions if a.id == action_id), None)
+        intervals = []
+        for index, value in enumerate(inputs):
+            if isinstance(value, IdentifiedSetImage):
+                if action is not None and (
+                    index >= len(action.quantities) or action.quantities[index] != value.quantity
+                ):
+                    raise CausalValueError(
+                        f"bridge image coordinate does not match input {index} of action {action_id!r}"
+                    )
+                intervals.append((value.lower, value.upper))
+            else:
+                lo, hi = value
+                intervals.append((float(lo), float(hi)))
+        bounds, refusal = _interval(contract._declaration(), action_id, intervals)
         raise_refusal(refusal, DecisionRefusal)
         assert bounds is not None
         return cls(action_id, bounds[0], bounds[1], tuple(hard_exclusions), support)
