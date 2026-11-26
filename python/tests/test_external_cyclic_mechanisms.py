@@ -377,3 +377,68 @@ def test_the_generic_artifact_loader_refuses_without_a_resolver():
     with pytest.raises(CausalValueError) as caught:
         load(artifact.data, expected=artifact.identity)
     assert caught.value.reason_code == "mechanism_resolver_missing"
+
+
+def test_mechanism_decorators_register_only_the_finished_implementation():
+    registry = em.MechanismRegistry()
+    dependencies = [em.Dependency("model_data", "1.0", "a" * 64)]
+
+    @em.mechanism(
+        "lab/saturating_gain",
+        version="1.0",
+        reads=[1],
+        parameters=["gain"],
+        dependencies=dependencies,
+        registry=registry,
+        input_lipschitz=[0.9],
+    )
+    def saturation(x, p):
+        return p[0] * math.tanh(x[0])
+
+    @saturation.input_gradient
+    def input_gradient(x, p):
+        return [p[0] * (1 - math.tanh(x[0]) ** 2)]
+
+    @saturation.parameter_gradient
+    def parameter_gradient(x, p):
+        return [math.tanh(x[0])]
+
+    @saturation.mixed_gradient
+    def mixed_gradient(x, p):
+        return [[1 - math.tanh(x[0]) ** 2]]
+
+    assert len(registry) == 0
+    implementation = saturation.register()
+    assert saturation.register() is implementation
+    assert registry.resolve(implementation.spec) is implementation
+    assert implementation.spec["dependencies"][0]["name"] == "model_data"
+    assert implementation.spec["derivative"] == {"kind": "analytic"}
+    direct = em.MechanismImplementation(
+        "lab/saturating_gain",
+        "1.0",
+        implementation._value,
+        [1],
+        ["gain"],
+        dependencies=dependencies,
+        input_lipschitz=[0.9],
+        input_gradient=input_gradient,
+        parameter_gradient=parameter_gradient,
+        mixed_gradient=mixed_gradient,
+    )
+    assert implementation.identity == direct.identity
+    changed = em.MechanismImplementation(
+        "lab/saturating_gain",
+        "1.0",
+        implementation._value,
+        [1],
+        ["gain"],
+        dependencies=dependencies,
+        input_lipschitz=[0.9],
+        input_gradient=input_gradient,
+        parameter_gradient=parameter_gradient,
+    )
+    assert implementation.identity != changed.identity
+    assert implementation.input_gradient_parameter_derivative([0.0], [0.5]) == [[1.0]]
+    with pytest.raises(CausalValueError, match="before mechanism registration"):
+        saturation.input_gradient(input_gradient)
+    assert saturation.register() is implementation

@@ -23,12 +23,14 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Literal
 
 from . import _deprecation, _native
+from ._callback_signature import check_signature
 from ._data import as_columns, as_multi_env_columns
 from ._scientific import ScientificResult
+from ._validate import name as _name
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
 from .execution import Execution, native_controls
 from .outcomes import Answer, Outcome, outcome_operation, require_success
@@ -147,6 +149,58 @@ from ._native import (
 from ._native import (
     validate_synthetic_null_calibration as _validate_synthetic_null_calibration,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _DeclaredValidator:
+    name: str
+    _function: Callable[..., dict[str, Any]] = field(repr=False)
+
+    def __call__(self, **kwargs: Any) -> dict[str, Any]:
+        return self._function(**kwargs)
+
+
+def validator(*, name: str) -> Callable[[Callable[..., dict[str, Any]]], _DeclaredValidator]:
+    """Name a caller-defined effect validator.
+
+    Pass the decorated callback in the `validators` sequence of :func:`antecedent.prepare`
+    or :func:`antecedent.analyze`. It receives `ate`, `se_analytic`, `method` and
+    `adjustment_set` as keywords and returns a dict with a boolean `passed`. Optional
+    fields include a numeric `comparison` and a textual `failure_condition`. The name
+    identifies caller-defined validation evidence.
+    """
+    label = _name(name, "validator name")
+
+    def decorate(fn: Callable[..., dict[str, Any]]) -> _DeclaredValidator:
+        check_signature(
+            fn, "validator callback", ate=None, se_analytic=None, method=None, adjustment_set=None
+        )
+        return _DeclaredValidator(label, fn)
+
+    return decorate
+
+
+def _validator_declarations(
+    validators: Sequence[Any] | Mapping[str, Any] | None,
+) -> list[Any] | Mapping[str, Any] | None:
+    if validators is None or isinstance(validators, Mapping):
+        return validators
+    items = list(validators)
+    if not any(isinstance(item, _DeclaredValidator) for item in items):
+        return items
+    named: dict[str, Any] = {}
+    for item in items:
+        if isinstance(item, _DeclaredValidator):
+            label = item.name
+        else:
+            owner = item if hasattr(item, "__qualname__") else type(item)
+            module = getattr(owner, "__module__", None)
+            qualname = owner.__qualname__
+            label = f"{module}.{qualname}" if isinstance(module, str) else qualname
+        if label in named:
+            raise CausalValueError(f"validator name {label!r} is not unique")
+        named[label] = item
+    return named
 
 
 def _run(
@@ -2069,4 +2123,5 @@ __all__ = [
     "validate_pcmci_plus_orientation",
     "validate_regime_stability",
     "validate_synthetic_null_calibration",
+    "validator",
 ]

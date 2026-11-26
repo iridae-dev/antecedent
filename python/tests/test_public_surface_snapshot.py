@@ -397,6 +397,7 @@ SNAPSHOT: dict[str, set[str]] = {
         # Lazy stage modules (`_LAZY_MODULES`): listed by ``dir``, imported on first access
         # (`joint_distribution` and `preflight` above are also in this family)
         "adaptive_inference",
+        "aio",
         "effect_constancy_review",
         "choice_inference",
         "decision_evidence",

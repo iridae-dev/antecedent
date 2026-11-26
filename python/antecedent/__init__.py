@@ -434,6 +434,7 @@ except ImportError:  # pragma: no cover - extension not built
 _LAZY_MODULES: tuple[str, ...] = (
     "adaptive_inference",
     "adaptive_policy",
+    "aio",
     "categorical_treatment",
     "citations",
     "cohort_decision",
@@ -536,6 +537,7 @@ _LAZY_MODULES: tuple[str, ...] = (
 if _TYPE_CHECKING:
     from . import adaptive_inference as adaptive_inference
     from . import adaptive_policy as adaptive_policy
+    from . import aio as aio
     from . import categorical_treatment as categorical_treatment
     from . import choice_inference as choice_inference
     from . import citations as citations

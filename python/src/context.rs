@@ -82,6 +82,10 @@ impl PyCancellationToken {
         Self { inner: antecedent::execution::CancellationToken::new() }
     }
 
+    fn _child(&self) -> Self {
+        Self { inner: self.inner.child() }
+    }
+
     fn cancel(&self) {
         self.inner.cancel();
     }

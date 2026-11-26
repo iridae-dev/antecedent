@@ -718,6 +718,7 @@ _EXPECTED_STAGE_ALL = {
         "result_lineage_fingerprint",
     },
     "validation": {
+        "validator",
         "AssumptionRange",
         "RangePoint",
         "RefutationTarget",

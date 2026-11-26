@@ -7,13 +7,14 @@ from dataclasses import replace
 import antecedent
 import numpy as np
 import pytest
-from antecedent.errors import CausalError, CausalUnsupportedError, CausalValueError
+from antecedent.errors import CausalError, CausalTypeError, CausalUnsupportedError, CausalValueError
 from antecedent.intervention_callbacks import (
     GENERATED,
     CallbackProgram,
     CallbackRecord,
     InterventionCallback,
     callback_records,
+    intervention,
     recover_callback,
     sample_do,
 )
@@ -272,3 +273,25 @@ def test_source_that_could_reach_outside_its_declared_dependencies_is_refused(so
 def test_source_must_define_its_entry_point():
     with pytest.raises(CausalValueError, match="missing"):
         InterventionCallback.from_source(SOURCE, entry_point="missing", inputs=["x"])
+
+
+def test_decorated_intervention_runs_with_declared_inputs_and_stays_runtime_bound(gcm):
+    @intervention(inputs=["x"], lower=50, upper=100)
+    def pricing(inventory):
+        return np.clip(100 - 0.25 * inventory, 50, 100)
+
+    program = CallbackProgram("y", pricing)
+    draws = sample_do(gcm, [program], N_DRAWS, execution=antecedent.Execution(seed=7))
+    x, y = _column(draws, gcm, "x"), _column(draws, gcm, "y")
+    np.testing.assert_allclose(y, np.clip(100 - 0.25 * x, 50, 100))
+    with pytest.raises(CausalUnsupportedError) as refused:
+        callback_records([program])
+    assert refused.value.reason_code == "policy_callback_not_portable"
+
+
+def test_decorated_intervention_rejects_incompatible_signature_without_running():
+    with pytest.raises(CausalTypeError, match="intervention callback.*signature"):
+
+        @intervention(inputs=["x", "y"])
+        def pricing(inventory):
+            raise AssertionError("the function was invoked during declaration")

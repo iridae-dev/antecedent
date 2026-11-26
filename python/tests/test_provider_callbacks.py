@@ -983,3 +983,29 @@ def test_keyboard_interrupt_in_callable_propagates():
     with pytest.raises(KeyboardInterrupt):
         session.execute(provider, mean_only(), pc.Request(pc.Query.mean(), seed=3))
     assert calls == ["mean"]
+
+
+def test_provider_decorator_uses_session_negotiation_and_reuse():
+    decl = mean_only()
+    calls = []
+
+    @pc.provider(identity=decl.provider, declaration=decl)
+    def law(query, context):
+        calls.append(query.operation)
+        return pc.Output.mean(MU)
+
+    assert law.declaration is decl
+    assert calls == []
+    session = pc.CallbackSession()
+    request = pc.Request(pc.Query.mean())
+    first = require_success(session.execute(law, law.declaration, request))
+    reused = require_success(session.execute(law, law.declaration, request))
+    assert first.output.values == (MU,)
+    assert reused.reused and calls == ["mean"]
+    refused = refusal_of(session.execute, law, law.declaration, pc.Request(pc.Query.sample(1)))
+    assert refused.invocations == 0
+
+
+def test_provider_decorator_requires_matching_identity():
+    with pytest.raises(CausalValueError, match="identity must match"):
+        pc.provider(identity=identity("2.0"), declaration=mean_only())

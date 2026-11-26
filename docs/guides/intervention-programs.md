@@ -167,6 +167,24 @@ executor runs it, once per batch with whole columns, so its inputs are ordinary 
 circularity, availability and history checks. Python reaches it through
 `antecedent.intervention_callbacks` (`InterventionCallback`, `CallbackProgram`, `sample_do`).
 
+In Python, use `@intervention` to declare a batch callback where its function is defined.
+
+```python
+import numpy as np
+from antecedent.intervention_callbacks import CallbackProgram, intervention
+
+
+@intervention(inputs=["inventory"], lower=50, upper=100)
+def pricing(inventory):
+    return np.clip(100 - 0.25 * inventory, 50, 100)
+
+
+program = CallbackProgram("price", pricing)
+```
+
+The decorator checks that the function can take one positional array per input. Use
+`InterventionCallback.from_source` when the callback needs a recovery record.
+
 Every output is validated before it reaches the draws: length, a one-dimensional real dtype,
 finiteness, and the declared support (a range or a set of levels; a level set must lie in a
 categorical node's support). An exception inside the callback is reported with its own message;

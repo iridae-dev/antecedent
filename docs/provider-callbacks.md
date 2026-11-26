@@ -50,6 +50,19 @@ invocation counts. Planning (`session.plan`), `consume_callback_result` and
 the contract in terms of the Rust types; the Python classes carry the same
 names and fields.
 
+For a provider implemented as a function, `@pc.provider` pairs it with the declaration
+and checks the declaration before use. Pass the returned provider and its declaration into
+the same session.
+
+```python
+@pc.provider(identity=declaration.provider, declaration=declaration)
+def outcome_law(query, context):
+    return pc.Output.mean(2.0)
+
+
+result = session.execute(outcome_law, outcome_law.declaration, pc.Request(pc.Query.mean()))
+```
+
 ## The protocol
 
 `antecedent_contract::callback_protocol::CallbackDeclaration` states:

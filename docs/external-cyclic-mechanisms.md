@@ -137,6 +137,39 @@ report = em.consume_artifact(artifact.data, artifact.identity, resolver=fresh_re
 `content` defaults to the source of the callables; pass `content=` when source is unavailable.
 `inspect_artifact(data)` shows the recorded identities without any resolver. The generic `antecedent.load(data, expected=identity)` knows the `external_cyclic_equilibrium` kind but has no way to pass a resolver, so it refuses with `mechanism_resolver_missing`; use `consume_artifact(..., resolver=)`. `execute`/`export` take `require_contraction` (default false): true refuses any block without a declared contraction instead of using Newton.
 
+### Declare a mechanism with decorators
+
+```python
+import math
+
+from antecedent.external_mechanisms import ExternalEquation, MechanismRegistry, mechanism
+
+registry = MechanismRegistry()
+
+
+@mechanism("inventory/saturation", version="1.0", reads=[1], parameters=["gain"], registry=registry)
+def saturation(x, p):
+    return p[0] * math.tanh(x[0])
+
+
+@saturation.input_gradient
+def saturation_input_gradient(x, p):
+    return [p[0] * (1.0 - math.tanh(x[0]) ** 2)]
+
+
+@saturation.parameter_gradient
+def saturation_parameter_gradient(x, p):
+    return [math.tanh(x[0])]
+
+
+equation = ExternalEquation("inventory_response", saturation.register(), parameters=(0.5,))
+```
+
+Call `register()` after declaring all derivatives. The registry then holds the implementation
+with its dependency declarations and the content digest covering the value and derivative
+source. If you supply `content`, give it a value that identifies all the callables together.
+Replaying an artifact uses the same trusted resolver as the constructor API.
+
 ## Reference
 
 `conformance/gcm/external_mechanism_feedback/reference.py` derives the fitted gain

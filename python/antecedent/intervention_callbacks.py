@@ -48,6 +48,7 @@ import numpy as np
 
 from . import _retained
 from ._artifact_protocol import container_bytes
+from ._callback_signature import check_signature
 from ._native import (
     BatchCallbackHandle,
     callback_export_refusal,
@@ -68,6 +69,7 @@ __all__ = [
     "InterventionCallback",
     "decode_programs",
     "encode_programs",
+    "intervention",
     "callback_records",
     "recover_callback",
     "required_callbacks",
@@ -435,6 +437,42 @@ class InterventionCallback:
     def __repr__(self) -> str:
         kind = "recoverable" if self.recoverable else "runtime binding"
         return f"InterventionCallback({self.name!r}, inputs={self.inputs!r}, {kind})"
+
+
+def intervention(
+    *,
+    inputs: Sequence[str],
+    name: str | None = None,
+    lower: float | None = None,
+    upper: float | None = None,
+    levels: Iterable[float] | None = None,
+    dependencies: Mapping[str, str | None] | None = None,
+) -> Callable[[Callable[..., Any]], InterventionCallback]:
+    """Declare a batch callback for :class:`CallbackProgram`.
+
+    The function must accept one positional array per declared input. The input names
+    identify model columns and are passed in order. Use :meth:`InterventionCallback.from_source`
+    to declare a recoverable callback.
+    """
+    if isinstance(inputs, str):
+        raise CausalValueError("inputs must be a sequence of names, not one string")
+    declared_inputs = tuple(inputs)
+    declared_levels = None if levels is None else tuple(levels)
+    declared_dependencies = None if dependencies is None else dict(dependencies)
+
+    def decorate(fn: Callable[..., Any]) -> InterventionCallback:
+        check_signature(fn, "intervention callback", *([None] * len(declared_inputs)))
+        return InterventionCallback(
+            fn,
+            inputs=declared_inputs,
+            name=name,
+            lower=lower,
+            upper=upper,
+            levels=declared_levels,
+            dependencies=declared_dependencies,
+        )
+
+    return decorate
 
 
 def _refuse_unless_portable(callbacks: Sequence[InterventionCallback]) -> None:
