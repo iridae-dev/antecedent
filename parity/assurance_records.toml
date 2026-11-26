@@ -451,8 +451,8 @@ rust_items = [
 ]
 
 [records.result]
-inputs_digest = "1b5d299b76fe00ac64417990758079ab2941964441c3d2c5ff6314dd4e7af57f"
-checked_commit = "a73cfd7ef8f111befb9b79e6d107703de839e2e6"
+inputs_digest = "ca9eac0da71062fcc97a56aa5c301a8bfcffd1e3c9e6213260d47618e945988b"
+checked_commit = "7024de86a7e7d7ff4fe70ed90ad114a6cd4b17d4"
 
 [[records]]
 id = "claim_standing.derivations_never_raised"
