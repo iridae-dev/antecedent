@@ -29,7 +29,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "Component wrapper over the posterior action-world decision of cyclic.action_world_decisions: it checks declared ports and coefficients, lowers the connected components to one cyclic system, supplies the common training schedule and output coordinates, and for the bounded route transforms the fitted draws before the decision."
+rationale = "Component wrapper over the posterior action-world decision of cyclic.action_world_decisions: it checks declared ports and coefficients, lowers the connected components to one cyclic system, supplies the common training schedule and output coordinates, and for the bounded route transforms the fitted draws before the decision. The scoped review compared the shared compiled-plan accessor and the split bounded-component fixture. The forward check still matches each bounded draw to the logistic transform of the same joint fitted draw. A separate assertion reopens the artifact and exercises altered evidence. The fixture split and inspection delegation do not change fitting, solving or evaluation."
 no_independent_algorithm = "The only numerics added are the assembly of the dense coefficient rows and covariance from declared coefficients and the elementwise logistic 1 / (1 + exp(-x)) of each fitted draw; the fit, the equilibrium solve and the decision are those of the covered records."
 covered_by = ["cyclic.general_systems", "cyclic.action_world_decisions", "prob.mcmc_diagnostics", "decision.contract"]
 inline_tests = true
@@ -39,4 +39,4 @@ record_sha256 = "1a2281d77e31662a950389634321ed4b73d22f2a5780131a7d18856de1de3ed
 role = "implementation"
 path = "crates/antecedent/src/analysis/cyclic_component_composition.rs"
 items = ["module"]
-sha256 = "bcec703ad248493722a453d0a8cb3de22aab777bcf0cbbb5aba01a64b8c72297"
+sha256 = "ce6937e963da0e568300fcd257d3fe04e3b81aa7609ff6a92af7e8b31f34a2a8"

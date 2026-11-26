@@ -35,7 +35,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "Decision wrapper over the cyclic equilibrium solver, the equilibrium likelihood, the random-walk Metropolis posterior and the decision evaluator. The modules bind output coordinates to worlds, derive the aligned joint law of the paired worlds, hand it to the decision compiler and seal an artifact an independent consumer replays."
+rationale = "Decision wrapper over the cyclic equilibrium solver, the equilibrium likelihood, the random-walk Metropolis posterior and the decision evaluator. The modules bind output coordinates to worlds, derive the aligned joint law of the paired worlds, hand it to the decision compiler and seal an artifact an independent consumer replays. The reviewed source now routes inspection through the common compiled handle, which still views the same retained program at the compiled stage. The paired-world fixture keeps its per-draw equilibrium contrast and checks the posterior mean against a finite one-dimensional grid of the declared Gaussian likelihood, its equilibrium Jacobian and the normal prior. It does not equate the fitted mean with the generator coefficient. Separate identity assertions vary output order, source or target rows, seed, utility units and the relevant fit settings."
 no_independent_algorithm = "The only numerics added are the Cholesky factor of the supplied disturbance covariance and standard-normal draws through the repository kernels, and a row-wise average over the declared target baseline rows; the equilibrium solve, the posterior and the utility evaluation are those of the covered records."
 covered_by = ["cyclic.general_systems", "prob.mcmc_diagnostics", "decision.contract", "decision.functionals"]
 inline_tests = true
@@ -45,16 +45,16 @@ record_sha256 = "75ccbf53c9ddda7b293345d3a1f46c8a2443af2d4dbab4fb7cf01db4ce8964d
 role = "implementation"
 path = "crates/antecedent/src/analysis/cyclic_action_world_decision.rs"
 items = ["module"]
-sha256 = "7ad2f9781638beae41a8a507885ea9a78b0735ac3ddaa56a64790aae42734faf"
+sha256 = "427c30b60b56394191ff914a90f48103f9e92fd93ca34885bf8a0847790640fb"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/cyclic_posterior_action_decision.rs"
 items = ["module"]
-sha256 = "38f1fb9e47c74e27fa4b0d13f3a0d08a0b48c3291372dcd18a199a0bd62179de"
+sha256 = "c431cfa57fd78a459248ec2f7da0976f5df174a8d6600feec3b9b687efce85ed"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent/src/analysis/cyclic_target_feedback_decision.rs"
 items = ["module"]
-sha256 = "8c5cfa0c7ba428969c22d654d624ae142b679f8516e821861c7f42f55e6f79b8"
+sha256 = "02cbb15bba996ba6a5611a58910683ac0a375a5268cef7d84978bcfb85361b9c"

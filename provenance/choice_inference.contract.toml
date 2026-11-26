@@ -28,8 +28,8 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "wrapper"
-rationale = "The contract, qualification and routing layers of choice inference: the choice-study declaration with completeness and consistency refusals, scope matching and row-level overlap of retained sources through the evidence ledger, the procedure-matrix authorization of each route, the conflict screen on the discounted prior, the sealed result artifact with consumer replay, and the EVSI ranking over the pooled posterior. Each numerical step is delegated to the covered_by records."
-no_independent_algorithm = "Scope comparison, ledger overlap refusal, matrix lookup, threshold comparison, artifact sealing and replay, and enumeration of a closed-form predictive distribution for the study value; the posterior, hierarchical posterior and procedure law are separate method records."
+rationale = "The contract, qualification and routing layers of choice inference: the choice-study declaration with completeness and consistency refusals, scope matching and row-level overlap of retained sources through the evidence ledger, the procedure-matrix authorization of each route, the conflict screen on the discounted prior, the sealed result artifact with consumer replay, and the EVSI ranking over the pooled posterior. Each numerical step is delegated to the covered_by records. The scoped source review followed the choice ranking handoff: ordinary candidates use the fixed exact-to-Monte-Carlo switch, and hierarchical candidates enumerate respondent count vectors, apply the multinomial multiplicity to the marginal-likelihood ratio and retain the original predictive mass check. The admission quote now counts distinct study sizes, weak compositions, and the coarse and fine wide-option quadrature grids. The count walker retains lexicographic order with a heap buffer. The existing independent two- and three-option fixtures check numerical values; the added source assertions cover count, stack and resource boundaries, without extending the numerical review to wider quadrature."
+no_independent_algorithm = "Scope comparison, ledger overlap refusal, matrix lookup, threshold comparison, artifact sealing and replay, and application of the fixed preposterior decision-value formula to predictive counts; the posterior, hierarchical posterior and procedure law are separate numerical owners."
 covered_by = ["adaptive_inference.dirichlet_choice", "adaptive_inference.hierarchical_choice", "adaptive_inference.choice_procedure_law", "adaptive_inference.analysis_contract", "adaptive_inference.procedure_matrix", "design.evsi"]
 inline_tests = true
 record_sha256 = "d5f65233f2dacca5741d5ae53441609e851d11296f2451f01a205e2380806b39"
@@ -56,7 +56,7 @@ sha256 = "5e9473e2c3c366671e16160656e19e66551b9b8275b3fab97ee65f7ab2746091"
 role = "implementation"
 path = "crates/antecedent-design/src/choice_evsi.rs"
 items = ["module"]
-sha256 = "f903f6cc71d59129347955d2a2b1d6f41351cecf69ae9d43946d4466c92ca002"
+sha256 = "f91aebb1d88b265559c23fab2f2f0e94e618ac02fdef30934022e8ccf820f340"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
