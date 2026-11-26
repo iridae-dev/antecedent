@@ -20,7 +20,7 @@ test_sources = [
 [non_algorithm_review]
 status = "justified_non_algorithm"
 kind = "contract"
-rationale = "Authority boundary on typed distribution artifacts: which constructors may mark a distribution as natively executed."
+rationale = "Authority boundary on typed distribution artifacts: which constructors may mark a distribution as natively executed. The optional method snapshot is descriptive. Its binding uses the same metadata and draw bytes, and a missing or stale snapshot does not change law meaning, alignment, or producer authority."
 no_independent_algorithm = "Trust labelling and refusal checks over supplied identities; no numerical method."
 record_sha256 = "58f0a156718152af1e61c96ebe2d3ea3d42d95650987d09145ca1d02ada2dd78"
 
@@ -33,8 +33,8 @@ sha256 = "36536de5e68ccc771aa454d1c83e4d75efba081d6363811283884dc6b69dc2e8"
 [[non_algorithm_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-io-core/src/distribution_artifact.rs"
-items = ["const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn mean", "fn metadata", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn weights", "struct DistributionIdentity", "struct DistributionMetadata", "struct LegacyPosteriorBinding"]
-sha256 = "3b98f32af7fdc11244aab9597c9f2c03a8467e11af8ae665c9b11fe999d63278"
+items = ["const METHOD_SECTION", "struct DistributionMethods", "fn method_binding", "fn method_snapshot_round_trips_only_with_its_draws", "const MAX_DISTRIBUTION_ARTIFACT_BYTES", "const MAX_DISTRIBUTION_COORDINATES", "const MAX_DISTRIBUTION_DRAWS", "enum DistributionCalibration", "enum DistributionTrust", "enum DrawAlignment", "fn covariance", "fn default", "fn draws", "fn mean", "fn metadata", "fn quantities", "fn require_coordinate", "fn require_joint", "fn semantic", "fn weights", "struct DistributionIdentity", "struct DistributionMetadata", "struct LegacyPosteriorBinding"]
+sha256 = "961e4a85cfd8f1a77295bdd9b8e11e99fd25fc1da3c6172b1a21f07a34396aaa"
 
 [[non_algorithm_review.artifacts]]
 role = "assertion"
