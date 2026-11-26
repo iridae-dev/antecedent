@@ -42,7 +42,7 @@ record_sha256 = "b75b085c06f72eac3ec8cbf2d417c2deb0cb7d2f152280f7f3e37b44a885164
 role = "implementation"
 path = "crates/antecedent-discovery/src/exact_marginals.rs"
 items = ["const EXACT_MARGINAL_WORK_BUDGET", "fn admit_exact_marginals", "fn exact_dag_marginals", "fn exact_marginal_work", "fn fold_subsets", "fn log_add", "fn marginal_table_bytes", "fn marginals_from_factors", "fn scaled_total", "struct ExactDagMarginals"]
-sha256 = "591bec78f2b80879c0a548d270e888a12889aff4652bf96fa24e897dffdf950f"
+sha256 = "5a5cc79a1dc0638daf6c90a71cdcefe8fd08b63ee9ddc1884cd3c16fa120b164"
 
 [[method_review.artifacts]]
 role = "implementation"

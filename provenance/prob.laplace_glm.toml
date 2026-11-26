@@ -47,7 +47,7 @@ sha256 = "b28442615a8fdaefd6f7fdb9163b55358325df412c0249c46c6029c18c79f2f5"
 role = "implementation"
 path = "crates/antecedent-prob/src/likelihood_terms.rs"
 items = ["module"]
-sha256 = "5bc8ccc25c08573d6a861fc1f5169b59f87170644a1d7e171d928ccec282477e"
+sha256 = "b7804944a908db663e669a82248e3242ba32503c6b463fcfcf1d0bc91d2d9280"
 
 [[method_review.artifacts]]
 role = "implementation"

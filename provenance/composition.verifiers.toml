@@ -44,7 +44,7 @@ record_sha256 = "99983b51e9332876f9e760038e0802883f068c2e7d03e733e0ccbca4ed2b552
 role = "implementation"
 path = "crates/antecedent-design/src/composition_verifiers.rs"
 items = ["const FACT_COORDINATES", "const FACT_MEAN_SOURCE", "const FACT_PROVIDER_BINDING", "const FACT_REQUIRES_DISTRIBUTION", "const FACT_SOURCE_DIGEST", "const KIND_ADMISSIBLE", "const KIND_CONTRACT", "const KIND_DISTRIBUTION", "const KIND_EXTERNAL_CLAIM", "const KIND_RESULT", "const KIND_ROBUST", "const KIND_SCIENTIFIC_BRIDGE", "const KIND_SENSITIVITY", "const KIND_STRUCTURAL", "const LAW_MARGINAL", "const MAX_SNIFF_BYTES", "const MAX_VALUES", "const RELATIONSHIP_MAGIC", "const TRUST_ATTESTED", "const TRUST_NATIVE", "const TRUST_UNVERIFIED", "const TRUST_VERIFIED", "const VERIFIABLE_KINDS", "fn container_label", "fn content_identity", "fn contract_coordinates", "fn coordinate_id", "fn coordinate_ids", "fn default_stage", "fn describe_artifact", "fn detect_node_kind", "fn detect_record", "fn digest_parts", "fn failure", "fn first_section", "fn inspect", "fn io_failure", "fn kind", "fn open", "fn projection_node_description", "fn publish", "fn publish_coordinates", "fn publish_requirement", "fn push_value", "fn register_standard_verifiers", "fn standard_consumer", "fn trust_label", "fn verifier_for", "fn verify", "struct ArtifactDescription", "struct Inspected", "struct ReceiptInfo", "struct SourceProjectionVerifier"]
-sha256 = "135a671eaf1984ecd33c91cf698db884468edc0e79f8e662b8f8ef34cdc6bf70"
+sha256 = "c2cf12452d3d1a654da4baaeba99d24232584f48e2212be3effc7f78420ce920"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -74,4 +74,4 @@ sha256 = "ef6420954d55e04aa1610b12c69f972981f799bb644611e99b19e20f96f38cb1"
 role = "assertion"
 path = "crates/antecedent/tests/pag_direct_identification.rs"
 items = ["fn retained_search_stop_replays_under_its_original_budget"]
-sha256 = "4cb706cb24d2f3c9a1d2eab037d2b767582b33fb6eb1735fc24679102fa824d4"
+sha256 = "819c17c8131df8b0c12a0d11518dad7f83411c6c1f22f8f638ee47ccc060bb3a"

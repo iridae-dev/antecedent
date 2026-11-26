@@ -679,12 +679,13 @@
    "estimate.policy_value.multi_action_ipw"
   ],
   "graphless.randomized_effect.bernoulli.independent_action_ht_score": [
-   "estimate.randomized.fixed_cuped_ht_itt",
    "estimate.randomized.estimated_cuped_ht_itt",
+   "estimate.randomized.fixed_cuped_ht_itt",
    "estimate.randomized.ht_itt",
    "estimate.randomized.wald_cace_late"
   ],
   "graphless.randomized_effect.factorial_2x2.fixed_cell_neyman_contrasts": [
+   "estimate.randomized.cluster_estimated_cuped_itt",
    "estimate.randomized.cluster_fixed_cuped_itt",
    "estimate.randomized.neyman_itt"
   ],
@@ -2483,7 +2484,7 @@
     "The integrated schedule terminal accepts replayed source, target and declaration products under their compiled child identities. Reference declarations without numerical replay do not supply those products.",
     "The ledger node delegates to the evidence ledger reader. A separate pool selection verifies its result, operation, retained synthesis input and value digest, and active standing against the replayed ledger. The affine terminal reads that branch's dependency closure; a stale sibling does not block the valid branch. Its scientific quantity remains caller-declared."
    ],
-   "digest": "abe34de60f40af7935f352dc0d1274b9e0e57a6401c68eb35cf3cd5173786b12",
+   "digest": "bcabc6fa6e8cdb80f54472bf2d6f283c4cfcee4e8502414051ebb38148853f51",
    "id": "composition.bundle",
    "review": "none",
    "scope_limits": [],
@@ -2784,7 +2785,7 @@
     "Embedded kinds with no verifier (a causal contract, an attestation, quantity coordinates, a transformation) fail as unknown_node_kind and must travel as reference nodes; they are never verified by default. A recalculation receipt exposes historical snapshot and score bindings as unverified facts. This inspection does not rerun its historical operations.",
     "Ordinary reference nodes pass by matching a supplied source. A registered ledger verifier can replay a catalog ledger from matched bytes before a dependent pool consumes its checked values."
    ],
-   "digest": "00d3da26953ed3223fb5445bf683ed278e4df6958e206eca3fcecef816a38fad",
+   "digest": "0bc7774e8147189b09ac9f0264061e3094d8e7d3c7ef4d8292693c60e9d9d2b4",
    "id": "composition.verifiers",
    "review": "none",
    "scope_limits": [],
@@ -13549,7 +13550,7 @@
     "Covariate-dependent randomized per-time joint assignment and a latent-confounded, off-diagonal-unsupported design are separate fixtures; production identification and refusal are separately exercised by the retained public workflow tests, not granted by this generator.",
     "Additive and interaction variants share all random draws; the zero-interaction reference isolates the declared main effects."
    ],
-   "digest": "7fa35f732e698f709e3875a67985f78885766bb33f126fe55405b0aec70b0982",
+   "digest": "33d76903eac990efc554f8c7f5bade365d5eb61000e3c8a751fd24f38da46a27",
    "id": "response.joint_panel_reference",
    "review": "none",
    "scope_limits": [],

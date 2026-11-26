@@ -38,7 +38,7 @@ record_sha256 = "d102ca695a1b2dc23eab822931cdc276ce00eb263443ad1b31181ea3da76a6b
 role = "implementation"
 path = "crates/antecedent-stats/src/adaptive_inference/procedure_law.rs"
 items = ["const CANCEL_STRIDE", "const MAX_LAW_STATES", "const MAX_LAW_WORK", "const THRESHOLD_TOLERANCE", "enum OutcomeKernel", "fn admit_procedure", "fn apply_exploration_floor", "fn assess", "fn best_probabilities", "fn check", "fn check_states", "fn composition_law", "fn current_offset", "fn deliveries", "fn enrol", "fn enumerate_law", "fn enumerate_law_in", "fn first_maximum", "fn first_maximum_within_tolerance", "fn futility_exceedance", "fn is_predictive", "fn losses", "fn new", "fn normalize_probabilities", "fn policy_row", "fn posteriors", "fn remember", "fn reveal", "fn reveal_unit", "fn select", "fn thompson_row", "fn tick", "struct Assessment", "struct Engine", "struct Layout", "struct ProcedureLaw", "struct Rules", "struct TerminalAtom", "type StateMap"]
-sha256 = "d6985ec3cdcae2381e2fae2e877f1bcb860e57c53a4433061f74b08997c9406a"
+sha256 = "2508c7414eb980f150ba04b0bfec26108e1c233e70d79c66cf69005543aeed6c"
 
 [[method_review.artifacts]]
 role = "assertion"

@@ -85,7 +85,7 @@ sha256 = "5d58b9a83ddd0cd3d13d97fb5f9e4498b00ec4e99d7a51dc5d96a4d18603ca85"
 role = "implementation"
 path = "crates/antecedent/src/analysis/rpcmci_portable.rs"
 items = ["enum SourceSchema", "struct Wire", "struct SchemaWire", "fn source_series", "fn run", "fn run_with_schema", "fn encode_wire", "fn wire_identity", "fn decode_wire", "fn replay", "fn to_bytes"]
-sha256 = "ba9f04362c6abaf6c1c75c87cd04878ccec4aae526eaf8d60fd1b3e98da152e8"
+sha256 = "3701c2f8a49ff3fed04678ae60fd379bd080cb550b60bc91633daf16d918247c"
 
 [[method_review.artifacts]]
 role = "assertion"

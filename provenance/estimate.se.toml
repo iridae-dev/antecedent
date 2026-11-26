@@ -43,7 +43,7 @@ record_sha256 = "517489b42f55f4a30b94f3e87b0eee60ba6bdf0d32e3df5675a1470b759c074
 role = "implementation"
 path = "crates/antecedent-estimate/src/se.rs"
 items = ["fn map_multiway_quote", "fn multiway_influence_se_in", "enum AnalyticSeKind", "fn cluster_influence_se", "fn few_clusters", "fn hetero_influence_se", "fn influence_se_kind", "fn influence_se_under", "fn multiway_influence_se", "fn newey_west_influence_se", "fn newey_west_influence_se_at_times", "fn panel_cluster_hac_influence_se", "fn require_clusters", "fn require_multiway", "fn require_panel_times", "fn series_ewc_not_declarable"]
-sha256 = "c40d0409a14e9a2e18859a28d5600171a826008f1d79b7af264b0f9b15f79298"
+sha256 = "dff371b700369ada48af0a79869704ec64d604a80d1f5cf4850be6ab7edd6a52"
 
 [[method_review.artifacts]]
 role = "implementation"

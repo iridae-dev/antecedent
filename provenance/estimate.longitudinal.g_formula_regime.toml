@@ -62,7 +62,7 @@ sha256 = "60f311b89d5a0a2195a12d885eedf2267dd5129c24ca94e015b4cf2271491fe1"
 role = "implementation"
 path = "crates/antecedent-stats/src/fitted_regime_q.rs"
 items = ["impl Cell", "fn prediction_sum", "fn estimate", "fn estimate_fitted_regime_q"]
-sha256 = "d188210dcc50d7983ef5d8e458c2f878fed794ce3a70f51d81b5c5771f031e33"
+sha256 = "524bb800d0370fae01f3f9190e66567ff53bce1cc180795cdd74f3eb45a84590"
 
 [[method_review.artifacts]]
 role = "assertion"

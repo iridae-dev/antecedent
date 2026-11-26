@@ -44,16 +44,16 @@ record_sha256 = "6e73dfac89849bc9afbe6caa58b169b89e99bdbb2c344fdf5cec1673a6269ad
 role = "implementation"
 path = "crates/antecedent-design/src/intervention_schedule_decision.rs"
 items = ["impl ScheduleSourceFit", "fn calibration_basis", "impl Region", "fn mix", "fn difference", "impl PreparedIntegratedScheduleDecision"]
-sha256 = "9fe5503e41c48b3fe4abf6f6859b78b38eda3a986e08d455c628a2b6f71c5083"
+sha256 = "707813868a7d9c831207150d29996769bae899ed1436c4a7fa20ebb5dd75f5fa"
 
 [[method_review.artifacts]]
 role = "implementation"
 path = "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs"
 items = ["impl CompiledScheduleEvidence", "fn verified_evidence", "fn run", "impl DecisionVerifier"]
-sha256 = "56b4be5961390b0c5aac3c6d8816c993b128bfe94e086f63d58412ed93fffd73"
+sha256 = "fda745073a547f0106de8f9c246251bcca74c725865248fe7732c67503070b92"
 
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent/tests/integrated_schedule_decision.rs"
 items = ["const OUTCOME", "const EARLY", "const LATE", "const RETAIN", "const TARGET_PREVALENCE", "fn true_optima", "fn point_oracle_replays_and_changed_parent_invalidates_terminal", "fn empirical_schedule_scope_requires_verified_binary_endpoints", "fn coverage"]
-sha256 = "cc45b3833f832f88f63441c212f6158f50cef56eb55d6dc017fb3b88d461125f"
+sha256 = "409a033f4e0248f9bedbb60134d923ce8b66f2c2a6c617dc70588e53dbe1577e"

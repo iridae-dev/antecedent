@@ -36,7 +36,7 @@ artifacts = [
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive.rs", items = ["module"], sha256 = "4982d01517f88500f1afbcd07e3b77aeb2f8128780714f73a5e5347388cd8d36" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/derive/decision.rs", items = ["module"], sha256 = "7d323c5b7c414126951b8b9099358b6b41db7e7d5e218e1d82b9abf653471f8a" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/mod.rs", items = ["module"], sha256 = "819481cd9a469f6809645890a5b66960b26add7aae15da8afdc3ffa08c5791de" },
- { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/compile.rs", items = ["module"], sha256 = "23bb9aadb20760c84748376b6464487f389917d73c48e146966abcb43bf29b96" },
+ { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/compile.rs", items = ["module"], sha256 = "2465ac71566e57a7a2d8e122656de0f9036385dd9cf7b27f802d0382dcc6521c" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/plan.rs", items = ["module"], sha256 = "a836ae7256d8d2f9e14c218ab7b376e49c4493a4a977a98aaac8401b171931b3" },
  { role = "implementation", path = "crates/antecedent-design/src/decision_evidence/reuse.rs", items = ["module"], sha256 = "8d1dfede9a0f805f41616142afc2bf9d70d62e9bbd7f65f9c0267719584196ea" },
 ]

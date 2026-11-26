@@ -67,7 +67,7 @@ record_sha256 = "d50135c8a885de2c16f37bf83f7071d6df68108883323f53239300b0cde276d
 role = "implementation"
 path = "crates/antecedent-design/src/composition_bundle.rs"
 items = ["const BINDING_FACTS", "const BODY_SECTION", "const BUNDLE_KIND", "const BUNDLE_VERSION", "const FACT_EVIDENCE_DIGEST", "const FACT_LAW", "const FACT_QUANTITY_DIGEST", "const FACT_REQUEST", "const FACT_REQUIRES_LAW", "const FACT_SNAPSHOT", "const LAW_JOINT", "const LAW_MEAN_ONLY", "enum BundleError", "enum BundleStage", "enum ClaimLabel", "enum NodeStatus", "fn adjacency", "fn all_verified", "fn as_str", "fn body", "fn bundle_identity", "fn chain_digest", "fn chain_refusal", "fn check_producer", "fn claim_label", "fn code", "fn consume", "fn decode", "fn derive", "fn detail", "fn edges", "fn embedded_section", "fn evaluate", "fn failed", "fn find_conflict", "fn from", "fn from_bytes", "fn graph_error", "fn identity", "fn is_failed", "fn ledger_parent_checked", "fn new", "fn node", "fn node_digest", "fn node_from_wire", "fn node_to_wire", "fn nodes", "fn refused", "fn register", "fn require_verified", "fn resolve_reference", "fn stage", "fn to_bytes", "fn to_refusal", "fn topological", "fn validate_nodes", "fn value", "fn verify_embedded", "fn with_data", "fn with_provider", "struct BodyWire", "struct BundleConsumer", "struct CompositionBundle", "struct ConsumedBundle", "struct ConsumedNode", "struct Decoded", "struct Derived", "struct EdgeWire", "struct NodeFailure", "struct NodeState", "struct NodeWire", "struct SuppliedData", "struct SuppliedProvider", "struct SuppliedSources", "struct UpstreamNode", "struct VerifiedNode", "trait NodeVerifier", "type Adjacency"]
-sha256 = "a0bcf2a8159f13c38147be9776074507e3384852e2150619195590af6d8fbe2a"
+sha256 = "ad36d8b560d1690b668a318589e1386f4a6de5402bbe5a227df6791fe36d949e"
 
 [[non_algorithm_review.artifacts]]
 role = "implementation"
@@ -97,4 +97,4 @@ sha256 = "215bd5e421fe9ac05362f3a1a9d0f3509a5666bb6f03fe5b045a5410240084ee"
 role = "assertion"
 path = "python/tests/test_counterfactual_transport_compiled_bundle.py"
 items = ["fn test_transport_bundle_compiles_and_replays_affine_decision"]
-sha256 = "1f5817a341b82558aedefc6a1429c88e513039a1035f171c157700ea5f846097"
+sha256 = "ed364cb06470fdcb890aca1615730e6e457c9679e2cae6966356519354a91613"

@@ -84,7 +84,7 @@ sha256 = "30b11e2e9cc64f10ba61e524e35f6a6504f14e4ef0d34a4d8d8241aa0c5014e7"
 role = "implementation"
 path = "crates/antecedent-io-core/src/bridge_image_artifact.rs"
 items = ["impl BridgeImageResult", "impl BridgeImageRequest", "impl RestoreInput", "impl InputWire", "impl StoredBridgeImage", "impl BridgeImageReplayBinding", "fn decoded_size", "fn decision_numerical_receipt_does_not_depend_on_current_coverage_registry"]
-sha256 = "73f268514b1007f5d226a35fdb46f438879d6ecf3c521de8e26206b7a4828b80"
+sha256 = "baf29fddd2a26dceee359939f4e82f0ab5aa189cd37d5845d7afeea396b549c6"
 
 [[method_review.artifacts]]
 role = "implementation"

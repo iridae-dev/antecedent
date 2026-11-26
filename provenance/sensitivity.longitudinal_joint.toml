@@ -47,7 +47,7 @@ record_sha256 = "24cd1c6390307bbf778b1bf607134797ae674b1cb1a7427799082f82d1f0a99
 role = "implementation"
 path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs"
 items = ["impl LongitudinalSensitivitySpec", "fn compile_longitudinal_joint_sensitivity", "impl CompiledLongitudinalJointSensitivity", "impl LongitudinalSensitivityArtifact", "fn consume_artifact"]
-sha256 = "d1eef7bc2fdc1a5802df93337ede0cd5809e47f01001cafe0b926b91019ef6fd"
+sha256 = "a3ad06db877e3e631199734d59136f613af94c386f5ec3bedaddfe0036e6e279"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -71,4 +71,4 @@ sha256 = "9e2e0ee02f52db7a89d36cabd0c348d1f9069dda72b7f6bff201f914b9c707f8"
 role = "assertion"
 path = "crates/antecedent/tests/longitudinal_joint_sensitivity_calibration.rs"
 items = ["fn measure", "fn bind", "fn longitudinal_two_decision_joint_box_and_extrema_l95"]
-sha256 = "93ee0814661f01593a1ee5bb6b7cf9f9144815740d0926670e7bd57b150633a5"
+sha256 = "a3dc083691fe81fe2754c678a82b418014475f7592ae7ebd49e830e2465e71db"

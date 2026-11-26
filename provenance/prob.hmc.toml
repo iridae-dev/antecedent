@@ -46,7 +46,7 @@ sha256 = "bb9eb0268fae1de056052c6aaee737d0bfc26d05d69d9f94e6950890333b44df"
 role = "implementation"
 path = "crates/antecedent-prob/src/hmc/target.rs"
 items = ["fn eval_grad", "fn final_logp", "fn grad_u", "fn init", "fn is_divergent", "fn neg_log_posterior_grad", "fn slot", "struct GaussianRef", "trait HmcTarget"]
-sha256 = "1b3d247b1795c67843a3e2f9cc12af6c22557fa04ffdd7862afb34d200ef2453"
+sha256 = "28c9b38f5289e725f8737f632a12a5630d8266b37afc02c47c786e98a28823ed"
 
 [[method_review.artifacts]]
 role = "assertion"
