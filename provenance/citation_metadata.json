@@ -704,6 +704,19 @@
     "url": "https://api.crossref.org/works/10.1080/00031305.1992.10475842",
     "year": 1992
   },
+  "10.1080/00031305.1996.10473566": {
+    "authors": [
+      "Rob J. Hyndman",
+      "Yanan Fan"
+    ],
+    "doi": "10.1080/00031305.1996.10473566",
+    "response_sha256": "998a70844d3ad03118091ec23864646b80ee300b602e0d80242614a3255a8fb8",
+    "titles": [
+      "Sample Quantiles in Statistical Packages"
+    ],
+    "url": "https://api.crossref.org/works/10.1080/00031305.1996.10473566",
+    "year": 1996
+  },
   "10.1080/00401706.1967.10490441": {
     "authors": [
       "G. E.P. Box",
@@ -780,6 +793,18 @@
     ],
     "url": "https://api.crossref.org/works/10.1080/01621459.1958.10501452",
     "year": 1958
+  },
+  "10.1080/01621459.1963.10500830": {
+    "authors": [
+      "Wassily Hoeffding"
+    ],
+    "doi": "10.1080/01621459.1963.10500830",
+    "response_sha256": "2ed4a52416eada43ccee658aeb61061c3cd578c100da9c23a3d6ea96ec5a92d0",
+    "titles": [
+      "Probability Inequalities for Sums of Bounded Random Variables"
+    ],
+    "url": "https://api.crossref.org/works/10.1080/01621459.1963.10500830",
+    "year": 1963
   },
   "10.1080/01621459.1978.10480027": {
     "authors": [
@@ -1455,6 +1480,22 @@
     "url": "https://api.crossref.org/works/10.1097/00001648-200009000-00011",
     "year": 2000
   },
+  "10.1097/ede.0000000000001627": {
+    "authors": [
+      "Stephen R. Cole",
+      "Paul N. Zivich",
+      "Jessie K. Edwards",
+      "Bonnie E. Shook-Sa",
+      "Michael G. Hudgens"
+    ],
+    "doi": "10.1097/ede.0000000000001627",
+    "response_sha256": "47cf3756463a948f097d4caa18f4345c000b1498985c9b993c6c7a3e983f8af7",
+    "titles": [
+      "Sensitivity Analyses for Means or Proportions with Missing Outcome Data"
+    ],
+    "url": "https://api.crossref.org/works/10.1097/ede.0000000000001627",
+    "year": 2023
+  },
   "10.1109/tit.1981.1056305": {
     "authors": [
       "Y. Ogata"
@@ -1536,6 +1577,19 @@
     ],
     "url": "https://api.crossref.org/works/10.1111/ectj.12097",
     "year": 2018
+  },
+  "10.1111/j.0006-341x.2002.00021.x": {
+    "authors": [
+      "Constantine E. Frangakis",
+      "Donald B. Rubin"
+    ],
+    "doi": "10.1111/j.0006-341x.2002.00021.x",
+    "response_sha256": "e2bcbe6f82b1eabd66f4f9670e33a07fdb38dafd2daebf46d9297d21736d052e",
+    "titles": [
+      "Principal Stratification in Causal Inference"
+    ],
+    "url": "https://api.crossref.org/works/10.1111/j.0006-341x.2002.00021.x",
+    "year": 2002
   },
   "10.1111/j.1467-985x.2010.00673.x": {
     "authors": [
@@ -3762,6 +3816,21 @@
     ],
     "url": "https://api.datacite.org/dois/10.48550/arxiv.2306.12896",
     "year": 2023
+  },
+  "10.52202/068431-0266": {
+    "authors": [
+      "Amin Jaber",
+      "Adele Ribeiro",
+      "Jiji Zhang",
+      "Elias Bareinboim"
+    ],
+    "doi": "10.52202/068431-0266",
+    "response_sha256": "66069f498bc2595e023d2c2b3492e85f637062fc5ec546e3d1151381f59e10d5",
+    "titles": [
+      "Causal Identification Under Markov Equivalence: Calculus, Algorithm, and Completeness"
+    ],
+    "url": "https://api.crossref.org/works/10.52202/068431-0266",
+    "year": 2022
   },
   "10.5555/1390681.1442785": {
     "error": "HTTP Error 404: Not Found",

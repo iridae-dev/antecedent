@@ -4171,13 +4171,17 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "Wassily Hoeffding"
+     ],
      "doi": "10.1080/01621459.1963.10500830",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Section 2, Theorem 2 and inequality (2.6), applied to each tail"
      ],
      "title": "Probability Inequalities for Sums of Bounded Random Variables",
-     "url": "https://www.cs.rpi.edu/academics/courses/spring06/random/hoefding.pdf"
+     "url": "https://www.cs.rpi.edu/academics/courses/spring06/random/hoefding.pdf",
+     "year": 1963
     }
    ]
   },
@@ -10737,8 +10741,14 @@
      "url": "https://proceedings.mlr.press/v97/jaber19a.html"
     },
     {
+     "authors": [
+      "Amin Jaber",
+      "Adele Ribeiro",
+      "Jiji Zhang",
+      "Elias Bareinboim"
+     ],
      "doi": "10.52202/068431-0266",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Theorem 1 rule 2",
       "Proposition 2",
@@ -10746,7 +10756,8 @@
       "Theorems 3–4"
      ],
      "title": "Causal Identification under Markov equivalence: Calculus, Algorithm, and Completeness",
-     "url": "https://papers.neurips.cc/paper_files/paper/2022/hash/17a9ab4190289f0e1504bbb98d1d111a-Abstract-Conference.html"
+     "url": "https://papers.neurips.cc/paper_files/paper/2022/hash/17a9ab4190289f0e1504bbb98d1d111a-Abstract-Conference.html",
+     "year": 2022
     }
    ]
   },
@@ -10789,14 +10800,19 @@
    "scope_limits": [],
    "sources": [
     {
+     "authors": [
+      "Constantine E. Frangakis",
+      "Donald B. Rubin"
+     ],
      "doi": "10.1111/j.0006-341x.2002.00021.x",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Section 3, definitions of basic principal strata and principal causal effects",
       "Section 5.2, associative effects and equation (5.4)"
      ],
      "title": "Principal Stratification in Causal Inference",
-     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4137767/"
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC4137767/",
+     "year": 2002
     }
    ]
   },
@@ -13574,12 +13590,17 @@
      "year": 1979
     },
     {
+     "authors": [
+      "Rob J. Hyndman",
+      "Yanan Fan"
+     ],
      "doi": "10.1080/00031305.1996.10473566",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Definition 7"
      ],
-     "title": "Sample quantiles in statistical packages"
+     "title": "Sample quantiles in statistical packages",
+     "year": 1996
     }
    ]
   },
@@ -13745,13 +13766,21 @@
      "url": "https://www.mattblackwell.org/files/papers/sens.pdf"
     },
     {
+     "authors": [
+      "Stephen R. Cole",
+      "Paul N. Zivich",
+      "Jessie K. Edwards",
+      "Bonnie E. Shook-Sa",
+      "Michael G. Hudgens"
+     ],
      "doi": "10.1097/EDE.0000000000001627",
-     "doi_verified": false,
+     "doi_verified": true,
      "sections": [
       "Theorem 1 and equations 1–4 (outcome-dependent selection, methodological contrast)"
      ],
      "title": "Sensitivity Analyses for Means or Proportions with Missing Outcome Data",
-     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/"
+     "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10524136/",
+     "year": 2023
     }
    ]
   },
