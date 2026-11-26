@@ -1444,14 +1444,16 @@ def describe_artifact(kind: NodeKind | Literal["auto"], data: object) -> Artifac
 def mean_decision(
     contract: Contract, claim: object, *, artifact_id: str = "point-only-decision"
 ) -> bytes:
-    """A decision over an external claim's means, as embeddable point-only result bytes.
+    """Build an embeddable affine decision over a source's means.
 
-    ``claim`` is the exported bytes of a bound external claim (or the claim itself).
-    The result is bound to the digest of the claim's means, never to aligned draws:
-    placed beneath the claim in a bundle it is labelled ``point_only_attested``.
-    A contract whose functional a mean cannot answer (a quantile, a probability or a
-    nonlinear utility) refuses as ``unsupported_law``; :meth:`Decision.export`
-    refuses the same result by design, because only joint draws replay.
+    ``claim`` accepts a bound external claim or an exact or sampled counterfactual
+    transport result, as export bytes or a typed object. An external claim produces
+    a result labelled ``point_only_attested`` in a bundle. A transport result
+    exposes its scientific coordinate through :func:`describe_artifact` and the
+    ``quantity`` fact. Connect the decision to the exact source artifact it used.
+
+    Quantiles, probabilities and nonlinear utility require a law-valued input
+    and refuse as ``unsupported_law``.
 
     Raises:
         CausalTypeError: ``claim`` is neither container bytes nor an exporting object.

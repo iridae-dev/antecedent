@@ -1185,7 +1185,9 @@ class ResultAPI:
         ``"posterior"`` is a transferable single-estimand prior (scalar draws only);
         ``"record"`` is the full retained posterior or response record of the execution,
         including response surfaces and structural mixtures, which are not priors.
-        ``source_data`` embeds the original tabular snapshot for independent replay.
+        ``source_data`` embeds the original tabular source for independent replay of
+        supported operations. Supply the exact execution snapshot. The artifact includes
+        every original row and column, including columns unused by estimation.
         """
         execution = getattr(self, "_execution", None)
         if execution is None:
