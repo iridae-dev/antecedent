@@ -110,6 +110,7 @@ SEED_ZERO = (
     "decision_reliability_api.rs::decision_reliability_assess",
     "decision_reliability_api.rs::decision_reliability_consume",
     "decision_reliability_api.rs::decision_reliability_rank",
+    "decision_reliability_api.rs::decision_reliability_rank_producer",
     "design_api.rs::rank_designs",
     "discovered_transport_api.rs::verify_discovered_transport_estimate_artifact",
     "gcm_api.rs::attribute_distribution_change",

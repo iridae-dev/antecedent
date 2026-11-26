@@ -10867,6 +10867,12 @@ def decision_reliability_assess_producer(
     seed: int = 0,
     cancel: CancellationToken | None = None,
 ) -> tuple[tuple[bytes, str, str] | None, str | None]: ...
+def decision_reliability_rank_producer(
+    output_json: str,
+    request_json: str,
+    seed: int = 0,
+    cancel: CancellationToken | None = None,
+) -> tuple[str | None, str | None]: ...
 def decision_reliability_derive_producer(
     output_json: str,
     validation_json: str | None,

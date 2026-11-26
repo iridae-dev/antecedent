@@ -1338,6 +1338,30 @@ class ProducerCarrier(ScientificResult):
         )
 
     @outcome_operation
+    def rank(
+        self,
+        request: RankingRequest | None = None,
+        *,
+        execution: Execution | None = None,
+    ) -> RankingReport:
+        """Rank the carrier's candidates.
+
+        Ranking is refused ``joint_law_required`` when ``joint_law`` standing is ``marginal_only``.
+        """
+        policy = _execution_policy(execution)
+        request = request or RankingRequest()
+        report, refusal = policy._call(
+            _native.decision_reliability_rank_producer,
+            _dumps(self._output.to_wire()),
+            _dumps(request.to_wire()),
+            policy.seed,
+            policy.cancel,
+        )
+        _refuse(refusal)
+        assert report is not None
+        return RankingReport(json.loads(report))
+
+    @outcome_operation
     def derive_uncertainty(
         self,
         request: ReliabilityRequest | None = None,

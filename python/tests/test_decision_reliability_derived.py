@@ -278,6 +278,23 @@ def test_rollout_noise_decides_whether_ranking_is_supported() -> None:
     assert list(ranked.numerical["probabilities"])
 
 
+def test_a_marginal_only_carrier_refuses_ranking() -> None:
+    carrier = dr.reach_carrier(_rollout("implementation_keyed"))
+    assert carrier.joint_law["standing"] == "marginal_only"
+    with pytest.raises(DR) as raised:
+        require_success(carrier.rank(dr.RankingRequest()))
+    assert raised.value.reason_code == "joint_law_required"
+
+
+def test_a_shared_law_carrier_ranks_the_same_draws() -> None:
+    carrier = dr.reach_carrier(_cohort())
+    assert carrier.joint_law["standing"] == "one_shared_law"
+    request = dr.RankingRequest(baseline="wait", top_k=(1,))
+    assert require_success(carrier.rank(request)).to_dict() == require_success(
+        dr.rank(carrier.draws, request)
+    ).to_dict()
+
+
 def test_off_policy_returns_carry_the_expected_utility_only() -> None:
     carrier = dr.reach_carrier(
         dr.OffPolicyReturnDraws(

@@ -25,7 +25,7 @@ use antecedent::analysis::decision_reliability_programs::{
     compile_producer_carrier_derivation,
 };
 use antecedent::analysis::input_decision_programs::{
-    TerminalError, compile_decision_draws_ranking,
+    TerminalError, compile_decision_draws_ranking, compile_producer_carrier_ranking,
 };
 use antecedent::design::decision_reliability::{RankingRequest, ReliabilityError, support_route};
 use pyo3::prelude::*;
@@ -812,6 +812,53 @@ fn decision_reliability_assess_producer(
     }
 }
 
+/// Rank a producer carrier. The program carries joint-law standing, so a marginal-only
+/// carrier is refused and a shared law ranks that carrier's draws.
+#[pyfunction]
+#[pyo3(signature = (output_json, request_json, seed=0, cancel=None))]
+fn decision_reliability_rank_producer(
+    py: Python<'_>,
+    output_json: &str,
+    request_json: &str,
+    seed: u64,
+    cancel: Option<PyCancellationToken>,
+) -> PyResult<Refused<String>> {
+    let ctx = execution_context(seed, None, cancel);
+    let refused = std::sync::Mutex::new(None);
+    let outcome = run_worker(py, ctx, |ctx| {
+        let carrier = match carrier_from(output_json) {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let request: RankingRequest = match parse(request_json, "ranking request") {
+            Ok(value) => value,
+            Err(refusal) => return (None, Some(refusal)),
+        };
+        let program = match compile_producer_carrier_ranking(carrier, request, ctx) {
+            Ok(program) => program,
+            Err(error) => {
+                store_compiler(&refused, error);
+                return (None, None);
+            }
+        };
+        match program.execute(ctx) {
+            Ok(report) => match serde_json::to_string(&report) {
+                Ok(text) => (Some(text), None),
+                Err(error) => (None, Some(invalid_json(error.to_string()))),
+            },
+            Err(TerminalError::Kernel(error)) => (None, Some(reliability_refusal_json(&error))),
+            Err(TerminalError::Refused(error)) => {
+                store_compiler(&refused, error);
+                (None, None)
+            }
+        }
+    })?;
+    match compiler_error(refused) {
+        Some(error) => Err(crate::py_err(error)),
+        None => Ok(outcome),
+    }
+}
+
 /// Derive the three components for a producer output (carrier standing honoured).
 #[pyfunction]
 #[pyo3(signature = (output_json, validation_json, request_json, interval_json, seed=0, cancel=None))]
@@ -882,6 +929,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(decision_reliability_coverage_design_json, module)?)?;
     module.add_function(wrap_pyfunction!(decision_reliability_reach_carrier, module)?)?;
     module.add_function(wrap_pyfunction!(decision_reliability_assess_producer, module)?)?;
+    module.add_function(wrap_pyfunction!(decision_reliability_rank_producer, module)?)?;
     module.add_function(wrap_pyfunction!(decision_reliability_derive_producer, module)?)?;
     Ok(())
 }
