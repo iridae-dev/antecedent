@@ -965,7 +965,7 @@ inputs = [
 ]
 output = "acceptance, or external_binding_mismatch"
 premises = [
-    { premise = "the bytes are the retained artifact", refused_with = "external_binding_mismatch", tests = ["adversarial:acceptance.unretained_artifact_refused_unread"] },
+    { premise = "the bytes are the retained artifact", refused_with = "external_binding_mismatch", item = "fn:bind_retained_digest#0", tests = ["adversarial:acceptance.unretained_artifact_refused_unread"] },
     { premise = "the retained identity is obtained from the producer or the consumer's own store, not read from the bytes", unchecked = "The function cannot tell where its caller obtained the identity." },
 ]
 transformation = "recompute the artifact digest from the bytes and bind it to the retained digest"

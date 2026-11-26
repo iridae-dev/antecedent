@@ -8,7 +8,7 @@ use antecedent_core::{CanonicalWriter, ExecutionContext, blake3_hex, to_hex};
 use antecedent_io_core::artifact_codec::{
     ArtifactContainer, decode_sectioned_io_versioned, encode_sectioned_io,
 };
-use antecedent_io_core::{IoError, from_cbor, to_cbor};
+use antecedent_io_core::{IoError, RetainedArtifactIdentity, from_cbor, load_expecting, to_cbor};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -466,6 +466,19 @@ pub fn inspect_program_schedule_bundle(
     Ok(ScheduleReplayInputs { source, target, problem, program_identity })
 }
 
+/// Verify the retained byte identity before calling [`inspect_program_schedule_bundle`].
+///
+/// # Errors
+///
+/// Returns the binding refusal on a digest mismatch or the underlying reader error.
+pub fn inspect_program_schedule_bundle_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    retained: &RetainedArtifactIdentity,
+) -> Result<ScheduleReplayInputs, ScheduleBundleError> {
+    load_expecting(bytes, retained, |bytes| inspect_program_schedule_bundle(bytes, expected_identity))
+}
+
 /// Independently replay a retained integrated schedule bundle from its embedded evidence.
 ///
 /// # Errors
@@ -497,6 +510,21 @@ pub fn consume_program_schedule_bundle(
         return Err(ScheduleBundleError::MissingParent);
     }
     Ok(terminal.result)
+}
+
+/// Verify the retained byte identity before calling [`consume_program_schedule_bundle`].
+///
+/// # Errors
+///
+/// Returns the binding refusal on a digest mismatch or the underlying reader error.
+pub fn consume_program_schedule_bundle_expecting(
+    bytes: &[u8],
+    expected_identity: &str,
+    program_identity: [u8; 32],
+    ctx: &ExecutionContext,
+    retained: &RetainedArtifactIdentity,
+) -> Result<IntegratedScheduleDecision, ScheduleBundleError> {
+    load_expecting(bytes, retained, |bytes| consume_program_schedule_bundle(bytes, expected_identity, program_identity, ctx))
 }
 
 fn run(

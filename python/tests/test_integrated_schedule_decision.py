@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 from antecedent import load
+from antecedent.artifacts import artifact_identity
 from antecedent.execution import Execution, ResourceLimits
 from antecedent.intervention_schedule_decision import (
     ScheduleDecisionDeclaration,
@@ -77,7 +78,11 @@ def test_schedule_decision_joint_scope_and_portable_replay(tmp_path: Path) -> No
     assert terminal.facts["coverage_scope"] == built.decision.coverage_scope
     assert terminal.facts["calibration_status"] == built.decision.calibration.status
     assert (
-        consume_schedule_decision_bundle(exported, expected_identity=exported.expectation)
+        consume_schedule_decision_bundle(
+            exported,
+            expected_identity=exported.expectation,
+            retained_identity=artifact_identity(exported),
+        )
         == built.decision
     )
     artifact = tmp_path / "integrated-schedule.aio"

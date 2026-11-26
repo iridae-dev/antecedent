@@ -7,7 +7,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -229,13 +229,25 @@ def consume_pag_identification(
     expected_program: str,
     steps: int = _DEFAULT_STEPS,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> DirectPagResult:
-    """Replay identification under independently retained result and program identities."""
+    """Replay identification under independently retained result and program identities.
+
+    Supply ``retained_identity`` to verify the exact exported bytes before replay.
+    """
+    payload = container_bytes(artifact)
+    _retained.admit(
+        payload,
+        retained_identity,
+        "antecedent.pag_identification.consume_pag_identification",
+        "antecedent.pag_identification.consume_pag_identification",
+        bound=True,
+    )
     policy = resolve_execution(execution)
     result = _checked(
         policy._call(
             _native.direct_pag_consume,
-            container_bytes(artifact),
+            payload,
             expected_result,
             expected_program,
             steps=count(steps, "steps", minimum=0),

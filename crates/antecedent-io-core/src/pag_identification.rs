@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::convert::{from_cbor, pag_from_wire, to_cbor};
 use crate::expr_wire::{ExprArenaWire, expr_arena_to_wire};
-use crate::{IoError, PagWire};
+use crate::{IoError, PagWire, RetainedArtifactIdentity, load_expecting};
 
 const MAGIC: &[u8] = b"ANTE-PAG-ID-1\0";
 const MAX_BYTES: usize = 16 * 1024 * 1024;
@@ -380,6 +380,20 @@ impl PagIdentificationArtifact {
             return Err(PagReplayError::Invalid("stored PAG derivation does not replay"));
         }
         Ok(live)
+    }
+
+    /// Verify the retained byte identity before calling [`Self::consume`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the binding refusal on a digest mismatch or the underlying reader error.
+    pub fn consume_expecting(
+        bytes: &[u8],
+        expected: Option<&str>,
+        ctx: &ExecutionContext,
+        retained: &RetainedArtifactIdentity,
+    ) -> Result<Self, PagReplayError> {
+        load_expecting(bytes, retained, |bytes| Self::consume(bytes, expected, ctx))
     }
 
     /// Evaluate the retained functional on a declared, strictly positive finite joint law.

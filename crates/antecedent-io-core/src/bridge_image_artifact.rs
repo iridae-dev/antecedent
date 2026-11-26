@@ -26,7 +26,7 @@ use crate::distribution_artifact::{
     DistributionArtifact, DistributionIdentity, MAX_DISTRIBUTION_ARTIFACT_BYTES,
 };
 use crate::quantity_wire::ScientificQuantityWire;
-use crate::{ArtifactContainer, ArtifactReader, IoError, OutSection};
+use crate::{ArtifactContainer, ArtifactReader, IoError, OutSection, RetainedArtifactIdentity, load_expecting};
 
 /// The artifact feature used by the compiled exact-image routes.
 pub const BRIDGE_IMAGE_ARTIFACT: &str = "scientific_bridge_exact_image_v1";
@@ -488,6 +488,20 @@ impl StoredBridgeImage {
         Self::open_with_context(bytes, program, result, &ExecutionContext::production_default(0))
     }
 
+    /// Verify the retained byte identity before calling [`Self::open`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the binding refusal on a digest mismatch or the underlying reader error.
+    pub fn open_expecting(
+        bytes: &[u8],
+        program: SemanticDigest,
+        result: SemanticDigest,
+        retained: &RetainedArtifactIdentity,
+    ) -> Result<Self, BridgeImageError> {
+        load_expecting(bytes, retained, |bytes| Self::open(bytes, program, result))
+    }
+
     /// Check the independently held identities under the caller's admission and cancellation policy.
     pub fn open_with_context(
         bytes: &[u8],
@@ -498,9 +512,36 @@ impl StoredBridgeImage {
         Self::decode_admitted(bytes, Some((program, result)), ctx)
     }
 
+    /// Verify the retained byte identity before calling [`Self::open_with_context`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the binding refusal on a digest mismatch or the underlying reader error.
+    pub fn open_with_context_expecting(
+        bytes: &[u8],
+        program: SemanticDigest,
+        result: SemanticDigest,
+        ctx: &ExecutionContext,
+        retained: &RetainedArtifactIdentity,
+    ) -> Result<Self, BridgeImageError> {
+        load_expecting(bytes, retained, |bytes| Self::open_with_context(bytes, program, result, ctx))
+    }
+
     /// Open an embedded node under the default execution limits before numerical verification.
     pub fn decode(bytes: &[u8]) -> Result<Self, BridgeImageError> {
         Self::decode_with_context(bytes, &ExecutionContext::production_default(0))
+    }
+
+    /// Verify the retained byte identity before calling [`Self::decode`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the binding refusal on a digest mismatch or the underlying reader error.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &RetainedArtifactIdentity,
+    ) -> Result<Self, BridgeImageError> {
+        load_expecting(bytes, retained, Self::decode)
     }
 
     /// Admit and decode an embedded node before numerical verification.
@@ -509,6 +550,19 @@ impl StoredBridgeImage {
         ctx: &ExecutionContext,
     ) -> Result<Self, BridgeImageError> {
         Self::decode_admitted(bytes, None, ctx)
+    }
+
+    /// Verify the retained byte identity before calling [`Self::decode_with_context`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the binding refusal on a digest mismatch or the underlying reader error.
+    pub fn decode_with_context_expecting(
+        bytes: &[u8],
+        ctx: &ExecutionContext,
+        retained: &RetainedArtifactIdentity,
+    ) -> Result<Self, BridgeImageError> {
+        load_expecting(bytes, retained, |bytes| Self::decode_with_context(bytes, ctx))
     }
 
     fn decode_admitted(

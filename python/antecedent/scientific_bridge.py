@@ -2297,13 +2297,25 @@ def consume_bridge_image(
     expected_program: str,
     expected_result: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> BridgeImage:
-    """Replay the source under independently retained program and result identities."""
+    """Replay the source under independently retained program and result identities.
+
+    Supply ``retained_identity`` to verify the exact exported bytes before replay.
+    """
+    payload = container_bytes(artifact)
+    _retained.admit(
+        payload,
+        retained_identity,
+        "antecedent.scientific_bridge.consume_bridge_image",
+        "antecedent.scientific_bridge.consume_bridge_image",
+        bound=True,
+    )
     controls = resolve_execution(execution)
     handle = _unwrap(
         controls._call(
             _native.consume_scientific_bridge_image,
-            container_bytes(artifact),
+            payload,
             expected_program,
             expected_result,
             **_image_controls(controls),

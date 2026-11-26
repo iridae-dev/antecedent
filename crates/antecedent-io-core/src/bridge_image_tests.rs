@@ -103,7 +103,17 @@ fn verify_portable_request(request: BridgeImageRequest) {
     let result = request.evaluate(&ctx).unwrap();
     let program = SemanticDigest::from_bytes([11; 32]);
     let bytes = request.export(&result, program, "exact-image").unwrap();
-    let stored = StoredBridgeImage::open(&bytes, program, result.identity()).unwrap();
+    let retained = crate::RetainedArtifactIdentity::of_bytes(&bytes);
+    let stored = StoredBridgeImage::open_with_context_expecting(
+        &bytes, program, result.identity(), &ctx, &retained,
+    )
+    .unwrap();
+    assert!(matches!(
+        StoredBridgeImage::decode_expecting(b"malformed", &retained),
+        Err(crate::bridge_image_artifact::BridgeImageError::Artifact(crate::IoError::Refused {
+            code: "external_binding_mismatch", ..
+        }))
+    ));
     let computed = stored.request.evaluate(&ctx).unwrap();
     stored.verify(program, &computed).unwrap();
     let other = SemanticDigest::from_bytes([2; 32]);

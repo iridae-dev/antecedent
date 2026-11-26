@@ -12,7 +12,7 @@ pub use antecedent_identify::principal_surrogate::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{ArtifactContainer, IoError};
+use crate::{ArtifactContainer, IoError, RetainedArtifactIdentity, load_expecting};
 
 /// Portable artifact feature for principal-stratum identification and sample bounds.
 pub const PATIENT_SURROGATE_ARTIFACT_KIND: &str = "patient_surrogate_identification_v1";
@@ -567,6 +567,18 @@ impl StoredPatientSurrogate {
         })
     }
 
+    /// Verify the retained byte identity before calling [`Self::decode`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the binding refusal on a digest mismatch or the underlying reader error.
+    pub fn decode_expecting(
+        bytes: &[u8],
+        retained: &RetainedArtifactIdentity,
+    ) -> Result<Self, PatientSurrogateError> {
+        load_expecting(bytes, retained, Self::decode)
+    }
+
     /// Verify independent expectations before re-running the causal compiler.
     ///
     /// # Errors
@@ -581,6 +593,20 @@ impl StoredPatientSurrogate {
             return Err(PatientSurrogateError::ReplayMismatch);
         }
         Ok(stored)
+    }
+
+    /// Verify the retained byte identity before calling [`Self::open`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the binding refusal on a digest mismatch or the underlying reader error.
+    pub fn open_expecting(
+        bytes: &[u8],
+        program: SemanticDigest,
+        result: SemanticDigest,
+        retained: &RetainedArtifactIdentity,
+    ) -> Result<Self, PatientSurrogateError> {
+        load_expecting(bytes, retained, |bytes| Self::open(bytes, program, result))
     }
 
     /// Compare the computed request outcome to every retained result field.
@@ -666,6 +692,15 @@ mod tests {
             PATIENT_SURROGATE_ARTIFACT_KIND,
         )
         .unwrap();
+        let retained = RetainedArtifactIdentity::of_bytes(&artifact);
+        StoredPatientSurrogate::open_expecting(&artifact, program, live.identity(), &retained)
+            .unwrap();
+        assert!(matches!(
+            StoredPatientSurrogate::decode_expecting(&tampered, &retained),
+            Err(PatientSurrogateError::Artifact(IoError::Refused {
+                code: "external_binding_mismatch", ..
+            }))
+        ));
         let stored = StoredPatientSurrogate::open(&tampered, program, live.identity()).unwrap();
         assert!(matches!(
             stored.verify(program, &live),

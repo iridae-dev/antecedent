@@ -6,7 +6,7 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Literal, TypeVar, cast
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -273,13 +273,25 @@ def consume_patient_surrogate(
     expected_program: str,
     expected_result: str,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> PatientSurrogateResult:
-    """Replay a portable patient-surrogate result under independently retained identities."""
+    """Replay a portable patient-surrogate result under independently retained identities.
+
+    Supply ``retained_identity`` to verify the exact exported bytes before replay.
+    """
+    payload = container_bytes(artifact)
+    _retained.admit(
+        payload,
+        retained_identity,
+        "antecedent.patient_surrogate.consume_patient_surrogate",
+        "antecedent.patient_surrogate.consume_patient_surrogate",
+        bound=True,
+    )
     policy = resolve_execution(execution)
     result = _checked(
         policy._call(
             _native.patient_surrogate_consume,
-            container_bytes(artifact),
+            payload,
             expected_program,
             expected_result,
             **_controls(policy),

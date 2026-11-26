@@ -13,7 +13,8 @@ pub(crate) mod artifact;
 pub use artifact::{
     CompiledScheduleEvidence, IntegratedScheduleBundle, ScheduleBundleError, ScheduleEvidence,
     ScheduleReplayInputs, compile_program_schedule_bundle, consume_program_schedule_bundle,
-    inspect_program_schedule_bundle,
+    consume_program_schedule_bundle_expecting, inspect_program_schedule_bundle,
+    inspect_program_schedule_bundle_expecting,
 };
 
 const MAX_SUBJECTS: usize = 1_000_000;

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from typing import Any, Literal, TypeVar
 
-from . import _native
+from . import _native, _retained
 from ._artifact_protocol import (
     ArtifactExpectation,
     ExportedArtifact,
@@ -252,8 +252,20 @@ def consume_schedule_decision_bundle(
     *,
     expected_identity: str | ArtifactExpectation,
     execution: Execution | None = None,
+    retained_identity: str | None = None,
 ) -> IntegratedScheduleDecision:
-    """Recompile the schedule program, replay the bundle, and read the typed decision."""
+    """Recompile the schedule program, replay the bundle, and read the typed decision.
+
+    Supply ``retained_identity`` to verify the exact exported bytes before replay.
+    """
+    payload = container_bytes(data)
+    _retained.admit(
+        payload,
+        retained_identity,
+        "antecedent.intervention_schedule_decision.consume_schedule_decision_bundle",
+        "antecedent.intervention_schedule_decision.consume_schedule_decision_bundle",
+        bound=True,
+    )
     expected = expected_identity
     if isinstance(expected, ArtifactExpectation):
         if expected.kind != "composition_bundle_v1" or not isinstance(expected.identity, str):
@@ -263,7 +275,7 @@ def consume_schedule_decision_bundle(
     encoded = _checked(
         policy._call(
             _native.integrated_schedule_decision_consume,
-            container_bytes(data),
+            payload,
             expected,
             **_controls(policy),
         )
