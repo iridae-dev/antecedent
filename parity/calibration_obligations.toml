@@ -173,6 +173,21 @@ prospective = [
 "longitudinal_regime / known_sequential_randomized_four_period / subject_excluded_q_sequential_dr_scores" = [
   "longitudinal_regime_calibration: four_period_sequential_dr_coverage",
 ]
+"longitudinal_regime / fitted_q_binary_baseline_h2_internal_crossfit_gaussian_v1" = [
+  "longitudinal_regime_calibration: two_period_fitted_q_internal_crossfit_coverage",
+]
+"longitudinal_regime / fitted_q_binary_baseline_h2_external_split_gaussian_v1" = [
+  "longitudinal_regime_calibration: two_period_fitted_q_external_split_coverage",
+]
+"longitudinal_regime / fixed_h2_four_schedules_vs_never_treat_gaussian_v1" = [
+  "longitudinal_schedule_calibration: fixed_longitudinal_schedule_family_joint_coverage",
+]
+"longitudinal_regime / learned_h2_four_schedules_unique_gaussian_v1" = [
+  "longitudinal_schedule_calibration: learned_longitudinal_schedule_unique_optimum_coverage",
+]
+"longitudinal_regime / learned_h2_four_schedules_tied_gaussian_v1" = [
+  "longitudinal_schedule_calibration: learned_longitudinal_schedule_tied_optima_coverage",
+]
 "scientific_bridge.distribution_bridges / shared_uniform_gaussian_v1 / trial_pairs_percentile_type7" = [
   "scientific_bridge_interval_calibration: shared_evidence_trial_bridge_percentile_interval_l95",
 ]
@@ -384,6 +399,26 @@ prospective = [
 
 # This study scores both arm medians against their own known truths.
 [required_records]
+"longitudinal_regime_calibration: four_period_sequential_dr_coverage" = [
+  "cov.longitudinal_regime.randomized_trial.frequentist.analytic_se.l95.four_period_sequential_dr_coverage.v2_validation_not_applicable",
+]
+"longitudinal_regime_calibration: two_period_fitted_q_internal_crossfit_coverage" = [
+  "cov.longitudinal_regime.randomized_trial.frequentist.percentile_bootstrap.l95.two_period_fitted_q_internal_crossfit_coverage.v2_validation_not_applicable",
+]
+"longitudinal_regime_calibration: two_period_fitted_q_external_split_coverage" = [
+  "cov.longitudinal_regime.randomized_trial.frequentist.percentile_bootstrap.l95.two_period_fitted_q_external_split_coverage.v2_validation_not_applicable",
+]
+"longitudinal_schedule_calibration: fixed_longitudinal_schedule_family_joint_coverage" = [
+  "cov.longitudinal_regime.randomized_trial.frequentist.simultaneous_band.l95.fixed_longitudinal_schedule_family_joint_coverage.v2_validation_not_applicable",
+]
+"longitudinal_schedule_calibration: learned_longitudinal_schedule_unique_optimum_coverage" = [
+  "cov.longitudinal_regime.randomized_trial.frequentist.analytic_se.l95.learned_longitudinal_schedule_unique_optimum_coverage.v2_validation_not_applicable.selected_value",
+  "cov.longitudinal_regime.randomized_trial.frequentist.simultaneous_band.l95.learned_longitudinal_schedule_unique_optimum_coverage.v2_validation_not_applicable.all_true_optima",
+]
+"longitudinal_schedule_calibration: learned_longitudinal_schedule_tied_optima_coverage" = [
+  "cov.longitudinal_regime.randomized_trial.frequentist.analytic_se.l95.learned_longitudinal_schedule_tied_optima_coverage.v2_validation_not_applicable.selected_value",
+  "cov.longitudinal_regime.randomized_trial.frequentist.simultaneous_band.l95.learned_longitudinal_schedule_tied_optima_coverage.v2_validation_not_applicable.all_true_optima",
+]
 "temporal_design_statements_calibration: temporal_design_quantile_arm_median_bootstrap_intervals" = [
   "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.treated_quantile",
   "cov.temporal_design.randomized_trial.frequentist.percentile_bootstrap.l95.temporal_design_quantile_arm_median_bootstrap_intervals.v2_validation_not_applicable.control_quantile",
