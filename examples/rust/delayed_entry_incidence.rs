@@ -43,6 +43,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     if args.len() > 1 {
         return Err("expected FILE or --read FILE IDENTITY".into());
     }
+    run(args.first().map(Path::new))
+}
+
+/// Fit both cohorts and optionally export the supported result for an independent consumer.
+pub fn run(output: Option<&Path>) -> Result<(), Box<dyn Error>> {
     let ctx = ExecutionContext::production_default(297);
     for thin in [false, true] {
         let (mut duration, mut event, mut treatment, mut entry) =
@@ -112,8 +117,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             )?;
             let identity = RetainedArtifactIdentity::of_bytes(&bytes);
             read(&bytes, &identity)?;
-            if let [path] = args.as_slice() {
-                fs::write(Path::new(path), &bytes)?;
+            if let Some(path) = output {
+                fs::write(path, &bytes)?;
                 println!("Retain this identity: {}", identity.to_hex());
             }
         }

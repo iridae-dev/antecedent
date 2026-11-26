@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Replay a two-period schedule decision across structural and preference alternatives.
+//! Pass a filename to save the bundle. Retain the printed identity separately and
+//! replay with `--read FILE IDENTITY` in either the Rust or Python example.
+
+use std::{fs, path::Path};
 
 use antecedent::analysis::composition::BundleLimits;
 use antecedent::design::{
@@ -10,6 +14,10 @@ use antecedent_core::ExecutionContext;
 
 /// Fit the synthetic cohort, replay the decision and exercise the missing-evidence boundary.
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+    write_example(None)
+}
+
+fn write_example(output: Option<&Path>) -> Result<(), Box<dyn std::error::Error>> {
     let endpoints = [[0.125, 0.25, 0.5, 0.875], [0.25, 0.375, 0.625, 1.0]];
     let early = [0.5, 0.75];
     let late = [[0.25, 0.75], [0.5, 0.25]];
@@ -47,10 +55,11 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         &ctx,
     )?;
     let bytes = run.bundle.to_bytes("two-period-schedules", &BundleLimits::default())?;
-    let decision = consume_schedule_decision_bundle(&bytes, run.bundle.identity())?;
-    assert_eq!(decision.optimum_set, [0, 2, 3]);
-    println!("Compatible schedules: {:?}", decision.optimum_set);
-    println!("Coverage scope: {}", decision.coverage_scope);
+    read(&bytes, run.bundle.identity())?;
+    if let Some(path) = output {
+        fs::write(path, &bytes)?;
+        println!("Retain this identity: {}", run.bundle.identity());
+    }
     declaration.preference_costs.clear();
     match compile_schedule_decision_bundle(source, target, declaration, &ctx) {
         Err(ScheduleBundleError::Procedure(ScheduleDecisionError::MissingJointEvidence)) => {
@@ -65,6 +74,23 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn read(bytes: &[u8], identity: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let decision = consume_schedule_decision_bundle(bytes, identity)?;
+    assert_eq!(decision.optimum_set, [0, 2, 3]);
+    println!("Compatible schedules: {:?}", decision.optimum_set);
+    println!("Coverage scope: {}", decision.coverage_scope);
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    run()
+    let args: Vec<_> = std::env::args_os().skip(1).collect();
+    match args.as_slice() {
+        [] => run(),
+        [path] => write_example(Some(Path::new(path))),
+        [flag, path, digest] if flag == "--read" => {
+            let identity = digest.to_str().ok_or("invalid identity")?;
+            read(&fs::read(path)?, identity)
+        }
+        _ => Err("expected FILE or --read FILE IDENTITY".into()),
+    }
 }

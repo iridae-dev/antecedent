@@ -336,3 +336,14 @@ mod compare_intervention_schedules;
 fn example_compare_intervention_schedules_runs() {
     compare_intervention_schedules::run().unwrap();
 }
+
+#[allow(dead_code, reason = "the example suite calls run directly")]
+#[path = "../../../examples/rust/delayed_entry_incidence.rs"]
+mod delayed_entry_incidence;
+
+#[test]
+fn example_delayed_entry_incidence_runs() {
+    on_large_stack("example-delayed-entry-incidence", || {
+        delayed_entry_incidence::run(None).unwrap()
+    });
+}
