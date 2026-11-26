@@ -13424,3 +13424,48 @@ calibration = "measure_final_optimum_set_unique_and_tied"
 artifact_consumer_fixture = "design.integrated_schedule_decision.bundle.artifact"
 provider_trust = "Native compiled children from retained raw source and target rows with prespecified structure and preference states."
 exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "identify.pag_direct"
+route = "antecedent.identify.compile_pag_identification"
+algorithm_provenance = ["provenance/identify.pag_direct.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "identify.pag_direct.published.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Published ICML 2019 Figure 2a with a positive binary joint law and the 2022 conditional exchange graphs."
+expected_values = "All 32 interventional masses reproduce Equation 14 for the declared positive law. Conditional evaluation agrees with the published stated conditional formula, and the blocked exchange retains its path."
+tolerance = "1e-12 point-law agreement; exact equality of retained program and proof identities"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "identify.pag_direct.artifact"
+provider_trust = "The graph is a declared oracle premise; every exact table evaluation binds its own positive observational support."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "identify.pag_direct"
+route = "antecedent.identify.consume_pag_identification"
+algorithm_provenance = ["provenance/identify.pag_direct.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "identify.pag_direct.published.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Published ICML 2019 Figure 2a with a positive binary joint law and the 2022 conditional exchange graphs."
+expected_values = "All 32 interventional masses reproduce Equation 14 for the declared positive law. Conditional evaluation agrees with the published stated conditional formula, and the blocked exchange retains its path."
+tolerance = "1e-12 point-law agreement; exact equality of retained program and proof identities"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "identify.pag_direct.artifact"
+provider_trust = "The graph is a declared oracle premise; every exact table evaluation binds its own positive observational support."
+exact_request_verification = "not_applicable_no_external_provider"
+
+[[cell]]
+id = "identify.pag_direct"
+route = "antecedent.identify.pag_exact_evaluation"
+algorithm_provenance = ["provenance/identify.pag_direct.toml"]
+parity_registry = "parity/capability_records.toml"
+positive_fixture = "identify.pag_direct.published.positive"
+oracle_kind = "closed_form"
+oracle_inputs = "Published ICML 2019 Figure 2a with a positive binary joint law and the 2022 conditional exchange graphs."
+expected_values = "All 32 interventional masses reproduce Equation 14 for the declared positive law. Conditional evaluation agrees with the published stated conditional formula, and the blocked exchange retains its path."
+tolerance = "1e-12 point-law agreement; exact equality of retained program and proof identities"
+calibration = "point_only_no_interval"
+artifact_consumer_fixture = "identify.pag_direct.artifact"
+provider_trust = "The graph is a declared oracle premise; every exact table evaluation binds its own positive observational support."
+exact_request_verification = "not_applicable_no_external_provider"

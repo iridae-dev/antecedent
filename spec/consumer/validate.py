@@ -608,7 +608,8 @@ def _check_schema(instance, schema_path):
 # ---------------------------------------------------------------------------------------
 
 OP_TAG = {"point": 1, "mean": 2, "law": 3, "draws": 4, "joint_draws": 5,
-          "covariance": 6, "interval": 7, "posterior": 8, "fit": 9, "predict": 10}
+          "covariance": 6, "interval": 7, "posterior": 8, "fit": 9, "predict": 10,
+          "identified_set": 11}
 UNCERTAINTY_OPS = {"law", "draws", "joint_draws", "covariance", "interval", "posterior"}
 MEANING_PARADIGM = {
     "parameter_posterior": "posterior", "causal_functional_posterior": "posterior",

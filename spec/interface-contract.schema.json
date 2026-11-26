@@ -249,7 +249,8 @@
           "interval",
           "posterior",
           "fit",
-          "predict"
+          "predict",
+          "identified_set"
         ]
       },
       "minItems": 1,

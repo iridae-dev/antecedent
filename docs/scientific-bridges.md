@@ -22,8 +22,8 @@ declares a standard error and the mapping declares its uncertainty and its depen
 carries the [propagated variance](#propagated-uncertainty-of-a-point-source) of that mean. The interval of that
 mean is a separate, scoped request (below) that needs the source claim's standard error. A bridge whose
 source is the aligned draws of a posterior or a predictive law carries **those draws**
-([Bridges of distributions](#bridges-of-distributions)). No identified set or joint outcome law is
-produced.
+([Bridges of distributions](#bridges-of-distributions)). Fixed affine maps also carry sharp
+identified sets and jointly aligned outcome laws.
 
 ## The contract
 
@@ -80,7 +80,7 @@ the declaration or evidence that would support the request; the remedies are lis
 | an interval of a bridged value with no source standard error | `required_option_missing` | `interval_source_uncertainty_required` |
 | an interval of a map the construction does not cover | `route_not_supported` | `interval_scope_outside_measured` |
 | draws offered by an associational, refused, bounded or incomplete claim | `bridge_mapping_not_supported` | `source_not_draws` |
-| draws that are a sampling, bootstrap or empirical law | `distribution_meaning_mismatch` | `draws_meaning_mismatch` |
+| sampling, bootstrap or empirical draws supplied to a posterior or predictive declaration | `distribution_meaning_mismatch` | `draws_meaning_mismatch` |
 | draws that are independent marginals | `joint_law_required` | `draws_not_aligned` |
 | draws that are non-finite, constant under a declared covariance, or a target that repeats a coordinate of the table | `scientific_bridge_invalid` | `draws_unusable` |
 | draws outside the validated surrogate range, or no admissible rates for a recorded prevalence | `bridge_mapping_not_supported` | `draws_outside_domain` |
@@ -116,14 +116,10 @@ identity is the source's, so the bridged column still pairs by index with every 
 sampled with. A bridge that broke the pairing would silently turn a joint law into marginals, so
 independent marginals are refused.
 
-The value kinds are `posterior` (posterior draws of a parameter or a causal functional) and
-`predictive_law` (posterior predictive draws), and the distribution's own meaning must agree with
-the contract's. A bootstrap, a sampling law or an empirical law is neither. An associational claim
-is never a bridge source. The column is found by its quantity coordinate, not its position.
-
-The distribution meaning must agree with the source and target declarations. A fixed identity
-or affine mapping accepts `posterior`, `predictive_law`, `bootstrap` or `estimator_sampling`
-and preserves that meaning. The bridge finds the source column by its quantity coordinate.
+A distribution's meaning must agree with both endpoint declarations. Fixed identity and affine
+maps preserve the declared `posterior`, `predictive_law`, `bootstrap` or `estimator_sampling`
+meaning and locate input columns by their quantity coordinates. A fixed joint-outcome image
+uses paired empirical, interventional-predictive or posterior-predictive outcomes.
 
 For a fitted trial-level line and a bootstrap source, each draw uses a new pairs bootstrap
 of the validation trials. Declare `SourceDependence.independent(evidence)` when the source
@@ -382,8 +378,7 @@ beside the derived result and is supplied again to a consumer that wants it.
 No propagated variance read as an interval or as a calibrated uncertainty, no assumed independence of the
 source and an uncertain mapping, no nonlinear map of a mean alone. No interval outside the constructed range or without the source standard error (for a
 bridge of draws: none for an uncertain map or a declared source-mapping covariance),
-no identified set or joint outcome law, no bridge of a bootstrap, sampling or empirical
-law, no associational claim as a source, no truncation or extrapolation of draws
+no associational claim as a source, no truncation or extrapolation of draws
 outside a mapping's validated range, no calibration of a model score, no individual-level
 surrogacy, no extrapolation of a trial-level relationship beyond the validated
 range, no differential measurement error without the claim's arm.
