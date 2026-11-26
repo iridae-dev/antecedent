@@ -457,6 +457,13 @@ why = "The graph-checked learner uses only its available policy columns while pr
 
 [[test]]
 evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs"
+evidence_assertion = "counterfactual_bundle_replays_exact_and_sampled_affine_decisions"
+kind = "known_truth"
+fixtures = []
+why = "The independent finite-SCM oracle supplies the expected utility of a two-source counterfactual event. Both the exact-law and dyadic-count producers replay that mean in the compiled affine decision. The portable reader checks the identical full receipt and refuses changed program identity and insufficient memory. This is an exact-point reference with no interval or calibration claim."
+
+[[test]]
+evidence_test = "crates/antecedent/tests/counterfactual_transport_lifecycle.rs"
 evidence_assertion = "time_ordered_direct_path_transport_matches_independent_oracle"
 kind = "known_truth"
 fixtures = []

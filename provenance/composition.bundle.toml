@@ -97,4 +97,4 @@ sha256 = "215bd5e421fe9ac05362f3a1a9d0f3509a5666bb6f03fe5b045a5410240084ee"
 role = "assertion"
 path = "python/tests/test_counterfactual_transport_compiled_bundle.py"
 items = ["fn test_transport_bundle_compiles_and_replays_affine_decision"]
-sha256 = "6a172f336d4b8e8a5ff987d5859b4ac0b516d0fb4ed0460293b1df573e725c84"
+sha256 = "1f5817a341b82558aedefc6a1429c88e513039a1035f171c157700ea5f846097"

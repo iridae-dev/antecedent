@@ -1,7 +1,10 @@
 """Exact and sampled target-event points through the public bundle compiler."""
 
 import json
+import subprocess
+import sys
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from antecedent import Execution, ResourceLimits, decision
@@ -13,7 +16,9 @@ from test_producer_consumer_matrix import _transported
 
 
 @pytest.mark.parametrize("sampled", [False, True])
-def test_transport_bundle_compiles_and_replays_affine_decision(sampled: bool) -> None:
+def test_transport_bundle_compiles_and_replays_affine_decision(
+    sampled: bool, tmp_path: Path
+) -> None:
     original = _transported()
     replacement = _transported("revised-target")
     source = original.sampled_treated if sampled else original.treated
@@ -55,7 +60,7 @@ def test_transport_bundle_compiles_and_replays_affine_decision(sampled: bool) ->
     graph = require_success(
         cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
     )
-    assert graph.value("decision", "act.expected_utility") == pytest.approx(2.0)
+    assert graph.value("decision", "act.expected_utility") == pytest.approx(2.0, abs=1e-12, rel=0.0)
 
     portable = bytes(result.export())
 
@@ -74,6 +79,38 @@ def test_transport_bundle_compiles_and_replays_affine_decision(sampled: bool) ->
     assert replayed.replayed
     assert replayed.decision_fingerprint == result.decision_fingerprint
     assert replayed.dependencies == result.dependencies
+
+    path = tmp_path / "transport-affine-receipt.bin"
+    path.write_bytes(portable)
+    child = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import json
+from pathlib import Path
+import sys
+
+from antecedent import composition_bundle as cb
+from antecedent.outcomes import require_success
+
+result = require_success(cb.consume_bundle_recomputation(
+    Path(sys.argv[1]).read_bytes(),
+    expected_bundle=sys.argv[2],
+    expected_program=sys.argv[3],
+    route="counterfactual_transport_decision",
+))
+print(json.dumps([result.replayed, result.program_identity, result.decision_fingerprint]))
+""",
+            str(path),
+            bundle.identity,
+            plan.program_identity,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert json.loads(child.stdout) == [True, plan.program_identity, result.decision_fingerprint]
 
     limited = Execution(limits=ResourceLimits(memory_bytes=1))
     for run in (
