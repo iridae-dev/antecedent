@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import aclosing
 from contextvars import ContextVar
 from threading import Event, get_ident
@@ -10,8 +11,10 @@ from threading import Event, get_ident
 import antecedent as ant
 import numpy as np
 import pytest
-from antecedent import aio, prepared
-from antecedent.errors import CausalCancelledError
+from antecedent import aio, preflight, prepared
+from antecedent.cyclic import Equation, EquilibriumModel
+from antecedent.errors import CausalCancelledError, CausalUnsupportedError
+from antecedent.outcomes import require_success
 
 
 @pytest.fixture
@@ -251,5 +254,77 @@ def test_async_estimate_reuses_measured_draws(request_args):
         assert result.accepted and expected.accepted
         assert result.value.effect == expected.value.effect
         assert result.value.exposure is study.exposure
+
+    asyncio.run(run())
+
+
+def test_run_accepts_specialized_operations_and_returns_their_native_result(request_args):
+    study = ant.prepare(**request_args)
+    report = asyncio.run(aio.run(preflight.diagnose, study, execution=study.execution))
+    assert report == preflight.diagnose(study)
+    assert report.rows_total == len(request_args["data"]["t"])
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_cancelling_queued_work_does_not_wait_for_an_executor_slot(
+    stream, monkeypatch, request_args
+):
+    study = ant.prepare(**request_args) if stream else None
+    invoked = Event()
+    release = Event()
+
+    def operation(*args, **kwargs):
+        invoked.set()
+
+    async def run():
+        loop = asyncio.get_running_loop()
+        loop.set_default_executor(ThreadPoolExecutor(max_workers=1))
+        occupied = loop.run_in_executor(None, release.wait)
+        if stream:
+            monkeypatch.setattr(aio, "_estimate", operation)
+            events = aio.stream(study)
+            task = asyncio.create_task(anext(events))
+        else:
+            task = asyncio.create_task(aio.run(operation))
+        try:
+            await asyncio.sleep(0)  # Submit the call behind the occupied slot.
+            task.cancel()
+            done, _ = await asyncio.wait({task}, timeout=1)
+            assert task in done
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert not occupied.done()
+        finally:
+            release.set()
+            await occupied
+            await asyncio.gather(task, return_exceptions=True)
+        await loop.run_in_executor(None, lambda: None)
+        assert not invoked.is_set()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("family", [False, True])
+def test_estimate_and_stream_prepared_cyclic_studies(family):
+    model = EquilibriumModel(
+        (Equation("a", 0.0, (0.0, 0.4)), Equation("b", 0.0, (0.5, 0.0))),
+        (1.0, 0.0, 0.0, 1.0),
+    )
+    system = model.prepare([[]], [[0.1, 0.2]])
+    study = system.to_family() if family else system
+    expected = require_success(ant.estimate(study))
+    expected_report = expected.to_dict()
+
+    async def run():
+        estimated = require_success(await aio.estimate(study))
+        assert await aio.run(estimated.to_dict, execution=study.execution) == expected_report
+        assert estimated.execution is study.execution
+        events = [event async for event in aio.stream(study)]
+        assert isinstance(events[-1], aio.Result)
+        assert require_success(events[-1].outcome).identity == expected.identity
+        with pytest.raises(CausalUnsupportedError, match="scientific stages") as refused:
+            async for _ in aio.stream(study, stages=True):
+                pass
+        assert refused.value.reason_code == "stage_stream_unavailable"
 
     asyncio.run(run())

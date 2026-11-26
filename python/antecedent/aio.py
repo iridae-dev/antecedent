@@ -7,22 +7,25 @@ from collections.abc import AsyncGenerator, Callable
 from contextvars import copy_context
 from dataclasses import dataclass, replace
 from functools import partial
-from threading import Lock
+from threading import Event, Lock
 from typing import Any, Generic, TypeVar, overload
 
 from . import _native, prepared
 from ._batch import BatchResult, PreparedBatch
-from .errors import CausalCancelledError, CausalTypeError
+from .cyclic import CyclicResult, PreparedCyclicFamily, PreparedCyclicSystem
+from .errors import CausalCancelledError, CausalTypeError, CausalUnsupportedError
 from .execution import Execution, resolve_execution
 from .exposure_measurement import MeasuredAnalysis, PreparedMeasuredAnalysis
 from .outcomes import Outcome
 from .prepared import PreparedAnalysis
 
-__all__ = ["Progress", "Result", "Stage", "analyze", "estimate", "prepare", "stream"]
+__all__ = ["Progress", "Result", "Stage", "analyze", "estimate", "prepare", "run", "stream"]
 
 T = TypeVar("T")
-_Study = PreparedAnalysis[Any] | PreparedBatch | PreparedMeasuredAnalysis
-_StudyT = TypeVar("_StudyT", bound=_Study)
+_PreparedStudy = PreparedAnalysis[Any] | PreparedBatch | PreparedMeasuredAnalysis
+_CyclicStudy = PreparedCyclicFamily | PreparedCyclicSystem
+_Study = _PreparedStudy | _CyclicStudy
+_StudyT = TypeVar("_StudyT", bound=_PreparedStudy)
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,21 +115,32 @@ def _controls(
 
 def _submit(
     operation: Callable[[Execution], T], execution: Execution, token: _native.CancellationToken
-) -> asyncio.Future[T]:
+) -> tuple[asyncio.Future[T], Event]:
+    started = Event()
+
     def work() -> T:
+        started.set()
         if token.is_cancelled():
             raise CausalCancelledError("execution cancelled before starting")
         return operation(execution)
 
     # Match to_thread's context propagation while keeping the worker exception on a
     # Future, including BaseExceptions raised by synchronous user callbacks.
-    return asyncio.get_running_loop().run_in_executor(None, copy_context().run, work)
+    worker = asyncio.get_running_loop().run_in_executor(None, copy_context().run, work)
+    return worker, started
 
 
-async def _stop(worker: asyncio.Future[Any], token: _native.CancellationToken) -> None:
+async def _stop(
+    worker: asyncio.Future[Any], token: _native.CancellationToken, started: Event
+) -> None:
     interrupted = None
     if not worker.done():
         token.cancel()
+        if not started.is_set():
+            # If the job claims its executor slot concurrently, it sees the
+            # cancelled token before entering the operation.
+            worker.cancel()
+            return
         done = asyncio.Event()
         worker.add_done_callback(lambda _: done.set())
         while not worker.done():
@@ -142,12 +156,34 @@ async def _stop(worker: asyncio.Future[Any], token: _native.CancellationToken) -
 
 async def _run(operation: Callable[[Execution], T], execution: Execution) -> T:
     controls, token = _controls(execution)
-    worker = _submit(operation, controls, token)
+    worker, started = _submit(operation, controls, token)
     try:
         return await asyncio.shield(worker)
     except asyncio.CancelledError:
-        await _stop(worker, token)
+        await _stop(worker, token, started)
         raise
+
+
+async def run(
+    operation: Callable[..., T],
+    /,
+    *args: Any,
+    execution: Execution | None = None,
+    **kwargs: Any,
+) -> T:
+    """Await a synchronous operation that accepts an `execution` keyword.
+
+    The operation receives a per-call cancellation token and shares the supplied policy's
+    native admission pool. With no supplied policy it receives a derived `Execution()`.
+    Arguments, return values and exceptions follow the operation's own Python API.
+    The operation's route determines which execution controls it supports.
+    """
+    policy = resolve_execution(execution)
+
+    def invoke(controls: Execution) -> T:
+        return operation(*args, execution=controls, **kwargs)
+
+    return await _run(invoke, policy)
 
 
 async def analyze(
@@ -177,8 +213,17 @@ async def prepare(
 
 
 def _study_execution(study: _Study) -> Execution:
-    if not isinstance(study, (PreparedAnalysis, PreparedBatch, PreparedMeasuredAnalysis)):
-        raise CausalTypeError("async estimation requires a prepared analysis or batch")
+    if not isinstance(
+        study,
+        (
+            PreparedAnalysis,
+            PreparedBatch,
+            PreparedMeasuredAnalysis,
+            PreparedCyclicFamily,
+            PreparedCyclicSystem,
+        ),
+    ):
+        raise CausalTypeError("async estimation requires a prepared study")
     return resolve_execution(study.execution)
 
 
@@ -193,6 +238,16 @@ def _with_execution(study: _StudyT, execution: Execution) -> _StudyT:
 
 
 def _estimate(study: _Study, execution: Execution, *, retained: Execution) -> Outcome[Any]:
+    if isinstance(study, (PreparedCyclicFamily, PreparedCyclicSystem)):
+        if execution.on_stage is not None:
+            raise CausalUnsupportedError(
+                "prepared cyclic studies do not stream scientific stages",
+                reason_code="stage_stream_unavailable",
+            )
+        outcome = study.execute(execution=execution)
+        if isinstance(outcome.value, CyclicResult):
+            return replace(outcome, value=replace(outcome.value, execution=retained))
+        return outcome
     outcome = prepared.estimate(_with_execution(study, execution))
     return _restore_execution(outcome, retained)
 
@@ -209,8 +264,12 @@ async def estimate(study: PreparedBatch) -> Outcome[BatchResult]: ...
 async def estimate(study: PreparedMeasuredAnalysis) -> Outcome[MeasuredAnalysis]: ...
 
 
+@overload
+async def estimate(study: _CyclicStudy) -> Outcome[CyclicResult]: ...
+
+
 async def estimate(study: _Study) -> Outcome[Any]:
-    """Await an estimate of an immutable prepared analysis, measured study or batch."""
+    """Await an estimate of a prepared analysis, measured study, batch or cyclic study."""
     execution = _study_execution(study)
     return await _run(partial(_estimate, study, retained=execution), execution)
 
@@ -229,7 +288,7 @@ async def stream(
     execution = _study_execution(study)
     events = _Events()
     controls, token = _controls(execution, events, stages=stages)
-    worker = _submit(partial(_estimate, study, retained=execution), controls, token)
+    worker, started = _submit(partial(_estimate, study, retained=execution), controls, token)
     worker.add_done_callback(lambda _: events.ready.set())
     try:
         while not worker.done():
@@ -241,7 +300,7 @@ async def stream(
         outcome = worker.result()
     finally:
         events.close()
-        await _stop(worker, token)
+        await _stop(worker, token, started)
     yield Result(outcome)
 
 
