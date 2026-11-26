@@ -105,7 +105,8 @@ def test_learned_longitudinal_schedule_keeps_unique_and_tied_optima(means, selec
     source = bytes(result.export(source_data=data))
     artifact = require_success(ant.load(source)).replay()
     assert artifact.acceptance.replayed
-    assert artifact.decoded_artifact.payload["longitudinal_regime"]["schedule_family"]["learning"]["optimum_set"] == list(optima)
+    replayed_learning = artifact.decoded_artifact.payload["longitudinal_regime"]["schedule_family"]["learning"]
+    assert replayed_learning["optimum_set"] == optima
     bundle = cb.BundleBuilder().add_artifact(source, node_id="learned").build()
     verified = require_success(cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity))
     assert verified.node("learned").facts["optimum_set.calibration"] == "not_measured"
