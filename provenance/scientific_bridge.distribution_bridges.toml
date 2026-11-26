@@ -41,6 +41,7 @@ redistribution = "The method fixtures and implementations are repository-authore
 limitations = "This was a source review. The central release runner owns numerical execution and any repeated-experiment receipt. The whole-trial oracle computes centered least squares independently but uses the same defined bootstrap index stream, as needed to compare row-for-row. The shared line at its own centroid equals the terminal centroid algebraically; the nonlinear reference squares the resulting per-refit mapped centroid as a separate compiled stage. The source-fixed calibration designs have bounded support, nominal level 0.95, exactly 399 refits and equal numbers of source and validation trials when independent. No general guarantee is claimed for different numerical designs, estimated trial-level effect noise, subject-level surrogate effects, or the threshold decision's sampling error."
 sources = ["https://doi.org/10.1214/aos/1176344552", "https://robjhyndman.com/publications/quantiles/"]
 findings_resolved = [
+  "Reviewed the four exact-byte readers on StoredBridgeImage. Each binds the supplied bytes before running the existing reader. The portable replay fixture admits the exported bytes, rejects substituted bytes before decoding, and checks the program and numerical result identities independently.",
   "Checked decreasing and constant scalar maps, weighted multivariate row mapping with same-row covariance, exact posterior atom mass, and independent and shared source bootstrap formulas against the existing numerical references.",
   "Added cancellation checkpoints during the original generation or regeneration of the shared trial source. Scoped confidence publication to the explicit measured design, including the source declaration and observed support, instead of matching only a generic array shape.",
   "The trial coverage lookup requires an exact measured sample size for the matching source law and design. It reports the repeated study denominator of all attempts, including refusals. A stale boundary record cannot publish a below-nominal measurement.",
@@ -83,7 +84,7 @@ sha256 = "30b11e2e9cc64f10ba61e524e35f6a6504f14e4ef0d34a4d8d8241aa0c5014e7"
 role = "implementation"
 path = "crates/antecedent-io-core/src/bridge_image_artifact.rs"
 items = ["impl BridgeImageResult", "impl BridgeImageRequest", "impl RestoreInput", "impl InputWire", "impl StoredBridgeImage", "impl BridgeImageReplayBinding", "fn decoded_size", "fn decision_numerical_receipt_does_not_depend_on_current_coverage_registry"]
-sha256 = "06aa83cadcbd4d96222898114b38b0af79caea04ea8d46fb09127a8ade2a8273"
+sha256 = "73f268514b1007f5d226a35fdb46f438879d6ecf3c521de8e26206b7a4828b80"
 
 [[method_review.artifacts]]
 role = "implementation"
@@ -100,8 +101,8 @@ sha256 = "e9dc91068a04dd2957fd075b4106f33ab9948f4535a4dce4f5f82c315b588c05"
 [[method_review.artifacts]]
 role = "assertion"
 path = "crates/antecedent-io-core/src/bridge_image_tests.rs"
-items = ["fn fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images", "fn affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs"]
-sha256 = "d2f58c425d008011ff120949edc0c4379501a0be73ba29f7ffa72ed98aec211f"
+items = ["fn fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images", "fn affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inputs", "fn verify_portable_request"]
+sha256 = "d9f48ba3ebf32b062fce1ac512da3e0deff9da69dc68d7a68c340dce401406c1"
 
 [[method_review.artifacts]]
 role = "assertion"
