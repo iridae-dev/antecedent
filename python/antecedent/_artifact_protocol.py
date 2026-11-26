@@ -292,6 +292,7 @@ def inspect_artifact(value: Any) -> ArtifactInspection:
 
     data = container_bytes(value)
     for magic, kind in (
+        (b"ANTE-PAG-ID-1\0", "pag_identification_v1"),
         (b"ANTE-JOINT-SCENARIOS-1", "joint_scenarios_v1"),
         (b"ANTE-COMPILED-ROBUST-1", "compiled_robust_decision_v1"),
         (b"ANTECEDENT-LATENT-SOFT-INTERVENTION-1", "latent_soft_intervention_forecast_v1"),
@@ -503,6 +504,7 @@ def artifact_from_receipt(source: Any, receipt: Any) -> ExportedArtifact[Any]:
 # No consumer is selected by trying families until one accepts. The native manifest is the discriminator.
 _CONSUMERS: dict[str, tuple[str, str]] = {
     "patient_surrogate_identification_v1": ("patient_surrogate", "consume_patient_surrogate"),
+    "pag_identification_v1": ("pag_identification", "consume_pag_identification"),
     "array_fit_replay_v1": ("nuisance_scores", "load_artifact"),
     "staleness_baseline_v1": ("drift", "consume_baseline"),
     "causal_posterior": ("_posterior_artifact", "consume_posterior"),
@@ -594,6 +596,7 @@ _IDENTITY_PARAMETERS: dict[str, frozenset[str]] = {
     "longitudinal_joint_sensitivity": frozenset({"expected", "expected_program"}),
     "causal_posterior": frozenset({"expected_encoding_sha256"}),
     "patient_surrogate_identification_v1": frozenset({"expected_program", "expected_result"}),
+    "pag_identification_v1": frozenset({"expected_program", "expected_result"}),
     "compiled_robust_decision_v1": frozenset({"expected_program_identity"}),
     "joint_sensitivity_interval_v1": frozenset(),
     "sequential_evaluation_v1": frozenset({"model", "policy", "evaluation"}),

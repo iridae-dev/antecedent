@@ -66,7 +66,13 @@ def test_published_marginal_formula_runs_and_replays_in_fresh_process(tmp_path: 
         cb.consume_bundle(bytes(bundle.export()), expected_identity=bundle.identity)
     ).all_replayed
     path = tmp_path / "direct-pag.bin"
-    path.write_bytes(result.export())
+    from antecedent import load
+
+    artifact = result.export()
+    assert artifact.expectation is not None
+    restored = require_success(load(artifact, expected=artifact.expectation))
+    assert restored.identity == result.identity
+    path.write_bytes(bytes(artifact))
     call = subprocess.run(
         [
             sys.executable,

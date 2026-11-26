@@ -8,8 +8,15 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from . import _native
-from ._artifact_protocol import container_bytes
+from ._artifact_protocol import (
+    ArtifactExpectation,
+    ExportedArtifact,
+    artifact_consumer,
+    artifact_export,
+    container_bytes,
+)
 from ._refusal import raise_refusal
+from ._scientific import ScientificResult
 from ._unit_support import read_unit_support
 from ._validate import count
 from .errors import CausalTypeError, CausalValueError, StructuredRefusal
@@ -55,7 +62,7 @@ class PagExactDistribution:
     probabilities: tuple[float, ...]
 
 
-class DirectPagResult:
+class DirectPagResult(ScientificResult):
     """An observational functional or a graphical nonidentification witness."""
 
     def __init__(self, handle: _native.DirectPagResultHandle, program_identity: str) -> None:
@@ -90,9 +97,13 @@ class DirectPagResult:
         )
         return status
 
-    def export(self) -> bytes:
+    @artifact_export
+    def export(self) -> ExportedArtifact[DirectPagResult]:
         """Export the graph, query and result for independent symbolic replay."""
-        return self._handle.export()
+        kind = "pag_identification_v1"
+        return ExportedArtifact(
+            self._handle.export(), kind, ArtifactExpectation(kind, {"expected_program": self.program_identity, "expected_result": self.identity})
+        )
 
     @outcome_operation
     def evaluate(
@@ -195,6 +206,11 @@ def compile_pag_identification(
 
 
 @outcome_operation
+@artifact_consumer(
+    proof="Repeat direct identification on the original graph, query and bounds and verify its scientific conclusion.",
+    replayable=True,
+    identity=("expected_program", "expected_result"),
+)
 def consume_pag_identification(
     artifact: bytes,
     *,
