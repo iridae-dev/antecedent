@@ -83,9 +83,9 @@ pub const ASSUMPTION_CHOICES_OPTIMAL: &str = "assumption.recorded_choices_optima
 /// fraction of `max(|a|, |b|)` is read as zero.
 pub const COEFFICIENT_RELATIVE_THRESHOLD: f64 = 1e-12;
 
-/// Largest number of record subsets the exhaustive smallest-conflict search may examine; above
-/// it the conflict is found by the deletion filter alone and reported as
-/// [`ConflictKind::Irreducible`].
+/// Historical subset count of the exhaustive smallest-conflict search. Not enforced: the
+/// subset count is quoted against the execution, and a count the execution cannot hold is
+/// found by the deletion filter and reported as [`ConflictKind::Irreducible`].
 pub const SMALLEST_CONFLICT_SUBSET_BUDGET: usize = 50_000;
 
 /// Options of [`learn_compatible_set`].
@@ -98,15 +98,16 @@ pub struct SetLearningOptions {
     pub conflict_search_size: usize,
     /// Tolerances and work limit of every linear program.
     pub lp: LpOptions,
-    /// Largest number of shape boxes one subdivision examines (the declared shape box
-    /// included) under a value with shape parameters; at least one.
+    /// Optional tighter count of shape boxes one subdivision examines. `usize::MAX`, the
+    /// default, imposes no count; the execution's memory admits the boxes. Zero is invalid.
     pub max_boxes: usize,
     /// A shape box is not split once every shape parameter's width is at most this fraction of
     /// its declared range; finite, in `[0, 1]`.
     pub min_width_fraction: f64,
 }
 
-/// Default of [`SetLearningOptions::max_boxes`].
+/// Historical default of [`SetLearningOptions::max_boxes`], still the value an artifact
+/// omitted from its wire. A new run's default is unlimited; the execution admits the boxes.
 pub const DEFAULT_MAX_SHAPE_BOXES: usize = 4096;
 /// Default of [`SetLearningOptions::min_width_fraction`].
 pub const DEFAULT_MIN_SHAPE_WIDTH_FRACTION: f64 = 1e-4;
@@ -117,7 +118,7 @@ impl Default for SetLearningOptions {
             tolerance: 0.0,
             conflict_search_size: 3,
             lp: LpOptions::default(),
-            max_boxes: DEFAULT_MAX_SHAPE_BOXES,
+            max_boxes: usize::MAX,
             min_width_fraction: DEFAULT_MIN_SHAPE_WIDTH_FRACTION,
         }
     }
@@ -426,8 +427,9 @@ pub fn learn_compatible_set(
 }
 
 /// [`learn_compatible_set`] under an execution context: the context's cancellation token is read
-/// before every linear program of the parameter ranges, the tolerance and the conflict search
-/// (the smallest-conflict search can solve up to [`SMALLEST_CONFLICT_SUBSET_BUDGET`] programs).
+/// before every linear program of the parameter ranges, the tolerance and the conflict search.
+/// The smallest-conflict search is leased against the execution; a subset count the execution
+/// cannot hold is found by the deletion filter and reported as [`ConflictKind::Irreducible`].
 ///
 /// # Errors
 /// As [`learn_compatible_set`]; [`SetLearningError::Cancelled`] once the token is set.
@@ -762,6 +764,40 @@ fn extremes(
     Ok(Some(Extremes { ranges, active }))
 }
 
+/// Lease the exhaustive smallest-conflict search. `Ok(None)` when the subset count does not
+/// fit; cancellation is an error.
+fn conflict_search_hold(
+    ctx: Option<&ExecutionContext>,
+    n: usize,
+    max_size: usize,
+) -> Result<Option<antecedent_stats::execution_quote::WorkLease>, SetLearningError> {
+    let Some(operations) = subset_count(n, max_size) else {
+        return Ok(None);
+    };
+    let mut hold = antecedent_stats::execution_quote::WorkLease::new();
+    match hold.charge(ctx, operations, 64, "preference conflict subsets") {
+        Ok(()) => Ok(Some(hold)),
+        Err(receipt) if receipt.stop == antecedent_core::SearchStop::Cancelled => {
+            Err(SetLearningError::Cancelled)
+        }
+        Err(_) => Ok(None),
+    }
+}
+
+/// Number of subsets of sizes `1..=max_size` of `n` items, when it fits in `u64`.
+fn subset_count(n: usize, max_size: usize) -> Option<u64> {
+    let mut binomial: u128 = 1;
+    let mut total: u128 = 0;
+    for size in 1..=max_size.min(n) {
+        binomial = binomial * (n - size + 1) as u128 / size as u128;
+        total += binomial;
+        if total > u64::MAX as u128 {
+            return None;
+        }
+    }
+    Some(total as u64)
+}
+
 /// Number of subsets of sizes `1..=max_size` of `n` items exceeds `budget`.
 fn subsets_exceed(n: usize, max_size: usize, budget: usize) -> bool {
     let mut binomial: u128 = 1;
@@ -934,20 +970,21 @@ impl Learner<'_> {
         let lp = self.options.lp;
         let size = self.options.conflict_search_size;
         let (rows, labels, low, high) = (&constraints, &group, &lower, &upper);
-        let smallest =
-            if size == 0 || subsets_exceed(by_id.len(), size, SMALLEST_CONFLICT_SUBSET_BUDGET) {
-                None
-            } else {
-                let searched = match self.ctx {
-                    Some(ctx) => linear_program::smallest_infeasible_groups_with_context(
-                        rows, labels, low, high, size, lp, ctx,
-                    ),
-                    None => linear_program::smallest_infeasible_groups(
-                        rows, labels, low, high, size, lp,
-                    ),
-                };
-                searched.map_err(lp_error)?
+        let quoted =
+            if size == 0 { None } else { conflict_search_hold(self.ctx, by_id.len(), size)? };
+        let smallest = if quoted.is_none() {
+            None
+        } else {
+            let searched = match self.ctx {
+                Some(ctx) => linear_program::smallest_infeasible_groups_with_context(
+                    rows, labels, low, high, size, lp, ctx,
+                ),
+                None => {
+                    linear_program::smallest_infeasible_groups(rows, labels, low, high, size, lp)
+                }
             };
+            searched.map_err(lp_error)?
+        };
         let (groups, kind) = if let Some(groups) = smallest {
             (groups, ConflictKind::Smallest)
         } else {

@@ -2501,6 +2501,7 @@ class preference_choice_model:  # noqa: N801
         "preference_choice_model.covariance_not_positive_definite"
     )
     DRAWS_MISSING: Final = "preference_choice_model.draws_missing"
+    EXECUTION_BUDGET: Final = "preference_choice_model.execution_budget"
     FIT_OPTIONS_INVALID: Final = "preference_choice_model.fit_options_invalid"
     FIT_REFUSED: Final = "preference_choice_model.fit_refused"
     LEVEL_INVALID: Final = "preference_choice_model.level_invalid"
@@ -5963,6 +5964,7 @@ ALL: Final[tuple[str, ...]] = (
     "preference_choice_model.consistency_not_positive",
     "preference_choice_model.covariance_not_positive_definite",
     "preference_choice_model.draws_missing",
+    "preference_choice_model.execution_budget",
     "preference_choice_model.fit_options_invalid",
     "preference_choice_model.fit_refused",
     "preference_choice_model.level_invalid",
@@ -9186,6 +9188,7 @@ CODES: Final[dict[str, tuple[str, ...]]] = {
     "preference_choice_model.consistency_not_positive": ("glm_fit_refused",),
     "preference_choice_model.covariance_not_positive_definite": ("glm_fit_refused",),
     "preference_choice_model.draws_missing": ("invalid_argument",),
+    "preference_choice_model.execution_budget": ("execution_resource_limit",),
     "preference_choice_model.fit_options_invalid": ("invalid_argument",),
     "preference_choice_model.fit_refused": ("glm_fit_refused",),
     "preference_choice_model.level_invalid": ("invalid_argument",),

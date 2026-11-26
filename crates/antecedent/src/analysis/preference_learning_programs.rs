@@ -508,7 +508,7 @@ mod site_tests {
             |o| o.lp.feasibility_tolerance *= 2.0,
             |o| o.lp.optimality_tolerance *= 2.0,
             |o| o.lp.max_pivots += 1,
-            |o| o.max_boxes += 1,
+            |o| o.max_boxes = 10,
             |o| o.min_width_fraction *= 2.0,
         ];
         for edit in set_edits {

@@ -5,7 +5,7 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use antecedent_core::execution::{AdmissionLease, ExecutionContext};
+use antecedent_core::execution::{AdmissionError, AdmissionLease, ExecutionContext};
 use antecedent_core::{SearchBudget, SearchLimits, SearchReceipt, SearchStop};
 
 /// An execution with no declared byte limit. Any representable quote is admitted.
@@ -108,4 +108,90 @@ pub fn execution_quote_fits(
         return false;
     };
     budget.admits(1, bytes, quoted_operations).is_ok()
+}
+
+/// Bytes leased for one quoted piece of work. Dropping the hold releases them.
+///
+/// A later [`WorkLease::charge`] of a larger quote leases only the growth, so a subdivision
+/// can raise its quote without giving the bytes back in between.
+#[must_use = "dropping the hold releases the quote"]
+pub struct WorkLease {
+    /// Live leases. Their byte sum is the quote charged so far.
+    #[allow(dead_code, reason = "retained so drop releases the quote")]
+    leases: Vec<AdmissionLease>,
+    held: u64,
+}
+
+impl WorkLease {
+    /// A hold that has leased nothing.
+    #[must_use]
+    pub fn new() -> Self {
+        Self { leases: Vec::new(), held: 0 }
+    }
+
+    /// Lease `operations` of work over `state_bytes` of live state.
+    ///
+    /// The quote is `operations * 16 + state_bytes`. Absent `ctx` is an execution with no
+    /// byte limit. Bytes already held by this lease stay held when the quote is refused.
+    ///
+    /// # Errors
+    ///
+    /// The receipt of a stop before the additional bytes are leased.
+    pub fn charge(
+        &mut self,
+        ctx: Option<&ExecutionContext>,
+        operations: u64,
+        state_bytes: u64,
+        unevaluated: &str,
+    ) -> Result<(), SearchReceipt> {
+        let Some(bytes) = operations.checked_mul(16).and_then(|tail| tail.checked_add(state_bytes))
+        else {
+            return Err(unrepresentable_quote(unevaluated));
+        };
+        if bytes <= self.held {
+            return Ok(());
+        }
+        let owned;
+        let host = match ctx {
+            Some(ctx) => ctx,
+            None => {
+                owned = open_execution();
+                &owned
+            }
+        };
+        probe_execution_quote(host, operations.max(1), operations, bytes, unevaluated)?;
+        let delta = bytes - self.held;
+        let lease = host
+            .acquire_admission(0, delta)
+            .map_err(|error| admission_receipt(host, unevaluated, error))?;
+        self.leases.push(lease);
+        self.held = bytes;
+        Ok(())
+    }
+}
+
+impl Default for WorkLease {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+fn admission_receipt(
+    ctx: &ExecutionContext,
+    unevaluated: &str,
+    error: AdmissionError,
+) -> SearchReceipt {
+    let stop = match error {
+        AdmissionError::Cancelled => SearchStop::Cancelled,
+        _ => SearchStop::Memory,
+    };
+    let memory = ctx.memory_limit_bytes().unwrap_or(u64::MAX);
+    match SearchBudget::with_memory(SearchLimits { operations: 1, depth: 1 }, memory, ctx) {
+        Ok(budget) => budget.receipt(stop, Vec::new(), vec![unevaluated.to_owned()]),
+        Err(mut receipt) => {
+            receipt.stop = stop;
+            receipt.unevaluated = vec![unevaluated.to_owned()];
+            receipt
+        }
+    }
 }

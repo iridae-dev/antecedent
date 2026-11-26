@@ -128,8 +128,9 @@ const MEASURE_SET_TOLERANCE: f64 = 1e-9;
 /// Limits and tolerance of the certified subdivision.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CertifiedOptions {
-    /// Largest number of boxes examined, the declared box and dropped boxes included; at
-    /// least one.
+    /// Optional tighter count of boxes examined, the declared box and dropped boxes included.
+    /// `usize::MAX`, the default, imposes no count; the execution's memory admits the boxes.
+    /// Zero is invalid.
     pub max_boxes: usize,
     /// A box is not split once every parameter's width is at most this fraction of its
     /// declared range; finite, in `[0, 1]`.
@@ -144,7 +145,7 @@ pub struct CertifiedOptions {
 
 impl Default for CertifiedOptions {
     fn default() -> Self {
-        Self { max_boxes: 4096, min_width_fraction: 1e-6, tie_tolerance: 1e-9 }
+        Self { max_boxes: usize::MAX, min_width_fraction: 1e-6, tie_tolerance: 1e-9 }
     }
 }
 

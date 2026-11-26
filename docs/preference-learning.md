@@ -279,20 +279,21 @@ outward-rounded interval arithmetic, which leaves a linear system in the remaini
 with interval coefficients. A box is dropped when no shape value in it admits trade-offs that
 satisfy every record (the united solution set of Oettli and Prager, 1964, is empty), kept as
 `inside` when some trade-offs satisfy every record at every shape value of the box, and split
-otherwise. Splitting stops when every box is decided, when the box budget is spent
-(`CompatibleSet(max_boxes=...)`, 4,096 by default) or when every width is at most a fraction of
-its declared range (`min_width_fraction=`, `1e-4` by default).
+otherwise. Splitting stops when every box is decided, when the next boxes do not fit the execution, or
+when every width is at most a fraction of its declared range (`min_width_fraction=`, `1e-4` by
+default). `CompatibleSet(max_boxes=...)` is an optional tighter count; the default imposes none.
 
 - A learned range is the hull of the kept boxes (for a linear trade-off, of each kept box's
   outer linear-program range), so it holds every compatible value and possibly more:
   `basis="enclosure"`, not `"linear_program"`. It is exact only up to the width of the boxes.
 - `LearnedSet.region` lists the kept boxes (`RegionCell`: the box, its status `inside` or
   `boundary`, and the outer range of each linear trade-off over it), the boxes used and whether
-  the budget ran out.
+  the execution's memory or a caller box count stopped the subdivision.
 - The records conflict exactly when every box is dropped, a proof of emptiness. When no box is
   proven `inside` before splitting stops, neither compatibility nor contradiction is proven and
-  the outcome is `dl.Undetermined`, with the undecided boxes in its `region`; a larger box budget,
-  a smaller minimum width or narrower shape ranges may settle it. Accepting it is refused
+  the outcome is `dl.Undetermined`, with the undecided boxes in its `region`; a larger execution
+  memory limit, a larger caller box count, a smaller minimum width or narrower shape ranges may
+  settle it. Accepting it is refused
   (`accepted_preferences.set_undetermined`).
 - The learned set keeps the records as value relations, and accepted preferences carry them
   into a contract, which [decides on the certified route](preference-decisions.md#two-routes-and-what-each-guarantees).
@@ -455,9 +456,10 @@ outputs need not agree to the last bit across platforms.
   only through contradictions.
 - It does not say what the trade-offs should be.
 - Under shape parameters the compatible set is an outer enclosure, exact only up to the width
-  of its boxes, and within the box budget neither compatibility nor contradiction may be
-  provable (`Undetermined`). The choice model's shape intervals are profile likelihood-ratio
-  intervals, `not_measured` until a coverage record of their construction exists.
+  of its boxes, and when the next boxes do not fit the execution or a caller box count, neither
+  compatibility nor contradiction may be provable (`Undetermined`). The choice model's shape
+  intervals are profile likelihood-ratio intervals, `not_measured` until a coverage record of
+  their construction exists.
 - Motives the value model does not contain are not detected unless they push a choice beyond
   the declared tolerance. Within it, an unrecorded motive is indistinguishable from the
   declared trade-offs.
@@ -482,7 +484,7 @@ The full tables are in
 | `preference_choice_model.profile_multimodal` | `glm_fit_refused` | Narrow the declared range to one mode, or use the compatible-set method |
 | `preference_choice_model.shape_search_budget` | `invalid_argument` | Fix some shape parameters to single values, or raise `ShapeSearch(max_dimensions=...)` |
 | `preference_set_learning.region_budget_invalid` | `invalid_argument` | Give `max_boxes` of at least one and `min_width_fraction` in [0, 1] |
-| `accepted_preferences.set_undetermined` | `decision_contract_unsatisfied` | Raise the box budget, lower the minimum width, or narrow the shape ranges |
+| `accepted_preferences.set_undetermined` | `decision_contract_unsatisfied` | Raise the execution's memory limit or the caller box count, lower the minimum width, or narrow the shape ranges |
 | `preference_choice_model.stated_and_recorded_mixed` | `route_not_supported` | Fit them separately, or use the compatible-set method |
 | `preference_choice_model.no_draw_inside_set` | `uncertainty_representation_insufficient` | Draw more, record more choices or use the compatible-set method |
 | `accepted_preferences.choices_contradictory` | `decision_contract_unsatisfied` | Raise the tolerance to the stated value or remove a named record |

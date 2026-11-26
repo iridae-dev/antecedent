@@ -1209,7 +1209,7 @@ fn a_gap_narrower_than_the_smallest_box_is_an_empty_set() {
         relation("below", vec![(0, 1.0)], RelationSense::AtMost, 0.5),
     ]);
     let options =
-        CertifiedOptions { max_boxes: 4096, min_width_fraction: 1e-6, tie_tolerance: 1e-9 };
+        CertifiedOptions { max_boxes: usize::MAX, min_width_fraction: 1e-6, tie_tolerance: 1e-9 };
     let error =
         evaluate_preference_certified(&contract, &dominated_law(), None, options).unwrap_err();
     assert_eq!(error, E::EmptyPreferenceSet);
@@ -1262,7 +1262,7 @@ fn value_relations_that_leave_no_point_choose_nothing() {
     // `s >= 0.5 + 1e-8` and `s <= 0.5`: the boxes next to 0.5 stay undecided against both
     // relations down to the smallest width and are kept, but no point satisfies both.
     let options =
-        CertifiedOptions { max_boxes: 4096, min_width_fraction: 1e-6, tie_tolerance: 1e-9 };
+        CertifiedOptions { max_boxes: usize::MAX, min_width_fraction: 1e-6, tie_tolerance: 1e-9 };
     let conflicting = value_relation_contract(0.5 + 1e-8, 0.5);
     let result =
         evaluate_preference_certified(&conflicting, &dominated_law(), None, options).unwrap();

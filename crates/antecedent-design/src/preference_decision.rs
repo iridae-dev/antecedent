@@ -82,8 +82,10 @@ pub(crate) use statements::*;
 #[allow(clippy::wildcard_imports, reason = "the parts of this module")]
 use structural::*;
 
-/// Largest number of rival-structure choices enumerated to decide whether an action is
-/// possibly best under the worst case over structures.
+/// Historical count of rival-structure choices. Not enforced: the product is quoted
+/// against the execution, and a product the execution cannot hold leaves possibly-best
+/// unanswered.
+#[allow(dead_code, reason = "historical ceiling, kept as the record of the old cap")]
 const MAX_STRUCTURE_CHOICES: usize = 4096;
 /// Draws of the draw share examined between two reads of the cancellation token.
 const DRAWS_PER_CHECK: usize = 1024;
@@ -323,7 +325,8 @@ pub struct PreferenceDecisionOptions {
     /// bound is the tie tolerance instead, so no verdict rests on a difference below the
     /// precision the margins are computed with.
     pub tie_tolerance: f64,
-    /// Largest number of candidate bases vertex enumeration may solve.
+    /// Optional tighter count of candidate bases. `usize::MAX`, the default, imposes no count;
+    /// the execution's memory admits the enumeration.
     pub vertex_cap: usize,
     /// Linear-program tolerances and work limit.
     pub lp: LpOptions,
@@ -331,7 +334,7 @@ pub struct PreferenceDecisionOptions {
 
 impl Default for PreferenceDecisionOptions {
     fn default() -> Self {
-        Self { tie_tolerance: 1e-9, vertex_cap: 100_000, lp: LpOptions::default() }
+        Self { tie_tolerance: 1e-9, vertex_cap: usize::MAX, lp: LpOptions::default() }
     }
 }
 
@@ -1455,8 +1458,20 @@ impl<'a> Prepared<'a> {
         let rivals: Vec<usize> = active.iter().copied().filter(|&b| b != a).collect();
         let choices =
             rivals.iter().try_fold(1_usize, |count, &b| count.checked_mul(pieces[b].len()));
-        if choices.is_none_or(|count| count > MAX_STRUCTURE_CHOICES) {
+        let Some(choices) = choices else {
             return Ok(None);
+        };
+        let operations = u64::try_from(choices).unwrap_or(u64::MAX);
+        let state =
+            u64::try_from(self.region.dimension().max(1)).unwrap_or(u64::MAX).saturating_mul(8);
+        let mut hold = antecedent_stats::execution_quote::WorkLease::new();
+        if let Err(receipt) =
+            hold.charge(self.ctx, operations, state, "preference structure choices")
+        {
+            return match receipt.stop {
+                antecedent_core::SearchStop::Cancelled => Err(E::Cancelled),
+                _ => Ok(None),
+            };
         }
         let mut choice = vec![0_usize; rivals.len()];
         loop {
@@ -1578,7 +1593,7 @@ impl<'a> Prepared<'a> {
             };
             match enumerated {
                 Ok(vertices) => vertices,
-                Err(LpError::VertexCapExceeded { .. }) => return Ok(None),
+                Err(LpError::VertexCapExceeded { .. } | LpError::Budget { .. }) => return Ok(None),
                 Err(LpError::Cancelled) => return Err(E::Cancelled),
                 Err(error) => return Err(E::Lp(error)),
             }

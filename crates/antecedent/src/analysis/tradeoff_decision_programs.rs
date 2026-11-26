@@ -948,11 +948,11 @@ mod site_tests {
 
         let edits: [fn(&mut PreferenceEvaluationOptions); 8] = [
             |o| o.exact.tie_tolerance *= 2.0,
-            |o| o.exact.vertex_cap += 1,
+            |o| o.exact.vertex_cap = 10,
             |o| o.exact.lp.feasibility_tolerance *= 2.0,
             |o| o.exact.lp.optimality_tolerance *= 2.0,
             |o| o.exact.lp.max_pivots += 1,
-            |o| o.certified.max_boxes += 1,
+            |o| o.certified.max_boxes = 10,
             |o| o.certified.min_width_fraction *= 2.0,
             |o| o.certified.tie_tolerance *= 2.0,
         ];

@@ -274,13 +274,19 @@ pub enum LpError {
         /// Variable index.
         variable: usize,
     },
-    /// Vertex enumeration would solve more candidate bases than allowed.
+    /// Vertex enumeration would solve more candidate bases than the caller asked for.
     #[error("{candidate_bases} candidate bases exceed the cap of {cap}")]
     VertexCapExceeded {
         /// Number of candidate bases needed (saturated at `usize::MAX`).
         candidate_bases: usize,
         /// The cap given.
         cap: usize,
+    },
+    /// The candidate bases do not fit the execution.
+    #[error("vertex enumeration does not fit the execution")]
+    Budget {
+        /// The receipt. The enumeration was not entered.
+        receipt: antecedent_core::SearchReceipt,
     },
     /// The context's cancellation token was set between candidate bases or feasibility
     /// programs; no partial answer is returned.
@@ -309,6 +315,7 @@ impl LpError {
             Self::VerificationFailed { .. } => "linear_program.verification_failed",
             Self::UnboundedRegion { .. } => "linear_program.unbounded_region",
             Self::VertexCapExceeded { .. } => "linear_program.vertex_cap_exceeded",
+            Self::Budget { .. } => "linear_program.execution_budget",
             Self::Cancelled => "linear_program.cancelled",
         }
     }
@@ -1340,8 +1347,10 @@ fn same_point(a: &[f64], b: &[f64], tolerance: f64) -> bool {
 ///
 /// The shape, finiteness, bound and option refusals of [`solve`];
 /// [`LpError::UnboundedRegion`] when some coordinate is unbounded over the region (checked with
-/// [`solve`] along each axis); [`LpError::VertexCapExceeded`] when more than `cap` candidate
-/// bases would be solved.
+/// [`solve`] along each axis); [`LpError::VertexCapExceeded`] when the caller set `cap` below the
+/// number of candidate bases; [`LpError::Budget`] when those bases do not fit the execution.
+/// `vertices` quotes an execution with no byte limit. A caller cap of `usize::MAX` does not
+/// impose a count.
 pub fn vertices(
     constraints: &[LinearConstraint],
     lower: &[f64],
@@ -1366,7 +1375,29 @@ pub fn vertices_with_context(
     options: LpOptions,
     ctx: &ExecutionContext,
 ) -> Result<Vec<Vec<f64>>, LpError> {
-    enumerate_vertices(constraints, lower, upper, cap, options, Some(&ctx.cancellation))
+    enumerate_vertices(constraints, lower, upper, cap, options, Some(ctx))
+}
+
+/// Lease the candidate bases against the execution. Absent `ctx` has no byte limit.
+fn admit_vertices(
+    ctx: Option<&ExecutionContext>,
+    planes: usize,
+    n: usize,
+    candidate_bases: usize,
+) -> Result<crate::execution_quote::WorkLease, LpError> {
+    let operations = u64::try_from(candidate_bases).unwrap_or(u64::MAX);
+    let state = (planes as u64)
+        .saturating_mul(u64::try_from(n.max(1)).unwrap_or(u64::MAX))
+        .saturating_mul(8);
+    let mut hold = crate::execution_quote::WorkLease::new();
+    hold.charge(ctx, operations, state, "vertex enumeration").map_err(|receipt| {
+        if receipt.stop == antecedent_core::SearchStop::Cancelled {
+            LpError::Cancelled
+        } else {
+            LpError::Budget { receipt }
+        }
+    })?;
+    Ok(hold)
 }
 
 /// `Err(Cancelled)` when a token is given and set.
@@ -1383,7 +1414,7 @@ fn enumerate_vertices(
     upper: &[f64],
     cap: usize,
     options: LpOptions,
-    cancellation: Option<&CancellationToken>,
+    ctx: Option<&ExecutionContext>,
 ) -> Result<Vec<Vec<f64>>, LpError> {
     validate_options(options)?;
     let n = lower.len();
@@ -1439,6 +1470,7 @@ fn enumerate_vertices(
     if candidate_bases > cap {
         return Err(LpError::VertexCapExceeded { candidate_bases, cap });
     }
+    let _hold = admit_vertices(ctx, planes.len(), n, candidate_bases)?;
     let mut found: Vec<Vec<f64>> = Vec::new();
     if n > planes.len() {
         return Ok(found);
@@ -1446,7 +1478,7 @@ fn enumerate_vertices(
     let tolerance = options.feasibility_tolerance;
     let mut basis: Vec<usize> = (0..n).collect();
     loop {
-        observe(cancellation)?;
+        observe(ctx.map(|ctx| &ctx.cancellation))?;
         let mut matrix = Vec::with_capacity(n * n);
         let mut rhs = Vec::with_capacity(n);
         for &k in &basis {

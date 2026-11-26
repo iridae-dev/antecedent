@@ -687,10 +687,12 @@ Antecedent picks the route from the contract. `decided.route` is `exact` or `cer
 | Used when | the value is affine in the trade-off parameters, the criterion is expected utility, expected loss or expected regret, and the preference set holds no value relations | any other supported value or criterion, and any set with value relations |
 | Method | linear programs over the admissible set | interval subdivision of the declared box |
 | Source | means (when every part is affine in the attributes) or aligned joint draws | aligned joint draws only |
-| Undecided share | none | reported when the budget runs out |
+| Undecided share | none | reported when the next boxes do not fit the execution, or a caller box count is spent |
 
-`evaluate` takes `tie_tolerance=`, `vertex_cap=`, `max_boxes=` and `min_width_fraction=` to
-tune the routes.
+The exact route enumerates the vertices the execution's memory admits. `vertex_cap=` is an
+optional tighter count; the default imposes none. The certified route splits boxes until each
+is decided or narrower than `min_width_fraction=`, and stops when the next boxes do not fit
+the execution. `max_boxes=` is an optional tighter count. `evaluate` also takes `tie_tolerance=`.
 
 Preferences [learned from recorded choices](preference-learning.md#shape-parameters) under a
 value with shape parameters hold *value relations*: each says that a chosen option's value was
@@ -765,10 +767,11 @@ What it guarantees:
   benefit and a price times a cost near `1e9` leaving a value near `1`) can lead by pure rounding
   in floating point, and such a lead does not count. `effective_tie_tolerance` reports the tie
   tolerance plus the widest measure-weighted margin enclosure; on boxes it is the tie tolerance.
-- **An explicit undecided share.** Splitting stops when every box is decided, when the box
-  budget is spent (4,096 boxes by default) or when every width is at most a minimum fraction
-  of its range (`1e-6` by default). Volume left undecided is reported as `undecided_fraction`
-  and, when it prevents a verdict, as `undetermined` with the remaining candidates.
+- **An explicit undecided share.** Splitting stops when every box is decided, when the next
+  boxes do not fit the execution, or when every width is at most a minimum fraction of its
+  range (`1e-6` by default). `max_boxes=` is an optional tighter count. Volume left undecided
+  is reported as `undecided_fraction` and, when it prevents a verdict, as `undetermined` with
+  the remaining candidates.
 
 On this route `value_range`, `worst_case_range` and `worst_case_regret_range` are enclosures,
 `best_fraction` is the volume fraction on which an action is certified best, and

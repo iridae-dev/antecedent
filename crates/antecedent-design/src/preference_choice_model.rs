@@ -428,6 +428,11 @@ pub enum ChoiceModelError {
     },
     /// No measure draws were requested.
     DrawsMissing,
+    /// The measure draws do not fit the execution. The draw table was not allocated.
+    ExecutionBudget {
+        /// The receipt.
+        receipt: antecedent_core::SearchReceipt,
+    },
     /// The fit's gradient tolerance or separation bound is not finite and positive.
     FitOptionsInvalid,
     /// The value model is invalid.
@@ -584,6 +589,9 @@ impl ChoiceModelError {
         match self {
             Self::LevelInvalid { .. } => reason_details::preference_choice_model::LEVEL_INVALID,
             Self::DrawsMissing => reason_details::preference_choice_model::DRAWS_MISSING,
+            Self::ExecutionBudget { .. } => {
+                reason_details::preference_choice_model::EXECUTION_BUDGET
+            }
             Self::FitOptionsInvalid => reason_details::preference_choice_model::FIT_OPTIONS_INVALID,
             Self::Model(_) => reason_details::preference_choice_model::MODEL_INVALID,
             Self::Records(inner) => inner.detail(),
@@ -642,6 +650,9 @@ impl fmt::Display for ChoiceModelError {
                 write!(f, "interval level {level} is not strictly between 0 and 1")
             }
             Self::DrawsMissing => write!(f, "at least one measure draw is needed"),
+            Self::ExecutionBudget { receipt } => {
+                write!(f, "the measure draws do not fit the execution: {}", receipt.summary())
+            }
             Self::FitOptionsInvalid => {
                 write!(f, "fit gradient tolerance and separation bound must be finite and positive")
             }
@@ -1243,6 +1254,25 @@ impl Context<'_> {
         Ok(())
     }
 
+    /// Lease the draw table against the execution before allocating it.
+    fn admit_draws(
+        &self,
+        width: usize,
+    ) -> Result<antecedent_stats::execution_quote::WorkLease, ChoiceModelError> {
+        let operations = u64::try_from(self.options.n_draws).unwrap_or(u64::MAX);
+        let state = operations
+            .saturating_mul(u64::try_from(width.max(1)).unwrap_or(u64::MAX))
+            .saturating_mul(8);
+        let mut hold = antecedent_stats::execution_quote::WorkLease::new();
+        hold.charge(self.ctx, operations, state, "choice-model measure draws").map_err(
+            |receipt| match receipt.stop {
+                antecedent_core::SearchStop::Cancelled => ChoiceModelError::Cancelled,
+                _ => ChoiceModelError::ExecutionBudget { receipt },
+            },
+        )?;
+        Ok(hold)
+    }
+
     /// Draws of `beta` from `N(beta_hat, L L')` mapped to parameter points; see the module
     /// documentation for which draws are kept. The caller's token is read every 1024 draws.
     fn draw_measure(
@@ -1267,6 +1297,7 @@ impl Context<'_> {
             .filter(|(_, relation)| relation.terms.iter().all(|(j, _)| !unresolved.contains(j)))
             .map(|(index, _)| index)
             .collect();
+        let _hold = self.admit_draws(p)?;
         let mut rng = CausalRng::from_seed(self.options.seed);
         let mut normal = vec![0.0; p];
         let mut draw = vec![0.0; p];
@@ -1684,6 +1715,7 @@ impl Context<'_> {
             .filter(|(_, relation)| relation.terms.iter().all(|(j, _)| !unresolved.contains(j)))
             .map(|(index, _)| index)
             .collect();
+        let _hold = self.admit_draws(q)?;
         let mut rng = CausalRng::from_seed(self.options.seed);
         let mut normal = vec![0.0; q];
         let mut draw = vec![0.0; q];
@@ -1935,6 +1967,13 @@ impl ChoiceModelError {
                 .supplied(level.to_string())
                 .build(),
             Self::DrawsMissing => invalid("request at least one measure draw").build(),
+            Self::ExecutionBudget { .. } => refusal(
+                antecedent_core::reason_code!("execution_resource_limit"),
+                ESTIMATE,
+                self.detail(),
+            )
+            .remedy("request fewer draws, or raise the execution's memory limit")
+            .build(),
             Self::FitOptionsInvalid => {
                 invalid("supply a finite, positive gradient tolerance and separation bound").build()
             }

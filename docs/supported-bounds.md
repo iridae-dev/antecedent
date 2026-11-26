@@ -262,15 +262,6 @@ markers below and compares it. Prose outside those markers is not read.
 | identify.patient_surrogate | max_artifact_bytes | 16777216 | `crates/antecedent-io-core/src/patient_surrogate.rs` |
 | identify.pag_direct | max_artifact_bytes | 16777216 | `crates/antecedent-io-core/src/pag_identification.rs` |
 | composition.sampling_assumption_union | artifact_bytes | 83886080 | `crates/antecedent/src/analysis/sampling_assumption_union.rs` |
-| preference_decision.exact | vertex_cap | 100000 | `crates/antecedent-design/src/preference_decision.rs` |
-| preference_decision.exact | max_structure_choices | 4096 | `crates/antecedent-design/src/preference_decision.rs` |
-| preference_decision.exact | max_pivots | 100000 | `crates/antecedent-stats/src/linear_program.rs` |
-| preference_decision.certified | max_boxes | 4096 | `crates/antecedent-design/src/preference_certified.rs` |
-| preference_learning.compatible_set | conflict_search_size | 3 | `crates/antecedent-design/src/preference_set_learning.rs` |
-| preference_learning.compatible_set | max_conflict_subsets | 50000 | `crates/antecedent-design/src/preference_set_learning.rs` |
-| preference_learning.compatible_set | max_pivots | 100000 | `crates/antecedent-stats/src/linear_program.rs` |
-| preference_learning.choice_model | max_newton_iterations | 200 | `crates/antecedent-stats/src/glm/conditional_logit.rs` |
-| preference_learning.choice_model | measure_draws | 2000 | `crates/antecedent-design/src/preference_choice_model.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

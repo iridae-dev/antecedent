@@ -273,15 +273,17 @@ fn the_certified_subdivision_stops_between_boxes() {
     assert_eq!(refusal.code, "cancelled_no_claim");
     assert_eq!(refusal.detail, reason_details::preference_certified::CANCELLED);
 
-    // One observation per box taken from the queue, plus the root.
+    // One observation per box taken from the queue, plus the root. Each split also
+    // quotes the next boxes and leases them, and each of those reads the token.
     let checks = trips_in_the_middle(
         &plain,
         4,
         |e: &PreferenceCertifiedError| *e == PreferenceCertifiedError::Cancelled,
         |ctx| evaluate_preference_certified_with_context(&contract, &source, None, options, ctx),
     );
+    let splits = plain.boxes_examined.saturating_sub(1) / 2;
     assert!(
-        checks <= plain.boxes_examined + 1,
+        checks <= plain.boxes_examined + 1 + 2 * splits,
         "{checks} observations for {} boxes",
         plain.boxes_examined
     );

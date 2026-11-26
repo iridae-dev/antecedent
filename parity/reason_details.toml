@@ -11232,6 +11232,12 @@ codes = ["invalid_argument"]
 meaning = "No measure draws are requested; request at least one draw."
 
 [[detail]]
+id = "preference_choice_model.execution_budget"
+family = "preference_choice_model"
+codes = ["execution_resource_limit"]
+meaning = "The requested measure draws do not fit the execution; the draw table was not allocated."
+
+[[detail]]
 id = "preference_choice_model.fit_options_invalid"
 family = "preference_choice_model"
 codes = ["invalid_argument"]

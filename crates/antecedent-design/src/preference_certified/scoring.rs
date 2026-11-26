@@ -927,6 +927,7 @@ impl Engine<'_> {
         let mut slots = Vec::new();
         let mut queue = BinaryHeap::new();
         let mut examined = 1;
+        let mut quote = antecedent_stats::execution_quote::WorkLease::new();
         self.observe()?;
         if let Some(root) = self.examine(lower, upper)? {
             self.place(root, &mut kept, &mut slots, &mut queue);
@@ -936,12 +937,25 @@ impl Engine<'_> {
             let Some(item) = slots[entry.slot].take() else {
                 continue;
             };
-            let halves =
-                if examined + 2 > self.options.max_boxes { None } else { self.split(&item) };
-            let Some(halves) = halves else {
+            if examined + 2 > self.options.max_boxes {
+                kept.push(item);
+                continue;
+            }
+            let Some(halves) = self.split(&item) else {
                 kept.push(item);
                 continue;
             };
+            let live = u64::try_from(examined + 2).unwrap_or(u64::MAX);
+            let dimension = u64::try_from(self.declared.len().max(1)).unwrap_or(u64::MAX);
+            let state = live.saturating_mul(dimension).saturating_mul(16);
+            if let Err(receipt) = quote.charge(self.ctx, live, state, "certified preference boxes")
+            {
+                if receipt.stop == antecedent_core::SearchStop::Cancelled {
+                    return Err(PreferenceCertifiedError::Cancelled);
+                }
+                kept.push(item);
+                continue;
+            }
             examined += 2;
             for (child_lower, child_upper) in halves {
                 if let Some(child) = self.examine(child_lower, child_upper)? {

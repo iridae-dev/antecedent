@@ -1944,6 +1944,7 @@ pub const REASON_DETAILS: &[&str] = &[
     "preference_choice_model.consistency_not_positive",
     "preference_choice_model.covariance_not_positive_definite",
     "preference_choice_model.draws_missing",
+    "preference_choice_model.execution_budget",
     "preference_choice_model.fit_options_invalid",
     "preference_choice_model.fit_refused",
     "preference_choice_model.level_invalid",
@@ -5104,6 +5105,7 @@ const DETAIL_CODES: &[(&str, &[&str])] = &[
     ("preference_choice_model.consistency_not_positive", &["glm_fit_refused"]),
     ("preference_choice_model.covariance_not_positive_definite", &["glm_fit_refused"]),
     ("preference_choice_model.draws_missing", &["invalid_argument"]),
+    ("preference_choice_model.execution_budget", &["execution_resource_limit"]),
     ("preference_choice_model.fit_options_invalid", &["invalid_argument"]),
     ("preference_choice_model.fit_refused", &["glm_fit_refused"]),
     ("preference_choice_model.level_invalid", &["invalid_argument"]),
@@ -10787,6 +10789,8 @@ pub mod preference_choice_model {
     pub const COVARIANCE_NOT_POSITIVE_DEFINITE: &str = "preference_choice_model.covariance_not_positive_definite";
     /// Detail `preference_choice_model.draws_missing`.
     pub const DRAWS_MISSING: &str = "preference_choice_model.draws_missing";
+    /// Detail `preference_choice_model.execution_budget`.
+    pub const EXECUTION_BUDGET: &str = "preference_choice_model.execution_budget";
     /// Detail `preference_choice_model.fit_options_invalid`.
     pub const FIT_OPTIONS_INVALID: &str = "preference_choice_model.fit_options_invalid";
     /// Detail `preference_choice_model.fit_refused`.

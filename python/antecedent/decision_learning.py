@@ -577,9 +577,10 @@ class CompatibleSet:
 
     Assumption: each chosen option was valued at least as highly as every available rejected
     option, within ``tolerance`` utility units, under the declared model and the recorded
-    expectations. ``conflict_search_size`` bounds the exhaustive search for a smallest conflict.
-    Under a value with shape parameters, ``max_boxes`` bounds the boxes of shape values examined
-    and ``min_width_fraction`` stops splitting a box once every shape parameter's width is at most
+    expectations. ``conflict_search_size`` is how many records the exhaustive smallest-conflict
+    search tries together. Under a value with shape parameters, ``max_boxes``, when given, is a
+    tighter count of the boxes examined; omitted, the execution's memory admits them.
+    ``min_width_fraction`` stops splitting a box once every shape parameter's width is at most
     that fraction of its declared range.
     """
 

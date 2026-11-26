@@ -436,6 +436,18 @@ fn vertex_enumeration_of_empty_unbounded_and_oversized_regions() {
     assert_eq!(point, vec![Vec::<f64>::new()]);
 }
 
+#[test]
+fn vertex_enumeration_is_admitted_by_the_execution() {
+    // Cube: 6 bound hyperplanes, C(6, 3) = 20 candidate bases. No caller count.
+    let tight = ExecutionContext::for_tests(1).with_memory_limit(Some(1));
+    assert!(matches!(
+        vertices_with_context(&[], &[0.0; 3], &[1.0; 3], usize::MAX, options(), &tight),
+        Err(LpError::Budget { .. })
+    ));
+    let admitted = vertices(&[], &[0.0; 3], &[1.0; 3], usize::MAX, options()).unwrap();
+    assert_eq!(admitted.len(), 8);
+}
+
 fn group_example() -> (Vec<LinearConstraint>, Vec<usize>) {
     // Group 10: x >= 5. Group 20: x <= 1. Group 30: y <= 1 (two copies). Group 40: x + y >= 4.
     // Conflicts: {10, 20} and {20, 30, 40}.

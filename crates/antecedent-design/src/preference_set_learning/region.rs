@@ -22,8 +22,8 @@
 //! way. A box is outside when the outer system is infeasible in every orthant, inside when the
 //! inner system is feasible, and on the boundary otherwise; boundary boxes are split by the
 //! certified rule (the widest shape parameter relative to its declared range, at its midpoint)
-//! until every box is decided, the box budget is spent or every width is at most the minimum
-//! fraction of its declared range.
+//! until every box is decided, the next boxes do not fit the execution or a caller box
+//! budget, or every width is at most the minimum fraction of its declared range.
 //!
 //! What is proven: every shape value of an inside box admits linear parameters compatible with
 //! every record; no shape value of a dropped box does. The records conflict exactly when every
@@ -150,6 +150,19 @@ struct RegionLearner<'a> {
     shape_bounds: Vec<(f64, f64)>,
     /// Declared `(lower, upper)` of each linear parameter, in linear order.
     linear_bounds: Vec<(f64, f64)>,
+}
+
+/// Lease `boxes` live shape boxes. Each box stores two endpoints per parameter.
+fn charge_boxes(
+    quote: &mut antecedent_stats::execution_quote::WorkLease,
+    ctx: Option<&ExecutionContext>,
+    boxes: usize,
+    dimension: usize,
+) -> Result<(), antecedent_core::SearchReceipt> {
+    let live = u64::try_from(boxes).unwrap_or(u64::MAX);
+    let width = u64::try_from(dimension.max(1)).unwrap_or(u64::MAX);
+    let state = live.saturating_mul(width).saturating_mul(16);
+    quote.charge(ctx, live, state, "preference shape boxes")
 }
 
 /// Weighted rows of one available option, weights normalised to sum to one.
@@ -670,6 +683,7 @@ impl<'a> RegionLearner<'a> {
         let mut examined = 1;
         let mut budget_exhausted = false;
         let mut centres = vec![centre(&lower, &upper)];
+        let mut quote = antecedent_stats::execution_quote::WorkLease::new();
         if let Some(root) = self.examine(comparisons, lower, upper)? {
             self.place(root, &mut kept, &mut slots, &mut queue);
         }
@@ -679,6 +693,15 @@ impl<'a> RegionLearner<'a> {
                 continue;
             };
             if examined + 2 > self.options.max_boxes {
+                budget_exhausted = true;
+                kept.push(item);
+                continue;
+            }
+            if let Err(receipt) = charge_boxes(&mut quote, self.ctx, examined + 2, item.lower.len())
+            {
+                if receipt.stop == antecedent_core::SearchStop::Cancelled {
+                    return Err(SetLearningError::Cancelled);
+                }
                 budget_exhausted = true;
                 kept.push(item);
                 continue;
