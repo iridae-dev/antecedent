@@ -513,6 +513,52 @@ fn score_trial_bootstrap(shared: bool, n: usize, seed: u64) -> Option<Scored> {
 }
 
 #[test]
+fn trial_bridge_scoring_binds_shared_sample_truth_and_scope() {
+    for n in [40, 80, 160] {
+        let scored = score_trial_bootstrap(true, n, 0x6b10_0000).unwrap();
+        assert!((scored.truth - 0.1).abs() < 1e-14);
+        assert_eq!(scored.construction.dependence, "shared_trial_mean");
+        assert!(
+            scored
+                .construction
+                .functional
+                .starts_with("release_design=shared_uniform_gaussian_v1;")
+        );
+        assert_eq!(scored.scope.row_count, n as u64);
+        assert_eq!(scored.scope.replicates_ok, Some(399));
+        assert_eq!(scored.construction.reported_level, 0.95);
+        assert!(
+            scored.interval.0.is_finite()
+                && scored.interval.0 < scored.interval.1
+                && scored.interval.1.is_finite()
+        );
+    }
+}
+
+#[test]
+fn trial_bridge_scoring_binds_independent_source_truth_and_scope() {
+    for n in [40, 80, 160] {
+        let scored = score_trial_bootstrap(false, n, 0x6b20_0000).unwrap();
+        assert!((scored.truth - 0.325).abs() < 1e-14);
+        assert_eq!(scored.construction.dependence, "independent_trial_mean");
+        assert!(
+            scored
+                .construction
+                .functional
+                .starts_with("release_design=independent_shifted_uniform_v1;")
+        );
+        assert_eq!(scored.scope.row_count, n as u64);
+        assert_eq!(scored.scope.replicates_ok, Some(399));
+        assert_eq!(scored.construction.reported_level, 0.95);
+        assert!(
+            scored.interval.0.is_finite()
+                && scored.interval.0 < scored.interval.1
+                && scored.interval.1.is_finite()
+        );
+    }
+}
+
+#[test]
 #[ignore = "calibration: run only at the final measurement step"]
 fn shared_evidence_trial_bridge_percentile_interval_l95() {
     let n = grid_n(80);
