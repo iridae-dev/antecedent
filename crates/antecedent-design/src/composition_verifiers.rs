@@ -79,6 +79,9 @@ use antecedent_io_core::distribution_artifact::{
 };
 use antecedent_io_core::error::IoError;
 use antecedent_io_core::evidence_ledger_artifact::EVIDENCE_LEDGER_ARTIFACT_FEATURE;
+use antecedent_io_core::pag_identification::{
+    PagIdError, PagIdentificationArtifact, PagIdentificationProof, PagReplayError,
+};
 use antecedent_io_core::external_claim_artifact::{
     ExternalClaimArtifact, ExternalClaimMetadata, ExternalClaimTrust,
     MAX_EXTERNAL_CLAIM_ARTIFACT_BYTES,
@@ -149,7 +152,7 @@ pub const TRUST_NATIVE: &str = "native_supported";
 pub const TRUST_UNVERIFIED: &str = "unverified";
 
 /// Node kinds that have an embedded-artifact verifier, in registration order.
-pub const VERIFIABLE_KINDS: [NodeKind; 26] = [
+pub const VERIFIABLE_KINDS: [NodeKind; 27] = [
     NodeKind::CausalContract,
     NodeKind::Attestation,
     NodeKind::QuantityCoordinates,
@@ -162,6 +165,7 @@ pub const VERIFIABLE_KINDS: [NodeKind; 26] = [
     NodeKind::EvidenceLedger,
     NodeKind::LedgerPooledResult,
     NodeKind::LongitudinalRegimeResult,
+    NodeKind::PagIdentification,
     NodeKind::ExternalClaim,
     NodeKind::DecisionContract,
     NodeKind::DecisionResult,
@@ -440,6 +444,7 @@ fn inspect(kind: NodeKind, bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         NodeKind::EvidenceLedger => inspect_ledger(bytes, &ExecutionContext::production_default(0)),
         NodeKind::LedgerPooledResult => inspect_selected(bytes),
         NodeKind::LongitudinalRegimeResult => inspect_longitudinal_regime(bytes),
+        NodeKind::PagIdentification => inspect_pag_identification(bytes),
         NodeKind::ExternalClaim => inspect_external_claim(bytes),
         NodeKind::DecisionContract => inspect_contract(bytes),
         NodeKind::DecisionResult => inspect_result(bytes),
@@ -532,6 +537,35 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         }
     }
     Ok(inspected)
+}
+
+fn inspect_pag_identification(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
+    let artifact =
+        PagIdentificationArtifact::consume(bytes, None, &ExecutionContext::production_default(0))
+            .map_err(|error| {
+            let stage = match error {
+                PagReplayError::Identification(PagIdError::Cancelled) => {
+                    BundleStage::ExecutionCancelled
+                }
+                PagReplayError::Identification(
+                    PagIdError::Budget(_) | PagIdError::Depth { .. } | PagIdError::Admission(_),
+                ) => BundleStage::ResourceRefused,
+                PagReplayError::Io(IoError::TooLarge) => BundleStage::Oversized,
+                _ => BundleStage::SwappedEvidence,
+            };
+            failure(stage, error.to_string())
+        })?;
+    let status = match artifact.proof() {
+        PagIdentificationProof::Identified { .. } => "identified",
+        PagIdentificationProof::ResourceStop { .. } => "resource_stop",
+        PagIdentificationProof::MarginalObstruction { .. } => "marginal_obstruction",
+        PagIdentificationProof::ConditionalObstruction { .. } => "conditional_obstruction",
+    };
+    let facts = BTreeMap::from([
+        ("pag_identification_status".into(), status.into()),
+        ("pag_population".into(), artifact.problem().population.clone()),
+    ]);
+    Ok(Inspected { identity: artifact.identity().into(), facts, ..Inspected::default() })
 }
 
 /// Reconstruct a projection's portable binding facts and cross-check its original source.
@@ -916,6 +950,9 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
     if LedgerPoolSelection::recognizes(bytes) {
         return Some(NodeKind::LedgerPooledResult);
     }
+    if PagIdentificationArtifact::recognizes(bytes) {
+        return Some(NodeKind::PagIdentification);
+    }
     if bytes.starts_with(b"ANTE-SOURCE-PROJECTION-1\0") {
         return SourceProjectionArtifact::inspect(bytes).ok().map(|artifact| artifact.node_kind());
     }
@@ -1113,6 +1150,12 @@ kind_verifier!(
     NodeKind::LongitudinalRegimeResult
 );
 
+kind_verifier!(
+    /// Replays a direct PAG conclusion from its invariant orientation premises and query.
+    PagIdentificationVerifier,
+    NodeKind::PagIdentification
+);
+
 /// The verifier of one node kind, when it has one.
 #[must_use]
 pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
@@ -1131,6 +1174,7 @@ pub fn verifier_for(kind: NodeKind) -> Option<Box<dyn NodeVerifier>> {
         NodeKind::EvidenceLedger => Box::new(EvidenceLedgerVerifier::new(&ExecutionContext::production_default(0))),
         NodeKind::LedgerPooledResult => Box::new(LedgerPooledResultVerifier),
         NodeKind::LongitudinalRegimeResult => Box::new(LongitudinalRegimeResultVerifier),
+        NodeKind::PagIdentification => Box::new(PagIdentificationVerifier),
         NodeKind::ExternalClaim => Box::new(ExternalClaimVerifier),
         NodeKind::DecisionContract => Box::new(DecisionContractVerifier),
         NodeKind::DecisionResult => Box::new(DecisionResultVerifier),

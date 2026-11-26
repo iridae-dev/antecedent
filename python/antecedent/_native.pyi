@@ -14343,3 +14343,54 @@ def patient_surrogate_consume(
     cancel: CancellationToken | None = None,
     memory_bytes: int | None = None,
 ) -> tuple[PatientSurrogateResultHandle | None, str | None]: ...
+
+class DirectPagPlanHandle:
+    @property
+    def program_identity(self) -> str: ...
+    def plan_view_json(self) -> str: ...
+    def unit_support(self) -> str | None: ...
+    def execute(
+        self,
+        *,
+        steps: int = 1048576,
+        retain_resource_stop: bool = False,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[DirectPagResultHandle | None, str | None]: ...
+
+class DirectPagResultHandle:
+    @property
+    def identity(self) -> str: ...
+    @property
+    def work(self) -> int: ...
+    def proof_json(self) -> str: ...
+    def export(self) -> bytes: ...
+    def evaluate(
+        self,
+        levels: list[list[int]],
+        probabilities: list[float],
+        bindings: list[tuple[str, int]],
+        *,
+        operations: int = 10000000,
+        seed: int = 1,
+        threads: int | None = None,
+        cancel: CancellationToken | None = None,
+        memory_bytes: int | None = None,
+    ) -> tuple[str | None, str | None]: ...
+
+def direct_pag_compile(
+    pag: Pag, actions: list[str], outcomes: list[str], given: list[str], population: str
+) -> tuple[DirectPagPlanHandle | None, str | None]: ...
+def direct_pag_consume(
+    data: bytes,
+    expected_result: str,
+    expected_program: str,
+    *,
+    steps: int = 1048576,
+    seed: int = 1,
+    threads: int | None = None,
+    cancel: CancellationToken | None = None,
+    memory_bytes: int | None = None,
+) -> tuple[DirectPagResultHandle | None, str | None]: ...

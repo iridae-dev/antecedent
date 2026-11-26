@@ -1,0 +1,24 @@
+feature_id = "identify.pag_direct"
+implementation_crate = "antecedent-identify"
+source_translation = false
+copied_code = false
+copied_comments = false
+copied_tests = false
+
+papers = [
+  { title = "Causal Identification under Markov Equivalence: Completeness Results", authors = ["Amin Jaber", "Jiji Zhang", "Elias Bareinboim"], year = 2019, url = "https://proceedings.mlr.press/v97/jaber19a.html", sections = ["Definition 4", "Corollary 1", "Figure 2", "Equation 14"] },
+  { title = "Causal Identification under Markov equivalence: Calculus, Algorithm, and Completeness", authors = ["Amin Jaber", "Adele Ribeiro", "Jiji Zhang", "Elias Bareinboim"], year = 2022, doi = "10.52202/068431-0266", url = "https://papers.neurips.cc/paper_files/paper/2022/hash/17a9ab4190289f0e1504bbb98d1d111a-Abstract-Conference.html", sections = ["Theorem 1 rule 2", "Proposition 2", "Algorithms 1–2", "Theorems 3–4"] },
+]
+implementation_deviations = [
+  "The marginal path uses the simpler complete 2022 bucket elimination criterion, with the 2019 region decomposition.",
+  "The symbolic result binds the caller-declared valid oracle PAG, the disjoint query sets and population. Static graphs with selection edges, conflicts and unfinished middle marks fall outside the theorem domain.",
+  "Resource exhaustion and cancellation are operational stops. Only a completed IDP/CIDP obstruction gives nonidentification evidence under the declared graph.",
+  "When requested, deterministic work and depth stops retain their active work budget and independently replay through the same algorithm.",
+  "Numerical evaluation reuses the existing exact evaluator and a strictly positive finite joint law compatible with the PAG. Caller-supplied integer levels are exposed in Python. The symbolic derivation is separate from finite-sample estimation.",
+]
+upstream_implementations_observed = []
+test_sources = [
+  "crates/antecedent/tests/pag_direct_identification.rs",
+  "python/tests/test_pag_direct_identification.py",
+  "conformance/pag_direct_reference.json",
+]

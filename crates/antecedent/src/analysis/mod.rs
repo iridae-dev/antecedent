@@ -278,6 +278,7 @@ pub mod native_claims;
 pub mod nonlinear_mediation;
 pub mod observation_evidence;
 pub mod observation_posterior;
+pub mod pag_identification;
 pub mod observation_query;
 pub mod observational_policy;
 pub mod observational_survival;

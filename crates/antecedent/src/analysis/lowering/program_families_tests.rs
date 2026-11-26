@@ -238,6 +238,12 @@ const PINNED: &[(C, R, &str, F)] = &[
         "LedgerPooledDecisionBundleRecomputation",
         F::PropagationChain,
     ),
+    (
+        C::DirectPagIdentification,
+        R::DirectPagIdentification,
+        "DirectPagIdentification",
+        F::Structural,
+    ),
     (C::GraphImputation, R::GraphImputation, "GraphImputation", F::GraphImputation),
     (
         C::GraphImputationEffectDecision,

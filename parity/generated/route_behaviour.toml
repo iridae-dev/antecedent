@@ -9424,3 +9424,19 @@ routes = [
   { route = "antecedent.identify.consume_patient_surrogate", stage = "consume", status = "supported", claim = "none" },
   { route = "antecedent.patient_surrogate.PatientSurrogateResult.decide", stage = "evaluate", status = "supported", claim = "none" },
 ]
+
+[[record]]
+id = "identify.pag_direct"
+status = "supported"
+refusals = [
+  { code = "invalid_argument", detail = "pag_identification.invalid_declaration" },
+  { code = "cancelled_no_claim", detail = "pag_identification.cancelled" },
+  { code = "route_not_supported", detail = "pag_identification.resource_exhausted" },
+  { code = "not_supported", detail = "pag_identification.not_supported" },
+  { code = "invalid_argument", detail = "pag_identification.exact_evaluation_refused" },
+]
+routes = [
+  { route = "antecedent.identify.compile_pag_identification", stage = "identify", status = "supported", claim = "none" },
+  { route = "antecedent.identify.consume_pag_identification", stage = "consume", status = "supported", claim = "none" },
+  { route = "antecedent.identify.pag_exact_evaluation", stage = "evaluate", status = "supported", claim = "point_only" },
+]

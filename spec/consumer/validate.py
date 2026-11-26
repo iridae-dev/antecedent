@@ -957,6 +957,7 @@ KIND_STAGE = {
     "cohort_decision_source": "distribution_artifact",
     "evidence_ledger": "evidence",
     "ledger_pooled_result": "distribution_artifact",
+    "pag_identification": "evidence",
     "frozen_scores": "distribution_artifact",
     "external_claim": "external_provider",
     "attestation": "external_provider",

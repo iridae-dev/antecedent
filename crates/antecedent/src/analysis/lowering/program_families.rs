@@ -106,6 +106,8 @@ macro_rules! program_families {
             PatientSurrogateIdentification => DesignBased, unit "identify.patient_surrogate";
             /// Bundle replay with an active ledger pool and affine decision terminal.
             LedgerPooledDecisionBundleRecomputation => PropagationChain, unit "composition.bundle";
+            /// Complete marginal and conditional PAG identification.
+            DirectPagIdentification => Structural, unit "identify.pag_direct";
             /// A graph-selection imputation composite.
             GraphImputation => GraphImputation, unit "graph_imputation.compiled_candidate";
             /// Graph-imputation effect posterior and downstream utility.

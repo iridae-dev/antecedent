@@ -73,6 +73,8 @@ pub enum NodeKind {
     LedgerPooledResult,
     /// A four-decision regime value replayed from its source table.
     LongitudinalRegimeResult,
+    /// A directly identified PAG functional or graphical nonidentification witness.
+    PagIdentification,
     /// A named transformation.
     Transformation,
     /// A decision contract.
@@ -136,6 +138,7 @@ named_variants! {
         EvidenceLedger => "evidence_ledger",
         LedgerPooledResult => "ledger_pooled_result",
         LongitudinalRegimeResult => "longitudinal_regime_result",
+        PagIdentification => "pag_identification",
         Transformation => "transformation",
         DecisionContract => "decision_contract",
         DecisionResult => "decision_result",
@@ -183,6 +186,7 @@ impl NodeKind {
             Self::ExternalClaim | Self::Attestation => CompositionStage::ExternalProvider,
             Self::EvidenceRelationship
             | Self::EvidenceLedger
+            | Self::PagIdentification
             | Self::QuantityCoordinates
             | Self::SupportTrustCalibration
             | Self::RepairReport

@@ -121,6 +121,18 @@ impl GeneralizedAdjustmentIdentifier {
 // This is a marked-path search over a PAG's endpoints (collider paths whose internal nodes
 // parent `B`), not a directed closure, so it is not one of the graph crate's closure owners.
 pub(crate) fn visible(mag: &Pag, from: DenseNodeId, to: DenseNodeId) -> bool {
+    match visible_metered(mag, from, to, || Ok::<(), std::convert::Infallible>(())) {
+        Ok(visible) => visible,
+        Err(never) => match never {},
+    }
+}
+
+pub(crate) fn visible_metered<E>(
+    mag: &Pag,
+    from: DenseNodeId,
+    to: DenseNodeId,
+    mut charge: impl FnMut() -> Result<(), E>,
+) -> Result<bool, E> {
     let adjacent = |a, b| mag.neighbors(a).any(|(v, _, _)| v == b);
     let parent = |a, b| {
         mag.neighbors(a)
@@ -131,11 +143,12 @@ pub(crate) fn visible(mag: &Pag, from: DenseNodeId, to: DenseNodeId) -> bool {
     seen[from.as_usize()] = true;
     while let Some(current) = stack.pop() {
         for (next, at_current, at_next) in mag.neighbors(current) {
+            charge()?;
             if at_current != Endpoint::Arrow || next == to {
                 continue;
             }
             if !adjacent(next, to) {
-                return true;
+                return Ok(true);
             }
             if at_next == Endpoint::Arrow && parent(next, to) && !seen[next.as_usize()] {
                 seen[next.as_usize()] = true;
@@ -143,7 +156,7 @@ pub(crate) fn visible(mag: &Pag, from: DenseNodeId, to: DenseNodeId) -> bool {
             }
         }
     }
-    false
+    Ok(false)
 }
 
 pub(crate) struct PreparedJointResponse {

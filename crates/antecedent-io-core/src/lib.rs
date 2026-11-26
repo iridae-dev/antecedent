@@ -95,6 +95,7 @@ pub mod policy_program_artifact;
 pub mod posterior;
 pub mod prior_bank;
 pub mod propagation_chain_record;
+pub mod pag_identification;
 pub mod provenance_wire;
 pub mod provider_envelope;
 pub mod provider_replay;

@@ -64,6 +64,7 @@ use super::{
 };
 
 pub(super) fn register_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    super::pag_identification_api::register(m)?;
     register_native_errors(m)?;
     register_native_functions(m)?;
     register_native_classes(m)?;

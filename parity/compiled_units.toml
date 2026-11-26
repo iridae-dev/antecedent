@@ -1191,3 +1191,9 @@ lowering = "LedgerPooledDecisionBundleRecomputation"
 unit_kind = "capability"
 unit = "composition.bundle"
 entry = { rust = "crates/antecedent/src/analysis/composition_ledger_decision.rs", python = "python/antecedent/composition_bundle.py" }
+
+[[route]]
+lowering = "DirectPagIdentification"
+unit_kind = "capability"
+unit = "identify.pag_direct"
+entry = { rust = "crates/antecedent/src/analysis/pag_identification.rs", python = "python/antecedent/pag_identification.py" }

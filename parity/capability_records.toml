@@ -26854,3 +26854,51 @@ fixtures = [
   { id = "identify.patient_surrogate.sample_reading.negative", role = "negative", intent = "A deterministic empirical interval supplies neither a population point nor a population-threshold decision. Incomplete follow-up and zero improver mass refuse.", evidence_test = "crates/antecedent/tests/patient_surrogate.rs", evidence_assertion = "empirical_joint_counts_cannot_license_a_population_point_or_decision" },
   { id = "identify.patient_surrogate.verified_threshold.artifact", role = "artifact", intent = "A freshly started Python process replays exact bounds under independent program and result identities and uses the same checked bounds in a bundle and threshold decision.", evidence_test = "python/tests/test_patient_surrogate.py", evidence_assertion = "test_patient_surrogate_replays_bounds_and_threshold_in_a_fresh_process" },
 ]
+
+[[record]]
+id = "identify.pag_direct"
+capability = "identify.pag_direct"
+status = "supported"
+consumer_question = "Does a declared oracle PAG identify an interventional distribution, either marginally or conditional on observed values, and what observational functional or obstruction does it imply?"
+theorem = "For a valid oracle PAG over a recursive causal model without selection variables, the 2022 complete IDP and CIDP algorithms identify any marginal or conditional effect computable from a strictly positive observational law. IDP uses possible ancestors, invisible collider connectivity, circle buckets, quotient elimination and the 2019 region decomposition. CIDP iterates the two rule-2 exchanges before applying IDP and normalization."
+reference = "provenance/identify.pag_direct.toml"
+guarantee = "complete_marginal_and_conditional_identification_within_declared_oracle_pag_scope"
+graph_class = "Static oracle PAG with invariant endpoint marks for a single Markov-equivalence class without selection variables; latent confounding is allowed."
+population_semantics = "One declared observational population and the same population when evaluated under hard interventions."
+evidence_family = "Published 2019 Figure 2 beyond-adjustment graph and 2022 Figures 2 and 4, plus exhaustive two- and three-node PAG class decisions."
+estimand = "Marginal or conditional interventional distribution of an arbitrary nonempty outcome set for disjoint intervention and conditioning sets."
+provider = "Pure symbolic direct PAG identifier followed by the exact expression evaluator binding a strictly positive finite observational joint law."
+inference_claim = "point_only"
+inference_notes = "The numerical route evaluates a declared exact law. There is no fitted estimator, interval, calibration, or causal discovery claim."
+owners = ["antecedent-identify", "antecedent-expr", "antecedent-io-core", "antecedent", "python/antecedent"]
+identity_inputs = ["PAG visible/invariant orientation premises, version and exact endpoint marks with variable order", "disjoint outcome, intervention and conditioning sets", "observational population", "derived functional or explicit obstruction and symbolic work"]
+wire_changes = ["Direct PAG identification artifact v1 contains the original query and graph and its replayed functional or obstruction. The optional deterministic resource trace retains its original budget and replays against that budget. This artifact can be embedded as a pag_identification node."]
+compatibility = "Additive named route; previously persisted completion routes retain their behavior."
+search = true
+search_impl = ["crates/antecedent-identify/src/pag_id.rs"]
+bounds = { cancellation = true, operation_limit = "ExecutionContext.id_work_limit", depth_limit = "ProgramLimits.max_depth", memory_limit = "ExecutionContext.admission", max_artifact_bytes = 16777216 }
+surface = ["crates/antecedent/src/analysis/pag_identification.rs", "python/antecedent/pag_identification.py"]
+surface_pyo3 = ["python/src/pag_identification_api.rs"]
+surface_rust = ["crates/antecedent-identify/src/pag_id.rs", "crates/antecedent-io-core/src/pag_identification.rs"]
+surface_values = ["CompiledPagIdentification", "DirectPagResult", "PagExactDistribution", "PagIdentificationRefusal", "PagIdError", "PagObstruction", "PagFunctional", "PagIdentification", "PagIdentificationArtifact", "PagIdentificationProblem", "PagIdentificationProof", "PagReplayError", "PagResourceStop"]
+refusals = [
+  { detail = "pag_identification.invalid_declaration" },
+  { detail = "pag_identification.cancelled" },
+  { detail = "pag_identification.resource_exhausted" },
+  { detail = "pag_identification.not_supported" },
+  { detail = "pag_identification.exact_evaluation_refused" },
+]
+routes = [
+  { name = "antecedent.identify.compile_pag_identification", stage = "identify", status = "supported", claim = "none", covers = ["direct_pag_compile", "identify_pag_direct", "CompiledPagIdentification.execute", "CompiledPagIdentification.execute_retaining_stop", "PagIdentificationArtifact.execute", "PagIdentificationArtifact.execute_retaining_stop", "PagIdentificationProblem.validate"] },
+  { name = "antecedent.identify.consume_pag_identification", stage = "consume", status = "supported", claim = "none", covers = ["direct_pag_consume", "PagIdentificationArtifact.consume", "PagIdentificationArtifact.to_bytes", "DirectPagResult.export"] },
+  { name = "antecedent.identify.pag_exact_evaluation", stage = "evaluate", status = "supported", claim = "point_only", covers = ["DirectPagResult.evaluate", "PagIdentificationArtifact.evaluate"] },
+]
+fixtures = [
+  { id = "identify.pag_direct.published.positive", role = "positive", intent = "The published beyond-adjustment PAG evaluates its identified joint kernel and agrees with Equation 14 at every binary outcome atom.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "published_beyond_adjustment_formula_replays_and_executes", shared_evidence = true },
+  { id = "identify.pag_direct.published.truth", role = "truth", intent = "An independent factor product based on the 2019 Equation 14 checks all 32 evaluated atoms in the published beyond-adjustment graph.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "published_beyond_adjustment_formula_replays_and_executes", shared_evidence = true },
+  { id = "identify.pag_direct.conditional.negative", role = "negative", intent = "Published CIDP cases distinguish a blocked exchange with a definite m-connecting path from a bounded operational stop while checking conditional evaluation.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "published_conditional_exchange_and_obstruction_are_distinct_from_resource_stop" },
+  { id = "identify.pag_direct.small_classes.truth", role = "truth", intent = "An independent path/collider classification covers each valid three-node observational equivalence class and each ordered source-outcome pair with and without conditioning.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "all_three_vertex_pag_classes_match_the_path_and_collider_reference" },
+  { id = "identify.pag_direct.artifact", role = "artifact", intent = "The Python result independently replays in a fresh process under both retained identities and admits its verified proof in a composition bundle.", evidence_test = "python/tests/test_pag_direct_identification.py", evidence_assertion = "test_published_marginal_formula_runs_and_replays_in_fresh_process" },
+  { id = "identify.pag_direct.nonnull_completion_parity", role = "parity", intent = "A common oracle PAG with a compelled visible edge compares both concrete nonzero effects against exact truth and the existing completion estimator.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "visible_nonnull_effect_matches_the_completion_route_and_shared_oracle" },
+  { id = "identify.pag_direct.retained_stop", role = "artifact", intent = "A deterministic exhausted-work trace retains the original budget, replays through the bundle, and refuses a consumer's lower work limit.", evidence_test = "crates/antecedent/tests/pag_direct_identification.rs", evidence_assertion = "retained_search_stop_replays_under_its_original_budget" },
+]

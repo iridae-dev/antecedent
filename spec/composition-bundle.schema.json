@@ -88,6 +88,7 @@
             "evidence_ledger",
             "ledger_pooled_result",
             "longitudinal_regime_result",
+            "pag_identification",
             "transformation",
             "decision_contract",
             "decision_result",

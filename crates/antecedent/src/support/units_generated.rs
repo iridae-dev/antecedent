@@ -21,6 +21,7 @@ pub(crate) const CHOICE_INFERENCE_INTERVAL_CANDIDATES: UnitId =
 pub(crate) const COHORT_DECISION_INTERVAL: UnitId = UnitId::new("cohort_decision.interval");
 pub(crate) const COMPOSITION_BOUNDARY: UnitId = UnitId::new("composition.boundary");
 pub(crate) const COMPOSITION_BUNDLE: UnitId = UnitId::new("composition.bundle");
+pub(crate) const IDENTIFY_PAG_DIRECT: UnitId = UnitId::new("identify.pag_direct");
 pub(crate) const COMPOSITION_PROPAGATION_CHAIN: UnitId =
     UnitId::new("composition.propagation_chain");
 pub(crate) const COMPOSITION_SAMPLING_ASSUMPTION_UNION: UnitId =
@@ -301,6 +302,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         | "GraphImputationTransportClusterBootstrapDecision"
         | "GraphImputationTransportDecision" => Some(GRAPH_IMPUTATION_COMPILED_DECISION),
         "NestedMarkovPosterior" => Some(IDENTIFY_BINARY_NESTED_MARKOV),
+        "DirectPagIdentification" => Some(IDENTIFY_PAG_DIRECT),
         "NestedMarkovFisherInterval" => Some(IDENTIFY_BINARY_NESTED_MARKOV_FISHER),
         "MixedSourceIdentification" => Some(IDENTIFY_MIXED_SOURCE_PROOF_SEARCH),
         "PatientSurrogateIdentification" => Some(IDENTIFY_PATIENT_SURROGATE),

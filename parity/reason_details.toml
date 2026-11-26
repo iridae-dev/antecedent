@@ -18861,3 +18861,33 @@ id = "patient_surrogate.not_supported"
 family = "patient_surrogate"
 codes = ["route_not_supported"]
 meaning = "The patient surrogate route is unavailable under the release support policy."
+
+[[detail]]
+id = "pag_identification.invalid_declaration"
+family = "pag_identification"
+codes = ["invalid_argument"]
+meaning = "The oracle PAG, disjoint query, positive law, or independently retained replay identity is invalid."
+
+[[detail]]
+id = "pag_identification.cancelled"
+family = "pag_identification"
+codes = ["cancelled_no_claim"]
+meaning = "The caller cancelled before a complete direct PAG identification result."
+
+[[detail]]
+id = "pag_identification.resource_exhausted"
+family = "pag_identification"
+codes = ["route_not_supported"]
+meaning = "The PAG search exceeded a work, depth or admission bound before a scientific conclusion."
+
+[[detail]]
+id = "pag_identification.not_supported"
+family = "pag_identification"
+codes = ["not_supported"]
+meaning = "The direct PAG compiler's capability is unavailable under the current support gate."
+
+[[detail]]
+id = "pag_identification.exact_evaluation_refused"
+family = "pag_identification"
+codes = ["invalid_argument"]
+meaning = "The exact observational-law evaluator refused the concrete PAG functional request."

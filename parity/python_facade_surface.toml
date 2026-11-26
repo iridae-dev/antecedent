@@ -6012,3 +6012,15 @@ rust = "antecedent::analysis::composition_ledger_decision::consume_portable_ledg
 kind = "fn"
 status = "bound"
 python = "antecedent.composition_bundle.consume_bundle_recomputation"
+
+[[entry]]
+rust = "antecedent::analysis::pag_identification::compile_pag_identification"
+kind = "fn"
+status = "bound"
+python = "antecedent.pag_identification.compile_pag_identification"
+
+[[entry]]
+rust = "antecedent::analysis::pag_identification::consume_pag_identification"
+kind = "fn"
+status = "bound"
+python = "antecedent.pag_identification.consume_pag_identification"
