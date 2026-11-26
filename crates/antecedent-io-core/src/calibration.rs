@@ -464,6 +464,46 @@ pub fn calibration_slot_in(
     calibration_slot_with(basis, records, |_| true)
 }
 
+/// These versioned repeated studies support pointwise statements at the
+/// individual sample sizes they ran. Keep this separate from the range
+/// semantics of other calibration records.
+pub(crate) fn longitudinal_exact_grid(key: &CalibrationKeyWire) -> bool {
+    key.query == "LongitudinalRegime"
+        && match key.estimator.as_str() {
+            "longitudinal.sequential_dr_regime" => key.functional
+                == "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q_gaussian_v1",
+            "longitudinal.g_formula_regime" => matches!(
+                key.functional.as_str(),
+                "fitted_q_binary_baseline_h2_internal_crossfit_gaussian_v1"
+                    | "fitted_q_binary_baseline_h2_external_split_gaussian_v1"
+            ),
+            "longitudinal.ipw_regime" => matches!(
+                key.functional.as_str(),
+                "fixed_h2_four_schedules_vs_never_treat_gaussian_v1"
+                    | "learned_h2_four_schedules_selected_value_unique_gaussian_v1"
+                    | "learned_h2_four_schedules_all_true_optima_unique_gaussian_v1"
+                    | "learned_h2_four_schedules_selected_value_tied_gaussian_v1"
+                    | "learned_h2_four_schedules_all_true_optima_tied_gaussian_v1"
+            ),
+            "longitudinal.sequential_mean_selection.final_pattern_mixture" => matches!(
+                key.functional.as_str(),
+                "balanced_binary_bernoulli_v1:full_box_simultaneous_band"
+                    | "balanced_binary_bernoulli_v1:joint_decision_extrema"
+            ),
+            _ => false,
+        }
+}
+
+/// A qualified longitudinal claim may predate measurement of its construction.
+/// A historical receipt can carry its verified basis and no measurement facts.
+pub(crate) fn longitudinal_unmeasured_receipt(slot: &CalibrationSlotWire) -> bool {
+    slot.basis.as_ref().is_some_and(|basis| {
+        longitudinal_exact_grid(&basis.key)
+            && *slot
+                == CalibrationSlotWire::not_measured(CONSTRUCTION_NOT_MEASURED).with_basis(basis)
+    })
+}
+
 /// [`calibration_slot_in`] with an explicit attestation predicate.
 ///
 /// `attests` decides whether a covering record may yield `calibrated`. A
@@ -485,14 +525,23 @@ pub fn calibration_slot_with(
     if key.interval_method == "none" {
         return not_measured(NO_INTERVAL_REPORTED);
     }
-    // A donor panel's history is an exact experimental design. Project the
-    // matching grid point before applying ordinary level, scope and currency
-    // checks so a neighbouring history cannot attest this user's interval.
+    // Match an individual experimental design before applying ordinary
+    // level, identification, boundary, and attestation checks.
+    let exact_longitudinal = longitudinal_exact_grid(key);
+    let exact_grid = exact_longitudinal
+        || (key.query == "SyntheticControl"
+            && key.estimator == "bayesian.synthetic_control"
+            && key.functional.starts_with("synthetic_control/"))
+        || (key.query == "IntegratedScheduleDecision"
+            && key.estimator == "schedule_decision.joint_fit_and_transport"
+            && key.interval_method == antecedent_core::IntervalMethod::HoeffdingOptimumSet.as_str()
+            && matches!(
+                key.functional.as_str(),
+                "integrated_schedule_example_unique_optima"
+                    | "integrated_schedule_example_all_tied_optima"
+            ));
     let exact_points;
-    let records = if key.query == "SyntheticControl"
-        && key.estimator == "bayesian.synthetic_control"
-        && key.functional.starts_with("synthetic_control/")
-    {
+    let records = if exact_grid {
         exact_points = records
             .iter()
             .filter_map(|record| {
@@ -538,6 +587,12 @@ pub fn calibration_slot_with(
     if measured.is_empty() {
         return not_measured(IDENTIFICATION_NOT_MEASURED);
     }
+    if exact_longitudinal
+        && matches!(key.interval_method.as_str(), "percentile_bootstrap" | "simultaneous_band")
+        && scope.replicates_ok != Some(199)
+    {
+        return not_measured(REPLICATES_BELOW_MEASURED);
+    }
     let covering: Vec<&CoverageRecord> = measured
         .iter()
         .copied()
@@ -566,10 +621,7 @@ pub fn calibration_slot_with(
         .filter(|record| is_boundary(record) && confirmed_passing_region(record, rows).is_none())
         .collect();
     if let Some(boundary) = worst(&boundaries, rows) {
-        if boundary.query == "SyntheticControl"
-            && boundary.functional.starts_with("synthetic_control/")
-            && !attests(boundary)
-        {
+        if exact_grid && !attests(boundary) {
             return CalibrationSlotWire::from_record(
                 boundary,
                 CalibrationStatus::OutsideMeasuredScope,

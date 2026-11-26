@@ -249,6 +249,11 @@ fn fitted_q_coverage(test: &'static str, external_training_fold: Option<u32>) {
             Err(error) => panic!("unexpected fitted-Q calibration failure: {error}"),
         };
         let fit = result.longitudinal_regime().unwrap();
+        // Only a full 199-refit interval is eligible for this coverage record.
+        // Incomplete procedures still count against repeated-study coverage.
+        if fit.fitted_q_bootstrap_replicates_ok != Some(199) {
+            return None;
+        }
         let contract = prepared.contract_for_result(&result).unwrap();
         Some((fit.value_interval_95, common::calibration_bind::constructions(&contract, &result)))
     });

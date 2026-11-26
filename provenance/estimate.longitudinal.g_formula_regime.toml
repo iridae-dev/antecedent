@@ -74,4 +74,4 @@ sha256 = "338a10f1a29ddf7e38fdb90e0e13439779994f9748360438db237b2140e7f5ae"
 role = "assertion"
 path = "crates/antecedent/tests/longitudinal_regime_calibration.rs"
 items = ["fn fitted_q_coverage", "fn two_period_fitted_q_internal_crossfit_coverage", "fn two_period_fitted_q_external_split_coverage"]
-sha256 = "64beb4f618ec5d7e0edcdf0c8afc35106cd8a23475044be0759ebec244c6e01d"
+sha256 = "2e56e2ddbe393cf44a41c8bb7e8e229ae739f4e658d6f00e4fa011b8717f53c4"

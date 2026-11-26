@@ -22,7 +22,7 @@ use std::sync::Arc;
 use antecedent_core::IdentityDomain;
 
 use super::dr_replay::{SourceReplay, SourceReplayBounds, SourceWitnessState, replay_if_declared};
-use super::{AnalysisResultContractWire, ClaimSectionWire};
+use super::{AnalysisResultContractWire, CalibrationSlotWire, ClaimSectionWire};
 use crate::contract_reason::{ContractReason, publish_reasons};
 use crate::distribution_replay::ReplayLimits;
 use crate::identity::{
@@ -1433,12 +1433,18 @@ pub(in crate::contract_section) fn note_published_claim(
             && matches!(query.method.as_str(), "compare_schedules" | "learn_schedule")
         {
             let actual = claim.calibration.basis.as_ref().map(|basis| basis.key.functional.as_str());
-            let declared = query.schedule_calibration_coordinates().or_else(|| {
-                (query.calibration_design.is_none() && actual.is_some())
-                    .then(|| query.schedule_calibration_geometry())
-                    .flatten()
-            });
             let secondary = claim.calibration.secondary.as_slice();
+            let declared = query.schedule_calibration_coordinates().or_else(|| {
+                if actual.is_none() {
+                    None
+                } else if query.calibration_design.is_none() {
+                    query.schedule_calibration_geometry()
+                } else if longitudinal_unmeasured_claim(&claim.calibration) {
+                    query.schedule_declared_calibration_coordinates()
+                } else {
+                    None
+                }
+            });
             let actual_secondary = secondary.first().and_then(|slot| slot.basis.as_ref())
                 .map(|basis| basis.key.functional.as_str());
             if actual != declared.map(|(primary, _)| primary)
@@ -1673,6 +1679,27 @@ pub(in crate::contract_section) fn producer_encoding_unresolved(
     unresolved
 }
 
+fn longitudinal_unmeasured_claim(slot: &CalibrationSlotWire) -> bool {
+    let mut primary = slot.clone();
+    primary.secondary.clear();
+    crate::calibration::longitudinal_unmeasured_receipt(&primary)
+        && slot.secondary.iter().all(crate::calibration::longitudinal_unmeasured_receipt)
+}
+
+fn longitudinal_receipts_match(actual: &CalibrationSlotWire, mut computed: CalibrationSlotWire) -> bool {
+    // A historical report makes no measurement assertion for the interval
+    // whose record did not yet exist. Other intervals still verify on their own.
+    let matches = |slot: &CalibrationSlotWire, expected: &CalibrationSlotWire| {
+        slot == expected || crate::calibration::longitudinal_unmeasured_receipt(slot)
+    };
+    let mut primary = actual.clone();
+    let actual_secondary = std::mem::take(&mut primary.secondary);
+    let computed_secondary = std::mem::take(&mut computed.secondary);
+    matches(&primary, &computed)
+        && actual_secondary.len() == computed_secondary.len()
+        && actual_secondary.iter().zip(&computed_secondary).all(|(a, d)| matches(a, d))
+}
+
 /// Re-derive the claim's calibration slot from the basis it carries and check
 /// that basis against the payloads this contract rehashes.
 pub(in crate::contract_section) fn verify_claim_calibration(
@@ -1688,10 +1715,13 @@ pub(in crate::contract_section) fn verify_claim_calibration(
             "calibrated" | "outside_measured_scope" | "measured_below_nominal" | "not_measured"
         )
     });
-    if !statuses_ok
-        || (!historical_unmeasured && crate::calibration::rederive_calibration(slot) != *slot)
-    {
+    if !statuses_ok {
         unresolved.push(ContractReason::ClaimCalibration);
+    } else if !historical_unmeasured {
+        let derived = crate::calibration::rederive_calibration(slot);
+        if derived != *slot && !longitudinal_receipts_match(slot, derived) {
+            unresolved.push(ContractReason::ClaimCalibration);
+        }
     }
     let consistent = std::iter::once(slot)
         .chain(slot.secondary.iter())
@@ -1838,7 +1868,9 @@ pub(in crate::contract_section) fn calibration_basis_matches_contract(
         })
         || contract.reasoning.support.value.as_ref().is_some_and(|_| {
             let CausalQueryWire::LongitudinalRegime(query) = &contract.target.query else { return false };
-            let declared = query.schedule_calibration_coordinates().or_else(|| {
+            // Eligibility is checked with the complete claim. This check
+            // also verifies the bases of historical unmeasured receipts.
+            let declared = query.schedule_declared_calibration_coordinates().or_else(|| {
                 query.calibration_design.is_none().then(|| query.schedule_calibration_geometry()).flatten()
             });
             let Some((primary, secondary)) = declared else { return false };

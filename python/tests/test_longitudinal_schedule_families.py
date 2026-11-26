@@ -193,3 +193,42 @@ def test_learned_schedule_empirical_receipts_bind_the_declared_law(design, means
     archived = require_success(ant.load(bytes(scoped.export(source_data=data)))).replay()
     assert archived.acceptance.replayed
     assert archived.calibration.functional == scoped.calibration.functional
+
+
+def test_an_extra_learning_row_cannot_borrow_the_evaluation_sample_receipt():
+    means = (1.0, 2.0, 3.0, 5.0)
+    _, query = _study(means, LearnedScheduleClass(SCHEDULES, training_fold=0, draws=199))
+    rng = Random(913)
+    codes = [rng.randrange(4) for _ in query.subject_ids]
+    data = {"outcome": [rng.gauss(means[code], 1.0) for code in codes]}
+    declared = replace(
+        query,
+        treatment_history=[SCHEDULES[code] for code in codes],
+        calibration_design="learned_schedule_unique_optimum",
+    )
+    exact = require_success(ant.analyze(data, query=declared))
+    assert exact.calibration.functional is not None
+    assert exact.calibration.secondary[0].functional is not None
+
+    larger = replace(
+        declared,
+        treatment_history=[*declared.treatment_history, SCHEDULES[0]],
+        actions=SCHEDULES[0],
+        censoring_probabilities=None,
+        outcome_observed=None,
+        treatment_probabilities=[*declared.treatment_probabilities, [0.5, 0.5]],
+        subject_ids=[*declared.subject_ids, "additional-training-subject"],
+        fold_ids=[*declared.fold_ids, 0],
+    )
+    larger_data = {"outcome": [*data["outcome"], 1.0]}
+    result = require_success(ant.analyze(larger_data, query=larger))
+    assert result.longitudinal_regime.schedule_family.evaluation_subjects == 400
+    assert result.longitudinal_regime.value_interval_95 is not None
+    assert result.longitudinal_regime.schedule_family.learning.optimum_set
+    assert result.calibration.status == "not_measured"
+    assert result.calibration.functional is None
+    assert not result.calibration.secondary
+    replay = require_success(ant.load(bytes(result.export(source_data=larger_data)))).replay()
+    assert replay.acceptance.replayed
+    assert replay.calibration.status == "not_measured"
+    assert replay.calibration.functional is None

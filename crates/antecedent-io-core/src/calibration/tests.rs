@@ -629,6 +629,53 @@ fn synthetic_control_average_matches_only_the_measured_panel_and_grid_point() {
 }
 
 #[test]
+fn integrated_schedule_decisions_use_only_attested_exact_sample_sizes() {
+    static POINTS: [CoverageGridPoint; 2] = [
+        grid_point(0, 4096, 0.92, true),
+        grid_point(1, 8192, 0.96, false),
+    ];
+    for functional in [
+        "integrated_schedule_example_unique_optima",
+        "integrated_schedule_example_all_tied_optima",
+    ] {
+        let record = CoverageRecord {
+            query: "IntegratedScheduleDecision",
+            estimator: "schedule_decision.joint_fit_and_transport",
+            interval_method: antecedent_core::IntervalMethod::HoeffdingOptimumSet.as_str(),
+            functional,
+            boundary: true,
+            replicates_min: 0,
+            ..gridded("cov.schedule", &POINTS)
+        };
+        let mut b = basis();
+        b.key = key_from(&record);
+        b.scope.replicates_ok = None;
+        for point in &POINTS {
+            b.scope.row_count = point.n_min;
+            let slot = calibration_slot_with(&b, &[record], |_| true);
+            assert_eq!(slot.observed.map(f64::to_bits), Some(point.observed.to_bits()));
+            assert_eq!(slot.scope_n, Some(point.n_min));
+            assert_eq!(slot.scope_n_max, Some(point.n_min));
+            assert_eq!(
+                slot.status,
+                if point.boundary {
+                    CalibrationStatus::MeasuredBelowNominal
+                } else {
+                    CalibrationStatus::Calibrated
+                }
+            );
+            let stale = calibration_slot_with(&b, &[record], |_| false);
+            assert_eq!(stale.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
+        }
+        b.scope.row_count = 4097;
+        assert_eq!(
+            calibration_slot_with(&b, &[record], |_| true).status,
+            CalibrationStatus::NotMeasured
+        );
+    }
+}
+
+#[test]
 fn a_passing_grid_is_calibrated_across_its_whole_measured_range() {
     for n in [250, 251, 500, 777, 1000] {
         let mut b = basis();
@@ -643,6 +690,85 @@ fn a_passing_grid_is_calibrated_across_its_whole_measured_range() {
         let slot = calibration_slot_in(&b, &[gridded("cov.grid", &GRID)]);
         assert_eq!(slot.status, "outside_measured_scope", "n = {n}: {slot:?}");
         assert_eq!(slot.reason.as_deref(), Some(SAMPLE_SIZE_OUTSIDE_MEASURED_RANGE));
+    }
+}
+
+#[test]
+fn longitudinal_receipts_resolve_only_exact_study_sizes_and_complete_refits() {
+    for (estimator, functional, method) in [
+        (
+            "longitudinal.sequential_dr_regime",
+            "fixed_all_treated_h4_fair_coin_censor_survival_095_external_q_gaussian_v1",
+            "analytic_se",
+        ),
+        (
+            "longitudinal.g_formula_regime",
+            "fitted_q_binary_baseline_h2_internal_crossfit_gaussian_v1",
+            "percentile_bootstrap",
+        ),
+        (
+            "longitudinal.g_formula_regime",
+            "fitted_q_binary_baseline_h2_external_split_gaussian_v1",
+            "percentile_bootstrap",
+        ),
+        (
+            "longitudinal.ipw_regime",
+            "fixed_h2_four_schedules_vs_never_treat_gaussian_v1",
+            "simultaneous_band",
+        ),
+        (
+            "longitudinal.ipw_regime",
+            "learned_h2_four_schedules_selected_value_unique_gaussian_v1",
+            "analytic_se",
+        ),
+        (
+            "longitudinal.ipw_regime",
+            "learned_h2_four_schedules_all_true_optima_tied_gaussian_v1",
+            "simultaneous_band",
+        ),
+        (
+            "longitudinal.sequential_mean_selection.final_pattern_mixture",
+            "balanced_binary_bernoulli_v1:full_box_simultaneous_band",
+            "simultaneous_band",
+        ),
+        (
+            "longitudinal.sequential_mean_selection.final_pattern_mixture",
+            "balanced_binary_bernoulli_v1:joint_decision_extrema",
+            "simultaneous_band",
+        ),
+    ] {
+        let mut record = gridded("cov.longitudinal-exact-grid-test", &FAILING_SMALL);
+        record.query = "LongitudinalRegime";
+        record.estimator = estimator;
+        record.functional = functional;
+        record.interval_method = method;
+        record.replicates_min = if method == "analytic_se" { 0 } else { 199 };
+        let mut basis = basis();
+        basis.key = key_from(&record);
+        basis.scope.row_count = 500;
+        basis.scope.replicates_ok = (method != "analytic_se").then_some(199);
+        let slot = calibration_slot_in(&basis, &[record]);
+        assert_eq!(slot.status, "calibrated", "{functional}");
+        assert_eq!((slot.scope_n, slot.scope_n_max), (Some(500), Some(500)));
+        let historical = calibration_slot_in(&basis, &[]);
+        assert!(longitudinal_unmeasured_receipt(&historical));
+        let mut forged = historical;
+        forged.record_id = slot.record_id;
+        assert!(!longitudinal_unmeasured_receipt(&forged));
+
+        basis.scope.row_count += 1;
+        assert_eq!(calibration_slot_in(&basis, &[record]).status, "not_measured");
+        basis.scope.row_count = 250;
+        assert_eq!(calibration_slot_in(&basis, &[record]).status, "measured_below_nominal");
+        let stale = calibration_slot_with(&basis, &[record], |_| false);
+        assert_eq!(stale.reason.as_deref(), Some(RECORD_NOT_ATTESTING));
+        if method != "analytic_se" {
+            basis.scope.row_count = 500;
+            basis.scope.replicates_ok = Some(198);
+            let incomplete = calibration_slot_in(&basis, &[record]);
+            assert_eq!(incomplete.status, "not_measured");
+            assert_eq!(incomplete.reason.as_deref(), Some(REPLICATES_BELOW_MEASURED));
+        }
     }
 }
 

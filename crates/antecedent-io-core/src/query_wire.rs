@@ -1211,6 +1211,18 @@ impl LongitudinalRegimeQueryWire {
     /// Calibration coordinates of the full four-schedule class under the registered designs.
     #[must_use]
     pub fn schedule_calibration_coordinates(&self) -> Option<(&'static str, Option<&'static str>)> {
+        // Learned records use the evaluation count. Require the equally sized
+        // training fold used by the study so an extra training row cannot
+        // borrow a record with the same held-out count.
+        if self.method == "learn_schedule" && !self.subject_ids.len().is_multiple_of(2) {
+            return None;
+        }
+        self.schedule_declared_calibration_coordinates()
+    }
+
+    pub(crate) fn schedule_declared_calibration_coordinates(
+        &self,
+    ) -> Option<(&'static str, Option<&'static str>)> {
         match (self.calibration_design.as_deref()?, self.schedule_calibration_geometry()?) {
             ("fixed_schedule_family", (_, None)) =>
                 Some(("fixed_h2_four_schedules_vs_never_treat_gaussian_v1", None)),
