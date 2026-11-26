@@ -5805,6 +5805,46 @@ recorded_at = "2026-11-19T15:50:49Z"
 dependency_manifest = "84cbc31e7401607bdbab8d2b07043829719a2dafec64d1541eaa4d38abd0cd94"
 
 [[record]]
+test = "antecedent::composition_cohort_decision::compact_prediction_replays_into_a_supported_cohort_and_names_missing_refit_inputs"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "6e789f499faf9ea3cd852a6e93fe2ed0ff72269ba2dfde34796deed6040ceb28"
+recorded_at = "2026-11-26T05:07:02Z"
+dependency_manifest = "756b8e8cee5b0550c430ee77d4d2ed1e552cd2ea71e2defbc8dad32af84cf2de"
+
+[[record]]
+test = "antecedent::composition_cohort_decision::compact_refit_checks_original_training_and_replays_the_named_bundle_model"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "6e789f499faf9ea3cd852a6e93fe2ed0ff72269ba2dfde34796deed6040ceb28"
+recorded_at = "2026-11-26T05:07:02Z"
+dependency_manifest = "03d19165aacd5d872c478447ebf8ff5b9d37451d094e91d3d38f9d4b89d9816a"
+
+[[record]]
+test = "antecedent::composition_cohort_decision::inherited_cohort_bundle_replays_affine_decision_and_reweights"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "6e789f499faf9ea3cd852a6e93fe2ed0ff72269ba2dfde34796deed6040ceb28"
+recorded_at = "2026-11-26T05:07:02Z"
+dependency_manifest = "5faec97b290d990de74ec3113e479fea24777e2f3241862b28c039fa605e4197"
+
+[[record]]
+test = "antecedent::composition_ledger_decision::inherited_ledger_replays_a_selected_point_and_refuses_an_assumption_range"
+roles = ["scientific"]
+passed = true
+commit = "761e695b4330bd3fc7fce3b176ec3ac7a3cff2ff"
+dirty = true
+fingerprint = "21e26069fc9b84874ba7612e63a1c97bf03046bbc5657cd6a6f1b376a0b5a5f4"
+recorded_at = "2026-11-26T05:07:36Z"
+dependency_manifest = "d6ae53e9cdff3f5c44f183e4777acb4bc1a51253c0ec8a27ccd21360b4729485"
+
+[[record]]
 test = "antecedent::composition_posterior_decision_bundle::parameter_posterior_decision_replays_without_becoming_predictive"
 roles = ["scientific"]
 passed = true
