@@ -1738,3 +1738,11 @@ implementation = [{ path = "crates/antecedent/src/analysis/longitudinal_joint_se
 guard = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = 'if bytes\.len\(\) > MAX_WIRE_BYTES' }
 refusal = { path = "crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs", pattern = 'if bytes\.len\(\) > MAX_WIRE_BYTES \{\s*return Err\(JointSensitivityError::Resource\("portable artifact exceeds byte bound"' }
 scope_fixture = { path = "crates/antecedent/tests/longitudinal_joint_sensitivity.rs", pattern = 'fn longitudinal_reader_checks_artifact_size_before_decoding\(' }
+
+[[bound]]
+record = "design.integrated_schedule_decision"
+key = "max_artifact_bytes"
+implementation = [{ path = "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs", constant = "MAX_BYTES" }]
+guard = { path = "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs", pattern = 'decode_sectioned_io_versioned\(kind, MAX_BYTES, SECTION,' }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = 'if bytes\.len\(\) > max_bytes \{\s*return Err\(CodecError::FileTooLarge\);' }
+scope_fixture = { path = "crates/antecedent/tests/integrated_schedule_decision.rs", pattern = 'fn schedule_evidence_and_terminal_readers_enforce_the_inner_artifact_limit\(' }

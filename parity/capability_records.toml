@@ -27082,7 +27082,7 @@ identity_inputs = ["source trajectory rows and censoring indications", "independ
 wire_changes = ["Source, target and declaration children bind a compiled-program identity to their replayed products, and the terminal binds all three child products to the outer program."]
 compatibility = "Additive composition route. Other schedule and decision artifacts retain their existing readers."
 search = false
-bounds = { cancellation = true, memory_limit = "ExecutionContext.admission", max_artifact_bytes = 33554432 }
+bounds = { cancellation = true, memory_limit = "ExecutionContext.admission", max_artifact_bytes = 33554432, artifact_scope = "Each encoded schedule evidence or decision body. The enclosing composition bundle separately enforces its embedded-node and total byte limits." }
 surface = ["python/antecedent/intervention_schedule_decision.py"]
 surface_pyo3 = ["python/src/integrated_schedule_api.rs"]
 surface_rust = ["crates/antecedent/src/analysis/composition_integrated_schedule.rs", "crates/antecedent-design/src/intervention_schedule_decision.rs", "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs"]

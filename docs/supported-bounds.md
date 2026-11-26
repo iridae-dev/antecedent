@@ -267,6 +267,7 @@ markers below and compares it. Prose outside those markers is not read.
 | sensitivity.longitudinal_joint | max_rows | 100000 | `crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs` |
 | sensitivity.longitudinal_joint | max_refits | 2000 | `crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs` |
 | sensitivity.longitudinal_joint | max_artifact_bytes | 16777216 | `crates/antecedent/src/analysis/longitudinal_joint_sensitivity.rs` |
+| design.integrated_schedule_decision | max_artifact_bytes | 33554432 | `crates/antecedent-design/src/intervention_schedule_decision/artifact.rs` |
 <!-- generated:supported-bounds:end -->
 
 The typed native plan/objective ranker preserves its original native scoring scope.

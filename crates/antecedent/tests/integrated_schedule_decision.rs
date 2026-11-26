@@ -389,3 +389,23 @@ fn integrated_schedule_unique_optima_coverage() {
 fn integrated_schedule_all_tied_optima_coverage() {
     coverage(true, "integrated_schedule_all_tied_optima_coverage");
 }
+
+#[test]
+fn schedule_evidence_and_terminal_readers_enforce_the_inner_artifact_limit() {
+    use antecedent::analysis::composition::{NodeKind, describe_artifact};
+
+    let bytes = vec![0; (32 << 20) + 1];
+    for (kind, stage) in [
+        (NodeKind::IntegratedScheduleEvidence, BundleStage::SwappedEvidence),
+        (NodeKind::IntegratedScheduleDecision, BundleStage::TamperedQuantity),
+    ] {
+        let malformed = describe_artifact(kind, &bytes[..256]).unwrap_err();
+        let at_limit = describe_artifact(kind, &bytes[..bytes.len() - 1]).unwrap_err();
+        let oversized = describe_artifact(kind, &bytes).unwrap_err();
+        assert_eq!(at_limit.stage, stage);
+        assert_eq!(oversized.stage, stage);
+        assert_eq!(at_limit.reason, malformed.reason);
+        assert_ne!(at_limit.reason, oversized.reason);
+        assert_eq!(oversized.reason, antecedent_io::IoError::TooLarge.to_string());
+    }
+}
