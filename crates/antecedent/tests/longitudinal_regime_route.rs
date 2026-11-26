@@ -788,6 +788,17 @@ fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays() {
         Some(revised_fit.longitudinal_regime().unwrap().value)
     );
 
+    // A different supplied Q law still publishes at adequate support, but does not
+    // inherit the registered frozen-Q calibration construction.
+    let mut other_q = q.clone();
+    Arc::make_mut(other_q.q_predictions.as_mut().unwrap())[0] += 0.125;
+    let other = Study::tabular(data.clone())
+        .query(CausalQuery::LongitudinalRegime(other_q))
+        .build().unwrap().prepare(&ctx).unwrap();
+    let executed = other.estimate(&data, &ctx).unwrap();
+    assert!(executed.longitudinal_regime().unwrap().value_interval_95.is_some());
+    assert!(executed.calibration_bases(&other.contract_for_result(&executed).unwrap()).unwrap().is_empty());
+
     // Each case crosses a separate support boundary while retaining a point value.
     let mut low_overlap = q.clone();
     Arc::make_mut(&mut low_overlap.treatment_probabilities)[0] = 0.44;

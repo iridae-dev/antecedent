@@ -365,6 +365,13 @@ impl StudyResult {
                 },
             }];
         }
+        if matches!(&contract.body.query, antecedent_io::CausalQueryWire::LongitudinalRegime(query)
+            if query.periods == 4 && query.method == "sequential_dr")
+        {
+            // The graphless support row defines publication. The narrower coverage study
+            // defines calibration, so an otherwise admissible interval has no fallback key.
+            return Vec::new();
+        }
         self.reported_interval_bindings(bayesian)
             .into_iter()
             .map(|binding| {

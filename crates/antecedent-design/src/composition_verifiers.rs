@@ -520,7 +520,8 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
             "a replayed longitudinal interval is required",
         ));
     };
-    if !(query.periods == 4 && query.method == "sequential_dr"
+    if (fit.value_interval_95.is_none() && fit.schedule_family.is_none())
+        || !(query.periods == 4 && query.method == "sequential_dr"
         || query.periods == 2
             && matches!(
                 query.method.as_str(),
@@ -1000,10 +1001,15 @@ pub fn detect_node_kind(bytes: &[u8]) -> Option<NodeKind> {
             } else {
                 incidence_source_inspection::is_delayed_entry_incidence(&body)
                     .then_some(NodeKind::DelayedEntryIncidenceResult)
-                    .or_else(|| matches!(&body.query, antecedent_io_core::CausalQueryWire::LongitudinalRegime(query)
-                        if query.periods == 4 && query.method == "sequential_dr"
-                            || query.periods == 2 && matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule"))
-                        .then_some(NodeKind::LongitudinalRegimeResult))
+                    .or_else(|| {
+                        let interval = body.longitudinal_regime.as_ref().is_some_and(|fit| {
+                            fit.value_interval_95.is_some() || fit.schedule_family.is_some()
+                        });
+                        (interval && matches!(&body.query, antecedent_io_core::CausalQueryWire::LongitudinalRegime(query)
+                            if query.periods == 4 && query.method == "sequential_dr"
+                                || query.periods == 2 && matches!(query.method.as_str(), "fitted_g_formula" | "compare_schedules" | "learn_schedule")))
+                        .then_some(NodeKind::LongitudinalRegimeResult)
+                    })
             }
         }
         crate::intervention_schedule_decision::artifact::EVIDENCE_KIND => Some(NodeKind::IntegratedScheduleEvidence),

@@ -454,9 +454,10 @@ def test_three_period_sequential_dr_interval_and_four_period_refusal():
         q_predictions=[[6.0] * 4] * n,
         observation_history=[[True] * 4] * n,
     )
-    unsupported = require_success(
-        antecedent.analyze({"y": outcomes}, query=LongitudinalRegime(**four))
-    ).longitudinal_regime
+    thin = require_success(antecedent.analyze({"y": outcomes}, query=LongitudinalRegime(**four)))
+    unsupported = thin.longitudinal_regime
+    assert cb.detect_kind(thin.export(artifact_id="four-period-point")) is None
+    assert thin.calibration.status == "not_measured"
     assert unsupported.value_interval_95 is None
     assert unsupported.uncertainty == "point_only_no_interval"
     assert unsupported.support_status == "unsupported_point_utility"
