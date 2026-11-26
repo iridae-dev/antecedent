@@ -151,3 +151,16 @@ def test_visible_nonnull_effect_and_retained_search_stop() -> None:
     )
     assert consumed.proof == stopped.proof
     assert require_success(plan.execute()).status == "conditional_obstruction"
+
+
+def test_direct_pag_reader_checks_bytes_before_decoding() -> None:
+    for size, message in [
+        (16 << 20, "unknown PAG artifact version"),
+        ((16 << 20) + 1, "payload too large"),
+    ]:
+        with pytest.raises(pid.PagIdentificationRefusal, match=message):
+            require_success(
+                pid.consume_pag_identification(
+                    bytes(size), expected_result="0" * 64, expected_program="0" * 64
+                )
+            )

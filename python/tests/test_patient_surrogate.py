@@ -105,3 +105,30 @@ def test_sample_bounds_cannot_be_used_as_a_population_decision_claim() -> None:
                 sample,
             )
         )
+
+
+def test_patient_surrogate_compiler_admits_the_declared_patient_limit() -> None:
+    patients = tuple(
+        ObservedSurrogatePatient(str(i), bool(i % 2), bool(i % 2), True)
+        for i in range(100_000)
+    )
+    plan = require_success(compile_patient_surrogate(DESIGN, SurrogatePatientSample(patients)))
+    assert require_success(plan.execute()).reading == "empirical_plugin"
+    extra = ObservedSurrogatePatient("extra", True, True, True)
+    with pytest.raises(PatientSurrogateRefusal) as stopped:
+        oversized = SurrogatePatientSample((*patients, extra))
+        require_success(compile_patient_surrogate(DESIGN, oversized))
+    assert stopped.value.detail == reason_details.patient_surrogate.RESOURCE
+
+
+def test_patient_surrogate_reader_checks_bytes_before_decoding() -> None:
+    from antecedent.patient_surrogate import consume_patient_surrogate
+
+    for size, message in [(16 << 20, "bad artifact magic"), ((16 << 20) + 1, "payload too large")]:
+        with pytest.raises(PatientSurrogateRefusal, match=message) as stopped:
+            require_success(
+                consume_patient_surrogate(
+                    bytes(size), expected_result="0" * 64, expected_program="0" * 64
+                )
+            )
+        assert stopped.value.detail == reason_details.patient_surrogate.REPLAY

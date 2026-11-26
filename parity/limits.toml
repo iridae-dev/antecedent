@@ -1746,3 +1746,27 @@ implementation = [{ path = "crates/antecedent-design/src/intervention_schedule_d
 guard = { path = "crates/antecedent-design/src/intervention_schedule_decision/artifact.rs", pattern = 'decode_sectioned_io_versioned\(kind, MAX_BYTES, SECTION,' }
 refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = 'if bytes\.len\(\) > max_bytes \{\s*return Err\(CodecError::FileTooLarge\);' }
 scope_fixture = { path = "crates/antecedent/tests/integrated_schedule_decision.rs", pattern = 'fn schedule_evidence_and_terminal_readers_enforce_the_inner_artifact_limit\(' }
+
+[[bound]]
+record = "identify.patient_surrogate"
+key = "max_patients"
+implementation = [{ path = "crates/antecedent-io-core/src/patient_surrogate.rs", constant = "MAX_PATIENTS" }]
+guard = { path = "crates/antecedent-io-core/src/patient_surrogate.rs", pattern = 'patients\.len\(\) > MAX_PATIENTS' }
+refusal = { path = "crates/antecedent-io-core/src/patient_surrogate.rs", pattern = 'patients\.len\(\) > MAX_PATIENTS =>\s*\{\s*return Err\(PatientSurrogateError::Resource\)' }
+scope_fixture = { path = "python/tests/test_patient_surrogate.py", pattern = 'def test_patient_surrogate_compiler_admits_the_declared_patient_limit\(' }
+
+[[bound]]
+record = "identify.patient_surrogate"
+key = "max_artifact_bytes"
+implementation = [{ path = "crates/antecedent-io-core/src/patient_surrogate.rs", constant = "MAX_BYTES" }]
+guard = { path = "crates/antecedent-io-core/src/patient_surrogate.rs", pattern = 'decode_sectioned_io_versioned\(\s*PATIENT_SURROGATE_ARTIFACT_KIND,\s*MAX_BYTES,' }
+refusal = { path = "crates/antecedent-io-core/src/artifact_codec.rs", pattern = 'if bytes\.len\(\) > max_bytes \{\s*return Err\(CodecError::FileTooLarge\);' }
+scope_fixture = { path = "python/tests/test_patient_surrogate.py", pattern = 'def test_patient_surrogate_reader_checks_bytes_before_decoding\(' }
+
+[[bound]]
+record = "identify.pag_direct"
+key = "max_artifact_bytes"
+implementation = [{ path = "crates/antecedent-io-core/src/pag_identification.rs", constant = "MAX_BYTES" }]
+guard = { path = "crates/antecedent-io-core/src/pag_identification.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES' }
+refusal = { path = "crates/antecedent-io-core/src/pag_identification.rs", pattern = 'if bytes\.len\(\) > MAX_BYTES \{\s*return Err\(IoError::TooLarge\.into\(\)\)' }
+scope_fixture = { path = "python/tests/test_pag_direct_identification.py", pattern = 'def test_direct_pag_reader_checks_bytes_before_decoding\(' }
