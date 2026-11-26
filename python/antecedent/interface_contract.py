@@ -109,6 +109,7 @@ OPERATIONS: tuple[str, ...] = (
     "posterior",
     "fit",
     "predict",
+    "identified_set",
 )
 
 #: What an uncertainty statement can mean, with the paradigm of each.
@@ -164,6 +165,7 @@ OperationsName = Literal[
     "posterior",
     "fit",
     "predict",
+    "identified_set",
 ]
 CalibrationStatusesName = Literal["none", "point_only", "not_measured", "measured", "inherited"]
 DependenceRequirementsName = Literal["unconstrained", "declared_evidence", "disjoint_evidence"]

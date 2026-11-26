@@ -379,8 +379,12 @@ def test_bytes_that_are_not_a_contract_artifact_are_refused_by_inspection_and_co
         ic.inspect_interface_contract_artifact("not bytes")  # type: ignore[arg-type]
 
 
-def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutations(tmp_path):
-    exported = rich_contract().export("estimator-contract")
+@pytest.mark.parametrize("identified_set", [False, True], ids=["rich_contract", "identified_set"])
+def test_the_clean_room_consumer_accepts_an_exported_artifact_and_rejects_mutations(
+    tmp_path, identified_set
+):
+    declaration = producer(operations=("identified_set",)) if identified_set else rich_contract()
+    exported = declaration.export("estimator-contract")
     path = tmp_path / "contract.artifact"
     path.write_bytes(exported.data)
 
