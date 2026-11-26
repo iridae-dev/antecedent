@@ -26,6 +26,7 @@ redistribution = "Repository-authored code and tests under MIT OR Apache-2.0. No
 limitations = "The independent new known-target check has 128 units, a saturated binary-baseline response model, nonuniform response by arm and stratum, structural effect 2 versus naive responder contrast 4.5, two prior strengths, and both supported designs. Its independently derived pseudo-outcomes and NIG moments agree with the numerical contrast law within 0.005 for the mean and 0.006 for the standard deviation. A separate 24-unit fixture checks intercept-only and binary-baseline moments. These are deterministic definition checks, not a calibration campaign, a reference for unsaturated logistic models, or evidence for joint multicontrast draws. Detached replay reuses the product numerical routines and establishes internal consistency of retained inputs, not external authenticity of observations. Scoped 2026-11-07 source re-review compared the bound verifier module with 08a69d364: the only changes share the previously identical posterior and graph-posterior classifications and move response-grid replay into a helper; randomized inverse-probability checks are untouched and dependency order is preserved. Ninety-seven contract unit tests passed; no new independent reference was generated. Later re-review of the verifier: calibration_basis_matches_contract now also accepts a serial_hac dependence for a tabular snapshot when the contract's query is a trial-to-target transport; randomized inverse-probability checks are untouched and still require an iid tabular basis. The calibration replay additions select synthetic-control and sequential-contrast query types. The randomized IPW calculation and its contract still use the reviewed path."
 sources = ["provenance/estimate.randomized.bayesian.toml", "provenance/estimate.randomized_missing_outcomes.toml", "crates/antecedent-estimate/src/randomized_missing.rs", "crates/antecedent-estimate/src/randomized_posterior.rs"]
 findings_resolved = [
+  "The scoped verifier review compared the new checked-estimator helper with the previous committed/requested identity checks. The randomized IPOW acceptance and numerical replay branches are unchanged. Survival and longitudinal replay now use the same resolved estimator check even when a caller selected the automatic estimator.",
   "Replaced the blanket unsupported execution of the supported IPW construction with a narrow graphless support and retained numerical replay; unsupported IPW designs now refuse.",
   "Corrected the claim that every proper-prior posterior mean equals a Hajek responder mean, and identified the conditional working law explicitly.",
   "Tests reject changed posterior means, source outcomes and priors after valid container re-encoding, respect consumer capability restrictions and bounded replay, and exercise retained execution after the builder has been dropped.",
@@ -64,7 +65,7 @@ sha256 = "48ba6480b3d6d1673edde537373a5e8f8e6d2a3b4d0c30aec570e7bf87f7ee1d"
 role = "implementation"
 path = "crates/antecedent-io-core/src/contract_section/verify.rs"
 items = ["module"]
-sha256 = "296f397fd7f58ac2a0561c1ce6fe9b1d26a5933d500944846b465ab2074a2508"
+sha256 = "443c2e463900988efe66174a27a699b0beb3a6506d93f5d1ca34b399dfc27519"
 
 [[method_review.artifacts]]
 role = "implementation"
