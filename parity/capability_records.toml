@@ -4704,7 +4704,7 @@ provider = "antecedent::analysis::compiled_trial_aipw_learners over antecedent_e
 estimand = "The target nonparticipant contrast E_target[Y(1) - Y(0)] with its per-row scores, out-of-fold nuisances, held-out losses and overlap diagnostics."
 inference_claim = "point_only"
 inference_notes = "Point-only: caller learners run no joint outer bootstrap; calibration is reported as not_measured and the run carries the calibration label of the declared learners (learners=caller_factory:<digest>), so the learned_trial_aipw coverage records never annotate it."
-owners = ["antecedent", "antecedent-estimate"]
+owners = ["antecedent", "antecedent-estimate", "python/antecedent/transport"]
 identity_inputs = [
   "causal graph and selection targets of the selection diagram",
   "transport query (wire encoding)",
@@ -4715,10 +4715,18 @@ identity_inputs = [
 wire_changes = ["None: the route emits no artifact."]
 compatibility = "Additive. The direct estimate_trial_aipw_with_factories entry is unchanged and deprecated in favour of this route."
 search = false
-refusals = [{ detail = "trial_aipw_caller_learners.bootstrap_not_supported" }]
+refusals = [
+  { detail = "trial_aipw_caller_learners.bootstrap_not_supported" },
+  { detail = "dose_response.learner_not_portable" },
+]
 inference_outputs = []
 bounds = { cancellation = true }
+surface = ["python/antecedent/transport/_trial_aipw_learners.py"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["TrialAipwLearnersEstimate", "analyze_trial_aipw"]
+surface_values = ["TrialAipwLearnersEstimate"]
 routes = [
+ { name = "antecedent.transport.advanced.analyze_trial_aipw", stage = "evaluate", status = "supported", claim = "point_only" },
  { name = "antecedent.analysis.compiled_trial_aipw_learners.Study.compile_trial_aipw_learners", stage = "prepare", status = "supported", claim = "point_only" },
  { name = "antecedent.analysis.compiled_trial_aipw_learners.CompiledTrialAipwLearners.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
@@ -4728,6 +4736,8 @@ fixtures = [
  { id = "transport.trial_aipw_caller_learners.bootstrap.negative", role = "negative", intent = "Caller learners with bootstrap replicates refuse at compile, before anything is fitted (route_not_supported, trial_aipw_caller_learners.bootstrap_not_supported), as the direct kernel refuses them under the same code.", evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs", evidence_assertion = "caller_learners_with_bootstrap_replicates_refuse_through_the_compiled_route" },
  { id = "transport.trial_aipw_caller_learners.identity_binds_inputs.artifact", role = "artifact", intent = "No wire artifact is emitted, so this is the identity re-derivation: the same request lowers to the same identity, and a changed learner identity, outcome bit or fold count changes it.", evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs", evidence_assertion = "the_trial_aipw_program_identity_binds_the_rows_the_options_and_the_learners" },
  { id = "transport.trial_aipw_caller_learners.calibration_label.invariance", role = "invariance", intent = "A factory fit carries the calibration label of its declared learners, which differs between declarations.", evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs", evidence_assertion = "a_trial_factory_fit_carries_the_calibration_label_of_its_declared_learners" },
+ { id = "transport.trial_aipw_caller_learners.python_known_contrast.positive", role = "positive", intent = "Python surface: analyze_trial_aipw with a caller least-squares outcome learner and a caller logistic membership learner recovers the planted contrast 2 on a noise-free randomized trial, point-only, and the program identity binds the learner declaration.", evidence_test = "python/tests/test_compiled_trial_aipw_learners.py", evidence_assertion = "test_caller_learners_recover_the_known_trial_contrast" },
+ { id = "transport.trial_aipw_caller_learners.python_not_portable.negative", role = "negative", intent = "Python surface: a provider that does not return portable prediction maps is refused at declaration (dose_response.learner_not_portable).", evidence_test = "python/tests/test_compiled_trial_aipw_learners.py", evidence_assertion = "test_a_non_portable_learner_is_refused_at_declaration" },
 ]
 
 [[record]]
@@ -4746,7 +4756,7 @@ provider = "antecedent::analysis::compiled_joint_cells_learners over antecedent_
 estimand = "mu_c = E[Y^do(T = c)] for each supported joint cell by cross-fitted AIPW, with each cell's in-cell ESS, propensity range and clipped share, the normalization checks, the ordering sensitivity and the aligned scores."
 inference_claim = "point_only"
 inference_notes = "Point-only, as every factorized joint-cell fit: no interval or covariance; calibration is reported as not_measured and the run carries the calibration label of the declared learners (learners=caller_factory:<digest>)."
-owners = ["antecedent", "antecedent-estimate"]
+owners = ["antecedent", "antecedent-estimate", "python/antecedent/transport"]
 identity_inputs = [
   "treatment components in cell-bit order, outcome and declared adjustment set",
   "factorization orderings (declared first)",
@@ -4757,10 +4767,18 @@ identity_inputs = [
 wire_changes = ["None: the route emits no artifact; the fit's score table is the ordinary ScoreTable of estimate.factorized_joint_cells."]
 compatibility = "Additive. The direct fit_factorized_joint_cells_with_factories entry is unchanged and deprecated in favour of this route."
 search = false
-refusals = [{ detail = "joint_cells_caller_learners.built_in_learner_declared" }]
+refusals = [
+  { detail = "joint_cells_caller_learners.built_in_learner_declared" },
+  { detail = "dose_response.learner_not_portable" },
+]
 inference_outputs = []
 bounds = { cancellation = true }
+surface = ["python/antecedent/transport/_joint_cells_learners.py"]
+surface_exports = ["python/antecedent/transport/advanced.py"]
+owned_exports = ["JointCellsLearnersEstimate", "analyze_joint_cells"]
+surface_values = ["JointCellsLearnersEstimate"]
 routes = [
+ { name = "antecedent.transport.advanced.analyze_joint_cells", stage = "evaluate", status = "supported", claim = "point_only" },
  { name = "antecedent.analysis.compiled_joint_cells_learners.Study.compile_joint_cells_learners", stage = "prepare", status = "supported", claim = "point_only" },
  { name = "antecedent.analysis.compiled_joint_cells_learners.CompiledJointCellsLearners.execute", stage = "evaluate", status = "supported", claim = "point_only" },
 ]
@@ -4770,6 +4788,8 @@ fixtures = [
  { id = "estimate.joint_cells_caller_learners.built_in_learner.negative", role = "negative", intent = "A built-in learner specification beside the caller learners refuses at compile (option_not_applicable, joint_cells_caller_learners.built_in_learner_declared), as the direct kernel refuses the combination before fitting.", evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs", evidence_assertion = "a_built_in_learner_beside_caller_learners_refuses_through_the_compiled_route" },
  { id = "estimate.joint_cells_caller_learners.identity_binds_inputs.artifact", role = "artifact", intent = "No wire artifact is emitted, so this is the identity re-derivation: the same request lowers to the same identity, and changed learners, rows, seed or orderings change it.", evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs", evidence_assertion = "the_joint_cells_program_identity_binds_the_rows_the_query_and_the_learners" },
  { id = "estimate.joint_cells_caller_learners.calibration_label.invariance", role = "invariance", intent = "A factory fit carries the calibration label of its declared learners, which differs between declarations.", evidence_test = "crates/antecedent/tests/compiled_twins_trial_joint_learners.rs", evidence_assertion = "a_joint_cells_factory_fit_carries_the_calibration_label_of_its_declared_learners" },
+ { id = "estimate.joint_cells_caller_learners.python_known_cell_means.positive", role = "positive", intent = "Python surface: analyze_joint_cells with a caller least-squares outcome learner and a caller logistic propensity recovers each planted cell mean 0.4 c + 1{c = 3} + 0.25 within 0.05, point-only.", evidence_test = "python/tests/test_compiled_joint_cells_learners.py", evidence_assertion = "test_caller_learners_recover_the_known_cell_means" },
+ { id = "estimate.joint_cells_caller_learners.python_not_portable.negative", role = "negative", intent = "Python surface: a provider that does not return portable prediction maps is refused at declaration (dose_response.learner_not_portable).", evidence_test = "python/tests/test_compiled_joint_cells_learners.py", evidence_assertion = "test_a_non_portable_learner_is_refused_at_declaration" },
 ]
 
 [[record]]

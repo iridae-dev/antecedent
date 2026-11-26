@@ -4,16 +4,17 @@
 //! dataclasses. A refusal keeps its registered reason code and structured fields; an interval
 //! request and a machine-learning nuisance are refused before any data is read.
 
+use antecedent::data::TableView;
 use antecedent::estimate::{
-    CellStatus, DEFAULT_RIDGE_GRID, EstimationError, FactorizedJointConfig, FactorizedJointFit,
-    JointCellReport, JointContrast, RidgeTuning, declared_joint_nuisance, orderings_for,
+    declared_joint_nuisance, orderings_for, CellStatus, EstimationError, FactorizedJointConfig,
+    FactorizedJointFit, JointCellReport, JointContrast, RidgeTuning, DEFAULT_RIDGE_GRID,
 };
 use antecedent::{
-    CausalError, ConstituentRole, DerivedTreatmentDeclaration, check_derived_treatment,
-    estimate_derived_joint_cells, estimate_joint_cell_cost,
+    check_derived_treatment, estimate_derived_joint_cells, estimate_joint_cell_cost, CausalError,
+    ConstituentRole, DerivedTreatmentDeclaration,
 };
 use pyo3::prelude::*;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 
 use crate::{
     detach_catch, py_err, py_execution_context_cancel, resolve_user_threads,
@@ -273,6 +274,93 @@ fn joint_cell_cost_json(
 #[pyfunction(name = "_penalty_grid_max_items")]
 fn penalty_grid_max_items() -> u64 {
     RidgeTuning::context_free_max_grid_len()
+}
+
+/// A factorized joint-cell request resolved the way `factorized_joint_cells_json` resolves it,
+/// with the built-in learner left unset so caller factories fit the cells.
+pub(crate) struct JointCallerParts {
+    pub data: antecedent::prelude::TabularData,
+    pub treatments: Vec<antecedent::prelude::VariableId>,
+    pub outcome: antecedent::prelude::VariableId,
+    pub adjustment: Vec<antecedent::prelude::VariableId>,
+    pub orderings: Vec<Vec<usize>>,
+    pub config: FactorizedJointConfig,
+    pub treatment_names: Vec<String>,
+}
+
+/// Check the declaration and bind the columns, orderings and configuration.
+///
+/// The built-in learner stays unset. Refusals of the declaration are the direct entry's.
+#[allow(clippy::too_many_arguments, reason = "the joint query's settings are independent inputs")]
+pub(crate) fn prepare_joint_caller(
+    names: Vec<String>,
+    columns: Vec<Bound<'_, PyAny>>,
+    declaration: &str,
+    outcome: &str,
+    adjustment: Vec<String>,
+    ordering: Option<Vec<String>>,
+    all_orderings: bool,
+    folds: usize,
+    seed: u64,
+    clip: f64,
+    min_cell_ess: f64,
+    normalization_tolerance: f64,
+    ordering_tolerance_sd: f64,
+    ctx: &antecedent::prelude::ExecutionContext,
+) -> PyResult<JointCallerParts> {
+    let declaration = parse_declaration(declaration)?;
+    let components: Vec<&str> = declaration
+        .sources
+        .iter()
+        .filter(|s| s.role == ConstituentRole::TreatmentConstruction)
+        .map(|s| s.name.as_str())
+        .collect();
+    let declared: Vec<usize> = match &ordering {
+        None => (0..components.len()).collect(),
+        Some(listed) => listed
+            .iter()
+            .map(|name| {
+                components.iter().position(|c| c == name).ok_or_else(|| {
+                    value_err(format!(
+                        "ordering names {name:?}, which is not a construction column"
+                    ))
+                })
+            })
+            .collect::<PyResult<_>>()?,
+    };
+    let orderings =
+        orderings_for(components.len(), &declared, all_orderings).map_err(estimation_err)?;
+    let data = tabular_from_py_columns(names, columns)?;
+    let plan =
+        check_derived_treatment(&data, &declaration, outcome, &adjustment, ctx).map_err(py_err)?;
+    let id_of = |name: &str| -> PyResult<antecedent::prelude::VariableId> {
+        data.schema().id_of(name).map_err(|error| value_err(error.to_string()))
+    };
+    let treatments =
+        plan.treatment_columns.iter().map(|name| id_of(name)).collect::<PyResult<_>>()?;
+    let adjustment = plan.adjustment.iter().map(|name| id_of(name)).collect::<PyResult<_>>()?;
+    let outcome_id = id_of(outcome)?;
+    let mut config = FactorizedJointConfig::new(RidgeTuning::default());
+    config.folds = folds;
+    config.seed = seed;
+    config.clip = clip;
+    config.min_cell_ess = min_cell_ess;
+    config.normalization_tolerance = normalization_tolerance;
+    config.ordering_tolerance_sd = ordering_tolerance_sd;
+    Ok(JointCallerParts {
+        data,
+        treatments,
+        outcome: outcome_id,
+        adjustment,
+        orderings,
+        config,
+        treatment_names: plan.treatment_columns,
+    })
+}
+
+/// The cell family as the JSON `factorized_joint_cells_json` returns, without contrasts.
+pub(crate) fn joint_fit_json(fit: &FactorizedJointFit) -> Value {
+    fit_value(fit, Vec::new())
 }
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {

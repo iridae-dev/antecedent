@@ -128,6 +128,7 @@ from ._impl import (
     replay_z_transport_proposal,
     restore_lowered_program,
 )
+from ._joint_cells_learners import JointCellsLearnersEstimate, analyze_joint_cells
 from ._joint_interval_artifact import (
     JointSensitivityIntervalArtifact,
     consume_joint_sensitivity_interval,
@@ -235,6 +236,7 @@ from ._temporal_extensions import (
     temporal_initial_state,
     temporal_new_period_refresh,
 )
+from ._trial_aipw_learners import TrialAipwLearnersEstimate, analyze_trial_aipw
 
 __all__ = [
     "AugmentedResponseGrid",
@@ -315,6 +317,10 @@ __all__ = [
     "PORTABLE_PREDICTION_MAP",
     "SmoothedDoseLearnersEstimate",
     "analyze_smoothed_dose",
+    "TrialAipwLearnersEstimate",
+    "analyze_trial_aipw",
+    "JointCellsLearnersEstimate",
+    "analyze_joint_cells",
     "ClassicalTransportIdentification",
     "ConditionalTransportQuery",
     "DirectFormula",

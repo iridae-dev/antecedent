@@ -6,7 +6,7 @@ use antecedent::identify::{
 };
 use antecedent::prelude::{ExecutionContext, VariableId};
 use pyo3::prelude::*;
-use serde::{Serialize, Serializer, ser::SerializeSeq};
+use serde::{ser::SerializeSeq, Serialize, Serializer};
 use serde_json::Value;
 use std::{
     io::{self, Write},

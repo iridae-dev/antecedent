@@ -15,7 +15,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 use super::{
-    CallbackState, PythonFactory, PythonReceipt, admission_error, callback_context, learner_weights,
+    admission_error, callback_context, learner_weights, CallbackState, PythonFactory, PythonReceipt,
 };
 
 /// The configured estimator a declared-learner study runs.

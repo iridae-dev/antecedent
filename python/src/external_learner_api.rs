@@ -1,8 +1,8 @@
 //! Row-isolated Python provider factories for the native AIPW cross-fit.
 use std::borrow::Cow;
 use std::sync::{
-    Arc, Mutex,
     atomic::{AtomicU64, Ordering},
+    Arc, Mutex,
 };
 
 use antecedent::estimate::external_learner::{
@@ -10,13 +10,15 @@ use antecedent::estimate::external_learner::{
     LearnerProvenance, PredictionTask, TargetView,
 };
 use antecedent::prelude::ExecutionContext;
-use numpy::{PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2, ndarray::Array2};
+use numpy::{ndarray::Array2, PyArray1, PyArray2, PyReadonlyArray1, PyReadonlyArray2};
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 type PythonReceipt = (u64, Py<PyAny>, Py<PyAny>);
 mod declared;
+mod joint_cells;
 mod smoothed_dose;
+mod trial_aipw;
 
 #[derive(Default)]
 struct CallbackState {
@@ -326,7 +328,10 @@ fn external_aipw_crossfit(
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(external_aipw_crossfit, module)?)?;
     module.add_function(wrap_pyfunction!(declared::declared_learner_ate, module)?)?;
-    module.add_function(wrap_pyfunction!(smoothed_dose::smoothed_dose_learner_transport, module)?)
+    module
+        .add_function(wrap_pyfunction!(smoothed_dose::smoothed_dose_learner_transport, module)?)?;
+    module.add_function(wrap_pyfunction!(trial_aipw::trial_aipw_learner_transport, module)?)?;
+    module.add_function(wrap_pyfunction!(joint_cells::joint_cells_learner_fit, module)?)
 }
 
 fn copy_numeric_array(values: &PyReadonlyArray1<'_, f64>) -> Vec<f64> {

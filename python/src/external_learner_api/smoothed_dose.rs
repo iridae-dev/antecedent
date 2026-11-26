@@ -10,23 +10,23 @@
 //! fit receipt of every fold is returned.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::{Arc, atomic::Ordering};
+use std::sync::{atomic::Ordering, Arc};
 
-use antecedent::Study;
 use antecedent::analysis::compiled_smoothed_dose_learners::SmoothedDoseLearnersRequest;
 use antecedent::analysis::declared_learners::LearnerFactories;
 use antecedent::analysis::portable_learner_fit::portable_fit;
-use antecedent::estimate::SmoothedDoseOptions;
 use antecedent::estimate::external_learner::{
     DesignView, FittedPredictor, LearnError, LearnerCapabilities, LearnerFactory,
     LearnerProvenance, PredictionTask, TargetView,
 };
+use antecedent::estimate::SmoothedDoseOptions;
 use antecedent::prelude::ExecutionContext;
+use antecedent::Study;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
 
 use super::{
-    CallbackState, PythonReceipt, callback_bytes, callback_context, fit_columns, learner_weights,
+    callback_bytes, callback_context, fit_columns, learner_weights, CallbackState, PythonReceipt,
 };
 
 /// A registered Python provider whose fits are portable prediction maps.
@@ -91,6 +91,40 @@ impl LearnerFactory for PortablePythonFactory {
     }
 }
 
+/// Outcome and treatment factories whose fits are portable prediction maps, plus the
+/// receipt log those fits append to.
+pub(super) fn portable_factories(
+    py: Python<'_>,
+    outcome: Py<PyAny>,
+    treatment: Py<PyAny>,
+    identity: String,
+) -> PyResult<(LearnerFactories, Arc<CallbackState>)> {
+    let outcome_weights = learner_weights(py, &outcome, "regression")?;
+    let treatment_weights = learner_weights(py, &treatment, "binary_probability")?;
+    let portable =
+        |obj: &Py<PyAny>| -> PyResult<bool> { obj.bind(py).getattr("portable")?.extract() };
+    let declared = portable(&outcome)? && portable(&treatment)?;
+    let state = Arc::new(CallbackState::default());
+    let learners = LearnerFactories::new(
+        Arc::new(PortablePythonFactory {
+            learner: outcome,
+            task: PredictionTask::Regression,
+            weights: outcome_weights,
+            state: Arc::clone(&state),
+        }),
+        Arc::new(PortablePythonFactory {
+            learner: treatment,
+            task: PredictionTask::BinaryProbability,
+            weights: treatment_weights,
+            state: Arc::clone(&state),
+        }),
+        identity,
+    )
+    .map_err(crate::py_err)?
+    .declared_portability(declared);
+    Ok((learners, state))
+}
+
 /// What `smoothed_dose_learner_transport` returns: the compiled run as JSON and one
 /// `(fit id, fit receipt, None)` per provider fit.
 type SmoothedDoseLearnersPayload = (String, Vec<PythonReceipt>);
@@ -119,37 +153,14 @@ pub(super) fn smoothed_dose_learner_transport(
     cancel: Option<crate::PyCancellationToken>,
     memory_limit_bytes: Option<u64>,
 ) -> PyResult<SmoothedDoseLearnersPayload> {
-    let outcome_weights = learner_weights(py, &outcome, "regression")?;
-    let membership_weights = learner_weights(py, &membership, "binary_probability")?;
-    let portable =
-        |obj: &Py<PyAny>| -> PyResult<bool> { obj.bind(py).getattr("portable")?.extract() };
-    let outcome_portable = portable(&outcome)?;
-    let membership_portable = portable(&membership)?;
+    let (learners, state) = portable_factories(py, outcome, membership, identity)?;
     let (diagram, query) = crate::smoothed_dose_api::build(graph, &selections, query)?;
     let input = crate::smoothed_dose_api::parse_input(data, &graph.names)?;
     let options: SmoothedDoseOptions =
         serde_json::from_str(options).map_err(|e| crate::value_err(e.to_string()))?;
     let names = graph.names.clone();
-    let state = Arc::new(CallbackState::default());
     let ctx = callback_context(seed, cancel, memory_limit_bytes)?;
     let result: PyResult<String> = py.detach(|| {
-        let learners = LearnerFactories::new(
-            Arc::new(PortablePythonFactory {
-                learner: outcome,
-                task: PredictionTask::Regression,
-                weights: outcome_weights,
-                state: Arc::clone(&state),
-            }),
-            Arc::new(PortablePythonFactory {
-                learner: membership,
-                task: PredictionTask::BinaryProbability,
-                weights: membership_weights,
-                state: Arc::clone(&state),
-            }),
-            identity,
-        )
-        .map_err(crate::py_err)?
-        .declared_portability(outcome_portable && membership_portable);
         let compiled = Study::compile_smoothed_dose_learners(
             SmoothedDoseLearnersRequest::new(diagram, query, input, options, learners),
             &ctx,

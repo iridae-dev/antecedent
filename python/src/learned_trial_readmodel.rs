@@ -3,7 +3,7 @@ use super::PreparedLearnedTrial;
 use antecedent::identify::{TransportCertificate, TransportFormula, TransportIdentification};
 use antecedent::{LearnedTrialState, PreparedStudy};
 use pyo3::{prelude::*, types::PyString};
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use std::sync::Arc;
 
 #[pyclass(name = "TrialIdentificationView", frozen)]

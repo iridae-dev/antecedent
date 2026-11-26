@@ -12,7 +12,7 @@ mod readmodel;
 fn err(e: impl crate::transport_common::TransportPyErr) -> PyErr {
     crate::transport_common::error(e)
 }
-fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
+pub(crate) fn parse_input(data: &Bound<'_, PyAny>, names: &[String]) -> PyResult<TrialAipwInput> {
     if data.hasattr("_buffers")? {
         return crate::transport_buffers::trial(data, names, false);
     }
@@ -249,7 +249,7 @@ impl PreparedLearnedTrial {
     }
 }
 #[allow(clippy::cast_possible_truncation, reason = "graph node ids fit u32 by construction")]
-fn trial_request(
+pub(crate) fn trial_request(
     graph: &crate::graphs::Admg,
     selections: Vec<String>,
     source: String,
