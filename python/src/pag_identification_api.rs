@@ -10,8 +10,8 @@ use antecedent::estimate::{
 use antecedent::graph::{DenseNodeId, MiddleMark};
 use antecedent::prelude::{Value, VariableId};
 use antecedent::reason::reason_code;
+use antecedent::reason::reason_details::pag_identification;
 use antecedent::schema::RegimeId;
-use antecedent::reason::reason_details::pag_identification as details;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use serde_json::json;
@@ -27,15 +27,15 @@ fn fail(error: &PagReplayError) -> String {
     let (code, detail) = match error {
         PagReplayError::Identification(
             PagIdError::Budget(_) | PagIdError::Depth { .. } | PagIdError::Admission(_),
-        ) => (reason_code!("route_not_supported"), details::RESOURCE_EXHAUSTED),
+        ) => (reason_code!("route_not_supported"), pag_identification::RESOURCE_EXHAUSTED),
         PagReplayError::Identification(PagIdError::Cancelled) => {
-            (reason_code!("cancelled_no_claim"), details::CANCELLED)
+            (reason_code!("cancelled_no_claim"), pag_identification::CANCELLED)
         }
-        PagReplayError::Unsupported(why) => (why.code(), details::NOT_SUPPORTED),
+        PagReplayError::Unsupported(why) => (why.code(), pag_identification::NOT_SUPPORTED),
         PagReplayError::Evaluation(_) => {
-            (reason_code!("invalid_argument"), details::EXACT_EVALUATION_REFUSED)
+            (reason_code!("invalid_argument"), pag_identification::EXACT_EVALUATION_REFUSED)
         }
-        _ => (reason_code!("invalid_argument"), details::INVALID_DECLARATION),
+        _ => (reason_code!("invalid_argument"), pag_identification::INVALID_DECLARATION),
     };
     RefusalJson::new(code, "pag_identification", detail, &error.to_string()).json()
 }

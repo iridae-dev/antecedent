@@ -474,18 +474,27 @@ fn visible_nonnull_effect_matches_the_completion_route_and_shared_oracle() {
 #[test]
 fn retained_search_stop_replays_under_its_original_budget() {
     use antecedent::analysis::pag_identification::PagResourceStop;
+    use antecedent_core::{SearchBudget, SearchLimits, SearchStop};
     let plan = compile_pag_identification(fixture("conditional_obstruction")).unwrap();
     let ctx = ExecutionContext::for_tests(90);
     let short = ctx.clone().with_id_work_limit(2);
     let stopped = plan.execute_retaining_stop(&short).unwrap();
+    let limits = SearchLimits { operations: 2, depth: 1 };
+    let mut reference = SearchBudget::new(limits, &short).unwrap();
+    reference.charge(0, 0).unwrap();
+    reference.charge(0, 0).unwrap();
+    let stop = reference.charge(0, 0).unwrap_err();
+    assert_eq!(stop, SearchStop::Operations);
+    let receipt = reference.receipt(stop, Vec::new(), Vec::new());
     assert!(matches!(
         stopped.proof(),
         PagIdentificationProof::ResourceStop {
             limit: PagResourceStop::Work,
-            work: 2,
-            work_limit: 2,
+            work,
+            work_limit,
             depth_limit: None,
-        }
+        } if Some(*work as usize) == receipt.operations_consumed
+            && *work_limit as usize == receipt.operations_limit
     ));
     let problem = stopped.problem();
     let mass = 0.5_f64.powi(i32::try_from(problem.graph.node_count).unwrap());
