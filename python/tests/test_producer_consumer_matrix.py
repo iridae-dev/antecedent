@@ -884,6 +884,8 @@ class Transported:
 
 def _transported(population: str = "pop") -> Transported:
     """Unconfounded ``X -> Y`` with joint law ``(1/4, 1/4, 1/8, 3/8)`` over ``(x, y)``."""
+    regime = f"{population}|obs"
+    snapshot = f"snap|{regime}"
     graph = Admg.from_edges(["X", "Y"], [("X", "Y")], [])
     catalog = transport.EvidenceCatalog(
         regimes=(
