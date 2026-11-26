@@ -234,6 +234,10 @@ pub(super) fn replay_delayed_entry_survival(
         }
     }
     if !same_summary(&summary, curve)
+        || curve.minimum_horizon_risk_set.is_some_and(|stored| {
+            antecedent_stats::survival::delayed_entry_horizon_risk_set(&rows, query.tau)
+                != Some(stored)
+        })
         || interval.rmst_difference.map(|values| values.map(f64::to_bits))
             != curve.rmst_difference_interval.map(|values| values.map(f64::to_bits))
         || curve.assignment_counts != Some([duration.len() - active_count, active_count])

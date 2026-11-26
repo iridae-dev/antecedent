@@ -270,6 +270,7 @@ impl SupportedWire for SurvivalEstimate {
             target_cause: self.target_cause,
             tau: self.tau,
             minimum_event_risk_set: self.minimum_event_risk_set,
+            minimum_horizon_risk_set: self.minimum_horizon_risk_set,
             uncertainty: self.uncertainty.to_string(),
             rmst_difference_interval: self.rmst_difference_interval,
             difference_at_tau_interval: self.difference_at_tau_interval,

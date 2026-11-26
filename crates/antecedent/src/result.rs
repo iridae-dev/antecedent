@@ -661,6 +661,8 @@ pub struct SurvivalEstimate {
     pub tau: f64,
     /// Smallest event risk set seen in either arm.
     pub minimum_event_risk_set: Option<usize>,
+    /// Smallest arm risk set at the horizon of a delayed-entry incidence result.
+    pub minimum_horizon_risk_set: Option<usize>,
     /// Explicit uncertainty statement for the scalar contrasts.
     pub uncertainty: Arc<str>,
     /// Pointwise 95% subject-bootstrap RMST difference interval, when requested.

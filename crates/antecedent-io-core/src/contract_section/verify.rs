@@ -1498,13 +1498,21 @@ fn survival_calibration_basis_matches(
                 Some(band.replicates_ok),
             )
         }
-        "percentile_bootstrap" if curve.difference_band.is_none() && curve.difference_at_tau_interval.is_some() => (
-            incidence_calibration_functional(
-                query, curve.minimum_event_risk_set, curve.bootstrap_replicates_ok,
-                curve.assignment_counts,
-            ),
-            curve.bootstrap_replicates_ok,
-        ),
+        "percentile_bootstrap"
+            if curve.difference_band.is_none() && curve.difference_at_tau_interval.is_some() =>
+        {
+            (
+                incidence_calibration_functional(
+                    query,
+                    curve.minimum_event_risk_set,
+                    curve.minimum_horizon_risk_set,
+                    curve.bootstrap_replicates_requested,
+                    curve.bootstrap_replicates_ok,
+                    curve.assignment_counts,
+                ),
+                curve.bootstrap_replicates_ok,
+            )
+        }
         _ => return false,
     };
     functional.as_deref() == Some(basis.key.functional.as_str())

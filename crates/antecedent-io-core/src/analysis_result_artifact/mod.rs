@@ -1124,6 +1124,9 @@ pub struct SurvivalWire {
     pub tau: f64,
     /// Smallest event risk set in either arm.
     pub minimum_event_risk_set: Option<usize>,
+    /// Smallest arm risk set at the horizon of a delayed-entry incidence result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minimum_horizon_risk_set: Option<usize>,
     /// Explicit uncertainty semantics for the scalar contrasts.
     pub uncertainty: String,
     /// Pointwise RMST treatment-minus-control interval when requested.

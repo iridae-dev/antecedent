@@ -118,6 +118,23 @@ pub struct SurvivalDifferenceBand {
 
 /// Minimum event-time and horizon risk-set size for delayed-entry bands.
 pub const DELAYED_ENTRY_BAND_MIN_RISK_SET: usize = 25;
+/// Minimum requested draws that enter a whole-grid survival band design.
+pub const SURVIVAL_BAND_MIN_REPLICATES: u32 = 399;
+
+/// Smallest observed arm risk set at the horizon under strict delayed entry.
+///
+/// Returns `None` when the sample has no delayed-entry column.
+#[must_use]
+pub fn delayed_entry_horizon_risk_set(rows: &SurvivalRows<'_>, tau: f64) -> Option<usize> {
+    let entry = rows.delayed_entry?;
+    let mut counts = [0_usize; 2];
+    for ((&duration, &entered), &treated) in rows.duration.iter().zip(entry).zip(rows.treated) {
+        if entered < tau && duration >= tau {
+            counts[usize::from(treated)] += 1;
+        }
+    }
+    counts.into_iter().min()
+}
 /// Minimum observed subjects per arm for a delayed-entry band with marginal or fixed-G observation.
 #[must_use]
 pub const fn delayed_entry_band_min_arm(fixed_known_censoring: bool) -> usize {
@@ -189,7 +206,7 @@ pub fn randomized_survival_bootstrap_difference_band_with_observation(
     cancelled: impl Fn() -> bool,
 ) -> Result<SurvivalDifferenceBand, &'static str> {
     let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
-    if !(399..=100_000).contains(&replicates) {
+    if !(SURVIVAL_BAND_MIN_REPLICATES..=100_000).contains(&replicates) {
         return Err("survival simultaneous band requires 399 to 100000 replicates");
     }
     if duration.len() != event_code.len()
@@ -231,12 +248,7 @@ pub fn randomized_survival_bootstrap_difference_band_with_observation(
         );
     }
     let original = summarize(rows, known_censoring)?;
-    let minimum_horizon_risk_set = delayed_entry.map(|entry| {
-        arms.iter()
-            .map(|arm| arm.iter().filter(|&&i| duration[i] >= tau && entry[i] < tau).count())
-            .min()
-            .unwrap_or(0)
-    });
+    let minimum_horizon_risk_set = delayed_entry_horizon_risk_set(rows, tau);
     if let Some(entry) = delayed_entry
         && (original.minimum_event_risk_set.is_none()
             || !band_grid_has_risk_sets(
@@ -311,7 +323,7 @@ pub fn randomized_survival_bootstrap_difference_band_with_observation(
     let ok = bootstrap_support_count(
         suprema.len(),
         replicates,
-        399,
+        SURVIVAL_BAND_MIN_REPLICATES,
         "too many survival band draws",
         "survival simultaneous band lost more than 10% of subject draws to support failures",
     )?;

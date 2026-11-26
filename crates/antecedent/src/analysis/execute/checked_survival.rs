@@ -271,8 +271,15 @@ impl CheckedSurvivalOperation {
                 })).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
+        let minimum_horizon_risk_set =
+            if !conditional && matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }) {
+                antecedent_stats::survival::delayed_entry_horizon_risk_set(&rows, self.query.tau)
+            } else {
+                None
+            };
         result.payload = crate::result::ResultPayload::Survival(self.survival_payload(
             summary,
+            minimum_horizon_risk_set,
             intervals.as_ref(),
             minimum_censoring_survival,
             assignment_counts,
@@ -415,7 +422,9 @@ impl CheckedSurvivalOperation {
         let bootstrap_replicates = self.extra.0;
         if bootstrap_replicates == 0 {
             (None, None)
-        } else if rows.delayed_entry.is_some() && bootstrap_replicates < 399 {
+        } else if rows.delayed_entry.is_some()
+            && bootstrap_replicates < antecedent_stats::survival::SURVIVAL_BAND_MIN_REPLICATES
+        {
             (
                 None,
                 Some(Arc::from(
@@ -500,6 +509,7 @@ impl CheckedSurvivalOperation {
     fn survival_payload(
         &self,
         summary: RandomizedSurvivalSummary,
+        minimum_horizon_risk_set: Option<usize>,
         intervals: Option<&SurvivalBootstrapIntervals>,
         minimum_censoring_survival: Option<f64>,
         assignment_counts: [usize; 2],
@@ -522,6 +532,7 @@ impl CheckedSurvivalOperation {
             },
             tau: self.query.tau,
             minimum_event_risk_set: summary.minimum_event_risk_set,
+            minimum_horizon_risk_set,
             uncertainty: Arc::from(if conditional_draws.is_some() {
                 STRATIFIED_CENSORING_BAND
             } else if intervals.is_some() {
@@ -558,8 +569,8 @@ impl CheckedSurvivalOperation {
         intervals: Option<&SurvivalBootstrapIntervals>,
     ) {
         use antecedent_io::graphless_support::{
-            GraphlessResampleSupport, INCIDENCE_MIN_EVENT_RISK_SET, graphless_admits_resampled,
-            survival_pointwise_key,
+            GraphlessResampleSupport, delayed_entry_incidence_support_profile,
+            graphless_admits_resampled, survival_pointwise_key,
         };
         let (Some(intervals), Some(curve)) = (intervals, result.survival()) else { return };
         let incidence = curve.target_cause.is_some();
@@ -571,7 +582,12 @@ impl CheckedSurvivalOperation {
         if intervals.replicates_ok < 299
             || (incidence
                 && (curve.difference_band.is_some()
-                    || curve.minimum_event_risk_set.unwrap_or(0) < INCIDENCE_MIN_EVENT_RISK_SET))
+                    || !delayed_entry_incidence_support_profile(
+                        curve.minimum_event_risk_set,
+                        curve.minimum_horizon_risk_set,
+                        curve.bootstrap_replicates_requested,
+                        curve.bootstrap_replicates_ok,
+                    )))
         {
             return;
         }

@@ -9,7 +9,7 @@ use super::{
     interval_bound_replay,
 };
 use crate::graphless_support::{
-    GraphlessResampleSupport, INCIDENCE_MIN_EVENT_RISK_SET, graphless_admits_resampled,
+    GraphlessResampleSupport, delayed_entry_incidence_support_profile, graphless_admits_resampled,
     survival_band_key, survival_pointwise_key,
 };
 use antecedent_stats::survival::{DELAYED_ENTRY_BAND_MIN_RISK_SET, delayed_entry_band_min_arm};
@@ -431,7 +431,12 @@ fn survival_support(
         && replicates_ok >= 299
         && (!incidence
             || (curve.difference_band.is_none()
-                && curve.minimum_event_risk_set.unwrap_or(0) >= INCIDENCE_MIN_EVENT_RISK_SET))
+                && delayed_entry_incidence_support_profile(
+                    curve.minimum_event_risk_set,
+                    curve.minimum_horizon_risk_set,
+                    curve.bootstrap_replicates_requested,
+                    curve.bootstrap_replicates_ok,
+                )))
         && curve.assignment_counts.is_some_and(|[control, treated]| {
             scalar_key.is_some_and(|key| {
                 graphless_admits_resampled(
@@ -648,6 +653,12 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
             .chain(curve.treated.iter())
             .any(|v| !v.is_finite() || !(0.0..=1.0).contains(v))
         || curve.minimum_event_risk_set == Some(0)
+        || curve.minimum_horizon_risk_set.is_some_and(|risk| {
+            query.target_cause.is_none()
+                || query.delayed_entry.is_none()
+                || query.stratified_censoring.is_some()
+                || curve.assignment_counts.is_none_or(|[a, b]| risk > a.min(b))
+        })
         || (query.target_cause.is_some()
             && (curve.rmst_control.is_some()
                 || curve.rmst_treated.is_some()

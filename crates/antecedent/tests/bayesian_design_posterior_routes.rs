@@ -262,6 +262,7 @@ fn frequentist_section() -> antecedent_io::SurvivalWire {
         target_cause: None,
         tau: 3.0,
         minimum_event_risk_set: Some(1),
+        minimum_horizon_risk_set: None,
         uncertainty: "point_only_no_interval".into(),
         rmst_difference_interval: None,
         difference_at_tau_interval: None,

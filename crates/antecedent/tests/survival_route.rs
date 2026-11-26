@@ -956,11 +956,55 @@ fn delayed_entry_band_withholds_when_the_other_arm_lacks_risk_at_an_event_knot()
     assert!(curve.band_unavailable_reason.as_deref().unwrap().contains("25 at-risk subjects"));
 }
 
+#[test]
+fn delayed_entry_incidence_support_checks_horizon_risk_and_scalar_design() {
+    use antecedent::support::CellStatus;
+
+    for fixed_known in [false, true] {
+        for (at_horizon, draws, scalar_supported) in
+            [(24, 299, false), (25, 299, true), (25, 398, true), (25, 399, false), (24, 399, false)]
+        {
+            let (prepared, data, ctx) =
+                delayed_entry_curve_fixture(fixed_known, true, Some(at_horizon), false, draws);
+            let result = prepared.estimate(&data, &ctx).unwrap();
+            let curve = result.survival().unwrap();
+            assert_eq!(curve.minimum_horizon_risk_set, Some(at_horizon));
+            assert!(curve.minimum_event_risk_set.unwrap() >= 25);
+            assert!(curve.difference_at_tau_interval.is_some());
+            assert_eq!(result.support_status() == Some(CellStatus::Supported), scalar_supported);
+
+            let bytes = prepared
+                .encode_contracted_result_with_source(&result, &data, "scalar-scope", &ctx)
+                .unwrap();
+            let loaded = antecedent_io::load_analysis_result(&bytes).unwrap();
+            assert!(loaded.replay(&antecedent_io::ReplayOptions::default()).replayed());
+            let claim = loaded.contract.as_ref().unwrap().claim.as_ref().unwrap();
+            let key = &claim.calibration.basis.as_ref().unwrap().key.functional;
+            if curve.difference_band.is_some() {
+                assert!(key.starts_with("difference_band+"));
+            } else {
+                assert!(key.starts_with("incidence_difference+"));
+                assert_eq!(key.ends_with("+scope=insufficient"), !scalar_supported);
+            }
+        }
+    }
+}
+
 fn delayed_entry_band_fixture(
     fixed_known: bool,
     incidence: bool,
     thin_tail: bool,
     revised: bool,
+) -> (antecedent::PreparedStudy, TabularData, ExecutionContext) {
+    delayed_entry_curve_fixture(fixed_known, incidence, thin_tail.then_some(20), revised, 399)
+}
+
+fn delayed_entry_curve_fixture(
+    fixed_known: bool,
+    incidence: bool,
+    maximum_tail: Option<usize>,
+    revised: bool,
+    draws: u32,
 ) -> (antecedent::PreparedStudy, TabularData, ExecutionContext) {
     let (mut duration, mut event, mut treatment, mut entry, mut known) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
@@ -971,7 +1015,7 @@ fn delayed_entry_band_fixture(
                 (1.0, 1.0, 0.0, 0.5)
             } else if index < first + 40 {
                 (2.0, if incidence { 2.0 } else { 1.0 }, 1.0, 0.5)
-            } else if thin_tail && index < 180 {
+            } else if maximum_tail.is_some_and(|tail| index < 200 - tail) {
                 (2.0, 0.0, 0.0, 0.8)
             } else if revised && !arm && index == 199 {
                 (2.0, 1.0, 0.0, 0.8)
@@ -1012,7 +1056,7 @@ fn delayed_entry_band_fixture(
     let ctx = ExecutionContext::for_tests(5_167);
     let prepared = Study::tabular(data.clone())
         .query(CausalQuery::Survival(query))
-        .bootstrap_replicates(399)
+        .bootstrap_replicates(draws)
         .build()
         .unwrap()
         .prepare(&ctx)

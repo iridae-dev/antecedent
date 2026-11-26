@@ -232,12 +232,36 @@ pub const fn incidence_min_arm(fixed_known_censoring: bool) -> usize {
     if fixed_known_censoring { 200 } else { 160 }
 }
 
+/// Release scope of the standalone delayed-entry pointwise incidence interval.
+///
+/// The registered designs use 299 arm-stratified draws. Requests that reach the
+/// band threshold enter the separate whole-grid procedure, even if its band is
+/// later withheld. Both observed event and restriction-horizon risk sets must
+/// reach the delayed-entry risk-set floor.
+#[doc(hidden)]
+#[must_use]
+pub fn delayed_entry_incidence_support_profile(
+    event_risk: Option<usize>,
+    horizon_risk: Option<usize>,
+    requested: Option<u32>,
+    completed: Option<u32>,
+) -> bool {
+    event_risk.is_some_and(|risk| risk >= INCIDENCE_MIN_EVENT_RISK_SET)
+        && horizon_risk.is_some_and(|risk| risk >= INCIDENCE_MIN_EVENT_RISK_SET)
+        && requested.is_some_and(|requested| {
+            requested < antecedent_stats::survival::SURVIVAL_BAND_MIN_REPLICATES
+        })
+        && completed.is_some_and(|completed| completed >= 299)
+}
+
 /// Calibration target for a delayed-entry incidence contrast at an exact cause and horizon.
 #[doc(hidden)]
 #[must_use]
 pub fn incidence_calibration_functional(
     query: &crate::query_wire::SurvivalQueryWire,
     minimum_event_risk_set: Option<usize>,
+    minimum_horizon_risk_set: Option<usize>,
+    replicates_requested: Option<u32>,
     replicates_ok: Option<u32>,
     assignment_counts: Option<[usize; 2]>,
 ) -> Option<String> {
@@ -248,11 +272,14 @@ pub fn incidence_calibration_functional(
     query.delayed_entry?;
     let fixed_known = !query.censoring_columns.is_empty();
     let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
-    let support = if minimum_event_risk_set.unwrap_or(0) >= INCIDENCE_MIN_EVENT_RISK_SET
-        && replicates_ok.unwrap_or(0) >= 299
-        && assignment_counts.is_some_and(|[control, treated]| {
-            control.min(treated) >= incidence_min_arm(fixed_known)
-        }) {
+    let support = if delayed_entry_incidence_support_profile(
+        minimum_event_risk_set,
+        minimum_horizon_risk_set,
+        replicates_requested,
+        replicates_ok,
+    ) && assignment_counts
+        .is_some_and(|[control, treated]| control.min(treated) >= incidence_min_arm(fixed_known))
+    {
         ""
     } else {
         "+scope=insufficient"

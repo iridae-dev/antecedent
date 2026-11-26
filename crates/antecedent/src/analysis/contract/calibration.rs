@@ -385,8 +385,14 @@ impl StudyResult {
                             antecedent_io::graphless_support::survival_band_calibration_functional(query, counts),
                         IntervalMethod::PercentileBootstrap =>
                             antecedent_io::graphless_support::incidence_calibration_functional(
-                                query, curve.minimum_event_risk_set, curve.bootstrap_replicates_ok, counts,
-                            ),
+                                query,
+                                curve.minimum_event_risk_set,
+                                curve.minimum_horizon_risk_set,
+                                curve.bootstrap_replicates_requested,
+                                curve.bootstrap_replicates_ok,
+                                counts,
+                            )
+                        }
                         _ => None,
                     }
                 });
