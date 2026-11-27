@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tomllib
 from itertools import product
 from pathlib import Path
 
@@ -233,10 +234,7 @@ def transport_limitations(graph: str, structure: str, inference: str, validation
                 "fixture gives in closed form (mean 2, variance 16/3); fitted-probability "
                 "uncertainty is not propagated."
             )
-    parts.append(
-        "RecursiveFactorization and NotCertified refuse. The calibration slot stays not_measured "
-        "(estimator_grid_not_measured): no coverage of the reported interval is claimed."
-    )
+    parts.append("RecursiveFactorization and NotCertified refuse.")
     text = " ".join(parts)
     planted = (
         "and on one series four rows carry too little information for the batch-means test to "
@@ -304,10 +302,6 @@ def interference_limitations(graph: str, structure: str, inference: str, validat
             "model y = 2 + 3 own + 4 treated neighbors (contrast -1 within 0.08) on the pinned "
             "four-unit network."
         )
-    parts.append(
-        "The calibration slot stays not_measured (estimator_grid_not_measured): no coverage of "
-        "the reported interval is claimed."
-    )
     return " ".join(parts) + INTERFERENCE_SUITE_TEXT[validation]
 
 
@@ -315,7 +309,36 @@ def toml_string(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def render_row(query: str, graph: str, structure: str, inference: str, validation: str) -> str:
+def bound_calibration(text: str) -> dict[tuple[str, str, str, str, str], list[str]]:
+    """The calibration lines each generated cell carries now.
+
+    The collector binds a cell's coverage records (`scripts/collect_coverage_records.py`);
+    the generator owns the rest of the row and keeps those lines as they are."""
+    if BEGIN not in text or END not in text:
+        return {}
+    block = text.split(BEGIN, 1)[1].split(END, 1)[0]
+    cells = tomllib.loads(block).get("cell", [])
+    bound = {}
+    for cell in cells:
+        key = tuple(cell[k] for k in ("query", "graph_class", "structure", "inference", "validation"))
+        lines = []
+        if cell.get("calibration"):
+            ids = ", ".join(toml_string(rid) for rid in cell["calibration"])
+            lines.append(f"calibration = [{ids}]")
+        if cell.get("calibration_reason"):
+            lines.append(f"calibration_reason = {toml_string(cell['calibration_reason'])}")
+        bound[key] = lines
+    return bound
+
+
+def render_row(
+    query: str,
+    graph: str,
+    structure: str,
+    inference: str,
+    validation: str,
+    calibration: list[str] | None = None,
+) -> str:
     estimator = ESTIMATOR[(query, inference)]
     limitations = (
         transport_limitations(graph, structure, inference, validation)
@@ -340,8 +363,9 @@ def render_row(query: str, graph: str, structure: str, inference: str, validatio
         f"assertion = {toml_string(CHECKED[query])} }},",
         "]",
         f"limitations = {toml_string(limitations)}",
-        'calibration_reason = "estimator_grid_not_measured"',
     ]
+    # A cell no record is bound to yet has measured nothing.
+    lines.extend(calibration or ['calibration_reason = "estimator_grid_not_measured"'])
     return "\n".join(lines)
 
 
@@ -357,8 +381,9 @@ def coordinates() -> list[tuple[str, str, str, str, str]]:
     return seen
 
 
-def render_block() -> str:
-    rows = [render_row(*coordinate) for coordinate in coordinates()]
+def render_block(text: str) -> str:
+    bound = bound_calibration(text)
+    rows = [render_row(*coordinate, bound.get(coordinate)) for coordinate in coordinates()]
     return BEGIN + "\n\n" + "\n\n".join(rows) + "\n\n" + END + "\n"
 
 
@@ -383,8 +408,8 @@ def main() -> int:
         for coordinate in coordinates():
             print(":".join(coordinate))
         return 0
-    block = render_block()
     text = current_text()
+    block = render_block(text)
     expected = splice(text, block)
     if args.check:
         if expected != text:

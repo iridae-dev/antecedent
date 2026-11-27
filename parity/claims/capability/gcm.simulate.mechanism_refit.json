@@ -16,5 +16,28 @@
   ],
   "id": "gcm.simulate.mechanism_refit",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.simulate.dag.bayesian.posterior_quantile.l90.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.baseline_mean",
+    "cov.simulate.dag.bayesian.posterior_quantile.l90.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_difference",
+    "cov.simulate.dag.bayesian.posterior_quantile.l90.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.policy_mean",
+    "cov.simulate.dag.bayesian.posterior_quantile.l90.simulate_policy_value_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.baseline_mean",
+    "cov.simulate.dag.bayesian.posterior_quantile.l90.simulate_policy_value_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_difference",
+    "cov.simulate.dag.bayesian.posterior_quantile.l90.simulate_policy_value_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.policy_mean",
+    "cov.simulate.dag.bayesian.posterior_quantile.l95.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.baseline_mean",
+    "cov.simulate.dag.bayesian.posterior_quantile.l95.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_difference",
+    "cov.simulate.dag.bayesian.posterior_quantile.l95.intervention_program_shift_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.policy_mean",
+    "cov.simulate.dag.bayesian.posterior_quantile.l95.simulate_policy_value_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.baseline_mean",
+    "cov.simulate.dag.bayesian.posterior_quantile.l95.simulate_policy_value_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.mean_difference",
+    "cov.simulate.dag.bayesian.posterior_quantile.l95.simulate_policy_value_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.policy_mean",
+    "cov.simulate.dag.frequentist.bootstrap_se.l90.intervention_program_shift_dag_frequentist_bootstrap_coverage.v2_validation_not_applicable",
+    "cov.simulate.dag.frequentist.bootstrap_se.l90.simulate_policy_value_dag_frequentist_bootstrap_coverage.v2_validation_not_applicable",
+    "cov.simulate.dag.frequentist.bootstrap_se.l95.intervention_program_shift_dag_frequentist_bootstrap_coverage.v2_validation_not_applicable",
+    "cov.simulate.dag.frequentist.bootstrap_se.l95.simulate_policy_value_dag_frequentist_bootstrap_coverage.v2_validation_not_applicable",
+    "cov.simulate.temporal_dag.bayesian.posterior_quantile.l90.simulate_temporal_rollout_bayesian_block_weights_coverage.v2_validation_not_applicable.step1_y",
+    "cov.simulate.temporal_dag.bayesian.posterior_quantile.l90.simulate_temporal_rollout_bayesian_block_weights_coverage.v2_validation_not_applicable.step2_y",
+    "cov.simulate.temporal_dag.bayesian.posterior_quantile.l90.simulate_temporal_rollout_bayesian_block_weights_coverage.v2_validation_not_applicable.step3_y",
+    "cov.simulate.temporal_dag.bayesian.posterior_quantile.l95.simulate_temporal_rollout_bayesian_block_weights_coverage.v2_validation_not_applicable.step1_y",
+    "cov.simulate.temporal_dag.bayesian.posterior_quantile.l95.simulate_temporal_rollout_bayesian_block_weights_coverage.v2_validation_not_applicable.step2_y",
+    "cov.simulate.temporal_dag.bayesian.posterior_quantile.l95.simulate_temporal_rollout_bayesian_block_weights_coverage.v2_validation_not_applicable.step3_y"
+  ]
 }

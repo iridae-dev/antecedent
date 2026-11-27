@@ -12,5 +12,11 @@
   ],
   "id": "prior.composed_named_coordinates",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_composed_prior_informative_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_composed_prior_informative_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_composed_prior_misspecified_interval.v2_validation_not_applicable",
+    "cov.power_prior_selection.none.bayesian.alpha_selected_bias_aware.l95.select_alpha_prior_linear_bias_aware_interval_l95.v2_validation_not_applicable",
+    "cov.power_prior_selection.none.bayesian.alpha_selected_uniform.l95.select_alpha_prior_linear_uniform_interval_l95.v2_validation_not_applicable"
+  ]
 }

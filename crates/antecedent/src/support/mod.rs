@@ -54,6 +54,7 @@ mod tests;
 
 pub use antecedent_io::graphless_support::{
     GraphlessAssignmentSupport, GraphlessSupportKey, GraphlessSupportStatus, classify_graphless,
+    graphless_missing_evidence,
 };
 
 pub use axis::query_axis_name;

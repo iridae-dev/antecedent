@@ -8,5 +8,12 @@
   ],
   "id": "estimate.response_gam_derivative",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_frequentist_nominal_90_coverage.v2_validation_not_applicable.j_0",
+    "cov.directional_derivative.dag.frequentist.analytic_se.l90.directional_derivative_dag_frequentist_nominal_90_coverage.v2_validation_not_applicable.j_1",
+    "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.v2_validation_not_applicable.j_0",
+    "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.v2_validation_not_applicable.j_1",
+    "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.v2_validation_not_applicable.j_2",
+    "cov.response_jacobian.dag.frequentist.analytic_se.l90.response_jacobian_dag_frequentist_nominal_90_coverage.v2_validation_not_applicable.j_3"
+  ]
 }

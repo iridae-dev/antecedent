@@ -146,22 +146,51 @@ struct GraphlessUnitStatus {
     method: String,
     inference_claim: String,
     status: String,
+    #[serde(default)]
+    missing_evidence: Vec<String>,
 }
 
-/// The `(family, design, method, inference_claim)` keys whose derived status is not `supported`.
-fn not_supported_rows() -> &'static std::collections::HashSet<(String, String, String, String)> {
-    static ROWS: std::sync::OnceLock<std::collections::HashSet<(String, String, String, String)>> =
-        std::sync::OnceLock::new();
-    ROWS.get_or_init(|| owed_keys(UNIT_STATUS))
-}
+type GraphlessKey = (String, String, String, String);
 
-fn owed_keys(status: &str) -> std::collections::HashSet<(String, String, String, String)> {
+/// The `(family, design, method, inference_claim)` keys whose derived status is not
+/// `supported`, each with the evidence the snapshot lists as missing.
+fn missing_rows(status: &str) -> std::collections::HashMap<GraphlessKey, &'static [&'static str]> {
     let file: UnitStatusFile = serde_json::from_str(status).expect("graphless unit support status");
     file.graphless
         .into_iter()
         .filter(|row| row.status != "supported")
-        .map(|row| (row.family, row.design, row.method, row.inference_claim))
+        .map(|row| {
+            let evidence: &'static [&'static str] = Box::leak(
+                row.missing_evidence
+                    .into_iter()
+                    .map(|item| &*Box::leak(item.into_boxed_str()))
+                    .collect::<Vec<_>>()
+                    .into_boxed_slice(),
+            );
+            ((row.family, row.design, row.method, row.inference_claim), evidence)
+        })
         .collect()
+}
+
+fn missing_table() -> &'static std::collections::HashMap<GraphlessKey, &'static [&'static str]> {
+    static TABLE: std::sync::OnceLock<
+        std::collections::HashMap<GraphlessKey, &'static [&'static str]>,
+    > = std::sync::OnceLock::new();
+    TABLE.get_or_init(|| missing_rows(UNIT_STATUS))
+}
+
+/// The snapshot's missing evidence for a graphless row it marks `not_supported`.
+#[must_use]
+pub fn graphless_missing_evidence(key: GraphlessSupportKey<'_>) -> &'static [&'static str] {
+    missing_table()
+        .get(&(
+            key.family.to_owned(),
+            key.design.to_owned(),
+            key.method.to_owned(),
+            key.inference_claim.to_owned(),
+        ))
+        .copied()
+        .unwrap_or(&[])
 }
 
 /// The supported row that admits `key` under `observed`, if any.
@@ -169,10 +198,10 @@ fn find_support(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> Option<&'static GraphlessSupportRow> {
-    let owed = not_supported_rows();
+    let owed = missing_table();
     SUPPORTS.iter().find(|row| {
         row.admits(key, observed)
-            && !owed.contains(&(
+            && !owed.contains_key(&(
                 row.family.to_owned(),
                 row.design.to_owned(),
                 row.method.to_owned(),
@@ -834,7 +863,7 @@ mod survival_calibration_tests {
 
 #[cfg(test)]
 mod status_tests {
-    use super::owed_keys;
+    use super::missing_rows;
 
     /// A row that release-mode data marks `not_supported` is excluded from admission;
     /// a `supported` row is not.
@@ -845,13 +874,16 @@ mod status_tests {
                 r#"{{"family":"f","design":"d","method":"{method}","inference_claim":"c","status":"{status}","missing_evidence":[]}}"#
             )
         };
+        let named = row("named", "not_supported")
+            .replace(r#""missing_evidence":[]"#, r#""missing_evidence":["flagged: x"]"#);
         let json = format!(
-            r#"{{"graphless":[{},{}],"capabilities":[]}}"#,
+            r#"{{"graphless":[{},{},{named}],"capabilities":[]}}"#,
             row("owed", "not_supported"),
             row("current", "supported")
         );
-        let owed = owed_keys(&json);
-        assert!(owed.contains(&("f".into(), "d".into(), "owed".into(), "c".into())));
-        assert!(!owed.contains(&("f".into(), "d".into(), "current".into(), "c".into())));
+        let owed = missing_rows(&json);
+        assert!(owed.contains_key(&("f".into(), "d".into(), "owed".into(), "c".into())));
+        assert!(!owed.contains_key(&("f".into(), "d".into(), "current".into(), "c".into())));
+        assert_eq!(owed[&("f".into(), "d".into(), "named".into(), "c".into())], ["flagged: x"]);
     }
 }

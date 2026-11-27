@@ -8,5 +8,10 @@
   ],
   "id": "joint_law.composed_spread_aligned_functional",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.composed_quantity.not_applicable.frequentist.horizon_block_bootstrap_fixed_b.l95.horizon_contrast_block_bootstrap_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.horizon_block_bootstrap_fixed_b.l95.horizon_cumulative_effect_block_bootstrap_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.horizon_block_weight_student_t.l95.horizon_contrast_block_weight_posterior_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.horizon_block_weight_student_t.l95.horizon_cumulative_effect_block_weight_posterior_l95.v2_validation_not_applicable"
+  ]
 }

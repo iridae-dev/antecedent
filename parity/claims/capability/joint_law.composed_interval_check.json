@@ -9,5 +9,14 @@
   ],
   "id": "joint_law.composed_interval_check",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_gaussian_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_bootstrap_skewed_pair_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_posterior_gaussian_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_aligned_posterior_skewed_pair_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_independent_samples_gaussian_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_negative_correlation_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_gaussian_positive_correlation_l95.v2_validation_not_applicable",
+    "cov.composed_quantity.not_applicable.frequentist.normal_approximation.l95.composed_contrast_shared_rows_skewed_pair_l95.v2_validation_not_applicable"
+  ]
 }

@@ -7,5 +7,7 @@
   ],
   "id": "mechanism_composition.acyclic_joint_model",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.mechanism_composition_contrast.dag.frequentist.delta_method_wald.l95.composed_linear_gaussian_mechanisms_first_order_interval.v2_validation_not_applicable"
+  ]
 }

@@ -2,6 +2,7 @@
   "assertions": [
     "antecedent-estimate::measurement_models::categorical_inversion_recovers_proportions_and_outcome_means"
   ],
+  "groups": [],
   "id": "measurement.probabilistic_categorical",
   "kind": "capability",
   "measurements": []

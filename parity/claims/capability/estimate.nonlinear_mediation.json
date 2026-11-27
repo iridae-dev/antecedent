@@ -7,5 +7,9 @@
   ],
   "id": "estimate.nonlinear_mediation",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.nonlinear_mediation.dag.frequentist.bootstrap_percentile.l95.nonlinear_mediation_natural_effects_percentile_bootstrap_interval.v2_validation_not_applicable.direct",
+    "cov.nonlinear_mediation.dag.frequentist.bootstrap_percentile.l95.nonlinear_mediation_natural_effects_percentile_bootstrap_interval.v2_validation_not_applicable.indirect",
+    "cov.nonlinear_mediation.dag.frequentist.bootstrap_percentile.l95.nonlinear_mediation_natural_effects_percentile_bootstrap_interval.v2_validation_not_applicable.total"
+  ]
 }

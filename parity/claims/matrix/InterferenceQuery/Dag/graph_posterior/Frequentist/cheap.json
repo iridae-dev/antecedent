@@ -4,5 +4,8 @@
   ],
   "id": "InterferenceQuery/Dag/graph_posterior/Frequentist/cheap",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.interference_query.dag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_ht_hajek_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.interference_query.dag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_ht_hajek_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
 }

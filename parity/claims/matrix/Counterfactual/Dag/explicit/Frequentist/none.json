@@ -4,5 +4,8 @@
   ],
   "id": "Counterfactual/Dag/explicit/Frequentist/none",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.counterfactual.dag.frequentist.bootstrap_se.l90.counterfactual_dag_explicit_frequentist_bootstrap_coverage.v2_validation_none",
+    "cov.counterfactual.dag.frequentist.bootstrap_se.l95.counterfactual_dag_explicit_frequentist_bootstrap_coverage.v2_validation_none"
+  ]
 }

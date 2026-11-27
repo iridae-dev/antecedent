@@ -4,5 +4,8 @@
   ],
   "id": "TransportQuery/Dag/graph_posterior/Bayesian/full",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.transport_query.dag.bayesian.posterior_quantile.l90.transport_dag_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior",
+    "cov.transport_query.dag.bayesian.posterior_quantile.l95.transport_dag_graph_posterior_bayesian_coverage.v2_validation_full.v2_structure_graph_posterior"
+  ]
 }

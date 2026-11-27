@@ -7,5 +7,14 @@
   ],
   "id": "cohort_decision.mean_contrast",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p4_l90.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_confounded_p5_l90.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l90.cohort_linear_effect_randomized_p3_l90.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p4_l95.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_confounded_p5_l95.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_high_leverage_cohort_boundary_l95.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_misspecified_effect_boundary_l95.v2_validation_not_applicable",
+    "cov.cohort_mean_conditional_effect.not_applicable.frequentist.student_t_hc3_sandwich.l95.cohort_linear_effect_randomized_p3_l95.v2_validation_not_applicable"
+  ]
 }

@@ -290,6 +290,14 @@
     },
     {
       "family": "randomized_effect",
+      "design": "cluster",
+      "method": "estimated_cuped_cluster_totals",
+      "inference_claim": "pointwise_95_normal_interval",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "family": "randomized_effect",
       "design": "stratified",
       "method": "blocked_neyman_difference_in_means",
       "inference_claim": "pointwise_95_normal_interval",
@@ -2573,6 +2581,11 @@
     },
     {
       "id": "design.integrated_schedule_decision",
+      "status": "supported",
+      "missing_evidence": []
+    },
+    {
+      "id": "discovery.learned_rpcmci_replay",
       "status": "supported",
       "missing_evidence": []
     }

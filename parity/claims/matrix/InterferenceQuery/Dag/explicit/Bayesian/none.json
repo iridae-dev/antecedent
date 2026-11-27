@@ -6,8 +6,6 @@
   "kind": "matrix",
   "measurements": [
     "cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_query_dag_bayesian_neighbor_count_nominal_coverage.v2_validation_none",
-    "cov.interference_query.dag.bayesian.posterior_quantile.l95.cluster_bayesian_bootstrap_larger_small_arm_credible_interval.v2_validation_none",
-    "cov.interference_query.dag.bayesian.posterior_quantile.l95.cluster_bayesian_bootstrap_small_cluster_credible_interval.v2_validation_none",
     "cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_query_dag_bayesian_neighbor_count_nominal_coverage.v2_validation_none"
   ]
 }

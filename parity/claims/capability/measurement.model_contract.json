@@ -17,5 +17,16 @@
   ],
   "id": "measurement.model_contract",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_mean_substitution_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_multiple_imputation_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_prevalence_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_binary_risk_difference_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_declared_variance_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_estimated_variance_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_repeated_measurements_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.equal_tailed_simulation_interval.l95.measurement_pooled_differential_heterogeneous_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.equal_tailed_simulation_interval.l95.measurement_pooled_differential_homogeneous_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.equal_tailed_simulation_interval.l95.measurement_pooled_differential_target_validated_l95.v2_validation_not_applicable"
+  ]
 }

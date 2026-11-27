@@ -3,6 +3,7 @@
 
 [[support]]
 family = "interference"
+route = "InterferenceDag"
 design = "cluster_randomization_total"
 method = "cluster_total_neyman_welch"
 inference_claim = "exposure_contrast_pointwise_95_student_interval"
@@ -16,9 +17,11 @@ limitations = "Complete cluster randomization on a fixed partial-interference ne
 
 [[support]]
 family = "interference"
+route = "InterferenceDag"
 design = "two_stage_saturation"
 method = "saturation_cluster_neyman_welch"
 inference_claim = "exposure_contrast_pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_assignment_units_per_arm = 24
 min_blocks = 2
@@ -31,6 +34,7 @@ limitations = "Exact two-stage saturation: clusters completely randomized to dec
 
 [[support]]
 family = "interference"
+route = "InterferenceDag"
 design = "observational_known_exposure"
 method = "observational_known_exposure_cluster_t"
 inference_claim = "exposure_contrast_pointwise_95_student_interval"
@@ -46,9 +50,12 @@ limitations = "Observational network-exposure contrast with caller-supplied KNOW
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_product_limit"
 inference_claim = "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.survival_product_limit"]
 assignment_unit = "unit"
 min_rows = 240
 min_assignment_units_per_arm = 120
@@ -61,9 +68,11 @@ limitations = "Individually randomized independent subjects, at least 120 observ
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_product_limit"
 inference_claim = "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+estimators = ["randomized.survival_product_limit"]
 assignment_unit = "unit"
 min_rows = 320
 min_assignment_units_per_arm = 160
@@ -76,9 +85,11 @@ limitations = "Individually randomized independent subjects with a left-truncati
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_ipcw_product_limit"
 inference_claim = "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 320
 min_assignment_units_per_arm = 160
@@ -92,6 +103,7 @@ limitations = "Individually randomized independent subjects with a caller-suppli
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_ipcw_product_limit"
 inference_claim = "rmst_and_horizon_survival_pointwise_95_percentile_intervals"
@@ -108,9 +120,11 @@ limitations = "Individually randomized independent subjects with both a marginal
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_product_limit"
 inference_claim = "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
+estimators = ["randomized.survival_product_limit"]
 assignment_unit = "unit"
 min_rows = 320
 min_assignment_units_per_arm = 160
@@ -124,6 +138,7 @@ limitations = "Individually randomized independent subjects with marginally inde
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_ipcw_product_limit"
 inference_claim = "cumulative_incidence_difference_at_horizon_pointwise_95_percentile_interval"
@@ -141,6 +156,7 @@ limitations = "Individually randomized independent subjects with marginally inde
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_supremum_band"
 inference_claim = "simultaneous_95_survival_difference_band"
@@ -157,6 +173,7 @@ limitations = "Independent randomized subjects, marginally independent entry and
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_supremum_band"
 inference_claim = "simultaneous_95_cumulative_incidence_difference_band"
@@ -173,6 +190,7 @@ limitations = "Independent randomized subjects, marginally independent entry and
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_ipcw_supremum_band"
 inference_claim = "simultaneous_95_survival_difference_band"
@@ -190,6 +208,7 @@ limitations = "Independent randomized subjects, marginally independent entry and
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "delayed_entry_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_ipcw_supremum_band"
 inference_claim = "simultaneous_95_cumulative_incidence_difference_band"
@@ -207,6 +226,7 @@ limitations = "Independent randomized subjects, marginally independent entry and
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "binary_entry_and_censoring_strata_two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_stratified_censoring_refit"
 inference_claim = "simultaneous_95_standardized_survival_difference_band"
@@ -223,9 +243,11 @@ limitations = "Two binary baseline strata, equal pre-entry population proportion
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_supremum_band"
 inference_claim = "simultaneous_95_survival_difference_band"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 160
 min_assignment_units_per_arm = 80
@@ -237,9 +259,11 @@ limitations = "Individually randomized independent subjects without delayed entr
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "two_arm_individual_randomized"
 method = "arm_stratified_subject_bootstrap_supremum_band"
 inference_claim = "simultaneous_95_cumulative_incidence_difference_band"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 160
 min_assignment_units_per_arm = 80
@@ -251,9 +275,12 @@ limitations = "Individually randomized independent subjects without delayed entr
 
 [[support]]
 family = "continuous_dose_policy"
+route = "ContinuousDoseResponse"
 design = "fixed_group_kernel"
 method = "inverse_density_kernel_paired_scores"
 inference_claim = "policy_reference_incremental_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["policy.triangular_kernel_inverse_density"]
 assignment_unit = "unit"
 min_rows = 600
 min_group_rows = 300
@@ -271,9 +298,12 @@ limitations = "Fixed pre-outcome group-to-dose policy and reference with known c
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "switchback"
 method = "independent_sequence_ht_score"
 inference_claim = "pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.switchback_ht_itt"]
 assignment_unit = "sequence"
 min_blocks = 30
 min_action_rows = 30
@@ -287,9 +317,12 @@ limitations = "Switchback unit-period HT ITT with at least 30 independent assign
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "bernoulli"
 method = "independent_action_ht_score"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.ht_itt"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 30
 min_expected_arm_units = 40.0
@@ -302,9 +335,12 @@ limitations = "Independent Bernoulli binary ITT with known probabilities at leas
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "bernoulli"
 method = "ancova_hc0"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.ancova_itt"]
 assignment_unit = "unit"
 max_covariates = 2
 min_assignment_units_per_arm = 30
@@ -318,9 +354,12 @@ limitations = "Independent Bernoulli binary ITT with one or two pre-assignment A
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "bernoulli"
 method = "fixed_cuped_ht_score"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.fixed_cuped_ht_itt"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 30
 min_expected_arm_units = 40.0
@@ -333,9 +372,12 @@ limitations = "Independent Bernoulli binary ITT adjusted by one pre-assignment c
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "bernoulli"
 method = "estimated_cuped_ht_score"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.estimated_cuped_ht_itt"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 30
 min_expected_arm_units = 40.0
@@ -347,9 +389,12 @@ retained_route_test = "crates/antecedent/tests/compiled_twins_randomized.rs::est
 limitations = "Independent Bernoulli binary ITT adjusted by the pooled outcome-on-covariate slope of one pre-assignment covariate, estimated from the same rows, known probabilities from 0.2 through 0.8 on every row, 30 observed assignments per arm, at least 40 expected assignments per arm, and a published positive independent-row score standard error with a pointwise 95% normal interval. The slope is estimated from these outcomes and the score standard error treats it as fixed, so the estimation is not propagated; the interval's coverage is not yet measured, the row stands on the equality of the route to the direct kernel and the recorded score standard error. No row-count threshold applies."
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "binary_ipw"
 method = "fixed_randomized_ipw_scores"
 inference_claim = "paired_policy_incremental_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.ipw_policy"]
 assignment_unit = "unit"
 min_rows = 120
 min_assignment_units_per_arm = 30
@@ -366,9 +411,12 @@ limitations = "Fixed binary policy and reference on independent held-out subject
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "binary_aipw_crossfit"
 method = "fixed_crossfit_randomized_aipw_scores"
 inference_claim = "paired_policy_incremental_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.dr_policy"]
 assignment_unit = "unit"
 min_rows = 300
 min_assignment_units_per_arm = 30
@@ -385,9 +433,12 @@ limitations = "Fixed binary AIPW policy and reference on 300 independent evaluat
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "binary_ipw_regret"
 method = "fixed_randomized_ipw_finite_class_scores"
 inference_claim = "finite_class_regret_simultaneous_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.ipw_policy_net"]
 assignment_unit = "unit"
 min_rows = 400
 min_assignment_units_per_arm = 30
@@ -404,9 +455,12 @@ limitations = "Fixed binary IPW policy selected from a prespecified finite class
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "panel_2x2"
 method = "cluster_change_scores_cr1"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["panel_did"]
 assignment_unit = "cluster"
 min_assignment_units_per_arm = 30
 min_reported_intervals = 1
@@ -417,9 +471,11 @@ limitations = "Balanced two-period panel DiD with stable treatment, one pre and 
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "repeated_cross_section_2x2"
 method = "four_cell_cluster_scores_cr1"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_assignment_units_per_arm = 30
 min_blocks = 4
@@ -432,9 +488,11 @@ limitations = "Repeated cross-section 2×2 DiD with unique subjects, clusters ne
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "staggered_event_study"
 method = "never_treated_event_study_cluster_cr1"
 inference_claim = "post_adoption_event_time_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_assignment_units_per_arm = 24
 min_reported_intervals = 1
@@ -445,9 +503,11 @@ limitations = "Balanced staggered-adoption event study against never-treated con
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "binary_aipw"
 method = "fixed_held_out_randomized_aipw_scores"
 inference_claim = "paired_policy_incremental_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 300
 min_assignment_units_per_arm = 30
@@ -465,9 +525,11 @@ limitations = "Fixed binary policy and reference on 300 independent evaluation s
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "binary_ipw_uplift"
 method = "fixed_randomized_ipw_frozen_rank_scores"
 inference_claim = "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 50
 min_probability = 0.5
@@ -486,9 +548,11 @@ limitations = "Fixed binary IPW policy plus frozen ranked uplift bins, known 0.5
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "binary_aipw_uplift"
 method = "fixed_held_out_randomized_aipw_frozen_rank_scores"
 inference_claim = "paired_policy_incremental_and_all_uplift_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 50
 min_probability = 0.5
@@ -508,9 +572,12 @@ limitations = "Fixed binary AIPW policy with disjoint nuisance training and froz
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "multi_action_ipw"
 method = "fixed_randomized_multi_action_ipw_scores"
 inference_claim = "paired_policy_incremental_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.multi_action_ipw_policy"]
 assignment_unit = "unit"
 min_rows = 300
 min_action_rows = 50
@@ -527,9 +594,12 @@ limitations = "Fixed multi-action policy and reference on 300 independent random
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "multi_action_ipw_cate"
 method = "fixed_randomized_multi_action_ipw_fixed_group_scores"
 inference_claim = "paired_policy_incremental_and_all_cate_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.multi_action_ipw_policy_net"]
 assignment_unit = "unit"
 min_rows = 300
 min_action_rows = 50
@@ -548,9 +618,12 @@ limitations = "Fixed multi-action policy plus pre-treatment baseline groups decl
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "complete"
 method = "neyman_difference_in_means"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.neyman_itt"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 30
 min_reported_intervals = 1
@@ -561,9 +634,12 @@ limitations = "Known complete assignment, independent units, binary ITT, at leas
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "cluster"
 method = "neyman_unit_weighted_cluster_totals"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.neyman_itt"]
 assignment_unit = "cluster"
 min_assignment_units_per_arm = 30
 min_reported_intervals = 1
@@ -574,9 +650,12 @@ limitations = "Known complete cluster assignment, independent clusters, binary u
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "cluster"
 method = "fixed_cuped_cluster_totals"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.cluster_fixed_cuped_itt"]
 assignment_unit = "cluster"
 min_assignment_units_per_arm = 30
 min_reported_intervals = 1
@@ -587,9 +666,12 @@ limitations = "Known complete cluster assignment, independent clusters, binary u
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "cluster"
 method = "estimated_cuped_cluster_totals"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.cluster_estimated_cuped_itt"]
 assignment_unit = "cluster"
 min_assignment_units_per_arm = 30
 min_reported_intervals = 1
@@ -600,9 +682,12 @@ limitations = "Known complete cluster assignment, independent clusters, binary u
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "stratified"
 method = "blocked_neyman_difference_in_means"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.neyman_itt"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 60
 min_blocks = 4
@@ -615,9 +700,12 @@ limitations = "Known independent complete assignment within at least four blocks
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "factorial_2x2"
 method = "fixed_cell_neyman_contrasts"
 inference_claim = "three_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.neyman_itt"]
 assignment_unit = "unit"
 min_factorial_cell = 30
 min_reported_intervals = 3
@@ -629,9 +717,12 @@ limitations = "Known fixed-cell 2×2 randomization with at least 30 units in eve
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "multi_arm"
 method = "independent_action_ht_scores"
 inference_claim = "all_action_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.ht_itt"]
 assignment_unit = "unit"
 min_rows = 400
 min_action_rows = 30
@@ -644,9 +735,12 @@ retained_route_test = "crates/antecedent/tests/randomized_trial_route.rs::calibr
 limitations = "Independent known-probability assignment to at least three actions, 400 rows, at least 30 realized assignments to every action, probabilities at least 0.2 for every action on every row, and a published interval for every action-versus-reference contrast. The intervals are separate pointwise 95% claims; simultaneous coverage is not supported."
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "factorial_2x2_bernoulli"
 method = "independent_factor_ht_young_bound_contrasts"
 inference_claim = "three_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.factorial_bernoulli_ht"]
 assignment_unit = "unit"
 min_factorial_cell = 30
 min_action_rows = 30
@@ -660,9 +754,12 @@ limitations = "Independent row-level assignment to the four 2x2 cells of a multi
 
 [[support]]
 family = "longitudinal_regime"
+route = "LongitudinalRegime"
 design = "known_sequential_randomized_two_period"
 method = "subject_excluded_q_sequential_dr_scores"
 inference_claim = "conditional_q_pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["longitudinal.sequential_dr_regime"]
 assignment_unit = "unit"
 min_rows = 300
 min_reported_intervals = 1
@@ -675,9 +772,12 @@ limitations = "Known sequential randomization over two periods with independent 
 
 [[support]]
 family = "longitudinal_regime"
+route = "LongitudinalRegime"
 design = "known_sequential_randomized_three_period"
 method = "subject_excluded_q_sequential_dr_scores"
 inference_claim = "conditional_q_pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["longitudinal.sequential_dr_regime"]
 assignment_unit = "unit"
 min_rows = 800
 min_reported_intervals = 1
@@ -690,9 +790,12 @@ limitations = "Known sequential randomization over three periods with independen
 
 [[support]]
 family = "complier_effect"
+route = "RandomizedEffect"
 design = "bernoulli"
 method = "wald_ratio_influence"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.wald_cace_late"]
 assignment_unit = "unit"
 min_rows = 400
 min_assignment_units_per_arm = 30
@@ -705,9 +808,12 @@ limitations = "Wald CACE/LATE from independent Bernoulli encouragement and obser
 
 [[support]]
 family = "complier_effect"
+route = "RandomizedEffect"
 design = "bernoulli_one_sided"
 method = "wald_ratio_influence"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["randomized.wald_cace_late"]
 assignment_unit = "unit"
 min_rows = 400
 min_assignment_units_per_arm = 30
@@ -720,9 +826,12 @@ limitations = "Treatment-on-treated among recipients under declared one-sided no
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "fuzzy_jump"
 method = "local_quadratic_cubic_rbc_hc0_delta"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["local_ratio"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 5
 min_reported_intervals = 1
@@ -733,9 +842,11 @@ limitations = "Fuzzy regression discontinuity as a local outcome-jump over treat
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "regression_kink"
 method = "local_quartic_slope_rbc_hc0_delta"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 6
 min_reported_intervals = 1
@@ -746,9 +857,12 @@ limitations = "Regression kink as a local outcome-slope-change over treatment-sl
 
 [[support]]
 family = "longitudinal_regime"
+route = "LongitudinalRegime"
 design = "known_sequential_randomized_two_period"
 method = "fixed_known_q_g_formula_scores"
 inference_claim = "conditional_q_pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["longitudinal.g_formula_regime"]
 assignment_unit = "unit"
 min_rows = 300
 min_reported_intervals = 1
@@ -760,9 +874,12 @@ limitations = "Two-period g-formula value under known sequential randomization f
 
 [[support]]
 family = "longitudinal_regime"
+route = "LongitudinalRegime"
 design = "known_sequential_randomized_additive_msm"
 method = "stabilized_ipw_cr1_scores"
 inference_claim = "intercept_and_period_effects_pointwise_95_normal_intervals"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["longitudinal.ipw_regime", "longitudinal.marginal_structural_model"]
 assignment_unit = "unit"
 min_rows = 300
 min_reported_intervals = 3
@@ -924,9 +1041,11 @@ exit_by = "2027-03-31"
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "bernoulli"
 method = "gaussian_ipow_modular_posterior"
 inference_claim = "conditional_pseudo_posterior_pointwise_95_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 6
 min_assignment_units_per_arm = 3
@@ -939,9 +1058,11 @@ limitations = "Two-arm bernoulli randomization of independent units, known ident
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "complete"
 method = "gaussian_ipow_modular_posterior"
 inference_claim = "conditional_pseudo_posterior_pointwise_95_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 6
 min_assignment_units_per_arm = 3
@@ -954,9 +1075,12 @@ limitations = "Two-arm complete randomization of independent units, known identi
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "two_arm"
 method = "cluster_robust_ratio_normal"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1350
 min_blocks = 150
@@ -985,9 +1109,12 @@ exit_by = "2027-03-31"
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "two_arm"
 method = "bayesian_bootstrap_over_clusters"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1350
 min_blocks = 150
@@ -1000,9 +1127,12 @@ limitations = "Sequentially randomized two-arm unit-period panel with the mean f
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "multi_arm"
 method = "cluster_robust_ratio_normal"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 750
 min_blocks = 125
@@ -1015,9 +1145,12 @@ limitations = "Sequentially randomized multi-arm unit-period panel with the mean
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "multi_arm"
 method = "bayesian_bootstrap_over_clusters"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 750
 min_blocks = 125
@@ -1030,9 +1163,12 @@ limitations = "Sequentially randomized multi-arm unit-period panel with the mean
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "categorical"
 method = "cluster_robust_ratio_normal"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 750
 min_blocks = 125
@@ -1045,9 +1181,12 @@ limitations = "Sequentially randomized ordered categorical unit-period panel wit
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "categorical"
 method = "bayesian_bootstrap_over_clusters"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 750
 min_blocks = 125
@@ -1060,9 +1199,12 @@ limitations = "Sequentially randomized ordered categorical unit-period panel wit
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "factorial"
 method = "cluster_robust_ratio_normal"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 750
 min_blocks = 150
@@ -1075,9 +1217,12 @@ limitations = "Sequentially randomized two-factor factorial unit-period panel wi
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "factorial"
 method = "bayesian_bootstrap_over_clusters"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 750
 min_blocks = 150
@@ -1090,9 +1235,12 @@ limitations = "Sequentially randomized two-factor factorial unit-period panel wi
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "interference"
 method = "cluster_robust_ratio_normal"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1105,9 +1253,12 @@ limitations = "Sequentially randomized within-cluster interference unit-period p
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "interference"
 method = "bayesian_bootstrap_over_clusters"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1120,9 +1271,12 @@ limitations = "Sequentially randomized within-cluster interference unit-period p
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "continuous_dose"
 method = "cluster_robust_ratio_normal"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1135,9 +1289,12 @@ limitations = "Sequentially randomized continuous-dose unit-period panel under f
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "continuous_dose"
 method = "bayesian_bootstrap_over_clusters"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1150,9 +1307,12 @@ limitations = "Sequentially randomized continuous-dose unit-period panel under B
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "smoothed_dose"
 method = "cluster_robust_ratio_normal"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1165,9 +1325,12 @@ limitations = "Sequentially randomized continuous-dose unit-period panel under f
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "smoothed_dose"
 method = "bayesian_bootstrap_over_clusters"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.excursion"]
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1180,9 +1343,11 @@ limitations = "Sequentially randomized continuous-dose unit-period panel under B
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "dose_grid"
 method = "cluster_robust_local_quadratic_bias_aware"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1195,9 +1360,11 @@ limitations = "Sequentially randomized continuous-dose unit-period panel under f
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "dose_grid"
 method = "bayesian_bootstrap_local_quadratic_projection"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 1200
 min_blocks = 150
@@ -1210,9 +1377,11 @@ limitations = "Sequentially randomized continuous-dose unit-period panel under B
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "quantile"
 method = "whole_procedure_cluster_bootstrap_percentile"
 inference_claim = "pointwise_95_percentile_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 600
 min_blocks = 100
@@ -1225,9 +1394,11 @@ limitations = "Sequentially randomized two-arm unit-period panel with the median
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "quantile"
 method = "bayesian_bootstrap_over_units_weighted_quantile"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 600
 min_blocks = 100
@@ -1240,9 +1411,12 @@ limitations = "Sequentially randomized two-arm unit-period panel with the median
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "regime_survival"
 method = "whole_procedure_subject_bootstrap_refitting_hazard_and_confounder_transition_models"
 inference_claim = "pointwise_95_percentile_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["temporal_design.regime_survival"]
 assignment_unit = "sequence"
 min_blocks = 600
 min_reported_intervals = 1
@@ -1253,9 +1427,12 @@ limitations = "Observational subject trajectories (one row per subject and perio
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "regime_survival"
 method = "joint_likelihood_parametric_g_formula_posterior"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.temporal_design.regime_survival"]
 assignment_unit = "sequence"
 min_blocks = 600
 min_reported_intervals = 1
@@ -1266,9 +1443,12 @@ limitations = "Observational subject trajectories (one row per subject and perio
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "complete"
 method = "gaussian_arm_finite_population_posterior"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.randomized_finite_population"]
 assignment_unit = "unit"
 min_rows = 150
 min_assignment_units_per_arm = 75
@@ -1280,9 +1460,12 @@ limitations = "Complete two-arm randomization of independent units with every ou
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "complete"
 method = "gaussian_arm_superpopulation_posterior"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.randomized_superpopulation"]
 assignment_unit = "unit"
 min_rows = 150
 min_assignment_units_per_arm = 75
@@ -1294,9 +1477,11 @@ limitations = "Complete two-arm randomization of independent units with every ou
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "complete"
 method = "bernoulli_arm_superpopulation_posterior"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 150
 min_assignment_units_per_arm = 75
@@ -1308,9 +1493,12 @@ limitations = "Complete two-arm randomization of independent units with every bi
 
 [[support]]
 family = "randomized_effect"
+route = "RandomizedEffect"
 design = "switchback"
 method = "compound_symmetric_gaussian_sequence_posterior"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.switchback_effect"]
 assignment_unit = "sequence"
 min_rows = 276
 min_blocks = 23
@@ -1325,9 +1513,12 @@ limitations = "Switchback unit-period design under Bayesian inference with the d
 
 [[support]]
 family = "complier_effect"
+route = "RandomizedEffect"
 design = "bernoulli"
 method = "bayesian_bootstrap_wald_ratio"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.complier_effect"]
 assignment_unit = "unit"
 min_rows = 300
 min_expected_arm_units = 150.0
@@ -1340,9 +1531,12 @@ limitations = "Complier average effect from independent Bernoulli encouragement 
 
 [[support]]
 family = "survival"
+route = "Survival"
 design = "two_arm_individual_randomized"
 method = "piecewise_exponential_gamma_posterior"
 inference_claim = "rmst_and_horizon_survival_pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.piecewise_survival"]
 assignment_unit = "unit"
 min_rows = 200
 min_assignment_units_per_arm = 80
@@ -1355,9 +1549,12 @@ limitations = "Individually randomized independent subjects without delayed entr
 
 [[support]]
 family = "continuous_dose_policy"
+route = "ContinuousDoseResponse"
 design = "fixed_group_kernel"
 method = "quadratic_group_dose_conjugate_posterior"
 inference_claim = "policy_reference_incremental_pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.continuous_dose_policy"]
 assignment_unit = "unit"
 min_rows = 200
 min_group_rows = 100
@@ -1371,6 +1568,7 @@ limitations = "Fixed pre-outcome group-to-dose policy and reference on independe
 
 [[support]]
 family = "interference"
+route = "InterferenceDag"
 design = "cluster_randomization_total"
 method = "cluster_student_reference_posterior"
 inference_claim = "exposure_contrast_pointwise_95_posterior_quantiles"
@@ -1380,13 +1578,15 @@ min_reported_intervals = 1
 known_truth_test = "crates/antecedent/tests/interference_estimators_known_truth.rs::cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_every_coordinate"
 independent_check = "crates/antecedent/tests/interference_estimators_known_truth.rs::cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_every_coordinate"
 retained_route_test = "crates/antecedent/tests/bayesian_design_support_rows.rs::supported_cluster_reference_posterior_round_trips_and_refuses_forgery"
-limitations = "Complete cluster randomization on a fixed partial-interference network with within-cluster-only edges, the (0,0)-to-(1,1) total-effect contrast under NeighborFraction exposure and Bayesian inference, with at least nine and fewer than fifty independently randomized clusters in the smaller arm. In that range the route publishes the Student-t reference law of the contrast (location the design-based contrast, scale the conservative cluster Neyman standard error, Welch-Satterthwaite degrees of freedom) as a quantile grid of at least 2,000 points. The equal-tailed 95% interval was measured on 18, 24 and 48 two-unit clusters split evenly (9, 12 and 24 per arm) with Gaussian cluster effects and a constant total effect; 25 to 49 clusters per arm run the same law and were not measured, and unequal cluster sizes, heavy-tailed cluster totals and uneven allocations were not measured. With fifty or more clusters in both arms the route publishes the Dirichlet bootstrap law, which is another method and has no row. The estimator checks the design, the law it ran, the arm cluster counts and the draw count. The interval is pointwise for the total effect; no direct or spillover decomposition, saturation or observational exposure design inherits this row, and partial interference and the exposure mapping are declared, not tested. The statement is the diagnostic estimate.design_posterior.graphless_support on the result, recomputed by the artifact check from the support it carries; the matrix status and the calibration slot are unchanged."
+limitations = "Complete cluster randomization on a fixed partial-interference network with within-cluster-only edges, the (0,0)-to-(1,1) total-effect contrast under NeighborFraction exposure and Bayesian inference, with at least nine and fewer than fifty independently randomized clusters in the smaller arm. In that range the route publishes the Student-t reference law of the contrast (location the design-based contrast, scale the conservative cluster Neyman standard error, Welch-Satterthwaite degrees of freedom) as a quantile grid of at least 2,000 points. The equal-tailed 95% interval was measured on two-unit clusters split evenly, at 9, 12 and 24 clusters per arm and across 25 to 49 per arm, with Gaussian cluster effects and a constant total effect; unequal cluster sizes, heavy-tailed cluster totals and uneven allocations were not measured. With fifty or more clusters in both arms the route publishes the Dirichlet bootstrap law, which is another method and has no row. The estimator checks the design, the law it ran, the arm cluster counts and the draw count. The interval is pointwise for the total effect; no direct or spillover decomposition, saturation or observational exposure design inherits this row, and partial interference and the exposure mapping are declared, not tested. The statement is the diagnostic estimate.design_posterior.graphless_support on the result, recomputed by the artifact check from the support it carries; the matrix status and the calibration slot are unchanged."
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "fuzzy_jump"
 method = "local_quadratic_cubic_rbc_hc0_delta_mse_optimal_bandwidth"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 600
 min_assignment_units_per_arm = 114
@@ -1399,9 +1599,11 @@ limitations = "Fuzzy regression discontinuity of independent rows at the plug-in
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "regression_kink"
 method = "local_quartic_slope_rbc_hc0_delta_mse_optimal_bandwidth"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 600
 min_assignment_units_per_arm = 99
@@ -1414,9 +1616,11 @@ limitations = "Regression kink of independent rows at the plug-in MSE-optimal ba
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "fuzzy_jump"
 method = "local_quadratic_cubic_rbc_hc0_delta_declared_bandwidth_with_diagnostics"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 150
 min_reported_intervals = 1
@@ -1428,9 +1632,11 @@ limitations = "Fuzzy regression discontinuity of independent rows at a declared 
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "temporal_fuzzy_jump"
 method = "local_quadratic_cubic_rbc_prewhitened_block_bootstrap"
 inference_claim = "pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 149
 min_reported_intervals = 1
@@ -1443,9 +1649,11 @@ limitations = "Sharp discontinuity in calendar time at a declared bandwidth (pla
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "temporal_regression_kink"
 method = "local_quartic_slope_rbc_prewhitened_block_bootstrap"
 inference_claim = "pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 149
 min_reported_intervals = 1
@@ -1458,9 +1666,11 @@ limitations = "Regression kink in calendar time at a declared bandwidth (plan qu
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "temporal_fuzzy_jump"
 method = "local_quadratic_cubic_rbc_prewhitened_block_bayesian_bootstrap"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 149
 min_reported_intervals = 1
@@ -1473,9 +1683,11 @@ limitations = "Posterior of a sharp discontinuity in calendar time at a declared
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "temporal_regression_kink"
 method = "local_quartic_slope_rbc_prewhitened_block_bayesian_bootstrap"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_assignment_units_per_arm = 149
 min_reported_intervals = 1
@@ -1488,9 +1700,12 @@ limitations = "Posterior of a regression kink in calendar time at a declared ban
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "fuzzy_jump"
 method = "joint_local_linear_gaussian_posterior_prior_scale_100"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.local_ratio"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 80
 min_reported_intervals = 1
@@ -1503,9 +1718,12 @@ limitations = "Posterior of the fuzzy-discontinuity ratio at a declared rectangu
 
 [[support]]
 family = "local_polynomial_ratio"
+route = "LocalPolynomialRatio"
 design = "regression_kink"
 method = "joint_local_linear_gaussian_posterior_prior_scale_100"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.local_ratio"]
 assignment_unit = "unit"
 min_assignment_units_per_arm = 80
 min_reported_intervals = 1
@@ -1518,9 +1736,11 @@ limitations = "Posterior of the regression-kink ratio at a declared rectangular 
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "two_arm"
 method = "cluster_robust_ratio_normal_with_validation_delta"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 600
 min_blocks = 100
@@ -1533,9 +1753,11 @@ limitations = "Sequentially randomized two-arm unit-period panel with the mean f
 
 [[support]]
 family = "temporal_design"
+route = "TemporalDesign"
 design = "two_arm"
 method = "bayesian_bootstrap_with_beta_validation_draws"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 600
 min_blocks = 100
@@ -1548,9 +1770,12 @@ limitations = "Sequentially randomized two-arm unit-period panel with the mean f
 
 [[support]]
 family = "sequential_contrast"
+route = "SequentialContrast"
 design = "two_decision_always_versus_never"
 method = "crossfit_augmented_scores_wald"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["sequential.crossfit_contrast.wald"]
 assignment_unit = "unit"
 min_rows = 200
 min_probability = 0.05
@@ -1562,9 +1787,12 @@ limitations = "Observational two-decision panel, one row per independent subject
 
 [[support]]
 family = "sequential_contrast"
+route = "SequentialContrast"
 design = "two_decision_always_versus_never"
 method = "crossfit_augmented_scores_bayesian_bootstrap"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.sequential_crossfit_contrast"]
 assignment_unit = "unit"
 min_rows = 200
 min_probability = 0.05
@@ -1577,9 +1805,12 @@ limitations = "The same observational two-decision contrast under Bayesian infer
 
 [[support]]
 family = "longitudinal_regime"
+route = "LongitudinalRegime"
 design = "known_sequential_randomized_two_period"
 method = "subject_excluded_q_sequential_dr_bayesian_bootstrap"
 inference_claim = "conditional_q_pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.sequential_regime_value"]
 assignment_unit = "unit"
 min_rows = 200
 min_probability = 0.5
@@ -1592,9 +1823,12 @@ limitations = "Prespecified two-period regime value under known sequential rando
 
 [[support]]
 family = "policy_value"
+route = "PolicyValue"
 design = "binary_ipw"
 method = "fixed_randomized_ipw_scores_bayesian_bootstrap"
 inference_claim = "incremental_pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.binary_policy_value"]
 assignment_unit = "unit"
 min_rows = 200
 min_assignment_units_per_arm = 80
@@ -1610,9 +1844,12 @@ limitations = "Fixed binary policy against a fixed reference under known randomi
 
 [[support]]
 family = "history_match"
+route = "HistoryMatch"
 design = "within_period_nearest_history"
 method = "period_newey_west_fixed_b"
 inference_claim = "pointwise_95_fixed_b_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["matching.period_history_contrast"]
 assignment_unit = "cluster"
 min_blocks = 8
 min_block_arm = 25
@@ -1624,9 +1861,12 @@ limitations = "Nearest-neighbour contrast on the history-mean score, each treate
 
 [[support]]
 family = "history_match"
+route = "HistoryMatch"
 design = "within_period_history_outcome_model"
 method = "conjugate_gaussian_period_outcome_model_prior_scale_10"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.period_history_outcome_model"]
 assignment_unit = "unit"
 min_rows = 135
 min_assignment_units_per_arm = 50
@@ -1703,9 +1943,12 @@ exit_by = "2027-03-31"
 
 [[support]]
 family = "iv_bounds"
+route = "IvBounds"
 design = "binary_instrument"
 method = "imbens_manski_row_bootstrap"
 inference_claim = "identified_set_endpoints_95_imbens_manski_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["iv_bounds.balke_pearl"]
 assignment_unit = "unit"
 min_rows = 500
 min_interval_resamples = 399
@@ -1717,9 +1960,12 @@ limitations = "Binary instrument, binary treatment and binary outcome with one u
 
 [[support]]
 family = "iv_bounds"
+route = "IvBounds"
 design = "binary_instrument"
 method = "posterior_endpoint_quantiles"
 inference_claim = "identified_set_endpoints_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.iv_bounds.endpoint_bootstrap"]
 assignment_unit = "unit"
 min_rows = 500
 min_interval_resamples = 400
@@ -1731,9 +1977,11 @@ limitations = "Binary instrument, binary treatment and binary outcome with one u
 
 [[support]]
 family = "association"
+route = "AssociationStatic"
 design = "cross_section_linear_slope"
 method = "sandwich_leverage_student"
 inference_claim = "slope_standard_error_95_normal_reference_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 100
 min_reported_intervals = 1
@@ -1744,6 +1992,7 @@ limitations = "Table of independent rows under frequentist inference with no boo
 
 [[support]]
 family = "association"
+route = "AssociationStatic"
 design = "cross_section_linear_slope"
 method = "bootstrap_row"
 inference_claim = "slope_95_studentized_spread"
@@ -1758,9 +2007,11 @@ limitations = "Table of independent rows under frequentist inference with a row 
 
 [[support]]
 family = "association"
+route = "AssociationTemporal"
 design = "series_linear_slope"
 method = "sandwich_newey_west"
 inference_claim = "slope_standard_error_95_normal_reference_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 100
 min_reported_intervals = 1
@@ -1771,6 +2022,7 @@ limitations = "One regular series under frequentist inference with no bootstrap:
 
 [[support]]
 family = "association"
+route = "AssociationTemporal"
 design = "series_linear_slope"
 method = "bootstrap_circular_block"
 inference_claim = "slope_95_fixed_b_percentile_spread"
@@ -1785,9 +2037,11 @@ limitations = "One regular series under frequentist inference with a circular-bl
 
 [[support]]
 family = "association"
+route = "AssociationStatic"
 design = "cross_section_linear_slope"
 method = "conjugate_normal_inverse_gamma"
 inference_claim = "slope_95_posterior_equal_tailed_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "unit"
 min_rows = 100
 min_reported_intervals = 1
@@ -1798,9 +2052,11 @@ limitations = "Table of independent, equally weighted rows under Bayesian infere
 
 [[support]]
 family = "association"
+route = "AssociationTemporal"
 design = "series_linear_slope"
 method = "bayesian_bootstrap"
 inference_claim = "slope_95_posterior_equal_tailed_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 100
 min_interval_resamples = 400
@@ -1812,9 +2068,11 @@ limitations = "One regular series under Bayesian inference: the 95% interval of 
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "staggered_heterogeneity_robust"
 method = "callaway_santanna_not_yet_treated_cluster_multiplier_refit"
 inference_claim = "simple_aggregate_pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 675
 min_assignment_units_per_arm = 35
@@ -1828,9 +2086,11 @@ limitations = "Staggered rollout, pointwise 95% interval of the overall effect o
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "staggered_heterogeneity_robust"
 method = "callaway_santanna_never_treated_cluster_bootstrap_refit"
 inference_claim = "simple_aggregate_pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 675
 min_assignment_units_per_arm = 35
@@ -1844,9 +2104,11 @@ limitations = "Staggered rollout, pointwise 95% interval of the overall effect o
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "staggered_heterogeneity_robust"
 method = "sun_abraham_never_treated_cluster_multiplier_refit"
 inference_claim = "simple_aggregate_pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 675
 min_assignment_units_per_arm = 35
@@ -1860,9 +2122,11 @@ limitations = "Staggered rollout, pointwise 95% interval of the overall effect o
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "staggered_heterogeneity_robust"
 method = "imputation_not_yet_treated_cluster_multiplier_refit"
 inference_claim = "simple_aggregate_pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 675
 min_assignment_units_per_arm = 35
@@ -1876,9 +2140,11 @@ limitations = "Staggered rollout, pointwise 95% interval of the overall effect o
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "staggered_heterogeneity_robust"
 method = "bayesian_bootstrap_callaway_santanna_not_yet_treated"
 inference_claim = "simple_aggregate_pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 675
 min_assignment_units_per_arm = 35
@@ -1892,9 +2158,11 @@ limitations = "Staggered rollout under Bayesian inference, equal-tailed 95% cred
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "covariate_adjusted_two_period"
 method = "outcome_regression_cluster_multiplier_refit"
 inference_claim = "pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 400
 min_assignment_units_per_arm = 85
@@ -1910,9 +2178,11 @@ limitations = "Two-period panel with one baseline covariate, pointwise 95% inter
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "covariate_adjusted_two_period"
 method = "inverse_probability_weighting_cluster_multiplier_refit"
 inference_claim = "pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 400
 min_assignment_units_per_arm = 85
@@ -1928,9 +2198,11 @@ limitations = "Two-period panel with one baseline covariate, pointwise 95% inter
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "covariate_adjusted_two_period"
 method = "doubly_robust_cluster_multiplier_refit"
 inference_claim = "pointwise_95_student_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 400
 min_assignment_units_per_arm = 85
@@ -1946,9 +2218,11 @@ limitations = "Two-period panel with one baseline covariate, pointwise 95% inter
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "augmented_panel"
 method = "whole_cluster_bootstrap_supplied_nuisance_held_fixed"
 inference_claim = "pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "cluster"
 min_rows = 200
 min_assignment_units_per_arm = 85
@@ -1963,9 +2237,12 @@ limitations = "Augmented two-period panel with a supplied propensity and a suppl
 
 [[support]]
 family = "difference_in_differences"
+route = "PanelDid"
 design = "panel_2x2"
 method = "normal_inverse_gamma_change_score_posterior_prior_scale_100"
 inference_claim = "pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.panel_did"]
 assignment_unit = "unit"
 min_rows = 44
 min_assignment_units_per_arm = 22
@@ -1977,6 +2254,7 @@ limitations = "Balanced two-period panel under Bayesian inference: the Normal-In
 
 [[support]]
 family = "synthetic_control"
+route = "SyntheticControl"
 design = "single_treated_unit"
 method = "simplex_donor_weights_conformal_test_inversion"
 inference_claim = "per_period_and_constant_effect_95_conformal_sets"
@@ -1992,9 +2270,12 @@ limitations = "One treated unit against a balanced donor panel with simplex dono
 
 [[support]]
 family = "synthetic_control"
+route = "SyntheticControl"
 design = "staggered_multi_unit"
 method = "simplex_donor_weights_placebo_variance"
 inference_claim = "post_weighted_average_pointwise_95_normal_interval"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["synthetic_control"]
 assignment_unit = "sequence"
 min_rows = 20
 min_assignment_units_per_arm = 3
@@ -2008,9 +2289,12 @@ limitations = "Staggered adoptions against never-treated donors with simplex don
 
 [[support]]
 family = "synthetic_control"
+route = "SyntheticControl"
 design = "single_treated_unit"
 method = "simplex_dirichlet_donor_weight_posterior"
 inference_claim = "average_effect_pointwise_95_posterior_quantiles"
+calibration_reason = "estimator_grid_not_measured"
+estimators = ["bayesian.synthetic_control"]
 assignment_unit = "sequence"
 min_rows = 30
 min_blocks = 10
@@ -2022,9 +2306,11 @@ limitations = "One treated unit against a balanced donor panel under Bayesian in
 
 [[support]]
 family = "synthetic_control"
+route = "SyntheticControl"
 design = "single_treated_unit"
 method = "simplex_dirichlet_posterior_predictive_path"
 inference_claim = "per_period_and_average_95_posterior_predictive_intervals"
+calibration_reason = "estimator_grid_not_measured"
 assignment_unit = "sequence"
 min_rows = 30
 min_blocks = 10
@@ -2053,9 +2339,11 @@ exit_by = "2027-03-31"
 
 [[support]]
 family = "longitudinal_regime"
+route = "LongitudinalRegime"
 design = "known_sequential_randomized_four_period"
 method = "subject_excluded_q_sequential_dr_scores"
 inference_claim = "conditional_q_pointwise_95_normal_interval"
+estimators = ["longitudinal.sequential_dr_regime"]
 assignment_unit = "unit"
 min_rows = 2400
 min_reported_intervals = 1

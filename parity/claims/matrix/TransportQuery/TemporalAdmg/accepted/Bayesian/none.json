@@ -4,5 +4,8 @@
   ],
   "id": "TransportQuery/TemporalAdmg/accepted/Bayesian/none",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l90.transport_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.transport_query.temporal_admg.bayesian.posterior_quantile.l95.transport_temporal_admg_given_bayesian_coverage.v2_validation_none.v2_structure_accepted"
+  ]
 }

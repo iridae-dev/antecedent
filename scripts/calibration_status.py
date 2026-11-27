@@ -929,15 +929,19 @@ def route_map_problems(root: Path = ROOT) -> list[str]:
         routes = row.get("routes")
         groups = row.get("groups", [])
         reason = row.get("no_interval", "")
-        if not row.get("record") or not isinstance(routes, list) or not routes:
-            problems.append(f"{where}: needs `record` and a non-empty `routes` list")
+        if not isinstance(routes, list) or not routes:
+            problems.append(f"{where}: needs a non-empty `routes` list")
+            continue
+        # A graphless route names its support row; any other route names a route of `record`.
+        if not row.get("record") and not all(str(r).startswith("graphless.") for r in routes):
+            problems.append(f"{where}: needs `record` unless every route is a graphless row")
             continue
         if bool(groups) == bool(reason):
             problems.append(f"{where}: give either `groups` or `no_interval`, not both or neither")
         for route in routes:
-            if (row["record"], route) in seen:
+            if (row.get("record", ""), route) in seen:
                 problems.append(f"{where}: route {route} is mapped twice")
-            seen.add((row["record"], route))
+            seen.add((row.get("record", ""), route))
         for spec in groups:
             head, _ = split_group(str(spec))
             if not (

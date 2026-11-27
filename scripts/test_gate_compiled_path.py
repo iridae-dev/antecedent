@@ -46,14 +46,17 @@ def overlay(destination: Path) -> None:
             destination / source,
             ignore=shutil.ignore_patterns("__pycache__", "*.so", "*.pyc"),
         )
-    # The sources that define the bound forms deprecated loaders name.
+    # The sources that define the bound forms a consumer names.
     for row in load_toml(ROOT / MANIFEST).get("row", []):
-        replacement = str(row.get("replacement", ""))
-        if replacement.startswith(BOUND_REPLACEMENT_PREFIX):
-            for source in bound_form_files(ROOT, replacement[len(BOUND_REPLACEMENT_PREFIX) :]):
-                target = destination / source.relative_to(ROOT)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, target)
+        bound = str(row.get("of", ""))
+        if bound.startswith(BOUND_REPLACEMENT_PREFIX):
+            bound = bound[len(BOUND_REPLACEMENT_PREFIX) :].strip()
+        if not bound:
+            continue
+        for source in bound_form_files(ROOT, bound):
+            copy = destination / source.relative_to(ROOT)
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, copy)
     # The Rust files a verdict row names, so that row is not stale in the copy.
     for row in load_toml(ROOT / MANIFEST).get("verdict", []):
         rel = row["path"].split("::")[0]
@@ -70,13 +73,19 @@ def append(root: Path, rel: str, text: str) -> None:
         handle.write(text)
 
 
-def manifest_row(path: str, disposition: str, **extra: str) -> str:
-    fields = "".join(f'{key} = "{value}"\n' for key, value in extra.items())
+def _field(key: str, value: object) -> str:
+    if isinstance(value, bool):
+        return f"{key} = {'true' if value else 'false'}\n"
+    return f'{key} = "{value}"\n'
+
+
+def manifest_row(path: str, disposition: str, **extra: object) -> str:
+    fields = "".join(_field(key, value) for key, value in extra.items())
     return f'\n[[row]]\npath = "{path}"\ndisposition = "{disposition}"\n{fields}'
 
 
-def python_row(path: str, disposition: str, **extra: str) -> str:
-    fields = "".join(f'{key} = "{value}"\n' for key, value in extra.items())
+def python_row(path: str, disposition: str, **extra: object) -> str:
+    fields = "".join(_field(key, value) for key, value in extra.items())
     return f'\n[[python]]\npath = "{path}"\ndisposition = "{disposition}"\n{fields}'
 
 
@@ -115,11 +124,17 @@ def plant_deprecated_entry(
         "from ._native import planted_native as _planted_native\n\n\n"
         f"def planted_run():\n{body}    return _planted_native()\n",
     )
+    route = compiled_route()
     manifest = manifest_row(
-        "antecedent::planted::planted_new_fit", "compiled", route=compiled_route()
+        "antecedent::planted::planted_new_fit", "owner", unit=route, route=route
     )
-    entry = {"replacement": replacement} if replacement else {}
-    manifest += manifest_row("antecedent::planted::planted_old_fit", "deprecated", **entry)
+    if replacement is None:
+        entry: dict[str, object] = {}
+    elif replacement.startswith("route:"):
+        entry = {"unit": replacement[len("route:") :], "direct": True}
+    else:
+        entry = {"unit": replacement, "direct": True}
+    manifest += manifest_row("antecedent::planted::planted_old_fit", "forwarder", **entry)
     append(root, MANIFEST, manifest)
     # The compiled row's own candidate: a facade function that returns a result through the compiler.
     append(
@@ -132,8 +147,9 @@ def plant_deprecated_entry(
         MANIFEST,
         python_row(
             "python/antecedent/planted_wrapper.py::planted_run",
-            "deprecated",
-            replacement="antecedent::planted::planted_new_fit",
+            "forwarder",
+            unit="antecedent::planted::planted_new_fit",
+            direct=True,
         ),
     )
 
@@ -254,16 +270,16 @@ def case_relative_super_module_method(root: Path) -> str:
 
 def case_deprecated_without_replacement(root: Path) -> str:
     plant_deprecated_entry(root, replacement=None, warn=True)
-    return "disposition deprecated requires a non-empty 'replacement'"
+    return "disposition forwarder requires a non-empty 'unit'"
 
 
 def case_deprecated_replacement_not_compiled(root: Path) -> str:
     plant_deprecated_entry(root, replacement="antecedent::planted::missing", warn=True)
-    return "does not name a compiled row"
+    return "does not name an owner or a route"
 
 
 def plant_kernel_method(root: Path, **extra: str) -> None:
-    """A run method of a re-exported kernel type, classified `kernel`."""
+    """A run method of a re-exported kernel type, classified as a forwarder of its route."""
     append(
         root,
         "parity/public_api/antecedent-estimate.txt",
@@ -272,13 +288,27 @@ def plant_kernel_method(root: Path, **extra: str) -> None:
     append(
         root,
         MANIFEST,
-        manifest_row("antecedent_estimate::AipwAte::planted_kernel_fit", "kernel", **extra),
+        manifest_row("antecedent_estimate::AipwAte::planted_kernel_fit", "forwarder", **extra),
     )
 
 
 def case_kernel_without_reason(root: Path) -> str:
     plant_kernel_method(root)
-    return "disposition kernel requires a non-empty 'reason'"
+    return "disposition forwarder requires a non-empty 'unit'"
+
+
+def case_owner_without_unit(root: Path) -> str:
+    append(
+        root,
+        "parity/public_api/antecedent.txt",
+        f"pub fn antecedent::planted::planted_facade_fit(ctx: {CTX}) -> {RESULT}\n",
+    )
+    append(
+        root,
+        MANIFEST,
+        manifest_row("antecedent::planted::planted_facade_fit", "owner"),
+    )
+    return "disposition owner requires a non-empty 'unit'"
 
 
 def case_kernel_on_facade_item(root: Path) -> str:
@@ -290,9 +320,65 @@ def case_kernel_on_facade_item(root: Path) -> str:
     append(
         root,
         MANIFEST,
-        manifest_row("antecedent::planted::planted_facade_fit", "kernel", reason="planted"),
+        manifest_row("antecedent::planted::planted_facade_fit", "forwarder", unit=compiled_route()),
     )
-    return "classified kernel, but it is not an item of a kernel crate"
+    return "antecedent::planted::planted_facade_fit: a facade item forwards only as a #[deprecated]"
+
+
+def case_deprecated_not_direct(root: Path) -> str:
+    plant_deprecated_entry(root, replacement="antecedent::planted::planted_new_fit", warn=True)
+    path = root / MANIFEST
+    text = path.read_text(encoding="utf-8")
+    marker = manifest_row(
+        "antecedent::planted::planted_old_fit",
+        "forwarder",
+        unit="antecedent::planted::planted_new_fit",
+        direct=True,
+    )
+    path.write_text(
+        text.replace(marker, manifest_row("antecedent::planted::planted_old_fit", "consumer")),
+        encoding="utf-8",
+    )
+    return "antecedent::planted::planted_old_fit: #[deprecated] in the snapshot"
+
+
+def case_consumer_takes_data(root: Path) -> str:
+    append(
+        root,
+        "parity/public_api/antecedent-estimate.txt",
+        "pub fn <antecedent_estimate::AipwAte>::fn planted_read(&self, data: "
+        f"&antecedent_data::dataset::TabularData) -> {RESULT}\n",
+    )
+    append(root, MANIFEST, manifest_row("antecedent_estimate::AipwAte::planted_read", "consumer"))
+    return "antecedent_estimate::AipwAte::planted_read: a consumer reads a sealed artifact"
+
+
+def case_not_scientific_returns_result(root: Path) -> str:
+    plant_kernel_method(root)
+    path = root / MANIFEST
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace(
+            manifest_row("antecedent_estimate::AipwAte::planted_kernel_fit", "forwarder"),
+            manifest_row(
+                "antecedent_estimate::AipwAte::planted_kernel_fit", "not_scientific", reason="helper"
+            ),
+        ),
+        encoding="utf-8",
+    )
+    return "antecedent_estimate::AipwAte::planted_kernel_fit: returns a result type"
+
+
+def case_not_scientific_without_reason(root: Path) -> str:
+    append(
+        root,
+        "parity/public_api/antecedent-estimate.txt",
+        f"pub fn <antecedent_estimate::AipwAte>::fn planted_seal(&self, ctx: {CTX}) -> u8\n",
+    )
+    append(
+        root, MANIFEST, manifest_row("antecedent_estimate::AipwAte::planted_seal", "not_scientific")
+    )
+    return "disposition not_scientific requires a non-empty 'reason'"
 
 
 PLANTED_LOADER = """
@@ -327,8 +413,8 @@ def plant_unbound_loader(root: Path, body: str) -> None:
         MANIFEST,
         manifest_row(
             "antecedent::io::planted_load",
-            "deprecated",
-            replacement=f"{BOUND_REPLACEMENT_PREFIX}antecedent_io::planted::planted_load_expecting",
+            "consumer",
+            of="antecedent_io::planted::planted_load_expecting",
         ),
     )
 
@@ -350,8 +436,8 @@ def case_bound_replacement_missing(root: Path) -> str:
         MANIFEST,
         manifest_row(
             "antecedent::io::planted_missing",
-            "deprecated",
-            replacement=f"{BOUND_REPLACEMENT_PREFIX}antecedent_io::planted::planted_missing_expecting",
+            "consumer",
+            of="antecedent_io::planted::planted_missing_expecting",
         ),
     )
     return "does not name a bound form that binds the bytes"
@@ -359,7 +445,7 @@ def case_bound_replacement_missing(root: Path) -> str:
 
 def case_deprecated_unknown_route(root: Path) -> str:
     plant_deprecated_entry(root, replacement="route:PlantedNoSuchRoute", warn=True)
-    return "does not name a route in the lowering registry"
+    return "does not name an owner or a route"
 
 
 def case_python_wrapper_missing_warning(root: Path) -> str:
@@ -386,7 +472,11 @@ def case_rust_capability_literal(root: Path) -> str:
 
 
 def case_stale_row(root: Path) -> str:
-    append(root, MANIFEST, manifest_row("antecedent_estimate::nowhere::gone", "pending", owner="x"))
+    append(
+        root,
+        MANIFEST,
+        manifest_row("antecedent_estimate::nowhere::gone", "not_scientific", reason="x"),
+    )
     return "stale row 'antecedent_estimate::nowhere::gone'"
 
 
@@ -396,8 +486,9 @@ def case_unclassified_python_wrapper(root: Path) -> str:
     text = path.read_text(encoding="utf-8")
     marker = python_row(
         "python/antecedent/planted_wrapper.py::planted_run",
-        "deprecated",
-        replacement="antecedent::planted::planted_new_fit",
+        "forwarder",
+        unit="antecedent::planted::planted_new_fit",
+        direct=True,
     )
     path.write_text(text.replace(marker, ""), encoding="utf-8")
     return "python/antecedent/planted_wrapper.py::planted_run: unclassified Python wrapper"
@@ -415,11 +506,14 @@ def plant_deprecated_facade(root: Path) -> None:
     append(
         root,
         MANIFEST,
-        manifest_row("antecedent::planted::planted_new_fit", "compiled", route=compiled_route())
+        manifest_row(
+            "antecedent::planted::planted_new_fit", "owner", unit=compiled_route(), route=compiled_route()
+        )
         + manifest_row(
             "antecedent::planted::planted_old_fit",
-            "deprecated",
-            replacement="antecedent::planted::planted_new_fit",
+            "forwarder",
+            unit="antecedent::planted::planted_new_fit",
+            direct=True,
         ),
     )
 
@@ -475,8 +569,13 @@ CASES: list[tuple[str, Callable[[Path], str]]] = [
     ("a method of a type named through a relative super:: module re-export", case_relative_super_module_method),
     ("a deprecated row without a replacement", case_deprecated_without_replacement),
     ("a deprecated row whose replacement is not compiled", case_deprecated_replacement_not_compiled),
-    ("a kernel row without a reason", case_kernel_without_reason),
-    ("a kernel row on a facade item", case_kernel_on_facade_item),
+    ("a kernel forwarder without a unit", case_kernel_without_reason),
+    ("an owner without a unit", case_owner_without_unit),
+    ("a non-direct forwarder on a facade item", case_kernel_on_facade_item),
+    ("a deprecated entry that is not a direct forwarder", case_deprecated_not_direct),
+    ("a consumer that takes a data value", case_consumer_takes_data),
+    ("a not_scientific row that returns a result", case_not_scientific_returns_result),
+    ("a not_scientific row without a reason", case_not_scientific_without_reason),
     ("a deprecated row naming an unknown route", case_deprecated_unknown_route),
     ("a bound replacement that reads before binding", case_bound_replacement_reads_unbound),
     ("a bound replacement that does not exist", case_bound_replacement_missing),
@@ -533,13 +632,13 @@ def main() -> None:
         accepted = compiled_path_problems(bound)
         if accepted:
             failures.append(f"a deprecated loader naming its bound form was refused: {accepted[:3]}")
-        # A kernel row with a reason is accepted.
+        # A kernel forwarder naming its route is accepted.
         kernel = Path(scratch) / "kernel"
         shutil.copytree(base, kernel)
-        plant_kernel_method(kernel, reason="kernel API; the type configures a compiled estimator")
+        plant_kernel_method(kernel, unit=compiled_route())
         accepted = compiled_path_problems(kernel)
         if accepted:
-            failures.append(f"a kernel row with a reason was refused: {accepted[:3]}")
+            failures.append(f"a kernel forwarder naming its route was refused: {accepted[:3]}")
         for index, (label, case) in enumerate(CASES):
             target = Path(scratch) / f"case{index}"
             shutil.copytree(base, target)

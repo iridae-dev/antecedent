@@ -4,5 +4,8 @@
   ],
   "id": "InterferenceQuery/Dag/explicit/Bayesian/full",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.interference_query.dag.bayesian.posterior_quantile.l90.interference_dag_given_bayesian_gaussian_coverage.v2_validation_full",
+    "cov.interference_query.dag.bayesian.posterior_quantile.l95.interference_dag_given_bayesian_gaussian_coverage.v2_validation_full"
+  ]
 }

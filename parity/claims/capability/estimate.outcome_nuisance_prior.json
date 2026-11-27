@@ -19,5 +19,15 @@
   ],
   "id": "estimate.outcome_nuisance_prior",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_composed_prior_informative_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_outcome_prior_informative_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_outcome_prior_misspecified_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.aipw_outcome_prior_weak_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_composed_prior_informative_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_composed_prior_misspecified_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_outcome_prior_informative_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_outcome_prior_misspecified_interval.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.dml_outcome_prior_weak_interval.v2_validation_not_applicable"
+  ]
 }

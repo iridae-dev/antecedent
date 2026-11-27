@@ -4,5 +4,8 @@
   ],
   "id": "InterferenceQuery/Pag/explicit/Bayesian/none",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_dag_given_bayesian_gaussian_coverage.v2_validation_none",
+    "cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_dag_given_bayesian_gaussian_coverage.v2_validation_none"
+  ]
 }

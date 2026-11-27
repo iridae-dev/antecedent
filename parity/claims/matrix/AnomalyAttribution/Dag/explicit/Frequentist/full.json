@@ -4,5 +4,8 @@
   ],
   "id": "AnomalyAttribution/Dag/explicit/Frequentist/full",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.anomaly_attribution.dag.frequentist.bootstrap_se.l90.anomaly_attribution_dag_explicit_frequentist_bootstrap_coverage.v2_validation_full",
+    "cov.anomaly_attribution.dag.frequentist.bootstrap_se.l95.anomaly_attribution_dag_explicit_frequentist_bootstrap_coverage.v2_validation_full"
+  ]
 }

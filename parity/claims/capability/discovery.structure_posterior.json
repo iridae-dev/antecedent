@@ -23,5 +23,10 @@
   ],
   "id": "discovery.structure_posterior",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.discover.cpdag.bayesian.structure_credible_set.l90.discovery_static_exact_class_posterior_credible_set_coverage.v2_validation_not_applicable",
+    "cov.discover.cpdag.bayesian.structure_credible_set.l95.discovery_static_exact_class_posterior_credible_set_coverage.v2_validation_not_applicable",
+    "cov.discover.temporal_dag.bayesian.structure_credible_set.l90.discovery_temporal_dbn_posterior_credible_set_coverage.v2_validation_not_applicable",
+    "cov.discover.temporal_dag.bayesian.structure_credible_set.l95.discovery_temporal_dbn_posterior_credible_set_coverage.v2_validation_not_applicable"
+  ]
 }

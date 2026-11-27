@@ -7,5 +7,8 @@
   ],
   "id": "attribution.mechanism_change_detection",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.attribute.dag.bayesian.change_indicator_credible_set.l90.mechanism_change_posterior_probability_credible_set_coverage.v2_validation_not_applicable",
+    "cov.attribute.dag.bayesian.change_indicator_credible_set.l95.mechanism_change_posterior_probability_credible_set_coverage.v2_validation_not_applicable"
+  ]
 }

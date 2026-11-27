@@ -1108,6 +1108,7 @@ fixtures = [{ id = "transport.smoothed_dose_response.bootstrap_hand_percentiles.
 
 [[record]]
 id = "sensitivity.joint_mechanism"
+calibration_reason = "no_interval_reported"
 capability = "sensitivity.joint_mechanism"
 status = "supported"
 consumer_question = "How far can the registered surrogate z-transport contrast move when the outcome kernel and the shared parent marginal it cites deviate together from their source values, and which joint deviations cross a decision threshold? The answer is an exact assumption range; this record does not offer sampling uncertainty. The separate sensitivity.joint_uncertainty record exposes a supported Rust/Python interval route with two historical coverage measurements; those measurements do not attest the current branch. The version-3 range artifact remains range-only and withholds sampling endpoints."
@@ -13296,6 +13297,7 @@ truth_grid_allocation = "Two designs at 250 / 500 / 1000 rows with 100 / 200 / 4
 
 [[record]]
 id = "measurement.probabilistic_categorical"
+calibration_reason = "estimator_grid_not_measured"
 capability = "measurement.probabilistic_categorical"
 status = "supported"
 consumer_question = "With categorical labels assigned under a declared confusion matrix, what are the corrected category proportions, expected counts and category outcome means, with confusion-matrix uncertainty propagated?"
@@ -22845,6 +22847,7 @@ fixtures = [
 
 [[record]]
 id = "gcm.attribute.mechanism_refit"
+plan_routes = ["GcmAttributeDag"]
 capability = "gcm.attribute.mechanism_refit"
 inference_inventory_disposition = "outputs_listed"
 status = "supported"
@@ -23011,6 +23014,7 @@ truth_grid_allocation = "One design at 300 / 600 / 1200 rows per population, 1,0
 
 [[record]]
 id = "gcm.simulate.mechanism_refit"
+plan_routes = ["GcmSimulateDag"]
 capability = "gcm.simulate.mechanism_refit"
 inference_inventory_disposition = "outputs_listed"
 status = "supported"
@@ -23237,6 +23241,7 @@ truth_grid_allocation = "One design at 75 / 150 / 300 rows per population."
 
 [[record]]
 id = "discovery.structure_posterior"
+plan_routes = ["DiscoverStatic", "DiscoverTemporal"]
 capability = "discovery.structure_posterior"
 inference_inventory_disposition = "outputs_listed"
 status = "supported"

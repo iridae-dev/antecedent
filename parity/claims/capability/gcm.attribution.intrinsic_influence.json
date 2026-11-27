@@ -8,5 +8,18 @@
   ],
   "id": "gcm.attribution.intrinsic_influence",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.attribute.dag.bayesian.posterior_quantile.l90.attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.noise_t",
+    "cov.attribute.dag.bayesian.posterior_quantile.l90.attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.noise_y",
+    "cov.attribute.dag.bayesian.posterior_quantile.l90.attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.noise_z",
+    "cov.attribute.dag.bayesian.posterior_quantile.l95.attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.noise_t",
+    "cov.attribute.dag.bayesian.posterior_quantile.l95.attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.noise_y",
+    "cov.attribute.dag.bayesian.posterior_quantile.l95.attribute_intrinsic_influence_dag_bayesian_dirichlet_coverage.v2_validation_not_applicable.noise_z",
+    "cov.attribute.dag.frequentist.whole_procedure_student_t.l90.intrinsic_influence_whole_procedure_interval_coverage.v2_validation_not_applicable.noise_t",
+    "cov.attribute.dag.frequentist.whole_procedure_student_t.l90.intrinsic_influence_whole_procedure_interval_coverage.v2_validation_not_applicable.noise_y",
+    "cov.attribute.dag.frequentist.whole_procedure_student_t.l90.intrinsic_influence_whole_procedure_interval_coverage.v2_validation_not_applicable.noise_z",
+    "cov.attribute.dag.frequentist.whole_procedure_student_t.l95.intrinsic_influence_whole_procedure_interval_coverage.v2_validation_not_applicable.noise_t",
+    "cov.attribute.dag.frequentist.whole_procedure_student_t.l95.intrinsic_influence_whole_procedure_interval_coverage.v2_validation_not_applicable.noise_y",
+    "cov.attribute.dag.frequentist.whole_procedure_student_t.l95.intrinsic_influence_whole_procedure_interval_coverage.v2_validation_not_applicable.noise_z"
+  ]
 }

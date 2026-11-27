@@ -7,38 +7,33 @@ lowering registry, python/, python/src) and the classification in parity/compile
 Candidates (each needs a row):
 
 * every kernel function the facade re-exports (`pub use antecedent::P = <kernel>::Q`), and every
-  executing function or method of a re-exported struct, enum or module (one that takes an
-  execution context or a data table, or returns a scientific result type), so a `_with_context`
-  variant, a namespace re-export or a method of a re-exported estimator cannot slip past a name
-  list;
+  executing method of a re-exported struct, enum or module (it takes an `ExecutionContext` or a
+  data value, or returns a scientific result), so a namespace re-export or a method of a
+  re-exported estimator cannot slip past a name list;
 * every facade function or method whose return type, after unwrapping Result, Option, Vec, Box,
   Arc, references and tuples, is a scientific result type (the seed in `[result_types]`, closed
   over public fields and variants), and every deprecated facade function;
-* every public Python function that reaches, through a native binding, a facade computation whose
-  row is `pending` or `deprecated`;
+* every public Python function that reaches, through a native binding, a direct forwarder;
 * every verdict literal that a generated table must own: a Rust `const *_CAPABILITY: &str`
   outside crates/antecedent/src/support/units_generated.rs and a Python
   `support_status: str = "<literal>"` outside python/antecedent/_direct_status.py.
 
 Dispositions:
 
-* `compiled`: names a `route` present in the lowering registry text;
-* `deprecated`: the snapshot shows `#[deprecated]` and `replacement` names a compiled row, or a
-  compiled route directly as `route:<name>`, a PlanRoute or program family in the lowering
-  registry, or, for an artifact loader that admits without a retained identity, its bound form
-  as `bound:<canonical path>` (a function, found in that crate's sources, that takes a
-  `RetainedArtifactIdentity` and binds the bytes before it reads them; its Python wrappers warn
-  through `_retained.admit`, so its reach does not make them deprecated rows) (a Python wrapper must call `_deprecation.direct_path_deprecated(` first, directly or
-  inside an `if` that scopes the deprecation to the cases the compiled route serves);
-* `kernel`: a kernel-crate run method reached through a facade-re-exported type that also
-  configures a compiled estimator; kernel crates are kernel API and are not deprecated, so the
-  row carries a non-empty `reason`;
-* `internal`: the snapshot shows `#[doc(hidden)]`;
-* `consume`: an artifact or result consumer;
-* `not_scientific`: with a `reason`;
-* `pending`: with an `owner`, the follow-up area that moves it behind the compiler.
+* `owner`: publishes the result. `unit` is the PlanRoute or the capability that carries the
+  check. `route`, when present, is that PlanRoute in the lowering registry;
+* `forwarder`: returns an owner's result and adds no claim. `unit` names the owner path or the
+  route. Without `direct`, it is a kernel-crate item the unit runs. `direct = true` is a facade
+  entry the snapshot marks `#[deprecated]` (every such entry is direct, or a consumer with `of`);
+  its Python wrappers call `_deprecation.direct_path_deprecated(` first, directly or inside an
+  `if` that scopes the warning to the cases the route serves;
+* `consumer`: reads an artifact or result a unit already sealed and adds no claim; it takes no
+  data value. `of` names the bound form when the consumer admits bytes (`*_expecting` /
+  `*_retained` binds them to a `RetainedArtifactIdentity` before reading);
+* `not_scientific`: computes no result (construction, serialization, identity, gating, data
+  access); `reason` says what it does. It returns no result type and is not deprecated.
 
-An unclassified candidate and a stale row (a row no candidate matches) fail.
+An unclassified candidate owes a claim. A stale row (a row no candidate matches) fails.
 
 Usage:
   gate_compiled_path.py            check the repository
@@ -74,16 +69,9 @@ ROUTE_REPLACEMENT_PREFIX = "route:"
 # (load_expecting / bind_retained_artifact, through bound_identity::bind) before reading them.
 BOUND_REPLACEMENT_PREFIX = "bound:"
 
-DISPOSITIONS = ("compiled", "deprecated", "kernel", "internal", "consume", "not_scientific", "pending")
-DISPOSITION_FIELD = {
-    "compiled": "route",
-    "deprecated": "replacement",
-    "kernel": "reason",
-    "not_scientific": "reason",
-    "pending": "owner",
-}
-
-# A function or method is executing when it takes one of these (or an execution context).
+DISPOSITIONS = ("owner", "forwarder", "consumer", "not_scientific")
+DISPOSITION_FIELD = {"owner": "unit", "forwarder": "unit", "not_scientific": "reason"}
+CONTEXT_TYPE = "ExecutionContext"
 DATA_TYPES = frozenset(
     {
         "TabularData",
@@ -95,7 +83,6 @@ DATA_TYPES = frozenset(
         "NetworkData",
     }
 )
-CONTEXT_TYPE = "ExecutionContext"
 
 _ATTRS = re.compile(r"^((?:#\[[^\]]*\] )*)")
 _FN = re.compile(
@@ -281,15 +268,6 @@ def result_types(seed: list[str], snaps: Snapshots) -> set[str]:
     return closed
 
 
-def _executing(fn: Fn, results: set[str]) -> bool:
-    tokens = set(_WORD.findall(fn.params))
-    return (
-        CONTEXT_TYPE in tokens
-        or bool(tokens & DATA_TYPES)
-        or bool(set(_WORD.findall(fn.ret)) & results)
-    )
-
-
 def _owner_path(owner: str) -> str:
     return re.sub(r"<.*$", "", owner)
 
@@ -305,6 +283,20 @@ def facade_reexports(snaps: Snapshots) -> dict[str, str]:
         if canonical.split("::")[0] in kernel:
             out[alias] = canonical
     return out
+
+
+def _returns_result(fn: Fn, results: set[str]) -> bool:
+    return bool(set(_WORD.findall(fn.ret)) & results)
+
+
+def _takes_data(fn: Fn) -> bool:
+    return bool(set(_WORD.findall(fn.params)) & DATA_TYPES)
+
+
+def _executing(fn: Fn, results: set[str]) -> bool:
+    return (
+        CONTEXT_TYPE in _WORD.findall(fn.params) or _takes_data(fn) or _returns_result(fn, results)
+    )
 
 
 def rust_candidates(snaps: Snapshots, results: set[str]) -> dict[str, Fn]:
@@ -345,7 +337,7 @@ def rust_candidates(snaps: Snapshots, results: set[str]) -> dict[str, Fn]:
     for fn in snaps.fns:
         if fn.crate != FACADE:
             continue
-        if set(_WORD.findall(fn.ret)) & results or fn.deprecated:
+        if _returns_result(fn, results) or fn.deprecated:
             found[fn.key] = fn
     return found
 
@@ -481,17 +473,17 @@ def _side_door_patterns(
     return patterns
 
 
+def _direct(row: dict) -> bool:
+    return row.get("direct") in (True, "true")
+
+
 def python_reach(root: Path, rows: list[dict]) -> dict[str, set[str]]:
-    """Native binding name -> the pending or deprecated facade rows it reaches (transitively)."""
+    """Native binding name -> the direct forwarders it reaches (transitively)."""
     bodies, exposed, definitions = _rust_functions(root)
-    # An unbound loader deprecated in favour of its bound form is reached by natives that serve
-    # both forms; the Python loader warns through `_retained.admit` when it is called unbound.
-    rows = [
-        row
-        for row in rows
-        if not str(row.get("replacement", "")).startswith(BOUND_REPLACEMENT_PREFIX)
-    ]
-    patterns = _side_door_patterns(rows, {"pending", "deprecated"})
+    # A consumer of a bound form is reached by natives that serve both forms; the Python loader
+    # warns through `_retained.admit` when it is called unbound.
+    rows = [row for row in rows if _direct(row) and row.get("disposition") == "forwarder"]
+    patterns = _side_door_patterns(rows, {"forwarder"})
     direct = {
         name: {k for k, (needle, p) in patterns.items() if needle in text and p.search(text)}
         for name, text in bodies.items()
@@ -737,9 +729,10 @@ def _row_problems(
     row: dict,
     line: str | None,
     registry: str,
-    compiled_paths: set[str],
+    owner_paths: set[str],
     require_snapshot: bool,
-    kernel_item: bool | None = None,
+    fn: Fn | None = None,
+    results: set[str] | None = None,
     root: Path | None = None,
 ) -> list[str]:
     problems: list[str] = []
@@ -750,33 +743,43 @@ def _row_problems(
     if field and not str(row.get(field, "")).strip():
         problems.append(f"{where}: disposition {disposition} requires a non-empty {field!r}")
         return problems
-    if disposition == "compiled" and not re.search(rf"\b{re.escape(row['route'])}\b", registry):
+    routes = route_names(registry)
+    if disposition == "owner" and row.get("route") and row["route"] not in routes:
         problems.append(f"{where}: route {row['route']!r} is not in the lowering registry")
-    if disposition == "deprecated" and require_snapshot and (line is None or "#[deprecated" not in line):
-        problems.append(f"{where}: classified deprecated, but the snapshot shows no #[deprecated]")
-    if disposition == "deprecated":
-        replacement = row["replacement"]
-        if replacement.startswith(ROUTE_REPLACEMENT_PREFIX):
-            name = replacement[len(ROUTE_REPLACEMENT_PREFIX) :].strip()
-            if name not in route_names(registry):
-                problems.append(
-                    f"{where}: replacement {replacement!r} does not name a route in the lowering registry"
-                )
-        elif replacement.startswith(BOUND_REPLACEMENT_PREFIX):
-            bound = replacement[len(BOUND_REPLACEMENT_PREFIX) :].strip()
-            if not bound_form_files(ROOT if root is None else root, bound):
-                problems.append(
-                    f"{where}: replacement {replacement!r} does not name a bound form that binds "
-                    "the bytes to a RetainedArtifactIdentity before reading them"
-                )
-        elif require_snapshot and replacement not in compiled_paths:
+    if disposition == "forwarder":
+        unit = str(row["unit"]).strip()
+        if unit.startswith(ROUTE_REPLACEMENT_PREFIX):
+            unit = unit[len(ROUTE_REPLACEMENT_PREFIX) :].strip()
+        if unit not in routes and unit not in owner_paths:
+            problems.append(f"{where}: unit {row['unit']!r} does not name an owner or a route")
+        if _direct(row) and require_snapshot and (line is None or "#[deprecated" not in line):
+            problems.append(f"{where}: direct forwarder, but the snapshot shows no #[deprecated]")
+        if not _direct(row) and fn is not None and fn.crate == FACADE:
             problems.append(
-                f"{where}: replacement {replacement!r} does not name a compiled row"
+                f"{where}: a facade item forwards only as a #[deprecated] direct entry "
+                "(direct = true); otherwise it is the owner"
             )
-    if disposition == "kernel" and require_snapshot and kernel_item is False:
-        problems.append(f"{where}: classified kernel, but it is not an item of a kernel crate")
-    if disposition == "internal" and require_snapshot and (line is None or "doc(hidden)" not in line):
-        problems.append(f"{where}: classified internal, but the snapshot shows no #[doc(hidden)]")
+    deprecated = require_snapshot and line is not None and "#[deprecated" in line
+    if deprecated and not (
+        (disposition == "forwarder" and _direct(row)) or (disposition == "consumer" and row.get("of"))
+    ):
+        problems.append(
+            f"{where}: #[deprecated] in the snapshot; a deprecated entry is a direct forwarder "
+            "(direct = true) or a consumer that names its bound form (of)"
+        )
+    if disposition == "consumer" and fn is not None and _takes_data(fn):
+        problems.append(f"{where}: a consumer reads a sealed artifact, but this takes a data value")
+    if disposition == "not_scientific" and fn is not None and _returns_result(fn, results or set()):
+        problems.append(f"{where}: returns a result type, so it is an owner, a forwarder or a consumer")
+    if disposition == "consumer" and row.get("of"):
+        target = str(row["of"])
+        if target.startswith(BOUND_REPLACEMENT_PREFIX):
+            target = target[len(BOUND_REPLACEMENT_PREFIX) :].strip()
+        if not bound_form_files(ROOT if root is None else root, target):
+            problems.append(
+                f"{where}: of {row['of']!r} does not name a bound form that binds "
+                "the bytes to a RetainedArtifactIdentity before reading them"
+            )
     return problems
 
 
@@ -801,21 +804,19 @@ def compiled_path_problems(root: Path = ROOT) -> list[str]:
         if path in by_path:
             problems.append(f"{MANIFEST}: duplicate row {path!r}")
         by_path[path] = row
-    compiled_paths = {p for p, r in by_path.items() if r.get("disposition") == "compiled"}
+    owner_paths = {p for p, r in by_path.items() if r.get("disposition") == "owner"}
 
     for path, fn in sorted(candidates.items()):
         row = by_path.get(path)
         if row is None:
             problems.append(
-                f"{path}: unclassified; it reaches a scientific computation without the compiler "
-                f"(add a row to {MANIFEST}, or route it through the compiled path)"
+                f"{path}: unclassified; claim is owed "
+                f"(name an owner, a forwarder, or a consumer in {MANIFEST})"
             )
             continue
         # The snapshot line carries the attributes; rebuild just what the rows check.
         line = ("#[doc(hidden)] " if fn.hidden else "") + ("#[deprecated] " if fn.deprecated else "")
-        problems += _row_problems(
-            path, row, line, registry, compiled_paths, True, fn.crate != FACADE, root
-        )
+        problems += _row_problems(path, row, line, registry, owner_paths, True, fn, results, root)
     for path in sorted(set(by_path) - set(candidates)):
         problems.append(f"{MANIFEST}: stale row {path!r}; no candidate matches it")
 
@@ -834,25 +835,25 @@ def compiled_path_problems(root: Path = ROOT) -> list[str]:
             reached |= reach.get(native, set())
         if reached:
             py_candidates[function.key] = function
-            deprecated_reached = any(by_path[p].get("disposition") == "deprecated" for p in reached)
+            direct_reached = any(_direct(by_path[p]) for p in reached if p in by_path)
             row = py_by_key.get(function.key)
             if row is None:
                 problems.append(
-                    f"{function.key}: unclassified Python wrapper; its native reaches "
-                    f"{sorted(reached)[0]!r} outside the compiler (add a [[python]] row)"
+                    f"{function.key}: unclassified Python wrapper; claim is owed; its native reaches "
+                    f"{sorted(reached)[0]!r} (name an owner, a forwarder, or a consumer)"
                 )
                 continue
-            problems += _row_problems(function.key, row, None, registry, compiled_paths, False)
-            if row.get("disposition") == "deprecated":
+            problems += _row_problems(function.key, row, None, registry, owner_paths, False)
+            if _direct(row):
                 if not function.first_call_deprecated:
                     problems.append(
                         f"{function.key}: deprecated, but it does not call "
                         "_deprecation.direct_path_deprecated( first"
                     )
-            elif deprecated_reached:
+            elif direct_reached:
                 problems.append(
-                    f"{function.key}: reaches a deprecated facade entry, so it must be "
-                    "classified deprecated and call _deprecation.direct_path_deprecated("
+                    f"{function.key}: reaches a direct forwarder, so it must be a forwarder "
+                    "and call _deprecation.direct_path_deprecated("
                 )
     for key in sorted(set(py_by_key) - set(py_candidates)):
         problems.append(f"{MANIFEST}: stale python row {key!r}; no wrapper reaches it")
@@ -871,7 +872,7 @@ def compiled_path_problems(root: Path = ROOT) -> list[str]:
         problems.append(f"{MANIFEST}: stale verdict row {key!r}")
     for key, row in verdict_by_key.items():
         if key in literals:
-            problems += _row_problems(key, row, None, registry, compiled_paths, False)
+            problems += _row_problems(key, row, None, registry, owner_paths, False)
     return problems
 
 

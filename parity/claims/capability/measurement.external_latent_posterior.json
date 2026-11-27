@@ -9,5 +9,8 @@
   ],
   "id": "measurement.external_latent_posterior",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_mean_substitution_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.bayesian.delta_method_wald.l95.measurement_latent_posterior_multiple_imputation_wald_l95.v2_validation_not_applicable"
+  ]
 }

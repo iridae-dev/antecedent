@@ -7,5 +7,7 @@
   ],
   "id": "estimate.randomized_quantile",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l95.randomized_quantile_median_effect_analytic_interval.v2_validation_none"
+  ]
 }

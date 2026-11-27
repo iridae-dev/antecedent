@@ -10,6 +10,8 @@
   "kind": "capability",
   "measurements": [
     "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_independent_samples_continuous_mean_contrast.v2_validation_not_applicable",
-    "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast.v2_validation_not_applicable"
+    "cov.classical_transport.admg.frequentist.analytic_se.l95.learned_trial_aipw_nested_cohort_continuous_mean_contrast.v2_validation_not_applicable",
+    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_independent_samples_joint_bootstrap_mean_contrast.v2_validation_not_applicable",
+    "cov.classical_transport.admg.frequentist.percentile_bootstrap.l95.learned_trial_aipw_nested_cohort_joint_bootstrap_mean_contrast.v2_validation_not_applicable"
   ]
 }

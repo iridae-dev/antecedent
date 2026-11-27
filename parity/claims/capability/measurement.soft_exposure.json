@@ -8,5 +8,8 @@
   ],
   "id": "measurement.soft_exposure",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_soft_exposure_multiple_imputation_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_soft_exposure_posterior_mean_wald_l95.v2_validation_not_applicable"
+  ]
 }

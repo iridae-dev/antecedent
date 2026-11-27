@@ -70,4 +70,5 @@ python3 scripts/check_limits_agreement.py --self-test
 python3 scripts/check_release_claims.py --self-test
 python3 scripts/check_python_surface.py --self-test
 python3 scripts/gate_support.py --self-test
+python3 scripts/gate_unit_claims.py --self-test
 echo "gate self-tests: ok"

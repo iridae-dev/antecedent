@@ -4,5 +4,8 @@
   ],
   "id": "TransportQuery/Dag/explicit/Bayesian/none",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.transport_query.dag.bayesian.posterior_quantile.l90.transport_admg_given_bayesian_coverage.v2_validation_none",
+    "cov.transport_query.dag.bayesian.posterior_quantile.l95.transport_admg_given_bayesian_coverage.v2_validation_none"
+  ]
 }

@@ -7,5 +7,7 @@
   ],
   "id": "sequential_evaluation.policy_evaluation",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.sequential_policy_value.not_applicable.frequentist.wald_normal.l95.off_policy_importance_weighted_wald_interval.v2_validation_not_applicable"
+  ]
 }

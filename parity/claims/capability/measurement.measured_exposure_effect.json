@@ -15,5 +15,11 @@
   ],
   "id": "measurement.measured_exposure_effect",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.measurement_corrected_functional.dag.frequentist.rubin_t_interval.l95.measured_exposure_detection_rubin_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.rubin_t_interval.l95.measured_exposure_differential_misclassification_rubin_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.rubin_t_interval.l95.measured_exposure_repeat_codings_rubin_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.rubin_t_interval.l95.measured_exposure_shared_misclassification_rubin_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.rubin_t_interval.l95.measured_exposure_soft_probabilities_rubin_l95.v2_validation_not_applicable"
+  ]
 }

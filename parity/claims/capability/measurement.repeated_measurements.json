@@ -7,5 +7,7 @@
   ],
   "id": "measurement.repeated_measurements",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_repeated_measurements_wald_l95.v2_validation_not_applicable"
+  ]
 }

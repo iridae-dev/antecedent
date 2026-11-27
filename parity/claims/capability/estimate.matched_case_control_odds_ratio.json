@@ -10,5 +10,7 @@
   ],
   "id": "estimate.matched_case_control_odds_ratio",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.matched_odds_ratio.not_applicable.frequentist.wald_normal.l95.matched_pairs_conditional_odds_ratio_wald_interval.v2_validation_not_applicable"
+  ]
 }

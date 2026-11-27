@@ -1862,6 +1862,12 @@ def structure_problems() -> list[str]:
     if not compiled:
         print("compiled units: bound to existing units, generated table current")
     found += [f"compiled units: {p}" for p in compiled]
+    import gate_unit_claims
+
+    claims = gate_unit_claims.unit_claim_problems()
+    if not claims:
+        print("unit claims: every publisher names a check and a calibration declaration")
+    found += [f"unit claims: {p}" for p in claims]
     return found
 
 

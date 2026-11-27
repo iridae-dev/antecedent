@@ -20,6 +20,7 @@ use super::gate::capability_status;
 use super::matrix::classify;
 use super::{
     GraphlessAssignmentSupport, GraphlessSupportKey, GraphlessSupportStatus, classify_graphless,
+    graphless_missing_evidence,
 };
 
 /// The id of a capability unit (`parity/capability_records.toml`).
@@ -93,9 +94,9 @@ pub struct UnitDecision {
     pub status: CellStatus,
     /// The unit the status is about.
     pub unit: UnitRef,
-    /// The evidence a capability unit lists as missing. Empty for a matrix cell or a graphless
-    /// row, which carry no listing; a capability unit that is not supported always lists at
-    /// least itself.
+    /// The evidence the unit lacks: for a matrix cell or a graphless row, the snapshot's
+    /// missing evidence (empty when supported or unlisted); for a capability unit, its listed
+    /// evidence, and at least its own id when it is not supported.
     pub missing_evidence: Vec<&'static str>,
 }
 
@@ -106,11 +107,22 @@ pub struct UnitDecision {
 #[must_use]
 pub fn decide(key: &SupportKey<'_>) -> UnitDecision {
     match key {
-        SupportKey::Matrix(cell) => UnitDecision {
-            status: classify(*cell),
-            unit: UnitRef::Matrix(*cell),
-            missing_evidence: Vec::new(),
-        },
+        SupportKey::Matrix(cell) => {
+            let status = classify(*cell);
+            let missing_evidence = if status == CellStatus::NotSupported {
+                super::matrix_data::missing_evidence([
+                    cell.query.as_str(),
+                    cell.graph_class.as_str(),
+                    cell.structure.as_str(),
+                    cell.inference.as_str(),
+                    cell.validation.as_str(),
+                ])
+                .to_vec()
+            } else {
+                Vec::new()
+            };
+            UnitDecision { status, unit: UnitRef::Matrix(*cell), missing_evidence }
+        }
         SupportKey::Graphless(graphless) => {
             let (row, observed) = **graphless;
             let supported = matches!(
@@ -125,7 +137,11 @@ pub fn decide(key: &SupportKey<'_>) -> UnitDecision {
                     method: row.method.to_owned(),
                     inference_claim: row.inference_claim.to_owned(),
                 },
-                missing_evidence: Vec::new(),
+                missing_evidence: if supported {
+                    Vec::new()
+                } else {
+                    graphless_missing_evidence(row).to_vec()
+                },
             }
         }
         SupportKey::Unit(id) => {

@@ -10,5 +10,8 @@
   ],
   "id": "estimate.descriptive_comparison",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.descriptive_comparison.not_applicable.frequentist.delta_method_wald.l95.descriptive_log_risk_ratio_delta_method_interval.v2_validation_not_applicable",
+    "cov.descriptive_comparison.not_applicable.frequentist.delta_method_wald.l95.descriptive_risk_difference_delta_method_interval.v2_validation_not_applicable"
+  ]
 }

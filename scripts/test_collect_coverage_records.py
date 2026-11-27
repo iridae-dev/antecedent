@@ -730,7 +730,7 @@ class FingerprintStampTest(unittest.TestCase):
             snapshot.return_value.outputs = []
             collector.stamp_fingerprints(records, "a" * 40)
         self.assertEqual(records["a"]["fingerprint"], "f" * 64)
-        self.assertEqual(records['a']['dependency_manifest'], 'd' * 64)
+        self.assertEqual(records['a']['dependency_manifest'], 'pass:calibration:a')
         self.assertNotIn("fingerprint", records["b"])
         # The record is bound to the binary and the regions of the runs that emitted it.
         self.assertEqual(runs.call_args.args[2], {"g.p0"})

@@ -4,5 +4,8 @@
   ],
   "id": "TransportQuery/Cpdag/explicit/Frequentist/cheap",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.transport_query.cpdag.frequentist.analytic_se.l90.transport_cpdag_graph_posterior_frequentist_coverage.v2_validation_cheap",
+    "cov.transport_query.cpdag.frequentist.analytic_se.l95.transport_cpdag_graph_posterior_frequentist_coverage.v2_validation_cheap"
+  ]
 }

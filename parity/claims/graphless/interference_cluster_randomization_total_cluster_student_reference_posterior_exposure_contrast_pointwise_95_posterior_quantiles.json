@@ -2,7 +2,16 @@
   "assertions": [
     "antecedent::interference_estimators_known_truth::cluster_bayesian_bootstrap_of_few_clusters_is_the_student_reference_law_on_every_coordinate"
   ],
+  "groups": [
+    "bayesian_randomized_calibration: cluster_bayesian_bootstrap_small_cluster_credible_interval",
+    "bayesian_randomized_statements_calibration: cluster_bayesian_bootstrap_larger_small_arm_credible_interval",
+    "graphless_wider_range_calibration: cluster_bayesian_bootstrap_student_reference_law_upper_arms_credible_interval"
+  ],
   "id": "interference:cluster_randomization_total:cluster_student_reference_posterior:exposure_contrast_pointwise_95_posterior_quantiles",
   "kind": "graphless",
-  "measurements": []
+  "measurements": [
+    "cov.interference_query.dag.bayesian.posterior_quantile.l95.cluster_bayesian_bootstrap_larger_small_arm_credible_interval.v2_validation_none",
+    "cov.interference_query.dag.bayesian.posterior_quantile.l95.cluster_bayesian_bootstrap_small_cluster_credible_interval.v2_validation_none",
+    "cov.interference_query.dag.bayesian.posterior_quantile.l95.cluster_bayesian_bootstrap_student_reference_law_upper_arms_credible_interval.v2_validation_none"
+  ]
 }

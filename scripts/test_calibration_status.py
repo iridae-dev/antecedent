@@ -329,7 +329,20 @@ class RouteMapTests(unittest.TestCase):
         self.assertEqual(status.route_map_problems(), [])
         capability = status.tomllib.loads(status.CAPABILITY_RECORDS.read_bytes().decode("utf-8"))["record"]
         names = {(str(r["id"]), str(x.get("name"))) for r in capability for x in r.get("routes") or []}
-        self.assertEqual(sorted(set(status.load_route_map()) - names), [])
+        rows = status.tomllib.loads(
+            (status.ROOT / "parity" / "support_graphless.toml").read_text(encoding="utf-8")
+        )["support"]
+        prefixes = {f"graphless.{r['family']}.{r['design']}.{r['method']}" for r in rows}
+
+        def names_a_row(route: str) -> bool:
+            return any(route == p or route.startswith(p + ".") for p in prefixes)
+
+        unknown = [
+            key
+            for key in set(status.load_route_map()) - names
+            if not (key[1].startswith("graphless.") and names_a_row(key[1]))
+        ]
+        self.assertEqual(sorted(unknown), [])
 
 
 class IntervalStateTests(unittest.TestCase):

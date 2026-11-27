@@ -4,5 +4,8 @@
   ],
   "id": "recalculation.design_specific",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.average_effect.dag.frequentist.analytic_se.l95.frontdoor_stacked_hc0_ci_coverage.v2_validation_not_applicable",
+    "cov.average_effect.dag.frequentist.analytic_se.l95.rd_sharp_hc1_heteroskedastic_ci_coverage.v2_validation_not_applicable"
+  ]
 }

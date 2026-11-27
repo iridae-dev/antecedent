@@ -4,5 +4,8 @@
   ],
   "id": "TransportQuery/Dag/accepted/Frequentist/full",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.transport_query.dag.frequentist.analytic_se.l90.transport_cpdag_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.transport_query.dag.frequentist.analytic_se.l95.transport_cpdag_graph_posterior_frequentist_coverage.v2_validation_full.v2_structure_accepted"
+  ]
 }

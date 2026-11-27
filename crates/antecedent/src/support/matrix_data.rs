@@ -113,6 +113,8 @@ struct Matrix {
     /// Supported rows by full five-axis coordinate (coordinate order), so a
     /// lookup is one hash instead of a scan of every row.
     by_coordinate: HashMap<[&'static str; 5], &'static SupportedCell>,
+    /// `missing_evidence` of rows the snapshot marks `not_supported`, keyed by coordinate.
+    refused: HashMap<[&'static str; 5], &'static [&'static str]>,
     /// Distinct supported values of each axis, for interning a parsed coordinate.
     axis_values: [HashSet<&'static str>; 5],
 }
@@ -121,6 +123,11 @@ struct Matrix {
 /// validation]` coordinate.
 pub(super) fn supported_cell(coordinate: [&str; 5]) -> Option<&'static SupportedCell> {
     matrix().by_coordinate.get(&coordinate).copied()
+}
+
+/// The snapshot's missing evidence for a coordinate it marks `not_supported`.
+pub(super) fn missing_evidence(coordinate: [&str; 5]) -> &'static [&'static str] {
+    matrix().refused.get(&coordinate).copied().unwrap_or(&[])
 }
 
 /// The `'static` axis value equal to `value`, when some supported row carries it
@@ -137,6 +144,20 @@ fn matrix() -> &'static Matrix {
 fn build(snapshot: &str) -> Matrix {
     {
         let raw: RawMatrix = serde_json::from_str(snapshot).expect("support matrix snapshot");
+        let mut refused = HashMap::new();
+        for row in &raw.supported {
+            if row.status.as_deref() != Some("not_supported") {
+                continue;
+            }
+            let coordinate = [
+                leak_str(row.query.clone()),
+                leak_str(row.graph_class.clone()),
+                leak_str(row.structure.clone()),
+                leak_str(row.inference.clone()),
+                leak_str(row.validation.clone()),
+            ];
+            refused.insert(coordinate, leak_strs(row.missing_evidence.clone()));
+        }
         let supported: &'static [SupportedCell] = leak_slice(
             raw.supported
                 .into_iter()
@@ -162,6 +183,7 @@ fn build(snapshot: &str) -> Matrix {
             closed_rules: leak_slice(raw.closed_rules.into_iter().map(NaRule::from_raw).collect()),
             supported,
             by_coordinate,
+            refused,
             axis_values,
         }
     }
@@ -196,6 +218,9 @@ struct RawSupported {
     /// Derived: `supported` or `not_supported`. Absent means supported.
     #[serde(default)]
     status: Option<String>,
+    /// Why a `not_supported` row was refused. Empty when the snapshot does not say.
+    #[serde(default)]
+    missing_evidence: Vec<String>,
 }
 
 impl NaRule {
@@ -272,5 +297,7 @@ mod tests {
         assert!(!matrix.by_coordinate.contains_key(&key("A")));
         assert!(matrix.by_coordinate.contains_key(&key("B")));
         assert!(matrix.by_coordinate.contains_key(&key("C")));
+        assert_eq!(matrix.refused[&key("A")], ["flagged: x"]);
+        assert!(!matrix.refused.contains_key(&key("B")));
     }
 }

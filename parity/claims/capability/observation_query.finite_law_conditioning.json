@@ -10,5 +10,21 @@
   ],
   "id": "observation_query.finite_law_conditioning",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.conditional_outcome_probability_given_joint_measurement.declared_finite_mechanisms.bayesian.fitted_joint_error_dirichlet_equal_tailed.l95.fitted_dependent_measurement_joint_error_l95.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_confounded_signal_l90_draws_8000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l90.count_fitted_measured_signal_l90_draws_8000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_draws_8000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_2000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_3000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_4000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_confounded_signal_l95_rows_1000_draws_8000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_measured_signal_l95_draws_8000.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_rare_evidence_boundary_l95.v2_validation_not_applicable",
+    "cov.observation_conditional_probability.not_applicable.bayesian.posterior_quantile.l95.count_fitted_sparse_parent_configuration_boundary_l95.v2_validation_not_applicable"
+  ]
 }

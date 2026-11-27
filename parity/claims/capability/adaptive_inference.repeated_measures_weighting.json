@@ -7,5 +7,7 @@
   ],
   "id": "adaptive_inference.repeated_measures_weighting",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_repeated_measures_weighted_contrast_l95.v2_validation_not_applicable"
+  ]
 }

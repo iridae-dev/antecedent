@@ -4,5 +4,8 @@
   ],
   "id": "TransportQuery/Admg/accepted/Bayesian/full",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.transport_query.admg.bayesian.posterior_quantile.l90.transport_admg_given_bayesian_coverage.v2_validation_full.v2_structure_accepted",
+    "cov.transport_query.admg.bayesian.posterior_quantile.l95.transport_admg_given_bayesian_coverage.v2_validation_full.v2_structure_accepted"
+  ]
 }

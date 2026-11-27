@@ -114,8 +114,45 @@ def _named_measurements(record: dict) -> list[str]:
     return found
 
 
+def _group_parts(group: str) -> tuple[str, str]:
+    """`<test file>: <test filter>` (or just `<test file>`) -> (head, filter)."""
+    head, _, test_filter = group.partition(": ")
+    return head, test_filter
+
+
+def _suite_value(value: object) -> str | None:
+    if isinstance(value, str) and value and value != "unallocated":
+        return value
+    return None
+
+
+def _measurement_suites(record: dict) -> tuple[list[str], list[str]]:
+    """Files the record's own suite names, and the tests its inference outputs name.
+
+    A top-level suite is the file it names: that is the record's harness. An inference
+    output that names `file::test` emits that test. An output that names only a file emits
+    the file when no other record names it; a shared harness file is not an emit of every
+    construction measured there.
+    """
+    files = []
+    tests = []
+    top = _suite_value(record.get("measurement_suite"))
+    if top:
+        files.append(top.split("::", 1)[0])
+    for output in record.get("inference_outputs") or []:
+        suite = _suite_value(output.get("measurement_suite"))
+        if not suite:
+            continue
+        if "::" in suite:
+            tests.append(suite)
+        else:
+            files.append(suite)
+    return files, tests
+
+
 def write_claim_index(root: Path) -> dict:
     """One claim file per support unit. Measurements are the ids that unit already names."""
+    import calibration_groups
     import gate_support
 
     claims: dict[tuple[str, str], dict] = {}
@@ -186,13 +223,34 @@ def write_claim_index(root: Path) -> dict:
                 test = json.loads(line.split(" = ", 1)[1])
     if ident:
         measured.append((ident, test or ""))
+    file_owners: dict[str, set[str]] = {}
+    listed: dict[str, tuple[list[str], list[str]]] = {}
     for record in caps:
-        suite = record.get("measurement_suite")
-        if not isinstance(suite, str) or not suite:
+        files, tests = _measurement_suites(record)
+        listed[record["id"]] = (files, tests)
+        for path in files:
+            file_owners.setdefault(path, set()).add(record["id"])
+    for record in caps:
+        files, tests = listed[record["id"]]
+        if not files and not tests:
             continue
         targets = _targets(record, claims, cells, graphless)
+        owned_files = {
+            path for path in files if file_owners.get(path) == {record["id"]}
+        }
+        # A top-level suite stays the record's harness even when an inference output of
+        # another record names the same file. The shared file still does not emit that
+        # other record's constructions.
+        top = _suite_value(record.get("measurement_suite"))
+        if top:
+            owned_files.add(top.split("::", 1)[0])
         for measured_id, measured_test in measured:
-            if measured_test.split("::", 1)[0] == suite:
+            test_file = measured_test.split("::", 1)[0]
+            named = test_file in owned_files or any(
+                measured_test == suite or measured_test.startswith(suite + "::")
+                for suite in tests
+            )
+            if named:
                 for claim in targets:
                     attach(claim, measured_id)
     for route in gate_support._load("parity/calibration_routes.toml").get("route", []):
@@ -205,13 +263,23 @@ def write_claim_index(root: Path) -> dict:
                 prefix = f"graphless.{row['family']}.{row['design']}.{row['method']}"
                 if route_id == prefix or str(route_id).startswith(prefix + "."):
                     targets.append(claim)
+        groups = [str(group) for group in route.get("groups") or []]
+        produced = [
+            measured_id
+            for measured_id, measured_test in measured
+            if any(
+                calibration_groups.measures(*_group_parts(group), {"test": measured_test})
+                for group in groups
+            )
+        ]
         for claim in targets:
-            for group in route.get("groups") or []:
-                # The group label is the measurement's name; the records it produces are
-                # already on the capability. A group with no allocated id still names the unit.
-                claim.setdefault("groups", [])
+            # A group with no record yet still names the unit's measurement.
+            claim.setdefault("groups", [])
+            for group in groups:
                 if group not in claim["groups"]:
                     claim["groups"].append(group)
+            for measured_id in produced:
+                attach(claim, measured_id)
 
     for claim in claims.values():
         claim["assertions"] = sorted(set(claim["assertions"]))

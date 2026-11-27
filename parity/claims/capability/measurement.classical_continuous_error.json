@@ -10,5 +10,8 @@
   ],
   "id": "measurement.classical_continuous_error",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_declared_variance_wald_l95.v2_validation_not_applicable",
+    "cov.measurement_corrected_functional.dag.frequentist.delta_method_wald.l95.measurement_classical_error_estimated_variance_wald_l95.v2_validation_not_applicable"
+  ]
 }

@@ -1730,10 +1730,11 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         } else {
             None
         };
-        // The matrix's InterferenceQuery/Frequentist cell supports only Bernoulli +
-        // NeighborCount and its Young-bound calibration. A cluster total effect has
-        // separate execution evidence but no matrix cell or interval calibration yet. A cell
-        // the closed rules already mark as executing unsupported keeps its refused status.
+        // The matrix's InterferenceQuery cells hold evidence for Bernoulli and complete
+        // randomization only. Cluster, two-stage saturation and observed-exposure contrasts
+        // are decided by their graphless interference rows (`parity/support_graphless.toml`)
+        // at execution, so no matrix cell decides them here. A cell the closed rules already
+        // mark as executing unsupported keeps its refused status.
         if support_status != Some(CellStatus::NotSupported)
             && matches!(
                 query,
@@ -1769,9 +1770,9 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             missing_evidence
                 .push("construction_evidence:untempered_white_innovation_posterior".to_owned());
         }
-        // The Frequentist counterfactual and attribution cells are supported as point
-        // values. A requested mechanism-refit bootstrap interval is a construction no
-        // coverage record measures: it executes, and the result is unsupported.
+        // A requested mechanism-refit bootstrap interval on the Frequentist counterfactual
+        // and attribution cells is a different construction from their point values: the
+        // cell's support carries to it only through its executed construction check.
         if matches!(carry.settings.inference, InferenceMode::Frequentist)
             && carry.settings.bootstrap_replicates > 0
             && matrix_class == "Dag"
@@ -1789,9 +1790,9 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                 .push("construction_evidence:mechanism_refit_bootstrap_interval".to_owned());
         }
         // The joint cell is supported on independent, unweighted rows. Sampling weights and a
-        // declared cluster or serial dependence are read by it (weighted fits, cluster-robust or
-        // Newey-West influence variance, against an exact reference) but no coverage record
-        // measures those intervals, so the cell's support does not carry to them.
+        // declared cluster or serial dependence change the construction (weighted fits,
+        // cluster-robust or Newey-West influence variance): the cell's support carries to them
+        // only through their executed construction check.
         if support_status == Some(CellStatus::Supported)
             && carry.declared.estimator == Some(EstimatorId::CellAipw)
             && matches!(query, CausalQuery::Response(_))

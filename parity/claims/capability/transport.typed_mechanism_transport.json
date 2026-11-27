@@ -12,5 +12,7 @@
   ],
   "id": "transport.typed_mechanism_transport",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.typed_transported_mechanism_contrast.dag.frequentist.delta_method_wald.l95.typed_transported_poisson_mechanism_first_order_interval.v2_validation_not_applicable"
+  ]
 }

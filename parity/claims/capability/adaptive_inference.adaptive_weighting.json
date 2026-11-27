@@ -8,5 +8,9 @@
   ],
   "id": "adaptive_inference.adaptive_weighting",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_delayed_outcomes_l95.v2_validation_not_applicable",
+    "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_thin_exploration_boundary_l95.v2_validation_not_applicable",
+    "cov.adaptive_experiment_contrast.not_applicable.frequentist.analytic_se.l95.epsilon_greedy_weighted_contrast_whole_procedure_l95.v2_validation_not_applicable"
+  ]
 }

@@ -922,7 +922,7 @@ justification = [
     { record = "acceptance.retained_expected_identity", kind = "machine_checked_proof", tool = "lean", binds = "none", names = ["Antecedent.Acceptance.bind_eq_bound_iff", "Antecedent.Acceptance.bind_none_not_bound", "Antecedent.Acceptance.bind_bound_sound", "Antecedent.Acceptance.bind_complete", "Antecedent.Acceptance.bind_self_description_only_refuses", "Antecedent.Acceptance.bind_mismatch_never_bound"] },
     { record = "acceptance.retained_expected_identity", kind = "bounded_model_check", tool = "kani", binds = "code", names = ["bound_only_against_the_retained_expectation", "no_expectation_is_never_bound", "matching_presentation_is_bound", "claim_binds_only_the_retained_claim_id"] },
 ]
-implementation = { public_path = "antecedent_io::accept_claim_expecting", facade_paths = ["antecedent::io::accept_claim_expecting"], compiled_path = ["antecedent_io::accept_claim_expecting: consume"], bound_by = ["acceptance.retained_expected_identity"] }
+implementation = { public_path = "antecedent_io::accept_claim_expecting", facade_paths = ["antecedent::io::accept_claim_expecting"], compiled_path = ["antecedent_io::accept_claim_expecting: consumer"], bound_by = ["acceptance.retained_expected_identity"] }
 obligations = [
     { obligation = "a claim that does not bind is restricted to storage and forwarding; the receipt records it", carried_in = "HandoffReceipt" },
 ]
@@ -998,7 +998,7 @@ transformation = "bind the bytes to the retained identity, then run the loader o
 justification = [
     { record = "acceptance.retained_artifact", kind = "bounded_model_check", tool = "kani", binds = "code", names = ["artifact_binds_only_the_retained_digest", "loader_runs_only_after_binding", "bound_only_against_the_retained_expectation"] },
 ]
-implementation = { public_path = "antecedent_io_core::load_expecting", facade_paths = ["antecedent::io::load_expecting"], compiled_path = ["antecedent_io_core::load_expecting: consume"], bound_by = ["acceptance.retained_artifact"] }
+implementation = { public_path = "antecedent_io_core::load_expecting", facade_paths = ["antecedent::io::load_expecting"], compiled_path = ["antecedent_io_core::load_expecting: consumer"], bound_by = ["acceptance.retained_artifact"] }
 obligations = []
 limitations = [
     "The 255 bound loader forms (*_expecting, *_retained) are load_expecting around their loader or call bind_retained_artifact first; this is checked structurally, not machine-checked, and each form has no record of its own.",

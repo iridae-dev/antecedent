@@ -4,5 +4,8 @@
   ],
   "id": "InterferenceQuery/Pag/graph_posterior/Bayesian/none",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.interference_query.pag.bayesian.posterior_quantile.l90.interference_dag_given_bayesian_gaussian_coverage.v2_validation_none.v2_structure_graph_posterior",
+    "cov.interference_query.pag.bayesian.posterior_quantile.l95.interference_dag_given_bayesian_gaussian_coverage.v2_validation_none.v2_structure_graph_posterior"
+  ]
 }

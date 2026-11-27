@@ -4,5 +4,8 @@
   ],
   "id": "TransportQuery/Pag/graph_posterior/Frequentist/cheap",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.transport_query.pag.frequentist.analytic_se.l90.transport_pag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior",
+    "cov.transport_query.pag.frequentist.analytic_se.l95.transport_pag_graph_posterior_frequentist_coverage.v2_validation_cheap.v2_structure_graph_posterior"
+  ]
 }

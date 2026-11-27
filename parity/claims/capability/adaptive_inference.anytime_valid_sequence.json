@@ -9,5 +9,8 @@
   ],
   "id": "adaptive_inference.anytime_valid_sequence",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_arm_mean_record_l95.v2_validation_not_applicable",
+    "cov.adaptive_experiment_contrast.not_applicable.frequentist.confidence_sequence.l95.anytime_valid_sequence_contrast_record_l95.v2_validation_not_applicable"
+  ]
 }

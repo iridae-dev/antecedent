@@ -4,5 +4,8 @@
   ],
   "id": "InterferenceQuery/Cpdag/accepted/Frequentist/none",
   "kind": "matrix",
-  "measurements": []
+  "measurements": [
+    "cov.interference_query.cpdag.frequentist.analytic_se.l90.interference_temporal_admg_graph_posterior_ht_hajek_coverage.v2_validation_none.v2_structure_accepted",
+    "cov.interference_query.cpdag.frequentist.analytic_se.l95.interference_temporal_admg_graph_posterior_ht_hajek_coverage.v2_validation_none.v2_structure_accepted"
+  ]
 }

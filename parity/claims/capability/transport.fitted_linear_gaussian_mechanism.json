@@ -9,5 +9,7 @@
   ],
   "id": "transport.fitted_linear_gaussian_mechanism",
   "kind": "capability",
-  "measurements": []
+  "measurements": [
+    "cov.transported_mechanism_contrast.dag.frequentist.delta_method_wald.l95.transported_linear_gaussian_mechanisms_first_order_interval.v2_validation_not_applicable"
+  ]
 }
