@@ -713,7 +713,7 @@ fn a_pooled_interval_inside_the_measured_scope_is_bound_to_its_record() {
         assert!(interval.lower < interval.estimate && interval.estimate < interval.upper);
         assert!((interval.level - 0.95).abs() < 1e-12);
         let slot = &interval.report.scalars[0].calibration;
-        assert_eq!(slot.status, "calibrated");
+        assert_eq!(slot.status, "calibrated", "{method}: {slot:?}");
         assert!(slot.record_id.is_some());
     }
     // Three studies are outside the measured study counts: the interval is reported and its

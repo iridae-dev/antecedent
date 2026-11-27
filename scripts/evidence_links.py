@@ -70,7 +70,8 @@ KINDS = ("matrix", "construction", "graphless", "capability")
 def facade_targets() -> dict[str, str]:
     """Integration test target name -> its source path, relative to the repository."""
     cargo = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
-    return {str(t["name"]): f"crates/{FACADE}/{t.get('path', f'tests/{t['name']}.rs')}" for t in cargo.get("test", [])}
+    return {str(t["name"]): f"crates/{FACADE}/" + t.get("path", f"tests/{t['name']}.rs")
+            for t in cargo.get("test", [])}
 
 
 def target_features(target: str) -> tuple[str, ...]:
