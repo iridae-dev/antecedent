@@ -70,6 +70,7 @@ fn reported_as(prepared: &PreparedStudy, result: &StudyResult, scored: &Scored<'
         dependence: scored.dependence.into(),
         functional: scored.functional.into(),
         reported_level: scored.level,
+        unit: None,
         ..base
     };
     let scope =

@@ -227,6 +227,15 @@ CAPABILITY_RECORDS = ROOT / "parity" / "capability_records.toml"
 ROUTES = ROOT / "parity" / "calibration_routes.toml"
 
 
+def load_unit_index() -> dict[tuple[str, str], list[str]] | None:
+    """(kind, id) -> the coverage records parity/unit_index.json links to the unit."""
+    path = ROOT / "parity" / "unit_index.json"
+    if not path.is_file():
+        return None
+    data = json.loads(read_text(path))
+    return {(u["kind"], u["id"]): [data["records"][i] for i in u["calibration"]] for u in data["units"]}
+
+
 def interval_state(allocated: list[str], by_id: dict[str, dict]) -> str:
     """The calibration annotation of one interval route.
 
@@ -286,12 +295,14 @@ def interval_routes(
     capability: list[dict],
     records: list[dict],
     route_map: dict[tuple[str, str], dict] | None = None,
+    index: dict[tuple[str, str], list[str]] | None = None,
 ) -> list[dict]:
     """One row per supported route that reports an interval, with its annotation.
 
-    A route the route map names is measured by the records of its named groups; any other
-    route by the records its capability record allocates. A route with neither a measured
-    record nor a slot nor a group is `unmapped`."""
+    Given the unit index, a route is measured by the coverage records linked to its
+    capability unit. Without it, a route the route map names is measured by the records of
+    its named groups and any other route by the records its capability record allocates. A
+    route with no measured record is `unmapped`."""
     route_map = route_map or {}
     by_id = {str(rec.get("id")): rec for rec in records}
     rows = []
@@ -314,8 +325,13 @@ def interval_routes(
                 "mapped_groups": [],
                 "missing_slots": [rid for rid in allocated if rid not in by_id],
             }
+            linked = index.get(("capability", str(rec["id"]))) if index is not None else None
             if mapping and mapping["no_interval"] and not mapping["groups"]:
                 row["state"] = NO_INTERVAL
+            elif linked is not None:
+                row["measured"] = sum(1 for rid in linked if rid in by_id)
+                row["missing_slots"] = []
+                row["state"] = interval_state(linked, by_id) if linked else UNMAPPED
             elif mapping and mapping["groups"]:
                 produced = group_records(mapping["groups"], records)
                 row["mapped_groups"] = [f"{h}: {f}" if f else h for h, f in mapping["groups"]]
@@ -333,7 +349,7 @@ def interval_routes(
 
 def cmd_intervals(args: argparse.Namespace) -> int:
     capability = tomllib.loads(read_text(CAPABILITY_RECORDS)).get("record", [])
-    rows = interval_routes(capability, load_records(), load_route_map())
+    rows = interval_routes(capability, load_records(), load_route_map(), load_unit_index())
     counts = collections.Counter(row["state"] for row in rows)
     if args.json:
         json.dump({"counts": dict(counts), "routes": rows}, sys.stdout, indent=2)

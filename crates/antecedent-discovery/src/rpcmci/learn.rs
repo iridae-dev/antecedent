@@ -1,7 +1,11 @@
 //! Seeded hard-assignment regime learning for the linear, persistent regime PCMCI+ scope.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Arc, DiscoveryDiagnostic, DiscoveryError, DiscoveryWorkspace, ExecutionContext,
+    RegimeAssignment, RegimeId, RegimeModel, Rpcmci, RpcmciDiscoveryResult, TableView,
+    TimeSeriesData, VariableId, fit_regime_models, retained_regime_parents,
+};
 use antecedent_core::execution::StreamDomain;
 
 const MAX_COUNT: u32 = 8;
@@ -193,7 +197,7 @@ impl Rpcmci {
             for start in 0..attempts {
                 let assignment = initialize(data.row_count(), dwell, k, start, ctx)?;
                 if let Some(fit) =
-                    self.fit_start(&series, assignment, k, options, workspace, ctx)?
+                    self.fit_start(&series, &assignment, k, options, workspace, ctx)?
                 {
                     fits.push(fit);
                 }
@@ -243,7 +247,7 @@ impl Rpcmci {
     fn fit_start(
         &self,
         series: &Series<'_>,
-        assignment: RegimeAssignment,
+        assignment: &RegimeAssignment,
         k: u32,
         options: RpcmciLearning,
         workspace: &mut DiscoveryWorkspace,
@@ -268,7 +272,7 @@ impl Rpcmci {
                 break;
             }
             let Some((updated, updated_models)) =
-                self.learned_candidate(series, next, k, options, workspace, ctx)?
+                self.learned_candidate(series, &next, k, options, workspace, ctx)?
             else {
                 candidate.converged = true;
                 break;
@@ -287,14 +291,14 @@ impl Rpcmci {
     fn learned_candidate(
         &self,
         series: &Series<'_>,
-        assignment: RegimeAssignment,
+        assignment: &RegimeAssignment,
         k: u32,
         options: RpcmciLearning,
         workspace: &mut DiscoveryWorkspace,
         ctx: &ExecutionContext,
     ) -> Result<Option<(Candidate, Vec<RegimeModel>)>, DiscoveryError> {
         let result =
-            self.discover_regimes(series.data, series.variables, &assignment, workspace, ctx)?;
+            self.discover_regimes(series.data, series.variables, assignment, workspace, ctx)?;
         if result.graphs.graphs.len() != k as usize {
             return Ok(None);
         }
@@ -304,13 +308,13 @@ impl Rpcmci {
             &series.columns,
             series.lag,
             series.data.row_count(),
-            &assignment,
+            assignment,
             series.lag,
         );
         if models.len() != k as usize {
             return Ok(None);
         }
-        let (residual_cost, bic) = criteria(series, &models, &assignment, options.switch_penalty);
+        let (residual_cost, bic) = criteria(series, &models, assignment, options.switch_penalty);
         Ok((residual_cost.is_finite() && bic.is_finite()).then_some((
             Candidate { result, residual_cost, bic, iterations: 0, converged: false },
             models,
@@ -348,11 +352,12 @@ fn initialize(
             0
         } else {
             let width = slack / runs + 1;
-            (rng.next_u64() % width as u64) as usize
+            usize::try_from(rng.next_u64() % width as u64)
+                .expect("the remainder is below a usize width")
         };
         let next = (balanced.saturating_sub(slack / (2 * runs)) + jitter).clamp(used, slack);
         let next = if start == 0 || run + 1 == runs { balanced } else { next };
-        let rotation = usize::from(run >= k && start % 2 == 0);
+        let rotation = usize::from(run >= k && start.is_multiple_of(2));
         let label = RegimeId::from_raw(crate::indexing::dense_u32((run + rotation) % k));
         labels.extend(std::iter::repeat_n(label, dwell + next - used));
         used = next;
@@ -529,8 +534,8 @@ fn stability(
     }
     let n = others.len() as f64;
     (
-        Some(assignments as f64 / (n * best.assignments.len() as f64)),
-        graphs.into_iter().map(|m| Some(m as f64 / n)).collect(),
+        Some(f64::from(assignments) / (n * best.assignments.len() as f64)),
+        graphs.into_iter().map(|m| Some(f64::from(m) / n)).collect(),
     )
 }
 
@@ -553,6 +558,7 @@ mod duration_oracle {
     }
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "the oracle evaluates the same objective on the same path")]
     fn duration_updates_match_independent_exhaustive_path_cost() {
         let ctx = ExecutionContext::for_tests(14);
         for rows in 4..=7 {

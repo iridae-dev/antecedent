@@ -5695,7 +5695,7 @@ matrix_digest = "c813fea0c3434c71"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/point_only_routes.rs::a_frequentist_dag_counterfactual_publishes_the_mean_effect_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/staged_static_kinds.rs|static_kinds_known_truth|conformance/estimate/staged_static_kinds"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/point_only_routes.rs", "crates/antecedent/tests/staged_static_kinds.rs", "conformance/estimate/staged_static_kinds"]
 
 [[obligation]]
@@ -5712,7 +5712,7 @@ matrix_digest = "65af6adf8adf9e2c"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_counterfactual_route_evidence.rs::checked_counterfactual_accepted_and_explicit_retain_worlds_and_refuse_portable_replay"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/counterfactual_accepted_known_truth.rs|accepted_counterfactual_matches_the_closed_form_mean_effect|conformance/estimate/staged_static_kinds"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/checked_counterfactual_route_evidence.rs", "crates/antecedent/tests/counterfactual_accepted_known_truth.rs", "conformance/estimate/staged_static_kinds"]
 
 [[obligation]]
@@ -7701,7 +7701,7 @@ matrix_digest = "d9a852e8398fb7e4"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/point_only_routes.rs::the_default_frequentist_dag_anomaly_attribution_publishes_scores_and_no_interval"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/staged_attribution_transport_interference.rs|anomaly_attribution_known_truth|conformance/estimate/staged_attribution"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/point_only_routes.rs", "crates/antecedent/tests/staged_attribution_transport_interference.rs", "conformance/estimate/staged_attribution"]
 
 [[obligation]]
@@ -7837,7 +7837,7 @@ matrix_digest = "cafb4001fe1fc9f2"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/staged_attribution_transport_interference.rs|accepted_dag_attribution_known_truth|conformance/estimate/staged_attribution"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/checked_attribution_route_evidence.rs", "crates/antecedent/tests/staged_attribution_transport_interference.rs", "conformance/estimate/staged_attribution"]
 
 [[obligation]]
@@ -7973,7 +7973,7 @@ matrix_digest = "6b8d93726b9e452d"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/attribution_refuter_known_truth.rs|anomaly_attribution_refuter_states_known_truth|conformance/estimate/attribution_refuter_states"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/attribution_refuter_known_truth.rs", "crates/antecedent/tests/checked_attribution_route_evidence.rs", "conformance/estimate/attribution_refuter_states"]
 
 [[obligation]]
@@ -7990,7 +7990,7 @@ matrix_digest = "2da20ad54c0ac697"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_attribution_route_evidence.rs::all_frequentist_static_dag_attribution_plans_are_sealed_and_dependency_refused"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/attribution_refuter_known_truth.rs|anomaly_attribution_refuter_states_known_truth|conformance/estimate/attribution_refuter_states"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/attribution_refuter_known_truth.rs", "crates/antecedent/tests/checked_attribution_route_evidence.rs", "conformance/estimate/attribution_refuter_states"]
 
 [[obligation]]
@@ -8041,7 +8041,7 @@ matrix_digest = "bd3d742c44c99946"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/attribution_refuter_known_truth.rs|anomaly_attribution_refuter_states_known_truth|conformance/estimate/attribution_refuter_states"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/attribution_refuter_known_truth.rs", "crates/antecedent/tests/checked_attribution_route_evidence.rs", "conformance/estimate/attribution_refuter_states"]
 
 [[obligation]]
@@ -8058,7 +8058,7 @@ matrix_digest = "8cb65186df3100c5"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/checked_attribution_route_evidence.rs::accepted_dag_attribution_plans_are_sealed_for_both_inference_modes"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/attribution_refuter_known_truth.rs|anomaly_attribution_refuter_states_known_truth|conformance/estimate/attribution_refuter_states"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/attribution_refuter_known_truth.rs", "crates/antecedent/tests/checked_attribution_route_evidence.rs", "conformance/estimate/attribution_refuter_states"]
 
 [[obligation]]
@@ -20077,7 +20077,7 @@ matrix_digest = "474d93e5358be82b"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/cross_world_dag_validation_truth.rs::counterfactual_dag_validation_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_dag_validation_truth.rs|counterfactual_dag_cheap_and_full_validation_refutes_the_structural_slope|conformance/estimate/cross_world_dag_validation"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/cross_world_dag_validation_truth.rs", "conformance/estimate/cross_world_dag_validation"]
 
 [[obligation]]
@@ -20094,7 +20094,7 @@ matrix_digest = "953a179584331fde"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/cross_world_dag_validation_truth.rs::counterfactual_dag_validation_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_dag_validation_truth.rs|counterfactual_dag_cheap_and_full_validation_refutes_the_structural_slope|conformance/estimate/cross_world_dag_validation"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/cross_world_dag_validation_truth.rs", "conformance/estimate/cross_world_dag_validation"]
 
 [[obligation]]
@@ -20145,7 +20145,7 @@ matrix_digest = "12bc27cb5924f0b9"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/cross_world_dag_validation_truth.rs::counterfactual_dag_validation_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_dag_validation_truth.rs|counterfactual_dag_cheap_and_full_validation_refutes_the_structural_slope|conformance/estimate/cross_world_dag_validation"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/cross_world_dag_validation_truth.rs", "conformance/estimate/cross_world_dag_validation"]
 
 [[obligation]]
@@ -20162,7 +20162,7 @@ matrix_digest = "c2cd2e2ce2b00ed2"
 support_basis = "explicit_support"
 compiler_execution = ["gcm.fit = crates/antecedent/tests/cross_world_dag_validation_truth.rs::counterfactual_dag_validation_executes_from_the_retained_plan_without_the_builder"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/cross_world_dag_validation_truth.rs|counterfactual_dag_cheap_and_full_validation_refutes_the_structural_slope|conformance/estimate/cross_world_dag_validation"
-uncertainty = "no_interval_reported"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/cross_world_dag_validation_truth.rs", "conformance/estimate/cross_world_dag_validation"]
 
 [[obligation]]
@@ -33473,7 +33473,7 @@ matrix_digest = "1a9c85648caf1ae0"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33490,7 +33490,7 @@ matrix_digest = "6a17fd94a8d7064c"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33507,7 +33507,7 @@ matrix_digest = "3bc9d883883488a4"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33524,7 +33524,7 @@ matrix_digest = "42e339c4a5d890b9"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33541,7 +33541,7 @@ matrix_digest = "8370ea52026f2d49"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33558,7 +33558,7 @@ matrix_digest = "48e0f53ee749bd4d"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33575,7 +33575,7 @@ matrix_digest = "e2ba936a69f77b67"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33592,7 +33592,7 @@ matrix_digest = "9f9f2960c5bdddcc"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33609,7 +33609,7 @@ matrix_digest = "dee8db186de8b10e"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33626,7 +33626,7 @@ matrix_digest = "d1a34f72848b23d5"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33643,7 +33643,7 @@ matrix_digest = "4e2018a1cf2e86db"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33660,7 +33660,7 @@ matrix_digest = "2307fe897f516920"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33677,7 +33677,7 @@ matrix_digest = "d287bd688b3736f6"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33694,7 +33694,7 @@ matrix_digest = "1b73f2a858d911c4"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33711,7 +33711,7 @@ matrix_digest = "e5ad57d8212a26fe"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33728,7 +33728,7 @@ matrix_digest = "c2d177c1f2d39f97"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33745,7 +33745,7 @@ matrix_digest = "edabc7c14c11542c"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33762,7 +33762,7 @@ matrix_digest = "6593e569849c95cc"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33779,7 +33779,7 @@ matrix_digest = "df3ea835e05486a3"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33796,7 +33796,7 @@ matrix_digest = "001eb0dc5fb80849"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33813,7 +33813,7 @@ matrix_digest = "8578ae46b0eae574"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33830,7 +33830,7 @@ matrix_digest = "8ed096c09560f707"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33847,7 +33847,7 @@ matrix_digest = "7e4333d140412db3"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33864,7 +33864,7 @@ matrix_digest = "670fce760ad67693"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33881,7 +33881,7 @@ matrix_digest = "5240f31aa1cb4526"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33898,7 +33898,7 @@ matrix_digest = "833982177f7e53ea"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33915,7 +33915,7 @@ matrix_digest = "4be8f4bc43c33583"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -33932,7 +33932,7 @@ matrix_digest = "701988a3c05431aa"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33949,7 +33949,7 @@ matrix_digest = "82d707e4b5cc9d91"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33966,7 +33966,7 @@ matrix_digest = "37e702bd87dc90b0"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -33983,7 +33983,7 @@ matrix_digest = "c23dd01a3a43bdc4"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34000,7 +34000,7 @@ matrix_digest = "ea1c54bc3ea02b4a"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34017,7 +34017,7 @@ matrix_digest = "ff7db36350b9f9f5"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34034,7 +34034,7 @@ matrix_digest = "a49187bd09b9c995"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34051,7 +34051,7 @@ matrix_digest = "f2b5a91450c4b8ad"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34068,7 +34068,7 @@ matrix_digest = "a3f9888ca6e828d4"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_and_pag_cells_publish_the_pinned_contrast_and_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34085,7 +34085,7 @@ matrix_digest = "d4de5b0e79bd553e"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34102,7 +34102,7 @@ matrix_digest = "eec62896f00990a0"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34119,7 +34119,7 @@ matrix_digest = "33e99ebe939ff746"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34136,7 +34136,7 @@ matrix_digest = "6b2d23d451dbf7d8"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34153,7 +34153,7 @@ matrix_digest = "5822243d323b9bdc"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34170,7 +34170,7 @@ matrix_digest = "f3312be4fb2c643e"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34187,7 +34187,7 @@ matrix_digest = "70c0daffc13ed1a6"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34204,7 +34204,7 @@ matrix_digest = "fad0cd9d9370d25d"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34221,7 +34221,7 @@ matrix_digest = "287695387ac56407"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34238,7 +34238,7 @@ matrix_digest = "4836657812229ae3"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34255,7 +34255,7 @@ matrix_digest = "4019cd39f12c06cb"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34272,7 +34272,7 @@ matrix_digest = "fb3773b32707854c"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_accepted_cells_publish_the_pinned_contrast|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34289,7 +34289,7 @@ matrix_digest = "3da13623d09e312a"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34306,7 +34306,7 @@ matrix_digest = "2da2d0fe419c6c25"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34323,7 +34323,7 @@ matrix_digest = "f682a9701247a0ee"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34340,7 +34340,7 @@ matrix_digest = "644b292c55bc6483"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34357,7 +34357,7 @@ matrix_digest = "ed983291e407fd16"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34374,7 +34374,7 @@ matrix_digest = "c874f6bab028ac7b"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_dag_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34391,7 +34391,7 @@ matrix_digest = "8e87413fa7d7e6d0"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_posterior_cells_state_the_unidentified_and_unevaluable_mass|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34408,7 +34408,7 @@ matrix_digest = "4029fd161b3f8364"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_posterior_cells_state_the_unidentified_and_unevaluable_mass|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34425,7 +34425,7 @@ matrix_digest = "d521ba34817439cc"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_posterior_cells_state_the_unidentified_and_unevaluable_mass|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34442,7 +34442,7 @@ matrix_digest = "a9ed6900ed30f30a"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_posterior_cells_state_the_unidentified_and_unevaluable_mass|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34459,7 +34459,7 @@ matrix_digest = "f9e74adf1371c44e"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_posterior_cells_state_the_unidentified_and_unevaluable_mass|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34476,7 +34476,7 @@ matrix_digest = "efd769081994700c"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_posterior_cells_state_the_unidentified_and_unevaluable_mass|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34493,7 +34493,7 @@ matrix_digest = "0bcce4fb5435b2a4"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_temporal_admg_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34510,7 +34510,7 @@ matrix_digest = "f36dfa17767460ae"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_temporal_admg_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34527,7 +34527,7 @@ matrix_digest = "8deaa908ded94d6a"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_temporal_admg_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34544,7 +34544,7 @@ matrix_digest = "cea6befafd887f63"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_temporal_admg_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34561,7 +34561,7 @@ matrix_digest = "37f930a6ca67b0b0"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_temporal_admg_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34578,7 +34578,7 @@ matrix_digest = "9be83bad8d7cb115"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_temporal_admg_posterior_cells_mix_the_atoms_sid_certifies|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34595,7 +34595,7 @@ matrix_digest = "b9450e47aa5c2b88"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_posterior_cells_run_the_class_envelope_of_sid|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34612,7 +34612,7 @@ matrix_digest = "3d3c2a9ad4c8efe8"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_posterior_cells_run_the_class_envelope_of_sid|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34629,7 +34629,7 @@ matrix_digest = "8c35101cc27abbb8"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_posterior_cells_run_the_class_envelope_of_sid|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34646,7 +34646,7 @@ matrix_digest = "2ae0662bd0b40273"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_posterior_cells_run_the_class_envelope_of_sid|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34663,7 +34663,7 @@ matrix_digest = "e4ed3cda3b6c947d"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_posterior_cells_run_the_class_envelope_of_sid|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34680,7 +34680,7 @@ matrix_digest = "23b946defc95feff"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_cpdag_posterior_cells_run_the_class_envelope_of_sid|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34697,7 +34697,7 @@ matrix_digest = "412eda344ba3a0a1"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_pag_posterior_cells_state_the_mass_sid_does_not_certify|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34714,7 +34714,7 @@ matrix_digest = "ec484d8e13e24baa"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_pag_posterior_cells_state_the_mass_sid_does_not_certify|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34731,7 +34731,7 @@ matrix_digest = "b0b39fe7e8b9b695"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_pag_posterior_cells_state_the_mass_sid_does_not_certify|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34748,7 +34748,7 @@ matrix_digest = "281135db61e5d0e6"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_pag_posterior_cells_state_the_mass_sid_does_not_certify|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34765,7 +34765,7 @@ matrix_digest = "8be200695a3b43cd"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_pag_posterior_cells_state_the_mass_sid_does_not_certify|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34782,7 +34782,7 @@ matrix_digest = "dce9d7e6095a7dbb"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_pag_posterior_cells_state_the_mass_sid_does_not_certify|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34799,7 +34799,7 @@ matrix_digest = "0495cc5af19dcd1d"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34816,7 +34816,7 @@ matrix_digest = "e274bf73a5490c46"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34833,7 +34833,7 @@ matrix_digest = "8ae803aabf6eb7b6"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34850,7 +34850,7 @@ matrix_digest = "f8725b0972a35051"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34867,7 +34867,7 @@ matrix_digest = "828b88e42bb1266b"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34884,7 +34884,7 @@ matrix_digest = "b57f1ced168ade3c"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_ipw = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/staged_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/staged_transport"]
 
 [[obligation]]
@@ -34901,7 +34901,7 @@ matrix_digest = "9ef5429d3b545b59"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34918,7 +34918,7 @@ matrix_digest = "04ae7bfcd0fc1a16"
 support_basis = "explicit_support"
 compiler_execution = ["transport.trial_bayesian_bootstrap = crates/antecedent/tests/transport_interference_cell_evidence.rs::transport_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|transport_admg_and_temporal_admg_explicit_cheap_and_full_run_the_hand_counted_suite|conformance/estimate/bayesian_trial_transport"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_trial_transport"]
 
 [[obligation]]
@@ -34935,7 +34935,7 @@ matrix_digest = "5e84f50760fffedb"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -34952,7 +34952,7 @@ matrix_digest = "40087c3c24256af8"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -34969,7 +34969,7 @@ matrix_digest = "b77ab79bc5f72793"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -34986,7 +34986,7 @@ matrix_digest = "0883e3f95dd24c2a"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35003,7 +35003,7 @@ matrix_digest = "fba354f37fab89e4"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35020,7 +35020,7 @@ matrix_digest = "b93eb8a266571c75"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35037,7 +35037,7 @@ matrix_digest = "4a751425ae2faa54"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35054,7 +35054,7 @@ matrix_digest = "b1803e16088ef504"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35071,7 +35071,7 @@ matrix_digest = "00d3c83bfa279d09"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35088,7 +35088,7 @@ matrix_digest = "7d465936e6004b7b"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35105,7 +35105,7 @@ matrix_digest = "4ca931d14e8f40cd"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35122,7 +35122,7 @@ matrix_digest = "f8856f4ffed26eaa"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35139,7 +35139,7 @@ matrix_digest = "35b79fd8fc752c19"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35156,7 +35156,7 @@ matrix_digest = "372a73730560807f"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35173,7 +35173,7 @@ matrix_digest = "0abd9f6b5482c3fa"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35190,7 +35190,7 @@ matrix_digest = "79438362fc0b8ec1"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35207,7 +35207,7 @@ matrix_digest = "e8455688edfc150b"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35224,7 +35224,7 @@ matrix_digest = "5c846752442bf551"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35241,7 +35241,7 @@ matrix_digest = "a548ce6db7c0b964"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35258,7 +35258,7 @@ matrix_digest = "e31e03467f605b73"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35275,7 +35275,7 @@ matrix_digest = "9f7128d372ff8b15"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35292,7 +35292,7 @@ matrix_digest = "cf37e6b87cddd32d"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35309,7 +35309,7 @@ matrix_digest = "cb196cfa8fb45f7a"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35326,7 +35326,7 @@ matrix_digest = "9e20567a591df629"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35343,7 +35343,7 @@ matrix_digest = "402b82c4a0322d4d"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35360,7 +35360,7 @@ matrix_digest = "c33405bd1851191c"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35377,7 +35377,7 @@ matrix_digest = "8643d3ac37442ca2"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35394,7 +35394,7 @@ matrix_digest = "96b7d64d98b24e49"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35411,7 +35411,7 @@ matrix_digest = "30d131b9ee084a82"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35428,7 +35428,7 @@ matrix_digest = "a2ddfeda0b2168d9"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_accepted_cells_publish_the_enumerated_contrast_and_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35445,7 +35445,7 @@ matrix_digest = "e73b77cdef2b98ae"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35462,7 +35462,7 @@ matrix_digest = "7653637f91096b1d"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35479,7 +35479,7 @@ matrix_digest = "e3343a0c133519c4"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35496,7 +35496,7 @@ matrix_digest = "445ffab87cf260c6"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35513,7 +35513,7 @@ matrix_digest = "bd4526b58ea7f945"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35530,7 +35530,7 @@ matrix_digest = "b37433854578f25c"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35547,7 +35547,7 @@ matrix_digest = "e0401bc886d31157"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35564,7 +35564,7 @@ matrix_digest = "82d54d578a7c449e"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35581,7 +35581,7 @@ matrix_digest = "98fff88acb998a99"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35598,7 +35598,7 @@ matrix_digest = "71c4dddfaf1e278b"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35615,7 +35615,7 @@ matrix_digest = "1393bd84dd8fcf69"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35632,7 +35632,7 @@ matrix_digest = "07e3c4f2a957e787"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35649,7 +35649,7 @@ matrix_digest = "240b680a325c7c4d"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35666,7 +35666,7 @@ matrix_digest = "88cd44f5382d09d3"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35683,7 +35683,7 @@ matrix_digest = "d1381e317185f2d4"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35700,7 +35700,7 @@ matrix_digest = "d89d633b233b6acf"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35717,7 +35717,7 @@ matrix_digest = "d16796198c3b7385"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35734,7 +35734,7 @@ matrix_digest = "c9d56066f8da3179"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35751,7 +35751,7 @@ matrix_digest = "52e04b566b0e19a8"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35768,7 +35768,7 @@ matrix_digest = "45059f1d3defc312"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35785,7 +35785,7 @@ matrix_digest = "f6205ea13326323c"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35802,7 +35802,7 @@ matrix_digest = "e020fffbc0db58ea"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35819,7 +35819,7 @@ matrix_digest = "b8e990d025fce67d"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35836,7 +35836,7 @@ matrix_digest = "38d2e2fa10ee7246"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_temporal_admg_cpdag_and_pag_explicit_cells_publish_the_enumerated_contrast|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35853,7 +35853,7 @@ matrix_digest = "2af87255aee3e530"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_explicit_cheap_and_full_run_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35870,7 +35870,7 @@ matrix_digest = "546f6820d3de23f9"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_explicit_cheap_and_full_run_the_design_suite|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35887,7 +35887,7 @@ matrix_digest = "874755b7d7714a1a"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_explicit_cheap_and_full_run_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35904,7 +35904,7 @@ matrix_digest = "32e3e51affd4e186"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_explicit_cheap_and_full_run_the_design_suite|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35921,7 +35921,7 @@ matrix_digest = "e72d2f997a8d2c60"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35938,7 +35938,7 @@ matrix_digest = "7bd2949336786fc7"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35955,7 +35955,7 @@ matrix_digest = "a165f7d4f60458e1"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -35972,7 +35972,7 @@ matrix_digest = "5d3ba6f2aa4bb6f2"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -35989,7 +35989,7 @@ matrix_digest = "15655671054d1dd3"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36006,7 +36006,7 @@ matrix_digest = "cc1d3fdee43b217b"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_dag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36023,7 +36023,7 @@ matrix_digest = "8a8d77df6fdfba66"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36040,7 +36040,7 @@ matrix_digest = "937387c456f64d48"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36057,7 +36057,7 @@ matrix_digest = "3454756c0960bf9c"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36074,7 +36074,7 @@ matrix_digest = "c3f8baf1cae73cf4"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36091,7 +36091,7 @@ matrix_digest = "c80a322c84400277"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36108,7 +36108,7 @@ matrix_digest = "cef7946ea5f04631"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36125,7 +36125,7 @@ matrix_digest = "e4c5d1feb824da0b"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_temporal_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36142,7 +36142,7 @@ matrix_digest = "546158341af668d1"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_temporal_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36159,7 +36159,7 @@ matrix_digest = "1b2a2c71de427d42"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_temporal_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36176,7 +36176,7 @@ matrix_digest = "6b7ccb825648c172"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_temporal_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36193,7 +36193,7 @@ matrix_digest = "e3ab39a0e9c93dfa"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_temporal_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36210,7 +36210,7 @@ matrix_digest = "c27c3e51f08371d8"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_temporal_admg_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36227,7 +36227,7 @@ matrix_digest = "d90ff4c3c6e0f1d4"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_cpdag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36244,7 +36244,7 @@ matrix_digest = "dc761b08ef858aa2"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_cpdag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36261,7 +36261,7 @@ matrix_digest = "f12bdb0f36363d11"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_cpdag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36278,7 +36278,7 @@ matrix_digest = "2112fc2408e8fdc5"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_cpdag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36295,7 +36295,7 @@ matrix_digest = "83dc64ea459dc934"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_cpdag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36312,7 +36312,7 @@ matrix_digest = "bb859ceacd611710"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_cpdag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36329,7 +36329,7 @@ matrix_digest = "224d56496ada6d45"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_pag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36346,7 +36346,7 @@ matrix_digest = "e5cae971d1789859"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_pag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36363,7 +36363,7 @@ matrix_digest = "e64f2040d6328a9a"
 support_basis = "explicit_support"
 compiler_execution = ["interference.ht_hajek = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_pag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/response/randomized_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "boundary_record"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/response/randomized_interference"]
 
 [[obligation]]
@@ -36380,7 +36380,7 @@ matrix_digest = "13d5d60b9f7c9803"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_pag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36397,7 +36397,7 @@ matrix_digest = "d644da37d3955a45"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_pag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]
@@ -36414,7 +36414,7 @@ matrix_digest = "fc103d478cd5f9ad"
 support_basis = "explicit_support"
 compiler_execution = ["interference.bayesian_gaussian = crates/antecedent/tests/transport_interference_cell_evidence.rs::interference_cells_execute_from_the_retained_operation_after_builder_drop"]
 identification_evidence = "internal_known_truth|crates/antecedent/tests/transport_interference_cell_evidence.rs|interference_pag_posterior_cells_carry_the_design_contrast_and_the_atom_mass|conformance/estimate/bayesian_interference"
-uncertainty = "estimator_grid_not_measured"
+uncertainty = "coverage_records"
 evidence_reachability = ["crates/antecedent/tests/transport_interference_cell_evidence.rs", "conformance/estimate/bayesian_interference"]
 
 [[obligation]]

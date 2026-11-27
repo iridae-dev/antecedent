@@ -136,6 +136,13 @@ struct StickMass {
     log_marginal: f64,
 }
 
+struct StickGrid<'a> {
+    xs: &'a [f64],
+    ws: &'a [f64],
+    vlo: f64,
+    vhi: f64,
+}
+
 const HIERARCHICAL_UNEVALUATED: &str =
     "hierarchical choice posterior of options, studies, and observations";
 
@@ -215,7 +222,7 @@ impl HierarchicalChoicePosterior {
         }
         let totals: Vec<u64> =
             counts.iter().map(|c| c.iter().map(|x| u64::from(*x)).sum()).collect();
-        if totals.iter().any(|m| *m == 0) {
+        if totals.contains(&0) {
             return Err(Error::Limit("a respondent contributes at least one choice"));
         }
         if totals.iter().all(|m| *m < 2) {
@@ -544,17 +551,8 @@ impl HierarchicalChoicePosterior {
         let mut coords = vec![0.0; dims];
         let mut log_weights = vec![0.0; dims];
         let mut points = Vec::new();
-        self.stick_walk(
-            0,
-            &xs,
-            &ws,
-            vlo,
-            vhi,
-            &mut coords,
-            &mut log_weights,
-            &mut points,
-            cancelled,
-        )?;
+        let grid = StickGrid { xs: &xs, ws: &ws, vlo, vhi };
+        self.stick_walk(0, &grid, &mut coords, &mut log_weights, &mut points, cancelled)?;
         let mut max_log = f64::NEG_INFINITY;
         for (log_w, _, _) in &points {
             if log_w.is_finite() {
@@ -584,8 +582,7 @@ impl HierarchicalChoicePosterior {
                 .iter()
                 .enumerate()
                 .max_by(|a, b| a.1.total_cmp(b.1).then_with(|| b.0.cmp(&a.0)))
-                .map(|(j, _)| j)
-                .unwrap_or(0);
+                .map_or(0, |(j, _)| j);
             let peak = pi.iter().copied().fold(f64::NEG_INFINITY, f64::max);
             for j in 0..k {
                 mean[j] += w * pi[j];
@@ -622,10 +619,7 @@ impl HierarchicalChoicePosterior {
     fn stick_walk(
         &self,
         dim: usize,
-        xs: &[f64],
-        ws: &[f64],
-        vlo: f64,
-        vhi: f64,
+        grid: &StickGrid<'_>,
         coords: &mut [f64],
         log_weights: &mut [f64],
         points: &mut Vec<(f64, Vec<f64>, f64)>,
@@ -649,7 +643,7 @@ impl HierarchicalChoicePosterior {
                 remain *= 1.0 - u;
             }
             pi[sticks] = remain;
-            if pi.iter().any(|p| !(*p > 0.0)) {
+            if pi.iter().any(|p| p.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater)) {
                 return Ok(());
             }
             let mut scratch = self.scratch();
@@ -661,15 +655,18 @@ impl HierarchicalChoicePosterior {
             return Ok(());
         }
         let eps = 1e-6;
-        let (lo, _hi, span) =
-            if dim == sticks { (vlo, vhi, vhi - vlo) } else { (eps, 1.0 - eps, 1.0 - 2.0 * eps) };
-        for (x, w) in xs.iter().zip(ws) {
+        let (lo, _hi, span) = if dim == sticks {
+            (grid.vlo, grid.vhi, grid.vhi - grid.vlo)
+        } else {
+            (eps, 1.0 - eps, 1.0 - 2.0 * eps)
+        };
+        for (x, w) in grid.xs.iter().zip(grid.ws) {
             if *w <= 0.0 {
                 continue;
             }
             coords[dim] = lo + 0.5 * (x + 1.0) * span;
             log_weights[dim] = w.ln() + (0.5 * span).ln();
-            self.stick_walk(dim + 1, xs, ws, vlo, vhi, coords, log_weights, points, cancelled)?;
+            self.stick_walk(dim + 1, grid, coords, log_weights, points, cancelled)?;
         }
         Ok(())
     }

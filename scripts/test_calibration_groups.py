@@ -135,10 +135,17 @@ class OwedSelectionTest(unittest.TestCase):
 
     def test_graphless_claim_keys_resolve_to_published_design_methods(self):
         support = load_toml(groups.ROOT / "parity/support_graphless.toml")["support"]
-        keys = {" / ".join(row[key] for key in ("family", "design", "method")) for row in support}
-        for group in groups.gate_groups():
-            if group.claim and group.head != "joint_panel_calibration":
-                self.assertIn(group.claim, keys, group.label)
+        # A claim is a graphless row's family, design and method, plus its inference claim where
+        # one design method publishes several (a pointwise interval and a band), or a capability
+        # record followed by the construction it measures.
+        keys = {" / ".join(row[key] for key in axes) for row in support
+                for axes in (("family", "design", "method"), ("family", "design", "method", "inference_claim"))}
+        capabilities = {r["id"] for r in load_toml(groups.ROOT / "parity/capability_records.toml")["record"]}
+        unowned = sorted({f"{group.claim} ({group.label})" for group in groups.gate_groups()
+                          if group.claim and group.head != "joint_panel_calibration"
+                          and group.claim not in keys
+                          and group.claim.split(" / ", 1)[0] not in capabilities})
+        self.assertEqual(unowned, [], "calibration obligations naming no graphless row or capability")
 
     def test_both_arm_median_records_are_required(self):
         group = next(group for group in groups.gate_groups()

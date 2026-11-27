@@ -87,17 +87,17 @@ const ACTION_WORLD_DECISION_FEATURE: &str = "chain_action_world_decision_v1";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct ChainDecisionArtifactWire {
-    version: u32,
-    required_feature: String,
-    chain_record: Vec<u8>,
-    chain_identity: String,
-    contract: Vec<u8>,
-    contract_identity: String,
-    decision_fingerprint: String,
-    lowered_program_identity: [u8; 32],
+pub(super) struct ChainDecisionArtifactWire {
+    pub(super) version: u32,
+    pub(super) required_feature: String,
+    pub(super) chain_record: Vec<u8>,
+    pub(super) chain_identity: String,
+    pub(super) contract: Vec<u8>,
+    pub(super) contract_identity: String,
+    pub(super) decision_fingerprint: String,
+    pub(super) lowered_program_identity: [u8; 32],
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    method_provenance: Option<MethodProvenanceWire>,
+    pub(super) method_provenance: Option<MethodProvenanceWire>,
 }
 
 /// Compile a chain and a multi-action decision over its retained output law.

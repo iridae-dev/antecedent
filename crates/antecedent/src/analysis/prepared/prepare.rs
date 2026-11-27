@@ -128,6 +128,47 @@ impl Study {
         )
     }
 
+    /// Prepares the query at validation none, then restores the requested suite on the handle.
+    fn prepare_functional_base(
+        &self,
+        ctx: &ExecutionContext,
+        materialized: bool,
+        previous: Option<&PhysicalExecutionPlan>,
+        swapped: Option<&crate::planner::lowered::RetainedIdentification>,
+    ) -> Result<PreparedStudy, CausalError> {
+        let mut base = self.clone();
+        base.settings.refute = crate::analysis::builder::RefuteSuite::None;
+        let mut handle = base.prepare_metered(ctx, materialized, previous, swapped)?;
+        handle.analysis.settings.refute = self.settings.refute;
+        handle.program_cache = std::sync::OnceLock::new();
+        handle.contract_cache = std::sync::OnceLock::new();
+        handle.inspection_header = std::sync::OnceLock::new();
+        handle.seal_inspection_metadata()?;
+        Ok(handle)
+    }
+
+    /// The graph-posterior programs the handle retains with the query they were compiled for.
+    fn retained_posterior_programs(
+        &self,
+        plan: &PhysicalExecutionPlan,
+        ctx: &ExecutionContext,
+    ) -> Result<Option<Arc<super::RetainedPosteriorPrograms>>, CausalError> {
+        crate::analysis::contract::graph_posterior_programs(
+            self,
+            plan.logical.record.estimator.as_deref(),
+            ctx,
+        )?
+        .map(|programs| {
+            Ok::<_, CausalError>(Arc::new(super::RetainedPosteriorPrograms {
+                query: crate::analysis::contract_identity::canonical_query_bytes(&self.query)?,
+                runtime_query: crate::analysis::lowering::has_runtime_callback(&self.query)
+                    .then(|| self.query.clone()),
+                programs,
+            }))
+        })
+        .transpose()
+    }
+
     fn prepare_metered(
         &self,
         ctx: &ExecutionContext,
@@ -139,15 +180,7 @@ impl Study {
         // validation none: its program is the one every refit re-executes, and the handle keeps
         // the requested suite so each estimate validates (see `functional_validation`).
         if crate::analysis::functional_validation::requested(self) {
-            let mut base = self.clone();
-            base.settings.refute = crate::analysis::builder::RefuteSuite::None;
-            let mut handle = base.prepare_metered(ctx, materialized, previous, swapped)?;
-            handle.analysis.settings.refute = self.settings.refute;
-            handle.program_cache = std::sync::OnceLock::new();
-            handle.contract_cache = std::sync::OnceLock::new();
-            handle.inspection_header = std::sync::OnceLock::new();
-            handle.seal_inspection_metadata()?;
-            return Ok(handle);
+            return self.prepare_functional_base(ctx, materialized, previous, swapped);
         }
         ensure_prepared_supported(self)?;
         if let DataInput::Tabular(table) = &self.data {
@@ -170,20 +203,7 @@ impl Study {
                 "the new estimator's lowering does not preserve the retained identification"
             ));
         }
-        let posterior_programs = crate::analysis::contract::graph_posterior_programs(
-            self,
-            plan.logical.record.estimator.as_deref(),
-            ctx,
-        )?
-        .map(|programs| {
-            Ok::<_, CausalError>(Arc::new(super::RetainedPosteriorPrograms {
-                query: crate::analysis::contract_identity::canonical_query_bytes(&self.query)?,
-                runtime_query: crate::analysis::lowering::has_runtime_callback(&self.query)
-                    .then(|| self.query.clone()),
-                programs,
-            }))
-        })
-        .transpose()?;
+        let posterior_programs = self.retained_posterior_programs(&plan, ctx)?;
         let counterfactual = self.compile_counterfactual()?;
         let nested_counterfactual = self.compile_nested_counterfactual()?;
         let (schema, modality, time_regularity) = self.prepared_modality()?;

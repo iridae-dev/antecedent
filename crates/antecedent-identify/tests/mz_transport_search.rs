@@ -749,13 +749,15 @@ fn a_checked_replay_reproduces_the_stored_search_receipt_and_refuses_any_edit() 
     assert_eq!(replay(&record, MZ_TRANSPORT_DEFAULT_LIMITS, &limited).unwrap_err(), bounds);
 }
 
+fn refusal_pair(error: &IdentificationError) -> (&'static str, &'static str) {
+    antecedent_identify::mz_transport_refusal(error).unwrap()
+}
+
 #[test]
-fn every_identification_detail_pairs_with_its_recorded_reason_code() {
-    use antecedent_identify::{mz_transport_refusal, validate_mz_transport_query};
+fn derivation_refusals_pair_with_their_recorded_reason_codes() {
     let ctx = ExecutionContext::for_tests(1);
     let (graph, q, full) =
         (figure_1_graph(), query(vec![source_a(), source_b()]), complementary_catalog());
-    let pair = |error: &IdentificationError| mz_transport_refusal(error).unwrap();
     // A retained proof whose declared operation allowance exceeds the consumer's.
     let derivation = identified(decide(&q, &full));
     let mut record = derivation.to_record();
@@ -773,43 +775,8 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
     )
     .unwrap_err();
     assert_eq!(
-        pair(&bound),
+        refusal_pair(&bound),
         ("route_not_supported", antecedent_core::reason_details::mz_transport::BOUNDS_EXCEEDED)
-    );
-    // An invalid query: `invalid_argument`.
-    let same_population = query(vec![source("target", &[Z2], &[Z1]), source_b()]);
-    let invalid_query =
-        decide_mz_transport(&graph, &same_population, &full, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx)
-            .unwrap_err();
-    assert_eq!(
-        pair(&invalid_query),
-        ("invalid_argument", antecedent_core::reason_details::mz_transport::INVALID_QUERY)
-    );
-    // An invalid catalog (the target supplies an experiment): `invalid_argument`.
-    let experimental_target = catalog(vec![regime(0, "target", &[Z2])]);
-    let invalid_catalog =
-        validate_mz_transport_query(&graph, &q, &experimental_target).unwrap_err();
-    assert_eq!(
-        pair(&invalid_catalog),
-        ("invalid_argument", antecedent_core::reason_details::mz_transport::INVALID_CATALOG)
-    );
-    // An obstruction that does not verify: `transport_not_certified`.
-    let MzTransportDecision::ProvenNonTransportable(obstruction) =
-        decide(&query(vec![source_a(), unhelpful()]), &full)
-    else {
-        panic!("expected an obstruction");
-    };
-    let mut other_graph = figure_1_graph();
-    other_graph.insert_directed(DenseNodeId::from_raw(Z1), DenseNodeId::from_raw(Y)).unwrap();
-    let invalid_obstruction =
-        verify_mz_transport_obstruction(&other_graph, &obstruction, SidLimits::default(), &ctx)
-            .unwrap_err();
-    assert_eq!(
-        pair(&invalid_obstruction),
-        (
-            "transport_not_certified",
-            antecedent_core::reason_details::mz_transport::INVALID_OBSTRUCTION
-        )
     );
     // A derivation that does not replay: `transport_not_certified`.
     record.search.operations_consumed += 1;
@@ -824,7 +791,7 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
     )
     .unwrap_err();
     assert_eq!(
-        pair(&invalid_derivation),
+        refusal_pair(&invalid_derivation),
         (
             "transport_not_certified",
             antecedent_core::reason_details::mz_transport::INVALID_DERIVATION
@@ -838,15 +805,64 @@ fn every_identification_detail_pairs_with_its_recorded_reason_code() {
     )
     .unwrap_err();
     assert_eq!(
-        pair(&missing),
+        refusal_pair(&missing),
         (
             "transport_missing_evidence",
             antecedent_core::reason_details::mz_transport::MISSING_JOINT_REGIME
         )
     );
+}
+
+#[test]
+fn query_and_certificate_refusals_pair_with_their_recorded_reason_codes() {
+    use antecedent_identify::validate_mz_transport_query;
+    let ctx = ExecutionContext::for_tests(1);
+    let (graph, q, full) =
+        (figure_1_graph(), query(vec![source_a(), source_b()]), complementary_catalog());
+    // An invalid query: `invalid_argument`.
+    let same_population = query(vec![source("target", &[Z2], &[Z1]), source_b()]);
+    let invalid_query =
+        decide_mz_transport(&graph, &same_population, &full, MZ_TRANSPORT_DEFAULT_LIMITS, &ctx)
+            .unwrap_err();
+    assert_eq!(
+        refusal_pair(&invalid_query),
+        ("invalid_argument", antecedent_core::reason_details::mz_transport::INVALID_QUERY)
+    );
+    // An invalid catalog (the target supplies an experiment): `invalid_argument`.
+    let experimental_target = catalog(vec![regime(0, "target", &[Z2])]);
+    let invalid_catalog =
+        validate_mz_transport_query(&graph, &q, &experimental_target).unwrap_err();
+    assert_eq!(
+        refusal_pair(&invalid_catalog),
+        ("invalid_argument", antecedent_core::reason_details::mz_transport::INVALID_CATALOG)
+    );
+    // An obstruction that does not verify: `transport_not_certified`.
+    let MzTransportDecision::ProvenNonTransportable(obstruction) =
+        decide(&query(vec![source_a(), unhelpful()]), &full)
+    else {
+        panic!("expected an obstruction");
+    };
+    let mut other_graph = figure_1_graph();
+    other_graph.insert_directed(DenseNodeId::from_raw(Z1), DenseNodeId::from_raw(Y)).unwrap();
+    let invalid_obstruction =
+        verify_mz_transport_obstruction(&other_graph, &obstruction, SidLimits::default(), &ctx)
+            .unwrap_err();
+    assert_eq!(
+        refusal_pair(&invalid_obstruction),
+        (
+            "transport_not_certified",
+            antecedent_core::reason_details::mz_transport::INVALID_OBSTRUCTION
+        )
+    );
+}
+
+#[test]
+fn stops_and_decisions_pair_with_their_recorded_reason_codes() {
+    use antecedent_identify::mz_transport_refusal;
+    let (q, full) = (query(vec![source_a(), source_b()]), complementary_catalog());
     // A stop: `transport_budget_cancel`.
     assert_eq!(
-        pair(&IdentificationError::Cancelled),
+        refusal_pair(&IdentificationError::Cancelled),
         ("transport_budget_cancel", antecedent_core::reason_details::mz_transport::BUDGET)
     );
     // Errors the route does not own carry no pair.

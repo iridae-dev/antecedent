@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use antecedent::Study;
-use antecedent::analysis::composition::{BundleBuilder, consume, export_bundle};
+use antecedent::analysis::composition::{BundleBuilder, SuppliedSources, consume, export_bundle};
 use antecedent_core::{
     CausalQuery, ExecutionContext, LongitudinalRegimeMethod, LongitudinalRegimeQuery,
     LongitudinalScheduleFamily, LongitudinalScheduleTarget, StreamDomain, VariableId,
@@ -52,7 +52,7 @@ fn fixture(
         outcome_observed: vec![true; SUBJECTS].into(),
         subject_ids: (0..SUBJECTS).map(|i| Arc::from(format!("schedule-{i}"))).collect(),
         fold_ids: (0..SUBJECTS)
-            .map(|row| (if learned { row % 2 } else { row / 4 % 2 }) as u32)
+            .map(|row| u32::try_from(if learned { row % 2 } else { row / 4 % 2 }).unwrap())
             .collect(),
         excluded_fold_predictions: false,
         probabilities_known_by_design: true,
@@ -139,7 +139,7 @@ fn simultaneous_schedule_intervals_use_paired_subject_scores_and_bound_the_contr
     builder.add_detected_artifact(Some("comparison"), &sourced).unwrap();
     let bundle = builder.build().unwrap();
     let bytes = export_bundle(&bundle, "fixed-schedule-bundle").unwrap();
-    let replayed = consume(&bytes, bundle.identity(), &Default::default()).unwrap();
+    let replayed = consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap();
     assert!(replayed.all_verified());
     assert_eq!(
         replayed.value("comparison", "schedule.3.versus.0.upper_95"),

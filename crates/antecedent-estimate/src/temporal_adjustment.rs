@@ -1726,6 +1726,7 @@ mod tests {
 
     #[test]
     fn estimation_split_rows_read_no_discovery_observation() {
+        use antecedent_core::execution_attempt::{PhysicalEvent, observe_execution};
         let (data, g) = series();
         let q = TemporalEffectQuery::pulse(VariableId::from_raw(0), VariableId::from_raw(1), 1.0)
             .with_policy(TemporalPolicy::pulse(-1))
@@ -1743,7 +1744,6 @@ mod tests {
             .prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&leaked), policy)
             .expect_err("a zero gap leaks across the lag embargo");
         assert!(error.to_string().contains("embargo"), "{error}");
-        use antecedent_core::execution_attempt::{PhysicalEvent, observe_execution};
         let preparation = observe_execution(|| {
             est.prepare_aligned(&data, estimand, &q, &id_res.indexer, Some(&split), policy)
         });

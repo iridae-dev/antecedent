@@ -153,7 +153,7 @@ impl ExactDagPosterior {
         }
 
         let _listing = budget.lease_storage(bytes).map_err(|stop| {
-            quote_error(budget.receipt(stop, Vec::new(), vec![route.to_owned()]))
+            quote_error(&budget.receipt(stop, Vec::new(), vec![route.to_owned()]))
         })?;
         let mut masks = enumerate_unique_dags(n);
         let scored = if n <= EXACT_ENUM_MAX_NODES
@@ -343,14 +343,14 @@ fn check_quote<'a>(
 ) -> Result<SearchBudget<'a>, DiscoveryError> {
     let budget =
         SearchBudget::with_memory(SearchLimits { operations, depth: 1 }, memory.max(1), ctx)
-            .map_err(quote_error)?;
+            .map_err(|receipt| quote_error(&receipt))?;
     if let Err(stop) = budget.admits(1, memory.max(1), work) {
-        return Err(quote_error(budget.receipt(stop, Vec::new(), vec![unevaluated.to_owned()])));
+        return Err(quote_error(&budget.receipt(stop, Vec::new(), vec![unevaluated.to_owned()])));
     }
     Ok(budget)
 }
 
-fn quote_error(receipt: antecedent_core::search::SearchReceipt) -> DiscoveryError {
+fn quote_error(receipt: &antecedent_core::search::SearchReceipt) -> DiscoveryError {
     use antecedent_core::search::SearchStop;
     if receipt.stop == SearchStop::Cancelled {
         DiscoveryError::Cancelled

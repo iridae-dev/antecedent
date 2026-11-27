@@ -326,6 +326,7 @@ fn dense_schema_aligned(nodes: &[NodeRef]) -> bool {
 
 /// Whether sorted node labels are exactly `Static(0), Static(1), ...`.
 #[doc(hidden)]
+#[must_use]
 pub fn schema_aligned(nodes: &[IdentityNodeWire]) -> bool {
     nodes.iter().enumerate().all(|(index, node)| {
         matches!(node, IdentityNodeWire::Static { variable } if *variable as usize == index)
@@ -409,6 +410,7 @@ pub fn canonical_label_order(
 
 /// Look up both dense endpoints and orient an unordered pair in label order.
 #[doc(hidden)]
+#[must_use]
 pub fn canonical_pair(position: &[u32], (a, b): (u32, u32), orient: bool) -> Option<(u32, u32)> {
     let a = *position.get(a as usize)?;
     let b = *position.get(b as usize)?;

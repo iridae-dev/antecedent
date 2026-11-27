@@ -287,7 +287,7 @@ impl CheckedLocalPolynomialRatioOperation {
         // bandwidth-support screens already gate `interval_available`; the support
         // only confirms the exact family/design/method and the retained local
         // observation floor before publishing the pointwise ratio interval.
-        if crate::support::support_if_graphless(
+        if let Some(unit) = crate::support::graphless_supported_unit(
             crate::support::GraphlessSupportKey {
                 family: "local_polynomial_ratio",
                 design: if self.query.kink { "regression_kink" } else { "fuzzy_jump" },
@@ -306,10 +306,8 @@ impl CheckedLocalPolynomialRatioOperation {
                 reported_intervals: usize::from(interval_available),
                 ..Default::default()
             },
-        )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        ) {
+            result.stamp_supported(unit);
         }
         Ok(result)
     }

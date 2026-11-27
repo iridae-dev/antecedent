@@ -381,7 +381,7 @@ pub fn survival_band_calibration_functional(
                 fit.minimum_probability,
             )
             .is_some();
-        let scope = if !assignment_counts.is_some_and(|[a, b]| a.min(b) >= 1_000) {
+        let scope = if assignment_counts.is_none_or(|[a, b]| a.min(b) < 1_000) {
             "+scope=insufficient"
         } else if measured_design {
             ""
@@ -403,9 +403,8 @@ pub fn survival_band_calibration_functional(
     query.delayed_entry?;
     let fixed_known = !query.censoring_columns.is_empty();
     let censoring = if fixed_known { "fixed_known" } else { "unweighted" };
-    let endpoint = query
-        .target_cause
-        .map_or_else(|| "survival".into(), |cause| format!("incidence:{}", cause));
+    let endpoint =
+        query.target_cause.map_or_else(|| "survival".into(), |cause| format!("incidence:{cause}"));
     let minimum_arm = incidence_min_arm(fixed_known);
     let measured_design = measured_draws
         && benchmark_balanced_arms(assignment_counts, minimum_arm)
@@ -418,7 +417,7 @@ pub fn survival_band_calibration_functional(
         } else {
             times == SURVIVAL_BENCHMARK_EVENT_GRID
         };
-    let scope = if !assignment_counts.is_some_and(|[a, b]| a.min(b) >= minimum_arm) {
+    let scope = if assignment_counts.is_none_or(|[a, b]| a.min(b) < minimum_arm) {
         "+scope=insufficient"
     } else if measured_design {
         ""

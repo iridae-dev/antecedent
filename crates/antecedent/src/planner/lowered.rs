@@ -1722,8 +1722,8 @@ impl LoweredProgram {
     #[must_use]
     pub fn method_provenance(&self) -> antecedent_io::method_provenance::MethodProvenanceWire {
         self.resolve_method_provenance(
-            self.statistical.identifier().as_ref().map(|id| id.as_str()),
-            self.statistical.estimator().as_ref().map(|id| id.as_str()),
+            self.statistical.identifier().as_ref().map(crate::IdentifierId::as_str),
+            self.statistical.estimator().as_ref().map(crate::EstimatorId::as_str),
         )
     }
 
@@ -1738,7 +1738,7 @@ impl LoweredProgram {
         let components = [
             (ProvenanceRole::Identifier, identifier),
             (ProvenanceRole::Estimator, estimator),
-            (ProvenanceRole::Capability, unit.map(|unit| unit.as_str())),
+            (ProvenanceRole::Capability, unit.map(crate::support::unit::UnitId::as_str)),
         ];
         let resolved: Vec<_> =
             components.into_iter().filter_map(|(role, key)| key.map(|key| (role, key))).collect();

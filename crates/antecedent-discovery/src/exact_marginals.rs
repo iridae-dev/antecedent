@@ -60,7 +60,9 @@ const fn exact_marginal_work(n: usize) -> u128 {
     if n >= 128 {
         return u128::MAX;
     }
-    let Some(base) = 3u128.checked_pow(n as u32) else {
+    #[allow(clippy::cast_possible_truncation, reason = "n is below 128, so it fits in u32")]
+    let exponent = n as u32;
+    let Some(base) = 3u128.checked_pow(exponent) else {
         return u128::MAX;
     };
     let n = n as u128;

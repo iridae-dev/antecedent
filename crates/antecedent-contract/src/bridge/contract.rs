@@ -118,14 +118,15 @@ pub struct BridgeInterfaceBasis {
     pub evidence: EvidenceBasis,
 }
 
-const fn value_operation(kind: ValueKind) -> Option<ContractOperation> {
+const fn value_operation(kind: ValueKind) -> ContractOperation {
     match kind {
-        ValueKind::Mean => Some(ContractOperation::Mean),
-        ValueKind::PredictiveLaw => Some(ContractOperation::Law),
-        ValueKind::Posterior => Some(ContractOperation::Posterior),
-        ValueKind::EstimatorSampling | ValueKind::Bootstrap => Some(ContractOperation::JointDraws),
-        ValueKind::IdentifiedSet => Some(ContractOperation::IdentifiedSet),
-        ValueKind::JointOutcomeLaw => Some(ContractOperation::JointDraws),
+        ValueKind::Mean => ContractOperation::Mean,
+        ValueKind::PredictiveLaw => ContractOperation::Law,
+        ValueKind::Posterior => ContractOperation::Posterior,
+        ValueKind::EstimatorSampling | ValueKind::Bootstrap | ValueKind::JointOutcomeLaw => {
+            ContractOperation::JointDraws
+        }
+        ValueKind::IdentifiedSet => ContractOperation::IdentifiedSet,
     }
 }
 
@@ -299,19 +300,18 @@ impl BridgeContract {
         }
         if let Some(dependence) = &self.source_dependence {
             dependence.validate()?;
-            if let SourceMappingDependence::SharedTrialMean { evidence } = dependence {
-                if self.source_value != ValueKind::Bootstrap
+            if let SourceMappingDependence::SharedTrialMean { evidence } = dependence
+                && (self.source_value != ValueKind::Bootstrap
                     || !matches!(self.mapping, BridgeMapping::TrialLevelLinear(_))
                     || !self.assumptions.iter().any(|a| {
                         a.kind == self.kind.principal_assumption()
                             && a.evidence.as_ref() == Some(evidence)
-                    })
-                {
-                    return Err(super::refusal::source_dependence_invalid(
-                        "source_dependence",
-                        "bind the shared source mean and trial line to the same named bootstrap validation evidence",
-                    ));
-                }
+                    }))
+            {
+                return Err(super::refusal::source_dependence_invalid(
+                    "source_dependence",
+                    "bind the shared source mean and trial line to the same named bootstrap validation evidence",
+                ));
             }
         }
         if let Some(bridge) = &self.estimand_bridge {
@@ -633,9 +633,9 @@ impl BridgeContract {
         basis: &BridgeInterfaceBasis,
     ) -> InterfaceContract {
         let consumed_ops: std::collections::BTreeSet<ContractOperation> =
-            value_operation(self.source_value).into_iter().collect();
+            std::iter::once(value_operation(self.source_value)).collect();
         let produced_ops: std::collections::BTreeSet<ContractOperation> =
-            value_operation(self.target_value).into_iter().collect();
+            std::iter::once(value_operation(self.target_value)).collect();
         let consumed = basis.source.consumed(
             BRIDGE_SOURCE_PORT,
             &self.source.quantity,

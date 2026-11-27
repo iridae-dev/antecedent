@@ -60,7 +60,7 @@ use antecedent_estimate::{ContinuousResponseEstimator, ContinuousResponseOptions
 use antecedent_graph::{Dag, DenseNodeId};
 use common::calibration::{
     Construction, CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, SampleGrid, ScopeFacts,
-    coverage_band, gaussian, map_replicates, n_sim,
+    assert_measured, coverage_band, gaussian, map_replicates, n_sim,
 };
 use common::calibration_bind::{bind, bind_all};
 
@@ -865,7 +865,7 @@ fn elasticity_weak_positive_level_fieller_probe() {
         tally.covered(),
         tally.attempts()
     );
-    assert!(unbounded > 0, "the probe must exercise the unbounded-set path");
+    assert_measured(unbounded > 0, || "the probe must exercise the unbounded-set path".into());
 }
 
 // --- Multivariate GAM plug-in (Bayesian publishes a pointwise band) ----------
@@ -1072,6 +1072,7 @@ fn gam_frequentist_construction(query: &str) -> Construction {
         functional: "all_observed.mean.complete".into(),
         identification: "point".into(),
         reported_level: LEVEL,
+        unit: None,
     }
 }
 

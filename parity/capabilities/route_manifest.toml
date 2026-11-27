@@ -1471,7 +1471,7 @@ artifact_consumer = "antecedent::analysis::composition::consume"
 status = "graphless"
 owning_module = "crates/antecedent-stats/src/survival/conditional_observation.rs"
 retained_operation = "survival"
-retained_route_test = "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_band_replays_training_and_refuses_overlap"
+retained_route_test = "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_band_replays_its_training_subjects"
 notes = "The same-sample reverse product-limit censoring learner is refit on every whole-subject bootstrap and the two arm curves are standardized to prespecified pre-entry proportions."
 
 [[route]]

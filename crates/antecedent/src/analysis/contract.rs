@@ -150,7 +150,7 @@ fn bind_graphless_reasoning(
     if !graphless {
         return Ok(());
     }
-    let support_status = result.support_status;
+    let support_status = result.support_status();
     let coordinate = if support_status == Some(CellStatus::Supported) {
         Some(graphless_coordinate(result, query, adjustment)?)
     } else {

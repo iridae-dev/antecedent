@@ -211,12 +211,12 @@ fn validate_draw_column(
     column: &mut [f64],
 ) -> Result<(), IoError> {
     use antecedent_kernels::{PosteriorReduceOp, quantile_type7_sorted, reduce_posterior_draws};
+    const SUMMARY: ReplayTolerance =
+        ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::Refuse);
 
     if column.iter().any(|value| !value.is_finite()) {
         return Err(IoError::Convert("posterior draws must be finite".into()));
     }
-    const SUMMARY: ReplayTolerance =
-        ReplayTolerance::new(1e-9, ReplayScale::LargerOrOne, ReplayNonFinite::Refuse);
     let policy = antecedent_core::KernelPolicy::default_policy();
     let mean = reduce_posterior_draws(column, PosteriorReduceOp::Mean, &policy).unwrap_or(f64::NAN);
     let sd = reduce_posterior_draws(column, PosteriorReduceOp::Std, &policy).unwrap_or(f64::NAN);

@@ -1036,6 +1036,7 @@ fn measure_sampled_transport_coverage(
         functional: derivation.query.canonical_text(),
         identification: "point".to_owned(),
         reported_level: 0.95,
+        unit: None,
     };
     let results = map_replicates(n_sim(), |replicate| {
         let mut rng = Rng(calibration::grid_seed(seed + replicate));

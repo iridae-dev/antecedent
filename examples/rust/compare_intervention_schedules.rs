@@ -3,6 +3,12 @@
 //! Pass a filename to save the bundle. Retain the printed identity separately and
 //! replay with `--read FILE IDENTITY` in either the Rust or Python example.
 
+#![allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "subject counts floor small nonnegative products of a fixed cohort and probabilities"
+)]
+
 use std::{fs, path::Path};
 
 use antecedent::analysis::composition::BundleLimits;
@@ -45,7 +51,10 @@ fn write_example(output: Option<&Path>) -> Result<(), Box<dyn std::error::Error>
         calibration_design: None,
         schedules: vec![0, 1, 2, 3],
         structures: vec![ScheduleStructure::BothActionsCausal, ScheduleStructure::FirstActionOnly],
-        preference_costs: vec![[0.0, 0.0625, 0.125, 0.1875], [0.0, 0.1875, 0.4609375, 0.4609375]],
+        preference_costs: vec![
+            [0.0, 0.0625, 0.125, 0.1875],
+            [0.0, 0.1875, 0.460_937_5, 0.460_937_5],
+        ],
     };
     let ctx = ExecutionContext::production_default(0);
     let run = compile_schedule_decision_bundle(

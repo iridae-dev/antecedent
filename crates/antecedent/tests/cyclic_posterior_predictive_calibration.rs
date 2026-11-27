@@ -167,6 +167,7 @@ fn cyclic_posterior_population_outcome_l95() {
                 functional: basis.functional.to_string(),
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
+                unit: None,
             };
             tally.bind_validation(
                 &construction,

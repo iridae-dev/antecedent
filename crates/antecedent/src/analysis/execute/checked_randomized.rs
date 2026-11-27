@@ -413,8 +413,8 @@ impl CheckedRandomizedOperation {
             exact_test,
             uncertainty,
         ));
-        if self.graphless_support(&result, method, small_arm.is_some()).is_some() {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        if let Some(unit) = self.graphless_support(&result, method, small_arm.is_some()) {
+            result.stamp_supported(unit);
         }
         result.rebind_interval(false);
         result.treatment = None;
@@ -595,7 +595,7 @@ impl CheckedRandomizedOperation {
         result: &StudyResult,
         method: RandomizedMethod,
         small_arm: bool,
-    ) -> Option<crate::support::CellStatus> {
+    ) -> Option<crate::support::UnitRef> {
         let fit = result.randomized_effect().expect("randomized result was just set");
         let (family, design, method_id, assignment_unit, claim) =
             randomized_adjustment::graphless_coordinate(
@@ -655,7 +655,7 @@ impl CheckedRandomizedOperation {
         } else {
             fit.interval_95.is_some()
         };
-        crate::support::support_if_graphless(
+        crate::support::graphless_supported_unit(
             crate::support::GraphlessSupportKey {
                 family,
                 design,
@@ -1283,7 +1283,7 @@ impl CheckedPolicyValueOperation {
                     .all(|id| !self.query.evaluation_subject_ids.contains(id)),
             ..Default::default()
         };
-        if crate::support::support_if_graphless(
+        if let Some(unit) = crate::support::graphless_supported_unit(
             crate::support::GraphlessSupportKey {
                 family: "policy_value",
                 design,
@@ -1291,10 +1291,8 @@ impl CheckedPolicyValueOperation {
                 inference_claim: claim,
             },
             observed,
-        )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        ) {
+            result.stamp_supported(unit);
         }
     }
 }

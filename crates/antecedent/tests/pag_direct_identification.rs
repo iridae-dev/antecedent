@@ -1,4 +1,10 @@
 //! Published IDP and CIDP graphs and independent finite-law references.
+#![allow(
+    clippy::float_cmp,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "finite-law references compare exact dyadic values and floor exact nonnegative cell counts"
+)]
 
 use std::sync::Arc;
 
@@ -523,8 +529,8 @@ fn retained_search_stop_replays_under_its_original_budget() {
             work,
             work_limit,
             depth_limit: None,
-        } if Some(*work as usize) == receipt.operations_consumed
-            && *work_limit as usize == receipt.operations_limit
+        } if usize::try_from(*work).ok() == receipt.operations_consumed
+            && usize::try_from(*work_limit) == Ok(receipt.operations_limit)
     ));
     let problem = stopped.problem();
     let mass = 0.5_f64.powi(i32::try_from(problem.graph.node_count).unwrap());

@@ -168,7 +168,7 @@ fn carrier_ranking_identity_reads_joint_law() {
     let direct = rollout(RolloutNoise::ImplementationKeyed, 4).rank(&request, &ctx).unwrap_err();
     match marginal_program.execute(&ctx).unwrap_err() {
         TerminalError::Kernel(error) => assert_eq!(error, direct),
-        other => panic!("compiler refusal: {other:?}"),
+        other @ TerminalError::Refused(_) => panic!("compiler refusal: {other:?}"),
     }
     assert!(matches!(direct, ReliabilityError::JointLawRequired { .. }));
 }

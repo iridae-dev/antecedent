@@ -91,11 +91,17 @@ fn channel(states: &[String]) -> ObservationChannel {
     }
 }
 
+/// What taking an action costs in utility and in the shared resource budget.
+#[derive(Clone, Copy)]
+struct Charge {
+    utility: f64,
+    resource: f64,
+}
+
 fn act(
     label: &str,
     role: ActionRole,
-    cost: f64,
-    resource: f64,
+    charge: Charge,
     transition: [f64; 4],
     immediate: [f64; 2],
     delayed: Option<(usize, [f64; 2])>,
@@ -104,8 +110,8 @@ fn act(
     ActionSpec {
         label: label.into(),
         role,
-        utility_cost: cost,
-        resource_use: resource,
+        utility_cost: charge.utility,
+        resource_use: charge.resource,
         transition: transition.to_vec(),
         channel: observed,
         immediate_utility: immediate.to_vec(),
@@ -131,8 +137,7 @@ fn model() -> FiniteSequentialModel {
             act(
                 "wait",
                 ActionRole::Continue,
-                0.0,
-                0.0,
+                Charge { utility: 0.0, resource: 0.0 },
                 [0.75, 0.25, 0.0, 1.0],
                 [0.0, 0.0],
                 None,
@@ -141,19 +146,25 @@ fn model() -> FiniteSequentialModel {
             act(
                 "inspect",
                 ActionRole::Continue,
-                0.25,
-                1.0,
+                Charge { utility: 0.25, resource: 1.0 },
                 identity,
                 [0.0, 0.0],
                 None,
                 Some(channel(&states)),
             ),
-            act("ship", ActionRole::Commit, 0.0, 0.0, identity, [10.0, -10.0], None, None),
+            act(
+                "ship",
+                ActionRole::Commit,
+                Charge { utility: 0.0, resource: 0.0 },
+                identity,
+                [10.0, -10.0],
+                None,
+                None,
+            ),
             act(
                 "repair",
                 ActionRole::Commit,
-                4.0,
-                0.0,
+                Charge { utility: 4.0, resource: 0.0 },
                 [1.0, 0.0, 0.5, 0.5],
                 [0.0, 0.0],
                 Some((1, [10.0, -10.0])),
@@ -162,8 +173,7 @@ fn model() -> FiniteSequentialModel {
             act(
                 "pilot",
                 ActionRole::Continue,
-                0.25,
-                0.0,
+                Charge { utility: 0.25, resource: 0.0 },
                 identity,
                 [0.0, 0.0],
                 Some((2, [3.0, -1.0])),

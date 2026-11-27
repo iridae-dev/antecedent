@@ -575,6 +575,7 @@ fn survival_band_valid(
 pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
     result: &AnalysisResultWire,
 ) -> Result<(), IoError> {
+    use antecedent_stats::survival::{STRATIFIED_CENSORING_BAND, STRATIFIED_CENSORING_PROVENANCE};
     let Some(curve) = &result.survival else {
         return Ok(());
     };
@@ -613,7 +614,6 @@ pub(in crate::analysis_result_artifact) fn validate_survival_graphless(
                     && limits[1] <= curve.tau
             })
         };
-    use antecedent_stats::survival::{STRATIFIED_CENSORING_BAND, STRATIFIED_CENSORING_PROVENANCE};
     let conditional = query.stratified_censoring.is_some();
     let fitted_band = conditional
         && curve.uncertainty == STRATIFIED_CENSORING_BAND

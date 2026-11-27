@@ -617,7 +617,7 @@ impl CheckedAipwOperation {
         });
         stamp_result_context(
             &mut result,
-            self.support_status,
+            (self.support_status, self.support_unit.as_ref()),
             self.structure_source,
             self.population_registry.as_ref(),
             &self.custom_validator_names,
@@ -814,6 +814,7 @@ pub(super) struct CheckedStaticResultMetadata<'a> {
     pub(super) graph_class: GraphClass,
     pub(super) graph_version: u32,
     pub(super) support_status: Option<crate::support::CellStatus>,
+    pub(super) support_unit: Option<&'a crate::support::UnitRef>,
     pub(super) structure_source: crate::support::StructureSource,
     pub(super) population_registry: Option<&'a antecedent_core::PopulationRegistry>,
     pub(super) latency_mode: Option<crate::analysis::latency::LatencyMode>,
@@ -842,6 +843,7 @@ pub(super) fn static_result_metadata<'a>(
         graph_class: common.graph_class,
         graph_version: common.graph_version,
         support_status: common.support_status,
+        support_unit: common.support_unit.as_ref(),
         structure_source: common.structure_source,
         population_registry: common.population_registry.as_ref(),
         latency_mode: common.latency_mode,
@@ -1115,7 +1117,7 @@ impl CheckedLinearOperation {
         });
         stamp_result_context(
             &mut result,
-            self.support_status,
+            (self.support_status, self.support_unit.as_ref()),
             self.structure_source,
             self.population_registry.as_ref(),
             &self.custom_validator_names,

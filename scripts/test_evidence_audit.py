@@ -160,7 +160,7 @@ class Classification(unittest.TestCase):
             def run(functions, *extra):
                 suite = unittest.TestSuite(fn if isinstance(fn, unittest.TestCase) else unittest.FunctionTestCase(fn) for fn in functions)
                 with (
-                    patch.object(sys, "argv", ["runner", "--report", str(report), *extra]),
+                    patch.object(sys, "argv", ["runner", "--report", str(report), "--jobs", "1", *extra]),
                     patch.object(runner.unittest.defaultTestLoader, "discover", return_value=suite),
                     patch.object(runner, "checkout", return_value={"commit": "fixture"}),
                     contextlib.redirect_stdout(io.StringIO()),

@@ -310,6 +310,7 @@ mod compiled_programs {
     }
 
     #[test]
+    #[expect(clippy::float_cmp, reason = "the alternative's direct mass is exactly zero")]
     fn an_immigrant_step_explains_regular_arrivals_and_withholds_the_constant_mass() {
         // Inside each half the arrivals are evenly spaced, so with a declared step feature the
         // likelihood is maximized by the piecewise-constant Poisson rate (1 then 3) with no

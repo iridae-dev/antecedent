@@ -156,7 +156,7 @@ fn row_probabilities(buffers: &Bound<'_, PyDict>) -> PyResult<ProbabilityRows> {
         .ok_or_else(|| crate::value_err("missing multi-arm probability columns"))?;
     let arrays: Vec<PyReadonlyArray1<'_, f64>> = value.extract()?;
     let columns: Vec<_> = arrays.iter().map(|array| array.as_array()).collect();
-    let rows = columns.first().map_or(0, |column| column.len());
+    let rows = columns.first().map_or(0, numpy::ndarray::ArrayBase::len);
     let stride = columns.len();
     if columns.iter().any(|column| column.len() != rows) {
         return Err(crate::value_err("multi-arm probability columns must have equal row counts"));

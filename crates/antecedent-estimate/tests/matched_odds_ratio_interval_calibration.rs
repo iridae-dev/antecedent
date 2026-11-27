@@ -77,6 +77,7 @@ fn construction() -> Construction {
         functional: "log_conditional_odds_ratio".into(),
         identification: "point".into(),
         reported_level: LEVEL,
+        unit: None,
     }
 }
 

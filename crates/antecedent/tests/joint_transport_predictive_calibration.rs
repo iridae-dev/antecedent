@@ -197,6 +197,7 @@ fn joint_transport_predictive_treated_outcome_l95() {
                 functional: basis.functional.to_string(),
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
+                unit: None,
             };
             tally.bind_validation(
                 &construction,

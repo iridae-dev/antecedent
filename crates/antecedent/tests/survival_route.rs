@@ -655,6 +655,8 @@ fn historical_delayed_entry_band_replays_without_inheriting_calibration() {
     reason = "the fixture checks the same public route through execution and replay"
 )]
 fn retained_delayed_entry_incidence(arm_size: usize, fixed_known: bool, supported: bool) {
+    use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+
     let mut duration = Vec::new();
     let mut event = Vec::new();
     let mut treatment = Vec::new();
@@ -771,7 +773,6 @@ fn retained_delayed_entry_incidence(arm_size: usize, fixed_known: bool, supporte
             .unwrap();
         let consumed = antecedent_io::load_analysis_result(&with_source).unwrap();
         assert!(consumed.replay(&antecedent_io::ReplayOptions::default()).replayed());
-        use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
         let mut builder = BundleBuilder::new();
         assert!(builder.add_detected_artifact(Some("compact"), &encoded).is_err());
         builder.add_detected_artifact(Some("incidence"), &with_source).unwrap();
@@ -1013,7 +1014,7 @@ fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
     for fixed_known in [false, true] {
         for incidence in [false, true] {
             let (prepared, data, ctx) =
-                delayed_entry_band_fixture(fixed_known, incidence, false, false);
+                delayed_entry_curve_fixture(fixed_known, incidence, None, false, 399);
             let result = prepared.estimate(&data, &ctx).unwrap();
             retained_graphless::assert_retained_graphless_program(
                 "delayed-entry-difference-band",
@@ -1066,55 +1067,6 @@ fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
                 consumed.value("band", "whole_grid_upper_95"),
                 band.upper.iter().copied().reduce(f64::max)
             );
-            if !fixed_known && incidence {
-                let (_, replacement, _) = delayed_entry_band_fixture(false, true, false, true);
-                assert!(
-                    prepared
-                        .encode_contracted_result_with_source(
-                            &result,
-                            &replacement,
-                            "swapped-band-subjects",
-                            &ctx,
-                        )
-                        .is_err()
-                );
-                let mut rebound = prepared.clone();
-                let revised = rebind_estimate(&mut rebound, replacement.clone(), &ctx).unwrap();
-                let revised_curve = revised.survival().unwrap().difference_band.as_ref().unwrap();
-                assert_ne!(revised_curve.difference, band.difference);
-                let revised_bytes = rebound
-                    .encode_contracted_result_with_source(
-                        &revised,
-                        &replacement,
-                        "revised-band-subjects",
-                        &ctx,
-                    )
-                    .unwrap();
-                let mut builder = BundleBuilder::new();
-                builder.add_detected_artifact(Some("band"), &revised_bytes).unwrap();
-                let replacement_bundle = builder.build().unwrap();
-                let bytes =
-                    composition::export_bundle(&replacement_bundle, "revised-band").unwrap();
-                assert!(
-                    composition::consume(&bytes, bundle.identity(), &SuppliedSources::default())
-                        .is_err()
-                );
-                let replacement = composition::consume(
-                    &bytes,
-                    replacement_bundle.identity(),
-                    &SuppliedSources::default(),
-                )
-                .unwrap();
-                replacement.require_verified().unwrap();
-                assert_eq!(
-                    replacement.value("band", "horizon_lower_95"),
-                    revised_curve.lower.last().copied()
-                );
-                assert_eq!(
-                    replacement.value("band", "whole_grid_upper_95"),
-                    revised_curve.upper.iter().copied().reduce(f64::max)
-                );
-            }
             let replayed = antecedent_io::replay_analysis_result(&bytes).unwrap();
             let wire = replayed.body.survival.as_ref().unwrap();
             assert_eq!(wire.target_cause, incidence.then_some(1));
@@ -1145,9 +1097,56 @@ fn delayed_entry_bands_replay_both_endpoints_with_and_without_fixed_g() {
 }
 
 #[test]
+fn a_delayed_entry_band_on_revised_subjects_replays_only_under_its_own_bundle() {
+    use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+    let (prepared, data, ctx) = delayed_entry_curve_fixture(false, true, None, false, 399);
+    let result = prepared.estimate(&data, &ctx).unwrap();
+    let band = result.survival().unwrap().difference_band.as_ref().unwrap();
+    let bytes = prepared
+        .encode_contracted_result_with_source(&result, &data, "delayed-entry-band", &ctx)
+        .unwrap();
+    let mut builder = BundleBuilder::new();
+    builder.add_detected_artifact(Some("band"), &bytes).unwrap();
+    let bundle = builder.build().unwrap();
+    let (_, replacement, _) = delayed_entry_curve_fixture(false, true, None, true, 399);
+    assert!(
+        prepared
+            .encode_contracted_result_with_source(
+                &result,
+                &replacement,
+                "swapped-band-subjects",
+                &ctx,
+            )
+            .is_err()
+    );
+    let mut rebound = prepared.clone();
+    let revised = rebind_estimate(&mut rebound, replacement.clone(), &ctx).unwrap();
+    let revised_curve = revised.survival().unwrap().difference_band.as_ref().unwrap();
+    assert_ne!(revised_curve.difference, band.difference);
+    let revised_bytes = rebound
+        .encode_contracted_result_with_source(&revised, &replacement, "revised-band-subjects", &ctx)
+        .unwrap();
+    let mut builder = BundleBuilder::new();
+    builder.add_detected_artifact(Some("band"), &revised_bytes).unwrap();
+    let replacement_bundle = builder.build().unwrap();
+    let bytes = composition::export_bundle(&replacement_bundle, "revised-band").unwrap();
+    assert!(composition::consume(&bytes, bundle.identity(), &SuppliedSources::default()).is_err());
+    let replacement =
+        composition::consume(&bytes, replacement_bundle.identity(), &SuppliedSources::default())
+            .unwrap();
+    replacement.require_verified().unwrap();
+    assert_eq!(replacement.value("band", "horizon_lower_95"), revised_curve.lower.last().copied());
+    assert_eq!(
+        replacement.value("band", "whole_grid_upper_95"),
+        revised_curve.upper.iter().copied().reduce(f64::max)
+    );
+}
+
+#[test]
 fn delayed_entry_band_withholds_a_thin_horizon_risk_set() {
     for fixed_known in [false, true] {
-        let (prepared, data, ctx) = delayed_entry_band_fixture(fixed_known, true, true, false);
+        let (prepared, data, ctx) =
+            delayed_entry_curve_fixture(fixed_known, true, Some(20), false, 399);
         let result = prepared.estimate(&data, &ctx).unwrap();
         let curve = result.survival().unwrap();
         assert!(curve.difference_at_tau_interval.is_some());
@@ -1238,15 +1237,6 @@ fn delayed_entry_incidence_support_checks_horizon_risk_and_scalar_design() {
             }
         }
     }
-}
-
-fn delayed_entry_band_fixture(
-    fixed_known: bool,
-    incidence: bool,
-    thin_tail: bool,
-    revised: bool,
-) -> (antecedent::PreparedStudy, TabularData, ExecutionContext) {
-    delayed_entry_curve_fixture(fixed_known, incidence, thin_tail.then_some(20), revised, 399)
 }
 
 fn delayed_entry_curve_fixture(
@@ -2014,22 +2004,35 @@ fn fitted_conditional_survival_identifies_the_pre_entry_population() {
     }
 }
 
-#[test]
-fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
-    use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+struct FittedBand {
+    rows: Vec<[f64; 6]>,
+    data: TabularData,
+    ctx: ExecutionContext,
+    prepared: antecedent::PreparedStudy,
+    result: antecedent::StudyResult,
+}
+
+fn fitted_band_fixture() -> FittedBand {
     use conditional_survival_fixture as fixture;
     let rows = fixture::exact(true, true);
     let data = fixture::table(&rows);
     let ctx = ExecutionContext::for_tests(9_732);
-    let query = fixture::query(true);
     let prepared = Study::tabular(data.clone())
-        .query(CausalQuery::Survival(query.clone()))
+        .query(CausalQuery::Survival(fixture::query(true)))
         .bootstrap_replicates(fixture::DRAWS)
         .build()
         .unwrap()
         .prepare(&ctx)
         .unwrap();
     let result = prepared.estimate(&data, &ctx).unwrap();
+    FittedBand { rows, data, ctx, prepared, result }
+}
+
+#[test]
+fn fitted_conditional_survival_band_replays_its_training_subjects() {
+    use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+    use conditional_survival_fixture as fixture;
+    let FittedBand { rows, data, ctx, prepared, result } = fitted_band_fixture();
     retained_graphless::assert_retained_graphless_program(
         "conditional-survival-difference-band",
         &prepared,
@@ -2085,7 +2088,20 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
     assert_eq!(facts.get("calibration").map(String::as_str), Some("not_measured"));
     assert!(!facts.contains_key("calibration_record_id"));
     assert!(!facts.contains_key("calibration_benchmark_dgp"));
+}
 
+#[test]
+fn fitted_conditional_survival_band_on_revised_training_replays_only_under_its_own_bundle() {
+    use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};
+    use conditional_survival_fixture as fixture;
+    let FittedBand { rows, data, ctx, prepared, result } = fitted_band_fixture();
+    let band = result.survival().unwrap().difference_band.as_ref().unwrap();
+    let bytes = prepared
+        .encode_contracted_result_with_source(&result, &data, "retained-fit", &ctx)
+        .unwrap();
+    let mut builder = BundleBuilder::new();
+    builder.add_detected_artifact(Some("standardized"), &bytes).unwrap();
+    let bundle = builder.build().unwrap();
     let mut revised = rows.clone();
     let subject = revised.iter_mut().find(|row| row[0] == 3.0 && row[2] == 0.0).unwrap();
     subject[0] = 2.0;
@@ -2139,7 +2155,13 @@ fn fitted_conditional_survival_band_replays_training_and_refuses_overlap() {
         revised_bundle.value("standardized", "whole_grid_upper_95"),
         revised_curve.upper.iter().copied().reduce(f64::max)
     );
+}
 
+#[test]
+fn fitted_conditional_survival_refuses_a_missing_learner_and_inadequate_overlap() {
+    use conditional_survival_fixture as fixture;
+    let FittedBand { rows, ctx, prepared, .. } = fitted_band_fixture();
+    let query = fixture::query(true);
     let mut missing = query;
     missing.stratified_censoring = None;
     assert!(missing.validate().is_err());

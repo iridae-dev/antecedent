@@ -14,7 +14,17 @@
 
 use antecedent::{CausalContract, PreparedStudy, Study, StudyResult};
 
-use super::calibration::{Construction, CoverageTally, ScopeFacts};
+use super::calibration::{Construction, CoverageTally, ScopeFacts, TRACE_ENV};
+
+const _: () = {
+    let (ours, facade) = (TRACE_ENV.as_bytes(), antecedent::support::TRACE_ENV.as_bytes());
+    assert!(ours.len() == facade.len(), "the harness traces to the facade's variable");
+    let mut i = 0;
+    while i < ours.len() {
+        assert!(ours[i] == facade[i], "the harness traces to the facade's variable");
+        i += 1;
+    }
+};
 
 /// Every reported interval's construction and scope facts, primary first.
 ///
@@ -47,6 +57,9 @@ pub fn constructions(
                     functional: key.functional,
                     identification: key.identification,
                     reported_level: key.level,
+                    unit: result
+                        .unit()
+                        .map(|unit| format!("{}\t{}", unit.kind(), unit.record_id())),
                 },
                 ScopeFacts {
                     row_count: basis.scope.row_count,

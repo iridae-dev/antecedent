@@ -14,7 +14,7 @@ use crate::analysis::kernel_programs::patient_surrogate::{
     StoredPatientSurrogate, consume_stored,
 };
 
-fn failed(reason: impl ToString) -> NodeFailure {
+fn failed(reason: &(impl ToString + ?Sized)) -> NodeFailure {
     NodeFailure { stage: BundleStage::TamperedQuantity, reason: reason.to_string() }
 }
 
@@ -32,9 +32,9 @@ pub(super) fn describe(
             reason: error.to_string(),
         }
     })?;
-    let stored = StoredPatientSurrogate::decode(bytes).map_err(failed)?;
+    let stored = StoredPatientSurrogate::decode(bytes).map_err(|error| failed(&error))?;
     let program = stored.program;
-    let result = consume_stored(stored, ctx).map_err(|error| {
+    let result = consume_stored(&stored, ctx).map_err(|error| {
         let mut failure = failed(&error);
         if let PatientSurrogateProgramError::Scientific(error) = error {
             failure.stage = match error {

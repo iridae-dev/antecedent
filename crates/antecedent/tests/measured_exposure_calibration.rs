@@ -68,6 +68,7 @@ fn construction(estimator: &str, dependence: &str) -> Construction {
         functional: "measured_exposure_effect".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

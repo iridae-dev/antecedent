@@ -151,14 +151,13 @@ class ReceiptTests(unittest.TestCase):
                 em.validate_nix_receipt(built, BINDING, inputs)
 
     def test_stored_receipts_name_their_platform_and_still_validate(self):
-        store = REPO / "parity/evidence_manifests"
-        stored = sorted(store.glob("*.json"))[:40]
+        stored = sorted({ref for _, ref in em.inventory(REPO) if isinstance(ref, str)})[:40]
         self.assertTrue(stored)
         checker = em.Checker(REPO)
-        for path in stored:
-            manifest = checker.load(path.stem)
+        for ref in stored:
+            manifest = checker.load(ref)
             self.assertEqual(platforms.manifest_platform(manifest), MAC)
-            self.assertEqual(platforms.stored_platform(REPO, path.stem), MAC)
+            self.assertEqual(platforms.stored_platform(REPO, ref), MAC)
             binding = manifest["record"]
             em.validate_nix_receipt(manifest["nix_build"], binding, manifest["inputs"])
         self.assertIsNone(platforms.stored_platform(REPO, "0" * 64))
@@ -688,9 +687,13 @@ class CrossPlatformCurrencyTests(unittest.TestCase):
                 def changed(root, platform, registry=registry, target=target, real=real):
                     found, lock = real(root, platform)
                     return (registry if platform.target == target else found), lock
+                # A checker reads one state of the tree: the changed review is a new one.
+                fresh = em.Checker(REPO)
+                fresh.manifests[fake] = manifest
                 with patch.object(platforms, "_registry", side_effect=changed):
                     for host in (MAC, target):
-                        owed = self.check(binding, fake, host)
+                        with patch.object(platforms, "host_target", return_value=host):
+                            owed = fresh.check(binding, fake)
                         self.assertFalse(owed["current"])
                         self.assertIn("audit changed", owed["reasons"][0])
 

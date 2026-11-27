@@ -157,8 +157,8 @@ impl CheckedContinuousDoseOperation {
                 fixed_policy,
             },
         );
-        if supported_fixed_policy {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        if let Some(unit) = supported_fixed_policy {
+            result.stamp_supported(unit);
         }
         result.treatment = None;
         Ok(result)
@@ -213,8 +213,8 @@ impl CheckedContinuousDoseOperation {
         &self,
         fixed_policy: Option<&antecedent_estimate::continuous_dose::DosePolicyValue>,
         groups: &[String],
-    ) -> bool {
-        fixed_policy.is_some_and(|value| {
+    ) -> Option<crate::support::UnitRef> {
+        fixed_policy.and_then(|value| {
             let mut group_rows = std::collections::BTreeMap::<&str, usize>::new();
             for group in groups {
                 *group_rows.entry(group.as_str()).or_default() += 1;
@@ -224,7 +224,7 @@ impl CheckedContinuousDoseOperation {
                 value.reference_interval_95,
                 value.incremental_interval_95,
             ];
-            crate::support::support_if_graphless(
+            crate::support::graphless_supported_unit(
                 crate::support::GraphlessSupportKey {
                     family: "continuous_dose_policy",
                     design: "fixed_group_kernel",
@@ -249,7 +249,6 @@ impl CheckedContinuousDoseOperation {
                     ..Default::default()
                 },
             )
-            .is_some()
         })
     }
 }

@@ -1,7 +1,11 @@
 //! Bind the same compiled exact-image programs used by Rust and by portable replay.
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use super::*;
+use super::{
+    Bound, PyBytes, PyJointDistributionArtifact, PyModule, PyModuleMethods, PyRef, PyResult,
+    Python, SemanticDigest, digest, external_refusal_json, json, parse, parse_contract,
+    parse_quantity, pyclass, pyfunction, pymethods, quantity_json, wrap_pyfunction,
+};
 use antecedent::analysis::kernel_programs::bridge_images::{
     BridgeImageError, BridgeImageRequest, BridgeImageResult, CompiledBridgeImage, ExactImageError,
     JointOutcomeBridgeError, JointOutcomeMap, JointOutcomeTerm, consume_bridge_image,
@@ -67,20 +71,20 @@ impl ImageResult {
         }
     }
 
-    fn confidence_interval_json(&self) -> PyResult<Option<String>> {
+    fn confidence_interval_json(&self) -> Option<String> {
         match &self.inner {
             BridgeImageResult::TrialConfidence(v) => {
                 let current = v.is_calibrated();
-                Ok(Some(json!({
+                Some(json!({
                     "lower":v.interval.endpoints[0], "upper":v.interval.endpoints[1],"estimate":v.interval.point,
                     "level":v.interval.basis.key.level, "design":v.interval.basis.key.dependence,
                     "reading":if current { "sampling_confidence" } else { "sampling_nominal" },
                     "calibration_status":v.calibration.status.as_str(),
                     "coverage_record":v.calibration.record_id.as_ref().filter(|_| current),
                     "calibration_sha":v.calibration.calibration_sha.as_ref().filter(|_| current),
-                }).to_string()))
+                }).to_string())
             }
-            _ => Ok(None),
+            _ => None,
         }
     }
     fn interval_quantity_json(&self) -> Option<String> {
@@ -225,8 +229,7 @@ fn compile_identified_set_image(
         domain: domain(mapping_domain),
         source: IdentifiedSetSource {
             quantity: parse_quantity(&parse(quantity, "source quantity")?)?,
-            set: IdentifiedSet::try_new(bounds.0, bounds.1)
-                .map_err(|e| crate::value_err(e.to_string()))?,
+            set: IdentifiedSet::try_new(bounds.0, bounds.1).map_err(crate::value_err_display)?,
             claim_identity: digest(source_identity, "source_identity")?,
         },
     };

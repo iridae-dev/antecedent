@@ -245,13 +245,13 @@ impl Structure {
 /// The structure of a coordinate: a given graph (explicit or accepted) or a graph posterior.
 enum Graph {
     Given(Structure),
-    Posterior(GraphPosterior),
+    Posterior(Box<GraphPosterior>),
 }
 
 impl Graph {
     fn attach(&self, builder: StudyBuilder, via: Via) -> StudyBuilder {
         match (self, via) {
-            (Self::Posterior(graph), Posterior) => builder.graph_posterior(graph.clone()),
+            (Self::Posterior(graph), Posterior) => builder.graph_posterior((**graph).clone()),
             (Self::Given(structure), Explicit) => structure.bind(builder, false),
             (Self::Given(structure), Accepted) => structure.bind(builder, true),
             (Self::Given(_), Posterior) | (Self::Posterior(_), Explicit | Accepted) => {
@@ -416,13 +416,12 @@ impl Law {
         match self {
             // 4·Var z (or 4·Var x_{t−1}) plus the residual.
             Self::Chain | Self::LagChain => 4.0 + noise,
-            Self::Collider => 2.0 + noise,
+            Self::Collider | Self::LagMixed => 2.0 + noise,
             // Var(a + b) = Var(2u + e1 + e2) = 4 + 2.
             Self::ConfoundedCollider | Self::LagConfoundedCollider => 6.0 + noise,
             Self::ConfoundedPair => 1.0 + noise,
             // 4·Var x_{t−1} = 4·2, plus Var u_t = 1 (independent of x_{t−1}).
             Self::LagConfoundedPair => 8.0 + 1.0 + noise,
-            Self::LagMixed => 2.0 + noise,
         }
     }
 
@@ -627,7 +626,7 @@ fn attribution(
 ) {
     let (law, graph) = if variants[0].0 == Posterior {
         let (law, graph) = attribution_posterior(class);
-        (law, Graph::Posterior(graph))
+        (law, Graph::Posterior(Box::new(graph)))
     } else {
         let (law, structure) = attribution_given(class);
         (law, Graph::Given(structure))
@@ -752,23 +751,23 @@ fn counterfactual_atom(class: Class, with_w: bool) -> u64 {
 /// Measure one counterfactual coordinate.
 fn counterfactual(test: &'static str, family: u64, class: Class, mode: Mode, variants: &[Variant]) {
     let graph = match (variants[0].0, mode) {
-        (Posterior, Mode::Bayesian) => Graph::Posterior(posterior(
+        (Posterior, Mode::Bayesian) => Graph::Posterior(Box::new(posterior(
             4,
             &[1.0],
             vec![counterfactual_atom(class, false)],
             class.atom_kind(),
             None,
             &[],
-        )),
+        ))),
         // One atom publishes no frequentist interval: two atoms that identify the same effect.
-        (Posterior, Mode::Frequentist) => Graph::Posterior(posterior(
+        (Posterior, Mode::Frequentist) => Graph::Posterior(Box::new(posterior(
             4,
             &[0.6, 0.4],
             vec![counterfactual_atom(class, false), counterfactual_atom(class, true)],
             class.atom_kind(),
             None,
             &[],
-        )),
+        ))),
         (_, _) => Graph::Given(match class {
             Class::Dag => Structure::Dag(counterfactual_dag(false)),
             Class::Cpdag => Structure::Cpdag(Cpdag::from_dag(&counterfactual_dag(false))),
@@ -950,7 +949,7 @@ fn transport(test: &'static str, family: u64, class: Class, mode: Mode, variants
     let selection: Arc<[VariableId]> = if modified { Arc::from([v(5)]) } else { Arc::from([]) };
     let graph = if variants[0].0 == Posterior {
         let kind = class.atom_kind();
-        Graph::Posterior(match class {
+        Graph::Posterior(Box::new(match class {
             Class::Dag => {
                 posterior(6, &[1.0], vec![directed_mask(6, &[(0, 1), (5, 1)])], kind, None, &[])
             }
@@ -975,7 +974,7 @@ fn transport(test: &'static str, family: u64, class: Class, mode: Mode, variants
                 posterior(6, &[1.0], vec![adjacency], kind, Some(circles), &[])
             }
             other => panic!("no transport coordinate on {other:?}"),
-        })
+        }))
     } else {
         Graph::Given(match class {
             Class::Dag => Structure::Dag(transport_dag()),
@@ -1316,7 +1315,7 @@ fn interference(
     let on_posterior = variants[0].0 == Posterior;
     let graph = if on_posterior {
         let atom = directed_mask(3, &[(0, 1)]);
-        Graph::Posterior(posterior(3, &[1.0], vec![atom], class.atom_kind(), None, &[]))
+        Graph::Posterior(Box::new(posterior(3, &[1.0], vec![atom], class.atom_kind(), None, &[])))
     } else {
         Graph::Given(match class {
             Class::Dag => Structure::Dag(Dag::with_variables(1)),

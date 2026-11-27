@@ -791,11 +791,11 @@ fn subset_count(n: usize, max_size: usize) -> Option<u64> {
     for size in 1..=max_size.min(n) {
         binomial = binomial * (n - size + 1) as u128 / size as u128;
         total += binomial;
-        if total > u64::MAX as u128 {
+        if total > u128::from(u64::MAX) {
             return None;
         }
     }
-    Some(total as u64)
+    u64::try_from(total).ok()
 }
 
 /// Number of subsets of sizes `1..=max_size` of `n` items exceeds `budget`.

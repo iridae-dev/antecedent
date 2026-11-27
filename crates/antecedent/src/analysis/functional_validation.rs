@@ -548,11 +548,14 @@ fn validate(
     ));
     // The result carries the status of the validated cell itself: supported when a row names
     // it, refused otherwise. `validate_over` stamps the validated execution.
-    result.support_status = Some(if supported {
-        crate::support::CellStatus::Supported
-    } else {
-        crate::support::CellStatus::NotSupported
-    });
+    result.stamp_support(
+        Some(if supported {
+            crate::support::CellStatus::Supported
+        } else {
+            crate::support::CellStatus::NotSupported
+        }),
+        study.support_unit.clone(),
+    );
     let origin = if static_class_posterior_curve(study) {
         // The wire carries the full report but replay is unresolved; the scalar
         // summary must not be promoted to whole-target authority.

@@ -146,6 +146,7 @@ fn execute(n: usize, seed: u64) -> Option<Scored> {
                 functional: basis.functional.to_string(),
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
+                unit: None,
             },
             ScopeFacts {
                 row_count: basis.row_count,

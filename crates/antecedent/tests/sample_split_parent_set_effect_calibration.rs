@@ -172,6 +172,7 @@ fn bound(basis: &CalibrationBasis) -> (Construction, ScopeFacts) {
             functional: basis.functional.to_string(),
             identification: basis.identification.to_string(),
             reported_level: basis.level,
+            unit: None,
         },
         ScopeFacts {
             row_count: basis.row_count,
@@ -538,6 +539,7 @@ fn boundary(test: &'static str, label: &str, variant: Variant, skewed: bool) {
         ),
         identification: "point".into(),
         reported_level: LEVEL,
+        unit: None,
     };
     let requested = ScopeFacts {
         row_count: grid_n(BASE_ROWS) as u64,

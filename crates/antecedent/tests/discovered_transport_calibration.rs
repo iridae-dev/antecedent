@@ -255,6 +255,7 @@ fn construction() -> Construction {
             .into(),
         identification: "discovered_class".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

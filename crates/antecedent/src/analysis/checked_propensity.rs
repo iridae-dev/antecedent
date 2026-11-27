@@ -550,6 +550,7 @@ mod tests {
                 graph_class: GraphClass::Dag,
                 graph_version: 0,
                 support_status: None,
+                support_unit: None,
                 structure_source: StructureSource::Explicit,
                 population_registry: None,
                 latency_mode: None,

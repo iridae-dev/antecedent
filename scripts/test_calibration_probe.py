@@ -314,7 +314,7 @@ class JudgeTests(unittest.TestCase):
         (written,) = rows
         self.assertEqual(written["result"], "mismatch")
         self.assertFalse(probe.covers(record(), written))
-        self.assertTrue(verdicts[RECORD_ID].startswith("owed (mismatch)"))
+        self.assertTrue(verdicts[RECORD_ID].startswith("flagged (mismatch)"))
 
 
 class CollectorTests(unittest.TestCase):

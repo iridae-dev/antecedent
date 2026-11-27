@@ -53,6 +53,7 @@ fn construction(functional: &str) -> Construction {
         functional: functional.into(),
         identification: "point".into(),
         reported_level: LEVEL,
+        unit: None,
     }
 }
 

@@ -1030,7 +1030,7 @@ fn finish_identified_execute_with_context(
     result.predictive_checks = extras.predictive_checks;
     result.structural_response = extras.structural_response;
     result.rebind_interval(context.inference.is_bayesian());
-    result.support_status = context.support_status;
+    result.stamp_support(context.support_status, context.support_unit.clone());
     result.structure_source = context.structure_source;
     // A named predicate or custom distribution is a handle; encoding the
     // executed query (certificates, artifacts) needs its bindings.

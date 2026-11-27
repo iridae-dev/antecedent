@@ -107,6 +107,8 @@ struct SettledRefute(ChosenEstimator);
 struct ClassifiedSupport {
     settled: SettledRefute,
     support_status: Option<CellStatus>,
+    /// The unit whose decision `support_status` is: the cell, or a construction on it.
+    support_unit: Option<crate::support::UnitRef>,
 }
 
 /// Exposure phase: transport selection diagram or interference network bound to the unit table.
@@ -1639,6 +1641,7 @@ fn settle_refute(mut chosen: ChosenEstimator) -> Result<SettledRefute, CausalErr
 fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalError> {
     let matrix_class = settled.0.classified.matrix_class;
     let structure = settled.0.classified.structure;
+    let mut support_unit = None;
     let support_status = {
         let spine = &settled.0.classified.spine;
         let carry = &spine.carry;
@@ -1649,6 +1652,20 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         // Evidence the selected route lacks although its cell is supported. Any entry refuses
         // the build as `not_supported`; a development build runs it and records the entries.
         let mut missing_evidence: Vec<String> = Vec::new();
+        // The matrix's InterferenceQuery cells hold evidence for Bernoulli and complete
+        // randomization only. Cluster, two-stage saturation and observed-exposure contrasts
+        // are decided by their graphless interference rows (`parity/support_graphless.toml`)
+        // at execution, so no matrix cell decides them or their estimator here.
+        let graphless_interference = matches!(
+            query,
+            CausalQuery::Interference(q)
+                if matches!(
+                    q.assignment,
+                    antecedent_core::AssignmentDesign::ClusterRandomization { .. }
+                        | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
+                        | antecedent_core::AssignmentDesign::ObservedExposure { .. }
+                )
+        );
         let requested = carry.lag_zero_average_effect.clone().map(CausalQuery::AverageEffect);
         let mut support_status = if let Some(cell) = crate::support::support_cell_named_for_data(
             requested.as_ref().unwrap_or(query),
@@ -1658,6 +1675,7 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             carry.settings.refute,
             matches!(carry.data, DataInput::Temporal(_)),
         ) {
+            support_unit = Some(crate::support::UnitRef::Matrix(cell));
             // Geometric n/a / refused still refuse the build (except inspect).
             // Geometric supported is reclassified once an estimator is known so
             // matching / IV / RD / forest / two-stage front-door cannot inherit
@@ -1670,6 +1688,7 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                         Some(crate::support::refuse_if_not_applicable(cell)?)
                     }
                 }
+                CellStatus::Supported if graphless_interference => None,
                 CellStatus::Supported => {
                     // `inference()` auto-binds `BayesianGcomp` for every static
                     // AverageEffect, including classes whose compiler route is
@@ -1716,6 +1735,7 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                             )
                         {
                             status = crate::support::classify_estimator(fixed, est);
+                            support_unit = Some(crate::support::UnitRef::Matrix(fixed));
                         }
                         if status == CellStatus::NotSupported {
                             missing_evidence.push(format!("estimator_evidence:{}", est.as_str()));
@@ -1730,24 +1750,10 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         } else {
             None
         };
-        // The matrix's InterferenceQuery cells hold evidence for Bernoulli and complete
-        // randomization only. Cluster, two-stage saturation and observed-exposure contrasts
-        // are decided by their graphless interference rows (`parity/support_graphless.toml`)
-        // at execution, so no matrix cell decides them here. A cell the closed rules already
-        // mark as executing unsupported keeps its refused status.
-        if support_status != Some(CellStatus::NotSupported)
-            && matches!(
-                query,
-                CausalQuery::Interference(q)
-                    if matches!(
-                        q.assignment,
-                        antecedent_core::AssignmentDesign::ClusterRandomization { .. }
-                            | antecedent_core::AssignmentDesign::TwoStageSaturation { .. }
-                            | antecedent_core::AssignmentDesign::ObservedExposure { .. }
-                    )
-            )
-        {
+        // A cell the closed rules mark as executing unsupported keeps its refused status.
+        if graphless_interference && support_status != Some(CellStatus::NotSupported) {
             support_status = None;
+            support_unit = None;
         }
         // The untempered posterior of a declared white-innovation premise is a different
         // construction from the supported tempered posterior of the same cell: it is unsupported
@@ -1755,20 +1761,24 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         if carry.settings.retain_joint_horizons
             && matches!(carry.settings.inference, InferenceMode::Bayesian(_))
             && support_status == Some(CellStatus::Supported)
-            && !construction_checked("joint_horizon_block_weight_posterior")
         {
             // The block-weight posterior over the surface replaces the supported conjugate fits.
-            support_status = Some(CellStatus::NotSupported);
-            missing_evidence
-                .push("construction_evidence:joint_horizon_block_weight_posterior".to_owned());
+            carry_construction(
+                "joint_horizon_block_weight_posterior",
+                &mut support_status,
+                &mut support_unit,
+                &mut missing_evidence,
+            );
         }
         if matches!(&carry.settings.inference, InferenceMode::Bayesian(cfg) if cfg.white_innovation.is_some())
             && support_status == Some(CellStatus::Supported)
-            && !construction_checked("untempered_white_innovation_posterior")
         {
-            support_status = Some(CellStatus::NotSupported);
-            missing_evidence
-                .push("construction_evidence:untempered_white_innovation_posterior".to_owned());
+            carry_construction(
+                "untempered_white_innovation_posterior",
+                &mut support_status,
+                &mut support_unit,
+                &mut missing_evidence,
+            );
         }
         // A requested mechanism-refit bootstrap interval on the Frequentist counterfactual
         // and attribution cells is a different construction from their point values: the
@@ -1783,11 +1793,13 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
                     | CausalQuery::ChangeAttribution(_)
             )
             && support_status == Some(CellStatus::Supported)
-            && !construction_checked("mechanism_refit_bootstrap_interval")
         {
-            support_status = Some(CellStatus::NotSupported);
-            missing_evidence
-                .push("construction_evidence:mechanism_refit_bootstrap_interval".to_owned());
+            carry_construction(
+                "mechanism_refit_bootstrap_interval",
+                &mut support_status,
+                &mut support_unit,
+                &mut missing_evidence,
+            );
         }
         // The joint cell is supported on independent, unweighted rows. Sampling weights and a
         // declared cluster or serial dependence change the construction (weighted fits,
@@ -1799,15 +1811,12 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
             && (carry.declared.score_dependence.is_some()
                 || matches!(&carry.data, DataInput::Tabular(t) if t.storage().weights().is_some()))
         {
-            if construction_checked("weighted_or_dependent_cell_aipw_interval") {
-                // The construction has an executed independent check: the cell's interval is
-                // supported and calibration only annotates it.
-            } else {
-                support_status = Some(CellStatus::NotSupported);
-                missing_evidence.push(
-                    "construction_evidence:weighted_or_dependent_cell_aipw_interval".to_owned(),
-                );
-            }
+            carry_construction(
+                "weighted_or_dependent_cell_aipw_interval",
+                &mut support_status,
+                &mut support_unit,
+                &mut missing_evidence,
+            );
         }
         if !carry.inspect_only && !missing_evidence.is_empty() {
             let missing: Vec<&str> = missing_evidence.iter().map(String::as_str).collect();
@@ -1819,7 +1828,28 @@ fn classify_support(settled: SettledRefute) -> Result<ClassifiedSupport, CausalE
         require_supported_bayesian_estimator(carry, support_status)?;
         support_status
     };
-    Ok(ClassifiedSupport { settled, support_status })
+    if let Some(unit) = &support_unit {
+        crate::support::trace_executed(unit, &support_status.unwrap_or(CellStatus::NotSupported));
+    }
+    Ok(ClassifiedSupport { settled, support_status, support_unit })
+}
+
+/// Move a supported cell's decision onto its construction `key`, which carries the cell's support
+/// only through an executed construction check: with one, the unit becomes the construction;
+/// without, the status is not supported and the missing check is listed.
+fn carry_construction(
+    key: &'static str,
+    status: &mut Option<CellStatus>,
+    unit: &mut Option<crate::support::UnitRef>,
+    missing: &mut Vec<String>,
+) {
+    if let Some(crate::support::UnitRef::Matrix(cell)) = *unit {
+        *unit = Some(crate::support::UnitRef::Construction { cell, key });
+    }
+    if !construction_checked(key) {
+        *status = Some(CellStatus::NotSupported);
+        missing.push(format!("construction_evidence:{key}"));
+    }
 }
 
 /// Constructions whose interval has an executed independent construction check, keyed like the
@@ -1878,7 +1908,7 @@ fn require_supported_bayesian_estimator(
 }
 
 fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalError> {
-    let ClassifiedSupport { settled, support_status } = settled;
+    let ClassifiedSupport { settled, support_status, support_unit } = settled;
     let spine = &settled.0.classified.spine;
     let carry = &spine.carry;
     if carry.declared.transport_outcome_regressions.is_some()
@@ -1977,7 +2007,7 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
         _ => (None, None, None),
     };
     Ok(BoundExposure {
-        support: ClassifiedSupport { settled, support_status },
+        support: ClassifiedSupport { settled, support_status, support_unit },
         selection_diagram,
         transport_trial,
         interference,
@@ -1986,7 +2016,7 @@ fn bind_exposure(settled: ClassifiedSupport) -> Result<BoundExposure, CausalErro
 
 fn into_study(exposure: BoundExposure) -> Study {
     let BoundExposure { support, selection_diagram, transport_trial, interference } = exposure;
-    let ClassifiedSupport { settled, support_status } = support;
+    let ClassifiedSupport { settled, support_status, support_unit } = support;
     let SettledRefute(ChosenEstimator { classified, identification_cache }) = settled;
     let ClassifiedGraph { spine, structure, graph_class: _, matrix_class: _, selected: _ } =
         classified;
@@ -2034,6 +2064,7 @@ fn into_study(exposure: BoundExposure) -> Study {
         graph_posterior,
         structure_source: structure,
         support_status,
+        support_unit,
         query,
         declared: StudyDeclarations {
             class_prior: declared.class_prior,

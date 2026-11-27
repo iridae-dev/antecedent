@@ -395,7 +395,10 @@ mod tests {
         );
         let estimator = LinearAdjustmentAte::new().with_bootstrap_replicates(0);
         let dose = estimator.estimate_streamed(&data, &estimand, &query, 16, 1 << 20).unwrap();
-        assert_eq!(dose.classification.map(|classification| classification.as_str()), Some("dose"));
+        assert_eq!(
+            dose.classification.map(crate::propensity::TreatmentClassification::as_str),
+            Some("dose")
+        );
         let err = estimator
             .with_treatment_declaration(crate::propensity::TreatmentDeclaration::Levels)
             .estimate_streamed(&data, &estimand, &query, 16, 1 << 20)

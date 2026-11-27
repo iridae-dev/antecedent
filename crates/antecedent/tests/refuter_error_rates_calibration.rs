@@ -724,6 +724,7 @@ impl Scenario {
             functional: if self.temporal { "temporal_effect" } else { "joint_contrast" }.into(),
             identification: "point".into(),
             reported_level: REPORTED_LEVEL,
+            unit: None,
         }
     }
 

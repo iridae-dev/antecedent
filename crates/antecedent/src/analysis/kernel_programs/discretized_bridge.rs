@@ -438,7 +438,7 @@ fn cancelled_bridge() -> DiscretizationRefusal {
     })
 }
 
-fn bridge_compile_error(error: CausalError) -> DiscretizationRefusal {
+fn bridge_compile_error(error: &CausalError) -> DiscretizationRefusal {
     if matches!(error, CausalError::Cancelled { .. }) {
         return cancelled_bridge();
     }
@@ -553,9 +553,9 @@ impl Study {
     ) -> Result<CompiledDiscretizedBridge, DiscretizationRefusal> {
         refuse_cancelled(ctx)?;
         let input = BridgeInput { source: BridgeSource::Model(model.clone()), plan: plan.clone() };
-        let bytes = bridge_bytes(&input).map_err(bridge_compile_error)?;
-        let program =
-            KernelProgram::compile(&BRIDGE, input, &bytes, ctx).map_err(bridge_compile_error)?;
+        let bytes = bridge_bytes(&input).map_err(|error| bridge_compile_error(&error))?;
+        let program = KernelProgram::compile(&BRIDGE, input, &bytes, ctx)
+            .map_err(|error| bridge_compile_error(&error))?;
         Ok(CompiledDiscretizedBridge { program })
     }
 
@@ -570,9 +570,9 @@ impl Study {
     ) -> Result<CompiledDiscretizedBridge, DiscretizationRefusal> {
         refuse_cancelled(ctx)?;
         let input = BridgeInput { source: BridgeSource::Spec(spec.clone()), plan: plan.clone() };
-        let bytes = bridge_bytes(&input).map_err(bridge_compile_error)?;
-        let program =
-            KernelProgram::compile(&BRIDGE, input, &bytes, ctx).map_err(bridge_compile_error)?;
+        let bytes = bridge_bytes(&input).map_err(|error| bridge_compile_error(&error))?;
+        let program = KernelProgram::compile(&BRIDGE, input, &bytes, ctx)
+            .map_err(|error| bridge_compile_error(&error))?;
         Ok(CompiledDiscretizedBridge { program })
     }
 
@@ -602,9 +602,9 @@ impl Study {
     ) -> Result<CompiledDiscretizedMeanContrast, DiscretizationRefusal> {
         refuse_cancelled(ctx)?;
         let input = ContrastInput { bridge: bridge.clone(), contrast: contrast.clone() };
-        let bytes = contrast_bytes(&input).map_err(bridge_compile_error)?;
-        let program =
-            KernelProgram::compile(&CONTRAST, input, &bytes, ctx).map_err(bridge_compile_error)?;
+        let bytes = contrast_bytes(&input).map_err(|error| bridge_compile_error(&error))?;
+        let program = KernelProgram::compile(&CONTRAST, input, &bytes, ctx)
+            .map_err(|error| bridge_compile_error(&error))?;
         Ok(CompiledDiscretizedMeanContrast { program })
     }
 }

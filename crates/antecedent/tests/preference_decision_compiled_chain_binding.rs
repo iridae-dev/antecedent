@@ -554,7 +554,7 @@ fn a_deferred_table_refuses_what_its_declaration_cannot_carry() {
     );
     // More rows than the table's work budget admits.
     assert_eq!(
-        detail(deferred_family_table("t", &estimates, &groups, &[], 1 << 28, 7)),
+        detail(deferred_family_table("t", &estimates, &groups, &[], 1 << 29, 7)),
         FAMILY_TABLE_WORK_LIMIT
     );
 }

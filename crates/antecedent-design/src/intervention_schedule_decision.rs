@@ -278,6 +278,7 @@ impl IntegratedScheduleDecision {
     }
 }
 
+#[allow(clippy::float_cmp, reason = "the calibration design declares these exact costs")]
 fn calibration_basis(
     declaration: &ScheduleDecisionDeclaration,
     source_rows: u64,

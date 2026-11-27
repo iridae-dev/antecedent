@@ -1076,6 +1076,7 @@ fn fitted_trial_bridge_pairs_the_source_mean_with_its_own_bootstrap_refit() {
 mod images;
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
 fn joint_coefficient_posterior_interval_contains_the_exact_weighted_mass() {
     use crate::bridge_posterior_interval::PosteriorAffineBridge;
     use antecedent_contract::bridge::{FixedBridgeDomain, ValueInterval};
@@ -1213,6 +1214,7 @@ fn whole_trial_bootstrap_interval_refits_both_sources_before_taking_quantiles() 
 }
 
 #[test]
+#[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
 fn trial_bootstrap_publication_is_keyed_to_the_declared_release_design() {
     use crate::bridge_trial_interval::{
         TrialBridgeExperiment, TrialBridgeReleaseDesign, TrialMeanStudy,

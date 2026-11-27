@@ -2,10 +2,10 @@
 //!
 //! [`ForestLearner::fit`] grows each tree on its own derived stream under
 //! [`ExecutionContext::map_indexed_with_spare_workers`] and records [`PER_TREE_FOREST`].
-//! [`ForestLearner::fit_smartcore`] is the serial SmartCore 0.4 fit: one seed,
+//! [`ForestLearner::fit_smartcore`] is the serial `SmartCore` 0.4 fit: one seed,
 //! every tree on the calling worker.
 //!
-//! SmartCore's loop cannot be opened in front of that seed. Bootstrap draws
+//! `SmartCore`'s loop cannot be opened in front of that seed. Bootstrap draws
 //! advance one generator, then each tree draws its splits from a fresh
 //! generator reseeded with the same seed. The per-tree fitter is private to
 //! the provider, and the number of split draws depends on the grown tree, so
@@ -58,7 +58,7 @@ impl ForestLearner {
         Self { spec, task }
     }
 
-    /// Serial SmartCore fit on one seed. Every tree grows on the calling worker.
+    /// Serial `SmartCore` fit on one seed. Every tree grows on the calling worker.
     ///
     /// # Errors
     ///
@@ -652,7 +652,7 @@ impl FittedPredictor for GrownForest {
     }
 }
 
-/// The legacy SmartCore path requires an owned, mutable `Array2` type at fit and predict.
+/// The legacy `SmartCore` path requires an owned, mutable `Array2` type at fit and predict.
 /// Move a gathered design into that matrix or copy a borrowed input for this path.
 fn dense_column_major(
     colmajor: std::borrow::Cow<'_, [f64]>,

@@ -103,8 +103,9 @@ impl CheckedLongitudinalRegimeOperation {
             EstimatorId::BayesianSequentialRegimeValue
         } else {
             match query.method {
-                LongitudinalRegimeMethod::Ipw => EstimatorId::LongitudinalIpwRegime,
-                LongitudinalRegimeMethod::ScheduleFamily(_) => EstimatorId::LongitudinalIpwRegime,
+                LongitudinalRegimeMethod::Ipw | LongitudinalRegimeMethod::ScheduleFamily(_) => {
+                    EstimatorId::LongitudinalIpwRegime
+                }
                 LongitudinalRegimeMethod::GFormula
                 | LongitudinalRegimeMethod::FittedGFormula(_) => {
                     EstimatorId::LongitudinalGFormulaRegime
@@ -150,7 +151,8 @@ impl CheckedLongitudinalRegimeOperation {
         let estimation = self.estimate_regime_value(outcome, data, ctx)?;
         let intervals = self.regime_intervals(&estimation);
         let (diagnostic, description) = published_diagnostic(&estimation, &intervals);
-        let graphless_supported = self.graphless_supported(&estimation.summary, &intervals);
+        let graphless_unit = self.graphless_supported(&estimation.summary, &intervals);
+        let graphless_supported = graphless_unit.is_some();
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
@@ -178,8 +180,8 @@ impl CheckedLongitudinalRegimeOperation {
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         result.treatment = None;
-        if graphless_supported {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        if let Some(unit) = graphless_unit {
+            result.stamp_supported(unit);
         }
         result.payload = crate::result::ResultPayload::LongitudinalRegime(self.regime_payload(
             &estimation,
@@ -266,54 +268,18 @@ impl CheckedLongitudinalRegimeOperation {
                 "estimate.longitudinal.ipw_regime.point_only",
                 "sequential inverse-probability regime value under caller-declared known randomization and censoring probabilities; no interval or calibration claim",
             ),
-            LongitudinalRegimeMethod::GFormula => {
-                let predictions = self.query.period_outcome_predictions.as_deref().ok_or(
-                    CausalError::Unsupported {
-                        message: "g-formula regime value requires period outcome predictions",
-                    },
-                )?;
-                (
-                    evaluate_g_formula_value(
-                        predictions,
-                        &self.query.regime_actions,
-                        &self.query.treatment_probabilities,
-                        &self.query.censoring_probabilities,
-                        self.rows,
-                        self.query.periods,
-                        self.query.minimum_probability,
-                    ),
-                    EstimatorId::LongitudinalGFormulaRegime,
-                    "g_formula",
-                    "estimate.longitudinal.g_formula_regime.point_only",
-                    "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
-                )
-            }
+            LongitudinalRegimeMethod::GFormula => (
+                Ok(self.g_formula_value()?),
+                EstimatorId::LongitudinalGFormulaRegime,
+                "g_formula",
+                "estimate.longitudinal.g_formula_regime.point_only",
+                "sequential plug-in g-formula value from caller-supplied conditional period rewards; fold exclusion is declared, not independently verified; no interval or calibration claim",
+            ),
             LongitudinalRegimeMethod::FittedGFormula(fit) => {
-                let baseline = data.float64_values(fit.baseline).map_err(CausalError::from)?;
-                let summary = estimate_fitted_regime_q(
-                    &FittedRegimeRows {
-                        baseline: &baseline,
-                        actions: &self.query.treatment_history,
-                        outcomes: outcome,
-                        folds: &self.query.fold_ids,
-                    },
-                    [self.query.regime_actions[0], self.query.regime_actions[1]],
-                    fit.external_training_fold,
-                    fit.bootstrap_replicates as usize,
-                    ctx,
-                )
-                .map_err(|error| CausalError::Estimate(error.into()))?;
-                fitted_q = Some(summary);
+                let (summary, fitted) = self.fitted_g_formula_value(fit, outcome, data, ctx)?;
+                fitted_q = Some(fitted);
                 (
-                    Ok(RegimeValueSummary {
-                        value: summary.value,
-                        effective_sample_size: summary.evaluation_subjects as f64,
-                        matched_observed_fraction: 1.0,
-                        maximum_weight: 1.0,
-                        minimum_action_probability: 0.5,
-                        minimum_censoring_probability: 1.0,
-                        score_standard_error: None,
-                    }),
+                    Ok(summary),
                     EstimatorId::LongitudinalGFormulaRegime,
                     "fitted_g_formula",
                     "estimate.longitudinal.g_formula_regime.whole_subject_refit_percentile_95",
@@ -321,73 +287,15 @@ impl CheckedLongitudinalRegimeOperation {
                 )
             }
             LongitudinalRegimeMethod::ScheduleFamily(family) => {
-                let (value, se, method, diagnostic, description, fit) = match family.target {
-                    LongitudinalScheduleTarget::Contrasts { reference, contrasts } => {
-                        let fit = compare_longitudinal_schedules(
-                            &self.query.treatment_history,
-                            outcome,
-                            family.schedules,
-                            reference,
-                            contrasts,
-                            family.draws as usize,
-                            ctx,
-                        )
-                        .map_err(|error| CausalError::Estimate(error.into()))?;
-                        let value = fit
-                            .values
-                            .iter()
-                            .find(|&&(schedule, _)| schedule == reference)
-                            .map(|&(_, value)| value)
-                            .ok_or(CausalError::Unsupported {
-                                message: "reference schedule is missing",
-                            })?;
-                        (
-                            value,
-                            None,
-                            "compare_schedules",
-                            "estimate.longitudinal.simultaneous_fixed_schedule_contrasts",
-                            "paired regime-minus-reference subject scores with a shared max-t multiplier critical value",
-                            LongitudinalScheduleResultWire::from(&fit),
-                        )
-                    }
-                    LongitudinalScheduleTarget::Learn { training_fold } => {
-                        let fit = learn_longitudinal_schedule(
-                            &self.query.treatment_history,
-                            outcome,
-                            &self.query.fold_ids,
-                            family.schedules,
-                            training_fold,
-                            family.draws as usize,
-                            ctx,
-                        )
-                        .map_err(|error| CausalError::Estimate(error.into()))?;
-                        schedule_interval = Some(fit.selected_interval);
-                        (
-                            fit.selected_value,
-                            Some(fit.selected_standard_error),
-                            "learn_schedule",
-                            "estimate.longitudinal.learned_schedule_and_optimum_set",
-                            "learn a fixed schedule on its declared training subjects, evaluate it on held-out subjects, and construct an optimum confidence set using all paired schedule contrasts",
-                            LongitudinalScheduleResultWire::from(&fit),
-                        )
-                    }
-                };
-                let evaluation_subjects = fit.evaluation_subjects;
-                schedule_family = Some(fit);
+                let fit = self.schedule_family_value(family, outcome, ctx)?;
+                schedule_family = Some(fit.result);
+                schedule_interval = fit.interval;
                 (
-                    Ok(RegimeValueSummary {
-                        value,
-                        effective_sample_size: evaluation_subjects as f64,
-                        matched_observed_fraction: 1.0,
-                        maximum_weight: 4.0,
-                        minimum_action_probability: 0.5,
-                        minimum_censoring_probability: 1.0,
-                        score_standard_error: se,
-                    }),
+                    Ok(fit.summary),
                     EstimatorId::LongitudinalIpwRegime,
-                    method,
-                    diagnostic,
-                    description,
+                    fit.method,
+                    fit.diagnostic,
+                    fit.description,
                 )
             }
             LongitudinalRegimeMethod::SequentialDoublyRobust => {
@@ -404,23 +312,7 @@ impl CheckedLongitudinalRegimeOperation {
                 )
             }
             LongitudinalRegimeMethod::MarginalStructuralModel => {
-                let numerators = self.query.stabilizing_numerator_probabilities.as_deref().ok_or(
-                    CausalError::Unsupported {
-                        message: "marginal structural model requires stabilizing numerators",
-                    },
-                )?;
-                let fit = fit_binary_msm(outcome, &self.subject_histories(), numerators)
-                    .map_err(kernel_refusal)?;
-                let (min_action, min_censor) = self.probability_floors();
-                let summary = RegimeValueSummary {
-                    value: fit.intercept,
-                    effective_sample_size: fit.effective_sample_size,
-                    matched_observed_fraction: fit.observed_subjects as f64 / self.rows as f64,
-                    maximum_weight: fit.maximum_weight,
-                    minimum_action_probability: min_action,
-                    minimum_censoring_probability: min_censor,
-                    score_standard_error: None,
-                };
+                let (summary, fit) = self.msm_value(outcome)?;
                 msm = Some(fit);
                 (
                     Ok(summary),
@@ -443,6 +335,157 @@ impl CheckedLongitudinalRegimeOperation {
             fitted_q,
             schedule_family,
             schedule_interval,
+        })
+    }
+
+    /// Evaluates the plug-in g-formula from the caller's conditional period rewards.
+    fn g_formula_value(&self) -> Result<RegimeValueSummary, CausalError> {
+        let predictions =
+            self.query.period_outcome_predictions.as_deref().ok_or(CausalError::Unsupported {
+                message: "g-formula regime value requires period outcome predictions",
+            })?;
+        evaluate_g_formula_value(
+            predictions,
+            &self.query.regime_actions,
+            &self.query.treatment_probabilities,
+            &self.query.censoring_probabilities,
+            self.rows,
+            self.query.periods,
+            self.query.minimum_probability,
+        )
+        .map_err(kernel_refusal)
+    }
+
+    /// Fits the stabilized binary marginal structural model and reads its intercept as the value.
+    fn msm_value(&self, outcome: &[f64]) -> Result<(RegimeValueSummary, MsmSummary), CausalError> {
+        let numerators = self.query.stabilizing_numerator_probabilities.as_deref().ok_or(
+            CausalError::Unsupported {
+                message: "marginal structural model requires stabilizing numerators",
+            },
+        )?;
+        let fit = fit_binary_msm(outcome, &self.subject_histories(), numerators)
+            .map_err(kernel_refusal)?;
+        let (min_action, min_censor) = self.probability_floors();
+        let summary = RegimeValueSummary {
+            value: fit.intercept,
+            effective_sample_size: fit.effective_sample_size,
+            matched_observed_fraction: fit.observed_subjects as f64 / self.rows as f64,
+            maximum_weight: fit.maximum_weight,
+            minimum_action_probability: min_action,
+            minimum_censoring_probability: min_censor,
+            score_standard_error: None,
+        };
+        Ok((summary, fit))
+    }
+
+    /// Fits the fold-owned terminal Q means and reads their regime value.
+    fn fitted_g_formula_value(
+        &self,
+        fit: antecedent_core::FittedRegimeQ,
+        outcome: &[f64],
+        data: &TabularData,
+        ctx: &ExecutionContext,
+    ) -> Result<(RegimeValueSummary, FittedRegimeQSummary), CausalError> {
+        let baseline = data.float64_values(fit.baseline).map_err(CausalError::from)?;
+        let summary = estimate_fitted_regime_q(
+            &FittedRegimeRows {
+                baseline: &baseline,
+                actions: &self.query.treatment_history,
+                outcomes: outcome,
+                folds: &self.query.fold_ids,
+            },
+            [self.query.regime_actions[0], self.query.regime_actions[1]],
+            fit.external_training_fold,
+            fit.bootstrap_replicates as usize,
+            ctx,
+        )
+        .map_err(|error| CausalError::Estimate(error.into()))?;
+        Ok((
+            RegimeValueSummary {
+                value: summary.value,
+                effective_sample_size: summary.evaluation_subjects as f64,
+                matched_observed_fraction: 1.0,
+                maximum_weight: 1.0,
+                minimum_action_probability: 0.5,
+                minimum_censoring_probability: 1.0,
+                score_standard_error: None,
+            },
+            summary,
+        ))
+    }
+
+    /// Compares or learns the declared fixed schedules and reads the reported schedule's value.
+    fn schedule_family_value(
+        &self,
+        family: antecedent_core::LongitudinalScheduleFamily,
+        outcome: &[f64],
+        ctx: &ExecutionContext,
+    ) -> Result<ScheduleFamilyValue, CausalError> {
+        let mut interval = None;
+        let (value, se, method, diagnostic, description, result) = match family.target {
+            LongitudinalScheduleTarget::Contrasts { reference, contrasts } => {
+                let fit = compare_longitudinal_schedules(
+                    &self.query.treatment_history,
+                    outcome,
+                    family.schedules,
+                    reference,
+                    contrasts,
+                    family.draws as usize,
+                    ctx,
+                )
+                .map_err(|error| CausalError::Estimate(error.into()))?;
+                let value = fit
+                    .values
+                    .iter()
+                    .find(|&&(schedule, _)| schedule == reference)
+                    .map(|&(_, value)| value)
+                    .ok_or(CausalError::Unsupported { message: "reference schedule is missing" })?;
+                (
+                    value,
+                    None,
+                    "compare_schedules",
+                    "estimate.longitudinal.simultaneous_fixed_schedule_contrasts",
+                    "paired regime-minus-reference subject scores with a shared max-t multiplier critical value",
+                    LongitudinalScheduleResultWire::from(&fit),
+                )
+            }
+            LongitudinalScheduleTarget::Learn { training_fold } => {
+                let fit = learn_longitudinal_schedule(
+                    &self.query.treatment_history,
+                    outcome,
+                    &self.query.fold_ids,
+                    family.schedules,
+                    training_fold,
+                    family.draws as usize,
+                    ctx,
+                )
+                .map_err(|error| CausalError::Estimate(error.into()))?;
+                interval = Some(fit.selected_interval);
+                (
+                    fit.selected_value,
+                    Some(fit.selected_standard_error),
+                    "learn_schedule",
+                    "estimate.longitudinal.learned_schedule_and_optimum_set",
+                    "learn a fixed schedule on its declared training subjects, evaluate it on held-out subjects, and construct an optimum confidence set using all paired schedule contrasts",
+                    LongitudinalScheduleResultWire::from(&fit),
+                )
+            }
+        };
+        Ok(ScheduleFamilyValue {
+            summary: RegimeValueSummary {
+                value,
+                effective_sample_size: result.evaluation_subjects as f64,
+                matched_observed_fraction: 1.0,
+                maximum_weight: 4.0,
+                minimum_action_probability: 0.5,
+                minimum_censoring_probability: 1.0,
+                score_standard_error: se,
+            },
+            method,
+            diagnostic,
+            description,
+            result,
+            interval,
         })
     }
 
@@ -529,7 +572,7 @@ impl CheckedLongitudinalRegimeOperation {
         &self,
         summary: &RegimeValueSummary,
         intervals: &RegimeIntervals,
-    ) -> bool {
+    ) -> Option<crate::support::UnitRef> {
         // The sequential-DR interval only publishes after its narrowed,
         // calibrated subject support holds, so the graphless support is a
         // function of that published interval plus the exact horizon row.
@@ -537,63 +580,67 @@ impl CheckedLongitudinalRegimeOperation {
         // floors are enforced upstream by the interval and stated in the row's
         // limitations; classify_graphless checks the coarse published-interval
         // support so the support cannot exist without a matching matrix row.
-        let graphless_dr_supported =
-            self.query.method == LongitudinalRegimeMethod::SequentialDoublyRobust
-                && intervals.dr.is_some()
-                && antecedent_io::graphless_support::sequential_dr_key(self.query.periods)
-                    .is_some_and(|key| {
-                        crate::support::support_if_graphless(
-                            key,
-                            crate::support::GraphlessAssignmentSupport {
-                                assignment_unit: "unit",
-                                rows: self.rows,
-                                interval_95_published: true,
-                                reported_intervals: 1,
-                                min_probability: summary.minimum_action_probability,
-                                disjoint_nuisance_training: self.query.excluded_fold_predictions
-                                    && self.query.prediction_fold_ids.as_deref()
-                                        == Some(self.query.fold_ids.as_ref()),
-                                ..Default::default()
-                            },
-                        )
-                        .is_some()
-                    });
-        // The two-period fixed-known-Q g-formula interval only publishes after
-        // its own subject, positivity, and censoring floors hold, so its
-        // graphless support is a function of that published interval plus the
-        // exact two-period fixed-Q row. The fixed-known-Q attestation and the
-        // finer floors are enforced upstream by the interval and stated in the
-        // row's limitations; classify_graphless checks the coarse row support.
-        let graphless_g_formula_supported = self.query.method == LongitudinalRegimeMethod::GFormula
-            && intervals.g_formula.is_some()
-            && self.query.periods == 2
-            && crate::support::support_if_graphless(
-                crate::support::GraphlessSupportKey {
-                    family: "longitudinal_regime",
-                    design: "known_sequential_randomized_two_period",
-                    method: "fixed_known_q_g_formula_scores",
-                    inference_claim: "conditional_q_pointwise_95_normal_interval",
-                },
+        let graphless_dr_supported = (self.query.method
+            == LongitudinalRegimeMethod::SequentialDoublyRobust
+            && intervals.dr.is_some())
+        .then(|| antecedent_io::graphless_support::sequential_dr_key(self.query.periods))
+        .flatten()
+        .and_then(|key| {
+            crate::support::graphless_supported_unit(
+                key,
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "unit",
                     rows: self.rows,
                     interval_95_published: true,
                     reported_intervals: 1,
                     min_probability: summary.minimum_action_probability,
+                    disjoint_nuisance_training: self.query.excluded_fold_predictions
+                        && self.query.prediction_fold_ids.as_deref()
+                            == Some(self.query.fold_ids.as_ref()),
                     ..Default::default()
                 },
             )
-            .is_some();
+        });
+        // The two-period fixed-known-Q g-formula interval only publishes after
+        // its own subject, positivity, and censoring floors hold, so its
+        // graphless support is a function of that published interval plus the
+        // exact two-period fixed-Q row. The fixed-known-Q attestation and the
+        // finer floors are enforced upstream by the interval and stated in the
+        // row's limitations; classify_graphless checks the coarse row support.
+        let graphless_g_formula_supported = (self.query.method
+            == LongitudinalRegimeMethod::GFormula
+            && intervals.g_formula.is_some()
+            && self.query.periods == 2)
+            .then(|| {
+                crate::support::graphless_supported_unit(
+                    crate::support::GraphlessSupportKey {
+                        family: "longitudinal_regime",
+                        design: "known_sequential_randomized_two_period",
+                        method: "fixed_known_q_g_formula_scores",
+                        inference_claim: "conditional_q_pointwise_95_normal_interval",
+                    },
+                    crate::support::GraphlessAssignmentSupport {
+                        assignment_unit: "unit",
+                        rows: self.rows,
+                        interval_95_published: true,
+                        reported_intervals: 1,
+                        min_probability: summary.minimum_action_probability,
+                        ..Default::default()
+                    },
+                )
+            })
+            .flatten();
         // The additive MSM publishes separate pointwise subject-clustered CR1
         // intervals for the intercept and every period coefficient only after
         // its subject, observed-outcome, and effective-weight floors hold, so
         // its support is a function of those published intervals plus the exact
         // additive-MSM row. The observed-outcome floor and positive coefficient
         // SEs are enforced upstream by the intervals and stated in the row.
-        let graphless_msm_supported = self.query.method
+        let graphless_msm_supported = (self.query.method
             == LongitudinalRegimeMethod::MarginalStructuralModel
-            && intervals.msm.is_some()
-            && crate::support::support_if_graphless(
+            && intervals.msm.is_some())
+        .then(|| {
+            crate::support::graphless_supported_unit(
                 crate::support::GraphlessSupportKey {
                     family: "longitudinal_regime",
                     design: "known_sequential_randomized_additive_msm",
@@ -611,8 +658,9 @@ impl CheckedLongitudinalRegimeOperation {
                     ..Default::default()
                 },
             )
-            .is_some();
-        graphless_dr_supported || graphless_g_formula_supported || graphless_msm_supported
+        })
+        .flatten();
+        graphless_dr_supported.or(graphless_g_formula_supported).or(graphless_msm_supported)
     }
 
     /// Assembles the retained regime estimate from the estimation and interval phases.
@@ -704,6 +752,16 @@ impl Study {
     ) -> Result<StudyResult, CausalError> {
         CheckedLongitudinalRegimeOperation::checked(self, data, physical)?.execute(data, ctx)
     }
+}
+
+/// The fixed-schedule family's reported value and the result it publishes.
+struct ScheduleFamilyValue {
+    summary: RegimeValueSummary,
+    method: &'static str,
+    diagnostic: &'static str,
+    description: &'static str,
+    result: LongitudinalScheduleResultWire,
+    interval: Option<[f64; 2]>,
 }
 
 /// Point value of the regime plus the MSM fit or DR subject scores later phases consume.
@@ -798,22 +856,31 @@ fn longitudinal_assumptions(
     ] {
         declare_custom(&mut assumptions, id, description);
     }
+    declare_method_assumptions(&mut assumptions, query);
+    assumptions
+}
+
+/// The nuisance contract the selected method adds to the sequential-randomization assumptions.
+fn declare_method_assumptions(
+    assumptions: &mut antecedent_core::AssumptionSet,
+    query: &antecedent_core::LongitudinalRegimeQuery,
+) {
     if query.method == LongitudinalRegimeMethod::GFormula {
         if query.known_fixed_outcome_predictions {
             declare_custom(
-                &mut assumptions,
+                assumptions,
                 "fixed_known_outcome_predictions",
                 "caller declares the conditional period reward law fixed and known before this study, with no fitted or selected Q uncertainty",
             );
         }
         declare_custom(
-            &mut assumptions,
+            assumptions,
             "conditional_period_reward_validity",
             "supplied period reward predictions equal conditional means under the prescribed regime given each predecision history",
         );
         if query.excluded_fold_predictions {
             declare_custom(
-                &mut assumptions,
+                assumptions,
                 "subject_excluded_fold_predictions",
                 "caller declares that every outcome prediction excludes the subject's entire history fold",
             );
@@ -821,13 +888,13 @@ fn longitudinal_assumptions(
     }
     if let LongitudinalRegimeMethod::FittedGFormula(fit) = query.method {
         declare_custom(
-            &mut assumptions,
+            assumptions,
             "fitted_q_baseline_stratum",
             "the declared binary variable is recorded before first assignment and the endpoint mean under the fixed schedule is learned within its strata",
         );
         if fit.external_training_fold.is_some() {
             declare_custom(
-                &mut assumptions,
+                assumptions,
                 "external_q_training_sample",
                 "the declared training subjects are independently sampled, and their conditional endpoint mean under the schedule applies to target subjects at the same baseline stratum",
             );
@@ -835,13 +902,13 @@ fn longitudinal_assumptions(
     }
     if let LongitudinalRegimeMethod::ScheduleFamily(family) = query.method {
         declare_custom(
-            &mut assumptions,
+            assumptions,
             "prespecified_two_decision_schedule_class",
             "the candidate schedules are fixed before evaluating outcomes, each subject is independent, and both binary treatment decisions use known fair coins",
         );
         if matches!(family.target, LongitudinalScheduleTarget::Learn { .. }) {
             declare_custom(
-                &mut assumptions,
+                assumptions,
                 "independent_schedule_training_and_evaluation",
                 "the declared training and evaluation subjects are independent draws from the same target law, and individual schedule actions use no learned subject covariate rule",
             );
@@ -862,7 +929,7 @@ fn longitudinal_assumptions(
                 "dropout is monotone and terminal observation agrees with the final history period",
             ),
         ] {
-            declare_custom(&mut assumptions, id, description);
+            declare_custom(assumptions, id, description);
         }
     }
     if query.method == LongitudinalRegimeMethod::MarginalStructuralModel {
@@ -880,10 +947,9 @@ fn longitudinal_assumptions(
                 "the reported CR1 sandwich treats each whole subject history as one independent cluster and does not establish interval coverage",
             ),
         ] {
-            declare_custom(&mut assumptions, id, description);
+            declare_custom(assumptions, id, description);
         }
     }
-    assumptions
 }
 
 fn longitudinal_identification(

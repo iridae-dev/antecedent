@@ -201,6 +201,10 @@ impl CompiledTransportedSynthesis {
     ///
     /// # Errors
     /// The support refusal, and every refusal of `transported_synthesis_response_kernel`.
+    #[allow(
+        clippy::result_large_err,
+        reason = "ExternalRefusal is the shared structured refusal returned by value on a cold once-per-construction path; boxing it would change the public error contract"
+    )]
     pub fn execute(
         &self,
         ledger: &mut EvidenceLedger,

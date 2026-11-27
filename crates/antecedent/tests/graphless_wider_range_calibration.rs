@@ -1330,6 +1330,7 @@ fn reported_as(prepared: &PreparedStudy, result: &StudyResult, stated: &Stated<'
         dependence: stated.dependence.into(),
         functional: stated.functional.into(),
         reported_level: stated.level,
+        unit: None,
         ..base
     };
     let scope =

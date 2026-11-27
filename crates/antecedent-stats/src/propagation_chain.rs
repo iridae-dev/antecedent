@@ -142,7 +142,7 @@ pub enum ChainError {
         /// Receipt summary.
         summary: String,
         /// The receipt.
-        receipt: antecedent_core::SearchReceipt,
+        receipt: Box<antecedent_core::SearchReceipt>,
     },
     /// Cancellation was observed at a work boundary.
     #[error("propagation chain cancelled")]
@@ -152,7 +152,7 @@ pub enum ChainError {
 fn chain_search(receipt: antecedent_core::SearchReceipt) -> ChainError {
     let stop = receipt.stop.code();
     let summary = receipt.summary();
-    ChainError::Search { stop, summary, receipt }
+    ChainError::Search { stop, summary, receipt: Box::new(receipt) }
 }
 
 fn admit_chain_cells(

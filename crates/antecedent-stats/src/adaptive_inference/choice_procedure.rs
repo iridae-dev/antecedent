@@ -274,35 +274,7 @@ pub fn enumerate_choice_law_in(
     if cancelled() || ctx.cancellation.is_cancelled() {
         return Err(Error::Cancelled);
     }
-    let options = u64::try_from(spec.prior.len()).unwrap_or(u64::MAX);
-    let looks = u64::try_from(spec.batches.len()).unwrap_or(u64::MAX).max(1);
-    let units: u64 = spec.batches.iter().map(|b| u64::from(*b)).sum();
-    let Some(state) = options.checked_mul(looks) else {
-        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
-            CHOICE_UNEVALUATED,
-        )));
-    };
-    let Some(operations) = units.checked_mul(state.max(1)) else {
-        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
-            CHOICE_UNEVALUATED,
-        )));
-    };
-    let Some(bytes) = state
-        .checked_mul(16)
-        .and_then(|head| operations.checked_mul(16).and_then(|tail| head.checked_add(tail)))
-    else {
-        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
-            CHOICE_UNEVALUATED,
-        )));
-    };
-    let _lease = crate::execution_quote::admit_execution_quote(
-        ctx,
-        operations.max(1),
-        operations,
-        bytes,
-        CHOICE_UNEVALUATED,
-    )
-    .map_err(super::budget_stop)?;
+    let _lease = admit_choice_law(spec, ctx)?;
     let k = spec.prior.len();
     let mut cumulative = Vec::with_capacity(spec.batches.len());
     let mut total = 0_u32;
@@ -321,24 +293,7 @@ pub fn enumerate_choice_law_in(
             return Err(Error::Cancelled);
         }
         for _ in 0..batch {
-            let mut next: StateMap = BTreeMap::new();
-            for (key, probability) in &live {
-                let seen: f64 = key.iter().map(|c| f64::from(*c)).sum();
-                for option in 0..k {
-                    let q = match kernel {
-                        ChoiceKernel::Fixed { theta } => theta[option],
-                        ChoiceKernel::PriorPredictive { alpha } => {
-                            let a0: f64 = alpha.iter().sum();
-                            (alpha[option] + f64::from(key[option])) / (a0 + seen)
-                        }
-                    };
-                    if q > 0.0 {
-                        let mut grown = key.clone();
-                        grown[option] += 1;
-                        *next.entry(grown).or_insert(0.0) += probability * q;
-                    }
-                }
-            }
+            let next = grow_states(&live, kernel, k);
             check_states(next.len())?;
             let before = work / CANCEL_STRIDE;
             work = work.saturating_add(next.len() as u64 + 1);
@@ -384,4 +339,61 @@ pub fn enumerate_choice_law_in(
         return Err(Error::Numerical("the choice procedure law does not sum to one"));
     }
     Ok(ChoiceLaw { atoms, cumulative_enrolment: cumulative, work_units: work, peak_states: peak })
+}
+
+fn admit_choice_law(
+    spec: &ChoiceProcedureSpec,
+    ctx: &antecedent_core::ExecutionContext,
+) -> Result<antecedent_core::execution::AdmissionLease, Error> {
+    let options = u64::try_from(spec.prior.len()).unwrap_or(u64::MAX);
+    let looks = u64::try_from(spec.batches.len()).unwrap_or(u64::MAX).max(1);
+    let units: u64 = spec.batches.iter().map(|b| u64::from(*b)).sum();
+    let Some(state) = options.checked_mul(looks) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            CHOICE_UNEVALUATED,
+        )));
+    };
+    let Some(operations) = units.checked_mul(state.max(1)) else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            CHOICE_UNEVALUATED,
+        )));
+    };
+    let Some(bytes) = state
+        .checked_mul(16)
+        .and_then(|head| operations.checked_mul(16).and_then(|tail| head.checked_add(tail)))
+    else {
+        return Err(super::budget_stop(crate::execution_quote::unrepresentable_quote(
+            CHOICE_UNEVALUATED,
+        )));
+    };
+    crate::execution_quote::admit_execution_quote(
+        ctx,
+        operations.max(1),
+        operations,
+        bytes,
+        CHOICE_UNEVALUATED,
+    )
+    .map_err(super::budget_stop)
+}
+
+fn grow_states(live: &StateMap, kernel: &ChoiceKernel, k: usize) -> StateMap {
+    let mut next: StateMap = BTreeMap::new();
+    for (key, probability) in live {
+        let seen: f64 = key.iter().map(|c| f64::from(*c)).sum();
+        for option in 0..k {
+            let q = match kernel {
+                ChoiceKernel::Fixed { theta } => theta[option],
+                ChoiceKernel::PriorPredictive { alpha } => {
+                    let a0: f64 = alpha.iter().sum();
+                    (alpha[option] + f64::from(key[option])) / (a0 + seen)
+                }
+            };
+            if q > 0.0 {
+                let mut grown = key.clone();
+                grown[option] += 1;
+                *next.entry(grown).or_insert(0.0) += probability * q;
+            }
+        }
+    }
+    next
 }

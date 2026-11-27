@@ -127,6 +127,7 @@ fn worlds() -> EventWorldRequest {
 }
 
 #[test]
+#[expect(clippy::float_cmp, reason = "the zero-baseline declared law draws exactly zero")]
 fn fixture_worlds_match_off_grid_path_oracle_and_hawkes_composes() {
     let ctx = ExecutionContext::for_tests(0);
     let request = fixture_request(vec![vec![Arrival { time: 1.25, kind: 0 }], vec![]]);
@@ -336,6 +337,7 @@ fn same_stream_signal_changes_compiled_terminal_choice() {
 }
 
 #[test]
+#[expect(clippy::float_cmp, reason = "the forecast at the cutoff is replayed bit for bit")]
 fn holdout_changes_scores_without_changing_the_forecast_at_cutoff() {
     use antecedent::analysis::events::{ForecastAssessmentRequest, ForecastOrigin};
     let ctx = ExecutionContext::for_tests(0);

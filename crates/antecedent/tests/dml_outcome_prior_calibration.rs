@@ -154,6 +154,7 @@ fn construction(estimator: &str) -> Construction {
         functional: "all_observed.mean+outcome=gaussian_prior".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

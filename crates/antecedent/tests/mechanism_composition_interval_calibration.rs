@@ -344,6 +344,7 @@ fn construction(query: &str, estimator: &str) -> Construction {
         functional: "mean_contrast_do_x_2".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

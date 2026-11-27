@@ -158,6 +158,7 @@ fn graph_imputation_transport_target_frame_l95() {
                 functional: basis.functional.to_string(),
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
+                unit: None,
             };
             tally.bind_validation(
                 &construction,

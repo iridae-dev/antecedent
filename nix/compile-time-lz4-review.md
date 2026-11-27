@@ -27,3 +27,15 @@ Offline, locked unit-graph metadata established that the discovery library
 selects no new compile-time unit and that the composition integration
 targets and native Python extension select these two units. No compilation
 or scientific assertion ran as part of this review.
+
+## Linux
+
+The same two units, with the same checksum and featureless signatures, are
+selected for `x86_64-unknown-linux-gnu` and `aarch64-unknown-linux-gnu`.
+`build.rs` was read again from the locked package. Neither Linux `TARGET`
+contains `windows` or matches a Wasm target, so the script takes the same
+path as on Darwin: the four vendored translation units are compiled by the
+reviewed `cc` helper under the Linux audit's pinned toolchain, and the
+`liblz4/lib` headers are copied under `OUT_DIR`. No repository function text
+or source position is read. This review inherits the assumptions of
+`nix/linux/compile-time-audit.md`.

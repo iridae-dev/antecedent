@@ -171,6 +171,7 @@ fn payload_construction(
         functional: functional.into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 
@@ -1025,7 +1026,10 @@ fn simulate_temporal_rollout_bayesian_block_weights_coverage() {
             let data = lag_chain_rows(grid_n(ROLLOUT_SERIES), seed, |_| CENTER, NOISE);
             let schedule = InterventionSequence::new(vec![SequencedIntervention::new(
                 Intervention::set(v(0), Value::f64(1.0)),
-                TemporalPolicy::Sustained { from: 0, until: ROLLOUT_STEPS as i32 - 1 },
+                TemporalPolicy::Sustained {
+                    from: 0,
+                    until: i32::try_from(ROLLOUT_STEPS).unwrap() - 1,
+                },
             )]);
             let target = SimulationTarget::TemporalRollout {
                 schedule,

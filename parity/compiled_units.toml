@@ -1115,6 +1115,30 @@ unit = "discovery.per_population"
 entry = { rust = "crates/antecedent/src/analysis/compiled_per_population_discovery.rs", python = "python/antecedent/selective_discovery.py" }
 
 [[route]]
+lowering = "GcmAttributeDag"
+unit_kind = "capability"
+unit = "gcm.attribute.mechanism_refit"
+entry = { rust = "crates/antecedent/src/analysis/execute/checked_attribution.rs", python = "python/antecedent/attribution.py" }
+
+[[route]]
+lowering = "GcmSimulateDag"
+unit_kind = "capability"
+unit = "gcm.simulate.mechanism_refit"
+entry = { rust = "crates/antecedent/src/analysis/structure_route.rs", python = "python/antecedent/gcm.py" }
+
+[[route]]
+lowering = "DiscoverStatic"
+unit_kind = "capability"
+unit = "discovery.structure_posterior"
+entry = { rust = "crates/antecedent/src/analysis/structure_route.rs", python = "python/antecedent/discovery.py" }
+
+[[route]]
+lowering = "DiscoverTemporal"
+unit_kind = "capability"
+unit = "discovery.structure_posterior"
+entry = { rust = "crates/antecedent/src/analysis/structure_route.rs", python = "python/antecedent/discovery.py" }
+
+[[route]]
 lowering = "CrossWorldFiniteExecution"
 unit_kind = "capability"
 unit = "cross_world_execution.finite_markovian_scm"

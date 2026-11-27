@@ -96,6 +96,7 @@ fn construction() -> Construction {
         functional: "weighted_target.mean".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

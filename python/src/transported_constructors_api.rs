@@ -122,6 +122,10 @@ fn run_adaptive_trial(
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn policy_construction(
     request: &TransportedPolicyRequest<'_>,
     coordinate: antecedent::scientific::ScientificQuantity,
@@ -140,6 +144,10 @@ fn policy_construction(
     Ok(TransportedConstruction { evaluation, response })
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn temporal_construction(
     request: &TemporalPolicyRequest<'_>,
     coordinate: antecedent::scientific::ScientificQuantity,
@@ -171,6 +179,10 @@ fn temporal_construction(
     Ok(TransportedConstruction { evaluation, response })
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn adaptive_construction(
     request: &AdaptiveTransportRequest<'_>,
     value: AdaptiveTransportedValue,

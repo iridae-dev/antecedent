@@ -265,6 +265,10 @@ pub fn measure_sample_truths(
 }
 
 #[track_caller]
+#[allow(
+    clippy::too_many_lines,
+    reason = "the base, its siblings and the tallies share the run, score and pick closures"
+)]
 fn measure_inner(
     cell: Cell,
     targets: &[Target],

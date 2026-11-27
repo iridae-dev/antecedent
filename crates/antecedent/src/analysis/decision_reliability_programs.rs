@@ -88,13 +88,13 @@ fn decision_layer(draws: &DecisionDraws) -> DecisionProgram {
 fn declared(
     tag: &str,
     draws: &DecisionDraws,
-    validation: &Option<DecisionDraws>,
+    validation: Option<&DecisionDraws>,
     request: &ReliabilityRequest,
 ) -> Declaration {
     let mut question = Declaration::new(tag);
     question
         .field("draws", &draws.digest_hex())
-        .field("validation", &validation.as_ref().map(DecisionDraws::digest_hex))
+        .field("validation", &validation.map(DecisionDraws::digest_hex))
         .field("request", &Wire(request));
     question
 }
@@ -124,9 +124,13 @@ pub fn compile_decision_reliability_assessment(
     ctx: &ExecutionContext,
 ) -> Result<CompiledDecisionReliabilityAssessment, CausalError> {
     admit_compile(ctx)?;
-    let question =
-        declared("antecedent.decision_reliability_assessment.v1", &draws, &validation, &request)
-            .finish();
+    let question = declared(
+        "antecedent.decision_reliability_assessment.v1",
+        &draws,
+        validation.as_ref(),
+        &request,
+    )
+    .finish();
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::DecisionReliabilityAssessment,
         plan_id: "supplied.decision_reliability_assessment.v1",
@@ -206,7 +210,7 @@ pub fn compile_producer_carrier_assessment(
     let mut question = declared(
         "antecedent.producer_carrier_assessment.v1",
         carrier.draws(),
-        &validation,
+        validation.as_ref(),
         &request,
     );
     question.field("joint_law", &CarrierJointLaw(standing));
@@ -270,8 +274,12 @@ pub fn compile_decision_reliability_derivation(
     ctx: &ExecutionContext,
 ) -> Result<CompiledDecisionReliabilityDerivation, CausalError> {
     admit_compile(ctx)?;
-    let mut question =
-        declared("antecedent.decision_reliability_derivation.v1", &draws, &validation, &request);
+    let mut question = declared(
+        "antecedent.decision_reliability_derivation.v1",
+        &draws,
+        validation.as_ref(),
+        &request,
+    );
     question.field("interval", &IntervalId(interval));
     let lowered = lower(TerminalSpec {
         cell: ProgramCell::DecisionReliabilityDerivation,
@@ -340,7 +348,7 @@ pub fn compile_producer_carrier_derivation(
     let mut question = declared(
         "antecedent.producer_carrier_derivation.v1",
         carrier.draws(),
-        &validation,
+        validation.as_ref(),
         &request,
     );
     question

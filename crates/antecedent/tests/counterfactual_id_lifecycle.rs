@@ -758,21 +758,20 @@ fn structures_queries_and_inference_outside_the_cell_are_refused() {
         &ctx(),
     ));
     assert!(text.contains("reason=invalid_argument: counterfactual_id.invalid_query"), "{text}");
-    // Limits over the cap.
-    let text = refusal_text(prepare_counterfactual_id(
-        admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
-        names(3),
-        levels(&[2, 2, 2]),
-        &query,
-        CounterfactualIdOptions {
-            limits: SearchLimits { operations: 100_001, depth: 10 },
-            ..CounterfactualIdOptions::default()
-        },
-        &ctx(),
-    ));
+    // A declaration above the old operation cap is the caller's limit, not a refusal.
     assert!(
-        text.contains("reason=route_not_supported: counterfactual_id.bounds_exceeded"),
-        "{text}"
+        prepare_counterfactual_id(
+            admg(3, &FRONT_DIRECTED, &FRONT_BIDIRECTED),
+            names(3),
+            levels(&[2, 2, 2]),
+            &query,
+            CounterfactualIdOptions {
+                limits: SearchLimits { operations: 100_001, depth: 10 },
+                ..CounterfactualIdOptions::default()
+            },
+            &ctx(),
+        )
+        .is_ok()
     );
     // A budget stop.
     let text = refusal_text(prepare_counterfactual_id(

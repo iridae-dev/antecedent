@@ -508,7 +508,7 @@ fn composition_require_compact_refit(py: Python<'_>, data: &[u8]) -> PyResult<Re
 /// Refit the native model from its original ordered training data.
 #[pyfunction]
 #[pyo3(signature = (data, expected_identity, learner, training_json, *, model_node=None, seed=1, threads=None, cancel=None, memory_bytes=None))]
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn composition_refit_compact<'py>(
     py: Python<'py>,
     data: &[u8],
@@ -547,7 +547,7 @@ fn composition_refit_compact<'py>(
 /// The existing identity of a producer artifact, for a catalog role.
 #[pyfunction]
 fn producer_artifact_identity(role: &str, data: &[u8]) -> PyResult<String> {
-    producer_identity(role, data).map_err(|reason| crate::value_err(reason))
+    producer_identity(role, data).map_err(crate::value_err)
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {

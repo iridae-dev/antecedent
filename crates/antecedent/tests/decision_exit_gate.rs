@@ -916,16 +916,13 @@ fn story_a_failed_multi_source_decision_is_planned_replayed_and_flipped_by_arriv
         assert!((point - truth).abs() < 1e-12, "do(X={x}): {point} vs {truth}");
     }
 
-    // Plan limits above the route maxima are refused as bounds_exceeded, never "sufficient".
+    // A declaration above the old route ceiling is the caller's limit.
     let over = StudyPlanLimits {
         search: SearchLimits { operations: 200_001, depth: 24 },
         ..StudyPlanLimits::default()
     };
-    let error = plan_studies(&graph(), &route, &base, &candidates, over, &ctx).unwrap_err();
-    assert_eq!(
-        (error.code, error.detail),
-        ("route_not_supported", antecedent_core::reason_details::study_plan::BOUNDS_EXCEEDED)
-    );
+    plan_studies(&graph(), &route, &base, &candidates, over, &ctx)
+        .expect("a declaration above the old operation ceiling is the caller's limit");
     // A budget that stops the plan before the pair is a receipt, never a verdict.
     let short = StudyPlanLimits {
         search: SearchLimits { operations: 1, depth: 24 },

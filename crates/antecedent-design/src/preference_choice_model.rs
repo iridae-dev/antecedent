@@ -431,7 +431,7 @@ pub enum ChoiceModelError {
     /// The measure draws do not fit the execution. The draw table was not allocated.
     ExecutionBudget {
         /// The receipt.
-        receipt: antecedent_core::SearchReceipt,
+        receipt: Box<antecedent_core::SearchReceipt>,
     },
     /// The fit's gradient tolerance or separation bound is not finite and positive.
     FitOptionsInvalid,
@@ -1267,7 +1267,7 @@ impl Context<'_> {
         hold.charge(self.ctx, operations, state, "choice-model measure draws").map_err(
             |receipt| match receipt.stop {
                 antecedent_core::SearchStop::Cancelled => ChoiceModelError::Cancelled,
-                _ => ChoiceModelError::ExecutionBudget { receipt },
+                _ => ChoiceModelError::ExecutionBudget { receipt: Box::new(receipt) },
             },
         )?;
         Ok(hold)

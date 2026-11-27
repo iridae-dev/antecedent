@@ -511,6 +511,7 @@ impl super::CheckedRandomizedOperation {
             result.extras.missing_data = Some(self.missing_report(data, &observed)?);
         }
         if let Some(source) = ipow_source {
+            let unit = crate::support::graphless_unit(source.key());
             let row = antecedent_io::randomized_ipow_artifact::posterior_row(
                 source,
                 &posterior,
@@ -518,7 +519,8 @@ impl super::CheckedRandomizedOperation {
             );
             row.validate()?;
             result.payload = crate::result::ResultPayload::PosteriorRow(row);
-            result.support_status = Some(crate::support::CellStatus::Supported);
+            crate::support::trace_executed(&unit, &crate::support::CellStatus::Supported);
+            result.stamp_supported(unit);
             result.diagnostics.retain(|d| d.code.as_ref() != "estimate.quasi.bayesian.unsupported");
         }
         Ok(result)

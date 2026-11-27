@@ -52,10 +52,9 @@ fn integrated_schedule_error(error: &antecedent::design::ScheduleBundleError) ->
 fn integrated_decision_json(
     decision: &antecedent::design::IntegratedScheduleDecision,
 ) -> PyResult<String> {
-    let mut result = serde_json::to_value(decision)
-        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
-    result["calibration"] = serde_json::to_value(decision.calibration())
-        .map_err(|error| pyo3::exceptions::PyValueError::new_err(error.to_string()))?;
+    let mut result = serde_json::to_value(decision).map_err(crate::value_err_display)?;
+    result["calibration"] =
+        serde_json::to_value(decision.calibration()).map_err(crate::value_err_display)?;
     Ok(result.to_string())
 }
 

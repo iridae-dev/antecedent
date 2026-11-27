@@ -201,6 +201,7 @@ fn bind_basis(
             functional: format!("{}{functional_suffix}", key.functional),
             identification: key.identification,
             reported_level: key.level,
+            unit: None,
         },
         ScopeFacts {
             row_count: basis.scope.row_count,

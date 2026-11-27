@@ -344,10 +344,34 @@ pub fn measured_at() -> String {
 /// scratch registry with `--smoke`.
 pub const SMOKE_ENV: &str = "ANTECEDENT_CALIBRATION_SMOKE";
 
-/// Whether this is a wiring smoke run ([`SMOKE_ENV`]).
+thread_local! {
+    static GATED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether this is a wiring smoke run ([`SMOKE_ENV`]) outside [`gated`].
 #[must_use]
 pub fn smoke() -> bool {
-    std::env::var(SMOKE_ENV).is_ok_and(|value| value == "1")
+    !GATED.with(std::cell::Cell::get) && std::env::var(SMOKE_ENV).is_ok_and(|value| value == "1")
+}
+
+/// Run `body` with the gate in force whatever [`SMOKE_ENV`] says: a test of the gate's own
+/// decision on a synthetic tally asserts that decision in every run.
+pub fn gated<R>(body: impl FnOnce() -> R) -> R {
+    struct Reset(bool);
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            GATED.with(|gated| gated.set(self.0));
+        }
+    }
+    let _reset = Reset(GATED.with(|gated| gated.replace(true)));
+    body()
+}
+
+/// Assert `condition`, a property of the measured sample, except in a smoke run, which
+/// measures nothing.
+#[track_caller]
+pub fn assert_measured(condition: bool, message: impl FnOnce() -> String) {
+    assert!(smoke() || condition, "{}", message());
 }
 
 /// Replicate count, honoring `ANTECEDENT_CALIBRATION_NSIM` for smoke runs.
@@ -648,6 +672,8 @@ pub fn map_replicates_from<T: Send>(start: u32, end: u32, f: impl Fn(u64) -> T +
         return (start..end).map(|rep| f(u64::from(rep))).collect();
     }
     let mut out: Vec<Option<T>> = (0..n_us).map(|_| None).collect();
+    // Workers carry the test's name, so the evidence trace attributes their executions to it.
+    let test = std::thread::current().name().map(str::to_owned);
     std::thread::scope(|scope| {
         let f = &f;
         let mut rest = out.as_mut_slice();
@@ -656,11 +682,17 @@ pub fn map_replicates_from<T: Send>(start: u32, end: u32, f: impl Fn(u64) -> T +
             let take = rest.len().div_ceil(threads - t);
             let (mine, next) = rest.split_at_mut(take);
             let begin = first;
-            scope.spawn(move || {
-                for (k, slot) in mine.iter_mut().enumerate() {
-                    *slot = Some(f((begin + k) as u64));
-                }
-            });
+            let mut worker = std::thread::Builder::new();
+            if let Some(test) = &test {
+                worker = worker.name(test.clone());
+            }
+            worker
+                .spawn_scoped(scope, move || {
+                    for (k, slot) in mine.iter_mut().enumerate() {
+                        *slot = Some(f((begin + k) as u64));
+                    }
+                })
+                .expect("replicate worker spawns");
             rest = next;
             first += take;
             if rest.is_empty() {
@@ -669,6 +701,33 @@ pub fn map_replicates_from<T: Send>(start: u32, end: u32, f: impl Fn(u64) -> T +
         }
     });
     out.into_iter().map(|slot| slot.expect("every replicate was filled")).collect()
+}
+
+/// The evidence trace file variable, `antecedent::support::TRACE_ENV`. This harness is also
+/// compiled into crates below the facade, which cannot name it.
+pub const TRACE_ENV: &str = "ANTECEDENT_EVIDENCE_TRACE";
+
+/// Append the trace line of the record `id` and the units its bound executions reported to
+/// [`TRACE_ENV`], when set: `record <binary> <test> <id> [<kind> <unit>]...`.
+fn trace_record(id: &str, units: &std::collections::BTreeSet<String>) {
+    let Ok(path) = std::env::var(TRACE_ENV) else {
+        return;
+    };
+    let binary = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.file_stem().map(|stem| stem.to_string_lossy().into_owned()))
+        .map(|stem| stem.rsplit_once('-').map_or(stem.clone(), |(name, _)| name.to_owned()))
+        .unwrap_or_default();
+    let test = std::thread::current().name().unwrap_or("").to_owned();
+    let mut line = format!("record\t{binary}\t{test}\t{id}");
+    for unit in units {
+        line.push('\t');
+        line.push_str(unit);
+    }
+    line.push('\n');
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = std::io::Write::write_all(&mut file, line.as_bytes());
+    }
 }
 
 /// Monte Carlo standard error of an empirical coverage rate at the level.
@@ -810,6 +869,10 @@ pub struct Construction {
     /// key (a record's level is its tally's), but an [`CoverageTally::unasserted`]
     /// tally must score exactly this level.
     pub reported_level: f64,
+    /// `<kind>\t<record id>` of the evidence unit the execution reported, for the record's
+    /// trace line; `None` for a construction not read from an execution.
+    #[serde(skip)]
+    pub unit: Option<String>,
 }
 
 /// Execution facts of one replicate that bound a record's scope.
@@ -837,6 +900,8 @@ struct BoundRecord {
     bound: u32,
     /// Emits without asserting (a second level scored on the same replicates).
     unasserted: bool,
+    /// Record ids of the evidence units the bound executions reported.
+    units: std::collections::BTreeSet<String>,
 }
 
 /// Running coverage count for one calibration target.
@@ -1181,6 +1246,7 @@ impl CoverageTally {
             unidentified_mass_max: 0.0,
             bound: 0,
             unasserted: false,
+            units: std::collections::BTreeSet::new(),
         });
         tally
     }
@@ -1263,6 +1329,9 @@ impl CoverageTally {
                 construction.reported_level,
                 self.level
             );
+        }
+        if let Some(unit) = &construction.unit {
+            record.units.insert(unit.clone());
         }
         match &record.construction {
             Some(seen) => assert_eq!(
@@ -1511,6 +1580,7 @@ impl CoverageTally {
             format!("{file}::{}", record.key.dgp)
         };
         let id = self.record_id().expect("bound record identity");
+        trace_record(&id, &record.units);
         let rate = self.rate();
         let attempts = self.attempts();
         let mut payload = serde_json::json!({

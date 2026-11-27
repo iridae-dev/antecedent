@@ -393,6 +393,9 @@ use Via::{Accepted, Explicit, Posterior};
 /// One execution of a coordinate: its structure route and validation mode.
 type Variant = (Via, RefuteSuite);
 
+/// A law's rows at a sample size and seed.
+type Generator = fn(usize, u64) -> TabularData;
+
 /// The structure of a design, as a given graph and as a one-atom graph posterior.
 enum Structure {
     Dag {
@@ -549,7 +552,7 @@ enum Query {
 struct Design {
     /// The generator's name.
     dgp: &'static str,
-    data: fn(usize, u64) -> TabularData,
+    data: Generator,
     base_n: usize,
     structure: Structure,
     functional: F,
@@ -566,30 +569,28 @@ fn point(outcome: u32, scale: DerivativeScale) -> F {
 
 /// The mean-curve design of `class` under a given graph or a graph posterior.
 fn curve_design(class: Class, posterior: bool) -> Design {
-    let (dgp, data, structure, truth): (_, fn(usize, u64) -> TabularData, _, fn(f64) -> f64) =
-        match (class, posterior) {
-            (Class::Dag, false) => (
-                "response_data",
-                response_data,
-                Structure::Dag { nodes: 3, edges: &RESPONSE_EDGES },
-                |a| 1.0 + 2.0 * a,
-            ),
-            (Class::Dag, true) => (
-                "independent_response_data",
-                independent_response_data,
-                Structure::Dag { nodes: 3, edges: &INDEPENDENT_EDGES },
-                |a| 1.0 + 2.0 * a,
-            ),
-            (Class::Cpdag, _) => {
-                ("cpdag_data", cpdag_data, Structure::Cpdag(agreeing_cpdag()), |a| a)
-            }
-            (Class::Pag, _) => {
-                ("pag_data", pag_data, Structure::MarkedPag(agreeing_pag()), |a| 1.0 + 2.0 * a)
-            }
-            (Class::Admg | Class::TemporalAdmg, _) => {
-                panic!("no mean-curve coordinate is measured here for {class:?}")
-            }
-        };
+    let (dgp, data, structure, truth): (_, Generator, _, fn(f64) -> f64) = match (class, posterior)
+    {
+        (Class::Dag, false) => (
+            "response_data",
+            response_data,
+            Structure::Dag { nodes: 3, edges: &RESPONSE_EDGES },
+            |a| 1.0 + 2.0 * a,
+        ),
+        (Class::Dag, true) => (
+            "independent_response_data",
+            independent_response_data,
+            Structure::Dag { nodes: 3, edges: &INDEPENDENT_EDGES },
+            |a| 1.0 + 2.0 * a,
+        ),
+        (Class::Cpdag, _) => ("cpdag_data", cpdag_data, Structure::Cpdag(agreeing_cpdag()), |a| a),
+        (Class::Pag, _) => {
+            ("pag_data", pag_data, Structure::MarkedPag(agreeing_pag()), |a| 1.0 + 2.0 * a)
+        }
+        (Class::Admg | Class::TemporalAdmg, _) => {
+            panic!("no mean-curve coordinate is measured here for {class:?}")
+        }
+    };
     Design {
         dgp,
         data,
@@ -614,7 +615,7 @@ fn design(class: Class, query: Query, posterior: bool) -> Design {
     }
     let dag = class == Class::Dag;
     let vector = matches!(query, Query::Jacobian | Query::Directional);
-    let (dgp, data): (_, fn(usize, u64) -> TabularData) = match (dag, vector) {
+    let (dgp, data): (_, Generator) = match (dag, vector) {
         (true, false) => ("point_data", point_data),
         (true, true) => ("gam_data", gam_data),
         (false, false) => ("class_point_data", class_point_data),

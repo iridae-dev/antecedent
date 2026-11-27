@@ -105,7 +105,7 @@ pub fn standardized_conditional_survival(
     let mut counts = vec![1; n];
     let Fit { curves, minimum_g, minimum_horizon_risk } =
         design.fit(&counts, if draws > 0 { 25 } else { 1 }, &cancelled)?;
-    let summary = design.summarize(original, curves);
+    let summary = design.summarize(original, &curves);
     let band = if draws > 0 {
         Some(design.band(
             &summary,
@@ -235,7 +235,9 @@ impl Standardization<'_> {
         let initial = f64::from(self.endpoint == SurvivalEndpoint::Survival);
         let weight_sum = self.input.population_weights.iter().sum::<f64>();
         for curve in &mut curves {
-            curve.iter_mut().for_each(|value| *value = (*value / weight_sum).clamp(0.0, 1.0));
+            for value in curve.iter_mut() {
+                *value = (*value / weight_sum).clamp(0.0, 1.0);
+            }
             curve[0] = initial;
         }
         Ok(Fit { curves, minimum_g, minimum_horizon_risk })
@@ -244,7 +246,7 @@ impl Standardization<'_> {
     fn summarize(
         &self,
         mut summary: RandomizedSurvivalSummary,
-        curves: [Vec<f64>; 2],
+        curves: &[Vec<f64>; 2],
     ) -> RandomizedSurvivalSummary {
         let align = |values: &[f64]| -> Vec<f64> {
             summary

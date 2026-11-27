@@ -250,7 +250,7 @@ impl CheckedRandomizedOperation {
         );
         result.payload = crate::result::ResultPayload::RandomizedEffect(payload);
         let min_probability = assignment_probability_floor(&self.query, true);
-        if crate::support::support_if_graphless(
+        if let Some(unit) = crate::support::graphless_supported_unit(
             FACTORIAL_BERNOULLI_KEY,
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "unit",
@@ -265,10 +265,8 @@ impl CheckedRandomizedOperation {
                 all_reported_intervals: publish,
                 ..Default::default()
             },
-        )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        ) {
+            result.stamp_supported(unit);
         }
         result.rebind_interval(false);
         result.treatment = None;

@@ -372,6 +372,7 @@ fn bound(basis: &CalibrationBasis, functional: &str) -> (Construction, ScopeFact
             functional: functional.to_owned(),
             identification: basis.identification.to_string(),
             reported_level: basis.level,
+            unit: None,
         },
         ScopeFacts {
             row_count: basis.row_count,

@@ -354,6 +354,7 @@ fn bootstrap_fields(
         functional: functional.into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     };
     let scope = ScopeFacts {
         row_count: rows as u64,

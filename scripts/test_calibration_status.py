@@ -288,6 +288,7 @@ class RouteMapTests(unittest.TestCase):
             patch.object(status.tomllib, "loads", return_value={"record": capability}),
             patch.object(status, "load_records", return_value=[]),
             patch.object(status, "load_route_map", return_value={}),
+            patch.object(status, "load_unit_index", return_value=None),
             redirect_stdout(out),
         ):
             self.assertEqual(status.main(["intervals"]), 0)

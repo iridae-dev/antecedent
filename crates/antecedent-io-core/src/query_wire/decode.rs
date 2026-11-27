@@ -543,56 +543,7 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
             "longitudinal schedule declaration must match its method".into(),
         ));
     }
-    let method = match w.method.as_str() {
-        "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
-        "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
-        "fitted_g_formula" => {
-            let fit = w
-                .fitted_q
-                .ok_or_else(|| IoError::Convert("missing fitted Q declaration".into()))?;
-            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(
-                antecedent_core::FittedRegimeQ {
-                    baseline: VariableId::from_raw(fit.baseline),
-                    external_training_fold: fit.external_training_fold,
-                    bootstrap_replicates: fit.bootstrap_replicates,
-                },
-            )
-        }
-        "compare_schedules" | "learn_schedule" => {
-            let family = w
-                .schedule_family
-                .ok_or_else(|| IoError::Convert("missing schedule class".into()))?;
-            let target = match (w.method.as_str(), family.target) {
-                (
-                    "compare_schedules",
-                    super::LongitudinalScheduleTargetWire::Contrasts { reference, contrasts },
-                ) => {
-                    antecedent_core::LongitudinalScheduleTarget::Contrasts { reference, contrasts }
-                }
-                (
-                    "learn_schedule",
-                    super::LongitudinalScheduleTargetWire::Learn { training_fold },
-                ) => antecedent_core::LongitudinalScheduleTarget::Learn { training_fold },
-                _ => {
-                    return Err(IoError::Convert(
-                        "longitudinal schedule target disagrees with method".into(),
-                    ));
-                }
-            };
-            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(
-                antecedent_core::LongitudinalScheduleFamily {
-                    schedules: family.schedules,
-                    draws: family.draws,
-                    target,
-                },
-            )
-        }
-        "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
-        "marginal_structural_model" => {
-            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
-        }
-        _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
-    };
+    let method = longitudinal_method_from_wire(w)?;
     let calibration_design = w
         .calibration_design
         .as_deref()
@@ -653,6 +604,62 @@ fn longitudinal_regime_from_wire(w: &LongitudinalRegimeQueryWire) -> Result<Caus
     };
     q.validate().map_err(|e| IoError::Convert(e.to_string()))?;
     Ok(CausalQuery::LongitudinalRegime(q))
+}
+
+fn longitudinal_method_from_wire(
+    w: &LongitudinalRegimeQueryWire,
+) -> Result<antecedent_core::LongitudinalRegimeMethod, IoError> {
+    let method = match w.method.as_str() {
+        "ipw" => antecedent_core::LongitudinalRegimeMethod::Ipw,
+        "g_formula" => antecedent_core::LongitudinalRegimeMethod::GFormula,
+        "fitted_g_formula" => {
+            let fit = w
+                .fitted_q
+                .ok_or_else(|| IoError::Convert("missing fitted Q declaration".into()))?;
+            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(
+                antecedent_core::FittedRegimeQ {
+                    baseline: VariableId::from_raw(fit.baseline),
+                    external_training_fold: fit.external_training_fold,
+                    bootstrap_replicates: fit.bootstrap_replicates,
+                },
+            )
+        }
+        "compare_schedules" | "learn_schedule" => {
+            let family = w
+                .schedule_family
+                .ok_or_else(|| IoError::Convert("missing schedule class".into()))?;
+            let target = match (w.method.as_str(), family.target) {
+                (
+                    "compare_schedules",
+                    super::LongitudinalScheduleTargetWire::Contrasts { reference, contrasts },
+                ) => {
+                    antecedent_core::LongitudinalScheduleTarget::Contrasts { reference, contrasts }
+                }
+                (
+                    "learn_schedule",
+                    super::LongitudinalScheduleTargetWire::Learn { training_fold },
+                ) => antecedent_core::LongitudinalScheduleTarget::Learn { training_fold },
+                _ => {
+                    return Err(IoError::Convert(
+                        "longitudinal schedule target disagrees with method".into(),
+                    ));
+                }
+            };
+            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(
+                antecedent_core::LongitudinalScheduleFamily {
+                    schedules: family.schedules,
+                    draws: family.draws,
+                    target,
+                },
+            )
+        }
+        "sequential_dr" => antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust,
+        "marginal_structural_model" => {
+            antecedent_core::LongitudinalRegimeMethod::MarginalStructuralModel
+        }
+        _ => return Err(IoError::Convert("unknown longitudinal regime method".into())),
+    };
+    Ok(method)
 }
 
 /// Decode the [`CausalQuery::SequentialContrast`] payload.

@@ -103,7 +103,7 @@ pub(super) fn body_for(
     let effect = result.estimate.as_effect();
     let published = effect.map(crate::PublishedScalarUncertainty::select);
     let executed_estimate = effect.and_then(|_| executed_scalar(result));
-    let support = result.support_status;
+    let support = result.support_status();
     let mut wire = AnalysisResultWire {
         native_execution: result
             .performance

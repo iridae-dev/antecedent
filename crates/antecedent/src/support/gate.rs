@@ -14,7 +14,7 @@ use antecedent_core::{ExecutionContext, NotSupported};
 
 use crate::error::CausalError;
 
-use super::cell::SupportRefusal;
+use super::cell::{CellStatus, SupportRefusal};
 
 impl From<NotSupported> for CausalError {
     fn from(refusal: NotSupported) -> Self {
@@ -52,9 +52,18 @@ fn capability_units() -> Option<&'static [CapabilityUnit]> {
 /// Whether the capability unit `capability` is supported in this build's derived status.
 #[must_use]
 pub(crate) fn capability_supported(capability: &str) -> bool {
-    capability_units().is_some_and(|units| {
+    let supported = capability_units().is_some_and(|units| {
         units.iter().any(|unit| unit.id == capability && unit.status == "supported")
-    })
+    });
+    if let Some(unit) =
+        capability_units().and_then(|units| units.iter().find(|unit| unit.id == capability))
+    {
+        super::trace::executed(
+            &super::unit::UnitRef::Capability(super::unit::UnitId::new(unit.id.as_str())),
+            if supported { &CellStatus::Supported } else { &CellStatus::NotSupported },
+        );
+    }
+    supported
 }
 
 /// The derived status of the capability unit `capability`: whether it is supported and the

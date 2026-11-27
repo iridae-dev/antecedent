@@ -92,6 +92,7 @@ pub fn probe_execution_quote(
 /// Whether the quote would be admitted, without leasing and without treating cancellation as a
 /// size miss. Cancellation is `Ok` so a caller that already reports cancellation can enter and
 /// report it.
+#[must_use]
 pub fn execution_quote_fits(
     ctx: &ExecutionContext,
     operation_limit: u64,
@@ -124,7 +125,6 @@ pub struct WorkLease {
 
 impl WorkLease {
     /// A hold that has leased nothing.
-    #[must_use]
     pub fn new() -> Self {
         Self { leases: Vec::new(), held: 0 }
     }
@@ -152,12 +152,11 @@ impl WorkLease {
             return Ok(());
         }
         let owned;
-        let host = match ctx {
-            Some(ctx) => ctx,
-            None => {
-                owned = open_execution();
-                &owned
-            }
+        let host = if let Some(ctx) = ctx {
+            ctx
+        } else {
+            owned = open_execution();
+            &owned
         };
         probe_execution_quote(host, operations.max(1), operations, bytes, unevaluated)?;
         let delta = bytes - self.held;

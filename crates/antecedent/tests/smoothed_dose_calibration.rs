@@ -73,6 +73,7 @@ fn construction() -> Construction {
         functional: "smoothed_dose_response".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

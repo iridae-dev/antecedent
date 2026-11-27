@@ -280,6 +280,10 @@ impl CompiledSurrogateBridge {
     ///
     /// # Errors
     /// The support refusal, and every refusal of `surrogate_bridge_response_kernel`.
+    #[allow(
+        clippy::result_large_err,
+        reason = "ExternalRefusal is the shared structured refusal returned by value on a cold once-per-construction path; boxing it would change the public error contract"
+    )]
     pub fn execute(
         &self,
         ctx: &ExecutionContext,

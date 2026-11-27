@@ -826,7 +826,8 @@ impl CompiledGraphImputationKernelTransportDecision {
             parts.prior_scale.to_bits(),
         );
         if let Some(candidates) = parts.declared_candidate_identity() {
-            functional.push_str(&format!(":candidates={}", candidates.to_hex()));
+            use std::fmt::Write as _;
+            let _ = write!(functional, ":candidates={}", candidates.to_hex());
         }
         // Source and target row counts reach the record through the scope's
         // row count; cluster sizes and seeds are not part of the construction.

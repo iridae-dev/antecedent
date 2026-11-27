@@ -234,22 +234,7 @@ impl LearnedRpcmciRequest {
         self.run_with_schema(Some(SourceSchema::ContinuousContextV1), ctx)
     }
 
-    fn run_with_schema(
-        self,
-        source_schema: Option<SourceSchema>,
-        ctx: &ExecutionContext,
-    ) -> Result<LearnedRpcmciArtifact, RpcmciReplayError> {
-        self.validate()?;
-        let bytes = series_bytes(self.columns[0].len(), self.columns.len())?;
-        let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
-            if ctx.cancellation.is_cancelled() {
-                RpcmciReplayError::Cancelled
-            } else {
-                RpcmciReplayError::Resource(error.to_string())
-            }
-        })?;
-        let mut portable = ctx.clone();
-        portable.kernel_policy = KernelPolicy::scalar_only();
+    fn discovery_spec(&self) -> Result<DiscoverySpec, RpcmciReplayError> {
         let ci = resolve_ci("parcorr", None)?;
         let params = DiscoverParams {
             max_lag: self.max_lag,
@@ -270,9 +255,29 @@ impl LearnedRpcmciRequest {
             max_iterations: self.max_iterations,
             switch_penalty: self.switch_penalty,
         };
-        let spec = DiscoverySpec::rpcmci_learn(params, self.min_regime_len, options, "parcorr")?;
+        Ok(DiscoverySpec::rpcmci_learn(params, self.min_regime_len, options, "parcorr")?)
+    }
+
+    fn run_with_schema(
+        self,
+        source_schema: Option<SourceSchema>,
+        ctx: &ExecutionContext,
+    ) -> Result<LearnedRpcmciArtifact, RpcmciReplayError> {
+        self.validate()?;
+        let bytes = series_bytes(self.columns[0].len(), self.columns.len())?;
+        let _lease = ctx.acquire_admission(0, bytes).map_err(|error| {
+            if ctx.cancellation.is_cancelled() {
+                RpcmciReplayError::Cancelled
+            } else {
+                RpcmciReplayError::Resource(error.to_string())
+            }
+        })?;
+        let mut portable = ctx.clone();
+        portable.kernel_policy = KernelPolicy::scalar_only();
+        let spec = self.discovery_spec()?;
         let data = self.source_series(source_schema).map_err(CausalError::rejected)?;
-        let variables = (0..self.names.len() as u32).map(VariableId::from_raw).collect::<Vec<_>>();
+        let width = u32::try_from(self.names.len()).expect("the admitted series width fits a u32");
+        let variables = (0..width).map(VariableId::from_raw).collect::<Vec<_>>();
         let study = Study::series(data).discovery(spec, variables).build()?;
         let execution = CompiledExecution::run(&study, &portable).map_err(|error| match error {
             CausalError::Cancelled { .. } => RpcmciReplayError::Cancelled,
@@ -538,8 +543,8 @@ fn replay(
 
 pub(super) struct Verifier(pub ExecutionContext);
 
-fn bundle_failure(error: RpcmciReplayError) -> NodeFailure {
-    let stage = match &error {
+fn bundle_failure(error: &RpcmciReplayError) -> NodeFailure {
+    let stage = match error {
         RpcmciReplayError::Cancelled | RpcmciReplayError::Causal(CausalError::Cancelled { .. }) => {
             BundleStage::ExecutionCancelled
         }
@@ -555,7 +560,7 @@ pub(super) fn describe(
     bytes: &[u8],
     ctx: &ExecutionContext,
 ) -> Result<ArtifactDescription, NodeFailure> {
-    let artifact = replay(bytes, None, ctx).map_err(bundle_failure)?;
+    let artifact = replay(bytes, None, ctx).map_err(|error| bundle_failure(&error))?;
     let report = artifact.report();
     let mut values = vec![("regime_count".into(), f64::from(report.selected_count))];
     if let Some(agreement) = report.assignment_agreement {
@@ -622,7 +627,7 @@ mod source_schema_tests {
         ] {
             let error = RpcmciReplayError::Causal(cause);
             let message = error.to_string();
-            let failure = bundle_failure(error);
+            let failure = bundle_failure(&error);
             assert_eq!(failure.stage, stage);
             assert_eq!(failure.reason, message);
         }

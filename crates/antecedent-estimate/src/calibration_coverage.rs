@@ -1554,6 +1554,7 @@ fn learner_construction(estimator: &'static str) -> Construction {
         functional: "all_observed.mean".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

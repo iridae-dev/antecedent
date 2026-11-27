@@ -211,6 +211,7 @@ fn sampled_temporal_path_transport_l95() {
                 functional: basis.functional.to_string(),
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
+                unit: None,
             };
             tally.bind_validation(
                 &construction,

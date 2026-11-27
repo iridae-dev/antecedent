@@ -240,15 +240,18 @@ fn a_two_valued_column_and_a_continuous_dose_are_not_restricted() {
 }
 
 fn classification_name(effect: &EffectEstimate) -> Option<&'static str> {
-    effect.diagnostics.treatment_classification.map(|classification| classification.as_str())
+    effect
+        .diagnostics
+        .treatment_classification
+        .map(antecedent_estimate::TreatmentClassification::as_str)
 }
 
 /// Eleven values, 22 rows each. Level 1 is 1 above level 0; every other level is 0, and `z`
 /// is balanced within every level. The level contrast of 1 against 0 is 1. The dose slope is not.
 fn eleven_values() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let n = 22 * 11;
-    let t: Vec<f64> = (0..n).map(|i| (i % 11) as f64).collect();
-    let z: Vec<f64> = (0..n).map(|i| ((i / 11) % 2) as f64).collect();
+    let t: Vec<f64> = (0..n).map(|i| f64::from(i % 11)).collect();
+    let z: Vec<f64> = (0..n).map(|i| f64::from((i / 11) % 2)).collect();
     let y: Vec<f64> = t
         .iter()
         .zip(&z)

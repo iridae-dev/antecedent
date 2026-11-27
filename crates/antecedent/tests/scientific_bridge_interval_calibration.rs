@@ -31,6 +31,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 #![allow(clippy::neg_cmp_op_on_partial_ord, reason = "a NaN rate must fail the range test")]
+#![allow(clippy::float_cmp, reason = "the declared level and replayed values are compared exactly")]
 #![allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
@@ -280,6 +281,7 @@ fn score_contract(
             functional: format!("{}{functional_suffix}", key.functional),
             identification: key.identification,
             reported_level: key.level,
+            unit: None,
         },
         scope: ScopeFacts {
             row_count: built.basis.scope.row_count,
@@ -500,6 +502,7 @@ fn score_trial_bootstrap(shared: bool, n: usize, seed: u64) -> Option<Scored> {
             functional: key.functional,
             identification: key.identification,
             reported_level: key.level,
+            unit: None,
         },
         scope: ScopeFacts {
             row_count: built.basis.scope.row_count,

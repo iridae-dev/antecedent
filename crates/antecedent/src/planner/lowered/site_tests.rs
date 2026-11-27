@@ -580,9 +580,8 @@ fn first_call_argument(call: &str) -> Option<&str> {
         match ch {
             '"' => in_string = true,
             '(' => depth += 1,
-            ')' if depth == 0 => return Some(inside[..index].trim()),
+            ')' | ',' if depth == 0 => return Some(inside[..index].trim()),
             ')' => depth -= 1,
-            ',' if depth == 0 => return Some(inside[..index].trim()),
             _ => {}
         }
     }

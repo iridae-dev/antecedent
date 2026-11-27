@@ -2,7 +2,7 @@
 //!
 //! The recursion uses the region decomposition of Jaber, Zhang and Bareinboim
 //! (ICML 2019, Corollary 1), with the simpler bucket elimination and the
-//! conditional calculus of Jaber et al. (NeurIPS 2022, Algorithms 1–2).
+//! conditional calculus of Jaber et al. (Neural Information Processing Systems 2022, Algorithms 1–2).
 //! This assumes a valid, fully oriented oracle PAG of a Markov equivalence
 //! class without selection variables, and a strictly positive observational law.
 

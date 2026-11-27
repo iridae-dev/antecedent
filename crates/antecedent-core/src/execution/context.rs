@@ -529,6 +529,7 @@ impl core::fmt::Debug for ExecutionContext {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ExecutionContext")
             .field("parallelism", &self.parallelism)
+            .field("map_parallelism", &self.map_parallelism)
             .field("determinism", &self.determinism)
             .field("rng", &self.rng)
             .field("memory_limit_bytes", &self.memory_limit_bytes())

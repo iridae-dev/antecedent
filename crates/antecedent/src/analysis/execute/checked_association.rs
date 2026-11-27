@@ -225,7 +225,7 @@ impl Study {
         result.treatment = None;
         crate::analysis::helpers::stamp_result_context(
             &mut result,
-            self.support_status,
+            (self.support_status, self.support_unit.as_ref()),
             self.structure_source,
             self.declared.population_registry.as_ref(),
             &[],

@@ -54,7 +54,7 @@ fn refused(message: impl Into<String>) -> IoError {
     }
 }
 
-fn map_causal(error: CausalError) -> IoError {
+fn map_causal(error: &CausalError) -> IoError {
     refused(error.to_string())
 }
 
@@ -119,7 +119,10 @@ impl Continuation {
             builder = builder
                 .identifier(identifier.parse().map_err(|_| refused("unknown saved identifier"))?);
         }
-        let prepared = builder.build().and_then(|study| study.prepare(ctx)).map_err(map_causal)?;
+        let prepared = builder
+            .build()
+            .and_then(|study| study.prepare(ctx))
+            .map_err(|error| map_causal(&error))?;
         let plan = prepared.plan();
         if plan.logical.record.estimator.as_deref() != Some(self.resolved_estimator.as_str())
             || plan
@@ -130,7 +133,7 @@ impl Continuation {
         {
             return Err(refused("the reconstructed estimator does not match the study invariant"));
         }
-        let identities = prepared.contract().map_err(map_causal)?.identities;
+        let identities = prepared.contract().map_err(|error| map_causal(&error))?.identities;
         if identities.program.as_ref().map(antecedent_core::SemanticDigest::as_bytes)
             != Some(&invariant.program)
             || *identities.data_snapshot.as_bytes() != invariant.data_snapshot
@@ -186,8 +189,9 @@ impl PreparedStudy {
         if result.execution_identity != Some(execution_digest(&execution)?) {
             return Err(refused("the supplied execution does not match the saved result"));
         }
-        let (claim_contract, body) =
-            self.execution_record_with_quantity_labels(result, ctx, None).map_err(map_causal)?;
+        let (claim_contract, body) = self
+            .execution_record_with_quantity_labels(result, ctx, None)
+            .map_err(|error| map_causal(&error))?;
         let estimate = body
             .estimate
             .filter(|estimate| estimate.is_finite())
@@ -316,7 +320,7 @@ fn replay(mut opened: OpenedStudy) -> Result<OpenedStudy, IoError> {
     let Some(source) = opened.bodies.get(SOURCE_ROWS) else { return Ok(opened) };
     let ctx = recipe.context()?;
     let prepared = recipe.prepare(&invariant, source, &ctx)?;
-    let result = prepared.estimate_retained(&ctx).map_err(map_causal)?;
+    let result = prepared.estimate_retained(&ctx).map_err(|error| map_causal(&error))?;
     let estimate = result.estimate.as_effect().map(|estimate| estimate.ate);
     if estimate.map(f64::to_bits) != Some(recipe.estimate_bits) {
         return Err(refused("the saved estimator did not reproduce its estimate"));

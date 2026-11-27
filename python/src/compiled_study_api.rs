@@ -52,7 +52,7 @@ fn write_compiled_study(
         })
         .collect();
     let written = compiled_study::write(StudyParts { invariant, bodies: &stored, claim })
-        .map_err(|error| crate::value_err_display(error))?;
+        .map_err(crate::value_err_display)?;
     Ok((PyBytes::new(py, &written.bytes).unbind(), written.expected_identity))
 }
 
@@ -63,6 +63,10 @@ fn write_compiled_study(
 /// `(status_json, invariant, roles, bodies)`.
 #[pyfunction]
 #[pyo3(signature = (data, expected_identity, resolved_uris=None, resolved_bodies=None, caller_supplied=false))]
+#[allow(
+    clippy::type_complexity,
+    reason = "the tuple is the documented Python shape of the opened study"
+)]
 fn open_compiled_study(
     py: Python<'_>,
     data: &[u8],
@@ -104,7 +108,7 @@ fn open_compiled_study(
         })).collect::<Vec<_>>(),
         "layer5_bytes": opened.layer5_bytes,
         "estimate": opened.estimate,
-        "claim_intact": opened.claim.as_ref().map(|claim| claim.is_intact()),
+        "claim_intact": opened.claim.as_ref().map(antecedent::io::AnalysisResultLoad::is_intact),
         "claim_estimate": opened.claim.as_ref().and_then(|claim| claim.body.estimate),
         "refit_refused": opened.refit_refused,
         "callback_requires_caller": opened.callback_requires_caller,

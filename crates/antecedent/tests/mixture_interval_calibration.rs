@@ -51,7 +51,7 @@ use antecedent_discovery::adjacency_mask::set_edge;
 use antecedent_graph::{TemporalDag, ensure_lagged};
 use antecedent_identify::IdentificationStatus;
 use common::calibration::{
-    CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, gaussian, grid_n,
+    CoverageTally, GRID_POINTS, REPORTED_LEVEL, RecordKey, Z90, Z95, gated, gaussian, grid_n,
     map_replicates, n_sim, normal_interval, quantile_interval, smoke, unit_uniform,
 };
 use common::calibration_bind::{bind, bind_all};
@@ -505,7 +505,7 @@ fn calibration_rule_band_recheck_and_precision_floor() {
         tally.record(Some((0.0, 1.0)), if i % 50 < 44 { 0.5 } else { 2.0 });
     }
     assert!((tally.rate() - 0.88).abs() < 1e-9);
-    assert!(std::panic::catch_unwind(|| tally.assert()).is_err());
+    assert!(gated(|| std::panic::catch_unwind(|| tally.assert())).is_err());
 }
 
 #[test]

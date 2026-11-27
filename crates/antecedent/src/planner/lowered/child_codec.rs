@@ -12,8 +12,6 @@
 //!
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use std::sync::Arc;
-
 use antecedent_core::{
     GENERALIZED_BAYES_TAG, ORDINARY_BAYESIAN_LIKELIHOOD_TAG, PARTIAL_IDENTIFICATION_ENVELOPE_TAG,
     SCORE_FREQUENTIST_TAG, SemanticDigest,
@@ -80,6 +78,10 @@ pub(crate) struct Referent {
 
 /// What the child bytes leave in the process.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "each flag is an independent fact of what stays in the process (callback, graph, arena, causal state)"
+)]
 pub(crate) struct ProcessLocal {
     /// The program binds a runtime callback. The callback is not in the bytes.
     pub runtime_callback: bool,
@@ -199,7 +201,7 @@ pub(crate) fn check_children(
     let resume = resume_identification(&children.identification)?;
     check_resume(program.identification_layer(), &resume)?;
     check_identification(program.identification_layer(), &children.identification)?;
-    check_realization(program.statistical().realization(), &children.realization)?;
+    check_realization(program.statistical().realization(), children.realization.as_deref())?;
     if children.referents != referents(program) {
         return Err(err("a nested digest does not match the live program"));
     }
@@ -602,16 +604,15 @@ fn referents(program: &LoweredProgram) -> Vec<Referent> {
             owner: "the producer program identity",
         });
     }
-    if let Some(decision) = program.evidence().decision() {
-        if let Some(joint) =
+    if let Some(decision) = program.evidence().decision()
+        && let Some(joint) =
             decision.utility().preference_facts().and_then(|facts| facts.joint_law())
-        {
-            out.push(Referent {
-                role: "evidence.preference.joint_program",
-                digest: *joint.program().as_bytes(),
-                owner: "the joint chain program identity",
-            });
-        }
+    {
+        out.push(Referent {
+            role: "evidence.preference.joint_program",
+            digest: *joint.program().as_bytes(),
+            owner: "the joint chain program identity",
+        });
     }
     if let Some(digest) = program.binding() {
         out.push(Referent { role: "program.binding", digest, owner: "the study binding" });
@@ -666,17 +667,17 @@ fn check_resume(
         (
             IdentificationLayer::Deferred { reason, .. },
             IdentificationResume::Reidentify { kind: ReidentifyKind::Deferred, reason: got },
-        ) => same_text_str(got, reason),
-        (
+        )
+        | (
             IdentificationLayer::PerExecution { reason },
             IdentificationResume::Reidentify { kind: ReidentifyKind::PerExecution, reason: got },
         ) => same_text_str(got, reason),
-        (IdentificationLayer::Retained(_), IdentificationResume::Retained) => true,
-        (IdentificationLayer::NonGraphical(_), IdentificationResume::NonGraphical) => true,
+        (IdentificationLayer::Retained(_), IdentificationResume::Retained)
+        | (IdentificationLayer::NonGraphical(_), IdentificationResume::NonGraphical) => true,
         (
             IdentificationLayer::NotClaimed { refusal },
             IdentificationResume::NotClaimed { refusal: got },
-        ) => same_refusal(got, refusal),
+        ) => same_refusal(got.as_deref(), refusal.as_deref()),
         (
             IdentificationLayer::Deferred { .. }
             | IdentificationLayer::PerExecution { .. }
@@ -696,13 +697,13 @@ fn same_text_str(got: &str, expected: &str) -> bool {
     got == expected
 }
 
-fn same_refusal(got: &Option<String>, expected: &Option<Arc<str>>) -> bool {
-    got.as_deref() == expected.as_deref()
+fn same_refusal(got: Option<&str>, expected: Option<&str>) -> bool {
+    got == expected
 }
 
 fn check_realization(
     realization: &Realization,
-    bytes: &Option<Vec<u8>>,
+    bytes: Option<&[u8]>,
 ) -> Result<(), ChildCodecError> {
     match realization {
         Realization::Frequentist(inner) => same_preimage(bytes, inner.identity()),
@@ -727,7 +728,7 @@ fn check_realization(
     }
 }
 
-fn same_preimage(bytes: &Option<Vec<u8>>, digest: SemanticDigest) -> Result<(), ChildCodecError> {
+fn same_preimage(bytes: Option<&[u8]>, digest: SemanticDigest) -> Result<(), ChildCodecError> {
     let Some(bytes) = bytes else {
         return Err(err("missing realization bytes"));
     };
@@ -741,8 +742,8 @@ fn same_preimage(bytes: &Option<Vec<u8>>, digest: SemanticDigest) -> Result<(), 
 fn check_statistical(program: &StatisticalProgram, bytes: &[u8]) -> Result<(), ChildCodecError> {
     let mut frames = Frames::new(bytes);
     frames.expect_tag(STATISTICAL_V2)?;
-    same_opt(&frames.opt_text()?, program.identifier().map(|id| id.as_str()))?;
-    same_opt(&frames.opt_text()?, program.estimator().map(|id| id.as_str()))?;
+    same_opt(frames.opt_text()?.as_deref(), program.identifier().map(|id| id.as_str()))?;
+    same_opt(frames.opt_text()?.as_deref(), program.estimator().map(|id| id.as_str()))?;
     check_realization_frames(&mut frames, program.realization())?;
     let models = frames.count()?;
     if models != program.models().len() {
@@ -981,8 +982,8 @@ fn check_decision(
     if frames.real_bits()? != decision.chance_threshold().to_bits() {
         return Err(err("chance threshold"));
     }
-    same_opt(&frames.opt_text()?, decision.utility_unit())?;
-    same_opt(&frames.opt_text()?, decision.contract_identity())?;
+    same_opt(frames.opt_text()?.as_deref(), decision.utility_unit())?;
+    same_opt(frames.opt_text()?.as_deref(), decision.contract_identity())?;
     let scenario = if frames.peek_word()? == JOINT_SCENARIOS.len() as u64 {
         let at = frames.at;
         if frames.text()? == JOINT_SCENARIOS {
@@ -994,7 +995,7 @@ fn check_decision(
     } else {
         None
     };
-    same_opt(&scenario, decision.scenario_source_identity())?;
+    same_opt(scenario.as_deref(), decision.scenario_source_identity())?;
     match frames.word()? {
         0 if decision.information_value().is_none() => Ok(()),
         1 => check_evsi(frames, decision.information_value().ok_or(err("evsi"))?),
@@ -1069,15 +1070,15 @@ fn check_design_law(
             same_text(frames, law.unit())?;
             same_word(frames, law.replicates() as u64)?;
             same_word(frames, law.seed())?;
-            same_opt(&frames.opt_text()?, law.sampling())
+            same_opt(frames.opt_text()?.as_deref(), law.sampling())
         }
         _ => Err(err("design law presence")),
     }
 }
 
 fn check_evsi(frames: &mut Frames<'_>, evsi: &EvsiProgram) -> Result<(), ChildCodecError> {
-    same_list(frames, evsi.candidates().iter().map(|id| id.as_ref()))?;
-    same_list(frames, evsi.prior_observation_ids().iter().map(|id| id.as_ref()))?;
+    same_list(frames, evsi.candidates().iter().map(AsRef::as_ref))?;
+    same_list(frames, evsi.prior_observation_ids().iter().map(AsRef::as_ref))?;
     same_word(frames, evsi.rng_seed())?;
     if frames.real_bits()? != evsi.mc_error_tolerance().to_bits() {
         return Err(err("evsi tolerance"));
@@ -1158,7 +1159,7 @@ fn check_identification(layer: &IdentificationLayer, bytes: &[u8]) -> Result<(),
         }
         IdentificationLayer::NotClaimed { refusal } => {
             same_text(&mut frames, "not_claimed")?;
-            same_opt(&frames.opt_text()?, refusal.as_deref())?;
+            same_opt(frames.opt_text()?.as_deref(), refusal.as_deref())?;
         }
     }
     frames.expect_end()
@@ -1269,8 +1270,8 @@ fn skip_non_graphical(frames: &mut Frames<'_>) -> Result<(), ChildCodecError> {
     }
 }
 
-fn same_opt(got: &Option<String>, expected: Option<&str>) -> Result<(), ChildCodecError> {
-    if got.as_deref() == expected { Ok(()) } else { Err(err("optional text")) }
+fn same_opt(got: Option<&str>, expected: Option<&str>) -> Result<(), ChildCodecError> {
+    if got == expected { Ok(()) } else { Err(err("optional text")) }
 }
 
 fn same_opt_word(got: Option<u64>, expected: Option<u64>) -> Result<(), ChildCodecError> {
@@ -1638,7 +1639,7 @@ mod tests {
         assert_eq!(framed_digest(&bytes), *bayesian.lowered_layer_digest().as_bytes());
         check_statistical(&bayesian, &bytes).expect("bayesian frames");
         let preimage = realization_preimage(bayesian.realization()).expect("prior bytes");
-        check_realization(bayesian.realization(), &Some(preimage)).expect("bayesian preimage");
+        check_realization(bayesian.realization(), Some(&preimage)).expect("bayesian preimage");
 
         let mut exact = statistical();
         exact.realization = Realization::ExactPoint { evaluator: Arc::from("evaluator") };

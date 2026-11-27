@@ -65,6 +65,7 @@ fn analytic_construction() -> Construction {
         functional: "target_mean_contrast".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

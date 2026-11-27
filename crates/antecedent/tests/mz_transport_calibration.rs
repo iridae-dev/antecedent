@@ -64,6 +64,7 @@ fn construction(dependence: &str) -> Construction {
         functional: "target_interventional_mean".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

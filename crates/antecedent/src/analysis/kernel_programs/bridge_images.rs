@@ -42,6 +42,7 @@ pub enum ExactImageError {
 
 impl ExactImageError {
     /// Whether the caller stopped this operation.
+    #[must_use]
     pub fn is_cancelled(&self) -> bool {
         match self {
             Self::Image(error) => error.is_cancelled(),
@@ -51,6 +52,7 @@ impl ExactImageError {
     }
 
     /// Whether the bridge image exceeded a caller or structural resource limit.
+    #[must_use]
     pub fn is_resource_refusal(&self) -> bool {
         match self {
             Self::Image(error) => error.is_resource_refusal(),
@@ -170,6 +172,10 @@ impl Study {
 
 impl CompiledBridgeImage {
     /// Compile a decision which preserves this interval's meaning and source.
+    ///
+    /// # Errors
+    ///
+    /// The image is not an interval, or the threshold decision does not compile.
     pub fn compile_threshold(
         &self,
         quantity: antecedent_contract::ScientificQuantity,
@@ -198,11 +204,19 @@ impl CompiledBridgeImage {
         self.0.program_layers()
     }
     /// Compute the exact image from the bound source.
+    ///
+    /// # Errors
+    ///
+    /// The execution gate refuses, or the image evaluation fails or is cancelled.
     pub fn execute(&self, ctx: &ExecutionContext) -> Result<BridgeImageResult, ExactImageError> {
         self.0.gate(ctx)?;
         Ok(self.0.input().evaluate(ctx)?)
     }
     /// Execute and export the checked result together with its source and declarations.
+    ///
+    /// # Errors
+    ///
+    /// Execution fails, or the result cannot be encoded.
     pub fn export(
         &self,
         artifact_id: &str,
@@ -212,6 +226,10 @@ impl CompiledBridgeImage {
     }
 
     /// Retain the producer's numerical result identity alongside its bytes in one execution.
+    ///
+    /// # Errors
+    ///
+    /// Execution fails, or the result cannot be encoded.
     pub fn export_with_identity(
         &self,
         artifact_id: &str,
@@ -224,6 +242,10 @@ impl CompiledBridgeImage {
 }
 
 /// Recompile the retained inputs and verify both the expected identities and the numerical output.
+///
+/// # Errors
+///
+/// The bytes do not decode, an expected identity differs, or the replay refuses.
 pub fn consume_bridge_image(
     bytes: &[u8],
     program: SemanticDigest,

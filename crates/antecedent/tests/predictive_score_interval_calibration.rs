@@ -250,6 +250,7 @@ fn replicate(
             functional: format!("{}{functional_suffix}", key.functional),
             identification: key.identification,
             reported_level: key.level,
+            unit: None,
         },
         scope: ScopeFacts {
             row_count: built.basis.scope.row_count,

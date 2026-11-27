@@ -232,7 +232,9 @@ pub(super) fn execute(
             while choice >= ceiling {
                 choice = rng.next_u64();
             }
-            draw.add(&rows[(choice % n) as usize]);
+            draw.add(
+                &rows[usize::try_from(choice % n).expect("the remainder is below the row count")],
+            );
         }
         draw.check().map_err(|_| JointSensitivityError::RefitPositivity(index))?;
         let mut sup: f64 = 0.0;

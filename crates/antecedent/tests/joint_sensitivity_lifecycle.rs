@@ -667,18 +667,15 @@ fn a_resealed_declared_memory_cap_is_bound_by_the_premises_digest_not_by_replay(
         refused(&consume_under(&declared(effective - 1, true), 128 << 20).unwrap_err()),
         limited
     );
-    // Re-sealed above this consumer's maximum, or above the producer's 512 MiB
-    // ceiling (which no producer can declare) under any consumer maximum:
-    // refused before any work.
+    // Re-sealed above this consumer's maximum: refused before any work. No route
+    // ceiling applies above it: the consumer's maximum is the cap.
     assert_eq!(refused(&consume_under(&raised, 64 << 20).unwrap_err()), limited);
-    assert_eq!(
-        refused(&consume_under(&declared((512 << 20) + 1, true), u64::MAX).unwrap_err()),
-        limited
-    );
-    assert_eq!(
-        consume_under(&declared(512 << 20, true), u64::MAX).unwrap().body.perturbation.memory_bytes,
-        512 << 20
-    );
+    for cap in [512 << 20, (512 << 20) + 1] {
+        assert_eq!(
+            consume_under(&declared(cap, true), u64::MAX).unwrap().body.perturbation.memory_bytes,
+            cap
+        );
+    }
 }
 
 #[test]

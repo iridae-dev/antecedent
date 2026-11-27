@@ -134,6 +134,7 @@ fn construction_for_protocol(version: u32) -> Construction {
         },
         identification: "discovered_treatment_parent_set".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

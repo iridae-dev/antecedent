@@ -182,6 +182,10 @@ pub(super) fn mean_contrast_quantity(
     }
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-decision refusal path"
+)]
 fn response_source(
     contract: &DecisionContract,
     result: &StudyResult,
@@ -202,6 +206,10 @@ fn response_source(
     })
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-decision refusal path"
+)]
 fn response_context(
     contract: &DecisionContract,
     result: &StudyResult,
@@ -275,6 +283,10 @@ fn response_context(
     })
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-decision refusal path"
+)]
 fn input_declaration<'a>(
     contract: &'a DecisionContract,
     detail: &'static str,
@@ -291,6 +303,10 @@ fn input_declaration<'a>(
     Ok(pair)
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-decision refusal path"
+)]
 fn variable_name(
     schema: &CausalSchema,
     id: VariableId,
@@ -394,7 +410,7 @@ mod tests {
     }
 
     fn effect_contract(
-        quantity: ScientificQuantity,
+        quantity: &ScientificQuantity,
         criterion: DecisionCriterion,
     ) -> DecisionContract {
         let action = |id: &str, utility: UtilityExpr| DecisionAction {
@@ -426,7 +442,7 @@ mod tests {
         let ctx = ExecutionContext::for_tests(11);
         let result = ate_study(&data).run(&ctx).unwrap();
         let contract = effect_contract(
-            contrast("mmHg", "target"),
+            &contrast("mmHg", "target"),
             DecisionCriterion::PosteriorExpectedUtility,
         );
         let decided = super::apply_decision(&contract, &result, data.schema(), &ctx).unwrap();
@@ -459,7 +475,7 @@ mod tests {
             antecedent_core::reason_details::native_claims::PROJECTION_MISMATCH
         );
         let contract =
-            effect_contract(contrast("mmHg", "target"), DecisionCriterion::Quantile { p: 0.5 });
+            effect_contract(&contrast("mmHg", "target"), DecisionCriterion::Quantile { p: 0.5 });
         let refused = super::apply_decision(&contract, &result, schema, &ctx).unwrap_err();
         let refusal = refused.refusal().unwrap();
         assert_eq!(refusal.code, "decision_contract_unsatisfied");
@@ -468,11 +484,13 @@ mod tests {
             antecedent_core::reason_details::decision_evaluation::MEAN_SOURCE_INSUFFICIENT
         );
         let empty =
-            effect_contract(contrast("", "target"), DecisionCriterion::PosteriorExpectedUtility);
+            effect_contract(&contrast("", "target"), DecisionCriterion::PosteriorExpectedUtility);
         let message = super::apply_decision(&empty, &result, schema, &ctx).unwrap_err().to_string();
         assert_eq!(message, super::static_effect::UNITS_POPULATION);
-        let other =
-            effect_contract(contrast("mmHg", "other"), DecisionCriterion::PosteriorExpectedUtility);
+        let other = effect_contract(
+            &contrast("mmHg", "other"),
+            DecisionCriterion::PosteriorExpectedUtility,
+        );
         let message = super::apply_decision(&other, &result, schema, &ctx).unwrap_err().to_string();
         assert_eq!(message, super::static_effect::UNITS_POPULATION);
     }
@@ -592,8 +610,9 @@ mod tests {
             .unwrap()
             .estimate_retained(&ctx)
             .unwrap();
-        let admitted =
-            compiled.execute_supplied(&[child.clone()], &ctx, None, options, &ctx).unwrap();
+        let admitted = compiled
+            .execute_supplied(std::slice::from_ref(&child), &ctx, None, options, &ctx)
+            .unwrap();
         let estimated = compiled.execute(None, options, &ctx).unwrap();
         assert_eq!(admitted.evaluation, estimated.evaluation);
 

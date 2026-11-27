@@ -1373,21 +1373,28 @@ mod tests {
         contract
     }
 
-    #[test]
-    fn joint_gaussian_artifact_replays_independently_and_requires_matching_current_authority() {
-        use antecedent_io::joint_response_artifact::{
-            JointResponseArtifactError, MAX_JOINT_RESPONSE_ARTIFACT_BYTES, consume_joint_response,
-        };
-        let ctx = ExecutionContext::for_tests(47);
+    fn bayesian_joint_artifact(
+        ctx: &ExecutionContext,
+    ) -> (PreparedJointResponse, JointResponseResult, Vec<u8>) {
         let program = prepared(
             InferenceMode::Bayesian(BayesianConfig::conjugate().n_draws(128)),
             data(0.0),
-            &ctx,
+            ctx,
         )
-        .compile_joint_response(&target(false), &ctx)
+        .compile_joint_response(&target(false), ctx)
         .unwrap();
-        let result = program.execute(&ctx).unwrap();
-        let bytes = result.export(&ctx).unwrap();
+        let result = program.execute(ctx).unwrap();
+        let bytes = result.export(ctx).unwrap();
+        (program, result, bytes)
+    }
+
+    #[test]
+    fn joint_gaussian_artifact_replays_its_legacy_inline_draw_layout() {
+        use antecedent_io::joint_response_artifact::{
+            MAX_JOINT_RESPONSE_ARTIFACT_BYTES, consume_joint_response,
+        };
+        let ctx = ExecutionContext::for_tests(47);
+        let (_, result, bytes) = bayesian_joint_artifact(&ctx);
         let sections = antecedent_io::decode_container(
             "joint_response",
             MAX_JOINT_RESPONSE_ARTIFACT_BYTES,
@@ -1431,7 +1438,12 @@ mod tests {
         .unwrap();
         let legacy_replay = consume_joint_response(&legacy, &ctx).unwrap();
         assert_eq!(legacy_replay.evaluation().posterior_draws.as_deref(), Some(posterior));
-        drop(legacy_replay);
+    }
+
+    #[test]
+    fn joint_gaussian_artifact_replays_in_a_fresh_process() {
+        let ctx = ExecutionContext::for_tests(47);
+        let (_, result, bytes) = bayesian_joint_artifact(&ctx);
         let contract = verify_gaussian_decision_ports(&result, &ctx);
 
         let path = std::env::temp_dir()
@@ -1466,6 +1478,15 @@ mod tests {
             .unwrap();
         assert_eq!(scoped.target_identity, result.target().identity());
         assert_eq!(scoped.identification_identity, result.identification().identity());
+    }
+
+    #[test]
+    fn joint_gaussian_artifact_replays_independently_and_requires_matching_current_authority() {
+        use antecedent_io::joint_response_artifact::{
+            JointResponseArtifactError, consume_joint_response,
+        };
+        let ctx = ExecutionContext::for_tests(47);
+        let (program, result, bytes) = bayesian_joint_artifact(&ctx);
         let replay = consume_joint_response(&bytes, &ctx).unwrap();
         assert!(!replay.grants_current_authority());
         assert_eq!(replay.target().identity(), result.target().identity());

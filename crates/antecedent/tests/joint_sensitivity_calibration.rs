@@ -45,7 +45,7 @@ use antecedent_validate::{
 };
 use common::calibration::{
     Construction, CoverageSide, CoverageTally, REPORTED_LEVEL, RecordKey, ScopeFacts,
-    coverage_mcse, grid_n, map_replicates, n_sim, needs_one_sided_recheck, passes_one_sided,
+    coverage_mcse, gated, grid_n, map_replicates, n_sim, needs_one_sided_recheck, passes_one_sided,
     passes_precision, stream_seed, unit_uniform,
 };
 
@@ -219,6 +219,7 @@ fn construction() -> Construction {
         functional: "target_interventional_mean".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 
@@ -371,8 +372,10 @@ fn assert_one_sided_accepts_the_over_coverage_of_a_conservative_interval() {
 #[test]
 #[should_panic(expected = "one-sided (upper) coverage=0.900")]
 fn assert_one_sided_refuses_a_shortfall() {
-    synthetic_one_sided_tally("synthetic_one_sided_shortfall", 1000, 900)
-        .assert_one_sided(CoverageSide::Upper, UPPER_TARGET);
+    gated(|| {
+        synthetic_one_sided_tally("synthetic_one_sided_shortfall", 1000, 900)
+            .assert_one_sided(CoverageSide::Upper, UPPER_TARGET);
+    });
 }
 
 #[test]

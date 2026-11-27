@@ -156,8 +156,8 @@ fn impossible_tables_and_overlaps_are_refused() {
     ));
     assert!(matches!(moment_matched_normal_table(&[0.0], &ok, 100, 1), Err(ChainError::Shape(_))));
     assert!(matches!(
-        moment_matched_normal_table(&[0.0, 0.0], &ok, MAX_CHAIN_ROWS + 1, 1),
-        Err(ChainError::Budget(_))
+        moment_matched_normal_table(&[0.0, 0.0], &ok, usize::MAX, 1),
+        Err(ChainError::Search { .. })
     ));
     assert!(matches!(shared_row_correlation(10, 10, 11), Err(ChainError::Shape(_))));
     assert!(matches!(shared_row_correlation(10, 20, 11), Err(ChainError::Shape(_))));

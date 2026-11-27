@@ -139,11 +139,11 @@ pub fn consume_patient_surrogate(
             PatientSurrogateError::Resource
         }
     })?;
-    consume_stored(StoredPatientSurrogate::open(bytes, program, result)?, ctx)
+    consume_stored(&StoredPatientSurrogate::open(bytes, program, result)?, ctx)
 }
 
 pub(crate) fn consume_stored(
-    stored: StoredPatientSurrogate,
+    stored: &StoredPatientSurrogate,
     ctx: &ExecutionContext,
 ) -> Result<PatientSurrogateResult, PatientSurrogateProgramError> {
     let compiled = Study::compile_patient_surrogate(stored.request.clone(), ctx)?;

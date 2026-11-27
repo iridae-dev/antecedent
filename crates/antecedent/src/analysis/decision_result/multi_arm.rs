@@ -170,6 +170,10 @@ fn declared(text: &str) -> bool {
     !trimmed.is_empty() && trimmed.len() == text.len() && text.len() <= 256
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "ExternalRefusal is the structured refusal of the external contract, returned by value on a cold once-per-decision refusal path"
+)]
 fn regime_by_arm<'a>(
     labels: &[String],
     regimes: &[(&'a str, &'a str)],

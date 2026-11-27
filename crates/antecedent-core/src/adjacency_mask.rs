@@ -207,6 +207,10 @@ impl AdjacencyMask {
     }
 
     /// Indexes of the set bits in ascending order.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a word index exceeds `u32`, which a mask's node bound rules out.
     pub fn set_bits(&self) -> impl Iterator<Item = u32> + '_ {
         self.words().iter().enumerate().flat_map(|(index, &word)| {
             let mut word = word;

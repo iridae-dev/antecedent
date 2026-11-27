@@ -42,8 +42,8 @@ use antecedent_contract::{InputRole, PropagationOperation};
 use antecedent_core::{CalibrationBasis, ExecutionContext};
 use antecedent_stats::{NORMAL_APPROXIMATION_CONSTRUCTION, normal_interval_candidate};
 use common::calibration::{
-    Construction, CoverageTally, RecordKey, ScopeFacts, grid_n, grid_seed, map_replicates, n_sim,
-    uniform,
+    Construction, CoverageTally, RecordKey, ScopeFacts, assert_measured, grid_n, grid_seed,
+    map_replicates, n_sim, uniform,
 };
 
 const LEVEL: f64 = 0.95;
@@ -131,6 +131,7 @@ fn bind_basis(tally: &mut CoverageTally, basis: &CalibrationBasis) {
             functional: basis.functional.to_string(),
             identification: basis.identification.to_string(),
             reported_level: basis.level,
+            unit: None,
         },
         ScopeFacts {
             row_count: basis.row_count,
@@ -351,9 +352,7 @@ fn a_violated_declared_independence_under_covers_and_emits_no_record() {
     for interval in results {
         tally.record(interval, 1.4);
     }
-    assert!(
-        tally.rate() < 0.9,
-        "a violated independence declaration under-covers: {}",
-        tally.rate()
-    );
+    assert_measured(tally.rate() < 0.9, || {
+        format!("a violated independence declaration under-covers: {}", tally.rate())
+    });
 }

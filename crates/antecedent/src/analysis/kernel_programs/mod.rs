@@ -109,6 +109,50 @@ fn invalid(shape: &KernelProgramShape, message: &str) -> CausalError {
     crate::compile_reason!("invalid_argument", "{}.lowering: {message}", shape.plan_id)
 }
 
+fn kernel_realization(shape: &KernelProgramShape) -> Result<Realization, CausalError> {
+    Ok(match shape.realization {
+        KernelRealization::Score | KernelRealization::ReplicateMapping { .. } => {
+            let score = ScoreModel::new(shape.evaluator)
+                .map_err(|_| invalid(shape, "blank evaluator name"))?;
+            Realization::Frequentist(ScoreFrequentist::new(score))
+        }
+        KernelRealization::Posterior => {
+            Realization::DeclaredPosterior { evaluator: Arc::from(shape.evaluator) }
+        }
+        KernelRealization::FixedImage if shape.uncertainty == UncertaintyReading::Predictive => {
+            Realization::DeclaredPredictive { evaluator: Arc::from(shape.evaluator) }
+        }
+        KernelRealization::Exact
+        | KernelRealization::PartialIdentification
+        | KernelRealization::FixedImage => {
+            Realization::ExactPoint { evaluator: Arc::from(shape.evaluator) }
+        }
+    })
+}
+
+fn kernel_physical(
+    shape: &KernelProgramShape,
+    canonical: &[u8],
+    design: DesignShape,
+) -> Result<PhysicalLayer, CausalError> {
+    let read = PhysicalOperator::declare(PhysicalEffect::Read)
+        .estimates(ByteEstimates::absent().with_output(canonical.len() as u64))
+        .build()
+        .map_err(|_| invalid(shape, "invalid read operator"))?;
+    let effect = match shape.realization {
+        KernelRealization::PartialIdentification => PhysicalEffect::Condition,
+        KernelRealization::FixedImage
+        | KernelRealization::ReplicateMapping { validation_refits: None } => {
+            PhysicalEffect::Transport
+        }
+        _ => PhysicalEffect::Fit,
+    };
+    let fit = PhysicalOperator::declare(effect)
+        .build()
+        .map_err(|_| invalid(shape, "invalid fit operator"))?;
+    Ok(PhysicalLayer { operators: Arc::from([read, fit]), design })
+}
+
 /// Lower one kernel computation over the input whose canonical bytes are `canonical`.
 pub(crate) fn lower(
     shape: &KernelProgramShape,
@@ -135,24 +179,7 @@ pub(crate) fn lower(
     let identification = IdentificationLayer::NonGraphical(Arc::new(
         NonGraphicalIdentification::SpecifiedModelConditional { model: input },
     ));
-    let realization = match shape.realization {
-        KernelRealization::Score | KernelRealization::ReplicateMapping { .. } => {
-            let score = ScoreModel::new(shape.evaluator)
-                .map_err(|_| invalid(shape, "blank evaluator name"))?;
-            Realization::Frequentist(ScoreFrequentist::new(score))
-        }
-        KernelRealization::Posterior => {
-            Realization::DeclaredPosterior { evaluator: Arc::from(shape.evaluator) }
-        }
-        KernelRealization::FixedImage if shape.uncertainty == UncertaintyReading::Predictive => {
-            Realization::DeclaredPredictive { evaluator: Arc::from(shape.evaluator) }
-        }
-        KernelRealization::Exact
-        | KernelRealization::PartialIdentification
-        | KernelRealization::FixedImage => {
-            Realization::ExactPoint { evaluator: Arc::from(shape.evaluator) }
-        }
-    };
+    let realization = kernel_realization(shape)?;
     let design = DesignShape::not_design_based(shape.design);
     let statistical = StatisticalProgram {
         identifier: None,
@@ -181,22 +208,7 @@ pub(crate) fn lower(
         planning: None,
         chain: None,
     };
-    let read = PhysicalOperator::declare(PhysicalEffect::Read)
-        .estimates(ByteEstimates::absent().with_output(canonical.len() as u64))
-        .build()
-        .map_err(|_| invalid(shape, "invalid read operator"))?;
-    let effect = match shape.realization {
-        KernelRealization::PartialIdentification => PhysicalEffect::Condition,
-        KernelRealization::FixedImage
-        | KernelRealization::ReplicateMapping { validation_refits: None } => {
-            PhysicalEffect::Transport
-        }
-        _ => PhysicalEffect::Fit,
-    };
-    let fit = PhysicalOperator::declare(effect)
-        .build()
-        .map_err(|_| invalid(shape, "invalid fit operator"))?;
-    let physical = PhysicalLayer { operators: Arc::from([read, fit]), design };
+    let physical = kernel_physical(shape, canonical, design)?;
     Ok(StandaloneCompositionLoweredParts {
         cell: shape.cell,
         scientific,

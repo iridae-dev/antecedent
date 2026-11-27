@@ -131,7 +131,9 @@ fn admit_file_retention(
             antecedent::execution::AdmissionRefusal::Cancelled => {
                 crate::CausalCancelledError::new_err(error.to_string())
             }
-            error => crate::CausalResourceError::new_err(error.to_string()),
+            error @ antecedent::execution::AdmissionRefusal::Refused(_) => {
+                crate::CausalResourceError::new_err(error.to_string())
+            }
         })
 }
 

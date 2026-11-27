@@ -66,8 +66,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use antecedent::{
-    AcceptedGraph, BayesianConfig, DesignPosteriorModel, EstimatorId, IdentifierId, InferenceMode,
-    RefuteSuite, Study, StudyBuilder, StudyResult,
+    AcceptedGraph, BayesianConfig, CausalPosterior, DesignPosteriorModel, EstimatorId,
+    IdentifierId, InferenceMode, RefuteSuite, Study, StudyBuilder, StudyResult,
 };
 use antecedent_core::{
     AverageEffectQuery, CausalQuery, ConditionalEffectQuery, ContinuousDomain, ExecutionContext,
@@ -846,6 +846,15 @@ use Via::{Accepted, Explicit, Posterior};
 /// One execution of a coordinate: its structure route and validation mode.
 type Variant = (Via, RefuteSuite);
 
+/// A law's rows at a sample size and seed.
+type Generator = fn(usize, u64) -> TabularData;
+
+/// One truth per target from a replicate's `(n, seed)`.
+type SampleTruth = fn(usize, u64) -> Vec<f64>;
+
+/// An interval at a level, recomputed from a replicate's `(n, seed)`.
+type RecomputedInterval = fn(usize, u64, f64) -> Option<(f64, f64)>;
+
 /// The structure of a design, as a given graph and as a one-atom graph posterior.
 enum Structure {
     Dag {
@@ -1005,7 +1014,7 @@ fn laplace() -> InferenceMode {
 struct Design {
     /// The generator's name.
     dgp: &'static str,
-    data: fn(usize, u64) -> TabularData,
+    data: Generator,
     base_n: usize,
     structure: Structure,
     query: CausalQuery,
@@ -1025,17 +1034,17 @@ struct Design {
     score: fn(&StudyResult) -> Vec<IntervalPair>,
     /// The scored interval at a level, recomputed from the replicate's rows, for an
     /// interval the result publishes at the reported level only.
-    recomputed: Option<fn(usize, u64, f64) -> Option<(f64, f64)>>,
+    recomputed: Option<RecomputedInterval>,
     /// One truth per target from the replicate's `(n, seed)`, for a functional averaged over
     /// the sample's covariates; `targets[..].truth` is then not read.
-    sample_truth: Option<fn(usize, u64) -> Vec<f64>>,
+    sample_truth: Option<SampleTruth>,
 }
 
 impl Design {
     /// A design on a given structure with the defaults of an analytic scalar effect.
     fn new(
         dgp: &'static str,
-        data: fn(usize, u64) -> TabularData,
+        data: Generator,
         base_n: usize,
         structure: Structure,
         query: CausalQuery,
@@ -1107,7 +1116,7 @@ fn average_effect(
     mode: Mode,
     request: Option<(EstimatorId, &'static str)>,
 ) -> Design {
-    let (dgp, data, structure): (_, fn(usize, u64) -> TabularData, _) = match class {
+    let (dgp, data, structure): (_, Generator, _) = match class {
         Class::Dag => (
             "linear_ate_data",
             linear_ate_data,
@@ -1161,12 +1170,7 @@ fn single_member_effect(class: Class, request: (EstimatorId, &'static str)) -> D
 /// influence function either). The truth is the risk difference averaged over the sample's
 /// confounder values.
 fn glm_adjustment(class: Class) -> Design {
-    let (dgp, data, structure, truth): (
-        _,
-        fn(usize, u64) -> TabularData,
-        _,
-        fn(usize, u64) -> Vec<f64>,
-    ) = match class {
+    let (dgp, data, structure, truth): (_, Generator, _, SampleTruth) = match class {
         Class::Dag => (
             "binary_outcome_data",
             binary_outcome_data,
@@ -1394,31 +1398,30 @@ fn undecided_tier_effect() -> Design {
 
 /// The modifier-averaged conditional effect on the class's law.
 fn conditional_effect(class: Class, mode: Mode) -> Design {
-    let (dgp, data, structure, modifier, base): (_, fn(usize, u64) -> TabularData, _, _, _) =
-        match class {
-            Class::Dag => (
-                "conditional_dag_data",
-                conditional_dag_data,
-                Structure::Dag { nodes: 4, edges: &CONDITIONAL_EDGES },
-                3,
-                1.0,
-            ),
-            Class::Cpdag => (
-                "conditional_cpdag_data",
-                conditional_cpdag_data,
-                Structure::Cpdag(agreeing_conditional_cpdag()),
-                3,
-                1.0,
-            ),
-            Class::Pag => (
-                "conditional_pag_data",
-                conditional_pag_data,
-                Structure::MarkedPag(agreeing_pag(true)),
-                4,
-                2.0,
-            ),
-            Class::Admg | Class::TemporalAdmg => panic!("no conditional design on {class:?}"),
-        };
+    let (dgp, data, structure, modifier, base): (_, Generator, _, _, _) = match class {
+        Class::Dag => (
+            "conditional_dag_data",
+            conditional_dag_data,
+            Structure::Dag { nodes: 4, edges: &CONDITIONAL_EDGES },
+            3,
+            1.0,
+        ),
+        Class::Cpdag => (
+            "conditional_cpdag_data",
+            conditional_cpdag_data,
+            Structure::Cpdag(agreeing_conditional_cpdag()),
+            3,
+            1.0,
+        ),
+        Class::Pag => (
+            "conditional_pag_data",
+            conditional_pag_data,
+            Structure::MarkedPag(agreeing_pag(true)),
+            4,
+            2.0,
+        ),
+        Class::Admg | Class::TemporalAdmg => panic!("no conditional design on {class:?}"),
+    };
     let query = CausalQuery::ConditionalEffect(
         ConditionalEffectQuery::try_new(effect_query(0, 1).with_effect_modifiers([v(modifier)]))
             .unwrap(),
@@ -1467,7 +1470,7 @@ fn response_law(
     class: Class,
     posterior: bool,
     mode: Mode,
-) -> (&'static str, fn(usize, u64) -> TabularData, Structure, fn(f64) -> f64) {
+) -> (&'static str, Generator, Structure, fn(f64) -> f64) {
     let bayesian = mode == Mode::Bayesian;
     match (class, bayesian) {
         (Class::Dag, false) => (
@@ -1608,14 +1611,7 @@ fn mean_curve(class: Class, posterior: bool) -> Design {
 
 /// `P(Y = 1 | do(t = 1))` on the class's binary law.
 fn distribution(class: Class, mode: Mode) -> Design {
-    let (dgp, data, base_n, structure, outcome, truth): (
-        _,
-        fn(usize, u64) -> TabularData,
-        _,
-        _,
-        _,
-        _,
-    ) = match class {
+    let (dgp, data, base_n, structure, outcome, truth): (_, Generator, _, _, _, _) = match class {
         Class::Dag => (
             "distribution_data",
             dag_distribution_data,
@@ -1712,7 +1708,7 @@ fn score_normal(result: &StudyResult) -> Vec<IntervalPair> {
 }
 
 fn score_posterior(result: &StudyResult) -> Vec<IntervalPair> {
-    let column = result.posterior.as_ref().and_then(|p| p.effect_column()).unwrap_or(0);
+    let column = result.posterior.as_ref().and_then(CausalPosterior::effect_column).unwrap_or(0);
     vec![posterior_pair(result, column)]
 }
 
@@ -1756,6 +1752,7 @@ fn score_distribution_posterior(result: &StudyResult) -> Vec<IntervalPair> {
 }
 
 /// The nearest-rank quantile the scenario intervals are published with.
+#[expect(clippy::cast_sign_loss, reason = "the rank of a quantile in [0, 1] is non-negative")]
 fn nearest_rank(sorted: &[f64], q: f64) -> f64 {
     let last = sorted.len().saturating_sub(1);
     let position = (last as f64 * q).round() as usize;
@@ -1942,8 +1939,8 @@ use Class::{Admg as OnAdmg, Cpdag as OnCpdag, Dag as OnDag, Pag as OnPag};
 use Mode::{Bayesian, Frequentist};
 
 /// A requested estimator and the name the plan reports for it.
-const fn by(id: EstimatorId, name: &'static str) -> Option<(EstimatorId, &'static str)> {
-    Some((id, name))
+const fn by(id: EstimatorId, name: &'static str) -> (EstimatorId, &'static str) {
+    (id, name)
 }
 
 coverage_tests! {
@@ -1951,7 +1948,7 @@ coverage_tests! {
         [(Posterior, None), (Posterior, Cheap)];
     average_effect_dag_frequentist_given_primary: 0x57A7_0002, average_effect(OnDag, Frequentist, None),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_aipw: 0x57A7_0003, average_effect(OnDag, Frequentist, by(EstimatorId::Aipw, "aipw")),
+    average_effect_dag_frequentist_given_aipw: 0x57A7_0003, average_effect(OnDag, Frequentist, Some(by(EstimatorId::Aipw, "aipw"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
     average_effect_dag_frequentist_given_frontdoor_linear_two_stage: 0x57A7_0004, front_door_two_stage(),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
@@ -1961,21 +1958,21 @@ coverage_tests! {
         [(Accepted, None), (Explicit, Cheap), (Explicit, Full), (Accepted, Cheap), (Accepted, Full)];
     average_effect_dag_frequentist_given_iv_wald: 0x57A7_0007, instrument(EstimatorId::IvWald, "iv.wald"),
         [(Accepted, None), (Explicit, Cheap), (Explicit, Full), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_propensity_matching: 0x57A7_0008, average_effect(OnDag, Frequentist, by(EstimatorId::PropensityMatching, "propensity.matching")),
+    average_effect_dag_frequentist_given_propensity_matching: 0x57A7_0008, average_effect(OnDag, Frequentist, Some(by(EstimatorId::PropensityMatching, "propensity.matching"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_propensity_weighting: 0x57A7_0009, average_effect(OnDag, Frequentist, by(EstimatorId::PropensityWeighting, "propensity.weighting")),
+    average_effect_dag_frequentist_given_propensity_weighting: 0x57A7_0009, average_effect(OnDag, Frequentist, Some(by(EstimatorId::PropensityWeighting, "propensity.weighting"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
     average_effect_dag_frequentist_given_rd_sharp: 0x57A7_000A, discontinuity(Frequentist),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_dml: 0x57A7_000B, average_effect(OnDag, Frequentist, by(EstimatorId::Dml, "dml")),
+    average_effect_dag_frequentist_given_dml: 0x57A7_000B, average_effect(OnDag, Frequentist, Some(by(EstimatorId::Dml, "dml"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_dr_learner: 0x57A7_000C, average_effect(OnDag, Frequentist, by(EstimatorId::DrLearner, "dr.learner")),
+    average_effect_dag_frequentist_given_dr_learner: 0x57A7_000C, average_effect(OnDag, Frequentist, Some(by(EstimatorId::DrLearner, "dr.learner"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_causal_forest: 0x57A7_000D, average_effect(OnDag, Frequentist, by(EstimatorId::CausalForest, "causal.forest")),
+    average_effect_dag_frequentist_given_causal_forest: 0x57A7_000D, average_effect(OnDag, Frequentist, Some(by(EstimatorId::CausalForest, "causal.forest"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_propensity_stratification: 0x57A7_000E, average_effect(OnDag, Frequentist, by(EstimatorId::PropensityStratification, "propensity.stratification")),
+    average_effect_dag_frequentist_given_propensity_stratification: 0x57A7_000E, average_effect(OnDag, Frequentist, Some(by(EstimatorId::PropensityStratification, "propensity.stratification"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_dag_frequentist_given_distance_matching: 0x57A7_000F, average_effect(OnDag, Frequentist, by(EstimatorId::DistanceMatching, "distance.matching")),
+    average_effect_dag_frequentist_given_distance_matching: 0x57A7_000F, average_effect(OnDag, Frequentist, Some(by(EstimatorId::DistanceMatching, "distance.matching"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
     average_effect_dag_frequentist_given_frontdoor_functional: 0x57A7_0010, front_door_functional(),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
@@ -1989,9 +1986,9 @@ coverage_tests! {
         [(Accepted, None), (Explicit, Cheap), (Accepted, Cheap), (Explicit, Full), (Accepted, Full)];
     average_effect_dag_bayesian_given_primary: 0x57A7_0015, average_effect(OnDag, Bayesian, None),
         [(Accepted, None)];
-    average_effect_dag_bayesian_given_bayesian_robust_ate: 0x57A7_0016, average_effect(OnDag, Bayesian, by(EstimatorId::BayesianRobustAte, "bayesian.robust_ate")),
+    average_effect_dag_bayesian_given_bayesian_robust_ate: 0x57A7_0016, average_effect(OnDag, Bayesian, Some(by(EstimatorId::BayesianRobustAte, "bayesian.robust_ate"))),
         [(Accepted, None)];
-    average_effect_dag_bayesian_given_bayesian_basis_gcomp: 0x57A7_0017, average_effect(OnDag, Bayesian, by(EstimatorId::BayesianBasisGcomp, "bayesian.basis.gcomp")),
+    average_effect_dag_bayesian_given_bayesian_basis_gcomp: 0x57A7_0017, average_effect(OnDag, Bayesian, Some(by(EstimatorId::BayesianBasisGcomp, "bayesian.basis.gcomp"))),
         [(Accepted, None)];
     average_effect_dag_bayesian_given_bayesian_randomized_quantile: 0x57A7_0018, randomized_median(Bayesian),
         [(Accepted, None)];
@@ -2001,13 +1998,13 @@ coverage_tests! {
         [(Accepted, None)];
     average_effect_pag_frequentist_given_primary: 0x57A7_001B, average_effect(OnPag, Frequentist, None),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_pag_frequentist_given_aipw: 0x57A7_001C, average_effect(OnPag, Frequentist, by(EstimatorId::Aipw, "aipw")),
+    average_effect_pag_frequentist_given_aipw: 0x57A7_001C, average_effect(OnPag, Frequentist, Some(by(EstimatorId::Aipw, "aipw"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_pag_frequentist_given_dml: 0x57A7_001D, average_effect(OnPag, Frequentist, by(EstimatorId::Dml, "dml")),
+    average_effect_pag_frequentist_given_dml: 0x57A7_001D, average_effect(OnPag, Frequentist, Some(by(EstimatorId::Dml, "dml"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_pag_frequentist_given_dr_learner: 0x57A7_001E, average_effect(OnPag, Frequentist, by(EstimatorId::DrLearner, "dr.learner")),
+    average_effect_pag_frequentist_given_dr_learner: 0x57A7_001E, average_effect(OnPag, Frequentist, Some(by(EstimatorId::DrLearner, "dr.learner"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_pag_frequentist_given_causal_forest: 0x57A7_001F, average_effect(OnPag, Frequentist, by(EstimatorId::CausalForest, "causal.forest")),
+    average_effect_pag_frequentist_given_causal_forest: 0x57A7_001F, average_effect(OnPag, Frequentist, Some(by(EstimatorId::CausalForest, "causal.forest"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
     average_effect_pag_frequentist_given_glm_adjustment: 0x57A7_0020, glm_adjustment(OnPag),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
@@ -2023,13 +2020,13 @@ coverage_tests! {
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
     average_effect_cpdag_frequentist_given_primary: 0x57A7_0026, average_effect(OnCpdag, Frequentist, None),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_cpdag_frequentist_given_aipw: 0x57A7_0027, average_effect(OnCpdag, Frequentist, by(EstimatorId::Aipw, "aipw")),
+    average_effect_cpdag_frequentist_given_aipw: 0x57A7_0027, average_effect(OnCpdag, Frequentist, Some(by(EstimatorId::Aipw, "aipw"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_cpdag_frequentist_given_dml: 0x57A7_0028, average_effect(OnCpdag, Frequentist, by(EstimatorId::Dml, "dml")),
+    average_effect_cpdag_frequentist_given_dml: 0x57A7_0028, average_effect(OnCpdag, Frequentist, Some(by(EstimatorId::Dml, "dml"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_cpdag_frequentist_given_dr_learner: 0x57A7_0029, average_effect(OnCpdag, Frequentist, by(EstimatorId::DrLearner, "dr.learner")),
+    average_effect_cpdag_frequentist_given_dr_learner: 0x57A7_0029, average_effect(OnCpdag, Frequentist, Some(by(EstimatorId::DrLearner, "dr.learner"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
-    average_effect_cpdag_frequentist_given_causal_forest: 0x57A7_002A, average_effect(OnCpdag, Frequentist, by(EstimatorId::CausalForest, "causal.forest")),
+    average_effect_cpdag_frequentist_given_causal_forest: 0x57A7_002A, average_effect(OnCpdag, Frequentist, Some(by(EstimatorId::CausalForest, "causal.forest"))),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];
     average_effect_cpdag_frequentist_given_glm_adjustment: 0x57A7_002B, glm_adjustment(OnCpdag),
         [(Explicit, Cheap), (Explicit, Full), (Accepted, None), (Accepted, Cheap), (Accepted, Full)];

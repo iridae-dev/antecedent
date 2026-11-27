@@ -1,4 +1,5 @@
 //! Source law for the standardized conditional-survival checks.
+#![allow(dead_code, reason = "two test binaries share this module and each uses a subset")]
 
 use std::sync::Arc;
 
@@ -17,16 +18,18 @@ const EVENT: [[[[usize; 2]; 2]; 2]; 2] =
 
 type Row = [f64; 6];
 
-fn observed(
+/// One pre-entry study unit: its arm and history strata, and its event, entry and censoring draws.
+struct Unit {
     arm: usize,
     entry: usize,
     censor: usize,
     event_draw: usize,
     entry_draw: usize,
     censor_draw: usize,
-    delayed: bool,
-    censoring: bool,
-) -> Option<Row> {
+}
+
+fn observed(unit: &Unit, delayed: bool, censoring: bool) -> Option<Row> {
+    let Unit { arm, entry, censor, event_draw, entry_draw, censor_draw } = *unit;
     let [early, later] = EVENT[arm][entry][censor];
     let time = if event_draw < early {
         1.0
@@ -59,9 +62,15 @@ pub fn exact(delayed: bool, censoring: bool) -> Vec<Row> {
                 for time in 0..8 {
                     for left in 0..8 {
                         for drop in 0..8 {
-                            observed_rows.extend(observed(
-                                arm, entry, censor, time, left, drop, delayed, censoring,
-                            ));
+                            let unit = Unit {
+                                arm,
+                                entry,
+                                censor,
+                                event_draw: time,
+                                entry_draw: left,
+                                censor_draw: drop,
+                            };
+                            observed_rows.extend(observed(&unit, delayed, censoring));
                         }
                     }
                 }
@@ -81,17 +90,21 @@ pub fn sampled(
     let mut rows = Vec::with_capacity(2 * arm_size);
     for arm in 0..2 {
         while rows.len() < (arm + 1) * arm_size {
-            let mut sample = |n| (uniform() * n as f64) as usize;
-            rows.extend(observed(
+            #[allow(
+                clippy::cast_possible_truncation,
+                clippy::cast_sign_loss,
+                reason = "a uniform draw in [0, 1) scaled by a small count floors to an index"
+            )]
+            let mut sample = |n: u32| (uniform() * f64::from(n)) as usize;
+            let unit = Unit {
                 arm,
-                sample(2),
-                sample(2),
-                sample(8),
-                sample(8),
-                sample(8),
-                delayed,
-                censoring,
-            ));
+                entry: sample(2),
+                censor: sample(2),
+                event_draw: sample(8),
+                entry_draw: sample(8),
+                censor_draw: sample(8),
+            };
+            rows.extend(observed(&unit, delayed, censoring));
         }
     }
     rows

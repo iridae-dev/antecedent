@@ -114,6 +114,7 @@ pub(crate) fn assemble_result(mut args: AssembleArgs<'_>) -> StudyResult {
             missing_data: None,
             custom_validator_names: Vec::new(),
             would_refuse: Vec::new(),
+            unit: None,
         },
         executed_contract: None,
         compiled_method_provenance: None,
@@ -133,12 +134,12 @@ pub(crate) fn assemble_result(mut args: AssembleArgs<'_>) -> StudyResult {
 /// registry matches `clone_from` on that empty slot.
 pub(crate) fn stamp_result_context(
     result: &mut StudyResult,
-    support_status: Option<crate::support::CellStatus>,
+    support: (Option<crate::support::CellStatus>, Option<&crate::support::UnitRef>),
     structure_source: crate::support::StructureSource,
     population_registry: Option<&antecedent_core::PopulationRegistry>,
     custom_validator_names: &[Arc<str>],
 ) {
-    result.support_status = support_status;
+    result.stamp_support(support.0, support.1.cloned());
     result.structure_source = structure_source;
     result.population_registry = population_registry.cloned();
     result.extras.custom_validator_names = custom_validator_names.to_vec();

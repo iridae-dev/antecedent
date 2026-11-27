@@ -286,7 +286,7 @@ pub enum LpError {
     #[error("vertex enumeration does not fit the execution")]
     Budget {
         /// The receipt. The enumeration was not entered.
-        receipt: antecedent_core::SearchReceipt,
+        receipt: Box<antecedent_core::SearchReceipt>,
     },
     /// The context's cancellation token was set between candidate bases or feasibility
     /// programs; no partial answer is returned.
@@ -1394,7 +1394,7 @@ fn admit_vertices(
         if receipt.stop == antecedent_core::SearchStop::Cancelled {
             LpError::Cancelled
         } else {
-            LpError::Budget { receipt }
+            LpError::Budget { receipt: Box::new(receipt) }
         }
     })?;
     Ok(hold)

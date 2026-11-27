@@ -137,6 +137,7 @@ fn construction(
         functional: functional.into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 
@@ -756,6 +757,7 @@ fn temporal_reading(
             functional: format!("{}|{name}", functional_label(fit.functional.as_ref())),
             identification: "point".into(),
             reported_level: REPORTED_LEVEL,
+            unit: None,
         },
         rows: fit.pairs,
     })
@@ -1087,6 +1089,7 @@ fn bind_basis(tally: &mut CoverageTally, basis: &CalibrationBasis) {
             functional: basis.functional.to_string(),
             identification: basis.identification.to_string(),
             reported_level: basis.level,
+            unit: None,
         },
         ScopeFacts {
             row_count: basis.row_count,

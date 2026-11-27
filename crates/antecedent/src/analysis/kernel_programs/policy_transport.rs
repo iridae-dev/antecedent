@@ -207,7 +207,7 @@ fn encode_role(role: ActionRole, out: &mut CanonicalWriter) {
             variant(out, "commit");
         }
         _ => unencodable(out, "action role"),
-    };
+    }
 }
 
 fn encode_censoring(rule: CensoringRule, out: &mut CanonicalWriter) {
@@ -219,7 +219,7 @@ fn encode_censoring(rule: CensoringRule, out: &mut CanonicalWriter) {
             variant(out, "forfeit");
         }
         _ => unencodable(out, "censoring rule"),
-    };
+    }
 }
 
 fn encode_status(status: MechanismStatus, out: &mut CanonicalWriter) {
@@ -231,7 +231,7 @@ fn encode_status(status: MechanismStatus, out: &mut CanonicalWriter) {
             variant(out, "shifted");
         }
         _ => unencodable(out, "mechanism status"),
-    };
+    }
 }
 
 fn encode_model_mechanism(mechanism: ModelMechanism, out: &mut CanonicalWriter) {

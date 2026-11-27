@@ -28,6 +28,8 @@ default = ["file-source"]
 # Parquet and Arrow IPC table files (`analysis::file_table`).
 file-source = ["antecedent-data/parquet", "antecedent-data/ipc"]
 calibration-internal = ["antecedent-estimate/calibration-internal", "antecedent-io/calibration-internal", "antecedent-validate/calibration-internal"]
+# Test-only: `ANTECEDENT_EVIDENCE_TRACE=<file>` appends every support decision to `<file>`.
+evidence-trace = []
 ml-gbdt = ["antecedent-estimate/ml-gbdt", "antecedent-model/ml-gbdt"]
 ml-forest = ["antecedent-estimate/ml-forest", "antecedent-model/ml-forest"]
 ml-full = ["ml-gbdt", "ml-forest"]

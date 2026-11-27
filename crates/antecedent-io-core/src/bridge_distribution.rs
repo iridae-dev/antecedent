@@ -275,6 +275,7 @@ impl BridgedDistribution {
         clippy::result_large_err,
         reason = "the public bridge API returns the shared structured BridgeRefusal by value; boxing would break typed callers"
     )]
+    #[allow(clippy::float_cmp, reason = "the check requires exact equality of the retained values")]
     pub fn chain_stage(&self, stage_id: &str) -> Result<BridgeChainStage, BridgeRefusal> {
         if self.claim.value_kind.is_sampling()
             && self
@@ -545,6 +546,7 @@ fn table_digest(alignment: &str, width: usize, draws: &[f64]) -> SemanticDigest 
 
 /// Sampling claims bind the entire population of weighted replicates. Preserve the original
 /// digest domain for historical posterior and predictive artifacts.
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
 fn bridge_table_digest(
     table: &DistributionArtifact,
     kind: Option<ValueKind>,
@@ -990,33 +992,7 @@ pub fn bridge_draws_cancellable(
 ) -> Result<BridgedDistribution, BridgeRefusal> {
     check_cancelled(cancel).map_err(|error| *error)?;
     let identity = &source.metadata().identity;
-    // The column about the contract's source quantity.
-    let mut column = None;
-    for (index, wire) in identity.quantities.iter().enumerate() {
-        let Ok(quantity) = ScientificQuantity::try_from(wire.clone()) else {
-            return Err(draws_unusable("quantities", "the draw table's quantities do not convert"));
-        };
-        if quantity.require_same_coordinate(&contract.source.quantity).is_ok() {
-            column = Some((index, quantity));
-        }
-    }
-    let Some((column, quantity)) = column else {
-        return Err(refusal_from_text(
-            antecedent_core::reason_code!("bridge_binding_mismatch"),
-            antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH,
-            contract.source.quantity.canonical_identity(),
-            identity
-                .quantities
-                .iter()
-                .map(|wire| wire.variable_id.as_str())
-                .collect::<Vec<_>>()
-                .join(", "),
-            "bridge a draw table that carries a column about the contract's source quantity",
-        ));
-    };
-    if source.metadata().supported.as_ref().is_some_and(|mask| !mask[column]) {
-        return Err(draws_unusable("column", "the source column is masked as unsupported"));
-    }
+    let (column, quantity) = source_column(contract, source)?;
     let alignment_state = identity.alignment == DrawAlignment::Joint;
     let alignment = if alignment_state {
         source.alignment_identity().map_err(|_| {
@@ -1059,21 +1035,7 @@ pub fn bridge_draws_cancellable(
                 .map_err(|error| *error)?
         }
         DrawMapping::TrialBootstrap(validation) => {
-            let shared = if let Some(SourceMappingDependence::SharedTrialMean { evidence }) =
-                &contract.source_dependence
-            {
-                if source.metadata()
-                    != &shared_trial_metadata(contract, evidence, values.len(), seed)?
-                {
-                    return Err(draws_unusable(
-                        "shared trial source",
-                        "the source does not identify the declared validation trials and bootstrap stream",
-                    ));
-                }
-                true
-            } else {
-                false
-            };
+            let shared = shared_trial_source(contract, source, values.len(), seed)?;
             map_trial_bootstrap(validation, &values, shared, &mut rng, cancel)?
         }
         DrawMapping::Correction(law) => {
@@ -1090,26 +1052,7 @@ pub fn bridge_draws_cancellable(
         ));
     }
 
-    // The source table with the bridged column replaced, row for row.
-    let width = source.shape()[1];
-    let mut table = source.draws().to_vec();
-    for (row, value) in mapped.values.iter().enumerate() {
-        table[row * width + column] = *value;
-    }
-    let mut metadata = source.metadata().clone();
-    metadata.identity.quantities[column] = ScientificQuantityWire::from(&contract.target.quantity);
-    metadata.calibration = DistributionCalibration::NotMeasured;
-    metadata.trust = DistributionTrust::Unverified;
-    let distribution = DistributionArtifact::new(metadata, table).map_err(|error| {
-        draws_unusable(
-            "target",
-            if matches!(error, crate::IoError::Convert(_)) {
-                "the target quantity repeats a coordinate of the draw table"
-            } else {
-                "the bridged draw table is not a valid distribution"
-            },
-        )
-    })?;
+    let distribution = bridged_table(contract, source, column, &mapped.values)?;
     let (mapped_mean, mapped_variance) = weighted_moments(&mapped.values, &weights);
     let summary = MappedDrawsSummary {
         n_draws: source.n_draws(),
@@ -1130,6 +1073,91 @@ pub fn bridge_draws_cancellable(
         affine: mapped.affine,
         correction: mapped.correction,
         alignment,
+    })
+}
+
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+fn source_column(
+    contract: &BridgeContract,
+    source: &DistributionArtifact,
+) -> Result<(usize, ScientificQuantity), BridgeRefusal> {
+    let identity = &source.metadata().identity;
+    // The column about the contract's source quantity.
+    let mut column = None;
+    for (index, wire) in identity.quantities.iter().enumerate() {
+        let Ok(quantity) = ScientificQuantity::try_from(wire.clone()) else {
+            return Err(draws_unusable("quantities", "the draw table's quantities do not convert"));
+        };
+        if quantity.require_same_coordinate(&contract.source.quantity).is_ok() {
+            column = Some((index, quantity));
+        }
+    }
+    let Some((column, quantity)) = column else {
+        return Err(refusal_from_text(
+            antecedent_core::reason_code!("bridge_binding_mismatch"),
+            antecedent_core::reason_details::scientific_bridge::QUANTITY_MISMATCH,
+            contract.source.quantity.canonical_identity(),
+            identity
+                .quantities
+                .iter()
+                .map(|wire| wire.variable_id.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            "bridge a draw table that carries a column about the contract's source quantity",
+        ));
+    };
+    if source.metadata().supported.as_ref().is_some_and(|mask| !mask[column]) {
+        return Err(draws_unusable("column", "the source column is masked as unsupported"));
+    }
+    Ok((column, quantity))
+}
+
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+fn shared_trial_source(
+    contract: &BridgeContract,
+    source: &DistributionArtifact,
+    draws: usize,
+    seed: u64,
+) -> Result<bool, BridgeRefusal> {
+    let Some(SourceMappingDependence::SharedTrialMean { evidence }) = &contract.source_dependence
+    else {
+        return Ok(false);
+    };
+    if source.metadata() != &shared_trial_metadata(contract, evidence, draws, seed)? {
+        return Err(draws_unusable(
+            "shared trial source",
+            "the source does not identify the declared validation trials and bootstrap stream",
+        ));
+    }
+    Ok(true)
+}
+
+#[allow(clippy::result_large_err, reason = "bridge APIs share the structured refusal")]
+fn bridged_table(
+    contract: &BridgeContract,
+    source: &DistributionArtifact,
+    column: usize,
+    values: &[f64],
+) -> Result<DistributionArtifact, BridgeRefusal> {
+    // The source table with the bridged column replaced, row for row.
+    let width = source.shape()[1];
+    let mut table = source.draws().to_vec();
+    for (row, value) in values.iter().enumerate() {
+        table[row * width + column] = *value;
+    }
+    let mut metadata = source.metadata().clone();
+    metadata.identity.quantities[column] = ScientificQuantityWire::from(&contract.target.quantity);
+    metadata.calibration = DistributionCalibration::NotMeasured;
+    metadata.trust = DistributionTrust::Unverified;
+    DistributionArtifact::new(metadata, table).map_err(|error| {
+        draws_unusable(
+            "target",
+            if matches!(error, crate::IoError::Convert(_)) {
+                "the target quantity repeats a coordinate of the draw table"
+            } else {
+                "the bridged draw table is not a valid distribution"
+            },
+        )
     })
 }
 

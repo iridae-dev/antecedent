@@ -97,6 +97,7 @@ fn construction(family: KernelFamily) -> Construction {
         functional: "kernel_weighted_neighbourhood_mean_effect".into(),
         identification: "point".into(),
         reported_level: LEVEL,
+        unit: None,
     }
 }
 

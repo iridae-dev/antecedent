@@ -147,6 +147,10 @@ pub enum JointSensitivityError {
 }
 
 impl LongitudinalSensitivitySpec {
+    #[allow(
+        clippy::float_cmp,
+        reason = "exact equality preserves the declared boundary and identity semantics"
+    )]
     fn check(&self, rows: &[LongitudinalSubject]) -> Result<(), JointSensitivityError> {
         let named = |name: &str| !name.trim().is_empty() && name.len() <= 200;
         if ![&self.population, &self.outcome, &self.unit].iter().all(|name| named(name))
@@ -405,7 +409,7 @@ fn assemble(wire: Portable) -> Result<LongitudinalSensitivityArtifact, JointSens
     let mut hash = CanonicalWriter::new("antecedent.longitudinal.joint_sensitivity.artifact.v1");
     hash.bytes(&body);
     let identity = SemanticDigest::from_bytes(hash.finish());
-    Ok(LongitudinalSensitivityArtifact { identity, wire })
+    Ok(LongitudinalSensitivityArtifact { wire, identity })
 }
 
 impl LongitudinalSensitivityArtifact {
@@ -536,7 +540,7 @@ pub(crate) fn consume_artifact(
         return Err(JointSensitivityError::Resource("portable artifact exceeds byte bound".into()));
     }
     // A different context may choose other numerical controls, but never a new bootstrap seed.
-    let _lease = ctx.acquire_admission(0, bytes.len() as u64 * 2).map_err(|error| {
+    let lease = ctx.acquire_admission(0, bytes.len() as u64 * 2).map_err(|error| {
         if ctx.cancellation.is_cancelled() {
             JointSensitivityError::Cancelled
         } else {
@@ -562,7 +566,7 @@ pub(crate) fn consume_artifact(
     }) {
         return Err(JointSensitivityError::Identity);
     }
-    drop(_lease);
+    drop(lease);
     let mut replay = ctx.clone();
     replay.rng = antecedent_core::execution::RngFactory::from_seed(seed);
     let plan = compile_longitudinal_joint_sensitivity(spec, rows, &replay)?;

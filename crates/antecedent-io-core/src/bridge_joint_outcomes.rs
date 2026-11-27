@@ -7,8 +7,8 @@ use crate::distribution_artifact::{
 };
 use crate::quantity_wire::{DistributionMeaningWire, ScientificQuantityWire};
 use antecedent_contract::bridge::{
-    BridgeContract, BridgeRefusal, FixedBridgeDomain, SupportMap, draws_outside_domain,
-    draws_unusable, support_image,
+    BridgeContract, BridgeRefusal, FixedBridgeDomain, SupportMap, ValueInterval,
+    draws_outside_domain, draws_unusable, support_image,
 };
 use antecedent_core::{CanonicalWriter, ExecutionContext, SemanticDigest};
 use std::collections::BTreeSet;
@@ -136,68 +136,9 @@ impl JointOutcomeMap {
             }
             coordinates.push(ScientificQuantityWire::from(target));
             identity.word(terms.len() as u64);
-            let mut named = BTreeSet::new();
-            let mut column = Vec::with_capacity(terms.len());
-            for term in terms {
-                let (offset, slope) = term.contract.joint_outcome_coefficients()?;
-                if target.require_same_coordinate(&term.contract.target.quantity).is_err() {
-                    return Err(draws_unusable(
-                        "output",
-                        "all contributions must use the same output coordinate and units",
-                    )
-                    .into());
-                }
-                let index = source_quantities
-                    .iter()
-                    .position(|q| q.require_same_coordinate(&term.contract.source.quantity).is_ok())
-                    .ok_or_else(|| {
-                        draws_unusable(
-                            "input",
-                            "supply the named source coordinate with its declared units",
-                        )
-                    })?;
-                if !named.insert(index)
-                    || source
-                        .metadata()
-                        .supported
-                        .as_ref()
-                        .is_some_and(|supported| !supported[index])
-                {
-                    return Err(draws_unusable(
-                        "input",
-                        "use each supported input coordinate once per output",
-                    )
-                    .into());
-                }
-                let domain = support_image(SupportMap::Identity, term.domain.0)?;
-                identity
-                    .bytes(term.contract.identity().as_bytes())
-                    .word(domain.low.to_bits())
-                    .word(domain.high.to_bits());
-                column.push((index, offset, slope, domain));
-            }
-            columns.push(column);
+            columns.push(output_column(terms, target, source, &source_quantities, &mut identity)?);
         }
-        let mut values = Vec::with_capacity(output_bytes / 8);
-        for row in source.draws().chunks_exact(source.shape()[1]) {
-            if ctx.cancellation.is_cancelled() {
-                return Err(IoError::StreamCancelled.into());
-            }
-            for terms in &columns {
-                let mut sum = 0.0;
-                for &(index, offset, slope, domain) in terms {
-                    let x = row[index];
-                    if x < domain.low || x > domain.high {
-                        return Err(draws_outside_domain(1, source.n_draws(), x).into());
-                    }
-                    sum += offset + slope * x;
-                }
-                if !sum.is_finite() {
-                    return Err(draws_unusable("output", "the mapped value must be finite").into());
-                }
-                values.push(sum);
-            }
-        }
+        let values = map_rows(source, &columns, output_bytes / 8, ctx)?;
         let mut metadata = source.metadata().clone();
         metadata.identity.quantities = coordinates;
         metadata.shape[1] = n_outputs;
@@ -211,4 +152,79 @@ impl JointOutcomeMap {
             identity: SemanticDigest::from_bytes(identity.finish()),
         })
     }
+}
+
+fn output_column(
+    terms: &[JointOutcomeTerm],
+    target: &antecedent_contract::ScientificQuantity,
+    source: &DistributionArtifact,
+    source_quantities: &[antecedent_contract::ScientificQuantity],
+    identity: &mut CanonicalWriter,
+) -> Result<Vec<(usize, f64, f64, ValueInterval)>, JointOutcomeBridgeError> {
+    let mut named = BTreeSet::new();
+    let mut column = Vec::with_capacity(terms.len());
+    for term in terms {
+        let (offset, slope) = term.contract.joint_outcome_coefficients()?;
+        if target.require_same_coordinate(&term.contract.target.quantity).is_err() {
+            return Err(draws_unusable(
+                "output",
+                "all contributions must use the same output coordinate and units",
+            )
+            .into());
+        }
+        let index = source_quantities
+            .iter()
+            .position(|q| q.require_same_coordinate(&term.contract.source.quantity).is_ok())
+            .ok_or_else(|| {
+                draws_unusable(
+                    "input",
+                    "supply the named source coordinate with its declared units",
+                )
+            })?;
+        if !named.insert(index)
+            || source.metadata().supported.as_ref().is_some_and(|supported| !supported[index])
+        {
+            return Err(draws_unusable(
+                "input",
+                "use each supported input coordinate once per output",
+            )
+            .into());
+        }
+        let domain = support_image(SupportMap::Identity, term.domain.0)?;
+        identity
+            .bytes(term.contract.identity().as_bytes())
+            .word(domain.low.to_bits())
+            .word(domain.high.to_bits());
+        column.push((index, offset, slope, domain));
+    }
+    Ok(column)
+}
+
+fn map_rows(
+    source: &DistributionArtifact,
+    columns: &[Vec<(usize, f64, f64, ValueInterval)>],
+    capacity: usize,
+    ctx: &ExecutionContext,
+) -> Result<Vec<f64>, JointOutcomeBridgeError> {
+    let mut values = Vec::with_capacity(capacity);
+    for row in source.draws().chunks_exact(source.shape()[1]) {
+        if ctx.cancellation.is_cancelled() {
+            return Err(IoError::StreamCancelled.into());
+        }
+        for terms in columns {
+            let mut sum = 0.0;
+            for &(index, offset, slope, domain) in terms {
+                let x = row[index];
+                if x < domain.low || x > domain.high {
+                    return Err(draws_outside_domain(1, source.n_draws(), x).into());
+                }
+                sum += offset + slope * x;
+            }
+            if !sum.is_finite() {
+                return Err(draws_unusable("output", "the mapped value must be finite").into());
+            }
+            values.push(sum);
+        }
+    }
+    Ok(values)
 }

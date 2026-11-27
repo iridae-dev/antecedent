@@ -76,7 +76,7 @@ pub enum StatsError {
         /// Receipt summary: the bound, the consumed work, and what was not entered.
         summary: String,
         /// The receipt.
-        receipt: antecedent_core::SearchReceipt,
+        receipt: Box<antecedent_core::SearchReceipt>,
     },
     /// A planned allocation exceeds the execution context's hard memory limit.
     #[error("resource limit: {message} needs {required_bytes} bytes, limit {limit_bytes}")]
@@ -145,7 +145,7 @@ impl StatsError {
     pub(crate) fn search(receipt: antecedent_core::SearchReceipt) -> Self {
         let stop = receipt.stop.code();
         let summary = receipt.summary();
-        Self::Search { stop, summary, receipt }
+        Self::Search { stop, summary, receipt: Box::new(receipt) }
     }
 
     /// Smallest fitted-probability margin of a refused GLM fit, when it was measured.

@@ -15,6 +15,7 @@ pub(crate) struct IdentifiedResultContext {
     population_registry: Option<PopulationRegistry>,
     latency_mode: Option<LatencyMode>,
     support_status: Option<crate::support::CellStatus>,
+    support_unit: Option<crate::support::UnitRef>,
     structure_source: crate::support::StructureSource,
     tiered: Option<antecedent_graph::TieredBackground>,
     custom_validators: bool,
@@ -39,6 +40,7 @@ impl IdentifiedResultContext {
             population_registry: study.declared.population_registry.clone(),
             latency_mode: study.latency_mode,
             support_status: study.support_status,
+            support_unit: study.support_unit.clone(),
             structure_source: study.structure_source,
             tiered: study.declared.tiered.clone(),
             custom_validators: !study.declared.custom_validators.is_empty(),
@@ -218,12 +220,12 @@ fn quote_interactive_atoms(
 
     let cap = ctx.memory_limit_bytes().unwrap_or(antecedent_core::DEFAULT_SEARCH_MEMORY_BYTES);
     let limits = SearchLimits { operations: n_identified, depth: 1 };
-    let budget = SearchBudget::with_memory(limits, cap, ctx).map_err(interactive_budget_stop)?;
+    let budget = SearchBudget::with_memory(limits, cap, ctx).map_err(|receipt| interactive_budget_stop(&receipt))?;
     let admitted = interactive_admitted_envelope_atoms(n_identified, ctx.memory_limit_bytes());
     let unevaluated =
         format!("identified atoms count={n_identified} mass={}", graphs.identified_mass());
     let refused = |budget: &SearchBudget<'_>, stop: SearchStop| {
-        interactive_budget_stop(budget.receipt(stop, Vec::new(), vec![unevaluated.clone()]))
+        interactive_budget_stop(&budget.receipt(stop, Vec::new(), vec![unevaluated.clone()]))
     };
     let count = match u64::try_from(admitted) {
         Ok(count) if count > 0 => count,
@@ -240,7 +242,7 @@ fn quote_interactive_atoms(
 
 /// A budget stop before the subsample is entered. Cancellation stays a
 /// cancellation; every other stop carries the receipt.
-fn interactive_budget_stop(receipt: antecedent_core::SearchReceipt) -> CausalError {
+fn interactive_budget_stop(receipt: &antecedent_core::SearchReceipt) -> CausalError {
     if receipt.stop == antecedent_core::SearchStop::Cancelled {
         return CausalError::Cancelled { stage: "interactive envelope" };
     }
@@ -694,7 +696,7 @@ fn finish_checked_result(finish: CheckedResultFinish<'_>) -> StudyResult {
     });
     crate::analysis::helpers::stamp_result_context(
         &mut result,
-        finish.common.support_status,
+        (finish.common.support_status, finish.common.support_unit.as_ref()),
         finish.common.structure_source,
         finish.common.population_registry.as_ref(),
         &finish.common.custom_validator_names,

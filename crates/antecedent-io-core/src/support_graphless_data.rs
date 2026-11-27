@@ -3048,7 +3048,7 @@ pub(crate) const SUPPORTS: &[GraphlessSupportRow] = &[
         inference_claim: "simultaneous_95_standardized_survival_difference_band",
         assignment_unit: "unit",
         known_truth_test: "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_identifies_the_pre_entry_population",
-        retained_route_test: "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_band_replays_training_and_refuses_overlap",
+        retained_route_test: "crates/antecedent/tests/survival_route.rs::fitted_conditional_survival_band_replays_its_training_subjects",
         limitations: "Two binary baseline strata, equal pre-entry population proportions, horizon 3, fitted censoring survival floor 0.05, 1000 observed independent subjects per randomized arm, and 25 at risk in each arm and baseline history at every observed event or censoring knot through the horizon. At least 399 arm-stratified whole-subject refits with at most 10% draw loss. The registered repeated-study coverage concerns only the synthetic pre-entry population with two binary baseline histories, dependent entry through the first history and censoring through the second. It uses the joint history learner fit again within each whole-subject resample, the grid 0/1/2/3, balanced observed arms of 1000/2000/4000, and exactly 399 requested and completed draws. Withheld bands count as misses. The observed data and repeated-study evidence do not verify the declared source weights or that a caller's population follows this law.",
         min_rows: 2000,
         min_assignment_units_per_arm: 1000,

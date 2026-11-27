@@ -582,7 +582,7 @@ impl PreparedStudy {
         if matches!(self.analysis.settings.inference, InferenceMode::Bayesian(_)) {
             return self.refute_bayesian_rerun(prior, data, suite, ctx);
         }
-        let support_status = self.support_after_refute(prior, suite, ctx)?;
+        let (support_status, support_unit) = self.support_after_refute(prior, suite, ctx)?;
         let estimator = self.plan.binding().estimator_or(RouteDefaults::STATIC_ATE)?;
 
         let (data_est, query_est, estimand_est) =
@@ -613,7 +613,7 @@ impl PreparedStudy {
         let validate_ns = u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX);
 
         let mut out = prior.clone();
-        out.support_status = support_status;
+        out.stamp_support(support_status, support_unit);
         out.refutations = reports;
         crate::analysis::helpers::mirror_refuted_evalue(&mut out.estimate, &out.view.refutations);
         out.diagnostics.extend(na_diagnostics);
@@ -639,7 +639,8 @@ impl PreparedStudy {
         prior: &StudyResult,
         suite: RefuteSuite,
         ctx: &ExecutionContext,
-    ) -> Result<Option<crate::support::CellStatus>, CausalError> {
+    ) -> Result<(Option<crate::support::CellStatus>, Option<crate::support::UnitRef>), CausalError>
+    {
         let analysis = &self.analysis;
         let class = if analysis.graph_posterior.is_some() {
             analysis.graph.class().as_str()
@@ -650,12 +651,38 @@ impl PreparedStudy {
                 analysis.declared.tiered.as_ref(),
             )
         };
-        support_after_suite_change(
+        let status = support_after_suite_change(
             prior.support_status,
             (&analysis.query, class, analysis.structure_source, &analysis.settings.inference),
             (analysis.settings.refute, suite),
             ctx,
+        )?;
+        let unit = crate::support::support_cell_named(
+            &analysis.query,
+            class,
+            analysis.structure_source,
+            &analysis.settings.inference,
+            suite,
         )
+        .map_or_else(
+            || prior.unit().cloned(),
+            |cell| match prior.unit() {
+                Some(crate::support::UnitRef::Construction { key, .. }) => {
+                    Some(crate::support::UnitRef::Construction { cell, key })
+                }
+                Some(crate::support::UnitRef::Matrix(_)) | None => {
+                    Some(crate::support::UnitRef::Matrix(cell))
+                }
+                Some(other) => Some(other.clone()),
+            },
+        );
+        if let Some(unit) = &unit {
+            crate::support::trace_executed(
+                unit,
+                &status.unwrap_or(crate::support::CellStatus::NotSupported),
+            );
+        }
+        Ok((status, unit))
     }
 
     /// Second-click refute of a static mediation prior under `suite`.
@@ -675,7 +702,7 @@ impl PreparedStudy {
                 message: "refute prior does not match mediation query".into(),
             });
         }
-        let support_status = self.support_after_refute(prior, suite, ctx)?;
+        let (support_status, support_unit) = self.support_after_refute(prior, suite, ctx)?;
         let graph =
             self.analysis.graph.as_dag().ok_or(CausalError::Unsupported {
                 message: "static mediation refute requires Dag",
@@ -684,7 +711,7 @@ impl PreparedStudy {
             message: "refute requires prior mediation result",
         })?;
         let mut result = prior.clone();
-        result.support_status = support_status;
+        result.stamp_support(support_status, support_unit);
         result.refutations = if suite == RefuteSuite::None {
             Vec::new()
         } else {
@@ -712,7 +739,7 @@ impl PreparedStudy {
         // (and, for Full, prior sensitivity/MCMC diagnostics). Re-running the
         // frozen physical plan is the only path that constructs those artifacts;
         // retain the prior point/identification while replacing validation state.
-        let support_status = self.support_after_refute(prior, suite, ctx)?;
+        let (support_status, support_unit) = self.support_after_refute(prior, suite, ctx)?;
         let started = Instant::now();
         let mut analysis = self.analysis.clone();
         analysis.settings.refute = suite;
@@ -731,7 +758,7 @@ impl PreparedStudy {
         out.posterior = validated.view.posterior;
         // A suite whose cell executes unsupported (the Bayesian intervention-level
         // refuter state) must not inherit the supported status of the estimate.
-        out.support_status = support_status;
+        out.stamp_support(support_status, support_unit);
         out.performance.stage_timings_ns.push((Arc::from(STAGE_VALIDATE), validate_ns));
         out.performance.wall_time_ns =
             Some(out.performance.wall_time_ns.unwrap_or(0).saturating_add(validate_ns));

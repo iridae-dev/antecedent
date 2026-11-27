@@ -20,6 +20,7 @@ pub fn bind(tally: &mut CoverageTally, basis: &CalibrationBasis) {
             functional: basis.functional.to_string(),
             identification: basis.identification.to_string(),
             reported_level: basis.level,
+            unit: None,
         },
         ScopeFacts {
             row_count: basis.row_count,

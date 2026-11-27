@@ -323,8 +323,7 @@ pub(super) fn admit_supplied_child(
     let result_program = result.lowered_program_identity();
     let result_snapshot = result
         .executed_contract()
-        .map(|contract| contract.identities.data_snapshot.to_hex())
-        .unwrap_or_else(|| "none".to_owned());
+        .map_or_else(|| "none".to_owned(), |contract| contract.identities.data_snapshot.to_hex());
     let compiled_execution = execution_hex(admission)?;
     let result_execution = digest_hex(result.execution_identity);
     let compiled =

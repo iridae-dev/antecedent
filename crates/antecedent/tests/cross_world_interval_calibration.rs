@@ -161,6 +161,7 @@ fn design(test: &'static str, dgp: &'static str, q: [f64; 4], sampling: UnitSamp
                 functional: basis.functional.to_string(),
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
+                unit: None,
             },
             ScopeFacts {
                 row_count: basis.row_count,

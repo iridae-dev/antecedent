@@ -1,6 +1,6 @@
 //! Project the winning ranked design from the candidate id and sample size the ranking stored.
 //!
-//! not_scientific: a copy of the rank-0 row. The ranking units `design.ranking_artifact` and
+//! `not_scientific`: a copy of the rank-0 row. The ranking units `design.ranking_artifact` and
 //! `design.evsi` remain the units that order candidates. This projection does not call
 //! `design.consume` and creates no support or coverage unit.
 //!

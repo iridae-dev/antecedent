@@ -220,6 +220,83 @@ pub(super) fn compile_structure(
 /// Record one structure's compiled plan and the identity its execution reported, keeping the
 /// two lists aligned position by position: a structure without a plan adds to neither, and one
 /// whose estimation failed without ending the run (`ran` is `None`) adds its plan and `None`.
+/// What running or admitting each compiled structure contributed to the mixture.
+struct StructureRuns {
+    atoms: Vec<StructuralResponseAtom>,
+    programs: Vec<SemanticDigest>,
+    executed: Vec<Option<SemanticDigest>>,
+    identified: f64,
+    unidentified: f64,
+    unevaluable: f64,
+}
+
+/// Runs each identified structure, or admits its supplied child result, and weighs its atom.
+fn run_structures(
+    studies: &[BoundStudy],
+    structures: &[CompiledStructure],
+    supplied: Option<&[crate::StudyResult]>,
+    method_provenance: &mut antecedent_io::method_provenance::MethodProvenanceWire,
+    ctx: &ExecutionContext,
+) -> Result<StructureRuns, PreferenceRouteError> {
+    let mut cursor = 0usize;
+    let mut atoms = Vec::with_capacity(structures.len());
+    let mut programs = Vec::with_capacity(structures.len());
+    let mut executed = Vec::with_capacity(structures.len());
+    let (mut identified, mut unidentified, mut unevaluable) = (0.0, 0.0, 0.0);
+    for structure in structures {
+        let graph_key = structure.key.unwrap_or_default();
+        let weight = structure.weight;
+        let Some(runner) = &structure.runner else {
+            unidentified += weight;
+            atoms.push(structural_atom(graph_key, weight, None));
+            continue;
+        };
+        let ran = if let Some(results) = supplied {
+            let result = &results[cursor];
+            cursor += 1;
+            let snapshot =
+                studies.get(structure.source).map_or("", |bound| bound.snapshot.as_str());
+            let ran = admit_supplied_child(structure.plan.as_ref(), snapshot, result, ctx)?;
+            if let Some(response) = retained_response(result) {
+                method_provenance.inherit([&result.method_provenance()]);
+                identified += weight;
+                atoms.push(structural_atom(graph_key, weight, Some(response)));
+            } else {
+                unevaluable += weight;
+                atoms.push(unevaluated_atom(graph_key, weight));
+            }
+            ran
+        } else {
+            match runner.estimate_retained(ctx) {
+                Ok(result) => {
+                    let ran = executed_identity(structure.plan.as_ref(), &result)?;
+                    if let Some(response) = retained_response(&result) {
+                        method_provenance.inherit([&result.method_provenance()]);
+                        identified += weight;
+                        atoms.push(structural_atom(graph_key, weight, Some(response)));
+                    } else {
+                        unevaluable += weight;
+                        atoms.push(unevaluated_atom(graph_key, weight));
+                    }
+                    ran
+                }
+                Err(error) if fatal(&error) => return Err(error.into()),
+                Err(_) => {
+                    unevaluable += weight;
+                    atoms.push(unevaluated_atom(graph_key, weight));
+                    None
+                }
+            }
+        };
+        record_run(
+            (&mut programs, &mut executed),
+            structure.plan.as_ref().map(PlanView::identity),
+            ran,
+        );
+    }
+    Ok(StructureRuns { atoms, programs, executed, identified, unidentified, unevaluable })
+}
+
 fn record_run(
     (programs, executed): (&mut Vec<SemanticDigest>, &mut Vec<Option<SemanticDigest>>),
     compiled: Option<SemanticDigest>,
@@ -269,68 +346,12 @@ impl CompiledPreferenceDecision {
                 return Err(child_count_mismatch(runners, results.len()));
             }
         }
-        let mut cursor = 0usize;
         let Some(contract) = self.contract.tradeoff() else {
             return Err(ordinary_structures_not_compiled());
         };
         let mut method_provenance = self.parent.result_method_provenance([]);
-        let mut atoms = Vec::with_capacity(structures.len());
-        let mut programs = Vec::with_capacity(structures.len());
-        let mut executed = Vec::with_capacity(structures.len());
-        let (mut identified, mut unidentified, mut unevaluable) = (0.0, 0.0, 0.0);
-        for structure in structures {
-            let graph_key = structure.key.unwrap_or_default();
-            let weight = structure.weight;
-            let Some(runner) = &structure.runner else {
-                unidentified += weight;
-                atoms.push(structural_atom(graph_key, weight, None));
-                continue;
-            };
-            let ran = if let Some(results) = supplied {
-                let result = &results[cursor];
-                cursor += 1;
-                let snapshot = studies
-                    .get(structure.source)
-                    .map(|bound| bound.snapshot.as_str())
-                    .unwrap_or("");
-                let ran = admit_supplied_child(structure.plan.as_ref(), snapshot, result, ctx)?;
-                if let Some(response) = retained_response(result) {
-                    method_provenance.inherit([&result.method_provenance()]);
-                    identified += weight;
-                    atoms.push(structural_atom(graph_key, weight, Some(response)));
-                } else {
-                    unevaluable += weight;
-                    atoms.push(unevaluated_atom(graph_key, weight));
-                }
-                ran
-            } else {
-                match runner.estimate_retained(ctx) {
-                    Ok(result) => {
-                        let ran = executed_identity(structure.plan.as_ref(), &result)?;
-                        if let Some(response) = retained_response(&result) {
-                            method_provenance.inherit([&result.method_provenance()]);
-                            identified += weight;
-                            atoms.push(structural_atom(graph_key, weight, Some(response)));
-                        } else {
-                            unevaluable += weight;
-                            atoms.push(unevaluated_atom(graph_key, weight));
-                        }
-                        ran
-                    }
-                    Err(error) if fatal(&error) => return Err(error.into()),
-                    Err(_) => {
-                        unevaluable += weight;
-                        atoms.push(unevaluated_atom(graph_key, weight));
-                        None
-                    }
-                }
-            };
-            record_run(
-                (&mut programs, &mut executed),
-                structure.plan.as_ref().map(PlanView::identity),
-                ran,
-            );
-        }
+        let StructureRuns { atoms, programs, executed, identified, unidentified, unevaluable } =
+            run_structures(studies, structures, supplied, &mut method_provenance, ctx)?;
         let sampled = structures
             .iter()
             .any(|structure| structure.member.as_ref().is_some_and(|m| m.sampling.is_some()));

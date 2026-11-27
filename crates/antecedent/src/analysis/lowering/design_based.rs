@@ -849,10 +849,10 @@ impl DesignLowering for LongitudinalRegimeQuery {
             None,
         )];
         let outcome_family = match query.method {
-            antecedent_core::LongitudinalRegimeMethod::Ipw => None,
-            antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(_) => None,
+            antecedent_core::LongitudinalRegimeMethod::Ipw
+            | antecedent_core::LongitudinalRegimeMethod::ScheduleFamily(_)
+            | antecedent_core::LongitudinalRegimeMethod::FittedGFormula(_) => None,
             antecedent_core::LongitudinalRegimeMethod::GFormula => Some("supplied_period_rewards"),
-            antecedent_core::LongitudinalRegimeMethod::FittedGFormula(_) => None,
             antecedent_core::LongitudinalRegimeMethod::SequentialDoublyRobust => {
                 Some("supplied_sequential_q_scores")
             }

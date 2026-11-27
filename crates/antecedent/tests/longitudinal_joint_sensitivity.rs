@@ -62,9 +62,9 @@ fn complete_world(
     let w = row.baseline;
     let l1 = row.intermediate;
     if row.treatment[0] != target {
-        let on_first_stage_schedule = (recorded_mean(w, target, 0) + recorded_mean(w, target, 1))
-            / 2.0
-            - sign * (0.25 * point.missingness + 0.5 * point.assignment[1]);
+        let on_first_stage_schedule =
+            f64::midpoint(recorded_mean(w, target, 0), recorded_mean(w, target, 1))
+                - sign * (0.25 * point.missingness + 0.5 * point.assignment[1]);
         return on_first_stage_schedule - sign * point.assignment[0];
     }
     if row.treatment[1] != target {
@@ -224,7 +224,7 @@ fn shared_subject_bootstrap_matches_the_joint_supremum_order_statistic() {
                 let choice = rng.next_u64();
                 // This fixed stream never hits the rejection tail of uniform sampling.
                 assert!(choice < u64::MAX - u64::MAX % n);
-                &rows[(choice % n) as usize]
+                &rows[usize::try_from(choice % n).expect("the remainder is below the row count")]
             })
             .collect();
         let deviation = corners.iter().map(|&(p, center)| (means(&sample, p) - center).abs());
@@ -232,7 +232,7 @@ fn shared_subject_bootstrap_matches_the_joint_supremum_order_statistic() {
     }
     suprema.sort_by(f64::total_cmp);
     // 0.9025 * (199 + 1) is halfway between order statistics 180 and 181.
-    let radius = (suprema[179] + suprema[180]) / 2.0;
+    let radius = f64::midpoint(suprema[179], suprema[180]);
     let report = fit.report();
     assert!((report.sampling_radius - radius).abs() < 1e-12);
     assert_eq!(report.corners.len(), corners.len());

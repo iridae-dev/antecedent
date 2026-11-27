@@ -1299,6 +1299,10 @@ fn every_longitudinal_and_survival_field_reaches_the_encoding() {
             },
         ],
     );
+}
+
+#[test]
+fn every_sequential_and_history_field_reaches_the_encoding() {
     check(
         CausalQuery::SequentialContrast,
         &sequential(),

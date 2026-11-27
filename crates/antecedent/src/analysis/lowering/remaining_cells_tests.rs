@@ -26,7 +26,7 @@ fn table(columns: &[(&str, &[f64])]) -> TabularData {
     TabularData::from_f64_columns(columns.iter().copied()).unwrap()
 }
 
-fn round_trip(study: Study, route: &str) {
+fn round_trip(study: &Study, route: &str) {
     let plan = study
         .compile(&ExecutionContext::for_tests(5))
         .unwrap_or_else(|error| panic!("{route} does not compile: {error}"));
@@ -41,10 +41,10 @@ fn outcome_column() -> TabularData {
 }
 
 #[test]
-fn the_remaining_design_cells_round_trip() {
+fn the_policy_value_cell_round_trips() {
     let n = 4;
     round_trip(
-        Study::tabular(outcome_column())
+        &Study::tabular(outcome_column())
             .query(PolicyValueQuery {
                 outcome: v(0),
                 assignment: Arc::from(vec![false; n]),
@@ -71,7 +71,10 @@ fn the_remaining_design_cells_round_trip() {
             .unwrap(),
         "PolicyValue",
     );
+}
 
+#[test]
+fn the_continuous_dose_response_cell_round_trips() {
     let doses = [-1.0, -0.5, 0.0, 0.5, 1.0];
     let (mut outcome, mut dose) = (Vec::new(), Vec::new());
     for intercept in [1.0, 10.0] {
@@ -85,7 +88,7 @@ fn the_remaining_design_cells_round_trip() {
         .flat_map(|group| std::iter::repeat_n(Arc::<str>::from(group), 5))
         .collect();
     round_trip(
-        Study::tabular(table(&[("y", &outcome), ("dose", &dose), ("density", &vec![0.5; 10])]))
+        &Study::tabular(table(&[("y", &outcome), ("dose", &dose), ("density", &[0.5; 10])]))
             .query(antecedent_core::ContinuousDoseResponseQuery {
                 outcome: v(0),
                 dose: v(1),
@@ -101,9 +104,12 @@ fn the_remaining_design_cells_round_trip() {
             .unwrap(),
         "ContinuousDoseResponse",
     );
+}
 
+#[test]
+fn the_survival_cell_round_trips() {
     round_trip(
-        Study::tabular(table(&[
+        &Study::tabular(table(&[
             ("duration", &[1.0, 2.0, 3.0, 4.0]),
             ("event", &[1.0, 0.0, 1.0, 0.0]),
             ("treatment", &[0.0, 1.0, 0.0, 1.0]),
@@ -123,9 +129,12 @@ fn the_remaining_design_cells_round_trip() {
         .unwrap(),
         "Survival",
     );
+}
 
+#[test]
+fn the_longitudinal_regime_cell_round_trips() {
     round_trip(
-        Study::tabular(table(&[("outcome", &[0.0, 1.0])]))
+        &Study::tabular(table(&[("outcome", &[0.0, 1.0])]))
             .query(LongitudinalRegimeQuery {
                 calibration_design: None,
                 outcome: v(0),
@@ -155,7 +164,10 @@ fn the_remaining_design_cells_round_trip() {
             .unwrap(),
         "LongitudinalRegime",
     );
+}
 
+#[test]
+fn the_transport_mixed_cell_round_trips() {
     let mut graph = Dag::with_variables(6);
     graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(0)).unwrap();
     graph.insert_directed(DenseNodeId::from_raw(2), DenseNodeId::from_raw(1)).unwrap();
@@ -173,7 +185,7 @@ fn the_remaining_design_cells_round_trip() {
         ("propensity", &[0.4, 0.6, 0.4, 0.6]),
     ]);
     round_trip(
-        Study::tabular(columns.clone())
+        &Study::tabular(columns.clone())
             .graph(graph.clone())
             .query(TransportQuery::new(response, "source", "target", [v(0)]))
             .selection_targets(Arc::from([v(2)]))
@@ -186,6 +198,10 @@ fn the_remaining_design_cells_round_trip() {
             .unwrap(),
         "TransportMixed",
     );
+}
+
+#[test]
+fn the_interference_dag_cell_round_trips() {
     let outcomes = [1.0, 2.0];
     let interference_data = TabularData::from_f64_columns([("y", outcomes.as_slice())]).unwrap();
     let network = NetworkData::try_new(
@@ -194,7 +210,7 @@ fn the_remaining_design_cells_round_trip() {
     )
     .unwrap();
     round_trip(
-        Study::tabular(interference_data)
+        &Study::tabular(interference_data)
             .graph(Dag::with_variables(1))
             .query(InterferenceQuery::new(
                 AssignmentDesign::Bernoulli { probabilities: Arc::from([0.5, 0.4]) },
@@ -231,7 +247,7 @@ fn the_discovery_cells_round_trip() {
     ]);
     let vars = vec![v(0), v(1), v(2)];
     round_trip(
-        Study::tabular(data)
+        &Study::tabular(data)
             .discovery(DiscoverySpec::pc(static_params, "parcorr"), vars)
             .build()
             .unwrap(),
@@ -253,7 +269,7 @@ fn the_discovery_cells_round_trip() {
         knowledge: BackgroundKnowledge::default(),
     };
     round_trip(
-        Study::series(series)
+        &Study::series(series)
             .discovery(DiscoverySpec::pcmci_plus(temporal, "parcorr"), vec![v(0), v(1)])
             .build()
             .unwrap(),

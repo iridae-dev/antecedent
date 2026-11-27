@@ -2707,7 +2707,7 @@ consumer = "delayed_entry_band_bundle"
 status = "DIRECT"
 detail = "The bundle verifies the training subject snapshot and refits censoring on every reproduced draw before publishing endpoints."
 evidence_test = "crates/antecedent/tests/survival_route.rs"
-evidence_assertion = "fitted_conditional_survival_band_replays_training_and_refuses_overlap"
+evidence_assertion = "fitted_conditional_survival_band_replays_its_training_subjects"
 
 [[rust_cell]]
 producer = "standardized_conditional_survival_band"
@@ -2715,7 +2715,7 @@ consumer = "delayed_entry_band_bundle"
 status = "REFUSED"
 detail = "A compact export names the missing censoring training subjects. An empty baseline stratum prevents estimation."
 evidence_test = "crates/antecedent/tests/survival_route.rs"
-evidence_assertion = "fitted_conditional_survival_band_replays_training_and_refuses_overlap"
+evidence_assertion = "fitted_conditional_survival_band_replays_its_training_subjects"
 
 [[rust_producer]]
 key = "patient_surrogate_bounds"

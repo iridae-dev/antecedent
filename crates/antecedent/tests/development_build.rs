@@ -60,9 +60,9 @@ fn the_gate_runs_a_not_supported_route_and_records_what_a_release_build_would_re
     let ctx = ExecutionContext::for_tests(3);
     assert!(require_supported(&ctx, DETAIL, &[MISSING]).is_ok());
     let expected = WouldRefuse::not_supported(DETAIL, &[MISSING]);
-    assert_eq!(ctx.would_refuse(), [expected.clone()]);
+    assert_eq!(ctx.would_refuse(), std::slice::from_ref(&expected));
     // The log is shared by every clone of the context.
-    assert_eq!(ctx.clone().would_refuse(), [expected.clone()]);
+    assert_eq!(ctx.clone().would_refuse(), std::slice::from_ref(&expected));
 
     // A supported facade route run with the same context carries the entry on its result.
     let result = supported_route().build().unwrap().run(&ctx).unwrap();

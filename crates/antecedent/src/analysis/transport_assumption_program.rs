@@ -151,9 +151,9 @@ mod site_tests {
         }
     }
 
-    fn identity_of(spec: TransportSensitivitySpec) -> Option<antecedent_core::SemanticDigest> {
+    fn identity_of(spec: TransportSensitivitySpec) -> antecedent_core::SemanticDigest {
         let ctx = ExecutionContext::for_tests(7);
-        Some(compile_transport_assumption_range(spec, &ctx).expect("compiles").identity())
+        compile_transport_assumption_range(spec, &ctx).expect("compiles").identity()
     }
 
     #[test]
@@ -162,8 +162,8 @@ mod site_tests {
             QuantityCondition { variable_id: "age".into(), value_id: "adult".into() },
             QuantityCondition { variable_id: "site".into(), value_id: "clinic".into() },
         ];
-        ordered_laws(&conditions, |conditioning| identity_of(spec(3.0, 2.0, conditioning)));
-        bit_exact(|point_value| identity_of(spec(point_value, 2.0, &[])));
-        bit_exact(|bound| identity_of(spec(3.0, bound, &[])));
+        ordered_laws(&conditions, |conditioning| Some(identity_of(spec(3.0, 2.0, conditioning))));
+        bit_exact(|point_value| Some(identity_of(spec(point_value, 2.0, &[]))));
+        bit_exact(|bound| Some(identity_of(spec(3.0, bound, &[]))));
     }
 }

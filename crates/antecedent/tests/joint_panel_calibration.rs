@@ -760,6 +760,7 @@ fn construction(cell: Cell, path: Path, mode: Mode, calibration: bool) -> Constr
         functional: "terminal_interaction_contrast".into(),
         identification: "model_conditional".into(),
         reported_level: LEVEL,
+        unit: None,
     }
 }
 
@@ -1836,6 +1837,7 @@ fn experiment_construction(cell: Cell, path: Path, interval: &str) -> Constructi
         functional: "terminal_interaction_contrast".into(),
         identification: "model_conditional".into(),
         reported_level: LEVEL,
+        unit: None,
     }
 }
 
@@ -2260,6 +2262,7 @@ fn measure_response(test: &'static str, mode: Mode, seed_base: u64) {
                 functional: "contrast_of_world_means".into(),
                 identification: "point".into(),
                 reported_level: LEVEL,
+                unit: None,
             },
             ScopeFacts {
                 row_count: n as u64,
@@ -2517,6 +2520,7 @@ fn search_reading(
                     functional: key.functional,
                     identification: key.identification,
                     reported_level: key.level,
+                    unit: None,
                 },
                 ScopeFacts {
                     row_count: basis.scope.row_count,

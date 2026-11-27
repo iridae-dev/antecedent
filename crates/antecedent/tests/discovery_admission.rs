@@ -36,7 +36,7 @@ fn on_large_stack(name: &str, body: impl FnOnce() + Send + 'static) {
         .unwrap();
 }
 
-/// `z -> t -> y`, `z -> y` with uniform noise, so LiNGAM has a DAG to accept.
+/// `z -> t -> y`, `z -> y` with uniform noise, so `LiNGAM` has a DAG to accept.
 fn chain_table(n: usize, seed: u64) -> TabularData {
     let mut rng = CausalRng::from_seed(seed);
     let mut uniform = || 2.0 * rng.next_f64() - 1.0;

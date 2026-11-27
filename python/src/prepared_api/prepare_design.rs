@@ -623,7 +623,7 @@ impl PyPreparedAnalysis {
         treatment_probabilities, censoring_probabilities, outcome_observed, subject_ids, fold_ids,
         excluded_fold_predictions, probabilities_known_by_design, minimum_probability,
         *, method="ipw", period_outcome_predictions=Vec::new(), known_fixed_outcome_predictions=false, fitted_q=None, schedule_family=None, calibration_design=None, stabilizing_numerator_probabilities=Vec::new(), q_predictions=Vec::new(), observation_history=Vec::new(), prediction_fold_ids=Vec::new(), rule_id=None, rule_version=None, rule_provenance=None, accepted=false, seed=1, threads=None, options=None))]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     fn prepare_longitudinal_regime(
         py: Python<'_>,
         names: Vec<String>,

@@ -41,13 +41,13 @@ struct TransportMean {
     sampling: Option<String>,
 }
 
-fn failure(stage: BundleStage, error: impl ToString) -> NodeFailure {
+fn failure(stage: BundleStage, error: &(impl ToString + ?Sized)) -> NodeFailure {
     NodeFailure { stage, reason: error.to_string() }
 }
 
 fn digest<T: Serialize>(domain: &str, value: &T) -> Result<String, NodeFailure> {
     let bytes = antecedent_io::to_cbor(value)
-        .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
+        .map_err(|error| failure(BundleStage::TamperedQuantity, &error))?;
     Ok(CanonicalWriter::digest_bytes_hex(domain, &bytes))
 }
 
@@ -82,11 +82,11 @@ fn stopped(ctx: &ExecutionContext) -> BundleStage {
 }
 
 fn exact_failure(
-    error: CounterfactualTransportArtifactError,
+    error: &CounterfactualTransportArtifactError,
     ctx: &ExecutionContext,
 ) -> NodeFailure {
     use CounterfactualTransportArtifactError as E;
-    let stage = match &error {
+    let stage = match error {
         E::UnsupportedVersion { .. } => BundleStage::IncompatibleVersion,
         E::LimitsExceeded(_) => BundleStage::ResourceRefused,
         E::Replay { code, .. }
@@ -100,11 +100,11 @@ fn exact_failure(
 }
 
 fn sampled_failure(
-    error: SampledCounterfactualTransportArtifactError,
+    error: &SampledCounterfactualTransportArtifactError,
     ctx: &ExecutionContext,
 ) -> NodeFailure {
     use SampledCounterfactualTransportArtifactError as E;
-    let stage = match &error {
+    let stage = match error {
         E::UnsupportedVersion { .. } => BundleStage::IncompatibleVersion,
         E::LimitsExceeded(_) => BundleStage::ResourceRefused,
         E::Replay { code, .. }
@@ -133,7 +133,7 @@ fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailu
     // Wire decoding and replay retain owned tables and decoded source metadata.
     let _intake = ctx
         .acquire_admission(0, 4 * bytes.len() as u64)
-        .map_err(|error| failure(stopped(ctx), error))?;
+        .map_err(|error| failure(stopped(ctx), &error))?;
     let feature = feature(bytes).ok_or_else(|| {
         failure(BundleStage::SwappedEvidence, "expected a counterfactual transport artifact")
     })?;
@@ -145,7 +145,7 @@ fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailu
                 CounterfactualTransportConsumeLimits::default(),
                 ctx,
             )
-            .map_err(|error| exact_failure(error, ctx))?;
+            .map_err(|error| exact_failure(&error, ctx))?;
             let ConsumedCounterfactualTransportOutcome::Identified(result) = consumed.outcome
             else {
                 return Err(failure(
@@ -170,7 +170,7 @@ fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailu
                 SampledCounterfactualTransportConsumeLimits::default(),
                 ctx,
             )
-            .map_err(|error| sampled_failure(error, ctx))?;
+            .map_err(|error| sampled_failure(&error, ctx))?;
             let Some(point) = consumed.estimate.point else {
                 return Err(failure(
                     BundleStage::UnsupportedLaw,
@@ -178,7 +178,7 @@ fn read(bytes: &[u8], ctx: &ExecutionContext) -> Result<TransportMean, NodeFailu
                 ));
             };
             let sampling = serde_json::to_string(&consumed.wire.estimate)
-                .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
+                .map_err(|error| failure(BundleStage::TamperedQuantity, &error))?;
             Ok(TransportMean {
                 query: consumed.wire.query,
                 variable_names: consumed.wire.variable_names,
@@ -259,7 +259,7 @@ pub(super) fn describe(
     let quantity_wire = antecedent_io::quantity_wire::ScientificQuantityWire::from(quantity);
     let coordinate = coordinate_id(&quantity_wire);
     let quantity_json = serde_json::to_string(&quantity_wire)
-        .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
+        .map_err(|error| failure(BundleStage::TamperedQuantity, &error))?;
     let mut facts = BTreeMap::from([
         (FACT_COORDINATES.into(), coordinate),
         (FACT_EVIDENCE_DIGEST.into(), transport.premises.clone()),
@@ -300,9 +300,9 @@ pub(super) fn decision_bytes(
     let transport = read(bytes, ctx)?;
     let source = transport.source()?;
     let result = evaluate_contract_on_means(contract, &source)
-        .map_err(|error| failure(BundleStage::UnsupportedLaw, error))?;
+        .map_err(|error| failure(BundleStage::UnsupportedLaw, &error))?;
     bound_mean_result_to_bytes(&result, &source.provider_id, artifact_id)
-        .map_err(|error| failure(BundleStage::TamperedQuantity, error))
+        .map_err(|error| failure(BundleStage::TamperedQuantity, &error))
 }
 
 pub(super) struct CounterfactualTransportVerifier(pub(super) ExecutionContext);

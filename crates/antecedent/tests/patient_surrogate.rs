@@ -1,4 +1,5 @@
 //! Public compiler, decision and portable replay of patient-level principal surrogacy.
+#![allow(clippy::float_cmp, reason = "fixtures intentionally pin exact replay and declared values")]
 
 use antecedent::Study;
 use antecedent::analysis::composition::{self, BundleBuilder, SuppliedSources};

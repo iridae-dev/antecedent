@@ -14,11 +14,11 @@ use crate::analysis::kernel_programs::bridge_images::{
 use antecedent_core::ExecutionContext;
 use antecedent_design::composition_verifiers::describe_checked_distribution;
 
-fn failure(reason: impl ToString) -> NodeFailure {
+fn failure(reason: &(impl ToString + ?Sized)) -> NodeFailure {
     NodeFailure { stage: BundleStage::TamperedQuantity, reason: reason.to_string() }
 }
 
-fn replay_failure(error: ExactImageError) -> NodeFailure {
+fn replay_failure(error: &ExactImageError) -> NodeFailure {
     let stage = if error.is_cancelled() {
         BundleStage::ExecutionCancelled
     } else if error.is_resource_refusal() {
@@ -35,13 +35,13 @@ pub(super) fn describe(
     upstream: &[UpstreamNode<'_>],
 ) -> Result<ArtifactDescription, NodeFailure> {
     let (request, binding) = StoredBridgeImage::decode_with_context(bytes, ctx)
-        .map_err(|error| replay_failure(error.into()))?
+        .map_err(|error| replay_failure(&error.into()))?
         .into_parts();
     check_patient_source(&request, upstream)?;
     let source = match &request {
         BridgeImageRequest::IntervalThreshold { .. } => String::new(),
         BridgeImageRequest::TrialConfidence(_) => {
-            request.input_identity().map_err(|e| replay_failure(e.into()))?.to_hex()
+            request.input_identity().map_err(|e| replay_failure(&e.into()))?.to_hex()
         }
         BridgeImageRequest::IdentifiedSet { source, .. } => source.claim_identity.to_hex(),
         BridgeImageRequest::JointOutcomes { source, .. }
@@ -49,7 +49,8 @@ pub(super) fn describe(
             describe_checked_distribution(source)?.identity
         }
     };
-    let (program, result) = replay_stored_image(request, &binding, ctx).map_err(replay_failure)?;
+    let (program, result) =
+        replay_stored_image(request, &binding, ctx).map_err(|error| replay_failure(&error))?;
     let identity = result.identity().to_hex();
     let source = match &result {
         BridgeImageResult::IntervalThreshold(v) => {
@@ -60,10 +61,24 @@ pub(super) fn describe(
     if upstream.iter().any(|node| node.identity != source.as_str()) {
         return Err(failure("an upstream node differs from the image's retained source"));
     }
-    let _result_workspace = result.admit_readout(ctx).map_err(|e| replay_failure(e.into()))?;
-    let (mut facts, values) = match result {
+    let _result_workspace = result.admit_readout(ctx).map_err(|e| replay_failure(&e.into()))?;
+    let (mut facts, values) = readout(result)?;
+    if ctx.cancellation.is_cancelled() {
+        return Err(replay_failure(
+            &BridgeImageError::from(antecedent_io::IoError::StreamCancelled).into(),
+        ));
+    }
+    facts.insert("image_program".into(), program.to_hex());
+    facts.insert("image_source".into(), source);
+    Ok(ArtifactDescription { kind: NodeKind::ScientificBridgeImage, identity, facts, values })
+}
+
+type Readout = (BTreeMap<String, String>, Vec<(String, f64)>);
+
+fn readout(result: BridgeImageResult) -> Result<Readout, NodeFailure> {
+    Ok(match result {
         BridgeImageResult::IntervalThreshold(v) => {
-            let status = serde_json::to_value(&v).map_err(failure)?;
+            let status = serde_json::to_value(&v).map_err(|error| failure(&error))?;
             let facts = BTreeMap::from([
                 ("interval_reading".into(), status["reading"].as_str().unwrap_or_default().into()),
                 ("decision".into(), status["verdict"].as_str().unwrap_or_default().into()),
@@ -129,15 +144,7 @@ pub(super) fn describe(
             let law = describe_checked_distribution(&v.distribution)?;
             (law.facts, law.values)
         }
-    };
-    if ctx.cancellation.is_cancelled() {
-        return Err(replay_failure(
-            BridgeImageError::from(antecedent_io::IoError::StreamCancelled).into(),
-        ));
-    }
-    facts.insert("image_program".into(), program.to_hex());
-    facts.insert("image_source".into(), source);
-    Ok(ArtifactDescription { kind: NodeKind::ScientificBridgeImage, identity, facts, values })
+    })
 }
 
 fn check_patient_source(

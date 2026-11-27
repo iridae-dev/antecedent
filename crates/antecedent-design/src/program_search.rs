@@ -113,7 +113,7 @@ pub enum ProgramSearchError {
     #[error("{summary}")]
     Budget {
         /// The receipt.
-        receipt: antecedent_core::SearchReceipt,
+        receipt: Box<antecedent_core::SearchReceipt>,
         /// Receipt summary.
         summary: String,
     },
@@ -334,7 +334,7 @@ impl PreparedFiniteProgramSearch {
             "program search candidates and controls",
         ) {
             let summary = receipt.summary();
-            return Err(ProgramSearchError::Budget { receipt, summary });
+            return Err(ProgramSearchError::Budget { receipt: Box::new(receipt), summary });
         }
         let retention = Arc::new(
             ctx.acquire_admission(0, retained_bytes)

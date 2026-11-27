@@ -31,14 +31,14 @@ impl InputCopyScope {
         Self(INPUT_COPIES.with(|cell| cell.replace(Some(InputCopies::default()))))
     }
 
-    fn totals(&self) -> InputCopies {
+    fn totals() -> InputCopies {
         INPUT_COPIES.with(|cell| cell.get().expect("input copy scope is active"))
     }
 }
 
 impl Drop for InputCopyScope {
     fn drop(&mut self) {
-        let totals = self.totals();
+        let totals = Self::totals();
         INPUT_COPIES.with(|cell| {
             cell.set(self.0.map(|outer| InputCopies {
                 count: outer.count + totals.count,
@@ -90,7 +90,7 @@ fn observe_native_attempts(
         // Execute once. Original callbacks, cancellation and transaction policies remain in force.
         let scope = InputCopyScope::enter();
         let execution = execute_with_attempt(|| operation.call0().map(Bound::unbind));
-        let input = scope.totals();
+        let input = InputCopyScope::totals();
         drop(scope);
         let rows = execution
             .report

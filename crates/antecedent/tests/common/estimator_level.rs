@@ -272,6 +272,7 @@ impl EstimatorLevelCase {
             functional: self.functional.into(),
             identification: "point".into(),
             reported_level: if self.interval == "none" { 0.0 } else { 0.95 },
+            unit: None,
         }
     }
 }

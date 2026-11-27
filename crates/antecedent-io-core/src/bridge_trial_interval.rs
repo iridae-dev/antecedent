@@ -109,6 +109,7 @@ pub struct TrialBridgeConfidenceInterval {
 
 impl TrialBridgeConfidenceInterval {
     /// Whether the current registry corroborates the original confidence claim.
+    #[must_use]
     pub fn is_calibrated(&self) -> bool {
         self.calibration.status == CalibrationStatus::Calibrated
             && self.calibration.record_id.is_some()
@@ -172,37 +173,7 @@ impl TrialBridgeExperiment {
             .word(u64::from(self.replicates))
             .word(self.seed)
             .opt_text(self.release_design.map(TrialBridgeReleaseDesign::as_str));
-        let (design,source_mean,source) = match (&self.study,&self.contract.source_dependence) {
-            (TrialMeanStudy::Shared,Some(SourceMappingDependence::SharedTrialMean{..})) => {
-                key.text("shared");
-                let mut ordered: Vec<_> = validation.trials.iter().map(|t|t.surrogate_effect).collect();
-                ordered.sort_by(f64::total_cmp);
-                ("shared_trial_mean",ordered.iter().sum::<f64>()/n as f64,shared_trial_bootstrap_source_cancellable(&self.contract,self.replicates as usize,self.seed,&ctx.cancellation)?)
-            },
-            (TrialMeanStudy::Independent{study_id,surrogate_effects},Some(SourceMappingDependence::Independent { .. })) if !study_id.trim().is_empty() && surrogate_effects.iter().all(|v|v.is_finite()) => {
-                let mut ordered = surrogate_effects.clone();
-                ordered.sort_by(f64::total_cmp);
-                let mut evidence=CanonicalWriter::new("antecedent.bridge.independent_source_trials.v1");
-                evidence.text(study_id).word(source_size as u64);
-                for v in &ordered {evidence.word(v.to_bits());}
-                let snapshot=evidence.finish_hex();
-                key.text("independent").text(&snapshot);
-                const SOURCE_STREAM:u64=0xa1ff_1e02_0001;
-                let mut rng=CausalRng::from_seed(derive_stream(self.seed,SOURCE_STREAM));
-                let mut samples=Vec::with_capacity(self.replicates as usize);
-                for _ in 0..self.replicates {
-                    if ctx.cancellation.is_cancelled(){ return Err(antecedent_contract::bridge::propagation_cancelled().into()); }
-                    let mean=(0..source_size).map(|_|ordered[antecedent_kernels::unbiased_index(&mut rng,source_size)]).sum::<f64>()/source_size as f64;
-                    samples.push(mean);
-                }
-                let identity = DistributionIdentity::new(DistributionMeaningWire::Bootstrap,std::slice::from_ref(&self.contract.source.quantity),DrawAlignment::Joint,
-                    DistributionProvenance {source_id:study_id.clone(),provider_id:"scientific_bridge.independent_trial_mean".into(),rng_id:format!("source-trials:{}:{SOURCE_STREAM}",self.seed),
-                        causal_contract_id:self.contract.identity().to_hex(),snapshot_id:snapshot})?;
-                let source=DistributionArtifact::new(DistributionMetadata {version:1,identity,axes:["draw".into(),"quantity".into()],shape:[self.replicates as usize,1],weights:None,supported:None,calibration:DistributionCalibration::NotMeasured,trust:DistributionTrust::Unverified,legacy_posterior:None,legacy_bindings:None},samples)?;
-                ("independent_trial_mean",ordered.iter().sum::<f64>()/source_size as f64,source)
-            }
-            _=>return Err(draws_unusable("source study","declare whether source and validation are the same trials or separate studies, and retain finite source effects").into())
-        };
+        let (design, source_mean, source) = self.source_bootstrap(validation, &mut key, ctx)?;
         let fit = fit_trial_level_linear(validation)?;
         let point = fit.intercept + fit.slope * source_mean;
         if !point.is_finite() || source_mean < fit.surrogate_min || source_mean > fit.surrogate_max
@@ -229,7 +200,108 @@ impl TrialBridgeExperiment {
         } else {
             format!("unequal_source_n={source_size};validation_n={n}")
         };
-        let basis = CalibrationBasisWire {
+        let basis = self.calibration_basis(validation, design, &sample_design);
+        Ok(ConstructedTrialBridgeInterval {
+            quantity: self.contract.target.quantity.clone(),
+            point,
+            endpoints,
+            bootstrap,
+            basis,
+            identity: SemanticDigest::from_bytes(key.finish()),
+        })
+    }
+
+    fn source_bootstrap(
+        &self,
+        validation: &antecedent_contract::bridge::TrialLevelValidation,
+        key: &mut CanonicalWriter,
+        ctx: &ExecutionContext,
+    ) -> Result<(&'static str, f64, DistributionArtifact), JointOutcomeBridgeError> {
+        let n = validation.trials.len();
+        match (&self.study, &self.contract.source_dependence) {
+            (TrialMeanStudy::Shared, Some(SourceMappingDependence::SharedTrialMean { .. })) => {
+                key.text("shared");
+                let mut ordered: Vec<_> = validation.trials.iter().map(|t| t.surrogate_effect).collect();
+                ordered.sort_by(f64::total_cmp);
+                Ok(("shared_trial_mean", ordered.iter().sum::<f64>() / n as f64, shared_trial_bootstrap_source_cancellable(&self.contract, self.replicates as usize, self.seed, &ctx.cancellation)?))
+            }
+            (TrialMeanStudy::Independent { study_id, surrogate_effects }, Some(SourceMappingDependence::Independent { .. }))
+                if !study_id.trim().is_empty() && surrogate_effects.iter().all(|v| v.is_finite()) =>
+            {
+                self.independent_source(study_id, surrogate_effects, key, ctx)
+            }
+            _ => Err(draws_unusable("source study", "declare whether source and validation are the same trials or separate studies, and retain finite source effects").into()),
+        }
+    }
+
+    fn independent_source(
+        &self,
+        study_id: &str,
+        surrogate_effects: &[f64],
+        key: &mut CanonicalWriter,
+        ctx: &ExecutionContext,
+    ) -> Result<(&'static str, f64, DistributionArtifact), JointOutcomeBridgeError> {
+        const SOURCE_STREAM: u64 = 0xa1ff_1e02_0001;
+        let source_size = surrogate_effects.len();
+        let mut ordered = surrogate_effects.to_vec();
+        ordered.sort_by(f64::total_cmp);
+        let mut evidence = CanonicalWriter::new("antecedent.bridge.independent_source_trials.v1");
+        evidence.text(study_id).word(source_size as u64);
+        for v in &ordered {
+            evidence.word(v.to_bits());
+        }
+        let snapshot = evidence.finish_hex();
+        key.text("independent").text(&snapshot);
+        let mut rng = CausalRng::from_seed(derive_stream(self.seed, SOURCE_STREAM));
+        let mut samples = Vec::with_capacity(self.replicates as usize);
+        for _ in 0..self.replicates {
+            if ctx.cancellation.is_cancelled() {
+                return Err(antecedent_contract::bridge::propagation_cancelled().into());
+            }
+            let mean = (0..source_size)
+                .map(|_| ordered[antecedent_kernels::unbiased_index(&mut rng, source_size)])
+                .sum::<f64>()
+                / source_size as f64;
+            samples.push(mean);
+        }
+        let identity = DistributionIdentity::new(
+            DistributionMeaningWire::Bootstrap,
+            std::slice::from_ref(&self.contract.source.quantity),
+            DrawAlignment::Joint,
+            DistributionProvenance {
+                source_id: study_id.to_owned(),
+                provider_id: "scientific_bridge.independent_trial_mean".into(),
+                rng_id: format!("source-trials:{}:{SOURCE_STREAM}", self.seed),
+                causal_contract_id: self.contract.identity().to_hex(),
+                snapshot_id: snapshot,
+            },
+        )?;
+        let source = DistributionArtifact::new(
+            DistributionMetadata {
+                version: 1,
+                identity,
+                axes: ["draw".into(), "quantity".into()],
+                shape: [self.replicates as usize, 1],
+                weights: None,
+                supported: None,
+                calibration: DistributionCalibration::NotMeasured,
+                trust: DistributionTrust::Unverified,
+                legacy_posterior: None,
+                legacy_bindings: None,
+            },
+            samples,
+        )?;
+        Ok(("independent_trial_mean", ordered.iter().sum::<f64>() / source_size as f64, source))
+    }
+
+    fn calibration_basis(
+        &self,
+        validation: &antecedent_contract::bridge::TrialLevelValidation,
+        design: &str,
+        sample_design: &str,
+    ) -> CalibrationBasisWire {
+        let n = validation.trials.len();
+        CalibrationBasisWire {
             key: CalibrationKeyWire {
                 validation: "not_applicable".into(),
                 query: "TrialBridgePercentileInterval".into(),
@@ -258,15 +330,7 @@ impl TrialBridgeExperiment {
                 posterior_draws: None,
                 unidentified_mass: 0.,
             },
-        };
-        Ok(ConstructedTrialBridgeInterval {
-            quantity: self.contract.target.quantity.clone(),
-            point,
-            endpoints,
-            bootstrap,
-            basis,
-            identity: SemanticDigest::from_bytes(key.finish()),
-        })
+        }
     }
 
     fn check_release_design(

@@ -211,6 +211,7 @@ pub(super) fn propagation_admission_refused(
 }
 
 /// The caller cancelled a propagation; no moments are reported.
+#[must_use]
 pub fn propagation_cancelled() -> BridgeRefusal {
     ExternalRefusal::new(
         antecedent_core::reason_code!("cancelled_no_claim"),

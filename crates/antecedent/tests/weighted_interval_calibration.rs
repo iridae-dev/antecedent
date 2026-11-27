@@ -547,6 +547,7 @@ fn construction_for(
         functional: format!("{functional}+{}", antecedent::estimator_spec::SAMPLING_WEIGHTS_LABEL),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

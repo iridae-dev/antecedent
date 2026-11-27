@@ -71,6 +71,14 @@ pub enum UnitRef {
     },
     /// A capability unit.
     Capability(UnitId),
+    /// A construction on a support-matrix cell whose support carries only through its own
+    /// executed construction check (`construction_evidence:<key>`).
+    Construction {
+        /// The cell the construction runs on.
+        cell: SupportCell,
+        /// The construction key.
+        key: &'static str,
+    },
 }
 
 impl UnitRef {
@@ -83,8 +91,46 @@ impl UnitRef {
                 format!("{family}/{design}/{method}/{inference_claim}")
             }
             Self::Capability(id) => id.as_str().to_owned(),
+            Self::Construction { cell, key } => format!("construction {key} on {cell:?}"),
         }
     }
+
+    /// The kind of evidence record that owns the unit: `matrix`, `graphless`, `capability` or
+    /// `construction`.
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Matrix(_) => "matrix",
+            Self::Graphless { .. } => "graphless",
+            Self::Capability(_) => "capability",
+            Self::Construction { .. } => "construction",
+        }
+    }
+
+    /// The unit's record id in `parity/unit_index.json`: the cell coordinate joined by `/`, the
+    /// graphless key joined by `:`, the capability record id, or `<cell>#<key>`.
+    #[must_use]
+    pub fn record_id(&self) -> String {
+        match self {
+            Self::Matrix(cell) => matrix_record_id(*cell),
+            Self::Graphless { family, design, method, inference_claim } => {
+                format!("{family}:{design}:{method}:{inference_claim}")
+            }
+            Self::Capability(id) => id.as_str().to_owned(),
+            Self::Construction { cell, key } => format!("{}#{key}", matrix_record_id(*cell)),
+        }
+    }
+}
+
+fn matrix_record_id(cell: SupportCell) -> String {
+    format!(
+        "{}/{}/{}/{}/{}",
+        cell.query.as_str(),
+        cell.graph_class.as_str(),
+        cell.structure.as_str(),
+        cell.inference.as_str(),
+        cell.validation.as_str()
+    )
 }
 
 /// The support status of one unit and the evidence it still lacks.
@@ -106,6 +152,12 @@ pub struct UnitDecision {
 /// is not supported, so a gated route refuses rather than runs on a misread status.
 #[must_use]
 pub fn decide(key: &SupportKey<'_>) -> UnitDecision {
+    let decision = decide_untraced(key);
+    super::trace::executed(&decision.unit, &decision.status);
+    decision
+}
+
+fn decide_untraced(key: &SupportKey<'_>) -> UnitDecision {
     match key {
         SupportKey::Matrix(cell) => {
             let status = classify(*cell);
@@ -337,6 +389,22 @@ mod tests {
             decision.unit.label(),
             "no_such_family/no_such_design/no_such_method/no_such_claim"
         );
+    }
+
+    #[test]
+    fn each_unit_kind_has_the_record_id_of_its_claim_source() {
+        let cell = supported_cells().next().expect("the matrix lists a supported cell");
+        let coordinate = crate::support::cell_coordinate(cell).replace(':', "/");
+        assert_eq!(UnitRef::Matrix(cell).record_id(), coordinate);
+        assert_eq!(UnitRef::Construction { cell, key: "k" }.record_id(), format!("{coordinate}#k"));
+        assert_eq!(UnitRef::Capability(UnitId::new("a.b")).record_id(), "a.b");
+        let row = UnitRef::Graphless {
+            family: "f".into(),
+            design: "d".into(),
+            method: "m".into(),
+            inference_claim: "c".into(),
+        };
+        assert_eq!((row.kind(), row.record_id().as_str()), ("graphless", "f:d:m:c"));
     }
 
     #[test]

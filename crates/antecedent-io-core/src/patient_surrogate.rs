@@ -24,6 +24,7 @@ const MAX_LABEL: usize = 128;
 /// Premises and endpoint coordinates of a parallel patient-randomized trial.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::struct_excessive_bools)] // Four independent declared premises of the design.
 pub struct PatientSurrogateDesign {
     /// Stable randomized study identity.
     pub trial_id: String,

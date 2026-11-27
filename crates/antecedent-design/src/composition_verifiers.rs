@@ -550,56 +550,56 @@ fn inspect_longitudinal_regime(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
         push_value(&mut inspected.values, "upper_95".into(), hi);
     }
     if let Some(family) = &fit.schedule_family {
-        for contrast in &family.contrasts {
-            let key = format!("schedule.{}.versus.{}", contrast.schedule, contrast.reference);
-            push_value(&mut inspected.values, format!("{key}.difference"), contrast.difference);
-            push_value(&mut inspected.values, format!("{key}.lower_95"), contrast.interval[0]);
-            push_value(&mut inspected.values, format!("{key}.upper_95"), contrast.interval[1]);
+        publish_schedule_family(&mut inspected, family, claim);
+    }
+    Ok(inspected)
+}
+
+fn publish_schedule_family(
+    inspected: &mut Inspected,
+    family: &antecedent_io_core::analysis_result_artifact::LongitudinalScheduleResultWire,
+    claim: &antecedent_io_core::ClaimSectionWire,
+) {
+    for contrast in &family.contrasts {
+        let key = format!("schedule.{}.versus.{}", contrast.schedule, contrast.reference);
+        push_value(&mut inspected.values, format!("{key}.difference"), contrast.difference);
+        push_value(&mut inspected.values, format!("{key}.lower_95"), contrast.interval[0]);
+        push_value(&mut inspected.values, format!("{key}.upper_95"), contrast.interval[1]);
+    }
+    if let Some(learning) = &family.learning {
+        if let Some(basis) = &claim.calibration.basis {
+            publish(
+                &mut inspected.facts,
+                "selected_value.calibration_functional",
+                basis.key.functional.clone(),
+            );
         }
-        if let Some(learning) = &family.learning {
-            if let Some(basis) = &claim.calibration.basis {
+        if let Some(calibration) = claim.calibration.secondary.first() {
+            publish(&mut inspected.facts, "optimum_set.calibration", calibration.status.as_str());
+            if let Some(basis) = &calibration.basis {
                 publish(
                     &mut inspected.facts,
-                    "selected_value.calibration_functional",
+                    "optimum_set.calibration_functional",
                     basis.key.functional.clone(),
                 );
             }
-            if let Some(calibration) = claim.calibration.secondary.first() {
-                publish(
-                    &mut inspected.facts,
-                    "optimum_set.calibration",
-                    calibration.status.as_str(),
-                );
-                if let Some(basis) = &calibration.basis {
-                    publish(
-                        &mut inspected.facts,
-                        "optimum_set.calibration_functional",
-                        basis.key.functional.clone(),
-                    );
-                }
-                if let Some(record_id) = &calibration.record_id {
-                    publish(
-                        &mut inspected.facts,
-                        "optimum_set.calibration_record",
-                        record_id.clone(),
-                    );
-                }
-            } else {
-                publish(&mut inspected.facts, "optimum_set.calibration", "not_measured");
+            if let Some(record_id) = &calibration.record_id {
+                publish(&mut inspected.facts, "optimum_set.calibration_record", record_id.clone());
             }
-            push_value(
-                &mut inspected.values,
-                "selected_schedule".into(),
-                f64::from(learning.selected_schedule),
-            );
-            publish(
-                &mut inspected.facts,
-                "optimum_set",
-                learning.optimum_set.iter().map(u8::to_string).collect::<Vec<_>>().join(","),
-            );
+        } else {
+            publish(&mut inspected.facts, "optimum_set.calibration", "not_measured");
         }
+        push_value(
+            &mut inspected.values,
+            "selected_schedule".into(),
+            f64::from(learning.selected_schedule),
+        );
+        publish(
+            &mut inspected.facts,
+            "optimum_set",
+            learning.optimum_set.iter().map(u8::to_string).collect::<Vec<_>>().join(","),
+        );
     }
-    Ok(inspected)
 }
 
 fn inspect_pag_identification(bytes: &[u8]) -> Result<Inspected, NodeFailure> {
@@ -893,38 +893,47 @@ fn cross_check(
         }
     }
     if let (true, Some(contract)) = (inspected.bound_to_contract, matched_contract) {
-        for key in [FACT_REQUIRES_LAW, FACT_REQUIRES_DISTRIBUTION] {
-            if let Some(value) = contract.facts.get(key) {
-                publish(&mut inspected.facts, key, value.clone());
-            }
+        check_contract_sources(inspected, contract, &matched)?;
+    }
+    Ok(())
+}
+
+fn check_contract_sources(
+    inspected: &mut Inspected,
+    contract: &UpstreamNode<'_>,
+    matched: &[&UpstreamNode<'_>],
+) -> Result<(), NodeFailure> {
+    for key in [FACT_REQUIRES_LAW, FACT_REQUIRES_DISTRIBUTION] {
+        if let Some(value) = contract.facts.get(key) {
+            publish(&mut inspected.facts, key, value.clone());
         }
-        if let Some(own) = contract.facts.get(FACT_COORDINATES)
-            && !matched.is_empty()
-            && !covered(own, &matched)
-        {
-            return Err(failure(
-                BundleStage::TamperedQuantity,
-                "an action reads a coordinate its sources do not carry",
-            ));
-        }
-        if contract.facts.contains_key(FACT_REQUIRES_DISTRIBUTION)
-            && let Some(mean_only) = matched
-                .iter()
-                .find(|s| s.facts.get(FACT_LAW).map(String::as_str) == Some(LAW_MEAN_ONLY))
-        {
-            return Err(failure(
-                BundleStage::UnsupportedLaw,
-                format!(
-                    "the decision needs a distribution but upstream node `{}` supplies a mean only",
-                    mean_only.id
-                ),
-            ));
-        }
-        if let Some(transport) =
-            matched.iter().find(|node| node.kind == NodeKind::CounterfactualTransportResult)
-        {
-            artifact_inspection::replay_counterfactual_decision(inspected, contract, transport)?;
-        }
+    }
+    if let Some(own) = contract.facts.get(FACT_COORDINATES)
+        && !matched.is_empty()
+        && !covered(own, matched)
+    {
+        return Err(failure(
+            BundleStage::TamperedQuantity,
+            "an action reads a coordinate its sources do not carry",
+        ));
+    }
+    if contract.facts.contains_key(FACT_REQUIRES_DISTRIBUTION)
+        && let Some(mean_only) = matched
+            .iter()
+            .find(|s| s.facts.get(FACT_LAW).map(String::as_str) == Some(LAW_MEAN_ONLY))
+    {
+        return Err(failure(
+            BundleStage::UnsupportedLaw,
+            format!(
+                "the decision needs a distribution but upstream node `{}` supplies a mean only",
+                mean_only.id
+            ),
+        ));
+    }
+    if let Some(transport) =
+        matched.iter().find(|node| node.kind == NodeKind::CounterfactualTransportResult)
+    {
+        artifact_inspection::replay_counterfactual_decision(inspected, contract, transport)?;
     }
     Ok(())
 }

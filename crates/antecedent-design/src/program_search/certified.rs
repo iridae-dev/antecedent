@@ -351,7 +351,7 @@ impl PreparedCertifiedSearch {
             "program search candidates and controls",
         ) {
             let summary = receipt.summary();
-            return Err(ProgramSearchError::Budget { receipt, summary });
+            return Err(ProgramSearchError::Budget { receipt: Box::new(receipt), summary });
         }
         Ok(Arc::new(
             ctx.acquire_admission(0, quote as u64)

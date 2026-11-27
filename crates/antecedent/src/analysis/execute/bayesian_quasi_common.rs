@@ -262,10 +262,11 @@ pub(super) fn state_row_with_resamples(
 ) {
     let draws = result.posterior.as_ref().map_or(0, |posterior| posterior.draws.n_draws);
     if draws < DESIGN_ROW_MEASURED_DRAWS
-        || !antecedent_io::graphless_support::graphless_admits_resampled(key, observed, resampled)
+        || !crate::support::admits_resampled(key, observed, resampled)
     {
         return;
     }
+    result.extras.unit = Some(crate::support::graphless_unit(key));
     result
         .diagnostics
         .retain(|diagnostic| diagnostic.code.as_ref() != "estimate.quasi.bayesian.unsupported");

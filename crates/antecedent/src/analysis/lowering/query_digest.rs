@@ -246,6 +246,7 @@ fn audit_identification_inputs(study: &Study) {
         // Derived from the query and graph at build.
         structure_source: _,
         support_status: _,
+        support_unit: _,
         declared,
         settings,
         latency_mode: _,

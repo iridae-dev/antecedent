@@ -503,7 +503,7 @@ impl CheckedPanelDidOperation {
             replicates_ok: None,
             augmented: None,
         });
-        if crate::support::support_if_graphless(
+        if let Some(unit) = crate::support::graphless_supported_unit(
             panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -513,10 +513,8 @@ impl CheckedPanelDidOperation {
                 reported_intervals: usize::from(interval_95.is_some()),
                 ..Default::default()
             },
-        )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        ) {
+            result.stamp_supported(unit);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -923,7 +921,7 @@ impl CheckedPanelDidOperation {
                 && resampled_quantity.is_some()
                 && summary.replicates_ok == summary.requested
         }) && pick(&self.query.clusters, &keep).iter().collect::<BTreeSet<_>>().len() == subjects
-            && antecedent_io::graphless_support::graphless_admits_resampled(
+            && crate::support::admits_resampled(
                 crate::support::GraphlessSupportKey {
                     family: "difference_in_differences",
                     design: "augmented_panel",
@@ -999,20 +997,23 @@ impl CheckedPanelDidOperation {
         let representative_treated_clusters = treated_cluster_count(representative.cohort);
         let published_intervals =
             event_time_intervals_95.iter().filter(|interval| interval.is_some()).count();
-        let graphless_supported = representative_interval.is_some()
-            && !self.extra.restricted
-            && crate::support::support_if_graphless(
-                panel_did_graphless_key(antecedent_core::DidSamplingDesign::StaggeredEventStudy),
-                crate::support::GraphlessAssignmentSupport {
-                    assignment_unit: "cluster",
-                    treated: representative_treated_clusters,
-                    control: control_cluster_count,
-                    interval_95_published: true,
-                    reported_intervals: published_intervals,
-                    ..Default::default()
-                },
-            )
-            .is_some();
+        let graphless_unit = (representative_interval.is_some() && !self.extra.restricted)
+            .then(|| {
+                crate::support::graphless_supported_unit(
+                    panel_did_graphless_key(
+                        antecedent_core::DidSamplingDesign::StaggeredEventStudy,
+                    ),
+                    crate::support::GraphlessAssignmentSupport {
+                        assignment_unit: "cluster",
+                        treated: representative_treated_clusters,
+                        control: control_cluster_count,
+                        interval_95_published: true,
+                        reported_intervals: published_intervals,
+                        ..Default::default()
+                    },
+                )
+            })
+            .flatten();
         let pretrend_diagnostic = pretrend_diagnostic(&effects);
         let estimate = EffectEstimate::new(
             representative.effect,
@@ -1059,8 +1060,8 @@ impl CheckedPanelDidOperation {
             replicates_ok: None,
             augmented: None,
         });
-        if graphless_supported {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        if let Some(unit) = graphless_unit {
+            result.stamp_supported(unit);
         }
         result.treatment = None;
         result.rebind_interval(false);
@@ -1240,7 +1241,7 @@ impl CheckedPanelDidOperation {
             replicates_ok: None,
             augmented: None,
         });
-        if crate::support::support_if_graphless(
+        if let Some(unit) = crate::support::graphless_supported_unit(
             panel_did_graphless_key(antecedent_core::DidSamplingDesign::RepeatedCrossSection),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -1252,10 +1253,8 @@ impl CheckedPanelDidOperation {
                 reported_intervals: usize::from(interval_95.is_some()),
                 ..Default::default()
             },
-        )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        ) {
+            result.stamp_supported(unit);
         }
         result.treatment = None;
         result.rebind_interval(false);

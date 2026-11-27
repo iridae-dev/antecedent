@@ -619,7 +619,7 @@ impl PreparedStudy {
             self.analysis.settings.inference,
             InferenceMode::Bayesian(_)
         ));
-        result.support_status = self.analysis.support_status;
+        result.stamp_support(self.analysis.support_status, self.analysis.support_unit.clone());
         result.extras.would_refuse.clone_from(&self.analysis.would_refuse);
         result.structure_source = self.analysis.structure_source;
         let retargeted = result.retarget_population();
@@ -834,5 +834,21 @@ mod tests {
         );
         let table = prepared.score_table().unwrap().clone();
         refused(prepared.retarget_table(&table, &weights, &[]).unwrap_err());
+    }
+
+    #[test]
+    fn a_supported_result_names_its_cell_and_without_it_is_not_supported() {
+        let ctx = ExecutionContext::for_tests(36);
+        let prepared = prepared(&ctx);
+        let weights = vec![1.0; prepared.score_table().expect("prepare keeps the table").n_rows];
+        let mut result =
+            prepared.retarget(&weights, &[], &ctx).expect("a supported cell retargets");
+        assert_eq!(result.support_status(), Some(CellStatus::Supported));
+        let unit = result.unit().expect("a supported result names its unit");
+        assert_eq!(unit.kind(), "matrix");
+        assert_eq!(unit.record_id(), "AverageEffect/Dag/explicit/Frequentist/none");
+
+        result.extras.unit = None;
+        assert_eq!(result.support_status(), Some(CellStatus::NotSupported));
     }
 }

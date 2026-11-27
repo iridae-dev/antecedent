@@ -20,6 +20,7 @@ whole file.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import re
@@ -395,6 +396,13 @@ class File:
         return "\n".join(self.text[x:y].strip() for x, y in self.docs if a <= x < b)
 
     def part(self, node: Node, part: str) -> str:
+        parts = self.__dict__.setdefault("_parts", {})
+        key = (id(node), part)
+        if key not in parts:
+            parts[key] = self._part(node, part)
+        return parts[key]
+
+    def _part(self, node: Node, part: str) -> str:
         if part == "full":
             text = self._norm(node.start, node.end)
             if self.reads_docs(node):
@@ -465,7 +473,8 @@ class File:
 _USE_TOKEN = re.compile(r"::|\*|\{|\}|,|(?:r#)?[A-Za-z_][A-Za-z0-9_]*")
 
 
-def use_bindings(text: str) -> tuple[set[str], bool]:
+@functools.lru_cache(maxsize=None)
+def use_bindings(text: str) -> tuple[frozenset[str], bool]:
     """Names a `use` declaration binds, and whether it has a glob."""
     tokens = _USE_TOKEN.findall(text)
     names: set[str] = set()
@@ -509,7 +518,7 @@ def use_bindings(text: str) -> tuple[set[str], bool]:
     if start < len(tokens) and tokens[start] == "::":
         start += 1
     tree(start, [])
-    return names, glob
+    return frozenset(names), glob
 
 
 def scope_entries(file: File, module: Node, names, traits: bool) -> list:
@@ -518,18 +527,34 @@ def scope_entries(file: File, module: Node, names, traits: bool) -> list:
     `names` is any container of identifiers.
     """
     entries = []
-    for child in module.children:
-        if child.kind == "use":
-            bound, glob = use_bindings(file.part(child, "full"))
-            if glob or traits or any(name in names for name in bound):
-                entries.append(["use", file.part(child, "full")])
-        elif child.kind in ("macro", "extern_crate"):
-            entries.append([child.kind, file.part(child, "full")])
-        elif child.name in names:
-            entries.append([child.kind, child.name, child.locator])
-        if traits and child.kind == "trait":
-            entries.append(["trait", child.name, child.locator])
+    for kind, value, bound, fixed in _scope_children(file, module):
+        if kind == "use":
+            if fixed or traits or any(name in names for name in bound):
+                entries.append(value)
+        elif fixed or value[1] in names:
+            entries.append(value)
+        if traits and kind == "trait":
+            entries.append(["trait", value[1], value[2]])
     return entries
+
+
+def _scope_children(file: File, module: Node) -> list:
+    """`module`'s children as (kind, entry, use bindings, always kept), once per file and module."""
+    cache = file.__dict__.setdefault("_scopes", {})
+    key = id(module)
+    if key not in cache:
+        rows = []
+        for child in module.children:
+            if child.kind == "use":
+                text = file.part(child, "full")
+                bound, glob = use_bindings(text)
+                rows.append(("use", ["use", text], bound, glob))
+            elif child.kind in ("macro", "extern_crate"):
+                rows.append((child.kind, [child.kind, file.part(child, "full")], (), True))
+            else:
+                rows.append((child.kind, [child.kind, child.name, child.locator], (), False))
+        cache[key] = (module, rows)
+    return cache[key][1]
 
 
 # ---------------------------------------------------------------------- impl heads

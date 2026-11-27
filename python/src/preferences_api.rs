@@ -1193,7 +1193,7 @@ fn export_preference_decision<'py>(
         let program = match compile_tradeoff_decision(contract, measure, options, source, &ctx) {
             Ok(program) => program,
             Err(TerminalError::Kernel(error)) => {
-                let error = PreferenceArtifactError::Evaluation(error);
+                let error = PreferenceArtifactError::Evaluation(Box::new(error));
                 return Ok((None, Some(refusal(&error.to_refusal()))));
             }
             Err(TerminalError::Refused(error)) => return Err(crate::py_err(error)),

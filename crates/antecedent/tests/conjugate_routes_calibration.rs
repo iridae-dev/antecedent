@@ -110,6 +110,7 @@ fn cell_interval(
         dependence: "iid".into(),
         functional: functional.into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
         ..base
     };
     let scope = ScopeFacts { replicates_ok: None, posterior_draws: None, ..scope };
@@ -254,6 +255,7 @@ fn selection_construction(
         functional: functional.into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     };
     (interval, construction)
 }

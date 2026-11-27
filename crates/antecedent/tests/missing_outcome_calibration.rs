@@ -81,6 +81,7 @@ fn construction(estimator: &str) -> Construction {
         functional: "randomized_itt".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

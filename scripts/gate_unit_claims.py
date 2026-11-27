@@ -4,7 +4,7 @@
 A publisher is an `EstimatorId`, a `PlanRoute` the lowering table or a program family
 introduces, a support-matrix cell, a graphless row, or an `owner` row of
 parity/compiled_path.toml. The declaration is a calibration list, a coverage record the
-unit names or its claim file (parity/claims/<kind>/<id>.json) carries, or an explicit
+unit names or the unit index (parity/unit_index.json) links to it, or an explicit
 `no_interval_reported` / `estimator_grid_not_measured` reason. A unit that publishes no
 sampling interval declares nothing. A name with neither is a missing publisher: the claim
 is owed. The declaration is an annotation; it never decides whether a unit runs. A flagged
@@ -13,6 +13,7 @@ pass is a different failure and is not decided here.
 
 from __future__ import annotations
 
+import functools
 import json
 import re
 import sys
@@ -20,7 +21,6 @@ from pathlib import Path
 
 import gate_support
 from _repo import load_toml
-from claim_passes import claim_path
 
 ROOT = Path(__file__).resolve().parents[1]
 NO_INTERVAL = "no_interval_reported"
@@ -55,25 +55,29 @@ def publishes_interval(row: dict) -> bool:
     return any(route.get("claim") in INTERVAL_ROUTES for route in row.get("routes") or [])
 
 
-def _claim(root: Path, kind: str, ident: str) -> dict:
-    path = claim_path(root, kind, ident)
-    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+@functools.cache
+def _index(root: Path) -> dict[tuple[str, str], int]:
+    """(kind, id) -> how many coverage records the unit index links to the unit."""
+    path = root / "parity" / "unit_index.json"
+    if not path.is_file():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {(u["kind"], u["id"]): len(u["calibration"]) for u in data["units"]}
 
 
 def claim_measured(root: Path, kind: str, ident: str) -> bool:
-    """The unit's claim file carries a measurement or a calibration group."""
-    claim = _claim(root, kind, ident)
-    return bool(claim.get("measurements") or claim.get("groups"))
+    """A coverage record measures the unit (parity/unit_index.json)."""
+    return bool(_index(root).get((kind, ident)))
 
 
 def contradicted(root: Path, kind: str, ident: str, row: dict) -> str | None:
-    """A unit that states it measured nothing while its claim carries measurements."""
+    """A unit that states it measured nothing while a coverage record measures it."""
     if row.get("calibration_reason") != UNMEASURED:
         return None
-    count = len(_claim(root, kind, ident).get("measurements") or [])
+    count = _index(root).get((kind, ident), 0)
     if not count:
         return None
-    return f"{kind} {ident}: states {UNMEASURED} but its claim carries {count} measurement(s)"
+    return f"{kind} {ident}: states {UNMEASURED} but {count} coverage record(s) measure it"
 
 
 def _declaration(row: dict, measured: bool = False) -> bool:
@@ -184,12 +188,13 @@ def _self_test() -> None:
     assert _declaration({"routes": [{"claim": "structural_envelope"}]})
     import tempfile
 
-    from claim_passes import write_claim
-
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
-        write_claim(root, "graphless", "a:b", {"measurements": ["cov.x"]})
-        write_claim(root, "graphless", "a:c", {"measurements": [], "groups": ["f: t"]})
+        (root / "parity").mkdir()
+        (root / "parity" / "unit_index.json").write_text(json.dumps({"units": [
+            {"kind": "graphless", "id": "a:b", "calibration": [0]},
+            {"kind": "graphless", "id": "a:c", "calibration": []},
+        ]}), encoding="utf-8")
         unmeasured = {"calibration_reason": UNMEASURED}
         assert contradicted(root, "graphless", "a:b", unmeasured)
         assert not contradicted(root, "graphless", "a:c", unmeasured)

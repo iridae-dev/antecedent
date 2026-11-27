@@ -196,6 +196,7 @@ fn construction(estimator: &str, se_kind: &str) -> Construction {
         functional: "randomized_itt".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 
@@ -753,6 +754,7 @@ fn measure_decision_margin(test: &'static str, centered: bool) {
             functional: basis.functional.to_string(),
             identification: basis.identification.to_string(),
             reported_level: basis.level,
+            unit: None,
         };
         tally.bind_validation(
             &construction,
@@ -998,6 +1000,7 @@ fn bind_decision_candidate(tally: &mut CoverageTally, basis: &antecedent_core::C
         functional: basis.functional.to_string(),
         identification: basis.identification.to_string(),
         reported_level: basis.level,
+        unit: None,
     };
     tally.bind_validation(
         &construction,

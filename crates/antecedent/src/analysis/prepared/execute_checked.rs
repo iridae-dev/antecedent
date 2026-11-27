@@ -651,7 +651,7 @@ impl PreparedStudy {
             .collect::<Vec<_>>();
         stamp_result_context(
             &mut result,
-            self.analysis.support_status,
+            (self.analysis.support_status, self.analysis.support_unit.as_ref()),
             self.analysis.structure_source,
             self.analysis.declared.population_registry.as_ref(),
             &custom_validator_names,
@@ -759,7 +759,7 @@ impl PreparedStudy {
         });
         stamp_result_context(
             &mut result,
-            metadata.support_status,
+            (metadata.support_status, metadata.support_unit),
             metadata.structure_source,
             metadata.population_registry,
             metadata.custom_validator_names,

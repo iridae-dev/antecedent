@@ -77,6 +77,8 @@ pub(crate) const DISCOVERY_SAMPLE_SPLIT_EFFECT: UnitId =
     UnitId::new("discovery.sample_split_effect");
 pub(crate) const DISCOVERY_SAMPLE_SPLIT_PARENT_SET_EFFECT: UnitId =
     UnitId::new("discovery.sample_split_parent_set_effect");
+pub(crate) const DISCOVERY_STRUCTURE_POSTERIOR: UnitId =
+    UnitId::new("discovery.structure_posterior");
 pub(crate) const ESTIMATE_DESCRIPTIVE_COMPARISON: UnitId =
     UnitId::new("estimate.descriptive_comparison");
 pub(crate) const ESTIMATE_DOSE_GRID_BIAS_AWARE: UnitId =
@@ -287,6 +289,7 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "PerPopulationStructureSearch" => Some(DISCOVERY_PER_POPULATION),
         "SampleSplitEffect" => Some(DISCOVERY_SAMPLE_SPLIT_EFFECT),
         "SampleSplitParentSetEffect" => Some(DISCOVERY_SAMPLE_SPLIT_PARENT_SET_EFFECT),
+        "DiscoverStatic" | "DiscoverTemporal" => Some(DISCOVERY_STRUCTURE_POSTERIOR),
         "DescriptiveComparison" => Some(ESTIMATE_DESCRIPTIVE_COMPARISON),
         "DoseGridBiasAware" => Some(ESTIMATE_DOSE_GRID_BIAS_AWARE),
         "JointCellsLearnerFit" => Some(ESTIMATE_JOINT_CELLS_CALLER_LEARNERS),
@@ -298,9 +301,9 @@ pub(crate) fn unit_of(route: &str) -> Option<UnitId> {
         "HawkesExcitation" => Some(FORECAST_HAWKES_EXCITATION),
         "HawkesParameterBridge" => Some(FORECAST_HAWKES_PARAMETER_BRIDGE),
         "MarkedEventProcess" => Some(FORECAST_MARKED_EVENT_PROCESS),
-        "FittedModelAttribution" => Some(GCM_ATTRIBUTE_MECHANISM_REFIT),
+        "FittedModelAttribution" | "GcmAttributeDag" => Some(GCM_ATTRIBUTE_MECHANISM_REFIT),
         "GraphFalsification" => Some(GCM_MODEL_GRAPH_FALSIFICATION),
-        "FittedModelSimulation" => Some(GCM_SIMULATE_MECHANISM_REFIT),
+        "FittedModelSimulation" | "GcmSimulateDag" => Some(GCM_SIMULATE_MECHANISM_REFIT),
         "GraphImputation" => Some(GRAPH_IMPUTATION_COMPILED_CANDIDATE),
         "GraphImputationBernoulliPredictiveClusterBootstrapDecision"
         | "GraphImputationBernoulliPredictiveWorldDecision"

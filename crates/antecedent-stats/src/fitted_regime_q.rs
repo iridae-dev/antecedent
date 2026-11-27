@@ -180,8 +180,8 @@ pub fn estimate_fitted_regime_q(
     let evaluation_subjects = training_fold.map_or(subjects, |fold| subjects - folds[fold].len());
     let mut cells = vec![[Cell::default(); 2]; folds.len()];
     let mut weights = vec![1.0; subjects];
-    let value = estimate(rows, &folds, &weights, actions, training_fold, &mut cells).ok_or_else(
-        || StatsError::Unsupported {
+    let value = estimate(rows, &folds, &weights, actions, training_fold, &mut cells).ok_or(
+        StatsError::Unsupported {
             message:
                 "the training split has no observed regime match for an evaluated baseline stratum",
         },

@@ -3608,21 +3608,6 @@ struct PredictiveTerminalWire {
     seed: u64,
     artifact: Vec<u8>,
 }
-// Mirrors the portable chain-decision envelope solely to compile its retained
-// declaration without scoring it. Execution always uses its own consumer.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct PredictiveChainDeclaration {
-    version: u32,
-    required_feature: String,
-    chain_record: Vec<u8>,
-    chain_identity: String,
-    contract: Vec<u8>,
-    contract_identity: String,
-    decision_fingerprint: String,
-    lowered_program_identity: [u8; 32],
-}
-
 fn predictive_facts(
     result: &super::propagation_chain_decision::ChainDecisionResult,
 ) -> Result<std::collections::BTreeMap<String, String>, IoError> {
@@ -3957,7 +3942,9 @@ fn compile_predictive_fit_decision_bundle(
     if terminal_wire.version != 1 || terminal_wire.feature != PREDICTIVE_DECISION_FEATURE {
         return Err(PredictiveFitDecisionBundleError::Invalid("decision declaration differs"));
     }
-    let declaration: PredictiveChainDeclaration =
+    // The portable chain-decision envelope, read to compile its retained declaration
+    // without scoring it. Execution always uses its own consumer.
+    let declaration: super::propagation_chain_decision::ChainDecisionArtifactWire =
         antecedent_io::from_cbor(&terminal_wire.artifact).map_err(ChainBundleRecomputeError::Io)?;
     let feature = if kind == PredictiveFitKind::Bridge {
         "chain_decision_v1"

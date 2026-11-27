@@ -68,11 +68,17 @@ impl crate::AteAnalysisResult {
     }
 }
 
+type Prepared = (String, Vec<(String, String)>, String);
+
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn prepare(
     stored: &MultiArmAuthority,
     units_json: &str,
     regimes_json: &str,
-) -> Result<(String, Vec<(String, String)>, String), DecisionProjectionError> {
+) -> Result<Prepared, DecisionProjectionError> {
     let outcome = stored.outcome.clone().unwrap_or_default();
     let units = string_object(units_json)?
         .into_iter()
@@ -82,6 +88,10 @@ fn prepare(
     Ok((units, string_object(regimes_json)?, outcome))
 }
 
+#[allow(
+    clippy::result_large_err,
+    reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+)]
 fn string_object(text: &str) -> Result<Vec<(String, String)>, DecisionProjectionError> {
     let value: serde_json::Value = serde_json::from_str(text)
         .map_err(|_| DecisionProjectionError::Declaration(OBJECT_OF_STRINGS))?;

@@ -24,7 +24,7 @@ pub use conditional_observation::{
 pub fn survival_event_code(value: f64) -> Option<i64> {
     // i64::MAX rounds up to 2^63 in f64. That boundary is excluded.
     (value.is_finite() && value >= 0.0 && value.fract() == 0.0 && value < i64::MAX as f64)
-        .then(|| value as i64)
+        .then_some(value as i64)
 }
 
 /// Outcome summarized over randomized treatment arms.
@@ -216,48 +216,17 @@ pub fn randomized_survival_bootstrap_difference_band_with_observation(
     seed: u64,
     cancelled: impl Fn() -> bool,
 ) -> Result<SurvivalDifferenceBand, &'static str> {
-    let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
+    let SurvivalRows { duration, event_code, delayed_entry, .. } = *rows;
     if replicates < SURVIVAL_BAND_MIN_REPLICATES {
         return Err("survival simultaneous band requires at least 399 replicates");
     }
-    if duration.len() != event_code.len()
-        || duration.len() != treated.len()
-        || delayed_entry.is_some_and(|entry| entry.len() != duration.len())
-    {
-        return Err("survival band subject arrays must be row-aligned");
-    }
-    if known_censoring.is_some() && delayed_entry.is_none() {
-        return Err(
-            "simultaneous survival band with fixed censoring weights requires delayed entry",
-        );
-    }
-    if cancelled() {
-        return Err("survival simultaneous band was cancelled");
-    }
+    let arms = band_arms(rows, known_censoring, &cancelled)?;
     let summarize =
         |sample: &SurvivalRows<'_>, censoring: Option<&KnownCensoring<'_>>| match censoring {
             Some(known) => randomized_survival_ipcw_summary(sample, known, tau, endpoint)
                 .map(|(summary, _)| summary),
             None => randomized_survival_summary(sample, tau, endpoint),
         };
-    let arms = [false, true].map(|arm| {
-        treated.iter().enumerate().filter_map(|(i, &a)| (a == arm).then_some(i)).collect::<Vec<_>>()
-    });
-    let minimum_arm = if delayed_entry.is_some() {
-        delayed_entry_band_min_arm(known_censoring.is_some())
-    } else {
-        80
-    };
-    if arms.iter().any(|arm| arm.len() < minimum_arm) {
-        if delayed_entry.is_some() {
-            return Err(
-                "simultaneous survival band with delayed entry has insufficient subjects in an arm",
-            );
-        }
-        return Err(
-            "survival simultaneous band requires at least 80 subjects in each randomized arm",
-        );
-    }
     let original = summarize(rows, known_censoring)?;
     let minimum_horizon_risk_set = delayed_entry_horizon_risk_set(rows, tau);
     if let Some(entry) = delayed_entry
@@ -319,17 +288,7 @@ pub fn randomized_survival_bootstrap_difference_band_with_observation(
         {
             continue;
         }
-        let sup = original
-            .times
-            .iter()
-            .zip(&difference)
-            .map(|(&time, &point)| {
-                let position = sample.times.partition_point(|event_time| *event_time <= time);
-                let j = position.saturating_sub(1);
-                (sample.treated[j] - sample.control[j] - point).abs()
-            })
-            .fold(0.0_f64, f64::max);
-        suprema.push(sup);
+        suprema.push(band_supremum(&original.times, &difference, &sample));
     }
     let ok = bootstrap_support_count(
         suprema.len(),
@@ -347,6 +306,59 @@ pub fn randomized_survival_bootstrap_difference_band_with_observation(
         replicates_ok: ok,
         minimum_horizon_risk_set,
     })
+}
+
+fn band_arms(
+    rows: &SurvivalRows<'_>,
+    known_censoring: Option<&KnownCensoring<'_>>,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<[Vec<usize>; 2], &'static str> {
+    let SurvivalRows { duration, event_code, treated, delayed_entry } = *rows;
+    if duration.len() != event_code.len()
+        || duration.len() != treated.len()
+        || delayed_entry.is_some_and(|entry| entry.len() != duration.len())
+    {
+        return Err("survival band subject arrays must be row-aligned");
+    }
+    if known_censoring.is_some() && delayed_entry.is_none() {
+        return Err(
+            "simultaneous survival band with fixed censoring weights requires delayed entry",
+        );
+    }
+    if cancelled() {
+        return Err("survival simultaneous band was cancelled");
+    }
+    let arms = [false, true].map(|arm| {
+        treated.iter().enumerate().filter_map(|(i, &a)| (a == arm).then_some(i)).collect::<Vec<_>>()
+    });
+    let minimum_arm = if delayed_entry.is_some() {
+        delayed_entry_band_min_arm(known_censoring.is_some())
+    } else {
+        80
+    };
+    if arms.iter().any(|arm| arm.len() < minimum_arm) {
+        if delayed_entry.is_some() {
+            return Err(
+                "simultaneous survival band with delayed entry has insufficient subjects in an arm",
+            );
+        }
+        return Err(
+            "survival simultaneous band requires at least 80 subjects in each randomized arm",
+        );
+    }
+    Ok(arms)
+}
+
+fn band_supremum(times: &[f64], difference: &[f64], sample: &RandomizedSurvivalSummary) -> f64 {
+    times
+        .iter()
+        .zip(difference)
+        .map(|(&time, &point)| {
+            let position = sample.times.partition_point(|event_time| *event_time <= time);
+            let j = position.saturating_sub(1);
+            (sample.treated[j] - sample.control[j] - point).abs()
+        })
+        .fold(0.0_f64, f64::max)
 }
 
 fn band_grid_has_risk_sets(

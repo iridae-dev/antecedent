@@ -80,7 +80,7 @@ fn reevaluation_error(error: PreferenceEvaluationError) -> PreferenceArtifactErr
     match error {
         PreferenceEvaluationError::Exact(PreferenceDecisionError::Cancelled)
         | PreferenceEvaluationError::Certified(PreferenceCertifiedError::Cancelled) => E::Cancelled,
-        other => E::Evaluation(other),
+        other => E::Evaluation(Box::new(other)),
     }
 }
 
@@ -1177,7 +1177,7 @@ impl PreferenceDecisionArtifact {
         options: PreferenceEvaluationOptions,
     ) -> Result<Self, PreferenceArtifactError> {
         let evaluation = decide_preferences(&contract, source, measure.as_ref(), options)
-            .map_err(E::Evaluation)?;
+            .map_err(|error| E::Evaluation(Box::new(error)))?;
         Self::new(contract, measure, options, evaluation, source)
     }
 
@@ -1194,7 +1194,7 @@ impl PreferenceDecisionArtifact {
         ctx: &ExecutionContext,
     ) -> Result<Self, PreferenceArtifactError> {
         let evaluation = decide_on_draws(&contract, source, measure.as_ref(), options, Some(ctx))
-            .map_err(E::Evaluation)?;
+            .map_err(|error| E::Evaluation(Box::new(error)))?;
         Self::new(contract, measure, options, evaluation, source)
     }
 

@@ -85,8 +85,8 @@ use antecedent_estimate::joint_design::randomized::{
 use antecedent_estimate::joint_design::{instrumented::*, rollout::*, switchback::*, synthetic::*};
 use antecedent_kernels::standard_normal;
 use common::calibration::{
-    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, grid_point, grid_seed,
-    map_replicates, n_sim,
+    Construction, CoverageSide, CoverageTally, RecordKey, ScopeFacts, assert_measured, grid_point,
+    grid_seed, map_replicates, n_sim,
 };
 
 const LEVEL: f64 = 0.95;
@@ -122,6 +122,7 @@ fn bind_basis(tally: &mut CoverageTally, basis: &CalibrationBasis) {
             functional: basis.functional.to_string(),
             identification: basis.identification.to_string(),
             reported_level: basis.level,
+            unit: None,
         },
         ScopeFacts {
             row_count: basis.row_count,
@@ -1773,10 +1774,11 @@ fn joint_response_experiment_update_contrast_l95() {
         },
         outcomes.iter().map(|outcome| &outcome.0),
     );
-    assert!(
-        outcomes.iter().any(|outcome| outcome.1),
-        "{test}: independent evidence must sometimes change the sign of the posterior contrast"
-    );
+    assert_measured(outcomes.iter().any(|outcome| outcome.1), || {
+        format!(
+            "{test}: independent evidence must sometimes change the sign of the posterior contrast"
+        )
+    });
 }
 
 // ---------------------------------------------------------------------------------------

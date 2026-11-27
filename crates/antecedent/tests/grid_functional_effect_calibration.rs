@@ -628,7 +628,7 @@ const PS_ROUTED_BASE_N: usize = 15_000;
 /// (`n = 2500`) some cell is missing with probability at most `Σ_cells (1 - p)^2500 ≈ 4e-7`.
 const PS_CONFOUNDED_BASE_N: usize = 5_000;
 
-/// The bow-free latent-confounded path-specific law of the ADMG and TemporalAdmg posterior
+/// The bow-free latent-confounded path-specific law of the ADMG and `TemporalAdmg` posterior
 /// coordinates, enumerated exactly: latent `U ~ Bern(1/2)`, `T = 1[Ut < (1 + 2U)/4]`,
 /// `A = 1[Ua < (1 + 2T)/4]`, `B = 1[Ub < (1 + 2T)/4]`, `Y = 1[Uy < (1 + A + B + U)/4]`, every
 /// noise uniform on four bins (`U` on two). One population row per noise cell (512 rows over
@@ -824,8 +824,8 @@ const PS_POSTERIOR: [Variant; 3] = [
 ///
 /// The interval is the one the runtime binds for the result: the posterior quantiles of a
 /// Bayesian execution; for a Frequentist one the normal interval from the bootstrap SE
-/// (`bootstrap_se`), except on a TemporalAdmg structure (given, or a posterior of
-/// TemporalAdmg atoms), whose contemporaneous-projection functional resamples circular
+/// (`bootstrap_se`), except on a `TemporalAdmg` structure (given, or a posterior of
+/// `TemporalAdmg` atoms), whose contemporaneous-projection functional resamples circular
 /// blocks of consecutive rows (`Study::functional_row_resampling` selects
 /// `RowResampling::SeriesBlocks`, and `FunctionalEffect::estimate` marks the estimate with
 /// the row-block family), so the runtime binds `circular_block_se` to `est ± z·se` with the

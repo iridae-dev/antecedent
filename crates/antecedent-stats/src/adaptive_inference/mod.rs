@@ -217,7 +217,7 @@ pub enum AdaptiveInferenceError {
     #[error("{summary}")]
     Budget {
         /// Bound, consumed work, and what was not entered.
-        receipt: antecedent_core::SearchReceipt,
+        receipt: Box<antecedent_core::SearchReceipt>,
         /// The receipt summary.
         summary: String,
     },
@@ -225,7 +225,7 @@ pub enum AdaptiveInferenceError {
 
 pub(crate) fn budget_stop(receipt: antecedent_core::SearchReceipt) -> AdaptiveInferenceError {
     let summary = receipt.summary();
-    AdaptiveInferenceError::Budget { receipt, summary }
+    AdaptiveInferenceError::Budget { receipt: Box::new(receipt), summary }
 }
 
 /// Number of Gauss-Legendre nodes per integration panel.

@@ -176,6 +176,7 @@ fn graph_narrow_cross_fitted_subsampling_policy_l95() {
                 functional: key.functional.clone(),
                 identification: key.identification.clone(),
                 reported_level: key.level,
+                unit: None,
             };
             tally.bind_validation(
                 &construction,

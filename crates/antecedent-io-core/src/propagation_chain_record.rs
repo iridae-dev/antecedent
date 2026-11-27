@@ -1081,7 +1081,7 @@ impl PropagationChainRecordWire {
             return Err(map_chain_error(ChainError::Search {
                 stop: antecedent_core::SearchStop::Operations.code(),
                 summary: "receipt: stop search.operations; operations not entered; depth not entered; memory 0 bytes; explored []; unevaluated [chain table cells]".into(),
-                receipt: antecedent_core::SearchReceipt {
+                receipt: Box::new(antecedent_core::SearchReceipt {
                     stop: antecedent_core::SearchStop::Operations,
                     operations_limit: 1,
                     depth_limit: 1,
@@ -1090,7 +1090,7 @@ impl PropagationChainRecordWire {
                     depth_reached: None,
                     explored: Vec::new(),
                     unevaluated: vec!["chain table cells".into()],
-                },
+                }),
             }));
         }
         let columns: Vec<Vec<f64>> = self

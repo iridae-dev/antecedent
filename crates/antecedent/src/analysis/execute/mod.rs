@@ -185,6 +185,8 @@ pub struct Study {
     /// Supported vs not-supported evidence status recorded at build. `None` when
     /// the query is not on the public matrix axis.
     pub(crate) support_status: Option<crate::support::CellStatus>,
+    /// The unit whose decision `support_status` is.
+    pub(crate) support_unit: Option<crate::support::UnitRef>,
     pub(crate) query: CausalQuery,
     pub(crate) latency_mode: Option<super::latency::LatencyMode>,
     /// The identification product [`Study::prepare`] installed: the static contrast

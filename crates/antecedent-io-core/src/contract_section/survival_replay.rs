@@ -41,13 +41,13 @@ pub(super) fn replay_delayed_entry_survival(
     source: Option<&SourceReplay<'_>>,
     limits: &ReplayLimits,
 ) -> Result<bool, ContractReason> {
-    if !declares_survival_replay(contract, body) {
-        return Ok(false);
-    }
     use ContractReason::{
         BodySurvivalIncidence, DependenciesCheckedSurvivalIncidenceOperation,
         SurvivalIncidenceReplayResource, SurvivalIncidenceReplaySource,
     };
+    if !declares_survival_replay(contract, body) {
+        return Ok(false);
+    }
     let (CausalQueryWire::Survival(query), Some(curve)) = (&contract.target.query, &body.survival)
     else {
         return Err(BodySurvivalIncidence);

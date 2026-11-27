@@ -136,6 +136,7 @@ pub struct StudyBody {
 }
 
 /// What [`write`] stores.
+#[derive(Clone, Copy)]
 pub struct StudyParts<'a> {
     /// Exact writer output. Opening returns these bytes unchanged.
     pub invariant: &'a [u8],
@@ -238,7 +239,7 @@ pub fn layer5_quote(rows: u64, columns: u64) -> Result<u64, IoError> {
     }
     RouteMemoryProfile::design(rows, columns)
         .estimate()
-        .map(|estimate| estimate.total())
+        .map(antecedent_core::RouteMemoryEstimate::total)
         .map_err(|error| refused(format!("layer 5 quote: {error}")))
 }
 
@@ -683,9 +684,12 @@ mod tests {
     fn matching_bodies_requote_layer_five_without_an_estimator() {
         let body = source_body();
         let invariant = b"writer-output-\xff".to_vec();
-        let written =
-            write(StudyParts { invariant: &invariant, bodies: &[body.clone()], claim: None })
-                .unwrap();
+        let written = write(StudyParts {
+            invariant: &invariant,
+            bodies: std::slice::from_ref(&body),
+            claim: None,
+        })
+        .unwrap();
         assert!(written.bytes.starts_with(b"CAUSAL\0\0"));
         let opened = open(&written.bytes, &written.expected_identity, &none, false).unwrap();
         assert!(!opened.resumable);
@@ -727,9 +731,12 @@ mod tests {
     #[test]
     fn a_mismatched_expectation_or_a_corrupt_body_is_refused() {
         let body = source_body();
-        let written =
-            write(StudyParts { invariant: b"invariant", bodies: &[body.clone()], claim: None })
-                .unwrap();
+        let written = write(StudyParts {
+            invariant: b"invariant",
+            bodies: std::slice::from_ref(&body),
+            claim: None,
+        })
+        .unwrap();
         let wrong = open(&written.bytes, &"00".repeat(32), &none, false).unwrap_err();
         assert!(wrong.to_string().contains("expected identity"), "{wrong}");
         let container = artifact_identity(&written.bytes).to_hex();

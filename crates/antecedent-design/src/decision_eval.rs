@@ -233,7 +233,8 @@ impl DecisionResult {
     /// Published sources behind the decision and the evidence it used.
     #[must_use]
     pub fn citations(&self) -> Vec<antecedent_io_core::CitationWire> {
-        self.method_provenance().map_or_else(Vec::new, |provenance| provenance.citations())
+        self.method_provenance()
+            .map_or_else(Vec::new, antecedent_io_core::MethodProvenanceWire::citations)
     }
 
     /// Attach the compiler's descriptive method snapshot to the evaluated result.

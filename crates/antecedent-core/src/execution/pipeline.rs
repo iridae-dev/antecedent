@@ -14,6 +14,16 @@ use thiserror::Error;
 // worker count can hold it. Numerical workspace allocations retain byte admission.
 const WORKER_STACK_BYTES: usize = 64 * 1024 * 1024;
 
+/// A worker named after the thread that spawns it: diagnostics and the evidence trace
+/// attribute its work to the caller.
+fn worker() -> std::thread::Builder {
+    let builder = std::thread::Builder::new().stack_size(WORKER_STACK_BYTES);
+    match std::thread::current().name() {
+        Some(name) => builder.name(name.to_owned()),
+        None => builder,
+    }
+}
+
 #[cfg(test)]
 thread_local! { pub(super) static FAIL_NEXT_WORKER_SPAWN: std::cell::Cell<bool> = const { std::cell::Cell::new(false) }; }
 
@@ -340,9 +350,7 @@ impl ExecutionContext {
                 let spawned = if inject_spawn_failure() {
                     Err(std::io::Error::other("injected worker spawn failure"))
                 } else {
-                    std::thread::Builder::new()
-                        .stack_size(WORKER_STACK_BYTES)
-                        .spawn_scoped(scope, move || run_chunk(mine, begin, worker_scope))
+                    worker().spawn_scoped(scope, move || run_chunk(mine, begin, worker_scope))
                 };
                 if spawned.is_err() {
                     first_failure.store(0, Ordering::Relaxed);
@@ -621,50 +629,45 @@ impl ExecutionContext {
                 let spawned = if inject_spawn_failure() {
                     Err(std::io::Error::other("injected worker spawn failure"))
                 } else {
-                    std::thread::Builder::new().stack_size(WORKER_STACK_BYTES).spawn_scoped(
-                        scope,
-                        move || {
-                            observation.execute(|| {
-                                let _exit =
-                                    PipelineWorkerExit { shared: shared_ref, wake: wake_ref };
-                                if inner.cancellation.is_cancelled() {
-                                    return;
-                                }
-                                let mut scratch = numerical.execute(inner, make_scratch);
-                                loop {
-                                    let claimed = {
-                                        let mut state = shared_ref
-                                            .lock()
-                                            .unwrap_or_else(PoisonError::into_inner);
-                                        loop {
-                                            if state.stop || state.next_claim >= n {
-                                                break None;
-                                            }
-                                            if state.next_claim < state.next_consume + window {
-                                                let index = state.next_claim;
-                                                state.next_claim += 1;
-                                                state.live += 1;
-                                                state.peak_live = state.peak_live.max(state.live);
-                                                break Some(index);
-                                            }
-                                            state = wake_ref
-                                                .wait(state)
-                                                .unwrap_or_else(PoisonError::into_inner);
+                    worker().spawn_scoped(scope, move || {
+                        observation.execute(|| {
+                            let _exit = PipelineWorkerExit { shared: shared_ref, wake: wake_ref };
+                            if inner.cancellation.is_cancelled() {
+                                return;
+                            }
+                            let mut scratch = numerical.execute(inner, make_scratch);
+                            loop {
+                                let claimed = {
+                                    let mut state =
+                                        shared_ref.lock().unwrap_or_else(PoisonError::into_inner);
+                                    loop {
+                                        if state.stop || state.next_claim >= n {
+                                            break None;
                                         }
-                                    };
-                                    let Some(index) = claimed else { break };
-                                    let result = numerical
-                                        .execute(inner, || produce(index, inner, &mut scratch));
-                                    shared_ref
-                                        .lock()
-                                        .unwrap_or_else(PoisonError::into_inner)
-                                        .ready
-                                        .insert(index, result);
-                                    wake_ref.notify_all();
-                                }
-                            });
-                        },
-                    )
+                                        if state.next_claim < state.next_consume + window {
+                                            let index = state.next_claim;
+                                            state.next_claim += 1;
+                                            state.live += 1;
+                                            state.peak_live = state.peak_live.max(state.live);
+                                            break Some(index);
+                                        }
+                                        state = wake_ref
+                                            .wait(state)
+                                            .unwrap_or_else(PoisonError::into_inner);
+                                    }
+                                };
+                                let Some(index) = claimed else { break };
+                                let result = numerical
+                                    .execute(inner, || produce(index, inner, &mut scratch));
+                                shared_ref
+                                    .lock()
+                                    .unwrap_or_else(PoisonError::into_inner)
+                                    .ready
+                                    .insert(index, result);
+                                wake_ref.notify_all();
+                            }
+                        });
+                    })
                 };
                 if spawned.is_err() {
                     outcome = Err(MapExecutionError::Admission(AdmissionError::WorkerSpawn));

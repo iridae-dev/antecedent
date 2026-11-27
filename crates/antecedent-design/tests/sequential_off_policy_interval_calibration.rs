@@ -149,6 +149,7 @@ fn construction() -> Construction {
         functional: "target_policy_value".into(),
         identification: "point".into(),
         reported_level: LEVEL,
+        unit: None,
     }
 }
 

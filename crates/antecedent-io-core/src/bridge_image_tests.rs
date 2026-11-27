@@ -30,7 +30,7 @@ fn fixed_bridge_maps_sharp_sets_including_decreasing_and_constant_images() {
             )
             .is_err()
         );
-        verify_portable_request(BridgeImageRequest::IdentifiedSet {
+        verify_portable_request(&BridgeImageRequest::IdentifiedSet {
             bridge: Box::new(map.clone()),
             source: source.clone(),
             domain,
@@ -82,7 +82,7 @@ fn affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inp
         source.alignment_identity().unwrap()
     );
     near(image.distribution.mean(1).unwrap(), 5. / 6., 1e-12);
-    verify_portable_request(BridgeImageRequest::JointOutcomes {
+    verify_portable_request(&BridgeImageRequest::JointOutcomes {
         map: map.clone(),
         source: source.clone(),
     });
@@ -98,7 +98,7 @@ fn affine_vector_map_preserves_the_weighted_joint_table_and_refuses_unpaired_inp
     assert!(changed.apply(&source, &ctx).is_err());
 }
 
-fn verify_portable_request(request: BridgeImageRequest) {
+fn verify_portable_request(request: &BridgeImageRequest) {
     let ctx = ExecutionContext::for_tests(13);
     let result = request.evaluate(&ctx).unwrap();
     let program = SemanticDigest::from_bytes([11; 32]);

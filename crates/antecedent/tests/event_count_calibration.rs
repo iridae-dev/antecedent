@@ -29,7 +29,7 @@ fn hawkes_recursive_refit_count_l90() {
         0.90,
     );
     let replicates = map_replicates(n_sim(), |rep| {
-        let seed = grid_seed(0x45564e5443414c00 ^ rep);
+        let seed = grid_seed(0x4556_4e54_4341_4c00 ^ rep);
         let (history, future) = truth::branching_history(seed, cutoff, cutoff + 2.0);
         let context = ExecutionContext::for_tests(seed);
         let request = EventForecastRequest {
@@ -41,7 +41,7 @@ fn hawkes_recursive_refit_count_l90() {
             },
             paths: 256,
             max_events: 2048,
-            seed: seed ^ 0x89f24be7,
+            seed: seed ^ 0x89f2_4be7,
         };
         let result = Study::prepare_event_forecast(request, None, &context)
             .ok()?
@@ -66,6 +66,7 @@ fn hawkes_recursive_refit_count_l90() {
                 functional: basis.functional.to_string(),
                 identification: basis.identification.to_string(),
                 reported_level: basis.level,
+                unit: None,
             };
             tally.bind_validation(
                 &construction,

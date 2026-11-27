@@ -414,6 +414,10 @@ impl GraphImputationSource {
     }
 
     /// Canonical bounded bytes; these are data and carry no scientific authority.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the variable count exceeds `u32`, which validation rules out.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let parts = &self.parts;

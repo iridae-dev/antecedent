@@ -91,7 +91,8 @@ fn assert_premise(
 
 #[test]
 fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
-    // A declaration of more than the unit capacity, and one of more looks than the look capacity.
+    // A declaration of more than the unit capacity is refused; looks are admitted by the
+    // execution quote, so twenty-five looks declare.
     let units = declare(
         thompson(),
         &[40_000, 40_000],
@@ -105,18 +106,14 @@ fn capacity_refusals_reach_the_facade_with_their_own_detail_code_and_remedy() {
         antecedent_core::reason_details::adaptive_inference::DECLARED_UNITS_EXCEEDED
     );
     assert_eq!(units[0].code, "invalid_argument");
-    let looks = declare(
+    declare(
         thompson(),
         &[1; 25],
         OutcomeObservation::COMPLETE,
         StoppingRule::NoStopping,
         FinalSelection::NoSelection,
     )
-    .unwrap_err();
-    assert_eq!(
-        looks[0].detail,
-        antecedent_core::reason_details::adaptive_inference::DECLARED_LOOKS_EXCEEDED
-    );
+    .expect("looks above the old integer cap are admitted by the quote");
 
     // The exact law is bounded by its live states: eight cells and one batch of thirty pass a
     // million compositions. The refusal names the simulation route.

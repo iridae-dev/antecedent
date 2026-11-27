@@ -149,83 +149,16 @@ impl CheckedSurvivalOperation {
             delayed_entry: columns.entry.as_deref(),
         };
         let conditional = self.query.stratified_censoring.is_some();
-        let (
+        let SurvivalEstimateParts {
             summary,
             minimum_censoring_survival,
             intervals,
             difference_band,
             band_unavailable_reason,
-        ) = if let Some(learner) = &self.query.stratified_censoring {
-            let bytes = survival_work_bytes(self.rows as u64, 240, self.extra.0, 8)?;
-            let _scratch = survival_scratch(ctx, bytes)?;
-            let fitted = standardized_conditional_survival(
-                &ConditionalObservationRows {
-                    survival: rows,
-                    entry_stratum: &numeric_column(data, learner.entry_stratum)?,
-                    censoring_stratum: &numeric_column(data, learner.censoring_stratum)?,
-                    population_weights: learner.population_weights,
-                    censoring_floor: learner.minimum_probability,
-                },
-                self.query.tau,
-                endpoint,
-                self.extra.0,
-                ctx.rng.master_seed(),
-                || ctx.cancellation.is_cancelled(),
-            )
-            .map_err(|message| {
-                conditional_error(
-                    ctx,
-                    antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_SUPPORT,
-                    message,
-                )
-            })?;
-            let key = antecedent_io::graphless_support::conditional_survival_band_key(
-                rows.delayed_entry.is_some(),
-                endpoint != SurvivalEndpoint::Survival,
-                self.query.tau,
-                learner.population_weights,
-                learner.minimum_probability,
-            );
-            (
-                fitted.summary,
-                Some(fitted.minimum_censoring_survival),
-                None,
-                fitted.band.map(|band| {
-                    let support =
-                        self.band_support(key, assignment_counts, false, band.replicates_ok);
-                    result_band(band, support)
-                }),
-                None,
-            )
+        } = if let Some(learner) = &self.query.stratified_censoring {
+            self.conditional_estimate(learner, rows, data, endpoint, assignment_counts, ctx)?
         } else {
-            let _scratch = if self.extra.0 > 0 {
-                let grid_width =
-                    self.query.known_censoring.as_ref().map_or(0, |known| known.times.len());
-                let stride = 240_u64
-                    .checked_add(
-                        u64::try_from(grid_width)
-                            .ok()
-                            .and_then(|width| width.checked_mul(24))
-                            .ok_or_else(survival_quote_overflow)?,
-                    )
-                    .ok_or_else(survival_quote_overflow)?;
-                let bytes = survival_work_bytes(self.rows as u64, stride, self.extra.0, 16)?;
-                Some(survival_scratch(ctx, bytes)?)
-            } else {
-                None
-            };
-            let (summary, minimum_censoring_survival, censoring_grid) =
-                self.point_summary(data, &rows, endpoint)?;
-            let intervals =
-                self.bootstrap_intervals(&rows, censoring_grid.as_ref(), endpoint, ctx)?;
-            let (band, reason) = self.difference_band(
-                &rows,
-                censoring_grid.as_ref(),
-                endpoint,
-                assignment_counts,
-                ctx,
-            );
-            (summary, minimum_censoring_survival, intervals, band, reason)
+            self.unconditional_estimate(rows, data, endpoint, assignment_counts, ctx)?
         };
         if ctx.cancellation.is_cancelled() {
             return Err(CausalError::Cancelled {
@@ -235,45 +168,31 @@ impl CheckedSurvivalOperation {
         let mut result = finish_identified_execute_with_context(
             &self.result_context,
             Some(data),
-            IdentifiedExecuteFinish::new(&self.physical, self.identification.clone(), self.estimand.clone(), EffectEstimate::new(
+            IdentifiedExecuteFinish::new(
+                &self.physical,
+                self.identification.clone(),
+                self.estimand.clone(),
+                EffectEstimate::new(
                     0.0,
                     f64::NAN,
                     self.identification.required_assumptions.clone(),
                     OverlapPolicy::ExplicitOverride,
-                ), Strategy::new(IdentifierId::RandomizedDesign, EstimatorId::RandomizedSurvivalProductLimit), self.query.treatment, self.query.duration).identify_cached(true).extra_diagnostics(vec![Diagnostic::new(
-                    if conditional { "estimate.survival.standardized_conditional" } else if intervals.is_some() { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    if conditional {
-                        "standardizes the arm curves to the declared pre-entry population using stratified fitted censoring survival; each requested band draw refits the censoring learner on resampled subjects"
-                    } else if intervals.is_some() && minimum_censoring_survival.is_some() {
-                        "arm-stratified subject bootstrap with caller-supplied censoring survival held fixed; scalar intervals are pointwise and do not include nuisance-model uncertainty"
-                    } else if intervals.is_some() && matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }) {
-                        "arm-stratified subject bootstrap for the target-cause cumulative-incidence difference at the declared horizon"
-                    } else if intervals.is_some() {
-                        "arm-stratified subject bootstrap for RMST and restriction-horizon contrasts; scalar intervals are pointwise, not curve bands"
-                    } else if minimum_censoring_survival.is_some() {
-                        "randomized IPCW estimate using caller-supplied censoring survival; no interval is reported"
-                    } else {
-                        "randomized product-limit risk-set estimate; independent censoring and entry are declared; no interval or calibrated uncertainty is reported"
-                    },
-                )].into_iter().chain(minimum_censoring_survival.map(|minimum| Diagnostic::new(
-                    "estimate.survival.censoring_support",
-                    DiagnosticKind::Scientific,
-                    DiagnosticSeverity::Info,
-                    format!("minimum {ownership} censoring survival: {minimum:.6}", ownership = if conditional { "fitted" } else { "supplied" }),
-                ))).chain(minimum_censoring_survival.map(|_| {
-                    // Every row's supplied censoring survival cleared the positivity floor on the
-                    // whole grid (a row below it is a refusal), so no mass was left unevaluated.
-                    antecedent_core::diagnostic::RouteNativeDiagnostic::check(
-                        antecedent_core::diagnostic::RouteKind::Censoring,
-                        antecedent_core::diagnostic::RouteCheck::new(
-                            false,
-                            antecedent_core::diagnostic::RouteMass::zero(),
-                        ),
-                    )
-                    .to_diagnostic()
-                })).collect()).bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
+                ),
+                Strategy::new(
+                    IdentifierId::RandomizedDesign,
+                    EstimatorId::RandomizedSurvivalProductLimit,
+                ),
+                self.query.treatment,
+                self.query.duration,
+            )
+            .identify_cached(true)
+            .extra_diagnostics(survival_diagnostics(
+                conditional,
+                intervals.is_some(),
+                minimum_censoring_survival,
+                endpoint,
+            ))
+            .bootstrap_replicates_ok(intervals.as_ref().map(|value| value.replicates_ok)),
         );
         result.estimate = crate::PrimaryEstimate::NotAnEffect;
         let minimum_horizon_risk_set =
@@ -293,6 +212,97 @@ impl CheckedSurvivalOperation {
         self.support_survival_intervals(&mut result, intervals.as_ref());
         result.rebind_interval(false);
         Ok(result)
+    }
+
+    /// Fits the stratified censoring learner and standardizes the arm curves to the declared population.
+    fn conditional_estimate(
+        &self,
+        learner: &antecedent_core::StratifiedCensoringSurvival,
+        rows: SurvivalRows<'_>,
+        data: &TabularData,
+        endpoint: SurvivalEndpoint,
+        assignment_counts: [usize; 2],
+        ctx: &ExecutionContext,
+    ) -> Result<SurvivalEstimateParts, CausalError> {
+        let bytes = survival_work_bytes(self.rows as u64, 240, self.extra.0, 8)?;
+        let _scratch = survival_scratch(ctx, bytes)?;
+        let fitted = standardized_conditional_survival(
+            &ConditionalObservationRows {
+                survival: rows,
+                entry_stratum: &numeric_column(data, learner.entry_stratum)?,
+                censoring_stratum: &numeric_column(data, learner.censoring_stratum)?,
+                population_weights: learner.population_weights,
+                censoring_floor: learner.minimum_probability,
+            },
+            self.query.tau,
+            endpoint,
+            self.extra.0,
+            ctx.rng.master_seed(),
+            || ctx.cancellation.is_cancelled(),
+        )
+        .map_err(|message| {
+            conditional_error(
+                ctx,
+                antecedent_core::reason_details::survival::CONDITIONAL_OBSERVATION_SUPPORT,
+                message,
+            )
+        })?;
+        let key = antecedent_io::graphless_support::conditional_survival_band_key(
+            rows.delayed_entry.is_some(),
+            endpoint != SurvivalEndpoint::Survival,
+            self.query.tau,
+            learner.population_weights,
+            learner.minimum_probability,
+        );
+        Ok(SurvivalEstimateParts {
+            summary: fitted.summary,
+            minimum_censoring_survival: Some(fitted.minimum_censoring_survival),
+            intervals: None,
+            difference_band: fitted.band.map(|band| {
+                let support = self.band_support(key, assignment_counts, false, band.replicates_ok);
+                result_band(band, support)
+            }),
+            band_unavailable_reason: None,
+        })
+    }
+
+    /// Reads the product-limit or IPCW point curves, then any bootstrap intervals and difference band.
+    fn unconditional_estimate(
+        &self,
+        rows: SurvivalRows<'_>,
+        data: &TabularData,
+        endpoint: SurvivalEndpoint,
+        assignment_counts: [usize; 2],
+        ctx: &ExecutionContext,
+    ) -> Result<SurvivalEstimateParts, CausalError> {
+        let _scratch = if self.extra.0 > 0 {
+            let grid_width =
+                self.query.known_censoring.as_ref().map_or(0, |known| known.times.len());
+            let stride = 240_u64
+                .checked_add(
+                    u64::try_from(grid_width)
+                        .ok()
+                        .and_then(|width| width.checked_mul(24))
+                        .ok_or_else(survival_quote_overflow)?,
+                )
+                .ok_or_else(survival_quote_overflow)?;
+            let bytes = survival_work_bytes(self.rows as u64, stride, self.extra.0, 16)?;
+            Some(survival_scratch(ctx, bytes)?)
+        } else {
+            None
+        };
+        let (summary, minimum_censoring_survival, censoring_grid) =
+            self.point_summary(data, &rows, endpoint)?;
+        let intervals = self.bootstrap_intervals(&rows, censoring_grid.as_ref(), endpoint, ctx)?;
+        let (band, reason) =
+            self.difference_band(&rows, censoring_grid.as_ref(), endpoint, assignment_counts, ctx);
+        Ok(SurvivalEstimateParts {
+            summary,
+            minimum_censoring_survival,
+            intervals,
+            difference_band: band,
+            band_unavailable_reason: reason,
+        })
     }
 
     /// Reads the survival columns and validates event codes and the binary arm before any estimator runs.
@@ -468,11 +478,9 @@ impl CheckedSurvivalOperation {
         fixed_known: bool,
         replicates: u32,
     ) -> Option<crate::support::CellStatus> {
-        use antecedent_io::graphless_support::{
-            GraphlessResampleSupport, graphless_admits_resampled,
-        };
+        use antecedent_io::graphless_support::GraphlessResampleSupport;
         key.is_some_and(|key| {
-            graphless_admits_resampled(
+            crate::support::admits_resampled(
                 key,
                 crate::support::GraphlessAssignmentSupport {
                     assignment_unit: "unit",
@@ -506,8 +514,10 @@ impl CheckedSurvivalOperation {
     ) -> crate::SurvivalEstimate {
         let (difference_band, band_unavailable_reason) = band;
         let conditional = self.query.stratified_censoring.is_some();
-        let conditional_draws =
-            conditional.then(|| difference_band.as_ref()).flatten().map(|band| band.replicates_ok);
+        let conditional_draws = conditional
+            .then_some(difference_band.as_ref())
+            .flatten()
+            .map(|band| band.replicates_ok);
         crate::SurvivalEstimate {
             has_delayed_entry: self.query.delayed_entry.is_some(),
             times: summary.times.into(),
@@ -559,7 +569,7 @@ impl CheckedSurvivalOperation {
     ) {
         use antecedent_io::graphless_support::{
             GraphlessResampleSupport, delayed_entry_incidence_support_profile,
-            graphless_admits_resampled, survival_pointwise_key,
+            survival_pointwise_key,
         };
         let (Some(intervals), Some(curve)) = (intervals, result.survival()) else { return };
         let incidence = curve.target_cause.is_some();
@@ -580,7 +590,7 @@ impl CheckedSurvivalOperation {
         {
             return;
         }
-        if graphless_admits_resampled(
+        if crate::support::admits_resampled(
             key,
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "unit",
@@ -598,9 +608,61 @@ impl CheckedSurvivalOperation {
                 ..Default::default()
             },
         ) {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+            result.stamp_supported(crate::support::graphless_unit(key));
         }
     }
+}
+
+/// The estimator, censoring-support and route diagnostics of one survival execution.
+fn survival_diagnostics(
+    conditional: bool,
+    bootstrapped: bool,
+    minimum_censoring_survival: Option<f64>,
+    endpoint: SurvivalEndpoint,
+) -> Vec<Diagnostic> {
+    vec![Diagnostic::new(
+                    if conditional { "estimate.survival.standardized_conditional" } else if bootstrapped { "estimate.survival.pointwise_bootstrap" } else { "estimate.survival.point_only" },
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    if conditional {
+                        "standardizes the arm curves to the declared pre-entry population using stratified fitted censoring survival; each requested band draw refits the censoring learner on resampled subjects"
+                    } else if bootstrapped && minimum_censoring_survival.is_some() {
+                        "arm-stratified subject bootstrap with caller-supplied censoring survival held fixed; scalar intervals are pointwise and do not include nuisance-model uncertainty"
+                    } else if bootstrapped && matches!(endpoint, SurvivalEndpoint::CumulativeIncidence { .. }) {
+                        "arm-stratified subject bootstrap for the target-cause cumulative-incidence difference at the declared horizon"
+                    } else if bootstrapped {
+                        "arm-stratified subject bootstrap for RMST and restriction-horizon contrasts; scalar intervals are pointwise, not curve bands"
+                    } else if minimum_censoring_survival.is_some() {
+                        "randomized IPCW estimate using caller-supplied censoring survival; no interval is reported"
+                    } else {
+                        "randomized product-limit risk-set estimate; independent censoring and entry are declared; no interval or calibrated uncertainty is reported"
+                    },
+                )].into_iter().chain(minimum_censoring_survival.map(|minimum| Diagnostic::new(
+                    "estimate.survival.censoring_support",
+                    DiagnosticKind::Scientific,
+                    DiagnosticSeverity::Info,
+                    format!("minimum {ownership} censoring survival: {minimum:.6}", ownership = if conditional { "fitted" } else { "supplied" }),
+                ))).chain(minimum_censoring_survival.map(|_| {
+                    // Every row's supplied censoring survival cleared the positivity floor on the
+                    // whole grid (a row below it is a refusal), so no mass was left unevaluated.
+                    antecedent_core::diagnostic::RouteNativeDiagnostic::check(
+                        antecedent_core::diagnostic::RouteKind::Censoring,
+                        antecedent_core::diagnostic::RouteCheck::new(
+                            false,
+                            antecedent_core::diagnostic::RouteMass::zero(),
+                        ),
+                    )
+                    .to_diagnostic()
+                })).collect()
+}
+
+/// Point curves and any intervals or difference band one survival estimator reported.
+struct SurvivalEstimateParts {
+    summary: RandomizedSurvivalSummary,
+    minimum_censoring_survival: Option<f64>,
+    intervals: Option<SurvivalBootstrapIntervals>,
+    difference_band: Option<crate::result::SurvivalDifferenceBand>,
+    band_unavailable_reason: Option<Arc<str>>,
 }
 
 fn result_band(

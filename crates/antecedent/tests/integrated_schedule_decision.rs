@@ -1,6 +1,12 @@
 //! Independent point oracle, portable replay, and final optimum set coverage.
 //!
 //! SPDX-License-Identifier: MIT OR Apache-2.0
+#![allow(
+    clippy::float_cmp,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "the oracle compares exact dyadic values and floors exact nonnegative subject counts"
+)]
 
 mod common;
 
@@ -258,6 +264,52 @@ fn empirical_schedule_scope_requires_verified_binary_endpoints() {
     );
 }
 
+/// One independent source and target draw, and whether its decision kept every true optimum.
+fn sampled_decision(
+    seed: u64,
+    (subjects, target_subjects): (usize, usize),
+    problem: &ScheduleDecisionDeclaration,
+    target_optima: &[u8],
+) -> Option<(bool, usize, antecedent_io::calibration::CalibrationBasisWire)> {
+    let mut source_draw = uniform(seed ^ 0x21af_0063, 411);
+    let mut target_draw = uniform(seed ^ 0x91b2_8f11, 412);
+    let source: Vec<_> = (0..subjects)
+        .map(|_| {
+            let x = usize::from(source_draw() < 0.375);
+            let first = usize::from(source_draw() < EARLY[x]);
+            let second = usize::from(source_draw() < LATE[x][first]);
+            let code = first * 2 + second;
+            let endpoint = f64::from(u8::from(source_draw() < OUTCOME[x][code]));
+            source_subject(x, code, (source_draw() < RETAIN[x][code]).then_some(endpoint))
+        })
+        .collect();
+    let target: Vec<_> = (0..target_subjects).map(|_| target_draw() < TARGET_PREVALENCE).collect();
+    let decision = match compile_schedule_decision_bundle(
+        source,
+        target,
+        problem.clone(),
+        &ExecutionContext::for_tests(seed),
+    ) {
+        Ok(built) => built.decision,
+        Err(ScheduleBundleError::Procedure(ScheduleDecisionError::InadequateOverlap)) => {
+            return None;
+        }
+        Err(error) => panic!("unexpected calibration refusal: {error}"),
+    };
+    assert_eq!(decision.minimum_coverage, REPORTED_LEVEL);
+    let every_world = decision.scenarios.iter().all(|row| {
+        true_optima(row.structure, problem.preference_costs[row.preference_state])
+            .iter()
+            .all(|code| row.compatible_optima.contains(code))
+    });
+    let final_set = target_optima.iter().all(|code| decision.optimum_set.contains(code));
+    Some((
+        every_world && final_set,
+        decision.optimum_set.len(),
+        decision.calibration_basis.unwrap(),
+    ))
+}
+
 fn coverage(tied: bool, name: &'static str) {
     let mut problem = declaration(tied);
     problem.calibration_design = Some(if tied {
@@ -275,44 +327,7 @@ fn coverage(tied: bool, name: &'static str) {
     let subjects = grid_n(4096);
     let target_subjects = subjects / 3;
     let covered = map_replicates(n_sim(), |seed| {
-        let mut source_draw = uniform(seed ^ 0x21af_0063, 411);
-        let mut target_draw = uniform(seed ^ 0x91b2_8f11, 412);
-        let source: Vec<_> = (0..subjects)
-            .map(|_| {
-                let x = usize::from(source_draw() < 0.375);
-                let first = usize::from(source_draw() < EARLY[x]);
-                let second = usize::from(source_draw() < LATE[x][first]);
-                let code = first * 2 + second;
-                let endpoint = f64::from(u8::from(source_draw() < OUTCOME[x][code]));
-                source_subject(x, code, (source_draw() < RETAIN[x][code]).then_some(endpoint))
-            })
-            .collect();
-        let target: Vec<_> =
-            (0..target_subjects).map(|_| target_draw() < TARGET_PREVALENCE).collect();
-        let decision = match compile_schedule_decision_bundle(
-            source,
-            target,
-            problem.clone(),
-            &ExecutionContext::for_tests(seed),
-        ) {
-            Ok(built) => built.decision,
-            Err(ScheduleBundleError::Procedure(ScheduleDecisionError::InadequateOverlap)) => {
-                return None;
-            }
-            Err(error) => panic!("unexpected calibration refusal: {error}"),
-        };
-        assert_eq!(decision.minimum_coverage, REPORTED_LEVEL);
-        let every_world = decision.scenarios.iter().all(|row| {
-            true_optima(row.structure, problem.preference_costs[row.preference_state])
-                .iter()
-                .all(|code| row.compatible_optima.contains(code))
-        });
-        let final_set = target_optima.iter().all(|code| decision.optimum_set.contains(code));
-        Some((
-            every_world && final_set,
-            decision.optimum_set.len(),
-            decision.calibration_basis.unwrap(),
-        ))
+        sampled_decision(seed, (subjects, target_subjects), &problem, &target_optima)
     });
     let dgp = if tied {
         "independent_source_and_target_two_graphs_joint_preferences_all_optima_tie"
@@ -355,6 +370,7 @@ fn coverage(tied: bool, name: &'static str) {
                 functional: key.functional,
                 identification: key.identification,
                 reported_level: key.level,
+                unit: None,
             },
             ScopeFacts {
                 row_count: basis.scope.row_count,

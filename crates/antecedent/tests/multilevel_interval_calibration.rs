@@ -115,6 +115,7 @@ fn construction() -> Construction {
         ),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

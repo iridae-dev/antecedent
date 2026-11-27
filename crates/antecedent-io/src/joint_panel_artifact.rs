@@ -635,7 +635,7 @@ pub fn consume_panel_execution(
     match sections.as_slice() {
         [payload] => {
             let record: Record = serde_json::from_slice(payload).map_err(invalid)?;
-            let replay = replay_record(record.program, record.version, record.identity, ctx)?;
+            let replay = replay_record(&record.program, record.version, record.identity, ctx)?;
             if replay.point != record.point || replay.draws != record.draws {
                 return Err(PanelArtifactError::Mismatch);
             }
@@ -645,7 +645,7 @@ pub fn consume_panel_execution(
             let record: PanelResultMetadata<'_> =
                 serde_json::from_slice(metadata).map_err(invalid)?;
             let program = antecedent_io_core::from_cbor(program)?;
-            let replay = replay_record(program, record.version, record.identity, ctx)?;
+            let replay = replay_record(&program, record.version, record.identity, ctx)?;
             validate_response_shape(&record.point, &replay.draws)?;
             if replay.point != *record.point
                 || !record.present.into_iter().eq(replay.draws.iter().map(Option::is_some))
@@ -660,7 +660,7 @@ pub fn consume_panel_execution(
 }
 
 fn replay_record(
-    program: PanelExecutionProgram,
+    program: &PanelExecutionProgram,
     version: u16,
     identity: [u8; 32],
     ctx: &ExecutionContext,

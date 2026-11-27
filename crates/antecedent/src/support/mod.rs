@@ -43,9 +43,15 @@ mod cell;
 mod gate;
 mod matrix;
 mod matrix_data;
+mod trace;
 #[allow(dead_code, reason = "each compiled route is bound to its unit as it adopts the decision")]
 pub(crate) mod unit;
 pub(crate) mod units_generated;
+
+pub(crate) use trace::executed as trace_executed;
+pub(crate) use trace::route_ran as trace_route;
+pub use trace::{TRACE_ENV, declare_unit};
+pub use unit::{UnitId, UnitRef};
 
 #[cfg(test)]
 mod graphless_tests;
@@ -85,6 +91,48 @@ pub(crate) fn support_if_graphless(
     key: GraphlessSupportKey<'_>,
     observed: GraphlessAssignmentSupport,
 ) -> Option<CellStatus> {
-    matches!(classify_graphless(key, observed), GraphlessSupportStatus::Supported { .. })
-        .then_some(CellStatus::Supported)
+    let supported =
+        matches!(classify_graphless(key, observed), GraphlessSupportStatus::Supported { .. });
+    trace::executed(
+        &graphless_unit(key),
+        if supported { &CellStatus::Supported } else { &CellStatus::NotSupported },
+    );
+    supported.then_some(CellStatus::Supported)
+}
+
+/// [`support_if_graphless`] answering with the supported unit, for a result to stamp.
+#[must_use]
+pub(crate) fn graphless_supported_unit(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+) -> Option<UnitRef> {
+    support_if_graphless(key, observed).map(|_| graphless_unit(key))
+}
+
+/// [`antecedent_io::graphless_support::graphless_admits_resampled`], recorded in the evidence
+/// trace as a decision about the row `key` names.
+#[must_use]
+pub(crate) fn admits_resampled(
+    key: GraphlessSupportKey<'_>,
+    observed: GraphlessAssignmentSupport,
+    resampled: antecedent_io::graphless_support::GraphlessResampleSupport,
+) -> bool {
+    let admitted =
+        antecedent_io::graphless_support::graphless_admits_resampled(key, observed, resampled);
+    trace::executed(
+        &graphless_unit(key),
+        if admitted { &CellStatus::Supported } else { &CellStatus::NotSupported },
+    );
+    admitted
+}
+
+/// The unit a graphless support key names.
+#[must_use]
+pub(crate) fn graphless_unit(key: GraphlessSupportKey<'_>) -> UnitRef {
+    UnitRef::Graphless {
+        family: key.family.to_owned(),
+        design: key.design.to_owned(),
+        method: key.method.to_owned(),
+        inference_claim: key.inference_claim.to_owned(),
+    }
 }

@@ -130,7 +130,7 @@ impl super::CheckedPanelDidOperation {
             replicates_ok: None,
             augmented: None,
         });
-        if crate::support::support_if_graphless(
+        if let Some(unit) = crate::support::graphless_supported_unit(
             super::panel_did_graphless_key(antecedent_core::DidSamplingDesign::BalancedPanel),
             crate::support::GraphlessAssignmentSupport {
                 assignment_unit: "cluster",
@@ -140,10 +140,8 @@ impl super::CheckedPanelDidOperation {
                 reported_intervals: 0,
                 ..Default::default()
             },
-        )
-        .is_some()
-        {
-            result.support_status = Some(crate::support::CellStatus::Supported);
+        ) {
+            result.stamp_supported(unit);
         }
         result.treatment = None;
         result.rebind_interval(false);

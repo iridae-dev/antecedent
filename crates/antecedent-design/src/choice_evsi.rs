@@ -45,7 +45,7 @@ pub enum ChoiceEvsiError {
     #[error("{summary}")]
     Budget {
         /// The receipt.
-        receipt: antecedent_core::SearchReceipt,
+        receipt: Box<antecedent_core::SearchReceipt>,
         /// Receipt summary.
         summary: String,
     },
@@ -389,7 +389,7 @@ pub fn rank_studies_with_context(
 
 fn choice_budget(receipt: antecedent_core::SearchReceipt) -> ChoiceEvsiError {
     let summary = receipt.summary();
-    ChoiceEvsiError::Budget { receipt, summary }
+    ChoiceEvsiError::Budget { receipt: Box::new(receipt), summary }
 }
 
 fn admission_error(

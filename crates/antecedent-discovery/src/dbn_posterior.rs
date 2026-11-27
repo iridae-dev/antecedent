@@ -378,7 +378,7 @@ impl DbnPosterior {
                 // would overflow; the bit odometer is the same order as `0..2^bits`.
                 let mut lmask = LagMask::EMPTY;
                 loop {
-                    if seen % 4096 == 0 && ctx.cancellation.is_cancelled() {
+                    if seen.is_multiple_of(4096) && ctx.cancellation.is_cancelled() {
                         return Err(DiscoveryError::Cancelled);
                     }
                     let current = lmask.clone();

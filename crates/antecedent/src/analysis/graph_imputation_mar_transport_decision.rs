@@ -797,7 +797,8 @@ impl CompiledMarTransportDecision {
             self.bootstrap.map_or(0, |policy| policy.replicates)
         );
         if let Some(candidates) = parts.declared_candidate_identity() {
-            functional.push_str(&format!(":candidates={}", candidates.to_hex()));
+            use std::fmt::Write as _;
+            let _ = write!(functional, ":candidates={}", candidates.to_hex());
         }
         let n_draws = self
             .bootstrap

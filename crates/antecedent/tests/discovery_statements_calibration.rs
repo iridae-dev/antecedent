@@ -145,6 +145,7 @@ fn payload_construction(
         functional: functional.into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

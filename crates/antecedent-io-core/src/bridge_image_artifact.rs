@@ -84,17 +84,18 @@ pub enum BridgeImageResult {
     /// Decision induced by a declared cutoff on a specific bridged interval.
     IntervalThreshold(BridgeIntervalDecision),
     /// Whole-trial percentile confidence interval and its measured source design.
-    TrialConfidence(TrialBridgeConfidenceInterval),
+    TrialConfidence(Box<TrialBridgeConfidenceInterval>),
     /// Posterior interval and the mapped posterior law from which it was computed.
-    JointPosterior(PosteriorBridgeInterval),
+    JointPosterior(Box<PosteriorBridgeInterval>),
     /// Sharp interval of compatible target values.
     IdentifiedSet(BridgedIdentifiedSet),
     /// Weighted, paired target outcomes.
-    JointOutcomes(JointOutcomeImage),
+    JointOutcomes(Box<JointOutcomeImage>),
 }
 
 impl BridgeImageResult {
     /// Identity binding the map, source evidence and domain.
+    #[must_use]
     pub const fn identity(&self) -> SemanticDigest {
         match self {
             Self::IntervalThreshold(v) => SemanticDigest::from_bytes(v.identity),
@@ -193,6 +194,7 @@ impl BridgeImageError {
     }
 
     /// Whether the caller cancelled before or during replay.
+    #[must_use]
     pub fn is_cancelled(&self) -> bool {
         matches!(
             self.io_error(),
@@ -201,6 +203,7 @@ impl BridgeImageError {
     }
 
     /// Whether the image exceeded its structural or caller execution budget.
+    #[must_use]
     pub fn is_resource_refusal(&self) -> bool {
         !self.is_cancelled()
             && (matches!(
@@ -261,8 +264,8 @@ enum InputWire {
     },
     JointPosterior {
         term: Box<TermWire>,
-        intercept_shift: ScientificQuantityWire,
-        slope_shift: ScientificQuantityWire,
+        intercept_shift: Box<ScientificQuantityWire>,
+        slope_shift: Box<ScientificQuantityWire>,
         level: u64,
         source: DistributionIdentity,
     },
@@ -344,8 +347,8 @@ impl BridgeImageRequest {
             Self::JointPosterior { map, source, level } => (
                 InputWire::JointPosterior {
                     term: Box::new(TermWire::new(&map.contract, map.domain)?),
-                    intercept_shift: (&map.intercept_shift).into(),
-                    slope_shift: (&map.slope_shift).into(),
+                    intercept_shift: Box::new((&map.intercept_shift).into()),
+                    slope_shift: Box::new((&map.slope_shift).into()),
                     level: level.to_bits(),
                     source: source.metadata().identity.clone(),
                 },
@@ -416,10 +419,10 @@ impl BridgeImageRequest {
                 } else {
                     experiment.interval(ctx)?
                 };
-                Ok(BridgeImageResult::TrialConfidence(interval))
+                Ok(BridgeImageResult::TrialConfidence(Box::new(interval)))
             }
             Self::JointPosterior { map, source, level } => {
-                Ok(BridgeImageResult::JointPosterior(map.interval(source, *level, ctx)?))
+                Ok(BridgeImageResult::JointPosterior(Box::new(map.interval(source, *level, ctx)?)))
             }
             Self::IdentifiedSet { bridge, source, domain } => {
                 let _lease = ctx.acquire_serial_numerical_admission(128).map_err(IoError::from)?;
@@ -430,7 +433,7 @@ impl BridgeImageRequest {
                 ))
             }
             Self::JointOutcomes { map, source } => {
-                Ok(BridgeImageResult::JointOutcomes(map.apply(source, ctx)?))
+                Ok(BridgeImageResult::JointOutcomes(Box::new(map.apply(source, ctx)?)))
             }
         }
     }
@@ -683,7 +686,7 @@ fn check_replay_cancellation(ctx: &ExecutionContext) -> Result<(), IoError> {
 
 enum RestoreInput {
     Image(InputWire),
-    Threshold { interval: InputWire, quantity: ScientificQuantityWire, threshold: u64 },
+    Threshold { interval: InputWire, quantity: Box<ScientificQuantityWire>, threshold: u64 },
 }
 
 impl RestoreInput {
@@ -700,7 +703,7 @@ impl RestoreInput {
             Self::Threshold { interval, quantity, threshold } => {
                 Ok(BridgeImageRequest::IntervalThreshold {
                     interval: Box::new(interval.restore(source_bytes)?),
-                    quantity: ScientificQuantity::try_from(quantity).map_err(|_| {
+                    quantity: ScientificQuantity::try_from(*quantity).map_err(|_| {
                         ScientificBridgeArtifactError::ReplayMismatch("threshold coordinate")
                     })?,
                     threshold: f64::from_bits(threshold),
@@ -721,7 +724,7 @@ impl InputWire {
                     )
                     .into());
                 }
-                Ok(RestoreInput::Threshold { interval, quantity, threshold })
+                Ok(RestoreInput::Threshold { interval, quantity: Box::new(quantity), threshold })
             }
             wire => Ok(RestoreInput::Image(wire)),
         }
@@ -785,8 +788,8 @@ impl InputWire {
                     map: Box::new(PosteriorAffineBridge {
                         contract: term.contract,
                         domain: term.domain,
-                        intercept_shift: coordinate(intercept_shift)?,
-                        slope_shift: coordinate(slope_shift)?,
+                        intercept_shift: coordinate(*intercept_shift)?,
+                        slope_shift: coordinate(*slope_shift)?,
                     }),
                     source: DistributionArtifact::from_bytes(source_bytes, &source)?,
                     level: f64::from_bits(level),

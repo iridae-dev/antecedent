@@ -33,8 +33,8 @@ use antecedent_design::decision_contract::{
     DecisionCriterion, DeclaredExclusion, StructuralPolicy, UtilityExpr,
 };
 use antecedent_design::decision_eval::{
-    MeanEstimate, MeanSource, Verdict, evaluate_contract, evaluate_contract_on_means,
-    evaluate_functional,
+    DecisionResult, MeanEstimate, MeanSource, Verdict, evaluate_contract,
+    evaluate_contract_on_means, evaluate_functional,
 };
 use antecedent_design::decision_robustness::{AtomSupport, RobustVerdict};
 use antecedent_design::decision_structural::{AtomEvidence, StructuralVerdict};
@@ -148,6 +148,16 @@ fn exact(id: &str, probability: ClaimProbability, a: f64, b: f64) -> SuppliedCla
 fn assert_same<T: PartialEq + std::fmt::Debug>(compiled: &T, direct: &T) {
     assert_eq!(compiled, direct);
     assert_eq!(format!("{compiled:?}"), format!("{direct:?}"));
+}
+
+/// The compiled run cites its unit's method provenance; the direct evaluator carries none.
+fn assert_same_cited(compiled: &DecisionResult, direct: &DecisionResult, unit: &str) {
+    let provenance = compiled.method_provenance().expect("the compiled run cites its unit");
+    assert!(provenance.records.iter().any(|record| record.id == unit));
+    assert!(direct.method_provenance().is_none());
+    let mut cited = direct.clone();
+    cited.set_method_provenance(provenance.clone());
+    assert_same(compiled, &cited);
 }
 
 fn assert_runs_under(lowered: &antecedent::planner::lowered::LoweredProgram, route: &str) {
@@ -449,7 +459,11 @@ fn compiled_contract_on_a_law_equals_evaluate_contract() {
     let unit = program.plan_view().unit_support().expect("the family is bound to a unit");
     assert_eq!(unit.unit(), "decision.contract");
     let compiled = program.execute(&ctx).unwrap();
-    assert_same(&compiled, &evaluate_contract(&xyk_contract(), &xyk_law()).unwrap());
+    assert_same_cited(
+        &compiled,
+        &evaluate_contract(&xyk_contract(), &xyk_law()).unwrap(),
+        "decision.contract",
+    );
 
     // A pays x*y = 0 on both rows; B the constant 1; X pays x, 0 or 2, so 1 in expectation and
     // ties B. Only the joint rows give A's 0: independent marginals would give E[x]E[y] = 1.
@@ -490,7 +504,11 @@ fn compiled_contract_on_means_equals_evaluate_contract_on_means() {
         compile_contract_decision(contract.clone(), ContractSource::Means(means.clone()), &ctx)
             .unwrap();
     let compiled = program.execute(&ctx).unwrap();
-    assert_same(&compiled, &evaluate_contract_on_means(&contract, &means).unwrap());
+    assert_same_cited(
+        &compiled,
+        &evaluate_contract_on_means(&contract, &means).unwrap(),
+        "decision.contract",
+    );
     // 2 * 1 - 1 = 1 and 2 * 5 - 1 = 9.
     assert_eq!(compiled.actions[0].expected_utility, 1.0);
     assert_eq!(compiled.actions[1].expected_utility, 9.0);

@@ -2,6 +2,7 @@
 #![allow(
     clippy::float_cmp,
     clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
     reason = "integration test asserts exact deterministic estimates and builds fixtures from small nonnegative counts"
 )]
 
@@ -549,7 +550,9 @@ fn sequential_dr_known_truth_dropout_and_artifact_round_trip() {
     reason = "one fixture follows the score through support, replay and revision"
 )]
 fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays() {
-    use antecedent::analysis::composition::{BundleBuilder, consume, export_bundle};
+    use antecedent::analysis::composition::{
+        BundleBuilder, SuppliedSources, consume, export_bundle,
+    };
     use antecedent_estimate::longitudinal_regime::{
         SequentialDrInputs, SubjectHistories, evaluate_sequential_dr_value_with_subject_scores,
     };
@@ -704,7 +707,8 @@ fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays() {
         (bundle.identity().to_owned(), bytes)
     };
     let (bundle_identity, bundle_bytes) = rebuild_bundle(&sourced);
-    let bundle_replay = consume(&bundle_bytes, &bundle_identity, &Default::default()).unwrap();
+    let bundle_replay =
+        consume(&bundle_bytes, &bundle_identity, &SuppliedSources::default()).unwrap();
     assert!(bundle_replay.all_verified());
     assert_eq!(bundle_replay.value("regime", "regime_value"), Some(fit.value));
     assert_eq!(bundle_replay.value("regime", "lower_95"), Some(interval[0]));
@@ -777,8 +781,9 @@ fn four_period_sequential_dr_interval_matches_the_forward_score_and_replays() {
         .unwrap();
     let (revised_identity, revised_bundle_bytes) = rebuild_bundle(&revised_sourced);
     assert_ne!(revised_identity, bundle_identity);
-    assert!(consume(&revised_bundle_bytes, &bundle_identity, &Default::default()).is_err());
-    let replay = consume(&revised_bundle_bytes, &revised_identity, &Default::default()).unwrap();
+    assert!(consume(&revised_bundle_bytes, &bundle_identity, &SuppliedSources::default()).is_err());
+    let replay =
+        consume(&revised_bundle_bytes, &revised_identity, &SuppliedSources::default()).unwrap();
     assert!(replay.all_verified());
     assert_eq!(
         replay.value("regime", "regime_value"),
@@ -1213,7 +1218,9 @@ fn sequential_dr_refuses_split_q_fold_and_reappearing_subject() {
 #[test]
 #[allow(clippy::too_many_lines, reason = "one shared fixture")]
 fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstraps() {
-    use antecedent::analysis::composition::{BundleBuilder, consume, export_bundle};
+    use antecedent::analysis::composition::{
+        BundleBuilder, SuppliedSources, consume, export_bundle,
+    };
     use antecedent_core::{FittedRegimeQ, LongitudinalRegimeMethod, StreamDomain};
 
     let n = 800;
@@ -1322,7 +1329,7 @@ fn fitted_two_period_q_repeats_training_and_evaluation_in_both_subject_bootstrap
         builder.add_detected_artifact(Some("fit"), &sourced).unwrap();
         let bundle = builder.build().unwrap();
         let bytes = export_bundle(&bundle, "fitted-q-bundle").unwrap();
-        let replayed = consume(&bytes, bundle.identity(), &Default::default()).unwrap();
+        let replayed = consume(&bytes, bundle.identity(), &SuppliedSources::default()).unwrap();
         assert_eq!(replayed.value("fit", "upper_95"), Some(interval[1]));
     }
 

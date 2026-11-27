@@ -262,9 +262,9 @@ fn measure_cell(
     let score = |result: &StudyResult| pairs(result, n);
     match truths {
         Some(truths) => {
-            measure_sample_truths(cell, targets, |rep| truths(stream_seed(seed, rep)), &run, &score)
+            measure_sample_truths(cell, targets, |rep| truths(stream_seed(seed, rep)), run, score)
         }
-        None => measure(cell, targets, &run, &score),
+        None => measure(cell, targets, run, score),
     }
 }
 

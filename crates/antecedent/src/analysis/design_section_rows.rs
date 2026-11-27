@@ -108,7 +108,7 @@ pub(crate) fn association_slope_row(query: &AssociationQuery, fit: &AssociationE
             0,
         )
     };
-    antecedent_io::graphless_support::graphless_admits_resampled(
+    crate::support::admits_resampled(
         crate::support::GraphlessSupportKey {
             family: "association",
             design,
@@ -158,7 +158,7 @@ pub(crate) fn bounds_endpoint_row(
         "posterior_endpoint_quantiles" => "identified_set_endpoints_95_posterior_quantiles",
         _ => return false,
     };
-    antecedent_io::graphless_support::graphless_admits_resampled(
+    crate::support::admits_resampled(
         crate::support::GraphlessSupportKey {
             family: "iv_bounds",
             design: "binary_instrument",

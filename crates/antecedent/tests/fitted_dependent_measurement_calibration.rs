@@ -178,6 +178,7 @@ fn fitted_dependent_measurement_joint_error_l95() {
                 functional: key.functional.clone(),
                 identification: key.identification.clone(),
                 reported_level: key.level,
+                unit: None,
             };
             tally.bind_validation(
                 &construction,

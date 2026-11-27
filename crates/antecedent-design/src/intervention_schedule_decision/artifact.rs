@@ -289,7 +289,9 @@ fn decode_binding(fact: &str) -> Option<EvidenceBinding> {
         .as_bytes()
         .chunks_exact(2)
         .map(|pair| {
-            Some(((pair[0] as char).to_digit(16)? * 16 + (pair[1] as char).to_digit(16)?) as u8)
+            let high = (pair[0] as char).to_digit(16)?;
+            let low = (pair[1] as char).to_digit(16)?;
+            u8::try_from(high * 16 + low).ok()
         })
         .collect::<Option<Vec<_>>>()?;
     from_cbor(&bytes).ok()
@@ -541,29 +543,29 @@ fn run(
     Ok(PreparedIntegratedScheduleDecision::compile(fit, cohort, problem)?.execute(ctx)?)
 }
 
-fn failure(stage: BundleStage, reason: impl ToString) -> NodeFailure {
+fn failure(stage: BundleStage, reason: &(impl ToString + ?Sized)) -> NodeFailure {
     NodeFailure { stage, reason: reason.to_string() }
 }
 
 pub(crate) fn inspect_evidence(bytes: &[u8]) -> Result<VerifiedNode, NodeFailure> {
     let artifact: EvidenceWire<ScheduleEvidence> = decode(EVIDENCE_KIND, bytes)
-        .map_err(|error| failure(BundleStage::SwappedEvidence, error))?;
+        .map_err(|error| failure(BundleStage::SwappedEvidence, &error))?;
     let child = CompiledScheduleEvidence::compile(artifact.evidence)
-        .map_err(|error| failure(BundleStage::SwappedEvidence, error))?;
+        .map_err(|error| failure(BundleStage::SwappedEvidence, &error))?;
     if artifact.program_identity != child.program_identity() {
         return Err(failure(
             BundleStage::SwappedEvidence,
             "integrated schedule evidence differs from its compiled child program",
         ));
     }
-    let binding = child.execute().map_err(|error| failure(BundleStage::SwappedEvidence, error))?;
-    verified_evidence(&binding).map_err(|error| failure(BundleStage::SwappedEvidence, error))
+    let binding = child.execute().map_err(|error| failure(BundleStage::SwappedEvidence, &error))?;
+    verified_evidence(&binding).map_err(|error| failure(BundleStage::SwappedEvidence, &error))
 }
 
 pub(crate) fn inspect_terminal(bytes: &[u8]) -> Result<VerifiedNode, NodeFailure> {
     let artifact: TerminalWire = decode(DECISION_KIND, bytes)
-        .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
-    verified_terminal(&artifact).map_err(|error| failure(BundleStage::TamperedQuantity, error))
+        .map_err(|error| failure(BundleStage::TamperedQuantity, &error))?;
+    verified_terminal(&artifact).map_err(|error| failure(BundleStage::TamperedQuantity, &error))
 }
 
 pub(crate) struct EvidenceVerifier;
@@ -597,13 +599,13 @@ impl NodeVerifier for DecisionVerifier {
         upstream: &[UpstreamNode<'_>],
     ) -> Result<VerifiedNode, NodeFailure> {
         let terminal: TerminalWire = decode(DECISION_KIND, bytes)
-            .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
+            .map_err(|error| failure(BundleStage::TamperedQuantity, &error))?;
         if upstream.len() != ROLES.len()
             || upstream.iter().any(|node| node.kind != NodeKind::IntegratedScheduleEvidence)
         {
             return Err(failure(
                 BundleStage::CallbackUnavailable,
-                ScheduleBundleError::MissingParent,
+                &ScheduleBundleError::MissingParent,
             ));
         }
         let mut inputs: [Option<EvidenceProduct>; 3] = [None, None, None];
@@ -611,16 +613,16 @@ impl NodeVerifier for DecisionVerifier {
             if !parent.values.iter().any(|(name, _)| name == CHECKED_CHILD) {
                 return Err(failure(
                     BundleStage::CallbackUnavailable,
-                    ScheduleBundleError::MissingParent,
+                    &ScheduleBundleError::MissingParent,
                 ));
             }
             let mut binding: EvidenceBinding =
                 parent.facts.get(FACT).and_then(|fact| decode_binding(fact)).ok_or_else(|| {
-                    failure(BundleStage::CallbackUnavailable, ScheduleBundleError::MissingParent)
+                    failure(BundleStage::CallbackUnavailable, &ScheduleBundleError::MissingParent)
                 })?;
             let role = binding.result.role();
             let identity =
-                digest(&binding).map_err(|error| failure(BundleStage::SwappedEvidence, error))?;
+                digest(&binding).map_err(|error| failure(BundleStage::SwappedEvidence, &error))?;
             if parent.identity != identity
                 || terminal.parents[role] != identity
                 || inputs[role].is_some()
@@ -642,17 +644,17 @@ impl NodeVerifier for DecisionVerifier {
         if inputs.iter().any(Option::is_none) {
             return Err(failure(
                 BundleStage::CallbackUnavailable,
-                ScheduleBundleError::MissingParent,
+                &ScheduleBundleError::MissingParent,
             ));
         }
         let replayed = run(inputs.into_iter().flatten().collect(), &self.0)
-            .map_err(|error| failure(BundleStage::TamperedQuantity, error))?;
+            .map_err(|error| failure(BundleStage::TamperedQuantity, &error))?;
         if replayed != terminal.result {
             return Err(failure(
                 BundleStage::TamperedQuantity,
                 "joint schedule optimum set differs on replay",
             ));
         }
-        verified_terminal(&terminal).map_err(|error| failure(BundleStage::TamperedQuantity, error))
+        verified_terminal(&terminal).map_err(|error| failure(BundleStage::TamperedQuantity, &error))
     }
 }

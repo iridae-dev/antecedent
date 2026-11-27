@@ -711,7 +711,7 @@ pub fn shared_row_bootstrap_covariance(
 
 const COUNT_VECTORS: &str = "scenario exact enumeration of multinomial count vectors";
 
-fn search_receipt(receipt: antecedent_core::SearchReceipt) -> EstimationError {
+fn search_receipt(receipt: &antecedent_core::SearchReceipt) -> EstimationError {
     let code = if receipt.stop == antecedent_core::SearchStop::Cancelled {
         antecedent_core::reason_code!("cancelled_no_claim")
     } else {
@@ -769,22 +769,22 @@ fn admit_count_vectors(
     ctx: &ExecutionContext,
 ) -> Result<(u128, antecedent_core::execution::AdmissionLease), EstimationError> {
     let Some(total) = composition_count(n) else {
-        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+        return Err(search_receipt(&antecedent_stats::execution_quote::unrepresentable_quote(
             COUNT_VECTORS,
         )));
     };
     let Ok(quoted) = u64::try_from(total) else {
-        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+        return Err(search_receipt(&antecedent_stats::execution_quote::unrepresentable_quote(
             COUNT_VECTORS,
         )));
     };
     if !enumeration_arithmetic_fits(n) {
-        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+        return Err(search_receipt(&antecedent_stats::execution_quote::unrepresentable_quote(
             COUNT_VECTORS,
         )));
     }
     let Some(bytes) = count_vector_bytes(quoted, scenarios) else {
-        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+        return Err(search_receipt(&antecedent_stats::execution_quote::unrepresentable_quote(
             COUNT_VECTORS,
         )));
     };
@@ -795,7 +795,7 @@ fn admit_count_vectors(
         bytes,
         COUNT_VECTORS,
     )
-    .map_err(search_receipt)?;
+    .map_err(|receipt| search_receipt(&receipt))?;
     Ok((total, lease))
 }
 
@@ -918,14 +918,14 @@ pub fn exact_enumeration_covariance(
     for i in 1..=n {
         let prev = fact[i - 1];
         let Some(next) = prev.checked_mul(u128::from(widen(i))) else {
-            return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+            return Err(search_receipt(&antecedent_stats::execution_quote::unrepresentable_quote(
                 COUNT_VECTORS,
             )));
         };
         fact.push(next);
     }
     let Some(den) = u128::from(widen(n)).checked_pow(u32::try_from(n).unwrap_or(0)) else {
-        return Err(search_receipt(antecedent_stats::execution_quote::unrepresentable_quote(
+        return Err(search_receipt(&antecedent_stats::execution_quote::unrepresentable_quote(
             COUNT_VECTORS,
         )));
     };

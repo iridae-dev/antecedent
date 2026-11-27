@@ -450,7 +450,7 @@ mod tests {
             .consume(&exported, &limits, bundle.identity(), &supplied)
             .unwrap();
         assert_eq!(consumed.nodes()[0].status, NodeStatus::Verified);
-        assert!(consumed.nodes()[0].facts.get(CATALOG_ROLE_FACT).is_none());
+        assert!(!consumed.nodes()[0].facts.contains_key(CATALOG_ROLE_FACT));
         assert_eq!(consumed.nodes()[0].kind, NodeKind::CausalContract);
     }
 }

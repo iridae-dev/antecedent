@@ -211,6 +211,7 @@ fn construction() -> Construction {
         functional: "mean_contrast_do_x_0_5".into(),
         identification: "point".into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
     }
 }
 

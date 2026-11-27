@@ -25,6 +25,10 @@ impl NativeEffectAuthority {
 }
 
 impl crate::AteAnalysisResult {
+    #[allow(
+        clippy::result_large_err,
+        reason = "the error is the library's refusal type, returned once per call; boxing would change its API"
+    )]
     pub(crate) fn project_effect(
         &self,
         units: &str,

@@ -105,6 +105,7 @@ fn slope_interval(n: usize, seed: u64, prior_scale: f64) -> Option<([f64; 2], Re
         dependence: "iid".into(),
         functional: ASSOCIATION_FUNCTIONAL.into(),
         reported_level: REPORTED_LEVEL,
+        unit: None,
         ..base
     };
     let scope = ScopeFacts {

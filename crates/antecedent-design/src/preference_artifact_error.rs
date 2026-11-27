@@ -43,7 +43,7 @@ pub enum PreferenceArtifactError {
     Contract(PreferenceContractError),
     /// The evaluation is refused.
     #[error("evaluation: {0}")]
-    Evaluation(PreferenceEvaluationError),
+    Evaluation(Box<PreferenceEvaluationError>),
     /// The identity recomputed from the decoded content differs from the stored identity.
     #[error("the stored identity does not match the stored content")]
     StoredIdentityMismatch,

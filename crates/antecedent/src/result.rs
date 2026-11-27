@@ -1268,6 +1268,8 @@ pub(crate) struct ResultExtras {
     /// What a development build ran although a release build would have refused it. Always
     /// empty in a release build.
     pub(crate) would_refuse: Vec<antecedent_core::WouldRefuse>,
+    /// The evidence unit whose decision produced [`StudyResult::support_status`].
+    pub(crate) unit: Option<crate::support::UnitRef>,
 }
 
 impl StudyResult {
@@ -1355,10 +1357,40 @@ impl StudyResult {
         &self.payload
     }
 
-    /// Support standing of the estimand's cell, when the route reports one.
+    /// Support standing of the estimand's unit, when the route reports one.
+    ///
+    /// A supported status counts only with the [`Self::unit`] that earned it: a result stamped
+    /// supported without a unit reads as [`crate::support::CellStatus::NotSupported`].
     #[must_use]
     pub const fn support_status(&self) -> Option<crate::support::CellStatus> {
-        self.support_status
+        match (self.support_status, &self.extras.unit) {
+            (Some(crate::support::CellStatus::Supported), None) => {
+                Some(crate::support::CellStatus::NotSupported)
+            }
+            (status, _) => status,
+        }
+    }
+
+    /// The evidence unit (support-matrix cell, construction, graphless row or capability record)
+    /// whose decision produced [`Self::support_status`].
+    #[must_use]
+    pub const fn unit(&self) -> Option<&crate::support::UnitRef> {
+        self.extras.unit.as_ref()
+    }
+
+    /// Stamp the status `status` the unit `unit` decided.
+    pub(crate) fn stamp_support(
+        &mut self,
+        status: Option<crate::support::CellStatus>,
+        unit: Option<crate::support::UnitRef>,
+    ) {
+        self.support_status = status;
+        self.extras.unit = unit;
+    }
+
+    /// Stamp a supported status decided by the unit `unit`.
+    pub(crate) fn stamp_supported(&mut self, unit: crate::support::UnitRef) {
+        self.stamp_support(Some(crate::support::CellStatus::Supported), Some(unit));
     }
 
     /// Method records resolved by the route this result executed, with their sources and caveats.
@@ -1394,7 +1426,25 @@ impl StudyResult {
         self.lowered_identity = program.semantic_identity();
         self.lowered_quadrant = Some(program.refutation_quadrant());
         self.execution_identity = Some(execution);
+        if self.support_status.is_none() && self.extras.unit.is_none() {
+            self.decide_route_unit(program.route());
+        }
+        crate::support::trace_route(program.route(), self.extras.unit.as_ref());
         Ok(())
+    }
+
+    /// Decide the unit of a result whose execution decided none: the capability unit its
+    /// compiled route runs under. A route with no unit leaves the result undecided.
+    fn decide_route_unit(&mut self, route: &'static str) {
+        use crate::support::{CellStatus, UnitRef};
+        if let Some(unit) = crate::support::units_generated::unit_of(route) {
+            let status = if crate::support::capability_supported(unit.as_str()) {
+                CellStatus::Supported
+            } else {
+                CellStatus::NotSupported
+            };
+            self.stamp_support(Some(status), Some(UnitRef::Capability(unit)));
+        }
     }
 
     /// Route-native diagnostic records the result carries, in diagnostic order.
@@ -1689,7 +1739,7 @@ impl StudyResult {
             method: self.estimand.method.to_string(),
             adjustment_set: self.estimand.adjustment_set.iter().map(|id| id.raw()).collect(),
             support_status: self
-                .support_status
+                .support_status()
                 .map(crate::support::CellStatus::as_str)
                 .map(str::to_string),
         }

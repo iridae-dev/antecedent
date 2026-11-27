@@ -552,8 +552,11 @@ fn on_route_stack<T: Send>(
 ) -> Result<T, FlagshipError> {
     // One scoped thread only for a larger stack: the caller blocks on it, so no parallelism is added and the route admits its own work.
     std::thread::scope(|scope| {
-        let handle = std::thread::Builder::new()
-            .stack_size(ROUTE_STACK_BYTES)
+        let mut route = std::thread::Builder::new().stack_size(ROUTE_STACK_BYTES);
+        if let Some(name) = std::thread::current().name() {
+            route = route.name(name.to_owned());
+        }
+        let handle = route
             .spawn_scoped(scope, run)
             .map_err(|error| FlagshipError::Thread(Box::new(error)))?;
         handle.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))
