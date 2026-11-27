@@ -35,3 +35,4 @@ compatibility analysis where applicable. See [how Antecedent works](../docs/conc
 | [0028](0028-one-compiled-path.md) | One compiled path (one support model; kernel API vs analysis surface; type-and-method bypass gate) |
 | [0029](0029-operation-records.md) | Operation records (one generated-where-possible description per verified operation, keyed by its Rust path) |
 | [0030](0030-caller-surface.md) | Caller surface for 3.1 (one lifecycle; learners, decisions and saved studies; where a compatibility wrapper lives) |
+| [0031](0031-unified-evidence-records.md) | Unified evidence records (one entry per executable unit; links from execution; no evidence lost between 3.0 and 3.1) |
