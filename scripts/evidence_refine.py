@@ -162,16 +162,9 @@ def release(root: Path, path: Path) -> None:
 
 
 def store(root: Path, manifest: dict) -> str:
-    """Write a manifest and its input groups; its address."""
-    from evidence_manifests import INPUT_GROUPS, STORE, grouped, manifest_id
-    stored, groups = grouped(manifest)
-    for address, data in groups.items():
-        path = root / INPUT_GROUPS / f"{address}.json"
-        if not path.exists():
-            path.write_bytes(data)
-    ref = manifest_id(stored)
-    (root / STORE / f"{ref}.json").write_text(json.dumps(stored), encoding="utf-8")
-    return ref
+    """Store a manifest and the objects it names; its address."""
+    from evidence_manifests import store_manifest
+    return store_manifest(root, manifest)[0]
 
 
 def refine_records(root: Path, records: list[tuple[dict, dict, dict]]) -> dict[str, str]:

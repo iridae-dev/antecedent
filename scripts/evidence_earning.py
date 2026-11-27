@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-import tempfile
 from pathlib import Path
 
 from _repo import load_toml
@@ -21,16 +20,14 @@ from evidence_fingerprint import INPUT_DECLARATIONS, Fingerprinter, closure, loc
 from evidence_manifests import (
     ANALYZER,
     BUILD_ENV,
-    INPUT_GROUPS,
     NORMALIZATION,
     SCHEMA,
-    STORE,
     Checker,
     canonical,
     declarations_digest,
     digest,
-    grouped,
     manifest_id,
+    stored_form,
     noncanonical_environment,
 )
 from evidence_platforms import DARWIN, PLATFORMS
@@ -481,45 +478,23 @@ class Snapshot:
             self.manifest['inputs'] = [i for i in self.manifest['inputs'] if i not in inside]
             self.manifest['inputs'].append(dict(kind='tree', path=prefix,
                                                 digest=self.source_trees[prefix], role='compile'))
-        # Item tables are stored once by content; an entry names its file's table.
-        from evidence_items import STORE as ITEM_TABLES
-        self.outputs = [_write_addressed(self.root / ITEM_TABLES, address, data, self.root)
-                        for address, data in sorted(self.item_tables.items())]
-        stored, groups = grouped(self.manifest)
-        for address, data in groups.items():
-            self.outputs.append(_write_addressed(self.root / INPUT_GROUPS, address, data, self.root))
+        # Item tables and inputs are stored once by content; an entry names its file's table.
+        import evidence_objects
+        stored, objects = stored_form(self.manifest)
         ref = manifest_id(stored)
-        self.outputs.append(_write_addressed(self.root / STORE, ref, canonical(stored), self.root))
-        self._write_stable_pass()
-        return ref
-
-    def _write_stable_pass(self) -> None:
-        """The standing copy. A later run updates this file; the content address is only
-        the Nix output check."""
+        objects.update(self.item_tables)
         record = self.manifest.get("record") or {}
         kind, key = record.get("kind"), record.get("key")
-        if kind not in ("scientific", "calibration", "probe") or not isinstance(key, str) or not key:
-            return
-        from claim_passes import pass_ref, write_pass
-        self.outputs.append(write_pass(self.root, pass_ref(kind, key), self.manifest))
-
-
-def _write_addressed(store: Path, address: str, data: bytes, root: Path) -> str:
-    """Write `<address>.json` once; an existing file must hold the same bytes."""
-    store.mkdir(parents=True, exist_ok=True)
-    destination = store / f'{address}.json'
-    if destination.exists():
-        if destination.read_bytes() != data:
-            raise RuntimeError('content address collision or corrupt store')
-    else:
-        with tempfile.NamedTemporaryFile(dir=store, delete=False) as file:
-            temporary = Path(file.name)
-            file.write(data)
-        try:
-            os.replace(temporary, destination)
-        finally:
-            temporary.unlink(missing_ok=True)
-    return destination.relative_to(root).as_posix()
+        if kind in ("scientific", "calibration", "probe") and isinstance(key, str) and key:
+            # The standing copy. A later run updates this file; the content address is only
+            # the Nix output check.
+            from claim_passes import pass_ref, write_pass
+            self.outputs = evidence_objects.write(self.root, objects)
+            self.outputs.append(write_pass(self.root, pass_ref(kind, key), self.manifest))
+        else:
+            objects[ref] = canonical(stored)
+            self.outputs = evidence_objects.write(self.root, objects)
+        return ref
 
 
 def build_analyzer(root: Path, output: Path) -> Path | None:

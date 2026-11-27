@@ -13,6 +13,7 @@ from unittest import mock
 
 import evidence_items as ei
 import evidence_manifests as em
+import evidence_objects as eo
 import narrow_evidence_binding as narrowing
 from _repo import load_toml
 from test_evidence_reach import LIB, ROUTES, SOURCES, TEST, Workspace, inventory
@@ -48,11 +49,7 @@ class NarrowingTests(Workspace):
         manifest = dict(schema=em.SCHEMA, normalization=em.NORMALIZATION, record=binding, compiler=PIN,
                         analyzer="compiler-items-v1", inputs=entries, fallbacks=[], whole_sources=[],
                         declarations={})
-        stored, groups = em.grouped(manifest)
-        for address, data in groups.items():
-            self.write(f"{em.INPUT_GROUPS}/{address}.json", data.decode())
-        ref = em.manifest_id(stored)
-        self.write(f"{em.STORE}/{ref}.json", em.canonical(stored).decode())
+        ref, _, _ = em.store_manifest(self.root, manifest)
         self.write(REGISTRY, f'[[record]]\ntest = "{TEST_KEY}"\nfingerprint = "{"f" * 64}"\npassed = true\n'
                              f'observed = 0.951\ndependency_manifest = "{ref}"\n')
         return ref
@@ -74,12 +71,13 @@ class NarrowingTests(Workspace):
 
     def test_a_dry_run_counts_and_writes_nothing(self):
         before = (self.root / REGISTRY).read_text(encoding="utf-8")
+        stored = eo.Store(self.root).addresses()
         summary = self.run_tool(apply=False)["by_kind"]["scientific"]
         self.assertEqual((summary["current"], summary["migrated"], summary["selection_narrowed"]), (1, 1, 1))
         self.assertLess(summary["mean_items_after"], summary["mean_items_before"])
         self.assertEqual(summary["left_broad"], {})
         self.assertEqual((self.root / REGISTRY).read_text(encoding="utf-8"), before)
-        self.assertEqual([p.stem for p in (self.root / em.STORE).iterdir()], [self.old])
+        self.assertEqual(eo.Store(self.root).addresses(), stored)
 
     def test_the_narrowed_manifest_is_a_subset_and_only_the_address_changes(self):
         before = (self.root / REGISTRY).read_text(encoding="utf-8")
@@ -96,12 +94,12 @@ class NarrowingTests(Workspace):
         self.assertNotIn("fn:invert#0", new_parts[ROUTES])
         self.assertNotIn("fn:beta#0", new_parts[ROUTES])
         self.assertIn("full", new_parts[ROUTES]["fn:alpha#0"])
-        manifest = json.loads((self.root / em.STORE / f"{new}.json").read_bytes())
+        manifest = em.Checker(self.root, {}).load(new)
         self.assertEqual(manifest["record"]["fingerprint"], "f" * 64)
         self.assertEqual(manifest["narrowed_from"], self.old)
         self.assertEqual(manifest["analyzer"], em.ANALYZER)
         # The superseded manifest is no longer reachable and is removed.
-        self.assertFalse((self.root / em.STORE / f"{self.old}.json").exists())
+        self.assertFalse(eo.Store(self.root).has(self.old))
 
     def test_a_staged_dry_run_is_applied_without_computing_it_again(self):
         stage = self.root / "stage"
@@ -268,17 +266,12 @@ class IncludedFileTests(unittest.TestCase):
         entries = [e for e in entries if e.get("path") != self.HELPERS]
         entries.append(dict(kind="evidence_file", path=self.HELPERS, role="compile", text="rust",
                             digest=checker.rust_text(self.HELPERS)))
-        for address, data in tables.items():
-            self.write(f"{ei.STORE}/{address}.json", data.decode())
+        eo.write(self.root, tables)
         self.binding = dict(kind="scientific", key=TEST_KEY, fingerprint="f" * 64, measurement=None)
         manifest = dict(schema=em.SCHEMA, normalization=em.NORMALIZATION, record=self.binding, compiler=PIN,
                         analyzer="compiler-items-v1", inputs=entries, fallbacks=[], declarations={},
                         whole_sources=[f"{self.HELPERS}: no compiler module for this file"])
-        stored, groups = em.grouped(manifest)
-        for address, data in groups.items():
-            self.write(f"{em.INPUT_GROUPS}/{address}.json", data.decode())
-        self.old = em.manifest_id(stored)
-        self.write(f"{em.STORE}/{self.old}.json", em.canonical(stored).decode())
+        self.old, _, _ = em.store_manifest(self.root, manifest)
         self.write(REGISTRY, f'[[record]]\ntest = "{TEST_KEY}"\nfingerprint = "{"f" * 64}"\n'
                              f'dependency_manifest = "{self.old}"\n')
         self.build = narrowing.Build(build / "output", build / "source")
@@ -331,11 +324,7 @@ class IncludedFileTests(unittest.TestCase):
         manifest = checker.load(self.old)
         inputs = [dict(e, digest=checker.rust_text(self.HELPERS)) if e.get("path") == self.HELPERS else e
                   for e in manifest["inputs"]]
-        stored, groups = em.grouped({**{k: v for k, v in manifest.items() if k != "inputs"}, "inputs": inputs})
-        for address, data in groups.items():
-            self.write(f"{em.INPUT_GROUPS}/{address}.json", data.decode())
-        ref = em.manifest_id(stored)
-        self.write(f"{em.STORE}/{ref}.json", em.canonical(stored).decode())
+        ref, _, _ = em.store_manifest(self.root, {**manifest, "inputs": inputs})
         self.write(REGISTRY, (self.root / REGISTRY).read_text(encoding="utf-8").replace(self.old, ref))
         self.assertEqual(self.rebind()["kind"], "rust_items")
         self.assertTrue(self.current())

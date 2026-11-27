@@ -1,1 +1,0 @@
-["use:antecedent_estimate::bayesian_synthetic_control::{BayesianSyntheticControlSpec,fit_bayesian_synthetic_control,};#0","use:antecedent_estimate::util::DrawSpec;#0","use:serde_json::Value;#0","const:UNITS#0","fn:donors_at#0","fn:panel#0","fn:weights_effect_and_pre_fit_match_the_simplex_quadrature#0"]

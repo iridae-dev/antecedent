@@ -9,6 +9,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+import claim_passes
 import scientific_records as sr
 
 
@@ -117,7 +118,7 @@ why="reader macro reads its consumer's input.txt"
             self.assertEqual((len(owed),len(current)),(0,1), owed)
             (root/'crates/toy/src/lib.rs').write_text(source.replace('{ 7 }','{ 8 }'), encoding="utf-8")
             owed,current = sr.classify(root,[row])
-            self.assertEqual((len(owed),len(current)),(0,1), [owed, json.loads((root/'parity/evidence_manifests'/f"{record['dependency_manifest']}.json").read_text(encoding="utf-8"))])
+            self.assertEqual((len(owed),len(current)),(0,1), owed)
             # Items the assertion neither executed nor named are not its inputs.
             for edit in (('{ 3 }','{ 4 }'), ('unused()','unused(x:i32)'), ('pub const fn', 'pub fn added() {}\npub const fn')):
                 (root/'crates/toy/src/lib.rs').write_text(source.replace(*edit), encoding="utf-8")
@@ -126,7 +127,7 @@ why="reader macro reads its consumer's input.txt"
             (root/'crates/toy/src/lib.rs').write_text(source, encoding="utf-8")
             # Data and a directory listing read only by functions the assertion never runs
             # are not its inputs either.
-            manifest = json.loads((root/'parity/evidence_manifests'/f"{record['dependency_manifest']}.json").read_text(encoding="utf-8"))
+            manifest = claim_passes.read_pass(root, record['dependency_manifest'])
             (root/'crates/toy/data/notes.txt').write_text('second\n', encoding="utf-8")
             (root/'crates/toy/data/added.txt').write_text('new\n', encoding="utf-8")
             owed,current = sr.classify(root,[row])

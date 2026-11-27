@@ -482,14 +482,13 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                         print(f"FAIL: {selector}: {error}")
                         failed += 1
                         continue
-                    manifest = f"parity/evidence_manifests/{ref}.json"
-                    # The manifest, its input groups and item tables are this run's own outputs.
+                    # The pass and the objects it names are this run's own outputs.
                     for output in snapshots[selector].outputs:
                         _remember_nix_output(root, allowed, output)
-                    # Manifest filenames are content addresses, not merely paths to trust.
-                    if allowed[manifest] != ref:
-                        raise RuntimeError("published evidence manifest does not match its content address")
-                    from claim_passes import pass_ref
+                    from claim_passes import pass_ref, read_stored_pass
+                    from evidence_manifests import manifest_id
+                    if manifest_id(read_stored_pass(root, pass_ref("scientific", selector))) != ref:
+                        raise RuntimeError("published evidence pass does not match its content address")
                     earned.append({**row, "selector": selector,
                                    "dependency_manifest": pass_ref("scientific", selector),
                                    "fingerprint": snapshots[selector].manifest["record"]["fingerprint"]})

@@ -1,1 +1,0 @@
-["use:antecedent_kernels::Welford;#0","use:super::{HmcOptions,MIN_METRIC_WARMUP};#0","fn:metric_windows#0","struct:DiagonalMetric#0","impl:DiagonalMetric#0","impl:DiagonalMetric#0/fn:new#0","impl:DiagonalMetric#0/fn:observe#0","impl:DiagonalMetric#0/fn:install_if_window_closed#0"]

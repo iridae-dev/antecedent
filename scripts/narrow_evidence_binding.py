@@ -70,7 +70,7 @@ import evidence_manifests as manifests
 import evidence_reach
 import evidence_recipes
 from evidence_items import PARTS, Names, Selection, items_digest, parse, sha
-from evidence_manifests import ANALYZER, Checker, canonical, digest, grouped, manifest_id
+from evidence_manifests import ANALYZER, Checker, canonical, digest, manifest_id, stored_form
 from rust_items import ParseError, scope_entries
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -571,7 +571,7 @@ def narrow(root: Path, checker: Checker, binding: dict, ref: str, test: str, *, 
     new.update(inputs=inputs, analyzer=ANALYZER, whole_sources=whole,
                narrowed_from=manifest.get("narrowed_from", ref))
     manifests.validate(new, binding)
-    stored, groups = grouped(new)
+    stored, objects = stored_form(new)
     new_ref = manifest_id(stored)
     # Check the new manifest as any other, before anything is written.
     checker.manifests[new_ref] = new
@@ -582,12 +582,8 @@ def narrow(root: Path, checker: Checker, binding: dict, ref: str, test: str, *, 
     result.update(new=new_ref, after=Bound(checker, new).count(build))
     del checker.manifests[new_ref]
     if write is not None:
-        from evidence_earning import _write_addressed
-        for address, data in tables.items():
-            _write_addressed(write / evidence_items.STORE, address, data, write)
-        for address, data in groups.items():
-            _write_addressed(write / manifests.INPUT_GROUPS, address, data, write)
-        _write_addressed(write / manifests.STORE, new_ref, canonical(stored), write)
+        import evidence_objects
+        evidence_objects.write(write, {**tables, **objects, new_ref: canonical(stored)})
     return result
 
 
@@ -721,14 +717,13 @@ def apply_staged(root: Path, stage: Path, out=sys.stdout) -> dict:
     """Rebind the records to the manifests a dry run staged. A record whose address moved
     since, or is no longer current, is left alone; every staged manifest is copied and then
     checked against the checkout, as any manifest is, before its record cites it."""
-    from evidence_earning import _write_addressed
+    from evidence_objects import Store
     moved = json.loads((stage / STAGED).read_text(encoding="utf-8"))["moved"]
     checker = Checker(root)
     wanted = [(binding, ref) for _, binding, ref, _ in records(root, "all")
               if ref in moved and checker.check(binding, ref)["current"]]
-    for store in (manifests.STORE, manifests.INPUT_GROUPS, evidence_items.STORE):
-        for path in sorted((stage / store).glob("*.json")) if (stage / store).is_dir() else ():
-            _write_addressed(root / store, path.stem, path.read_bytes(), root)
+    staged = Store(stage)
+    Store(root).put({address: staged.get(address) for address in staged.addresses()})
     fresh = Checker(root)
     failed = [binding["key"] for binding, ref in wanted if not fresh.check(binding, moved[ref])["current"]]
     if failed:

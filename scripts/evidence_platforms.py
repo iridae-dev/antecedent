@@ -332,19 +332,18 @@ def manifest_platform(manifest: object) -> str | None:
 
 
 @functools.cache
+def _stored(root: Path):
+    from evidence_manifests import Checker
+    return Checker(root)
+
+
+@functools.cache
 def stored_platform(root: Path, ref: object) -> str | None:
-    """`manifest_platform` of the manifest stored under `ref`."""
-    if not isinstance(ref, str):
+    """`manifest_platform` of the manifest stored under `ref`, a pass or an address."""
+    if not isinstance(ref, str) or not (ref.startswith("pass:") or re.fullmatch(r"[0-9a-f]{64}", ref)):
         return None
     try:
-        if ref.startswith("pass:"):
-            from claim_passes import read_pass
-            manifest = read_pass(root, ref)
-        elif re.fullmatch(r"[0-9a-f]{64}", ref):
-            manifest = json.loads((root / "parity/evidence_manifests" / f"{ref}.json").read_bytes())
-        else:
-            return None
-        return manifest_platform(manifest)
+        return manifest_platform(_stored(root).load(ref))
     except (OSError, ValueError):
         return None
 

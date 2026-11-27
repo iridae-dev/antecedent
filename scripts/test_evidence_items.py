@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 import evidence_items as ei
+import evidence_objects
 import evidence_manifests as em
 import rust_items as ri
 
@@ -145,8 +146,7 @@ class SelectionTests(unittest.TestCase):
         for rel, source, needle in ((TEST, TEST_SOURCE, "assert!"), (EST, EST_SOURCE, "self.bias +")):
             selection.execute(rel, source.index(needle))
         entries, tables = selection.entries(em.Checker(self.root, {}), ["crates/c"], "crates/c")
-        for address, data in tables.items():
-            self.write(f"{ei.STORE}/{address}.json", data.decode())
+        evidence_objects.write(self.root, tables)
         return selection, entries
 
     def current(self, entries):

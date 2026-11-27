@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import evidence_manifests as em
+import evidence_objects as eo
 
 
 class ManifestTests(unittest.TestCase):
@@ -38,9 +39,20 @@ class ManifestTests(unittest.TestCase):
         for offset in executed:
             selection.execute(rel, offset)
         entries, tables = selection.entries(em.Checker(self.root, {}), ["src"], "src")
-        for address, data in tables.items():
-            self.write(f"{ei.STORE}/{address}.json", data.decode())
+        eo.write(self.root, tables)
         return entries
+
+    def drop(self, address):
+        """Remove one object from the store."""
+        store = eo.Store(self.root)
+        store.compact(store.addresses() - {address})
+
+    def corrupt(self, address, data):
+        """Store `data` under `address`, whose content it is not."""
+        shard = self.root / eo.shard_name(address)
+        lines = [line for line in shard.read_bytes().splitlines(keepends=True)
+                 if not line.startswith(address.encode())]
+        shard.write_bytes(b"".join(lines) + address.encode() + b" " + data + b"\n")
 
     def manifest(self, kind="file", key="src/a.rs"):
         checker = em.Checker(self.root, {})
@@ -54,25 +66,20 @@ class ManifestTests(unittest.TestCase):
         }
 
     def store(self, manifest):
-        stored, groups = em.grouped(manifest)
-        for address, data in groups.items():
-            self.write(f"{em.INPUT_GROUPS}/{address}.json", data.decode())
-        ref = em.manifest_id(stored)
-        self.write(f"{em.STORE}/{ref}.json", json.dumps(stored))
+        ref, _, _ = em.store_manifest(self.root, manifest)
         return ref
 
     def test_shared_inputs_are_stored_once_and_a_stored_manifest_restores_them(self):
         manifest = self.manifest()
-        stored, groups = em.grouped(manifest)
-        self.assertNotIn("inputs", stored)
-        self.assertEqual(stored["input_groups"], sorted(groups))
+        stored, objects = em.stored_form(manifest)
+        entry = stored["inputs"][0][0]
+        self.assertIn(entry["@"], objects)
         ref = self.store(manifest)
         checker = em.Checker(self.root, {})
         self.assertEqual(sorted(checker.load(ref)["inputs"], key=json.dumps),
                          sorted(manifest["inputs"], key=json.dumps))
-        # A group file whose content does not match its address is refused.
-        first = stored["input_groups"][0]
-        self.write(f"{em.INPUT_GROUPS}/{first}.json", "[]")
+        # An object whose content does not match its address is refused.
+        self.corrupt(entry["@"], b"[]")
         self.assertFalse(em.Checker(self.root, {}).check(self.binding, ref)["current"])
 
     def check(self, manifest, binding=None):
@@ -84,7 +91,7 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(result["reasons"], [])
 
     def test_a_standing_pass_loads_and_flags_when_its_input_changes(self):
-        from claim_passes import pass_path, pass_ref, read_pass, write_pass
+        from claim_passes import pass_ref, read_index, read_pass, write_pass
 
         manifest = self.manifest()
         ref = pass_ref("scientific", self.binding["key"])
@@ -96,18 +103,33 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(any(reason.startswith("input_changed:") for reason in result["reasons"]))
         # The recorded pass stays. Flagging it does not remove it.
         self.assertEqual(read_pass(self.root, ref)["inputs"], manifest["inputs"])
-        self.assertTrue(pass_path(self.root, ref).is_file())
+        self.assertIn(ref, read_index(self.root))
 
-    def test_a_long_pass_key_keeps_one_stable_path(self):
-        from claim_passes import pass_ref, read_pass, write_pass
+    def test_passes_share_their_inputs(self):
+        from claim_passes import pass_ref, read_pass, read_stored_pass, write_pass
+
+        manifest = self.manifest()
+        refs = [pass_ref("scientific", key) for key in ("crate::one", "crate::two")]
+        write_pass(self.root, refs[0], manifest)
+        first = len(eo.Store(self.root).addresses())
+        write_pass(self.root, refs[1], manifest)
+        stored = [read_stored_pass(self.root, ref) for ref in refs]
+        self.assertEqual(stored[0]["inputs"], stored[1]["inputs"])
+        # A second pass of the same manifest stores nothing new.
+        self.assertEqual(len(eo.Store(self.root).addresses()), first)
+        restored = read_pass(self.root, refs[1])["inputs"]
+        self.assertEqual(sorted(map(em.canonical, restored)), sorted(map(em.canonical, manifest["inputs"])))
+
+    def test_a_long_pass_key_keeps_one_index_entry(self):
+        from claim_passes import pass_ref, read_index, read_pass, write_pass
 
         key = "cov." + ("segment_" * 40)
         ref = pass_ref("calibration", key)
         manifest = self.manifest()
         manifest["record"] = {**self.binding, "kind": "calibration", "key": key}
-        first = write_pass(self.root, ref, manifest)
         write_pass(self.root, ref, manifest)
-        self.assertIn("/long/", first)
+        write_pass(self.root, ref, manifest)
+        self.assertEqual([r for r in read_index(self.root) if r.endswith(key)], [ref])
         self.assertEqual(read_pass(self.root, ref)["record"]["key"], key)
 
     def test_prune_keeps_the_item_table_a_pass_names(self):
@@ -126,9 +148,9 @@ class ManifestTests(unittest.TestCase):
         )
         orphan = self.store(self.manifest())
         removed = em.prune_evidence(self.root)
-        self.assertIn(f"{em.STORE}/{orphan}.json", removed)
+        self.assertIn(f"{eo.OBJECTS}/{orphan}", removed)
         table = next(entry["table"] for entry in manifest["inputs"] if entry["kind"] == "rust_items")
-        self.assertNotIn(f"parity/evidence_items/{table}.json", removed)
+        self.assertNotIn(f"{eo.OBJECTS}/{table}", removed)
         self.assertTrue(em.Checker(self.root, {}).check(self.binding, ref)["current"])
 
     def test_a_locked_package_binds_its_lock_entry_only(self):
@@ -229,10 +251,9 @@ class ManifestTests(unittest.TestCase):
         for ref in (None, "../../escape", "a" * 64):
             self.assertFalse(checker.check(self.binding, ref)["current"])
         ref = self.store(self.manifest())
-        path = self.root / em.STORE / f"{ref}.json"
-        path.write_text("{", encoding="utf-8")
+        self.corrupt(ref, b"{")
         self.assertFalse(em.Checker(self.root).check(self.binding, ref)["current"])
-        path.write_text(json.dumps({"schema": 9}), encoding="utf-8")
+        self.corrupt(ref, json.dumps({"schema": 9}).encode())
         self.assertFalse(em.Checker(self.root).check(self.binding, ref)["current"])
 
     def test_deleted_input_owes(self):
@@ -279,7 +300,6 @@ class ManifestTests(unittest.TestCase):
         self.assertFalse(self.check(manifest)['current'])
 
     def test_prune_keeps_what_a_record_reaches_and_deletes_the_rest(self):
-        import evidence_items as ei
         source = 'fn used() -> i32 { 1 }\n'
         self.write('src/a.rs', source)
         kept = self.manifest()
@@ -295,9 +315,10 @@ class ManifestTests(unittest.TestCase):
         self.write('parity/scientific_records.toml',
                    f'[[record]]\ntest = "crate::test"\nfingerprint = "old"\ndependency_manifest = "{kept_ref}"\n')
         orphans = em.unreachable_evidence(self.root)
-        self.assertIn(f"{em.STORE}/{old_ref}.json", orphans)
-        self.assertNotIn(f"{em.STORE}/{kept_ref}.json", orphans)
-        self.assertTrue(any(o.startswith(ei.STORE + "/") for o in orphans))
+        self.assertIn(f"{eo.OBJECTS}/{old_ref}", orphans)
+        self.assertNotIn(f"{eo.OBJECTS}/{kept_ref}", orphans)
+        old_table = next(e['table'] for e in old['inputs'] if e['kind'] == 'rust_items')
+        self.assertIn(f"{eo.OBJECTS}/{old_table}", orphans)
         self.assertEqual(em.prune_evidence(self.root), orphans)
         self.assertEqual(em.unreachable_evidence(self.root), [])
         self.assertTrue(em.Checker(self.root, {}).check(self.binding, kept_ref)['current'])
@@ -312,7 +333,7 @@ class ManifestTests(unittest.TestCase):
         self.write('src/a.rs', source + 'fn more() {}\n')
         self.assertTrue(self.check(manifest)['current'])
         table = next(e['table'] for e in manifest['inputs'] if e['kind'] == 'rust_items')
-        (self.root / 'parity/evidence_items' / f'{table}.json').unlink()
+        self.drop(table)
         self.assertFalse(self.check(manifest)['current'])
 
     def test_fallback_must_hash_its_boundary(self):

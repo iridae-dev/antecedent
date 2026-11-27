@@ -1,11 +1,12 @@
 """Nix Rust earning orchestration with disposable, mocked test captures."""
-import hashlib
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 import evidence_earning
+from claim_passes import pass_ref, write_pass
+from evidence_manifests import manifest_id, stored_form
 import evidence_platforms
 import nix_evidence_build
 import nix_evidence_capture
@@ -18,7 +19,7 @@ class NixRustEarning(unittest.TestCase):
     def test_one_build_serves_every_target_and_each_tracks_its_own_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
-            (root / "parity/evidence_manifests").mkdir(parents=True)
+            (root / "parity").mkdir()
             rows = [{"name": "a"}, {"name": "b"}]
             seen = []
             marks = []
@@ -45,11 +46,11 @@ class NixRustEarning(unittest.TestCase):
                     marks.append(binary)
 
                 def publish(self):
-                    data = self.name.encode()
-                    ref = hashlib.sha256(data).hexdigest()
-                    (root / "parity/evidence_manifests" / (ref + ".json")).write_bytes(data)
-                    self.outputs = [f"parity/evidence_manifests/{ref}.json"]
-                    return ref
+                    manifest = {**self.manifest, "name": self.name, "inputs": []}
+                    stored, _ = stored_form(manifest)
+                    self.outputs = [write_pass(root, pass_ref("scientific", self.name + "::lib::test"),
+                                               manifest)]
+                    return manifest_id(stored)
 
             def ledger(*args, **kwargs):
                 (root / "parity/scientific_records.toml").write_text("own ledger", encoding="utf-8")

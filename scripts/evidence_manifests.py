@@ -2,7 +2,8 @@
 """Currency checker for content-addressed evidence dependency manifests.
 
 Scientific passes, calibration measurements and probe attestations reference a
-manifest in `parity/evidence_manifests/<sha256>.json`. A record is current when
+standing pass (`claim_passes`) or a content-addressed manifest in the object store
+(`evidence_objects`). A record is current when
 its manifest binds exactly that record, was written under an accepted analyzer
 policy and the compiler pin, and every input still matches. A build recipe is an
 input by what it says (`evidence_recipes`), not by its bytes. Inputs are hashed once
@@ -31,12 +32,7 @@ from pathlib import Path, PurePosixPath
 import _repo
 
 ROOT = Path(__file__).resolve().parents[1]
-STORE = "parity/evidence_manifests"
-# Content-addressed input groups, `<sha256>.json`: the inputs of one directory (or one
-# kind of named input), shared by every manifest whose inputs there are identical. A
-# stored manifest lists its groups; loading it restores the full input list.
-INPUT_GROUPS = "parity/evidence_inputs"
-
+from evidence_objects import OBJECTS, CorruptObject, Decoded, Store, decode, encode, encode_object, reachable
 
 class ShallowClone(RuntimeError):
     """Currency cannot be judged in a clone that lacks the commits records were built at."""
@@ -68,18 +64,67 @@ def input_group_key(entry: dict) -> str:
     return f":{entry.get('kind')}"
 
 
-def grouped(manifest: dict) -> tuple[dict, dict[str, bytes]]:
-    """The stored form of a manifest and the group files it names, by address."""
+def stored_form(manifest: dict) -> tuple[dict, dict[str, bytes]]:
+    """The stored form of a manifest and the objects it names, by address.
+
+    Each field is encoded as shared objects (`evidence_objects.encode`); the inputs are a list
+    of the inputs of each directory. Passes of one build, policy or review, or with mostly the
+    same inputs, store each shared part once."""
     groups: dict[str, list[dict]] = {}
     for entry in manifest["inputs"]:
         groups.setdefault(input_group_key(entry), []).append(entry)
-    files: dict[str, bytes] = {}
-    for entries in groups.values():
-        data = canonical(sorted(entries, key=lambda e: (e["kind"], e.get("path", e.get("name", "")))))
-        files[digest(data)] = data
-    stored = {key: value for key, value in manifest.items() if key != "inputs"}
-    stored["input_groups"] = sorted(files)
-    return stored, files
+    objects: dict[str, bytes] = {}
+    stored = {key: encode(value, objects) for key, value in manifest.items() if key != "inputs"}
+    stored["inputs"] = encode(
+        [[_encoded_entry(e, objects)
+          for e in sorted(groups[key], key=lambda e: (e["kind"], e.get("path", e.get("name", ""))))]
+         for key in sorted(groups)], objects, encoded_parts=True)
+    return stored, objects
+
+
+# Encoded inputs by canonical bytes: the passes of one build share most of their inputs. Each
+# input is its own object, so a directory's inputs are a short list of references.
+_ENCODED: dict[bytes, tuple[object, dict[str, bytes]]] = {}
+
+
+def _encoded_entry(entry: dict, objects: dict[str, bytes]):
+    key = canonical(entry)
+    if key not in _ENCODED:
+        if len(_ENCODED) > 100_000:
+            _ENCODED.clear()
+        parts: dict[str, bytes] = {}
+        _ENCODED[key] = (encode_object(entry, parts), parts)
+    encoded, parts = _ENCODED[key]
+    objects.update(parts)
+    return encoded
+
+
+def expand(manifest: dict, read) -> dict:
+    """A stored manifest with its objects restored; `read` returns an object's decoded value
+    (`evidence_objects.Decoded`)."""
+    if not isinstance(manifest, dict) or "inputs" not in manifest:
+        raise InvalidManifest("a stored manifest names its inputs")
+    try:
+        restored = {key: decode(value, read) for key, value in manifest.items()}
+    except CorruptObject as error:
+        raise InvalidManifest(str(error)) from error
+    groups = restored["inputs"]
+    if not isinstance(groups, list) or not all(
+            isinstance(g, list) and all(isinstance(e, dict) for e in g) for g in groups):
+        raise InvalidManifest("a stored manifest lists its inputs by directory")
+    restored["inputs"] = [entry for group in groups for entry in group]
+    return restored
+
+
+def store_manifest(root: Path, manifest: dict) -> tuple[str, dict, list[str]]:
+    """Store a manifest's objects and its stored form; its address, stored form and the
+    shards written."""
+    import evidence_objects
+    stored, objects = stored_form(manifest)
+    data = canonical(stored)
+    return digest(data), stored, evidence_objects.write(root, {**objects, digest(data): data})
+
+
 SCHEMA = 1
 NORMALIZATION = "raw-bytes-v1"
 # The dependency policy that writes manifests. Changing what earning records,
@@ -444,7 +489,9 @@ class Checker:
         self.hashing_seconds = 0.0
         self.bytes_hashed = 0
         self.files_hashed = 0
-        self.groups: dict[str, list[dict]] = {}
+        self.objects = Store(self.root)
+        self.decoded = Decoded(self.objects.get)
+        self.parsed: dict[str, object] = {}
         from evidence_items import ItemChecker
         self.items = ItemChecker(self)
         self._tracked: list[str] | None = None
@@ -506,28 +553,24 @@ class Checker:
             out.append(p)
         return out
 
+    @functools.cached_property
+    def pass_index(self) -> dict[str, str]:
+        """The pass index of the tree this checker reads."""
+        from claim_passes import read_index
+        return read_index(self.root)
+
+    def object(self, address: str):
+        """The parsed object at `address`; `InvalidManifest` if it is missing or corrupt."""
+        if address not in self.parsed:
+            try:
+                self.parsed[address] = json.loads(self.objects.get(address))
+            except (CorruptObject, ValueError) as error:
+                raise InvalidManifest(str(error)) from error
+        return self.parsed[address]
+
     def expanded(self, manifest: dict) -> dict:
-        """A stored manifest with its input groups restored to one input list."""
-        groups = manifest.get("input_groups")
-        if "inputs" in manifest or not isinstance(groups, list) or groups != sorted(set(groups)):
-            raise InvalidManifest("a stored manifest lists its inputs as sorted, distinct groups")
-        inputs: list[dict] = []
-        for address in groups:
-            if not isinstance(address, str) or not HEX.fullmatch(address):
-                raise InvalidManifest("invalid input group address")
-            if address not in self.groups:
-                try:
-                    data = self.path(f"{INPUT_GROUPS}/{address}.json").read_bytes()
-                except OSError as error:
-                    raise InvalidManifest(f"missing input group {address}") from error
-                if digest(data) != address:
-                    raise InvalidManifest("input group content does not match its address")
-                entries = json.loads(data)
-                if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
-                    raise InvalidManifest("invalid input group")
-                self.groups[address] = entries
-            inputs.extend(self.groups[address])
-        return {**{k: v for k, v in manifest.items() if k != "input_groups"}, "inputs": inputs}
+        """A stored manifest with its objects restored."""
+        return expand(manifest, self.decoded)
 
     def locked_checksums(self) -> dict[str, str]:
         """`<name> <version>` to Cargo.lock checksum, for every registry package."""
@@ -706,22 +749,35 @@ class Checker:
             raise InvalidManifest("missing or invalid dependency_manifest reference")
         if ref.startswith("pass:"):
             if ref not in self.manifests:
-                from claim_passes import read_pass
-                try:
-                    self.manifests[ref] = read_pass(self.root, ref)
-                except (OSError, ValueError) as error:
-                    raise InvalidManifest(str(error)) from error
+                address = self.pass_index.get(ref)
+                if address is None:
+                    raise InvalidManifest(f"no pass {ref}")
+                self.manifests[ref] = self.expanded(self.object(address))
             return self.manifests[ref]
         if not HEX.fullmatch(ref):
             raise InvalidManifest("missing or invalid dependency_manifest reference")
         if ref not in self.manifests:
             start = time.perf_counter()
-            manifest = json.loads(self.path(f"{STORE}/{ref}.json").read_bytes())
-            if manifest_id(manifest) != ref:
+            manifest = self.object(ref)
+            if not isinstance(manifest, dict) or manifest_id(manifest) != ref:
                 raise InvalidManifest("manifest content does not match its address")
             self.manifests[ref] = self.expanded(manifest)
             self.parsing_seconds += time.perf_counter() - start
         return self.manifests[ref]
+
+    def recheck_nix(self, policy: dict) -> None:
+        """`recheck_selection` once per distinct policy: records of one build share it."""
+        from evidence_platforms import recheck_selection
+        cache = self.__dict__.setdefault("_nix_rechecks", {})
+        key = canonical(policy)
+        if key not in cache:
+            try:
+                recheck_selection(self.root, policy)
+                cache[key] = None
+            except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as error:
+                cache[key] = error
+        if cache[key] is not None:
+            raise cache[key]
 
     def check(self, binding: dict, ref: object) -> dict:
         label = f"{binding['kind']}:{binding['key']}"
@@ -735,8 +791,7 @@ class Checker:
             if manifest["analyzer"] not in ANALYZERS:
                 reasons.append("analyzer_policy_changed")
             if "nix_build" in manifest:
-                from evidence_platforms import recheck_selection
-                recheck_selection(self.root, manifest["nix_build"]["policy"])
+                self.recheck_nix(manifest["nix_build"]["policy"])
             names = next((e for e in manifest["inputs"] if e["kind"] == "rust_names"), None)
             for entry in manifest["inputs"]:
                 kind = entry["kind"]
@@ -810,60 +865,54 @@ def inventory(root: Path, kind: str = "all") -> list[tuple[dict, object]]:
 
 
 def _stored(root: Path) -> set[str]:
-    from evidence_items import STORE as ITEMS
-    found = set()
-    for directory in (STORE, INPUT_GROUPS, ITEMS):
-        base = root / directory
-        if base.is_dir():
-            found.update(f"{directory}/{p.name}" for p in base.iterdir()
-                         if p.suffix == ".json" and HEX.fullmatch(p.stem))
-    return found
+    from claim_passes import PASS_INDEX, read_index
+    return {f"{OBJECTS}/{address}" for address in Store(root).addresses()} \
+        | {f"{PASS_INDEX}#{ref}" for ref in read_index(root)}
 
 
 def reachable_evidence(root: Path) -> set[str]:
-    """Stored evidence a record still reaches: its manifest, the manifest's input groups,
-    and the item tables those groups name. Every ledger that cites manifests counts."""
-    from evidence_items import STORE as ITEMS
+    """Stored evidence a record still reaches: its pass or manifest and every object they
+    name. Every ledger that cites manifests counts."""
+    from claim_passes import PASS_INDEX
     checker = Checker(root)
     reached: set[str] = set()
     for _, ref in inventory(root):
-        if isinstance(ref, str) and ref.startswith("pass:"):
-            try:
-                inputs = checker.load(ref)["inputs"]
-            except (OSError, ValueError, KeyError, TypeError, InvalidManifest):
-                continue
-            reached.update(f"{ITEMS}/{e['table']}.json" for e in inputs
-                           if e.get("kind") == "rust_items" and isinstance(e.get("table"), str))
+        if not isinstance(ref, str):
             continue
-        if not isinstance(ref, str) or not HEX.fullmatch(ref):
-            continue
-        path = root / STORE / f"{ref}.json"
-        if not path.is_file():
-            continue
-        reached.add(f"{STORE}/{ref}.json")
         try:
-            stored = json.loads(path.read_bytes())
-            reached.update(f"{INPUT_GROUPS}/{g}.json" for g in stored.get("input_groups", [])
-                           if isinstance(g, str) and HEX.fullmatch(g))
-            inputs = checker.load(ref)["inputs"]
-        except (OSError, ValueError, KeyError, TypeError):
+            if ref.startswith("pass:") and ref in checker.pass_index:
+                reached.add(f"{PASS_INDEX}#{ref}")
+                address = checker.pass_index[ref]
+            elif HEX.fullmatch(ref) and checker.objects.has(ref):
+                address = ref
+            else:
+                continue
+            reached.update(f"{OBJECTS}/{a}" for a in reachable(checker.objects, address))
+        except (OSError, ValueError, KeyError, TypeError, AttributeError, InvalidManifest):
             # An unreadable manifest keeps what it names; its record reports the defect.
             continue
-        reached.update(f"{ITEMS}/{e['table']}.json" for e in inputs
-                       if e.get("kind") == "rust_items" and isinstance(e.get("table"), str))
     return reached
 
 
 def unreachable_evidence(root: Path) -> list[str]:
-    """Stored evidence no record reaches: superseded by a later pass or left by a stopped run."""
+    """Stored evidence no record reaches: superseded by a later pass or left by a stopped run.
+    An object is named `parity/evidence_objects/<address>`, a pass `parity/passes.json#<id>`."""
     return sorted(_stored(root) - reachable_evidence(root))
 
 
 def prune_evidence(root: Path) -> list[str]:
-    """Delete stored evidence no record reaches. History keeps every superseded file."""
+    """Delete stored evidence no record reaches: passes from the index, objects from the
+    store. History keeps every superseded object."""
+    from claim_passes import PASS_INDEX, write_index
     removed = unreachable_evidence(root)
-    for rel in removed:
-        (root / rel).unlink()
+    passes = {rel.split("#", 1)[1] for rel in removed if rel.startswith(f"{PASS_INDEX}#")}
+    if passes:
+        write_index(root, lambda index: [index.pop(ref, None) for ref in passes])
+    prefix = f"{OBJECTS}/"
+    dropped = {rel[len(prefix):] for rel in removed if rel.startswith(prefix)}
+    if dropped:
+        store = Store(root)
+        store.compact(store.addresses() - dropped)
     return removed
 
 
@@ -874,7 +923,11 @@ def report(root: Path = ROOT, kind: str = "all") -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--kind", choices=("all", "scientific", "calibration", "probe"), default="all")
+    parser.add_argument("--show", metavar="REF", help="print the manifest a pass or address names")
     args = parser.parse_args()
+    if args.show:
+        print(json.dumps(Checker(ROOT).load(args.show), indent=2, sort_keys=True))
+        return 0
     print(json.dumps(report(kind=args.kind), indent=2))
     return 0
 

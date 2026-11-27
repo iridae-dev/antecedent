@@ -39,8 +39,8 @@ class SnapshotTest(unittest.TestCase):
         self.assertEqual((self.destination / "sub/source.rs").read_bytes(), (self.root / "sub/source.rs").read_bytes())
 
     def test_committed_evidence_outputs_stay_out_of_the_build_source(self):
-        outputs = ["parity/scientific_records.toml", "parity/evidence_manifests/a.json",
-                   "parity/evidence_inputs/b.json", "parity/evidence_items/c.json", "scripts/earn.py"]
+        outputs = ["parity/scientific_records.toml", "parity/passes.json",
+                   "parity/evidence_objects/ab.txt", "scripts/earn.py"]
         for rel in outputs + ["parity/coverage_records.toml"]:
             (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
             (self.root / rel).write_text("x\n", encoding="utf-8")

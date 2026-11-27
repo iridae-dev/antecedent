@@ -318,7 +318,7 @@ reviewed row and adds each new build-script or procedural-macro unit (and what i
 `reviewed-safe` or `complete-source`, and commit the registries with the lock.
 
 **Which platform earned a record.** A record's dependency manifest
-(`parity/evidence_manifests/<dependency_manifest>.json`) names it in `nix_build.policy.target`.
+(`python3 scripts/evidence_manifests.py --show <dependency_manifest>`) names it in `nix_build.policy.target`.
 `nix_build.policy.id` and `nix_build.tools.host` (the compiler's host triple) must be that
 platform's, and its recipe digests must be of that platform's recipes; the manifest checker
 refuses a receipt whose fields disagree.

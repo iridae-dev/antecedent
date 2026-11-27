@@ -14,6 +14,9 @@ import tarfile
 import tempfile
 from pathlib import Path, PurePosixPath
 
+from claim_passes import PASS_INDEX, index_only_adds_stored
+from evidence_objects import appended_only
+
 
 def _git(root: Path, *args: str) -> bytes:
     return subprocess.run(["git", *args], cwd=root, check=True, capture_output=True,
@@ -42,9 +45,11 @@ def _clean_head(root: Path, allowed_outputs: dict[str, str] | None = None) -> tu
         # A rename/copy produces an additional path and is never a run output.
         if b"R" in status or b"C" in status:
             raise ValueError("source checkout must have no tracked or untracked changes")
-        is_output = name == "parity/scientific_records.toml" or bool(
-            re.fullmatch(r"parity/evidence_(?:manifests|items|inputs)/[0-9a-f]{64}\.json", name)
-        )
+        # Evidence outputs verify themselves: an object shard is its committed bytes plus lines
+        # that hash to their address, and the pass index only points passes at stored objects.
+        if appended_only(root, name) or (name == PASS_INDEX and index_only_adds_stored(root)):
+            continue
+        is_output = name == "parity/scientific_records.toml"
         path = root / name
         expected = allowed.get(name)
         if (not is_output or not isinstance(expected, str)
@@ -70,9 +75,8 @@ def _safe_path(name: str) -> PurePosixPath:
 # the build source: the scientific evidence a run writes, and the earning scripts. A
 # record commit or a script fix then leaves the next build's source, and its cached
 # derivation, unchanged. Tests that read these at run time read the checkout.
-RUN_OUTPUT_DIRS = ("parity/evidence_manifests/", "parity/evidence_inputs/", "parity/evidence_items/",
-                   "scripts/")
-RUN_OUTPUT_FILES = ("parity/scientific_records.toml",)
+RUN_OUTPUT_DIRS = ("parity/evidence_objects/", "scripts/")
+RUN_OUTPUT_FILES = ("parity/scientific_records.toml", "parity/passes.json")
 
 
 def build_input(name: str) -> bool:

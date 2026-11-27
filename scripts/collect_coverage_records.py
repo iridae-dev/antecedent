@@ -1177,17 +1177,17 @@ def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_D
                 if line.startswith("calibration-record "):
                     rid = json.loads(line.partition(" ")[2])["id"]
                     runs.setdefault(rid, set()).add(stem)
-    import evidence_earning
+    import evidence_objects
     # Each record's manifest is independent and content-addressed, so records are bound in
     # parallel: workers forked after the first record share its warm source scans, build
     # their manifests without writing (every record checks the checkout is clean), and the
     # stores are written once all are built.
-    stored_writes: list[tuple[Path, str, bytes]] = []
-    real_write = evidence_earning._write_addressed
+    stored_writes: list[dict[str, bytes]] = []
+    real_write = evidence_objects.write
 
-    def recording_write(directory: Path, address: str, data: bytes, root: Path) -> str:
-        stored_writes.append((directory, address, data))
-        return str((directory / f"{address}.json").relative_to(root))
+    def recording_write(root: Path, objects: dict[str, bytes]) -> list[str]:
+        stored_writes.append(dict(objects))
+        return []
 
     def bind(rid: str) -> tuple[str, str, list]:
         stored_writes.clear()
@@ -1200,7 +1200,7 @@ def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_D
         publish_executed(snapshot, built, coverage)
         return rid, pass_ref("calibration", rid), list(stored_writes)
 
-    evidence_earning._write_addressed = recording_write
+    evidence_objects.write = recording_write
     todo = [rid for rid in records if fingerprints.get(rid)]
     for rid in todo:
         records[rid]["fingerprint"] = fingerprints[rid]
@@ -1211,11 +1211,11 @@ def stamp_fingerprints(records: dict[str, dict], sha: str, log_dir: Path = LOG_D
         _BIND = bind
         with multiprocessing.get_context("fork").Pool(os.cpu_count() or 4) as pool:
             results += pool.map(_bind_forked, todo[1:], chunksize=4)
-    evidence_earning._write_addressed = real_write
+    evidence_objects.write = real_write
     for rid, ref, writes in results:
         records[rid]['dependency_manifest'] = ref
-        for directory, address, data in writes:
-            real_write(directory, address, data, ROOT)
+        for objects in writes:
+            real_write(ROOT, objects)
 
 
 def existing_records() -> dict[str, dict]:

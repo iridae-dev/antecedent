@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 import evidence_items as ei
+import evidence_objects
 import evidence_manifests as em
 import evidence_reach as er
 import rust_items as ri
@@ -133,8 +134,7 @@ class Workspace(unittest.TestCase):
         for _, rel, needle in executed:
             selection.execute(rel, SOURCES[rel].index(needle))
         entries, tables = selection.entries(em.Checker(self.root, {}), ["crates/c"], "crates/c")
-        for address, data in tables.items():
-            self.write(f"{ei.STORE}/{address}.json", data.decode())
+        evidence_objects.write(self.root, tables)
         return selection, entries
 
     def current(self, entries):

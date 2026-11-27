@@ -1,1 +1,0 @@
-["use:crate::query_wire::{SequentialContrastQueryWire,SyntheticControlQueryWire};#0","impl:SequentialContrastQueryWire#0","impl:SequentialContrastQueryWire#0/fn:matches_wide_overlap_study#0","impl:SyntheticControlQueryWire#0","impl:SyntheticControlQueryWire#0/fn:average_calibration_design#0"]

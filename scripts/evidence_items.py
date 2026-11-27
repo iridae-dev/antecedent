@@ -23,8 +23,8 @@ that moves a line could change what it observes. Positions are otherwise not
 inputs: they reach a binary only through panic locations and debug information,
 which a passing assertion does not read.
 
-Storage: a file's item table (its locators in order) is content-addressed in
-`parity/evidence_items/`, shared by every record and file version with that
+Storage: a file's item table (its locators in order) is an object in
+`parity/evidence_objects/`, shared by every record and file version with that
 structure; a manifest entry names the table and selects items by index. A file
 whose bytes are unchanged is current without being parsed.
 """
@@ -41,7 +41,6 @@ from pathlib import Path
 
 from rust_items import File, ParseError, canonical, impl_parts, scope_entries
 
-STORE = "parity/evidence_items"
 PARTS = ("full", "sig", "head", "inner")
 _POSITION_MACRO = re.compile(r"\b(?:file|line|column)!\s*[(\[{]")
 
@@ -749,7 +748,7 @@ class ItemChecker:
 
     def table(self, address: str) -> list[str]:
         if address not in self.tables:
-            data = self.pending.get(address) or self.checker.path(f"{STORE}/{address}.json").read_bytes()
+            data = self.pending.get(address) or self.checker.objects.get(address)
             if sha(data) != address:
                 raise ValueError("item table content does not match its address")
             table = json.loads(data)
@@ -757,6 +756,13 @@ class ItemChecker:
                 raise ValueError("invalid item table")
             self.tables[address] = table
         return self.tables[address]
+
+    def parsed(self, rel: str) -> File:
+        """`rel` parsed once per state of its bytes: many entries select items of one file."""
+        key = ("parsed", rel, self.checker.input_digest("file", rel))
+        if key not in self.cache:
+            self.cache[key] = parse(self.checker.path(rel))
+        return self.cache[key]
 
     def items_current(self, entry: dict, names_entry: dict | None) -> bool:
         rel = entry["path"]
@@ -770,7 +776,7 @@ class ItemChecker:
         key = ("items", rel, self.checker.input_digest("file", rel), entry["digest"], name_key)
         if key not in self.cache:
             try:
-                file = parse(self.checker.path(rel))
+                file = self.parsed(rel)
                 if name_key not in self.names:
                     self.names[name_key] = Names.load(names_entry)
                 self.cache[key] = items_digest(file, self.table(entry["table"]), entry,
