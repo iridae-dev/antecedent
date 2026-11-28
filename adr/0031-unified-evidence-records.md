@@ -62,7 +62,10 @@ calibration in prose (`not_measured` in over a thousand messages) instead of rea
 ### Closure
 
 - Every reachable unit has an entry with a current scientific pass.
-- Every pass is referenced by some unit.
+- Every pass is referenced by some unit. A coverage record whose test ran under trace,
+  executed no supported unit and declared none is listed as unadmitted with the units its
+  test refused: it measures a construction no unit admits and backs no claim. Admitting it
+  is a widening and needs a unit that claims it.
 - A unit that states it measured nothing while a calibration pass references it fails.
 
 ### Carrying a pass forward

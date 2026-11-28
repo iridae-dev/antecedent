@@ -138,6 +138,16 @@ reports whether your machine can earn. See
 [Earning platforms](docs/development.md#earning-platforms) and
 [Coverage records](docs/development.md#coverage-records) for the procedures.
 
+Which unit a record backs is found by running it, not by listing it (ADR 0031). When a change
+moves what a test executes, run `python3 scripts/evidence_links.py run --only <target>`, then
+`evidence_links.py link` and `python3 scripts/unit_index.py`, and commit the regenerated
+`parity/evidence_links.json` and `parity/unit_index.json`. A test that executes several units
+names the one it asserts about with `antecedent::evidence_unit!("<kind>", "<id>")`; a coverage
+tally whose test reaches no support decision names its unit with
+`.measures("<kind>", "<id>")`. A result states its calibration through
+`antecedent_io_core::unit_calibration`, never as a literal.
+`python3 scripts/gate_evidence_closure.py` reports what is left.
+
 ## Public API changes
 
 The public surface of every published crate is snapshotted in

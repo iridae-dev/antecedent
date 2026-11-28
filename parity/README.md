@@ -57,6 +57,40 @@ lists each unit that lacks a provenance record or an independent check;
   `python3 scripts/gate_support.py` to check generated output, and add `--cited-tests` to check that
   each cited known-truth and retained-route test is still in its harness.
 
+**Evidence records** (one record per executable unit; see ADR 0031):
+
+A unit's evidence is linked by execution, never by a hand-kept list. Every
+support decision names its unit (a cell, a construction on a cell, a graphless
+row or a capability record), and every result carries that unit; a supported
+status with no unit reads as refused.
+
+- `python3 scripts/evidence_links.py run` runs the scientific tests and
+  calibration probes with the test-only `evidence-trace` feature at a smoke
+  budget; `link` writes [evidence_links.json](evidence_links.json) (each pass
+  and coverage record, the units its test executed). A test that executes
+  several units declares the one it asserts about with
+  `antecedent::evidence_unit!`; a coverage tally whose test reaches no support
+  decision names its unit with `CoverageTally::measures`, and the name must be
+  a unit that is not an alias.
+- [evidence_baseline.json](evidence_baseline.json) freezes, at `v3.0.0` and at
+  the pre-migration commit, every supported item and the evidence behind it.
+  `evidence_links.py residue` lists baseline evidence no link covers; each is
+  fixed in the unit's definition or settled in
+  [evidence_resolutions.toml](evidence_resolutions.toml) (`same`, `split`,
+  `merged`, `narrowed`, `retired`, with a reason), written with
+  `evidence_links.py resolve` and bound to the digests of both sides.
+- `python3 scripts/unit_index.py` joins claim sources, links, resolutions and
+  passes into [unit_index.json](unit_index.json). Support reads only its
+  scientific half; each unit's calibration state is embedded in the build and
+  read by `StudyResult::calibration_state` and
+  `antecedent_io_core::unit_calibration`, never written as a literal. A unit's
+  coverage records are the ones whose test executed it: no cell, row or
+  capability binds a record list. A record whose test ran and reached no
+  supported unit is listed as `unadmitted`; it backs no claim.
+- `python3 scripts/gate_evidence_closure.py` checks two-way closure,
+  monotonicity against the baseline, stale resolutions, calibration reasons
+  against records, and calibration literals in crate sources.
+
 Cross-language names: [docs/api_naming.md](../docs/api_naming.md).
 
 **Baseline pins** (oracle metadata only — not inventories):
