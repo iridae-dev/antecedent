@@ -6695,12 +6695,15 @@ dependency_manifest = "pass:scientific:antecedent::events::verified_external_eve
 test = "antecedent::factorial_ipw_known_truth::binary_net_value_route_is_unbiased_over_every_bernoulli_assignment"
 roles = ["scientific"]
 passed = true
-commit = "efdb08308fae95413136afac86413479b1e56d41"
+commit = "d1367ae82a2c02166d82154dc00ca631d2af9412"
 dirty = false
-fingerprint = "7cd31f7fdcccda8f31e761820205e42bc971ed7937b06b4122c894f4816603ae"
-recorded_at = "2026-11-28T12:43:07Z"
+fingerprint = "7de74d83ae19827712d44d996e280e863b5f6991556f90e22da0e66eeab1b423"
+recorded_at = "2026-11-28T13:34:14Z"
 dependency_manifest = "pass:scientific:antecedent::factorial_ipw_known_truth::binary_net_value_route_is_unbiased_over_every_bernoulli_assignment"
 output_digest = "48b2558609eb66dd"
+carry = [
+  { kind = "output_equivalent", from_fingerprint = "7cd31f7fdcccda8f31e761820205e42bc971ed7937b06b4122c894f4816603ae", to_fingerprint = "7de74d83ae19827712d44d996e280e863b5f6991556f90e22da0e66eeab1b423", reason = "output digest unchanged", author = "scientific_records.py" },
+]
 
 [[record]]
 test = "antecedent::functional_graph_posterior_mixture_truth::interventional_distribution_graph_posterior_executes_from_the_retained_plan_without_the_builder"
