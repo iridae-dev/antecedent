@@ -3,8 +3,10 @@
 
     scientific_records.py status [--check]   flagged versus current records; --check exits 1 when any
                                              is flagged and executes nothing (CI and releases)
-    scientific_records.py run [--all] [--only PATTERN]
+    scientific_records.py run [--all] [--carry] [--only PATTERN]
                                              earn the flagged assertions and record their passes
+    scientific_records.py justify --only PATTERN --reason TEXT [--author NAME]
+                                             carry flagged passes forward by a written judgment
 
 `parity/scientific_records.toml` holds one row per assertion that passed. Its
 `dependency_manifest` is `pass:scientific:<selector>` (`scripts/claim_passes.py`): one file,
@@ -16,6 +18,14 @@ flagged: it needs a new run or a written justification. The recorded pass stays 
 instrumentation in one Nix derivation, and each assertion then runs exactly, the assertions
 of all targets concurrently. Scientific assertions are Rust tests. A rerun withdraws the old pass first, so a failed or interrupted run never leaves a
 superseded pass standing. `--all` or ANTECEDENT_SCIENTIFIC_ALL=1 reruns everything.
+
+A flagged pass is carried forward by the cheapest sufficient step (ADR 0031). A facade
+assertion runs with its results traced (`evidence-trace`), and its pass records their
+`output_digest`. When a rerun reproduces the recorded digest, the new pass extends the old
+record's `carry` chain with an `output_equivalent` entry; any other pass starts a new
+chain. `run --carry` reruns only flagged rows with a recorded digest. `justify` appends a
+`judgment` from the last carried fingerprint to the current one; the row is current while
+its fingerprint stays there. `status` reports chain lengths and every judged record.
 
 A recorded pass is evidence for support only. It is not a calibration measurement and no
 coverage or support claim reads it as one.
@@ -29,12 +39,11 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from _repo import REPO_ROOT, load_toml, scientific_target_feature_args
+from _repo import REPO_ROOT, load_toml
 from evidence_fingerprint import Fingerprinter, UnresolvedInput, locate
 
 RECORDS = "parity/scientific_records.toml"
@@ -61,7 +70,29 @@ HEADER = """# Recorded passes of the scientific assertions (see scripts/scientif
 # fingerprint  sha256 of the assertion's dependency closure when it passed (identity only)
 # recorded_at  UTC time of the pass
 # dependency_manifest  pass:scientific:<selector>, the standing pass file
+# output_digest  digest of the results the assertion's test was handed (facade tests only)
+# carry        how the pass was carried forward since it was earned, oldest first: kind
+#              output_equivalent (a rerun reproduced output_digest) or judgment
+#              (`scientific_records.py justify`), from_fingerprint, to_fingerprint,
+#              reason, author
 """
+
+
+CARRY_FIELDS = ("kind", "from_fingerprint", "to_fingerprint", "reason", "author")
+
+
+def render_carry(entry: dict) -> str:
+    return "{ " + ", ".join(f"{field} = {json.dumps(entry[field])}" for field in CARRY_FIELDS) + " }"
+
+
+def carry_entry(kind: str, old: str, new: str, reason: str, author: str) -> dict:
+    return dict(zip(CARRY_FIELDS, (kind, old, new, reason, author), strict=True))
+
+
+def carried_from(record: dict) -> str:
+    """The fingerprint a record's pass was last carried to (its own when never carried)."""
+    chain = record.get("carry") or []
+    return chain[-1]["to_fingerprint"] if chain else record["fingerprint"]
 
 
 def load_records(root: Path) -> dict[str, dict]:
@@ -86,6 +117,9 @@ def write_records(root: Path, records: dict[str, dict]) -> None:
             f"fingerprint = {json.dumps(r['fingerprint'])}\n"
             f"recorded_at = {json.dumps(r['recorded_at'])}\n"
             + (f"dependency_manifest = {json.dumps(r['dependency_manifest'])}\n" if r.get("dependency_manifest") else "")
+            + (f"output_digest = {json.dumps(r['output_digest'])}\n" if r.get("output_digest") else "")
+            + ("carry = [\n" + "".join(f"  {render_carry(entry)},\n" for entry in r["carry"]) + "]\n"
+               if r.get("carry") else "")
         )
     (root / RECORDS).parent.mkdir(parents=True, exist_ok=True)
     (root / RECORDS).write_text("".join(out), encoding="utf-8", newline="\n")
@@ -99,12 +133,13 @@ def git_state(root: Path) -> tuple[str, bool]:
 
 def classify(root: Path, rows: list[dict]) -> tuple[list[dict], list[dict]]:
     """(owed, current) rows, each annotated with its selector. A row is current only when its
-    recorded pass has a dependency manifest whose inputs and declarations still match."""
+    recorded pass has a dependency manifest whose inputs and declarations still match, or a
+    judgment carried it to the row's current fingerprint."""
     from evidence_earning import binding, declarations
     from evidence_manifests import Checker
 
     records = load_records(root)
-    checker = None
+    checker = fp = None
     owed, current = [], []
     for row in rows:
         info = locate(root, row)
@@ -120,18 +155,43 @@ def classify(root: Path, rows: list[dict]) -> tuple[list[dict], list[dict]]:
             if status["current"]:
                 current.append(item)
                 continue
+        chain = (rec or {}).get("carry") or []
+        if chain and chain[-1]["kind"] == "judgment":
+            fp = fp or current_fingerprinter(root)
+            if fp.fingerprint(row) == chain[-1]["to_fingerprint"]:
+                item.update(fingerprint=rec.get("fingerprint"), manifest_reasons=[*item["manifest_reasons"], "justified"])
+                current.append(item)
+                continue
         owed.append(item)
     return owed, current
 
-def record_passes(root: Path, items: list[dict], *, source_state: tuple[str, bool] | None = None) -> int:
-    """Merge passing rows, each with the dependency manifest it earned, into the ledger."""
+
+def current_fingerprinter(root: Path) -> Fingerprinter:
+    """The fingerprints judgments are made against: the workspace as the scientific build sees it."""
+    return Fingerprinter(root, scientific_build=True)
+
+
+def carry_chain(old: dict | None, item: dict) -> list[dict]:
+    """A new pass's chain: the old one extended when the rerun reproduced its output, else none."""
+    digest = item.get("output_digest")
+    if not old or not digest or old.get("output_digest") != digest:
+        return []
+    return [*(old.get("carry") or []), carry_entry("output_equivalent", old["fingerprint"], item["fingerprint"],
+                                                   "output digest unchanged", "scientific_records.py")]
+
+
+def record_passes(root: Path, items: list[dict], *, source_state: tuple[str, bool] | None = None,
+                  previous: dict[str, dict] | None = None) -> int:
+    """Merge passing rows, each with the dependency manifest it earned, into the ledger.
+    `previous` holds the records as they stood before the run withdrew them."""
     if not items:
         return 0
     commit, dirty = source_state if source_state is not None else git_state(root)
     now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     records = load_records(root)  # reread: another gate may have written meanwhile
     for item in items:
-        records[item["selector"]] = {
+        old = (previous or {}).get(item["selector"]) or records.get(item["selector"])
+        record = {
             "roles": item.get("roles") or ["scientific"],
             "commit": commit,
             "dirty": dirty,
@@ -139,6 +199,11 @@ def record_passes(root: Path, items: list[dict], *, source_state: tuple[str, boo
             "recorded_at": now,
             "dependency_manifest": item["dependency_manifest"],
         }
+        if item.get("output_digest"):
+            record["output_digest"] = item["output_digest"]
+        if chain := carry_chain(old, item):
+            record["carry"] = chain
+        records[item["selector"]] = record
     write_records(root, records)
     return len(items)
 
@@ -173,14 +238,6 @@ from evidence_capture import (  # noqa: E402  (shared with calibration)
 )
 
 
-def llvm_tool(name: str) -> str:
-    """Path of an `llvm-tools-preview` binary for the active toolchain."""
-    sysroot = subprocess.run(["rustc", "--print", "sysroot"], text=True, capture_output=True).stdout.strip()
-    for candidate in sorted(Path(sysroot, "lib", "rustlib").glob(f"*/bin/{name}")):
-        return str(candidate)
-    raise SystemExit(f"{name} not found; run `rustup component add llvm-tools-preview`")
-
-
 def capture_env(root: Path) -> dict[str, str]:
     """Build environment for coverage-instrumented test binaries in their own target directory."""
     rustflags = os.environ.get("RUSTFLAGS", "")
@@ -192,24 +249,6 @@ def capture_env(root: Path) -> dict[str, str]:
         "CARGO_PROFILE_TEST_DEBUG": os.environ.get("CARGO_PROFILE_TEST_DEBUG", "line-tables-only"),
         "LLVM_PROFILE_FILE": os.devnull,
     }
-
-
-def build_command(root: Path, crate: str, target: tuple[str, ...]) -> list[str]:
-    """`cargo test --no-run` for one crate target, reporting its test executable as JSON."""
-    features = scientific_target_feature_args(root / "crates" / crate / "Cargo.toml", list(target))
-    return ["cargo", "test", "--no-run", "--message-format=json-render-diagnostics", "-p", crate, *target, *features]
-
-
-def built_executable(stdout: str) -> str | None:
-    """The test executable a `cargo test --no-run --message-format=json` build produced."""
-    found = None
-    for line in stdout.splitlines():
-        if not line.startswith("{"):
-            continue
-        msg = json.loads(line)
-        if msg.get("reason") == "compiler-artifact" and msg.get("profile", {}).get("test") and msg.get("executable"):
-            found = msg["executable"]
-    return found
 
 
 class SelectorError(ValueError):
@@ -249,15 +288,47 @@ def rust_execution_info(root: Path, row: dict) -> dict:
     return info
 
 
+FACADE = "antecedent"
+TRACES = Path("target") / "scientific-traces"
+
+
+def trace_file(root: Path, selector: str) -> Path:
+    """Where one assertion's run writes its evidence trace."""
+    return root / TRACES / f"{hashlib.sha256(selector.encode()).hexdigest()[:16]}.tsv"
+
+
+def trace_digest(text: str, test: str) -> str | None:
+    """Digest of the results handed to libtest test `test`, in any order; `None` when it was
+    handed none, so its pass cannot be carried by output equivalence."""
+    found = sorted(fields[3] for line in text.splitlines()
+                   if len(fields := line.split("\t")) == 4 and fields[0] == "output" and fields[2] == test)
+    return hashlib.sha256("\n".join(found).encode()).hexdigest()[:16] if found else None
+
+
+def output_digest(root: Path, info: dict) -> str | None:
+    """The output digest of an assertion that just passed (`capture_one`)."""
+    path = trace_file(root, info["selector"])
+    if info.get("crate") != FACADE or not path.is_file():
+        return None
+    return trace_digest(path.read_text(encoding="utf-8"), info.get("libtest") or info["selector"].split("::", 2)[2])
+
+
 def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=subprocess.run,
-                *, llvm_tools: dict[str, str] | None = None) -> dict[str, set[int]] | None:
+                *, llvm_tools: dict[str, str]) -> dict[str, set[int]] | None:
     """Run one Rust assertion's instrumented binary; its executed regions, or `None` on failure.
 
     Running no test at all is an infrastructure error and raises: a wrong name or a missing
-    test must stop the run, not be recorded as one more failure."""
+    test must stop the run, not be recorded as one more failure. A facade assertion writes
+    a fresh evidence trace (`output_digest`). The tools are the pinned `llvm-profdata` and
+    `llvm-cov` from the Nix build that produced `binary`."""
     from evidence_capture import instrumented_run
     libtest = info.get("libtest") or info["selector"].split("::", 2)[2]
-    tools = llvm_tools if llvm_tools is not None else {n: llvm_tool(n) for n in ("llvm-profdata", "llvm-cov")}
+    if info.get("crate") == FACADE:
+        trace = trace_file(root, info["selector"])
+        trace.parent.mkdir(parents=True, exist_ok=True)
+        trace.unlink(missing_ok=True)
+        env = {**env, "ANTECEDENT_EVIDENCE_TRACE": str(trace)}
+    tools = llvm_tools
     status, output, coverage, problem = instrumented_run(
         binary, ["--exact", libtest, "--include-ignored", "--test-threads", "1"],
         cwd=root / "crates" / info["crate"], env=env, tools=tools, run=run)
@@ -272,93 +343,18 @@ def capture_one(root: Path, binary: str, info: dict, env: dict[str, str], run=su
     return coverage
 
 
-def earn_rust(root: Path, items: list[dict], run=subprocess.run, *, backend: str = "cargo",
-              check_reproducible: bool = False) -> int:
-    """Earn the given Rust rows: build each test target once with coverage instrumentation
-    (through the compiler inventory driver when `rustc-dev` is installed), run each assertion
-    exactly, and publish its manifest. The ledger is written after every target, so an
-    interrupted run keeps what it finished. Returns the number of failures."""
-    # One canonical root: scanned `#[path]` modules and data reads resolve through symlinks.
+def earn_rust(root: Path, items: list[dict], run=subprocess.run, *,
+              check_reproducible: bool = False, previous: dict[str, dict] | None = None) -> int:
+    """Earn the given Rust rows from committed HEAD.
+
+    One Nix derivation builds the owed targets. Each assertion then runs exactly.
+    The ledger is written as each target finishes, so an interrupted run keeps what
+    it finished. Returns the number of failures. `previous` (default: the ledger now)
+    holds the records whose carry chains the new passes extend."""
     root = root.resolve()
-    if backend == "nix":
-        return earn_rust_nix(root, items, run, check_reproducible=check_reproducible)
-    if backend != "cargo":
-        raise ValueError("unknown Rust evidence build backend")
     from evidence_earning import require_compile_environment
     require_compile_environment(root)
-    groups: dict[tuple[str, tuple[str, ...]], list[tuple[dict, dict]]] = {}
-    for row in items:
-        info = rust_execution_info(root, row)
-        groups.setdefault((info["crate"], tuple(info["target"])), []).append((row, info))
-    print(f"scientific records: earning {len(items)} Rust assertion(s) in {len(groups)} target(s)", flush=True)
-    if not groups:
-        return 0
-    from evidence_earning import (
-        Snapshot,
-        binding,
-        build_analyzer,
-        compile_time_code,
-        select_items,
-    )
-
-    fp = Fingerprinter(root, scientific_build=True)
-    env = capture_env(root)
-    # Only this run's compilations describe the code being earned: an inventory from
-    # an earlier compilation cannot say a body is still eligible. A crate Cargo does
-    # not recompile has no inventory and keeps its complete source.
-    inventory_dir = root / "target/evidence-compiler-inventory"
-    shutil.rmtree(inventory_dir, ignore_errors=True)
-    inventory_dir.mkdir(parents=True)
-    # Item selection needs a compilation with no compile-time code (see select_items).
-    compile_time = compile_time_code(root)
-    projectable = compile_time is not None and any(not compile_time.get(crate, {crate}) for crate, _ in groups)
-    driver = build_analyzer(root, root / "target/evidence-analyzer") if projectable else None
-    if driver is not None:
-        env.update(RUSTC_WORKSPACE_WRAPPER=str(driver), ANTECEDENT_ANALYZER_OUTPUT=str(inventory_dir))
-    recorded, failed = 0, 0
-    for (crate, target), todo in sorted(groups.items()):
-        from test_evidence import rust_test_features
-        args = scientific_target_feature_args(root / "crates" / crate / "Cargo.toml", list(target))
-        configured = set(args[1].split(",")) if args else set()
-        required = set().union(*(rust_test_features(root / row["evidence_test"], row["evidence_assertion"])
-                                 for row, _ in todo))
-        if not required <= configured:
-            raise RuntimeError(f"scientific target {crate} {' '.join(target)} is missing declared features: "
-                               + ", ".join(sorted(required - configured)))
-        snapshots = {
-            info["selector"]: Snapshot(root, row, binding("scientific", info["selector"], None), fp)
-            for row, info in todo
-        }
-        withdraw_records(root, [info for _, info in todo])
-        built = run(build_command(root, crate, target), cwd=root, env=env, text=True, capture_output=True)
-        binary = built_executable(built.stdout or "") if built.returncode == 0 else None
-        if binary is None:
-            print(f"FAIL: {crate} {' '.join(target)}: instrumented build failed\n{built.stderr or ''}")
-            failed += len(todo)
-            continue
-        earned = []
-        for row, info in todo:
-            coverage = capture_one(root, binary, info, env, run)
-            if coverage is None:
-                failed += 1
-                continue
-            snapshot = snapshots[info["selector"]]
-            try:
-                if driver is not None:
-                    select_items(snapshot, inventory_dir, coverage)
-                ref = snapshot.publish()
-            except RuntimeError as error:
-                print(f"FAIL: {info['selector']}: {error}")
-                failed += 1
-                continue
-            from claim_passes import pass_ref
-            earned.append({**row, "selector": info["selector"],
-                           "dependency_manifest": pass_ref("scientific", info["selector"]),
-                           "fingerprint": snapshot.manifest["record"]["fingerprint"]})
-        recorded += record_passes(root, earned)
-        print(f"  {crate} {' '.join(target)}: {len(earned)}/{len(todo)} earned", flush=True)
-    print(f"scientific records: earned {recorded} Rust pass(es); {failed} failed")
-    return failed
+    return earn_rust_nix(root, items, run, check_reproducible=check_reproducible, previous=previous)
 
 
 def _remember_nix_output(root: Path, allowed: dict[str, str], relative: str) -> None:
@@ -371,7 +367,7 @@ def _remember_nix_output(root: Path, allowed: dict[str, str], relative: str) -> 
 
 def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                   scientific_targets: list[tuple[str, str, str]] | None = None,
-                  check_reproducible: bool = False) -> int:
+                  check_reproducible: bool = False, previous: dict[str, dict] | None = None) -> int:
     """Build every owed target in one audited Nix derivation, then capture and record each."""
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -382,6 +378,7 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
     from nix_evidence_source import _clean_head
 
     root = root.resolve()
+    previous = load_records(root) if previous is None else previous
     # Refuse before any work on a host that cannot earn; a platform that prepares
     # itself realises its build inputs here on first use.
     earning_platform(root, prepare=True)
@@ -491,11 +488,13 @@ def earn_rust_nix(root: Path, items: list[dict], run=subprocess.run, *,
                         raise RuntimeError("published evidence pass does not match its content address")
                     earned.append({**row, "selector": selector,
                                    "dependency_manifest": pass_ref("scientific", selector),
-                                   "fingerprint": snapshots[selector].manifest["record"]["fingerprint"]})
+                                   "fingerprint": snapshots[selector].manifest["record"]["fingerprint"],
+                                   "output_digest": output_digest(root, info)})
                 source_commit, _ = _clean_head(root, allowed)
                 if source_commit != built["source"]["commit"]:
                     raise RuntimeError("checkout commit differs from Nix build source")
-                recorded += record_passes(root, earned, source_state=(source_commit, False))
+                recorded += record_passes(root, earned, source_state=(source_commit, False),
+                                          previous=previous)
                 if (root / ledger).is_file():
                     _remember_nix_output(root, allowed, ledger)
                 _clean_head(root, allowed)
@@ -533,6 +532,7 @@ def report_status(root: Path, owed: list[dict], current: list[dict], *, check: b
             unresolved.append(str(error))
     for problem in unresolved:
         print(f"FAIL: {problem}")
+    report_carry(load_records(root))
     # Evidence no record reaches is never committed: a run prunes it as it finishes.
     from evidence_manifests import unreachable_evidence
     orphans = unreachable_evidence(root)
@@ -540,6 +540,46 @@ def report_status(root: Path, owed: list[dict], current: list[dict], *, check: b
         print(f"FAIL: {len(orphans)} stored evidence file(s) no record reaches; "
               "run `python3 scripts/scientific_records.py prune`")
     return int(bool(unresolved) or (check and bool(owed or orphans)))
+
+
+def report_carry(records: dict[str, dict]) -> None:
+    """Carried passes by chain length, and every record a judgment carries."""
+    lengths: dict[int, int] = {}
+    for record in records.values():
+        if record.get("carry"):
+            lengths[len(record["carry"])] = lengths.get(len(record["carry"]), 0) + 1
+    if not lengths:
+        return
+    print("scientific records: carried passes by chain length: "
+          + ", ".join(f"{length}: {lengths[length]}" for length in sorted(lengths)))
+    for selector in sorted(records):
+        chain = records[selector].get("carry") or []
+        if any(entry["kind"] == "judgment" for entry in chain):
+            print(f"  judged: {selector} (chain {len(chain)})")
+
+
+def cmd_justify(root: Path, args: argparse.Namespace) -> int:
+    """Carry flagged passes forward by a written judgment, to their current fingerprints."""
+    owed, _ = classify(root, all_scientific_rows(root))
+    selected = [item for item in owed if matches_only(item, args.only)]
+    if not selected:
+        print(f"FAIL: --only {args.only!r} matches no flagged scientific assertion")
+        return 2
+    records = load_records(root)
+    unrecorded = [item["selector"] for item in selected if item["selector"] not in records]
+    if unrecorded:
+        print("FAIL: no recorded pass to carry forward; run these instead:\n  " + "\n  ".join(unrecorded))
+        return 1
+    fp = current_fingerprinter(root)
+    for item in selected:
+        record = records[item["selector"]]
+        row = {k: v for k, v in item.items() if k not in ("selector", "fingerprint", "manifest_reasons")}
+        entry = carry_entry("judgment", carried_from(record), fp.fingerprint(row), args.reason, args.author)
+        record["carry"] = [*(record.get("carry") or []), entry]
+        print(f"  justified: {item['selector']} (chain {len(record['carry'])})")
+    write_records(root, records)
+    print(f"scientific records: justified {len(selected)} pass(es)")
+    return 0
 
 
 def cmd_refine(root: Path, args: argparse.Namespace) -> int:
@@ -618,12 +658,16 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
     if only and not any(matches_only(i, only) for i in owed + current):
         print(f"FAIL: --only {only!r} matches no scientific assertion")
         return 2
-    candidates = (owed + current) if force_all(args) else owed
-    run_items = [i for i in candidates if matches_only(i, only)]
+    carry = bool(getattr(args, "carry", False))
+    candidates = (owed + current) if force_all(args) and not carry else owed
+    previous = load_records(root)
+    run_items = [i for i in candidates if matches_only(i, only)
+                 and (not carry or previous.get(i["selector"], {}).get("output_digest"))]
     print(
         f"scientific records: running {len(run_items)} of {len(rows)} "
-        f"({len(current) if not force_all(args) else 0} carried forward"
+        f"({len(current) if not force_all(args) or carry else 0} carried forward"
         + (f", filtered by --only {only}" if only else "")
+        + (", carry candidates only" if carry else "")
         + ")",
         flush=True,
     )
@@ -631,8 +675,8 @@ def cmd_run(root: Path, args: argparse.Namespace) -> int:
         return 0
     # Each target is recorded as soon as it finishes, so an interrupted or partly failing
     # run keeps every pass it earned. Scientific assertions are Rust tests (evidence_audit).
-    failed = earn_rust(root, run_items, backend=getattr(args, "rust_build_backend", "nix"),
-                       check_reproducible=bool(getattr(args, "check_reproducible", False)))
+    failed = earn_rust(root, run_items,
+                       check_reproducible=bool(getattr(args, "check_reproducible", False)), previous=previous)
     recorded, status = len(run_items) - failed, int(bool(failed))
     print(f"scientific records: recorded {recorded} pass(es); {len(run_items) - recorded} not recorded")
     # Withdrawn passes leave their evidence behind; nothing reaches it any more.
@@ -651,10 +695,6 @@ def main() -> int:
     )
     run = sub.add_parser("run")
     run.add_argument("--all", action="store_true", help="rerun and re-record every assertion (manual)")
-    run.add_argument("--rust-build-backend", choices=("cargo", "nix"), default="nix",
-                     help="Rust build backend: nix (default) builds each target from committed HEAD under the "
-                          "audited sandbox policy and binds each record to the items its assertion executed "
-                          "and depends on; cargo builds on the host and keeps complete source")
     run.add_argument("--check-reproducible", action="store_true",
                      help="also rebuild the Nix evidence derivation and require identical output, once per "
                           "recipe and lock")
@@ -665,10 +705,17 @@ def main() -> int:
         metavar="PATTERN",
         help="limit to rows whose selector, test path or id contains PATTERN or matches it as a glob (repeatable)",
     )
+    run.add_argument("--carry", action="store_true",
+                     help="rerun only flagged rows whose record has an output digest a rerun may reproduce")
+    justify = sub.add_parser("justify", help="carry flagged passes forward by a written judgment")
+    justify.add_argument("--only", action="append", required=True, metavar="PATTERN",
+                         help="flagged rows to justify, matched as by run --only (repeatable)")
+    justify.add_argument("--reason", required=True, help="why the change leaves the passes standing")
+    justify.add_argument("--author", default="charles")
     args = parser.parse_args()
     try:
         return {"status": cmd_status, "run": cmd_run, "prune": cmd_prune,
-            "refine": cmd_refine}[args.command](REPO_ROOT, args)
+            "refine": cmd_refine, "justify": cmd_justify}[args.command](REPO_ROOT, args)
     except UnresolvedInput as problem:
         # An input the fingerprint cannot account for owes its record; it is never silently current.
         print(f"FAIL: a scientific assertion has an undeclared input: {problem}")

@@ -266,11 +266,7 @@ class ExecutionCaptureTests(Fixture):
         coverage = sr.region_coverage(export)
         self.assertEqual(coverage[str((self.root / "crates/top/src/lib.rs").resolve())], {(1, 1)})
 
-    def test_the_target_is_built_once_and_each_case_runs_its_binary_exactly(self):
-        info = sr.locate(self.root, self.row("top"))
-        build = sr.build_command(self.root, info["crate"], tuple(info["target"]))
-        self.assertEqual(build[:3], ["cargo", "test", "--no-run"])
-        self.assertIn("--test", build)
+    def test_the_capture_runs_the_exact_test_under_coverage(self):
         self.assertIn("-C instrument-coverage", sr.capture_env(self.root)["RUSTFLAGS"])
         seen = []
         self.run_capture(["crates/top/src/lib.rs"], seen=seen)
@@ -280,22 +276,12 @@ class ExecutionCaptureTests(Fixture):
         self.write("crates/top/Cargo.toml", '[package]\nname = "top"\nversion = "1.0.0"\n'
                    '[features]\na = []\nb = []\n'
                    '[package.metadata.scientific-test-features]\nt = ["b", "a"]\n')
-        build = sr.build_command(self.root, "top", ("--test", "t"))
-        self.assertEqual(build[build.index("--features") + 1], "a,b")
-        from _repo import cargo_target_feature_args
+        from _repo import cargo_target_feature_args, scientific_target_feature_args
+        features = scientific_target_feature_args(self.root / "crates/top/Cargo.toml", ["--test", "t"])
+        self.assertEqual(features[features.index("--features") + 1], "a,b")
         self.assertEqual(cargo_target_feature_args(self.root / "crates/top/Cargo.toml", ["--test", "t"]), [])
 
-    def test_the_built_executable_is_read_from_cargo_json(self):
-        import json
-
-        lines = [
-            json.dumps({"reason": "compiler-artifact", "profile": {"test": False}, "executable": None}),
-            json.dumps({"reason": "compiler-artifact", "profile": {"test": True}, "executable": "/t/top-abc"}),
-            json.dumps({"reason": "build-finished", "success": True}),
-        ]
-        self.assertEqual(sr.built_executable("\n".join(lines)), "/t/top-abc")
-
-    def test_cargo_capture_executes_the_test_in_its_inline_module(self):
+    def test_capture_executes_the_test_in_its_inline_module(self):
         self.write("crates/top/tests/t.rs", "mod truth { #[test] fn check_top() {} }\n")
         seen = []
         self.run_capture(["crates/top/src/lib.rs"], seen=seen)
@@ -304,7 +290,6 @@ class ExecutionCaptureTests(Fixture):
     def run_capture(self, rels, passed=True, seen=None):
         import json
         import subprocess
-        from unittest import mock
 
         def fake(cmd, **kwargs):
             if seen is not None:
@@ -316,13 +301,159 @@ class ExecutionCaptureTests(Fixture):
                 return subprocess.CompletedProcess(cmd, 0, json.dumps(self.fake_export(*rels)), "")
             return subprocess.CompletedProcess(cmd, 0, "", "")
 
-        with mock.patch.object(sr, "llvm_tool", lambda name: name):
-            return sr.capture_one(
-                self.root, "/bin/top-test", sr.rust_execution_info(self.root, self.row("top")), {}, fake
-            )
+        return sr.capture_one(
+            self.root, "/bin/top-test", sr.rust_execution_info(self.root, self.row("top")), {}, fake,
+            llvm_tools={"llvm-profdata": "llvm-profdata", "llvm-cov": "llvm-cov"},
+        )
 
     def test_a_failing_test_is_not_captured(self):
         self.assertIsNone(self.run_capture(["crates/top/src/lib.rs"], passed=False))
+
+
+class CarryForwardTests(Fixture):
+    """Output digests and carry chains (ADR 0031, carrying a pass forward)."""
+
+    TRACE = ("output\tsuite\tm::name\tbbbb\n"
+             "unit\tsuite\tm::name\tx\n"
+             "output\tsuite\tm::other\tcccc\n"
+             "output\tsuite\tm::name\taaaa\n")
+
+    def test_the_output_digest_is_of_the_tests_own_outputs_in_any_order(self):
+        digest = sr.trace_digest(self.TRACE, "m::name")
+        self.assertEqual(len(digest), 16)
+        reordered = "output\tsuite\tm::name\taaaa\noutput\tsuite\tm::name\tbbbb\n"
+        self.assertEqual(sr.trace_digest(reordered, "m::name"), digest)
+        self.assertNotEqual(sr.trace_digest(self.TRACE, "m::other"), digest)
+        self.assertIsNone(sr.trace_digest(self.TRACE, "m::absent"))
+        self.assertIsNone(sr.trace_digest("", "m::name"))
+
+    def test_only_facade_targets_build_and_run_with_the_trace(self):
+        import json
+        import subprocess
+
+        self.write("crates/antecedent/Cargo.toml", '[package]\nname = "antecedent"\nversion = "1.0.0"\n'
+                   '[features]\nevidence-trace = []\n')
+        from _repo import scientific_target_feature_args
+        facade = scientific_target_feature_args(self.root / "crates/antecedent/Cargo.toml", ["--test", "t"])
+        self.assertEqual(facade[facade.index("--features") + 1], "evidence-trace")
+        self.assertEqual(scientific_target_feature_args(self.root / "crates/top/Cargo.toml", ["--test", "t"]), [])
+        seen = {}
+
+        def fake(cmd, **kwargs):
+            if cmd[0] == "/bin/suite":
+                seen["trace"] = kwargs["env"].get("ANTECEDENT_EVIDENCE_TRACE")
+                Path(seen["trace"]).write_text(self.TRACE, encoding="utf-8")
+                return subprocess.CompletedProcess(cmd, 0, "test result: ok. 1 passed; 0 failed", "")
+            if cmd[1] == "export":
+                return subprocess.CompletedProcess(cmd, 0, json.dumps({"data": []}), "")
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+
+        info = {"selector": "antecedent::suite::m::name", "crate": "antecedent", "libtest": "m::name"}
+        sr.trace_file(self.root, info["selector"]).parent.mkdir(parents=True)
+        sr.trace_file(self.root, info["selector"]).write_text("output\tsuite\tm::name\tstale\n", encoding="utf-8")
+        self.assertIsNotNone(sr.capture_one(
+            self.root, "/bin/suite", info, {}, fake,
+            llvm_tools={"llvm-profdata": "llvm-profdata", "llvm-cov": "llvm-cov"},
+        ))
+        self.assertEqual(seen["trace"], str(sr.trace_file(self.root, info["selector"])))
+        self.assertEqual(sr.output_digest(self.root, info), sr.trace_digest(self.TRACE, "m::name"))
+        self.assertIsNone(sr.output_digest(self.root, {**info, "crate": "top"}))
+
+    def earned(self, owed, fingerprint, digest):
+        return [{**owed, "fingerprint": fingerprint, "dependency_manifest": "d" * 64, "output_digest": digest}]
+
+    def test_an_equal_output_digest_extends_the_chain_and_a_different_one_resets_it(self):
+        owed, _ = sr.classify(self.root, [self.row("leaf")])
+        selector = owed[0]["selector"]
+        sr.record_passes(self.root, self.earned(owed[0], "f1", "aaaa"))
+        self.assertNotIn("carry", sr.load_records(self.root)[selector])
+        for fingerprint in ("f2", "f3"):
+            previous = sr.load_records(self.root)
+            sr.withdraw_records(self.root, owed)
+            sr.record_passes(self.root, self.earned(owed[0], fingerprint, "aaaa"), previous=previous)
+        record = sr.load_records(self.root)[selector]
+        self.assertEqual(record["output_digest"], "aaaa")
+        self.assertEqual([(e["kind"], e["from_fingerprint"], e["to_fingerprint"]) for e in record["carry"]],
+                         [("output_equivalent", "f1", "f2"), ("output_equivalent", "f2", "f3")])
+        self.assertEqual(record["carry"][0]["reason"], "output digest unchanged")
+        previous = sr.load_records(self.root)
+        sr.withdraw_records(self.root, owed)
+        sr.record_passes(self.root, self.earned(owed[0], "f4", "bbbb"), previous=previous)
+        self.assertNotIn("carry", sr.load_records(self.root)[selector])
+        sr.record_passes(self.root, self.earned(owed[0], "f5", None))
+        self.assertNotIn("output_digest", sr.load_records(self.root)[selector])
+
+    def test_a_judgment_is_current_only_while_the_fingerprint_matches(self):
+        from types import SimpleNamespace
+        from unittest import mock
+
+        rows = [self.row("leaf"), self.row("top")]
+        owed, _ = sr.classify(self.root, rows)
+        sr.record_passes(self.root, self.earned(owed[0], "f1", "aaaa"))
+        args = SimpleNamespace(only=["leaf", "top"], reason="docs only", author="charles")
+        def fingerprinter(root):
+            return sr.Fingerprinter(root, self.metadata, "", scientific_build=True)
+
+        with mock.patch.object(sr, "all_scientific_rows", lambda root: rows), \
+                mock.patch.object(sr, "current_fingerprinter", fingerprinter):
+            self.assertEqual(sr.cmd_justify(self.root, args), 1, "top has no pass to carry")
+            self.assertNotIn("carry", sr.load_records(self.root)[owed[0]["selector"]])
+            self.assertEqual(sr.cmd_justify(self.root, SimpleNamespace(**{**vars(args), "only": ["leaf"]})), 0)
+            [entry] = sr.load_records(self.root)[owed[0]["selector"]]["carry"]
+            self.assertEqual((entry["kind"], entry["from_fingerprint"], entry["reason"], entry["author"]),
+                             ("judgment", "f1", "docs only", "charles"))
+            _, current = sr.classify(self.root, rows)
+            self.assertEqual([c["selector"] for c in current], [owed[0]["selector"]])
+            self.assertEqual(current[0]["manifest_reasons"][-1], "justified")
+            self.write("crates/leaf/src/lib.rs", "pub fn leaf() -> u8 { 2 }\n")
+            self.assertEqual(sr.classify(self.root, rows)[1], [])
+            self.assertEqual(sr.cmd_justify(self.root, SimpleNamespace(**{**vars(args), "only": ["leaf"]})), 0)
+            chain = sr.load_records(self.root)[owed[0]["selector"]]["carry"]
+            self.assertEqual(chain[1]["from_fingerprint"], chain[0]["to_fingerprint"])
+            self.assertEqual(len(sr.classify(self.root, rows)[1]), 1)
+
+    def test_records_round_trip_and_rows_without_carry_render_as_before(self):
+        records = {
+            "a::t::plain": {"roles": ["scientific"], "commit": "c", "dirty": False, "fingerprint": "f",
+                            "recorded_at": "t", "dependency_manifest": "pass:scientific:a::t::plain"},
+            "a::t::carried": {"roles": ["scientific"], "commit": "c", "dirty": True, "fingerprint": "f2",
+                              "recorded_at": "t", "output_digest": "aaaa", "carry": [
+                                  sr.carry_entry("output_equivalent", "f1", "f2", "output digest unchanged", "s"),
+                                  sr.carry_entry("judgment", "f2", "g", 'quote " and \\ slash', "charles")]},
+        }
+        sr.write_records(self.root, records)
+        text = (self.root / sr.RECORDS).read_text(encoding="utf-8")
+        loaded = sr.load_records(self.root)
+        self.assertEqual(loaded["a::t::carried"]["carry"], records["a::t::carried"]["carry"])
+        self.assertNotIn("output_digest", loaded["a::t::plain"])
+        sr.write_records(self.root, loaded)
+        self.assertEqual((self.root / sr.RECORDS).read_text(encoding="utf-8"), text)
+        self.assertTrue(text.endswith(
+            '\n[[record]]\ntest = "a::t::plain"\nroles = ["scientific"]\npassed = true\ncommit = "c"\n'
+            'dirty = false\nfingerprint = "f"\nrecorded_at = "t"\n'
+            'dependency_manifest = "pass:scientific:a::t::plain"\n'))
+
+    def test_the_committed_ledger_rows_render_byte_identically(self):
+        committed = Path(__file__).resolve().parents[1] / sr.RECORDS
+        if not committed.is_file():
+            self.skipTest("no committed ledger")
+        self.write(sr.RECORDS, committed.read_text(encoding="utf-8"))
+        sr.write_records(self.root, sr.load_records(self.root))
+        rendered, original = (self.root / sr.RECORDS).read_text(encoding="utf-8"), committed.read_text(encoding="utf-8")
+        self.assertEqual(rendered[rendered.index("\n[[record]]"):], original[original.index("\n[[record]]"):])
+
+    def test_status_reports_chain_lengths_and_judged_records(self):
+        import contextlib
+        import io
+
+        entry = sr.carry_entry("output_equivalent", "a", "b", "output digest unchanged", "s")
+        judged = sr.carry_entry("judgment", "b", "c", "why", "charles")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            sr.report_carry({"x": {"carry": [entry]}, "y": {"carry": [entry, judged]}, "z": {}})
+        self.assertIn("carried passes by chain length: 1: 1, 2: 1", out.getvalue())
+        self.assertIn("judged: y (chain 2)", out.getvalue())
+        self.assertNotIn("judged: x", out.getvalue())
 
 
 class OneScientificEntryPoint(unittest.TestCase):

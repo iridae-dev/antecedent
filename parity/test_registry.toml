@@ -23972,13 +23972,6 @@ path = "scripts/test_evidence_manifests.py"
 gates = ["inventory"]
 
 [[test]]
-id = "scripts-test-evidence-pipeline"
-crate = "scripts"
-cargo_target = "script"
-path = "scripts/test_evidence_pipeline.py"
-gates = ["inventory"]
-
-[[test]]
 id = "scripts-test-evidence-platforms"
 crate = "scripts"
 cargo_target = "script"

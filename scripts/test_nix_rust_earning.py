@@ -74,7 +74,7 @@ class NixRustEarning(unittest.TestCase):
                  patch.object(evidence_platforms, "earning_platform"), \
                  patch.object(evidence_platforms, "validate_build"), \
                  patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")):
-                self.assertEqual(scientific.earn_rust(root, rows, backend="nix"), 0)
+                self.assertEqual(scientific.earn_rust(root, rows), 0)
             # The boundary preflight runs once, before the derivation is built.
             preflight.assert_called_once_with()
             # One derivation, built from a clean checkout before any record is written.
@@ -101,7 +101,7 @@ class NixRustEarning(unittest.TestCase):
             patch.object(nix_evidence_source, "_clean_head", return_value=("head", "sha1")),
             self.assertRaisesRegex(RuntimeError, "unreviewed"),
         ):
-            scientific.earn_rust(Path("/tmp"), [{}], backend="nix")
+            scientific.earn_rust(Path("/tmp"), [{}])
         withdraw.assert_not_called()
         capture.assert_not_called()
 

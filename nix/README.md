@@ -1,7 +1,7 @@
 # Nix evidence build boundary
 
 Scientific Rust evidence is earned by `scientific_records.py run`, whose default
-`--rust-build-backend nix` builds each Cargo target from the clean committed
+`scientific_records.py run` builds each Cargo target from the clean committed
 `HEAD` in the local Nix sandbox and runs that exact binary. The point of the
 boundary: a change to code a claim executed (or to anything that can affect
 its build) makes the claim owed again, while an unrelated change leaves it

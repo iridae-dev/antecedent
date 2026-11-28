@@ -17,17 +17,17 @@ class NixCaptureTest(unittest.TestCase):
                 "crate": "toy", "target_kind": "lib", "target_name": "", "binary": "targets/toy/lib/lib/bin/test"}
     built = {"source": source, "artifact": artifact, "sandbox_verified": False, "evidence_authorized": False}
 
-    def test_cli_routes_owed_rust_rows_to_the_selected_backend(self):
+    def test_cli_earns_owed_rust_rows_from_the_nix_build(self):
         row = {"selector": "crates/toy/src/lib.rs::t", "evidence_test": "crates/toy/src/lib.rs"}
-        for backend in ("nix", "cargo"):
-            with patch.object(scientific_records, "require_compile_environment", create=True), \
-                 patch("evidence_earning.require_compile_environment"), \
-                 patch.object(scientific_records, "all_scientific_rows", return_value=[row]), \
-                 patch.object(scientific_records, "classify", return_value=([row], [])), \
-                 patch.object(scientific_records, "earn_rust", return_value=0) as earn:
-                args = argparse.Namespace(rust_build_backend=backend, only=None, all=False)
-                self.assertEqual(scientific_records.cmd_run(self.root, args), 0)
-            self.assertEqual(earn.call_args.kwargs["backend"], backend)
+        with patch.object(scientific_records, "require_compile_environment", create=True), \
+             patch("evidence_earning.require_compile_environment"), \
+             patch.object(scientific_records, "all_scientific_rows", return_value=[row]), \
+             patch.object(scientific_records, "classify", return_value=([row], [])), \
+             patch.object(scientific_records, "earn_rust", return_value=0) as earn:
+            args = argparse.Namespace(only=None, all=False)
+            self.assertEqual(scientific_records.cmd_run(self.root, args), 0)
+        earn.assert_called_once()
+        self.assertNotIn("backend", earn.call_args.kwargs)
 
     def test_capture_uses_exact_artifact_binary_and_rechecks_before_after(self):
         capture = {"/nix/store/source/crates/toy/src/lib.rs": {1}}
